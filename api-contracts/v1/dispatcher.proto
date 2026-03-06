@@ -108,9 +108,8 @@ message DurableTaskTriggerRunsRequest {
     // and other problems from duplication. It also allows for older invocations to be evicted cleanly
     int32 invocation_count = 1;
     string durable_task_external_id = 2;
-    optional bytes payload = 3;
 
-    repeated TriggerWorkflowRequest trigger_opts = 4;
+    repeated TriggerWorkflowRequest trigger_opts = 3;
 }
 
 message DurableTaskWaitForRequest {

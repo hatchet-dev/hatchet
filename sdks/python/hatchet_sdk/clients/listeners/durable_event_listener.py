@@ -16,16 +16,18 @@ from hatchet_sdk.clients.admin import (
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    DurableEventLogEntryRef,
     DurableTaskAwaitedCompletedEntry,
     DurableTaskCompleteMemoRequest,
     DurableTaskErrorType,
-    DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
-    DurableTaskEventRequest,
     DurableTaskEvictInvocationRequest,
+    DurableTaskMemoRequest,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
+    DurableTaskTriggerRunsRequest,
+    DurableTaskWaitForRequest,
     DurableTaskWorkerStatusRequest,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
@@ -96,8 +98,8 @@ class DurableTaskEventLogEntryResult(BaseModel):
             payload = json.loads(proto.payload.decode("utf-8"))
 
         return cls(
-            durable_task_external_id=proto.durable_task_external_id,
-            node_id=proto.node_id,
+            durable_task_external_id=proto.ref.durable_task_external_id,
+            node_id=proto.ref.node_id,
             payload=payload,
         )
 
@@ -303,7 +305,7 @@ class DurableEventListener:
         if response.HasField("register_worker"):
             pass
         elif response.HasField("trigger_ack"):
-            trigger_ack = response.trigger_ack
+            trigger_ack = response.trigger_runs_ack
             event_key = (
                 trigger_ack.durable_task_external_id,
                 trigger_ack.invocation_count,
@@ -321,7 +323,7 @@ class DurableEventListener:
                     DurableTaskEventAck(
                         invocation_count=trigger_ack.invocation_count,
                         durable_task_external_id=trigger_ack.durable_task_external_id,
-                        node_id=trigger_ack.node_id,
+                        node_id=1,
                         branch_id=trigger_ack.branch_id,
                         memo_already_existed=trigger_ack.memo_already_existed,
                         memo_result_payload=trigger_ack.memo_result_payload,
@@ -332,10 +334,10 @@ class DurableEventListener:
         elif response.HasField("entry_completed"):
             completed = response.entry_completed
             completed_key = (
-                completed.durable_task_external_id,
-                completed.invocation_count,
-                completed.branch_id,
-                completed.node_id,
+                completed.ref.durable_task_external_id,
+                completed.ref.invocation_count,
+                completed.ref.branch_id,
+                completed.ref.node_id,
             )
             result = DurableTaskEventLogEntryResult.from_proto(completed)
             if completed_key in self._pending_callbacks:
@@ -364,10 +366,10 @@ class DurableEventListener:
                 == DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_NONDETERMINISM
             ):
                 exc = NonDeterminismError(
-                    task_external_id=error.durable_task_external_id,
-                    invocation_count=error.invocation_count,
+                    task_external_id=error.ref.durable_task_external_id,
+                    invocation_count=error.ref.invocation_count,
                     message=error.error_message,
-                    node_id=error.node_id,
+                    node_id=error.ref.node_id,
                 )
             else:
                 ## fallthrough, this shouldn't happen unless we add an error type to the engine and the SDK
@@ -378,17 +380,17 @@ class DurableEventListener:
                     + f" (type: {error.error_type})"
                 )
 
-            event_key = (error.durable_task_external_id, error.invocation_count)
+            event_key = (error.ref.durable_task_external_id, error.ref.invocation_count)
             if event_key in self._pending_event_acks:
                 error_pending_ack_future = self._pending_event_acks.pop(event_key)
                 if not error_pending_ack_future.done():
                     error_pending_ack_future.set_exception(exc)
 
             callback_key = (
-                error.durable_task_external_id,
-                error.invocation_count,
-                error.branch_id,
-                error.node_id,
+                error.ref.durable_task_external_id,
+                error.ref.invocation_count,
+                error.ref.branch_id,
+                error.ref.node_id,
             )
 
             if callback_key in self._pending_callbacks:
@@ -399,8 +401,8 @@ class DurableEventListener:
                     error_pending_callback_future.set_exception(exc)
 
             error_eviction_key: PendingEvictionAck = (
-                error.durable_task_external_id,
-                error.invocation_count,
+                error.ref.durable_task_external_id,
+                error.ref.invocation_count,
             )
             if error_eviction_key in self._pending_eviction_acks:
                 eviction_future = self._pending_eviction_acks.pop(error_eviction_key)
@@ -429,6 +431,8 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
+        request: DurableTaskRequest
+
         if isinstance(event, RunChildrenEvent):
             trigger_opts_list = [
                 self.admin_client._create_workflow_run_request(
@@ -439,38 +443,39 @@ class DurableEventListener:
                 for child in event.children
             ]
 
-            event_request = DurableTaskEventRequest(
+            trigger_req = DurableTaskTriggerRunsRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
-                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
                 trigger_opts=trigger_opts_list,
             )
 
+            request = DurableTaskRequest(trigger_runs=trigger_req)
+
         elif isinstance(event, WaitForEvent):
-            event_request = DurableTaskEventRequest(
+            wait_req = DurableTaskWaitForRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
-                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
+                wait_for_conditions=event.wait_for_conditions,
             )
 
-            event_request.wait_for_conditions.CopyFrom(event.wait_for_conditions)
-
+            request = DurableTaskRequest(wait_for=wait_req)
         elif isinstance(event, MemoEvent):
-            event_request = DurableTaskEventRequest(
+            memo_req = DurableTaskMemoRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
-                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
-                memo_key=event.memo_key,
+                key=event.memo_key,
             )
 
             if event.result is not None:
-                event_request.payload = event.result.encode("utf-8")
+                memo_req.payload = event.result.encode("utf-8")
+
+            request = DurableTaskRequest(memo=memo_req)
 
         else:
             e: Never = event
             raise ValueError(f"Unknown durable task send event: {e}")
 
-        await self._request_queue.put(DurableTaskRequest(event=event_request))
+        await self._request_queue.put(request)
 
         return await future
 
@@ -577,10 +582,12 @@ class DurableEventListener:
         await self._request_queue.put(
             DurableTaskRequest(
                 complete_memo=DurableTaskCompleteMemoRequest(
-                    durable_task_external_id=durable_task_external_id,
-                    invocation_count=invocation_count,
-                    branch_id=branch_id,
-                    node_id=node_id,
+                    ref=DurableEventLogEntryRef(
+                        durable_task_external_id=durable_task_external_id,
+                        node_id=node_id,
+                        invocation_count=invocation_count,
+                        branch_id=branch_id,
+                    ),
                     memo_key=memo_key,
                     payload=memo_result_payload,
                 )

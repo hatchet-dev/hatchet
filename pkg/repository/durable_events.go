@@ -43,7 +43,6 @@ type IngestMemoOpts struct {
 }
 
 type IngestTriggerRunsOpts struct {
-	Payload     []byte
 	TriggerOpts []*WorkflowNameTriggerOpts `validate:"required,min=1"`
 }
 
@@ -432,7 +431,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		nodeIds[i] = o.NodeId
 	}
 
-	// Bulk-fetch any existing entries for these (task, branch, node) tuples.
 	existingEntries, err := r.queries.BulkGetDurableEventLogEntries(ctx, tx, sqlcv1.BulkGetDurableEventLogEntriesParams{
 		Durabletaskid:         opts[0].DurableTaskId,
 		Durabletaskinsertedat: opts[0].DurableTaskInsertedAt,
@@ -489,7 +487,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 	}
 
-	// Bulk-create entries that don't exist yet.
 	var createdByNodeId map[int64]*sqlcv1.V1DurableEventLogEntry
 
 	if len(newEntries) > 0 {
@@ -530,7 +527,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			createdByNodeId[row.NodeID] = row
 		}
 
-		// Store input and result payloads for newly created entries.
 		storePayloadOpts := make([]StorePayloadOpts, 0, len(newEntries)*2)
 		for _, ne := range newEntries {
 			o := opts[ne.optIdx]
@@ -567,12 +563,10 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 	}
 
-	// Stale entries (mismatched invocation count) are treated as already-existed.
 	for _, se := range staleEntries {
 		existedEntries[se.optIdx] = se.entry
 	}
 
-	// Retrieve result payloads for entries that already existed.
 	var retrieveOpts []RetrievePayloadOpts
 	for _, entry := range existedEntries {
 		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
@@ -591,7 +585,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 	}
 
-	// Build results, one per input opt, preserving order.
 	results := make([]*EventLogEntryWithPayloads, n)
 	for i, o := range opts {
 		if existingEntry, ok := existedEntries[i]; ok {

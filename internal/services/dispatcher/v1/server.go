@@ -619,7 +619,6 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 			InvocationCount: req.InvocationCount,
 		},
 		TriggerRuns: &v1.IngestTriggerRunsOpts{
-			Payload:     req.Payload,
 			TriggerOpts: triggerOpts,
 		},
 	})
