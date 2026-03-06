@@ -23,13 +23,6 @@ message DurableTaskResponseRegisterWorker {
     string worker_id = 1;
 }
 
-enum DurableTaskEventKind {
-    DURABLE_TASK_TRIGGER_KIND_UNSPECIFIED = 0;
-    DURABLE_TASK_TRIGGER_KIND_RUN = 1;
-    DURABLE_TASK_TRIGGER_KIND_WAIT_FOR = 2;
-    DURABLE_TASK_TRIGGER_KIND_MEMO = 3;
-}
-
 message DurableEventLogEntryRef {
     string durable_task_external_id = 1;
     int32 invocation_count = 2;
@@ -100,12 +93,10 @@ message DurableTaskMemoRequest {
     int32 invocation_count = 1;
     string durable_task_external_id = 2;
 
-    DurableTaskEventKind kind = 3; // always MEMO here
-
-    bytes key = 4;
+    bytes key = 3;
 
     // optional payload because we can send a memo request to check if a memo already exists
-    optional bytes payload = 5;
+    optional bytes payload = 4;
 }
 
 message DurableTaskTriggerRunsRequest {
@@ -116,10 +107,9 @@ message DurableTaskTriggerRunsRequest {
     // and other problems from duplication. It also allows for older invocations to be evicted cleanly
     int32 invocation_count = 1;
     string durable_task_external_id = 2;
-    DurableTaskEventKind kind = 3;
-    optional bytes payload = 4;
+    optional bytes payload = 3;
 
-    repeated TriggerWorkflowRequest trigger_opts = 5;
+    repeated TriggerWorkflowRequest trigger_opts = 4;
 }
 
 message DurableTaskWaitForRequest {
@@ -131,10 +121,8 @@ message DurableTaskWaitForRequest {
     int32 invocation_count = 1;
     string durable_task_external_id = 2;
 
-    DurableTaskEventKind kind = 3; // always WAIT_FOR here
-
     // Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR
-    optional DurableEventListenerConditions wait_for_conditions = 4;
+    optional DurableEventListenerConditions wait_for_conditions = 3;
 }
 
 message DurableTaskRequest {
