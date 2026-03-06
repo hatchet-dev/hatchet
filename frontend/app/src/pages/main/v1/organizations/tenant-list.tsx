@@ -1,3 +1,4 @@
+import { formatInviteExpiry } from './format-invite-expiry';
 import type { TenantWithRole } from './index';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
@@ -19,7 +20,6 @@ import { capitalize } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { Link } from '@tanstack/react-router';
-import { formatInviteExpiry } from './format-invite-expiry';
 import { useState } from 'react';
 
 export const TenantTable = ({
@@ -102,7 +102,7 @@ export const TenantTable = ({
                         <ChevronRightIcon
                           className={`size-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                         />
-                        {members.length + invites.length}
+                        {members.length}
                       </button>
                     ) : null}
                   </TableCell>
@@ -125,7 +125,6 @@ export const TenantTable = ({
                       key={`${tenant.metadata.id}-${member.metadata?.id}`}
                       className="bg-muted/30"
                     >
-                      <TableCell />
                       <TableCell>
                         <span className="text-sm">
                           {member.user?.email ?? '-'}
@@ -138,6 +137,7 @@ export const TenantTable = ({
                       </TableCell>
                       <TableCell />
                       <TableCell />
+                      <TableCell />
                     </TableRow>
                   ))}
                 {isExpanded &&
@@ -146,7 +146,6 @@ export const TenantTable = ({
                       key={`${tenant.metadata.id}-invite-${invite.metadata.id}`}
                       className="bg-muted/30 text-muted-foreground"
                     >
-                      <TableCell />
                       <TableCell>
                         <span className="text-sm">{invite.email}</span>
                       </TableCell>
@@ -155,6 +154,7 @@ export const TenantTable = ({
                           Invited {formatInviteExpiry(invite.expires)}
                         </span>
                       </TableCell>
+                      <TableCell />
                       <TableCell />
                       <TableCell />
                     </TableRow>
