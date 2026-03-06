@@ -8,6 +8,24 @@
  * patching module prototypes to automatically instrument all instances.
  */
 
+import type { Context as OtelContext, Span, Attributes } from '@opentelemetry/api';
+
+import type { InstrumentationConfig } from '@opentelemetry/instrumentation';
+
+import { HATCHET_VERSION } from '@hatchet/version';
+import { Action } from '@hatchet/clients/dispatcher/action-listener';
+import type {
+  EventClient,
+  PushEventOptions,
+  EventWithMetadata,
+} from '@hatchet/clients/event/event-client';
+import type { AdminClient } from '@hatchet/v1/client/admin';
+import type { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
+import { OTelAttribute } from '../util/opentelemetry';
+import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
+import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
+import { ScheduleClient } from '../v1/client/features/schedules';
+
 try {
   require.resolve('@opentelemetry/api');
   require.resolve('@opentelemetry/instrumentation');
@@ -19,30 +37,19 @@ try {
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const otelApi = require('@opentelemetry/api') as typeof import('@opentelemetry/api');
+
 const { trace, context, propagation, SpanKind, SpanStatusCode, diag } = otelApi;
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const otelInstrumentation = require('@opentelemetry/instrumentation') as typeof import('@opentelemetry/instrumentation');
-const { InstrumentationBase, InstrumentationNodeModuleDefinition, InstrumentationNodeModuleFile, safeExecuteInTheMiddle, isWrapped } =
-  otelInstrumentation;
+const otelInstrumentation =
+  require('@opentelemetry/instrumentation') as typeof import('@opentelemetry/instrumentation');
 
-import type {
-  Context as OtelContext,
-  Span,
-  Attributes,
-} from '@opentelemetry/api';
-
-import type { InstrumentationConfig } from '@opentelemetry/instrumentation';
-
-import { HATCHET_VERSION } from '@hatchet/version';
-import { Action } from '@hatchet/clients/dispatcher/action-listener';
-import type { EventClient, PushEventOptions, EventWithMetadata } from '@hatchet/clients/event/event-client';
-import type { AdminClient } from '@hatchet/v1/client/admin';
-import type { InternalWorker  } from '@hatchet/v1/client/worker/worker-internal';
-import { OTelAttribute } from '../util/opentelemetry';
-import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
-import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
-import { ScheduleClient } from '../v1/client/features/schedules';
+const {
+  InstrumentationBase,
+  InstrumentationNodeModuleDefinition,
+  InstrumentationNodeModuleFile,
+  isWrapped,
+} = otelInstrumentation;
 
 type HatchetInstrumentationConfig = OpenTelemetryConfig & InstrumentationConfig;
 type Carrier = Record<string, string>;
@@ -100,7 +107,6 @@ function getActionOtelAttributes(
 
   return filtered;
 }
-
 
 function filterAttributes(
   attributes: Record<string, any>,
@@ -185,7 +191,6 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     return [moduleDefinition];
   }
 
-
   private patchEventClient(moduleExports: any, moduleVersion?: string): any {
     if (!moduleExports?.EventClient?.prototype) {
       diag.debug('hatchet instrumentation: EventClient not found in module exports');
@@ -233,7 +238,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               ? JSON.stringify(options.additionalMetadata)
               : undefined,
             [OTelAttribute.PRIORITY]: options.priority,
-            [OTelAttribute.FILTER_SCOPE]: options.scope
+            [OTelAttribute.FILTER_SCOPE]: options.scope,
           },
           self.getConfig().excludedAttributes
         );
@@ -398,7 +403,8 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               additionalMetadata: enhancedMetadata,
             };
 
-            return original.call(this, workflowName, input, enhancedOptions)
+            return original
+              .call(this, workflowName, input, enhancedOptions)
               .catch((error: Error) => {
                 span.recordException(error);
                 span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
@@ -464,7 +470,8 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               };
             });
 
-            return original.call(this, enhancedWorkflowRuns, batchSize)
+            return original
+              .call(this, enhancedWorkflowRuns, batchSize)
               .catch((error: Error) => {
                 span.recordException(error);
                 span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
@@ -513,43 +520,52 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     }
     const self = this;
 
-    this._wrap(prototype, 'handleStartStepRun', (original: InternalWorker['handleStartStepRun']) => {
-      return async function wrappedHandleStartStepRun(
-        this: InternalWorker,
-        action: Action
-      ): Promise<Error | undefined> {
-        const additionalMetadata = parseAdditionalMetadata(action);
-        const parentContext = extractContext(additionalMetadata);
-        const attributes = getActionOtelAttributes(action, self.getConfig().excludedAttributes, this.workerId);
+    this._wrap(
+      prototype,
+      'handleStartStepRun',
+      (original: InternalWorker['handleStartStepRun']) => {
+        return async function wrappedHandleStartStepRun(
+          this: InternalWorker,
+          action: Action
+        ): Promise<Error | undefined> {
+          const additionalMetadata = parseAdditionalMetadata(action);
+          const parentContext = extractContext(additionalMetadata);
+          const attributes = getActionOtelAttributes(
+            action,
+            self.getConfig().excludedAttributes,
+            this.workerId
+          );
 
-        let spanName = 'hatchet.start_step_run';
-        if (self.getConfig().includeTaskNameInSpanName) {
-          spanName += `.${action.actionId}`;
-        }
-
-        return self.tracer.startActiveSpan(
-          spanName,
-          {
-            kind: SpanKind.CONSUMER,
-            attributes,
-          },
-          parentContext,
-          (span: Span) => {
-            return original.call(this, action)
-              .then((taskError: Error | undefined) => {
-                if (taskError instanceof Error) {
-                  span.recordException(taskError);
-                  span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
-                }
-                return taskError;
-              })
-              .finally(() => {
-                span.end();
-              });
+          let spanName = 'hatchet.start_step_run';
+          if (self.getConfig().includeTaskNameInSpanName) {
+            spanName += `.${action.actionId}`;
           }
-        );
-      };
-    });
+
+          return self.tracer.startActiveSpan(
+            spanName,
+            {
+              kind: SpanKind.CONSUMER,
+              attributes,
+            },
+            parentContext,
+            (span: Span) => {
+              return original
+                .call(this, action)
+                .then((taskError: Error | undefined) => {
+                  if (taskError instanceof Error) {
+                    span.recordException(taskError);
+                    span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
+                  }
+                  return taskError;
+                })
+                .finally(() => {
+                  span.end();
+                });
+            }
+          );
+        };
+      }
+    );
   }
 
   private _patchHandleCancelStepRun(prototype: InternalWorker): void {
@@ -558,31 +574,35 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     }
     const self = this;
 
-    this._wrap(prototype, 'handleCancelStepRun', (original: InternalWorker['handleCancelStepRun']) => {
-      return async function wrappedHandleCancelStepRun(
-        this: InternalWorker,
-        action: Action
-      ): Promise<void> {
-        const attributes: Attributes = {
-          [`hatchet.${OTelAttribute.STEP_RUN_ID}`]: action.stepRunId,
+    this._wrap(
+      prototype,
+      'handleCancelStepRun',
+      (original: InternalWorker['handleCancelStepRun']) => {
+        return async function wrappedHandleCancelStepRun(
+          this: InternalWorker,
+          action: Action
+        ): Promise<void> {
+          const attributes: Attributes = {
+            [`hatchet.${OTelAttribute.STEP_RUN_ID}`]: action.stepRunId,
+          };
+
+          return self.tracer.startActiveSpan(
+            'hatchet.cancel_step_run',
+            {
+              kind: SpanKind.CONSUMER,
+              attributes,
+            },
+            (span: Span) => {
+              const result = original.call(this, action);
+
+              return result.finally(() => {
+                span.end();
+              });
+            }
+          );
         };
-
-        return self.tracer.startActiveSpan(
-          'hatchet.cancel_step_run',
-          {
-            kind: SpanKind.CONSUMER,
-            attributes,
-          },
-          (span: Span) => {
-            const result = original.call(this, action);
-
-            return result.finally(() => {
-              span.end();
-            });
-          }
-        );
-      };
-    });
+      }
+    );
   }
 
   private patchScheduleClient(moduleExports: any, moduleVersion?: string): any {
@@ -621,9 +641,10 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         workflow: string,
         input: any
       ): Promise<ScheduledWorkflows> {
-        const triggerAtIso = input.triggerAt instanceof Date
-          ? input.triggerAt.toISOString()
-          : new Date(input.triggerAt).toISOString();
+        const triggerAtIso =
+          input.triggerAt instanceof Date
+            ? input.triggerAt.toISOString()
+            : new Date(input.triggerAt).toISOString();
 
         const attributes = filterAttributes(
           {
@@ -654,7 +675,8 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               additionalMetadata: enhancedMetadata,
             };
 
-            return original.call(this, workflow, enhancedInput)
+            return original
+              .call(this, workflow, enhancedInput)
               .catch((error: Error) => {
                 span.recordException(error);
                 span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
@@ -668,7 +690,6 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
       };
     });
   }
-
 }
 
 export default HatchetInstrumentor;

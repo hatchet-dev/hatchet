@@ -122,7 +122,6 @@ export class ConfigLoader {
     };
   }
 
-
   private static parseJsonArray(value: string): string[] {
     try {
       const parsed = JSON.parse(value);
