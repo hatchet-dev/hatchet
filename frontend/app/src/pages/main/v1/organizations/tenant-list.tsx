@@ -190,7 +190,17 @@ export const TenantList = ({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Tenants</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Tenants</h2>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => globalEmitter.emit('create-new-tenant', {})}
+          leftIcon={<PlusIcon className="size-4" />}
+        >
+          Add a tenant
+        </Button>
+      </div>
       <TenantTable
         tenants={tenants}
         tenantMembers={tenantMembers}
