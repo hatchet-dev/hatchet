@@ -1,8 +1,6 @@
 import os
 from typing import cast
-from dotenv import load_dotenv
 
-load_dotenv()  # Load .env file from current directory or parents
 
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
