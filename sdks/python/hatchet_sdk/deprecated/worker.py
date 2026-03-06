@@ -142,6 +142,7 @@ async def legacy_aio_start(worker: Worker) -> None:
             )
         )
 
+        await worker.action_runner.wait_for_tasks()
         await worker.action_listener_health_check
 
         try:
