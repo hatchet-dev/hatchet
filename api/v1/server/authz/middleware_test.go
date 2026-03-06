@@ -49,8 +49,7 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 		l:      nil,
 	}
 	allOperations := operationIdsFromSpec()
-	for i := 0; i < len(allOperations); i++ {
-		operationId := allOperations[i]
+	for _, operationId := range allOperations {
 		assert.Equal(t, az.authorizeTenantOperations(sqlcv1.TenantMemberRoleADMIN, createRouteInfo(operationId)), nil)
 		assert.Equal(t, az.authorizeTenantOperations(sqlcv1.TenantMemberRoleOWNER, createRouteInfo(operationId)), nil)
 		if operationIn(operationId, adminAndOwnerOnly) {

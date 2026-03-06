@@ -211,14 +211,14 @@ type PermissionMap struct {
 	Roles map[string]*Role
 }
 
-func (b *PermissionMap) RecurseOnRole(role *Role) []string {
+func (p *PermissionMap) RecurseOnRole(role *Role) []string {
 	if role.Inherits == nil || role.propagated {
 		role.propagated = true
 		return *role.Permissions
 	}
-	mergedPerms := make([]string, 0)
+	mergedPerms := []string{}
 	for _, perm := range *role.Inherits {
-		mergedPerms = append(mergedPerms, b.RecurseOnRole(b.Roles[perm])...)
+		mergedPerms = append(mergedPerms, p.RecurseOnRole(p.Roles[perm])...)
 	}
 	if role.Permissions != nil {
 		mergedPerms = append(mergedPerms, *role.Permissions...)
@@ -228,9 +228,9 @@ func (b *PermissionMap) RecurseOnRole(role *Role) []string {
 	return mergedPerms
 }
 
-func (b *PermissionMap) PropagatePerms() {
-	for _, role := range b.Roles {
-		b.RecurseOnRole(role)
+func (p *PermissionMap) PropagatePerms() {
+	for _, role := range p.Roles {
+		p.RecurseOnRole(role)
 	}
 }
 
