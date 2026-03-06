@@ -283,7 +283,7 @@ export function sideNavItems(opts: {
       items: [
         {
           key: 'organizations',
-          name: opts.isCloudEnabled ? 'Organizations and tenants' : 'Tenants',
+          name: opts.isCloudEnabled ? 'Organizations' : 'Tenants',
           to: appRoutes.tenantOrganizationsAndTenantsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiOrganizationChart
