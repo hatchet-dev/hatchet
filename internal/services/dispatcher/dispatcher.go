@@ -418,7 +418,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		)
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
+			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s (worker may still be reconnecting; polling path will catch up)", payload.TaskExternalId)
 		}
 	}
 

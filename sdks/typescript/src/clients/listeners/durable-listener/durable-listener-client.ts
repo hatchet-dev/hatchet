@@ -169,7 +169,11 @@ export class DurableListenerClient {
     PendingCallbackKey,
     Deferred<DurableTaskEventLogEntryResult>
   >();
-  private _earlyCompletions = new Map<PendingCallbackKey, DurableTaskEventLogEntryResult>();
+  // Completions that arrived before waitForCallback() registered a deferred
+  // in _pendingCallbacks. This happens when the server delivers an
+  // entryCompleted between the event ack and the waitForCallback call
+  // (e.g. an already-satisfied sleep delivered via polling).
+  private _bufferedCompletions = new Map<PendingCallbackKey, DurableTaskEventLogEntryResult>();
   private _pendingEvictionAcks = new Map<PendingEvictionAckKey, Deferred<void>>();
 
   private _receiveAbort: AbortController | undefined;
@@ -341,17 +345,10 @@ export class DurableListenerClient {
     }
     this._pendingEventAcks.clear();
 
-    for (const d of this._pendingCallbacks.values()) {
-      d.reject(exc);
-    }
-    this._pendingCallbacks.clear();
-
     for (const d of this._pendingEvictionAcks.values()) {
       d.reject(exc);
     }
     this._pendingEvictionAcks.clear();
-
-    this._earlyCompletions.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
@@ -420,7 +417,7 @@ export class DurableListenerClient {
         pending.resolve(result);
         this._pendingCallbacks.delete(key);
       } else {
-        this._earlyCompletions.set(key, result);
+        this._bufferedCompletions.set(key, result);
       }
     } else if (response.evictionAck) {
       const ack = response.evictionAck;
@@ -565,9 +562,9 @@ export class DurableListenerClient {
   ): Promise<DurableTaskEventLogEntryResult> {
     const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
 
-    const early = this._earlyCompletions.get(key);
+    const early = this._bufferedCompletions.get(key);
     if (early) {
-      this._earlyCompletions.delete(key);
+      this._bufferedCompletions.delete(key);
       return early;
     }
 
@@ -636,10 +633,10 @@ export class DurableListenerClient {
       }
     }
 
-    for (const k of this._earlyCompletions.keys()) {
+    for (const k of this._bufferedCompletions.keys()) {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
-        this._earlyCompletions.delete(k);
+        this._bufferedCompletions.delete(k);
       }
     }
   }

@@ -158,9 +158,11 @@ class DurableEventListener:
             PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
-        # TODO-DURABLE: This is a hack to handle the case where a task is completed before the event listener is connected.
-        # We should probably figure out WHY this is happening and fix it.
-        self._early_completions: dict[
+        # Completions that arrived before wait_for_callback() registered a
+        # future in _pending_callbacks. This happens when the server delivers
+        # an entry_completed between the event ack and the wait_for_callback
+        # call (e.g. an already-satisfied sleep delivered via polling).
+        self._buffered_completions: dict[
             PendingCallback, DurableTaskEventLogEntryResult
         ] = {}
 
@@ -276,6 +278,11 @@ class DurableEventListener:
             if not future.done():
                 future.set_exception(exc)
         self._pending_event_acks.clear()
+
+        for eviction_future in self._pending_eviction_acks.values():
+            if not eviction_future.done():
+                eviction_future.set_exception(exc)
+        self._pending_eviction_acks.clear()
 
     async def _receive_loop(self) -> None:
         while self._running:
@@ -401,7 +408,7 @@ class DurableEventListener:
                     completed_future.set_result(result)
                 del self._pending_callbacks[completed_key]
             else:
-                self._early_completions[completed_key] = result
+                self._buffered_completions[completed_key] = result
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -556,8 +563,8 @@ class DurableEventListener:
     ) -> DurableTaskEventLogEntryResult:
         key = (durable_task_external_id, invocation_count, branch_id, node_id)
 
-        if key in self._early_completions:
-            return self._early_completions.pop(key)
+        if key in self._buffered_completions:
+            return self._buffered_completions.pop(key)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
@@ -591,11 +598,11 @@ class DurableEventListener:
 
         stale_early_keys = [
             ek
-            for ek in self._early_completions
+            for ek in self._buffered_completions
             if ek[0] == durable_task_external_id and ek[1] <= invocation_count
         ]
         for ek in stale_early_keys:
-            del self._early_completions[ek]
+            del self._buffered_completions[ek]
 
     _EVICTION_ACK_TIMEOUT_S = 30.0
 
