@@ -450,7 +450,10 @@ export class InternalWorker {
         const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
         if (ctx) {
           const invocationCount = ctx.invocationCount ?? 1;
-          this.client.durableListener.cleanupTaskState(ctx.action.taskRunExternalId, invocationCount);
+          this.client.durableListener.cleanupTaskState(
+            ctx.action.taskRunExternalId,
+            invocationCount
+          );
           if (ctx.abortController) {
             ctx.abortController.abort(err);
           }
@@ -503,7 +506,12 @@ export class InternalWorker {
           await durableListener.ensureStarted(this.workerId || '');
           mgr = this.ensureEvictionManager();
           const evictionPolicy = this.eviction_policies.get(actionId);
-          mgr.registerRun(actionKey, taskRunExternalId, action.durableTaskInvocationCount ?? 1, evictionPolicy);
+          mgr.registerRun(
+            actionKey,
+            taskRunExternalId,
+            action.durableTaskInvocationCount ?? 1,
+            evictionPolicy
+          );
         }
 
         context = new DurableContext(

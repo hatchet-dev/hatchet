@@ -285,7 +285,13 @@ describe('DurableEvictionCache', () => {
 
       it('respects allowCapacityEviction=false', () => {
         for (let i = 0; i < DURABLE_SLOTS; i += 1) {
-          cache.registerRun(`k${i}/0`, `ext-${i}`, 1, T0, makePolicy({ allowCapacityEviction: false }));
+          cache.registerRun(
+            `k${i}/0`,
+            `ext-${i}`,
+            1,
+            T0,
+            makePolicy({ allowCapacityEviction: false })
+          );
           cache.markWaiting(`k${i}/0`, T0, 'sleep', 'r');
         }
         expect(
@@ -299,7 +305,13 @@ describe('DurableEvictionCache', () => {
       });
 
       it('skips allowCapacityEviction=false but evicts others', () => {
-        cache.registerRun('protected/0', 'ext-p', 1, T0, makePolicy({ allowCapacityEviction: false }));
+        cache.registerRun(
+          'protected/0',
+          'ext-p',
+          1,
+          T0,
+          makePolicy({ allowCapacityEviction: false })
+        );
         cache.markWaiting('protected/0', T0, 'sleep', 'r');
         for (let i = 1; i < DURABLE_SLOTS; i += 1) {
           cache.registerRun(`k${i}/0`, `ext-${i}`, 1, T0, makePolicy());

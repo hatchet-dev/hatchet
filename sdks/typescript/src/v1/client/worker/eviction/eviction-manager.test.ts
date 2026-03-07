@@ -1,7 +1,7 @@
 /* eslint-disable no-underscore-dangle */
+import { Logger } from '@hatchet/util/logger';
 import { DurableEvictionManager } from './eviction-manager';
 import { DurableEvictionCache } from './eviction-cache';
-import { Logger } from '@hatchet/util/logger';
 
 class NoopLogger extends Logger {
   debug() {}
@@ -34,7 +34,11 @@ describe('DurableEvictionManager', () => {
     it('cancels and unregisters the matching run when invocationCount matches', () => {
       const { manager, cancelLocal } = makeManager();
 
-      manager.registerRun('run-1/0', 'ext-1', 2, { ttl: '30s', allowCapacityEviction: true, priority: 0 });
+      manager.registerRun('run-1/0', 'ext-1', 2, {
+        ttl: '30s',
+        allowCapacityEviction: true,
+        priority: 0,
+      });
       manager.markWaiting('run-1/0', 'sleep', 's1');
 
       manager.handleServerEviction('ext-1', 2);
@@ -57,8 +61,16 @@ describe('DurableEvictionManager', () => {
     it('only evicts the matching run, not others', () => {
       const { manager, cancelLocal } = makeManager();
 
-      manager.registerRun('run-1/0', 'ext-1', 1, { ttl: '30s', allowCapacityEviction: true, priority: 0 });
-      manager.registerRun('run-2/0', 'ext-2', 1, { ttl: '30s', allowCapacityEviction: true, priority: 0 });
+      manager.registerRun('run-1/0', 'ext-1', 1, {
+        ttl: '30s',
+        allowCapacityEviction: true,
+        priority: 0,
+      });
+      manager.registerRun('run-2/0', 'ext-2', 1, {
+        ttl: '30s',
+        allowCapacityEviction: true,
+        priority: 0,
+      });
       manager.markWaiting('run-1/0', 'sleep', 's1');
       manager.markWaiting('run-2/0', 'sleep', 's2');
 
@@ -73,7 +85,11 @@ describe('DurableEvictionManager', () => {
     it('does not evict when invocationCount does not match (newer invocation)', () => {
       const { manager, cancelLocal } = makeManager();
 
-      manager.registerRun('run-1/0', 'ext-1', 3, { ttl: '30s', allowCapacityEviction: true, priority: 0 });
+      manager.registerRun('run-1/0', 'ext-1', 3, {
+        ttl: '30s',
+        allowCapacityEviction: true,
+        priority: 0,
+      });
       manager.markWaiting('run-1/0', 'sleep', 's1');
 
       manager.handleServerEviction('ext-1', 2);
@@ -85,7 +101,11 @@ describe('DurableEvictionManager', () => {
     it('evicts when invocationCount matches exactly', () => {
       const { manager, cancelLocal } = makeManager();
 
-      manager.registerRun('run-1/0', 'ext-1', 5, { ttl: '30s', allowCapacityEviction: true, priority: 0 });
+      manager.registerRun('run-1/0', 'ext-1', 5, {
+        ttl: '30s',
+        allowCapacityEviction: true,
+        priority: 0,
+      });
       manager.markWaiting('run-1/0', 'sleep', 's1');
 
       manager.handleServerEviction('ext-1', 5);
