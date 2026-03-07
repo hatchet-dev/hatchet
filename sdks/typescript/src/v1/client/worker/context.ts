@@ -869,7 +869,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   }
 
   private get _actionKey(): ActionKey {
-    return `${this.action.taskRunExternalId}/${this.action.retryCount}`;
+    return this.action.key;
   }
 
   private async withEvictionWait<R>(

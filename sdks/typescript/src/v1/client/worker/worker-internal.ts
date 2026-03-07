@@ -5,7 +5,7 @@ import {
   TaskRunTerminatedError,
   isTaskRunTerminatedError,
 } from '@util/errors/task-run-terminated-error';
-import { Action, ActionListener } from '@clients/dispatcher/action-listener';
+import { Action, ActionKey, ActionListener } from '@clients/dispatcher/action-listener';
 import {
   StepActionEvent,
   StepActionEventType,
@@ -41,7 +41,7 @@ import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
 import { SlotConfig } from '../../slot-types';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { EvictionPolicy, DEFAULT_DURABLE_TASK_EVICTION_POLICY } from './eviction/eviction-policy';
-import { ActionKey, DurableRunRecord } from './eviction/eviction-cache';
+import { DurableRunRecord } from './eviction/eviction-cache';
 import { supportsEviction } from './engine-version';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -492,7 +492,7 @@ export class InternalWorker {
 
   async handleStartStepRun(action: Action) {
     const { actionId, taskRunExternalId, taskName } = action;
-    const actionKey: ActionKey = `${taskRunExternalId}/${action.retryCount}`;
+    const actionKey = action.key;
 
     try {
       const isDurable = this.durable_action_set.has(actionId);
@@ -760,7 +760,7 @@ export class InternalWorker {
 
   async handleCancelStepRun(action: Action) {
     const { taskRunExternalId, taskName } = action;
-    const actionKey: ActionKey = `${taskRunExternalId}/${action.retryCount}`;
+    const actionKey = action.key;
 
     try {
       const future = this.futures[actionKey];

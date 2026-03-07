@@ -1,8 +1,4 @@
-import {
-  DispatcherClient as PbDispatcherClient,
-  AssignedAction,
-  ActionType,
-} from '@hatchet/protoc/dispatcher';
+import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
 import { isAbortError } from 'abort-controller-x';
@@ -23,28 +19,20 @@ enum ListenStrategy {
   LISTEN_STRATEGY_V2 = 2,
 }
 
-export type Action = AssignedAction & {
-  /** @deprecated use taskRunId */
-  stepRunId?: string;
-  /** @deprecated use taskId */
-  stepId?: string;
-};
+export type ActionKey = `${string}/${number}`;
 
-export type ActionKey = string;
+export type Action = AssignedAction & { readonly key: ActionKey };
 
-export function createActionKey(action: Action): ActionKey {
-  switch (action.actionType) {
-    case ActionType.START_GET_GROUP_KEY:
-      return `${action.getGroupKeyRunId}/${action.retryCount}`;
-    case ActionType.CANCEL_STEP_RUN:
-    case ActionType.START_STEP_RUN:
-    case ActionType.UNRECOGNIZED:
-      return `${action.taskRunExternalId}/${action.retryCount}`;
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const exhaustivenessCheck: never = action.actionType;
-      throw new Error(`Unhandled action type: ${exhaustivenessCheck}`);
-  }
+export function createAction(assignedAction: AssignedAction): Action {
+  const action = assignedAction as Action;
+  Object.defineProperty(action, 'key', {
+    get(): ActionKey {
+      return `${this.taskRunExternalId}/${this.retryCount}`;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  return action;
 }
 
 export class ActionListener {
@@ -87,13 +75,7 @@ export class ActionListener {
           const listenClient = await client.getListenClient();
 
           for await (const assignedAction of listenClient) {
-            const action: Action = {
-              ...assignedAction,
-              stepRunId: assignedAction.taskRunExternalId,
-              stepId: assignedAction.taskId,
-            };
-
-            yield action;
+            yield createAction(assignedAction);
           }
         } catch (e: any) {
           // If the stream was aborted (e.g., during worker shutdown), exit gracefully

@@ -1,9 +1,10 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-shadow */
-import { durationToMs } from '../../duration';
+import { ActionKey } from '@hatchet/clients/dispatcher/action-listener';
 import { EvictionPolicy } from './eviction-policy';
+import { durationToMs } from '../../duration';
 
-export type ActionKey = `${string}/${number}`;
+export type { ActionKey };
 
 export enum EvictionCause {
   TTL_EXCEEDED = 'ttl_exceeded',
