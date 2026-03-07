@@ -810,25 +810,20 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			triggerRunsResult.CreatedTasks = createdTasks
 			triggerRunsResult.CreatedDAGs = createdDags
 
-			childTaskExternalIds := make([]uuid.UUID, len(createdTasks))
-			createMatchOpts := make([]CreateMatchOpts, 0, len(createdTasks))
+			createMatchOpts := make([]CreateMatchOpts, 0, len(createdTasks)+len(createdDags))
 
-			for _, task := range createdTasks {
-				childTaskExternalIds = append(childTaskExternalIds, task.ExternalID)
-			}
-
-			childExternalIdsForMatches := make([]uuid.UUID, len(createdTasks))
+			dagExternalIds := make(map[uuid.UUID]struct{}, len(createdDags))
 
 			for _, dag := range createdDags {
-				childExternalIdsForMatches = append(childExternalIdsForMatches, dag.ExternalID)
+				dagExternalIds[dag.ExternalID] = struct{}{}
 			}
 
-			for _, task := range createdTasks {
-				childExternalIdsForMatches = append(childExternalIdsForMatches, task.ExternalID)
-			}
+			for _, ct := range createdTasks {
+				if _, isDagTask := dagExternalIds[ct.WorkflowRunID]; isDagTask {
+					continue
+				}
 
-			for _, child := range childExternalIdsForMatches {
-				childHint := child.String()
+				childHint := ct.ExternalID.String()
 				orGroupId := uuid.New()
 
 				conditions := []GroupMatchCondition{
@@ -861,7 +856,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 					},
 				}
 
-				nodeIdBranchId := runExternalIdToNodeIdBranchId[child]
+				nodeIdBranchId := runExternalIdToNodeIdBranchId[ct.ExternalID]
 
 				nodeId := nodeIdBranchId.NodeId
 				branchId := nodeIdBranchId.BranchId
@@ -875,7 +870,73 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 					Conditions:                   conditions,
 					SignalTaskId:                 &taskId,
 					SignalTaskInsertedAt:         task.InsertedAt,
-					SignalExternalId:             &child,
+					SignalExternalId:             &ct.ExternalID,
+					SignalTaskExternalId:         &task.ExternalID,
+					SignalKey:                    &runEventLogEntrySignalKey,
+					DurableEventLogEntryNodeId:   &nodeId,
+					DurableEventLogEntryBranchId: &branchId,
+				})
+			}
+
+			for _, dag := range createdDags {
+				conditions := make([]GroupMatchCondition, 0, len(dag.TaskExternalIDs)*3)
+
+				for i, taskExtId := range dag.TaskExternalIDs {
+					childHint := taskExtId.String()
+					orGroupId := uuid.New()
+
+					readableDataKey := "output"
+					if i < len(dag.TaskStepReadableIDs) {
+						readableDataKey = dag.TaskStepReadableIDs[i]
+					}
+
+					conditions = append(conditions,
+						GroupMatchCondition{
+							GroupId:           orGroupId,
+							EventType:         sqlcv1.V1EventTypeINTERNAL,
+							EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+							ReadableDataKey:   readableDataKey,
+							EventResourceHint: &childHint,
+							Expression:        "true",
+							Action:            sqlcv1.V1MatchConditionActionCREATE,
+						},
+						GroupMatchCondition{
+							GroupId:           orGroupId,
+							EventType:         sqlcv1.V1EventTypeINTERNAL,
+							EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+							ReadableDataKey:   readableDataKey,
+							EventResourceHint: &childHint,
+							Expression:        "true",
+							Action:            sqlcv1.V1MatchConditionActionCREATE,
+						},
+						GroupMatchCondition{
+							GroupId:           orGroupId,
+							EventType:         sqlcv1.V1EventTypeINTERNAL,
+							EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+							ReadableDataKey:   readableDataKey,
+							EventResourceHint: &childHint,
+							Expression:        "true",
+							Action:            sqlcv1.V1MatchConditionActionCREATE,
+						},
+					)
+				}
+
+				nodeIdBranchId := runExternalIdToNodeIdBranchId[dag.ExternalID]
+
+				nodeId := nodeIdBranchId.NodeId
+				branchId := nodeIdBranchId.BranchId
+
+				runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d:%d", task.ExternalID.String(), branchId, nodeId)
+
+				taskId := task.ID
+				dagExternalId := dag.ExternalID
+
+				createMatchOpts = append(createMatchOpts, CreateMatchOpts{
+					Kind:                         sqlcv1.V1MatchKindSIGNAL,
+					Conditions:                   conditions,
+					SignalTaskId:                 &taskId,
+					SignalTaskInsertedAt:         task.InsertedAt,
+					SignalExternalId:             &dagExternalId,
 					SignalTaskExternalId:         &task.ExternalID,
 					SignalKey:                    &runEventLogEntrySignalKey,
 					DurableEventLogEntryNodeId:   &nodeId,
