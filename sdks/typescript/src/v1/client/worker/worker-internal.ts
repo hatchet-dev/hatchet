@@ -450,7 +450,7 @@ export class InternalWorker {
         const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
         if (ctx) {
           const invocationCount = ctx.invocationCount ?? 1;
-          this.client.durableListener.cleanupTaskState(key, invocationCount);
+          this.client.durableListener.cleanupTaskState(ctx.action.taskRunExternalId, invocationCount);
           if (ctx.abortController) {
             ctx.abortController.abort(err);
           }
