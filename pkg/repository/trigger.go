@@ -112,6 +112,9 @@ type createDAGOpts struct {
 	// (required) a list of task external ids that are part of this DAG
 	TaskIds []uuid.UUID
 
+	// (required) a parallel list of step readable ids for each task
+	TaskStepReadableIds []string
+
 	// (required) the workflow id for this DAG
 	WorkflowId uuid.UUID
 
@@ -628,6 +631,7 @@ func (r *sharedRepository) triggerWorkflows(
 	// a map of trigger tuples to step external IDs
 	stepsToExternalIds := make([]map[uuid.UUID]uuid.UUID, len(tuples))
 	dagToTaskIds := make(map[uuid.UUID][]uuid.UUID)
+	dagToTaskReadableIds := make(map[uuid.UUID][]string)
 
 	// generate UUIDs for each step
 	for i, tuple := range tuples {
@@ -660,6 +664,7 @@ func (r *sharedRepository) triggerWorkflows(
 				externalId := uuid.New()
 				stepsToExternalIds[i][step.ID] = externalId
 				dagToTaskIds[tuple.externalId] = append(dagToTaskIds[tuple.externalId], externalId)
+				dagToTaskReadableIds[tuple.externalId] = append(dagToTaskReadableIds[tuple.externalId], step.ReadableId.String)
 			}
 		}
 	}
@@ -1038,13 +1043,14 @@ func (r *sharedRepository) triggerWorkflows(
 
 		if isDag {
 			dagOpts = append(dagOpts, createDAGOpts{
-				ExternalId:           tuple.externalId,
-				Input:                tuple.input,
-				TaskIds:              dagToTaskIds[tuple.externalId],
-				WorkflowId:           tuple.workflowId,
-				WorkflowVersionId:    tuple.workflowVersionId,
-				WorkflowName:         tuple.workflowName,
-				AdditionalMetadata:   tuple.additionalMetadata,
+				ExternalId:          tuple.externalId,
+				Input:               tuple.input,
+				TaskIds:             dagToTaskIds[tuple.externalId],
+				TaskStepReadableIds: dagToTaskReadableIds[tuple.externalId],
+				WorkflowId:          tuple.workflowId,
+				WorkflowVersionId:   tuple.workflowVersionId,
+				WorkflowName:        tuple.workflowName,
+				AdditionalMetadata:  tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 			})
 		}
@@ -1257,6 +1263,9 @@ type DAGWithData struct {
 	ParentTaskExternalID *uuid.UUID
 
 	TotalTasks int
+
+	TaskExternalIDs      []uuid.UUID
+	TaskStepReadableIDs  []string
 }
 
 type V1TaskWithPayload struct {
@@ -1364,6 +1373,8 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			AdditionalMetadata:   additionalMeta,
 			ParentTaskExternalID: &parentTaskExternalID,
 			TotalTasks:           len(opt.TaskIds),
+			TaskExternalIDs:      opt.TaskIds,
+			TaskStepReadableIDs:  opt.TaskStepReadableIds,
 		})
 	}
 
@@ -1712,7 +1723,37 @@ func getParentInDAGGroupMatch(
 }
 
 func getChildWorkflowGroupMatches(taskExternalId uuid.UUID, stepReadableId string) []GroupMatchCondition {
-	return ChildTerminalMatchConditions([]string{taskExternalId.String()}, stepReadableId)
+	groupId := uuid.New()
+	hint := taskExternalId.String()
+	return []GroupMatchCondition{
+		{
+			GroupId:           groupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+			ReadableDataKey:   stepReadableId,
+			EventResourceHint: &hint,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionCREATE,
+		},
+		{
+			GroupId:           groupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			ReadableDataKey:   stepReadableId,
+			EventResourceHint: &hint,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionCREATE,
+		},
+		{
+			GroupId:           groupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+			ReadableDataKey:   stepReadableId,
+			EventResourceHint: &hint,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionCREATE,
+		},
+	}
 }
 
 func getParentOnFailureGroupMatches(createGroupId, parentExternalId uuid.UUID, parentReadableId string) []GroupMatchCondition {

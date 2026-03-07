@@ -3086,7 +3086,6 @@ type V1DurableEventLogEntry struct {
 	Kind                  V1DurableEventLogKind `json:"kind"`
 	NodeID                int64                 `json:"node_id"`
 	BranchID              int64                 `json:"branch_id"`
-	InvocationCount       int32                 `json:"invocation_count"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
 }

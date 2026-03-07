@@ -21,6 +21,9 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
+    DurableTaskEventMemoAck,
+    DurableTaskEventRunAck,
+    DurableTaskEventWaitForAck,
     MemoEvent,
     RunChildEvent,
     RunChildrenEvent,
@@ -548,7 +551,7 @@ class DurableContext(Context):
 
         return index
 
-    # todo: instrumentor for this
+    # TODO-DURABLE: instrumentor for this
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -561,7 +564,9 @@ class DurableContext(Context):
         :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
+
         :raises ValueError: If the durable task client is not available.
+        :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
@@ -582,6 +587,10 @@ class DurableContext(Context):
             invocation_count=self.invocation_count,
             event=WaitForEvent(wait_for_conditions=conditions_proto),
         )
+
+        if not isinstance(ack, DurableTaskEventWaitForAck):
+            raise TypeError(f"Expected wait-for ack, got {type(ack).__name__}")
+
         node_id = ack.node_id
         branch_id = ack.branch_id
 
@@ -614,9 +623,10 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
-    # todo: instrumentor for this
+    # TODO-DURABLE: instrumentor for this
     async def _spawn_children_no_wait(
         self,
+        ## TODO-DURABLE: Remove this param?
         workflow: BaseWorkflow[TWorkflowInput],
         configs: list[WorkflowRunTriggerConfig],
     ) -> list[tuple[int, int, str]]:
@@ -638,6 +648,9 @@ class DurableContext(Context):
                 ]
             ),
         )
+
+        if not isinstance(ack, DurableTaskEventRunAck):
+            raise TypeError(f"Expected run ack, got {type(ack).__name__}")
 
         return [
             (entry.node_id, entry.branch_id, configs[i].workflow_name)
@@ -696,6 +709,8 @@ class DurableContext(Context):
         :param **kwargs: The keyword arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different keyword arguments will result in different cached values.
 
         :return: The memoized value, either retrieved from durable storage or computed by calling the function.
+
+        :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if not self._supports_durable_eviction:
             logger.warning(
@@ -718,6 +733,9 @@ class DurableContext(Context):
             invocation_count=self.invocation_count,
             event=MemoEvent(memo_key=key, result=None),
         )
+
+        if not isinstance(ack, DurableTaskEventMemoAck):
+            raise TypeError(f"Expected memo ack, got {type(ack).__name__}")
 
         if ack.memo_already_existed and ack.memo_result_payload is None:
             logger.warning(
