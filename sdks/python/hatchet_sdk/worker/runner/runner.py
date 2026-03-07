@@ -457,7 +457,9 @@ class Runner:
             ctx = self.contexts[key]
             if ctx.exit_flag:
                 self.cancellations[key] = True
-            if isinstance(self.durable_event_listener, DurableEventListener) and isinstance(ctx, DurableContext):
+            if isinstance(
+                self.durable_event_listener, DurableEventListener
+            ) and isinstance(ctx, DurableContext):
                 self.durable_event_listener.cleanup_task_state(
                     ctx.step_run_id, ctx.invocation_count
                 )
