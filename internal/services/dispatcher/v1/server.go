@@ -885,11 +885,6 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		return nil
 	}
 
-	type entryWithInvocationCount struct {
-		taskExternalId  uuid.UUID
-		invocationCount int32
-	}
-
 	uniqueExternalIds := make(map[uuid.UUID]int32)
 	waiting := make([]v1.TaskExternalIdNodeIdBranchId, 0, len(req.WaitingEntries))
 
@@ -948,7 +943,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 						continue
 					}
 					if workerCount < *currentCount {
-						_ = invocation.send(&contracts.DurableTaskResponse{
+						err = invocation.send(&contracts.DurableTaskResponse{
 							Message: &contracts.DurableTaskResponse_ServerEvict{
 								ServerEvict: &contracts.DurableTaskServerEvictNotification{
 									DurableTaskExternalId: extId.String(),
@@ -957,6 +952,9 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 								},
 							},
 						})
+						if err != nil {
+							d.l.Error().Err(err).Msgf("failed to send server eviction notification for task %s", extId.String())
+						}
 					}
 				}
 			}
