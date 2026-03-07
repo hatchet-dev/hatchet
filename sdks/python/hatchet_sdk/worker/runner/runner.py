@@ -454,8 +454,13 @@ class Runner:
             del self.threads[key]
 
         if key in self.contexts:
-            if self.contexts[key].exit_flag:
+            ctx = self.contexts[key]
+            if ctx.exit_flag:
                 self.cancellations[key] = True
+            if isinstance(self.durable_event_listener, DurableEventListener) and isinstance(ctx, DurableContext):
+                self.durable_event_listener.cleanup_task_state(
+                    ctx.step_run_id, ctx.invocation_count
+                )
             del self.contexts[key]
 
         if self.durable_eviction_manager is not None:

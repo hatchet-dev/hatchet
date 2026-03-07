@@ -485,6 +485,13 @@ export class InternalWorker {
   }
 
   private cleanupRun(key: ActionKey): void {
+    const ctx = this.contexts[key];
+    if (ctx instanceof DurableContext) {
+      this.client.durableListener.cleanupTaskState(
+        ctx.action.taskRunExternalId,
+        ctx.invocationCount
+      );
+    }
     this.evictionManager?.unregisterRun(key);
     delete this.futures[key];
     delete this.contexts[key];

@@ -418,6 +418,9 @@ class DurableEventListener:
                 f"received server eviction notification for task {evict.durable_task_external_id} "
                 f"invocation {evict.invocation_count}: {evict.reason}"
             )
+            self.cleanup_task_state(
+                evict.durable_task_external_id, evict.invocation_count
+            )
             if self._on_server_evict is not None:
                 self._on_server_evict(
                     evict.durable_task_external_id, evict.invocation_count

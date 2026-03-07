@@ -436,6 +436,7 @@ export class DurableListenerClient {
         `received server eviction notification for task ${evict.durableTaskExternalId} ` +
           `invocation ${evict.invocationCount}: ${evict.reason}`
       );
+      this.cleanupTaskState(evict.durableTaskExternalId, evict.invocationCount);
       if (this._onServerEvict) {
         this._onServerEvict(evict.durableTaskExternalId, evict.invocationCount);
       }
