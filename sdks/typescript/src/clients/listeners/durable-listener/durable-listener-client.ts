@@ -537,7 +537,8 @@ export class DurableListenerClient {
     durableTaskExternalId: string,
     invocationCount: number,
     branchId: number,
-    nodeId: number
+    nodeId: number,
+    opts?: { signal?: AbortSignal }
   ): Promise<DurableTaskEventLogEntryResult> {
     const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
 
@@ -551,7 +552,48 @@ export class DurableListenerClient {
       this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
     }
 
-    return this._pendingCallbacks.get(key)!.promise;
+    const d = this._pendingCallbacks.get(key)!;
+    const signal = opts?.signal;
+
+    if (!signal) {
+      return d.promise;
+    }
+
+    if (signal.aborted) {
+      return Promise.reject(createAbortError('Operation cancelled by AbortSignal'));
+    }
+
+    return new Promise<DurableTaskEventLogEntryResult>((resolve, reject) => {
+      let settled = false;
+
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        reject(createAbortError('Operation cancelled by AbortSignal'));
+      };
+
+      // TODO-DURABLE: this will likely be an issue, we're doing this one other place too
+      const max = getMaxListeners(signal);
+      if (max !== 0 && max < 50) {
+        setMaxListeners(50, signal);
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+
+      d.promise.then(
+        (value) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener('abort', onAbort);
+          resolve(value);
+        },
+        (err) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener('abort', onAbort);
+          reject(err);
+        }
+      );
+    });
   }
 
   cleanupTaskState(durableTaskExternalId: string, invocationCount: number): void {
