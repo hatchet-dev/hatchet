@@ -58,7 +58,8 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
     };
 
     const action = createAction({
-      taskRunExternalId: taskExternalId, retryCount,
+      taskRunExternalId: taskExternalId,
+      retryCount,
       tenantId: 'tenant-1',
       workflowRunId: 'workflow-run-1',
       getGroupKeyRunId: '',
@@ -70,7 +71,7 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
       actionType: ActionType.START_STEP_RUN,
       actionPayload: 'action-payload-1',
       taskName: 'task-1',
-      priority: 1
+      priority: 1,
     });
 
     const p = InternalWorker.prototype.handleCancelStepRun.call(fakeThis, action);
