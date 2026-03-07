@@ -1,5 +1,7 @@
 import { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
+import { createAction } from '@hatchet/clients/dispatcher/action-listener';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
+import { ActionType } from '@hatchet-dev/typescript-sdk/protoc/dispatcher';
 
 describe('V1Worker handleCancelStepRun cancellation supervision', () => {
   beforeEach(() => {
@@ -55,7 +57,21 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
       },
     };
 
-    const action: any = { taskRunExternalId: taskExternalId, retryCount };
+    const action = createAction({
+      taskRunExternalId: taskExternalId, retryCount,
+      tenantId: 'tenant-1',
+      workflowRunId: 'workflow-run-1',
+      getGroupKeyRunId: '',
+      jobId: 'job-1',
+      jobName: 'job-1',
+      jobRunId: 'job-run-1',
+      taskId: 'task-1',
+      actionId: 'action-1',
+      actionType: ActionType.START_STEP_RUN,
+      actionPayload: 'action-payload-1',
+      taskName: 'task-1',
+      priority: 1
+    });
 
     const p = InternalWorker.prototype.handleCancelStepRun.call(fakeThis, action);
 
