@@ -84,7 +84,7 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
 async def test_durable_child_spawn() -> None:
     result = await durable_with_spawn.aio_run()
 
-    assert result["child_output"] == {"message": "hello from child"}
+    assert result["child_output"] == {"message": "hello from child 1"}
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -109,7 +109,7 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
     result = await ref.aio_result()
     first_elapsed = time.time() - start
 
-    assert result["child_output"] == {"message": "hello from child"}
+    assert result["child_output"] == {"message": "hello from child 1"}
     assert first_elapsed >= SLEEP_TIME
 
     replay_start = time.time()
@@ -117,7 +117,7 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
     replayed_result = await ref.aio_result()
     replay_elapsed = time.time() - replay_start
 
-    assert replayed_result["child_output"] == {"message": "hello from child"}
+    assert replayed_result["child_output"] == {"message": "hello from child 1"}
     assert replay_elapsed < SLEEP_TIME
 
 
