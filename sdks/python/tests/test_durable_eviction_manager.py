@@ -47,7 +47,9 @@ def test_handle_server_eviction_cancels_and_unregisters() -> None:
 def test_handle_server_eviction_unknown_id_is_noop() -> None:
     mgr, cancel = _make_manager()
 
-    mgr.register_run("run-1/0", step_run_id="ext-1", invocation_count=1, eviction_policy=None)
+    mgr.register_run(
+        "run-1/0", step_run_id="ext-1", invocation_count=1, eviction_policy=None
+    )
 
     mgr.handle_server_eviction("no-such-id", 1)
 

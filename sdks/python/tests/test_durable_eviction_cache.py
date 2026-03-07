@@ -21,8 +21,12 @@ def test_ttl_eviction_prefers_oldest_waiting_and_priority() -> None:
     eviction_low_prio = EvictionPolicy(ttl=timedelta(seconds=10), priority=0)
     eviction_high_prio = EvictionPolicy(ttl=timedelta(seconds=10), priority=10)
 
-    cache.register_run(key1, "run-1", invocation_count=1, now=dt(0), eviction_policy=eviction_high_prio)
-    cache.register_run(key2, "run-2", invocation_count=1, now=dt(0), eviction_policy=eviction_low_prio)
+    cache.register_run(
+        key1, "run-1", invocation_count=1, now=dt(0), eviction_policy=eviction_high_prio
+    )
+    cache.register_run(
+        key2, "run-2", invocation_count=1, now=dt(0), eviction_policy=eviction_low_prio
+    )
 
     cache.mark_waiting(
         key1, now=dt(0), wait_kind="workflow_run_result", resource_id="wf1"
@@ -47,7 +51,9 @@ def test_none_eviction_params_never_selected() -> None:
     key_no = "run-no/0"
     key_yes = "run-yes/0"
 
-    cache.register_run(key_no, "run-no", invocation_count=1, now=dt(0), eviction_policy=None)
+    cache.register_run(
+        key_no, "run-no", invocation_count=1, now=dt(0), eviction_policy=None
+    )
     cache.register_run(
         key_yes,
         "run-yes",
@@ -127,7 +133,9 @@ def test_concurrent_waits_keep_waiting_until_all_resolved() -> None:
     key = "run-bulk/0"
     policy = EvictionPolicy(ttl=timedelta(seconds=5), priority=0)
 
-    cache.register_run(key, "run-bulk", invocation_count=1, now=dt(0), eviction_policy=policy)
+    cache.register_run(
+        key, "run-bulk", invocation_count=1, now=dt(0), eviction_policy=policy
+    )
 
     cache.mark_waiting(key, now=dt(1), wait_kind="spawn_child", resource_id="child0")
     cache.mark_waiting(key, now=dt(1), wait_kind="spawn_child", resource_id="child1")
@@ -167,8 +175,12 @@ def test_concurrent_waits_keep_waiting_until_all_resolved() -> None:
 
 def test_find_key_by_step_run_id_returns_matching_key() -> None:
     cache = DurableEvictionCache()
-    cache.register_run("run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None)
-    cache.register_run("run-b/0", "ext-b", invocation_count=1, now=dt(0), eviction_policy=None)
+    cache.register_run(
+        "run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None
+    )
+    cache.register_run(
+        "run-b/0", "ext-b", invocation_count=1, now=dt(0), eviction_policy=None
+    )
 
     assert cache.find_key_by_step_run_id("ext-a") == "run-a/0"
     assert cache.find_key_by_step_run_id("ext-b") == "run-b/0"
@@ -176,14 +188,18 @@ def test_find_key_by_step_run_id_returns_matching_key() -> None:
 
 def test_find_key_by_step_run_id_returns_none_for_unknown() -> None:
     cache = DurableEvictionCache()
-    cache.register_run("run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None)
+    cache.register_run(
+        "run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None
+    )
 
     assert cache.find_key_by_step_run_id("no-such-id") is None
 
 
 def test_find_key_by_step_run_id_returns_none_after_unregister() -> None:
     cache = DurableEvictionCache()
-    cache.register_run("run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None)
+    cache.register_run(
+        "run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None
+    )
 
     assert cache.find_key_by_step_run_id("ext-a") == "run-a/0"
     cache.unregister_run("run-a/0")
@@ -196,7 +212,9 @@ def test_mark_active_floors_at_zero() -> None:
     key = "run-extra/0"
     policy = EvictionPolicy(ttl=timedelta(seconds=5), priority=0)
 
-    cache.register_run(key, "run-extra", invocation_count=1, now=dt(0), eviction_policy=policy)
+    cache.register_run(
+        key, "run-extra", invocation_count=1, now=dt(0), eviction_policy=policy
+    )
     cache.mark_waiting(key, now=dt(0), wait_kind="sleep", resource_id="s")
 
     cache.mark_active(key, now=dt(1))

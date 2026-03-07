@@ -163,9 +163,7 @@ class DurableEvictionManager:
                 await self._request_eviction_with_ack(key, rec)
                 self._evict_run(key)
 
-    def handle_server_eviction(
-        self, step_run_id: str, invocation_count: int
-    ) -> None:
+    def handle_server_eviction(self, step_run_id: str, invocation_count: int) -> None:
         """Handle a server-initiated eviction notification for a stale invocation."""
         key = self._cache.find_key_by_step_run_id(step_run_id)
         if key is None:

@@ -156,7 +156,7 @@ func (m *NonDeterminismError) Error() string {
 }
 
 type StaleInvocationError struct {
-	TaskExternalId         uuid.UUID
+	TaskExternalId          uuid.UUID
 	ExpectedInvocationCount int32
 	ActualInvocationCount   int32
 }
@@ -664,7 +664,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	if logFile.LatestInvocationCount != opts.InvocationCount {
 		return nil, &StaleInvocationError{
-			TaskExternalId:         opts.Task.ExternalID,
+			TaskExternalId:          opts.Task.ExternalID,
 			ExpectedInvocationCount: logFile.LatestInvocationCount,
 			ActualInvocationCount:   opts.InvocationCount,
 		}
