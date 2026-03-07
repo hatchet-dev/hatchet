@@ -180,9 +180,7 @@ export class DurableListenerClient {
   private _statusInterval: ReturnType<typeof setInterval> | undefined;
   private _startLock: Promise<void> | undefined;
 
-  private _onServerEvict:
-    | ((durableTaskExternalId: string, invocationCount: number) => void)
-    | undefined;
+  onServerEvict: ((durableTaskExternalId: string, invocationCount: number) => void) | undefined;
 
   constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
     this.config = config;
@@ -192,12 +190,6 @@ export class DurableListenerClient {
 
   get workerId(): string | undefined {
     return this._workerId;
-  }
-
-  setOnServerEvict(
-    callback: (durableTaskExternalId: string, invocationCount: number) => void
-  ): void {
-    this._onServerEvict = callback;
   }
 
   async start(workerId: string): Promise<void> {
@@ -434,8 +426,8 @@ export class DurableListenerClient {
           `invocation ${evict.invocationCount}: ${evict.reason}`
       );
       this.cleanupTaskState(evict.durableTaskExternalId, evict.invocationCount);
-      if (this._onServerEvict) {
-        this._onServerEvict(evict.durableTaskExternalId, evict.invocationCount);
+      if (this.onServerEvict) {
+        this.onServerEvict(evict.durableTaskExternalId, evict.invocationCount);
       }
     } else if (response.error) {
       const { error } = response;

@@ -476,9 +476,9 @@ export class InternalWorker {
       logger: this.logger,
     });
 
-    this.client.durableListener.setOnServerEvict((durableTaskExternalId, invocationCount) => {
+    this.client.durableListener.onServerEvict = (durableTaskExternalId, invocationCount) => {
       this.evictionManager?.handleServerEviction(durableTaskExternalId, invocationCount);
-    });
+    };
 
     this.evictionManager.start();
     return this.evictionManager;

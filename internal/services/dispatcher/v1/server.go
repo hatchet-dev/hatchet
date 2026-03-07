@@ -895,9 +895,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			continue
 		}
 
-		if cb.InvocationCount > 0 {
-			uniqueExternalIds[taskExternalId] = cb.InvocationCount
-		}
+		uniqueExternalIds[taskExternalId] = cb.InvocationCount
 
 		waiting = append(waiting, v1.TaskExternalIdNodeIdBranchId{
 			TaskExternalId: taskExternalId,
@@ -929,26 +927,26 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				taskIdToExternalId[key] = t.ExternalID
 			}
 
-			invocationCounts, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
+			idInsertedAtToInvocationCount, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
 			if err != nil {
 				d.l.Warn().Err(err).Msg("failed to get invocation counts in worker_status")
 			} else {
-				for key, currentCount := range invocationCounts {
+				for key, currentCount := range idInsertedAtToInvocationCount {
 					extId, ok := taskIdToExternalId[key]
 					if !ok || currentCount == nil {
 						continue
 					}
-					workerCount, has := uniqueExternalIds[extId]
+					workerInvocationCount, has := uniqueExternalIds[extId]
 					if !has {
 						continue
 					}
-					if workerCount < *currentCount {
+					if workerInvocationCount < *currentCount {
 						err = invocation.send(&contracts.DurableTaskResponse{
 							Message: &contracts.DurableTaskResponse_ServerEvict{
 								ServerEvict: &contracts.DurableTaskServerEvictNotification{
 									DurableTaskExternalId: extId.String(),
-									InvocationCount:       workerCount,
-									Reason:                fmt.Sprintf("stale invocation: server has %d, worker sent %d", *currentCount, workerCount),
+									InvocationCount:       workerInvocationCount,
+									Reason:                fmt.Sprintf("stale invocation: server has %d, worker sent %d", *currentCount, workerInvocationCount),
 								},
 							},
 						})

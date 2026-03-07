@@ -143,7 +143,9 @@ class Runner:
         )
         if has_durable_tasks and self._supports_durable_eviction:
             self.durable_event_listener = DurableEventListener(
-                self.config, admin_client=self.admin_client
+                self.config,
+                admin_client=self.admin_client,
+                on_server_evict=self._server_evict_callback,
             )
         elif has_durable_tasks:
             self.durable_event_listener = PreEvictionDurableEventListener(self.config)
@@ -170,9 +172,6 @@ class Runner:
             self.worker_context._worker_id = action.worker_id
 
             if isinstance(self.durable_event_listener, DurableEventListener):
-                self.durable_event_listener.set_on_server_evict(
-                    self._server_evict_callback
-                )
                 self.durable_event_listener_task = asyncio.create_task(
                     self.durable_event_listener.ensure_started(action.worker_id)
                 )

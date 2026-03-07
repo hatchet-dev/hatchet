@@ -136,7 +136,12 @@ PendingEvictionAck = tuple[TaskExternalId, InvocationCount]
 
 
 class DurableEventListener:
-    def __init__(self, config: ClientConfig, admin_client: AdminClient):
+    def __init__(
+        self,
+        config: ClientConfig,
+        admin_client: AdminClient,
+        on_server_evict: Callable[[str, int], None] | None = None,
+    ):
         self.config = config
         self.token = config.token
         self.admin_client = admin_client
@@ -171,14 +176,11 @@ class DurableEventListener:
         self._running = False
         self._start_lock = asyncio.Lock()
 
-        self._on_server_evict: Callable[[str, int], None] | None = None
+        self._on_server_evict = on_server_evict
 
     @property
     def worker_id(self) -> str | None:
         return self._worker_id
-
-    def set_on_server_evict(self, callback: Callable[[str, int], None]) -> None:
-        self._on_server_evict = callback
 
     async def _connect(self) -> None:
         if self._conn is not None:
