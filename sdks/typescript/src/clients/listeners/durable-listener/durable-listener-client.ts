@@ -239,6 +239,8 @@ export class DurableListenerClient {
       registerWorker: { workerId: this._workerId! } as DurableTaskRequestRegisterWorker,
     });
 
+    this._pollWorkerStatus();
+
     void this._streamLoop();
 
     this.logger.info('durable event listener connected');
@@ -562,6 +564,7 @@ export class DurableListenerClient {
 
     if (!this._pendingCallbacks.has(key)) {
       this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
+      this._pollWorkerStatus();
     }
 
     const d = this._pendingCallbacks.get(key)!;

@@ -202,6 +202,7 @@ class DurableEventListener:
         )
 
         await self._register_worker()
+        await self._poll_worker_status()
         logger.info("durable event listener connected")
 
     async def start(self, worker_id: str) -> None:
@@ -571,6 +572,7 @@ class DurableEventListener:
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
+            await self._poll_worker_status()
 
         return await self._pending_callbacks[key]
 
