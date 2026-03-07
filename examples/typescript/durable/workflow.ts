@@ -125,14 +125,14 @@ export const waitForSleepTwice = hatchet.durableTask({
 
 export const spawnChildTask = hatchet.task({
   name: 'spawn-child-task',
-  fn: async () => {
-    return { message: 'hello from child' };
+  fn: async (input: { n?: number }) => {
+    return { message: `hello from child ${input.n ?? 1}` };
   },
 });
 
 export const durableWithSpawn = hatchet.durableTask({
   name: 'durable-with-spawn',
-  executionTimeout: '10m',
+  executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const childResult = await spawnChildTask.run({});
     return { child_output: childResult };
@@ -142,8 +142,9 @@ export const durableWithSpawn = hatchet.durableTask({
 export const durableWithBulkSpawn = hatchet.durableTask({
   name: 'durable-with-bulk-spawn',
   executionTimeout: '10m',
-  fn: async (_input, ctx) => {
-    const inputs = Array.from({ length: 10 }, () => ({}));
+  fn: async (input: { n?: number }, ctx) => {
+    const n = input.n ?? 10;
+    const inputs = Array.from({ length: n }, (_, i) => ({ n: i }));
     const childResults = await spawnChildTask.run(inputs);
     return { child_outputs: childResults };
   },
@@ -263,7 +264,7 @@ export const dagChildWorkflow = hatchet.workflow({
   name: 'dag-child-workflow-ts',
 });
 
-dagChildWorkflow.task({
+const dagChild1 = dagChildWorkflow.task({
   name: 'dag-child-1',
   fn: async () => {
     await sleep(1000);
@@ -273,6 +274,7 @@ dagChildWorkflow.task({
 
 dagChildWorkflow.task({
   name: 'dag-child-2',
+  parents: [dagChild1],
   fn: async () => {
     await sleep(2000);
     return { result: 'child2' };
@@ -281,7 +283,7 @@ dagChildWorkflow.task({
 
 export const durableSpawnDag = hatchet.durableTask({
   name: 'durable-spawn-dag',
-  executionTimeout: '10m',
+  executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const sleepStart = Date.now();
     const sleepResult = await ctx.sleepFor(SLEEP_TIME);

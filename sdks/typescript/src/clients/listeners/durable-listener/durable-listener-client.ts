@@ -465,6 +465,7 @@ export class DurableListenerClient {
     }
   }
 
+  /* eslint-disable no-dupe-class-members -- intentional overload signatures */
   async sendEvent(
     durableTaskExternalId: string,
     invocationCount: number,
@@ -532,6 +533,7 @@ export class DurableListenerClient {
     this._enqueueRequest(request);
     return d.promise;
   }
+  /* eslint-enable no-dupe-class-members */
 
   async waitForCallback(
     durableTaskExternalId: string,

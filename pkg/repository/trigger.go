@@ -1043,14 +1043,14 @@ func (r *sharedRepository) triggerWorkflows(
 
 		if isDag {
 			dagOpts = append(dagOpts, createDAGOpts{
-				ExternalId:          tuple.externalId,
-				Input:               tuple.input,
-				TaskIds:             dagToTaskIds[tuple.externalId],
-				TaskStepReadableIds: dagToTaskReadableIds[tuple.externalId],
-				WorkflowId:          tuple.workflowId,
-				WorkflowVersionId:   tuple.workflowVersionId,
-				WorkflowName:        tuple.workflowName,
-				AdditionalMetadata:  tuple.additionalMetadata,
+				ExternalId:           tuple.externalId,
+				Input:                tuple.input,
+				TaskIds:              dagToTaskIds[tuple.externalId],
+				TaskStepReadableIds:  dagToTaskReadableIds[tuple.externalId],
+				WorkflowId:           tuple.workflowId,
+				WorkflowVersionId:    tuple.workflowVersionId,
+				WorkflowName:         tuple.workflowName,
+				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 			})
 		}
@@ -1264,8 +1264,8 @@ type DAGWithData struct {
 
 	TotalTasks int
 
-	TaskExternalIDs      []uuid.UUID
-	TaskStepReadableIDs  []string
+	TaskExternalIDs     []uuid.UUID
+	TaskStepReadableIDs []string
 }
 
 type V1TaskWithPayload struct {
