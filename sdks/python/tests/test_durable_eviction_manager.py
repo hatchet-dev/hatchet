@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.manager import (
@@ -15,7 +14,7 @@ def _make_manager(
     cancel_local: MagicMock | None = None,
 ) -> tuple[DurableEvictionManager, MagicMock]:
     cancel = cancel_local or MagicMock()
-    request_eviction = MagicMock(return_value=asyncio.coroutine(lambda *a: None)())
+    request_eviction = AsyncMock()
 
     mgr = DurableEvictionManager(
         durable_slots=10,
