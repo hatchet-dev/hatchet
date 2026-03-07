@@ -36,16 +36,16 @@ durableWorkflow.durableTask({
 });
 
 function extractKeyAndEventId(waitResult: unknown): { key: string; eventId: string } {
-  // DurableContext.waitFor currently returns the CREATE payload directly.
-  // The shape is typically `{ [readableDataKey]: { [eventId]: ... } }`.
+  // Eviction path returns `{ "CREATE": { [readableDataKey]: [...] } }`.
+  // Pre-eviction path returns `{ [readableDataKey]: [...] }` (already unwrapped).
   const obj = waitResult as any;
   if (obj && typeof obj === 'object') {
     const key = Object.keys(obj)[0];
     const inner = obj[key];
-    if (inner && typeof inner === 'object') {
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
       const eventId = Object.keys(inner)[0];
       if (eventId) {
-        return { key: 'CREATE', eventId };
+        return { key, eventId };
       }
     }
     if (key) {
