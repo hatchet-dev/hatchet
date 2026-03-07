@@ -929,7 +929,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         this.action.taskRunExternalId,
         this.invocationCount,
         ack.branchId,
-        ack.nodeId
+        ack.nodeId,
+        { signal: this.abortController.signal }
       );
       return result.payload || {};
     });
@@ -1057,7 +1058,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
             this.action.taskRunExternalId,
             this.invocationCount,
             entry.branchId,
-            entry.nodeId
+            entry.nodeId,
+            { signal: this.abortController.signal }
           );
           return (result.payload || {}) as P;
         })

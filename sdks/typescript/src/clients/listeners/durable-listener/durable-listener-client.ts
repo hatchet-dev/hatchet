@@ -12,9 +12,7 @@ import {
   V1DispatcherDefinition,
   DurableTaskRequest,
   DurableTaskResponse,
-  DurableTaskEventRequest,
   DurableTaskEventLogEntryCompletedResponse,
-  DurableTaskEventKind,
   DurableTaskErrorType,
   DurableTaskRequestRegisterWorker,
   DurableTaskWorkerStatusRequest,
@@ -24,6 +22,10 @@ import {
   DurableEvent,
   RegisterDurableEventResponse,
   ListenForDurableEventRequest,
+  DurableTaskMemoRequest,
+  DurableTaskTriggerRunsRequest,
+  DurableTaskWaitForRequest,
+  DurableEventLogEntryRef,
 } from '@hatchet/protoc/v1/dispatcher';
 import {
   DurableEventListenerConditions,
@@ -44,15 +46,35 @@ export interface DurableTaskRunAckEntryResult {
   branchId: number;
 }
 
-export interface DurableTaskEventAck {
+export interface DurableTaskEventRunAck {
+  ackType: 'run';
+  invocationCount: number;
+  durableTaskExternalId: string;
+  runEntries: DurableTaskRunAckEntryResult[];
+}
+
+export interface DurableTaskEventMemoAck {
+  ackType: 'memo';
   invocationCount: number;
   durableTaskExternalId: string;
   branchId: number;
   nodeId: number;
   memoAlreadyExisted: boolean;
   memoResultPayload?: Uint8Array;
-  runEntries: DurableTaskRunAckEntryResult[];
 }
+
+export interface DurableTaskEventWaitForAck {
+  ackType: 'waitFor';
+  invocationCount: number;
+  durableTaskExternalId: string;
+  branchId: number;
+  nodeId: number;
+}
+
+export type DurableTaskEventAck =
+  | DurableTaskEventRunAck
+  | DurableTaskEventMemoAck
+  | DurableTaskEventWaitForAck;
 
 export interface DurableTaskEventLogEntryResult {
   durableTaskExternalId: string;
@@ -68,8 +90,8 @@ function eventLogEntryResultFromProto(
     payload = JSON.parse(new TextDecoder().decode(proto.payload));
   }
   return {
-    durableTaskExternalId: proto.durableTaskExternalId,
-    nodeId: proto.nodeId,
+    durableTaskExternalId: proto.ref?.durableTaskExternalId ?? '',
+    nodeId: proto.ref?.nodeId ?? 0,
     payload,
   };
 }
@@ -324,18 +346,15 @@ export class DurableListenerClient {
   private _handleResponse(response: DurableTaskResponse): void {
     if (response.registerWorker) {
       // registration acknowledged
-    } else if (response.triggerAck) {
-      const ack = response.triggerAck;
+    } else if (response.triggerRunsAck) {
+      const ack = response.triggerRunsAck;
       const key = ackKey(ack.durableTaskExternalId, ack.invocationCount);
       const pending = this._pendingEventAcks.get(key);
       if (pending) {
         pending.resolve({
+          ackType: 'run',
           invocationCount: ack.invocationCount,
           durableTaskExternalId: ack.durableTaskExternalId,
-          branchId: ack.branchId,
-          nodeId: ack.nodeId,
-          memoAlreadyExisted: ack.memoAlreadyExisted,
-          memoResultPayload: ack.memoResultPayload,
           runEntries: (ack.runEntries || []).map((e) => ({
             nodeId: e.nodeId,
             branchId: e.branchId,
@@ -343,13 +362,46 @@ export class DurableListenerClient {
         });
         this._pendingEventAcks.delete(key);
       }
+    } else if (response.memoAck) {
+      const ack = response.memoAck;
+      const { ref } = ack;
+      const key = ackKey(ref?.durableTaskExternalId ?? '', ref?.invocationCount ?? 0);
+      const pending = this._pendingEventAcks.get(key);
+      if (pending) {
+        pending.resolve({
+          ackType: 'memo',
+          invocationCount: ref?.invocationCount ?? 0,
+          durableTaskExternalId: ref?.durableTaskExternalId ?? '',
+          branchId: ref?.branchId ?? 0,
+          nodeId: ref?.nodeId ?? 0,
+          memoAlreadyExisted: ack.memoAlreadyExisted,
+          memoResultPayload: ack.memoResultPayload,
+        });
+        this._pendingEventAcks.delete(key);
+      }
+    } else if (response.waitForAck) {
+      const ack = response.waitForAck;
+      const { ref } = ack;
+      const key = ackKey(ref?.durableTaskExternalId ?? '', ref?.invocationCount ?? 0);
+      const pending = this._pendingEventAcks.get(key);
+      if (pending) {
+        pending.resolve({
+          ackType: 'waitFor',
+          invocationCount: ref?.invocationCount ?? 0,
+          durableTaskExternalId: ref?.durableTaskExternalId ?? '',
+          branchId: ref?.branchId ?? 0,
+          nodeId: ref?.nodeId ?? 0,
+        });
+        this._pendingEventAcks.delete(key);
+      }
     } else if (response.entryCompleted) {
       const completed = response.entryCompleted;
+      const { ref } = completed;
       const key = callbackKey(
-        completed.durableTaskExternalId,
-        completed.invocationCount,
-        completed.branchId,
-        completed.nodeId
+        ref?.durableTaskExternalId ?? '',
+        ref?.invocationCount ?? 0,
+        ref?.branchId ?? 0,
+        ref?.nodeId ?? 0
       );
       const result = eventLogEntryResultFromProto(completed);
       const pending = this._pendingCallbacks.get(key);
@@ -369,13 +421,14 @@ export class DurableListenerClient {
       }
     } else if (response.error) {
       const { error } = response;
+      const { ref } = error;
       let exc: Error;
 
       if (error.errorType === DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_NONDETERMINISM) {
         exc = new NonDeterminismError(
-          error.durableTaskExternalId,
-          error.invocationCount,
-          error.nodeId,
+          ref?.durableTaskExternalId ?? '',
+          ref?.invocationCount ?? 0,
+          ref?.nodeId ?? 0,
           error.errorMessage
         );
       } else {
@@ -384,7 +437,7 @@ export class DurableListenerClient {
         );
       }
 
-      const eAckKey = ackKey(error.durableTaskExternalId, error.invocationCount);
+      const eAckKey = ackKey(ref?.durableTaskExternalId ?? '', ref?.invocationCount ?? 0);
       const pendingAck = this._pendingEventAcks.get(eAckKey);
       if (pendingAck) {
         pendingAck.reject(exc);
@@ -392,10 +445,10 @@ export class DurableListenerClient {
       }
 
       const eCbKey = callbackKey(
-        error.durableTaskExternalId,
-        error.invocationCount,
-        error.branchId,
-        error.nodeId
+        ref?.durableTaskExternalId ?? '',
+        ref?.invocationCount ?? 0,
+        ref?.branchId ?? 0,
+        ref?.nodeId ?? 0
       );
       const pendingCb = this._pendingCallbacks.get(eCbKey);
       if (pendingCb) {
@@ -403,7 +456,7 @@ export class DurableListenerClient {
         this._pendingCallbacks.delete(eCbKey);
       }
 
-      const eEvKey = evictionKey(error.durableTaskExternalId, error.invocationCount);
+      const eEvKey = evictionKey(ref?.durableTaskExternalId ?? '', ref?.invocationCount ?? 0);
       const pendingEv = this._pendingEvictionAcks.get(eEvKey);
       if (pendingEv) {
         pendingEv.reject(exc);
@@ -412,6 +465,22 @@ export class DurableListenerClient {
     }
   }
 
+  /* eslint-disable no-dupe-class-members -- intentional overload signatures */
+  async sendEvent(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    event: RunChildrenEvent
+  ): Promise<DurableTaskEventRunAck>;
+  async sendEvent(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    event: WaitForEvent
+  ): Promise<DurableTaskEventWaitForAck>;
+  async sendEvent(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    event: MemoEvent
+  ): Promise<DurableTaskEventMemoAck>;
   async sendEvent(
     durableTaskExternalId: string,
     invocationCount: number,
@@ -421,38 +490,39 @@ export class DurableListenerClient {
     const d = deferred<DurableTaskEventAck>();
     this._pendingEventAcks.set(key, d);
 
-    let eventRequest: DurableTaskEventRequest;
+    let request: DurableTaskRequest;
 
     switch (event.kind) {
-      case 'runChildren':
-        eventRequest = {
+      case 'runChildren': {
+        const triggerRunsReq: DurableTaskTriggerRunsRequest = {
           invocationCount,
           durableTaskExternalId,
-          kind: DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
           triggerOpts: event.triggerOpts,
         };
+        request = { triggerRuns: triggerRunsReq };
         break;
+      }
 
-      case 'waitFor':
-        eventRequest = {
+      case 'waitFor': {
+        const waitForReq: DurableTaskWaitForRequest = {
           invocationCount,
           durableTaskExternalId,
-          kind: DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
           waitForConditions: event.waitForConditions,
-          triggerOpts: [],
         };
+        request = { waitFor: waitForReq };
         break;
+      }
 
-      case 'memo':
-        eventRequest = {
+      case 'memo': {
+        const memoReq: DurableTaskMemoRequest = {
           invocationCount,
           durableTaskExternalId,
-          kind: DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
-          memoKey: event.memoKey,
+          key: event.memoKey,
           payload: event.payload,
-          triggerOpts: [],
         };
+        request = { memo: memoReq };
         break;
+      }
 
       default: {
         const _: never = event;
@@ -460,15 +530,17 @@ export class DurableListenerClient {
       }
     }
 
-    this._enqueueRequest({ event: eventRequest });
+    this._enqueueRequest(request);
     return d.promise;
   }
+  /* eslint-enable no-dupe-class-members */
 
   async waitForCallback(
     durableTaskExternalId: string,
     invocationCount: number,
     branchId: number,
-    nodeId: number
+    nodeId: number,
+    opts?: { signal?: AbortSignal }
   ): Promise<DurableTaskEventLogEntryResult> {
     const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
 
@@ -482,7 +554,48 @@ export class DurableListenerClient {
       this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
     }
 
-    return this._pendingCallbacks.get(key)!.promise;
+    const d = this._pendingCallbacks.get(key)!;
+    const signal = opts?.signal;
+
+    if (!signal) {
+      return d.promise;
+    }
+
+    if (signal.aborted) {
+      return Promise.reject(createAbortError('Operation cancelled by AbortSignal'));
+    }
+
+    return new Promise<DurableTaskEventLogEntryResult>((resolve, reject) => {
+      let settled = false;
+
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        reject(createAbortError('Operation cancelled by AbortSignal'));
+      };
+
+      // TODO-DURABLE: this will likely be an issue, we're doing this one other place too
+      const max = getMaxListeners(signal);
+      if (max !== 0 && max < 50) {
+        setMaxListeners(50, signal);
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+
+      d.promise.then(
+        (value) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener('abort', onAbort);
+          resolve(value);
+        },
+        (err) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener('abort', onAbort);
+          reject(err);
+        }
+      );
+    });
   }
 
   cleanupTaskState(durableTaskExternalId: string, invocationCount: number): void {
@@ -549,13 +662,17 @@ export class DurableListenerClient {
     memoKey: Uint8Array,
     memoResultPayload?: Uint8Array
   ): Promise<void> {
-    const req: DurableTaskCompleteMemoRequest = {
+    const ref: DurableEventLogEntryRef = {
       durableTaskExternalId,
       invocationCount,
       branchId,
       nodeId,
-      memoKey,
+    };
+
+    const req: DurableTaskCompleteMemoRequest = {
+      ref,
       payload: memoResultPayload ?? new Uint8Array(),
+      memoKey,
     };
 
     this._enqueueRequest({ completeMemo: req });
