@@ -102,6 +102,14 @@ export interface DurableTaskAwaitedCompletedEntry {
   durableTaskExternalId: string;
   branchId: number;
   nodeId: number;
+  invocationCount: number;
+}
+
+/** Sent by the server to notify a worker that its invocation is stale and should be cancelled. */
+export interface DurableTaskServerEvictNotification {
+  durableTaskExternalId: string;
+  invocationCount: number;
+  reason: string;
 }
 
 export interface DurableTaskWorkerStatusRequest {
@@ -181,6 +189,7 @@ export interface DurableTaskResponse {
   entryCompleted?: DurableTaskEventLogEntryCompletedResponse | undefined;
   error?: DurableTaskErrorResponse | undefined;
   evictionAck?: DurableTaskEvictionAckResponse | undefined;
+  serverEvict?: DurableTaskServerEvictNotification | undefined;
 }
 
 export interface RegisterDurableEventRequest {
@@ -1082,7 +1091,7 @@ export const DurableTaskEvictionAckResponse: MessageFns<DurableTaskEvictionAckRe
 };
 
 function createBaseDurableTaskAwaitedCompletedEntry(): DurableTaskAwaitedCompletedEntry {
-  return { durableTaskExternalId: '', branchId: 0, nodeId: 0 };
+  return { durableTaskExternalId: '', branchId: 0, nodeId: 0, invocationCount: 0 };
 }
 
 export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedCompletedEntry> = {
@@ -1098,6 +1107,9 @@ export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedComp
     }
     if (message.nodeId !== 0) {
       writer.uint32(24).int64(message.nodeId);
+    }
+    if (message.invocationCount !== 0) {
+      writer.uint32(32).int32(message.invocationCount);
     }
     return writer;
   },
@@ -1133,6 +1145,14 @@ export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedComp
           message.nodeId = longToNumber(reader.int64());
           continue;
         }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1149,6 +1169,9 @@ export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedComp
         : '',
       branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
       nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
     };
   },
 
@@ -1163,6 +1186,9 @@ export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedComp
     if (message.nodeId !== 0) {
       obj.nodeId = Math.round(message.nodeId);
     }
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
     return obj;
   },
 
@@ -1176,6 +1202,110 @@ export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedComp
     message.durableTaskExternalId = object.durableTaskExternalId ?? '';
     message.branchId = object.branchId ?? 0;
     message.nodeId = object.nodeId ?? 0;
+    message.invocationCount = object.invocationCount ?? 0;
+    return message;
+  },
+};
+
+function createBaseDurableTaskServerEvictNotification(): DurableTaskServerEvictNotification {
+  return { durableTaskExternalId: '', invocationCount: 0, reason: '' };
+}
+
+export const DurableTaskServerEvictNotification: MessageFns<DurableTaskServerEvictNotification> = {
+  encode(
+    message: DurableTaskServerEvictNotification,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.durableTaskExternalId !== '') {
+      writer.uint32(10).string(message.durableTaskExternalId);
+    }
+    if (message.invocationCount !== 0) {
+      writer.uint32(16).int32(message.invocationCount);
+    }
+    if (message.reason !== '') {
+      writer.uint32(26).string(message.reason);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskServerEvictNotification {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskServerEvictNotification();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.reason = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskServerEvictNotification {
+    return {
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : '',
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : 0,
+      reason: isSet(object.reason) ? globalThis.String(object.reason) : '',
+    };
+  },
+
+  toJSON(message: DurableTaskServerEvictNotification): unknown {
+    const obj: any = {};
+    if (message.durableTaskExternalId !== '') {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.reason !== '') {
+      obj.reason = message.reason;
+    }
+    return obj;
+  },
+
+  create(
+    base?: DeepPartial<DurableTaskServerEvictNotification>
+  ): DurableTaskServerEvictNotification {
+    return DurableTaskServerEvictNotification.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<DurableTaskServerEvictNotification>
+  ): DurableTaskServerEvictNotification {
+    const message = createBaseDurableTaskServerEvictNotification();
+    message.durableTaskExternalId = object.durableTaskExternalId ?? '';
+    message.invocationCount = object.invocationCount ?? 0;
+    message.reason = object.reason ?? '';
     return message;
   },
 };
@@ -2006,6 +2136,7 @@ function createBaseDurableTaskResponse(): DurableTaskResponse {
     entryCompleted: undefined,
     error: undefined,
     evictionAck: undefined,
+    serverEvict: undefined,
   };
 }
 
@@ -2043,6 +2174,12 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
     }
     if (message.evictionAck !== undefined) {
       DurableTaskEvictionAckResponse.encode(message.evictionAck, writer.uint32(58).fork()).join();
+    }
+    if (message.serverEvict !== undefined) {
+      DurableTaskServerEvictNotification.encode(
+        message.serverEvict,
+        writer.uint32(66).fork()
+      ).join();
     }
     return writer;
   },
@@ -2119,6 +2256,14 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
           message.evictionAck = DurableTaskEvictionAckResponse.decode(reader, reader.uint32());
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.serverEvict = DurableTaskServerEvictNotification.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2149,6 +2294,9 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
       evictionAck: isSet(object.evictionAck)
         ? DurableTaskEvictionAckResponse.fromJSON(object.evictionAck)
         : undefined,
+      serverEvict: isSet(object.serverEvict)
+        ? DurableTaskServerEvictNotification.fromJSON(object.serverEvict)
+        : undefined,
     };
   },
 
@@ -2174,6 +2322,9 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
     }
     if (message.evictionAck !== undefined) {
       obj.evictionAck = DurableTaskEvictionAckResponse.toJSON(message.evictionAck);
+    }
+    if (message.serverEvict !== undefined) {
+      obj.serverEvict = DurableTaskServerEvictNotification.toJSON(message.serverEvict);
     }
     return obj;
   },
@@ -2210,6 +2361,10 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
     message.evictionAck =
       object.evictionAck !== undefined && object.evictionAck !== null
         ? DurableTaskEvictionAckResponse.fromPartial(object.evictionAck)
+        : undefined;
+    message.serverEvict =
+      object.serverEvict !== undefined && object.serverEvict !== null
+        ? DurableTaskServerEvictNotification.fromPartial(object.serverEvict)
         : undefined;
     return message;
   },

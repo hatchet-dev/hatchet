@@ -478,6 +478,18 @@ func (d *DispatcherServiceImpl) sendNonDeterminismError(invocation *durableTaskI
 	})
 }
 
+func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableTaskInvocation, sie *v1.StaleInvocationError) error {
+	return invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &contracts.DurableTaskServerEvictNotification{
+				DurableTaskExternalId: sie.TaskExternalId.String(),
+				InvocationCount:       sie.ActualInvocationCount,
+				Reason:                sie.Error(),
+			},
+		},
+	})
+}
+
 func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, result *v1.IngestDurableTaskEventResult) error {
 	switch result.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
@@ -556,8 +568,11 @@ func (d *DispatcherServiceImpl) handleMemo(
 	})
 
 	var nde *v1.NonDeterminismError
+	var sie *v1.StaleInvocationError
 	if err != nil && errors.As(err, &nde) {
 		return d.sendNonDeterminismError(invocation, nde, req.InvocationCount)
+	} else if err != nil && errors.As(err, &sie) {
+		return d.sendStaleInvocationEviction(invocation, sie)
 	} else if err != nil {
 		return status.Errorf(codes.Internal, "failed to ingest memo event: %v", err)
 	}
@@ -624,8 +639,11 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	})
 
 	var nde *v1.NonDeterminismError
+	var sie *v1.StaleInvocationError
 	if err != nil && errors.As(err, &nde) {
 		return d.sendNonDeterminismError(invocation, nde, req.InvocationCount)
+	} else if err != nil && errors.As(err, &sie) {
+		return d.sendStaleInvocationEviction(invocation, sie)
 	} else if err != nil {
 		return status.Errorf(codes.Internal, "failed to ingest trigger runs event: %v", err)
 	}
@@ -722,8 +740,11 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	})
 
 	var nde *v1.NonDeterminismError
+	var sie *v1.StaleInvocationError
 	if err != nil && errors.As(err, &nde) {
 		return d.sendNonDeterminismError(invocation, nde, req.InvocationCount)
+	} else if err != nil && errors.As(err, &sie) {
+		return d.sendStaleInvocationEviction(invocation, sie)
 	} else if err != nil {
 		return status.Errorf(codes.Internal, "failed to ingest wait_for event: %v", err)
 	}
@@ -864,13 +885,25 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		return nil
 	}
 
+	type entryWithInvocationCount struct {
+		taskExternalId  uuid.UUID
+		invocationCount int32
+	}
+
+	uniqueExternalIds := make(map[uuid.UUID]int32)
 	waiting := make([]v1.TaskExternalIdNodeIdBranchId, 0, len(req.WaitingEntries))
+
 	for _, cb := range req.WaitingEntries {
 		taskExternalId, err := uuid.Parse(cb.DurableTaskExternalId)
 		if err != nil {
 			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status: %s", cb.DurableTaskExternalId)
 			continue
 		}
+
+		if cb.InvocationCount > 0 {
+			uniqueExternalIds[taskExternalId] = cb.InvocationCount
+		}
+
 		waiting = append(waiting, v1.TaskExternalIdNodeIdBranchId{
 			TaskExternalId: taskExternalId,
 			NodeId:         cb.NodeId,
@@ -880,6 +913,54 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 
 	if len(waiting) == 0 {
 		return nil
+	}
+
+	if len(uniqueExternalIds) > 0 {
+		externalIds := make([]uuid.UUID, 0, len(uniqueExternalIds))
+		for extId := range uniqueExternalIds {
+			externalIds = append(externalIds, extId)
+		}
+
+		tasks, err := d.repo.Tasks().FlattenExternalIds(ctx, invocation.tenantId, externalIds)
+		if err != nil {
+			d.l.Warn().Err(err).Msg("failed to look up tasks for invocation count check in worker_status")
+		} else if len(tasks) > 0 {
+			idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
+			taskIdToExternalId := make(map[v1.IdInsertedAt]uuid.UUID, len(tasks))
+
+			for _, t := range tasks {
+				key := v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt}
+				idInsertedAts = append(idInsertedAts, key)
+				taskIdToExternalId[key] = t.ExternalID
+			}
+
+			invocationCounts, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
+			if err != nil {
+				d.l.Warn().Err(err).Msg("failed to get invocation counts in worker_status")
+			} else {
+				for key, currentCount := range invocationCounts {
+					extId, ok := taskIdToExternalId[key]
+					if !ok || currentCount == nil {
+						continue
+					}
+					workerCount, has := uniqueExternalIds[extId]
+					if !has {
+						continue
+					}
+					if workerCount < *currentCount {
+						_ = invocation.send(&contracts.DurableTaskResponse{
+							Message: &contracts.DurableTaskResponse_ServerEvict{
+								ServerEvict: &contracts.DurableTaskServerEvictNotification{
+									DurableTaskExternalId: extId.String(),
+									InvocationCount:       workerCount,
+									Reason:                fmt.Sprintf("stale invocation: server has %d, worker sent %d", *currentCount, workerCount),
+								},
+							},
+						})
+					}
+				}
+			}
+		}
 	}
 
 	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting)

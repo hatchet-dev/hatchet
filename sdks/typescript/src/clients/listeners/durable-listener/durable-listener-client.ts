@@ -176,6 +176,8 @@ export class DurableListenerClient {
   private _statusInterval: ReturnType<typeof setInterval> | undefined;
   private _startLock: Promise<void> | undefined;
 
+  private _onServerEvict: ((durableTaskExternalId: string, invocationCount: number) => void) | undefined;
+
   constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
     this.config = config;
     this.client = factory.create(V1DispatcherDefinition, channel);
@@ -184,6 +186,10 @@ export class DurableListenerClient {
 
   get workerId(): string | undefined {
     return this._workerId;
+  }
+
+  setOnServerEvict(callback: (durableTaskExternalId: string, invocationCount: number) => void): void {
+    this._onServerEvict = callback;
   }
 
   async start(workerId: string): Promise<void> {
@@ -311,6 +317,7 @@ export class DurableListenerClient {
       const parts = key.split(':');
       waitingEntries.push({
         durableTaskExternalId: parts[0],
+        invocationCount: parseInt(parts[1], 10),
         branchId: parseInt(parts[2], 10),
         nodeId: parseInt(parts[3], 10),
       });
@@ -418,6 +425,16 @@ export class DurableListenerClient {
       if (pending) {
         pending.resolve();
         this._pendingEvictionAcks.delete(key);
+      }
+    } else if (response.serverEvict) {
+      const evict = response.serverEvict;
+      this.logger.info(
+        `received server eviction notification for task ${evict.durableTaskExternalId} ` +
+        `invocation ${evict.invocationCount}: ${evict.reason}`
+      );
+      this.cleanupTaskState(evict.durableTaskExternalId, evict.invocationCount);
+      if (this._onServerEvict) {
+        this._onServerEvict(evict.durableTaskExternalId, evict.invocationCount);
       }
     } else if (response.error) {
       const { error } = response;

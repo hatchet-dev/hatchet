@@ -72,6 +72,14 @@ message DurableTaskAwaitedCompletedEntry {
     string durable_task_external_id = 1;
     int64 branch_id = 2;
     int64 node_id = 3;
+    int32 invocation_count = 4;
+}
+
+// Sent by the server to notify a worker that its invocation is stale and should be cancelled.
+message DurableTaskServerEvictNotification {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    string reason = 3;
 }
 
 message DurableTaskWorkerStatusRequest {
@@ -157,6 +165,7 @@ message DurableTaskResponse {
         DurableTaskEventLogEntryCompletedResponse entry_completed = 5;
         DurableTaskErrorResponse error = 6;
         DurableTaskEvictionAckResponse eviction_ack = 7;
+        DurableTaskServerEvictNotification server_evict = 8;
     }
 }
 
