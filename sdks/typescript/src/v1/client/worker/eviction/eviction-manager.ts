@@ -89,6 +89,11 @@ export class DurableEvictionManager {
     this._cache.markActive(key);
   }
 
+  private _evictRun(key: ActionKey): void {
+    this._cancelLocal(key);
+    this.unregisterRun(key);
+  }
+
   private async _tickSafe(): Promise<void> {
     if (this._ticking) return;
     this._ticking = true;
@@ -126,8 +131,17 @@ export class DurableEvictionManager {
       );
 
       await this._requestEvictionWithAck(key, rec);
-      this._cancelLocal(key);
-      this.unregisterRun(key);
+      this._evictRun(key);
+    }
+  }
+
+  handleServerEviction(taskRunExternalId: string): void {
+    const key = this._cache.findKeyByTaskRunExternalId(taskRunExternalId);
+    if (key) {
+      this._logger.info(
+        `DurableEvictionManager: server-initiated eviction for task_run_external_id=${taskRunExternalId}`
+      );
+      this._evictRun(key);
     }
   }
 
@@ -157,8 +171,7 @@ export class DurableEvictionManager {
         continue;
       }
 
-      this._cancelLocal(rec.key);
-      this.unregisterRun(rec.key);
+      this._evictRun(rec.key);
       evicted++;
     }
 

@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Annotated, Literal, cast
@@ -169,9 +169,14 @@ class DurableEventListener:
         self._running = False
         self._start_lock = asyncio.Lock()
 
+        self._on_server_evict: Callable[[str, int], None] | None = None
+
     @property
     def worker_id(self) -> str | None:
         return self._worker_id
+
+    def set_on_server_evict(self, callback: Callable[[str, int], None]) -> None:
+        self._on_server_evict = callback
 
     async def _connect(self) -> None:
         if self._conn is not None:
@@ -251,10 +256,11 @@ class DurableEventListener:
         waiting = [
             DurableTaskAwaitedCompletedEntry(
                 durable_task_external_id=task_ext_id,
+                invocation_count=inv_count,
                 node_id=node_id,
                 branch_id=branch_id,
             )
-            for (task_ext_id, _, branch_id, node_id) in self._pending_callbacks
+            for (task_ext_id, inv_count, branch_id, node_id) in self._pending_callbacks
         ]
 
         request = DurableTaskRequest(
@@ -406,6 +412,16 @@ class DurableEventListener:
                 future = self._pending_eviction_acks.pop(eviction_key)
                 if not future.done():
                     future.set_result(None)
+        elif response.HasField("server_evict"):
+            evict = response.server_evict
+            logger.info(
+                f"received server eviction notification for task {evict.durable_task_external_id} "
+                f"invocation {evict.invocation_count}: {evict.reason}"
+            )
+            if self._on_server_evict is not None:
+                self._on_server_evict(
+                    evict.durable_task_external_id, evict.invocation_count
+                )
         elif response.HasField("error"):
             error = response.error
             exc: Exception

@@ -170,6 +170,9 @@ class Runner:
             self.worker_context._worker_id = action.worker_id
 
             if isinstance(self.durable_event_listener, DurableEventListener):
+                self.durable_event_listener.set_on_server_evict(
+                    self._server_evict_callback
+                )
                 self.durable_event_listener_task = asyncio.create_task(
                     self.durable_event_listener.ensure_started(action.worker_id)
                 )
@@ -212,6 +215,15 @@ class Runner:
             self.cancellations[key] = True
         if key in self.tasks:
             self.tasks[key].cancel()
+
+    def _server_evict_callback(
+        self, durable_task_external_id: str, invocation_count: int
+    ) -> None:
+        """Called from DurableEventListener when the server notifies a stale invocation."""
+        if self.durable_eviction_manager is not None:
+            self.durable_eviction_manager.handle_server_eviction(
+                durable_task_external_id
+            )
 
     async def _eviction_request(self, key: ActionKey, rec: DurableRunRecord) -> None:
         """Called from DurableEvictionManager when it needs to request eviction from the server."""

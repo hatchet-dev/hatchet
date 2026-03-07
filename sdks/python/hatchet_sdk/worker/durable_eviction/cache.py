@@ -66,6 +66,12 @@ class DurableEvictionCache:
     def get_all_waiting(self) -> list[DurableRunRecord]:
         return [r for r in self._runs.values() if r.is_waiting]
 
+    def find_key_by_step_run_id(self, step_run_id: str) -> ActionKey | None:
+        for key, rec in self._runs.items():
+            if rec.step_run_id == step_run_id:
+                return key
+        return None
+
     def mark_waiting(
         self,
         key: ActionKey,

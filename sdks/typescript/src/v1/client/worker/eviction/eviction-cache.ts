@@ -62,6 +62,13 @@ export class DurableEvictionCache {
     return [...this._runs.values()].filter((r) => r._waitCount > 0);
   }
 
+  findKeyByTaskRunExternalId(taskRunExternalId: string): ActionKey | undefined {
+    for (const [key, rec] of this._runs) {
+      if (rec.taskRunExternalId === taskRunExternalId) return key;
+    }
+    return undefined;
+  }
+
   markWaiting(key: ActionKey, now: number, waitKind: string, resourceId: string): void {
     const rec = this._runs.get(key);
     if (!rec) return;
