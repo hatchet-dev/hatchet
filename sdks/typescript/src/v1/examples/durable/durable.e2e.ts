@@ -67,8 +67,8 @@ describe('durable-e2e', () => {
     expect(Math.abs(g1.runtime - SLEEP_TIME_SECONDS)).toBeLessThanOrEqual(5);
     expect(g1.key).toBe(g2.key);
     expect(g1.key).toBe('CREATE');
-    expect(['0', 'sleep']).toContain(`${g1.eventId}`);
-    expect(['0', '1', 'sleep', 'event']).toContain(`${g2.eventId}`);
+    expect(['sleep', 'event']).toContain(`${g1.eventId}`);
+    expect(['sleep', 'event']).toContain(`${g2.eventId}`);
 
     const multi = (result as any).wait_for_multi_sleep;
     expect(multi.runtime).toBeGreaterThan(3 * SLEEP_TIME_SECONDS);
@@ -91,13 +91,14 @@ describe('durable-e2e', () => {
 
   it('durable child spawn', async () => {
     const result = await durableWithSpawn.run({});
-    expect(result.child_output).toEqual({ message: 'hello from child' });
+    expect(result.child_output).toEqual({ message: 'hello from child 1' });
   }, 300_000);
 
   it('durable child bulk spawn', async () => {
-    const result = await durableWithBulkSpawn.run({});
+    const n = 10;
+    const result = await durableWithBulkSpawn.run({ n });
     expect(result.child_outputs).toEqual(
-      Array.from({ length: 10 }, () => ({ message: 'hello from child' }))
+      Array.from({ length: n }, (_, i) => ({ message: `hello from child ${i}` }))
     );
   }, 300_000);
 
@@ -123,7 +124,7 @@ describe('durable-e2e', () => {
     await eventPusher.catch(() => undefined);
     const firstElapsed = (Date.now() - start) / 1000;
 
-    expect(result.child_output).toEqual({ message: 'hello from child' });
+    expect(result.child_output).toEqual({ message: 'hello from child 1' });
     expect(firstElapsed).toBeGreaterThanOrEqual(SLEEP_TIME_SECONDS);
 
     const replayStart = Date.now();
@@ -131,7 +132,7 @@ describe('durable-e2e', () => {
     const replayed = await ref.output;
     const replayElapsed = (Date.now() - replayStart) / 1000;
 
-    expect(replayed.child_output).toEqual({ message: 'hello from child' });
+    expect(replayed.child_output).toEqual({ message: 'hello from child 1' });
     expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS);
   }, 300_000);
 

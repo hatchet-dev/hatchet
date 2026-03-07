@@ -5,11 +5,11 @@
 // source: dispatcher/dispatcher.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
-import type { CallContext, CallOptions } from 'nice-grpc-common';
-import { Timestamp } from '../google/protobuf/timestamp';
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import type { CallContext, CallOptions } from "nice-grpc-common";
+import { Timestamp } from "../google/protobuf/timestamp";
 
-export const protobufPackage = '';
+export const protobufPackage = "";
 
 export enum SDKS {
   UNKNOWN = 0,
@@ -23,22 +23,22 @@ export enum SDKS {
 export function sDKSFromJSON(object: any): SDKS {
   switch (object) {
     case 0:
-    case 'UNKNOWN':
+    case "UNKNOWN":
       return SDKS.UNKNOWN;
     case 1:
-    case 'GO':
+    case "GO":
       return SDKS.GO;
     case 2:
-    case 'PYTHON':
+    case "PYTHON":
       return SDKS.PYTHON;
     case 3:
-    case 'TYPESCRIPT':
+    case "TYPESCRIPT":
       return SDKS.TYPESCRIPT;
     case 4:
-    case 'RUBY':
+    case "RUBY":
       return SDKS.RUBY;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return SDKS.UNRECOGNIZED;
   }
@@ -47,18 +47,18 @@ export function sDKSFromJSON(object: any): SDKS {
 export function sDKSToJSON(object: SDKS): string {
   switch (object) {
     case SDKS.UNKNOWN:
-      return 'UNKNOWN';
+      return "UNKNOWN";
     case SDKS.GO:
-      return 'GO';
+      return "GO";
     case SDKS.PYTHON:
-      return 'PYTHON';
+      return "PYTHON";
     case SDKS.TYPESCRIPT:
-      return 'TYPESCRIPT';
+      return "TYPESCRIPT";
     case SDKS.RUBY:
-      return 'RUBY';
+      return "RUBY";
     case SDKS.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -72,16 +72,16 @@ export enum ActionType {
 export function actionTypeFromJSON(object: any): ActionType {
   switch (object) {
     case 0:
-    case 'START_STEP_RUN':
+    case "START_STEP_RUN":
       return ActionType.START_STEP_RUN;
     case 1:
-    case 'CANCEL_STEP_RUN':
+    case "CANCEL_STEP_RUN":
       return ActionType.CANCEL_STEP_RUN;
     case 2:
-    case 'START_GET_GROUP_KEY':
+    case "START_GET_GROUP_KEY":
       return ActionType.START_GET_GROUP_KEY;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return ActionType.UNRECOGNIZED;
   }
@@ -90,14 +90,14 @@ export function actionTypeFromJSON(object: any): ActionType {
 export function actionTypeToJSON(object: ActionType): string {
   switch (object) {
     case ActionType.START_STEP_RUN:
-      return 'START_STEP_RUN';
+      return "START_STEP_RUN";
     case ActionType.CANCEL_STEP_RUN:
-      return 'CANCEL_STEP_RUN';
+      return "CANCEL_STEP_RUN";
     case ActionType.START_GET_GROUP_KEY:
-      return 'START_GET_GROUP_KEY';
+      return "START_GET_GROUP_KEY";
     case ActionType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -112,19 +112,19 @@ export enum GroupKeyActionEventType {
 export function groupKeyActionEventTypeFromJSON(object: any): GroupKeyActionEventType {
   switch (object) {
     case 0:
-    case 'GROUP_KEY_EVENT_TYPE_UNKNOWN':
+    case "GROUP_KEY_EVENT_TYPE_UNKNOWN":
       return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_UNKNOWN;
     case 1:
-    case 'GROUP_KEY_EVENT_TYPE_STARTED':
+    case "GROUP_KEY_EVENT_TYPE_STARTED":
       return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED;
     case 2:
-    case 'GROUP_KEY_EVENT_TYPE_COMPLETED':
+    case "GROUP_KEY_EVENT_TYPE_COMPLETED":
       return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED;
     case 3:
-    case 'GROUP_KEY_EVENT_TYPE_FAILED':
+    case "GROUP_KEY_EVENT_TYPE_FAILED":
       return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return GroupKeyActionEventType.UNRECOGNIZED;
   }
@@ -133,16 +133,16 @@ export function groupKeyActionEventTypeFromJSON(object: any): GroupKeyActionEven
 export function groupKeyActionEventTypeToJSON(object: GroupKeyActionEventType): string {
   switch (object) {
     case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_UNKNOWN:
-      return 'GROUP_KEY_EVENT_TYPE_UNKNOWN';
+      return "GROUP_KEY_EVENT_TYPE_UNKNOWN";
     case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED:
-      return 'GROUP_KEY_EVENT_TYPE_STARTED';
+      return "GROUP_KEY_EVENT_TYPE_STARTED";
     case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED:
-      return 'GROUP_KEY_EVENT_TYPE_COMPLETED';
+      return "GROUP_KEY_EVENT_TYPE_COMPLETED";
     case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED:
-      return 'GROUP_KEY_EVENT_TYPE_FAILED';
+      return "GROUP_KEY_EVENT_TYPE_FAILED";
     case GroupKeyActionEventType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -158,22 +158,22 @@ export enum StepActionEventType {
 export function stepActionEventTypeFromJSON(object: any): StepActionEventType {
   switch (object) {
     case 0:
-    case 'STEP_EVENT_TYPE_UNKNOWN':
+    case "STEP_EVENT_TYPE_UNKNOWN":
       return StepActionEventType.STEP_EVENT_TYPE_UNKNOWN;
     case 1:
-    case 'STEP_EVENT_TYPE_STARTED':
+    case "STEP_EVENT_TYPE_STARTED":
       return StepActionEventType.STEP_EVENT_TYPE_STARTED;
     case 2:
-    case 'STEP_EVENT_TYPE_COMPLETED':
+    case "STEP_EVENT_TYPE_COMPLETED":
       return StepActionEventType.STEP_EVENT_TYPE_COMPLETED;
     case 3:
-    case 'STEP_EVENT_TYPE_FAILED':
+    case "STEP_EVENT_TYPE_FAILED":
       return StepActionEventType.STEP_EVENT_TYPE_FAILED;
     case 4:
-    case 'STEP_EVENT_TYPE_ACKNOWLEDGED':
+    case "STEP_EVENT_TYPE_ACKNOWLEDGED":
       return StepActionEventType.STEP_EVENT_TYPE_ACKNOWLEDGED;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return StepActionEventType.UNRECOGNIZED;
   }
@@ -182,18 +182,18 @@ export function stepActionEventTypeFromJSON(object: any): StepActionEventType {
 export function stepActionEventTypeToJSON(object: StepActionEventType): string {
   switch (object) {
     case StepActionEventType.STEP_EVENT_TYPE_UNKNOWN:
-      return 'STEP_EVENT_TYPE_UNKNOWN';
+      return "STEP_EVENT_TYPE_UNKNOWN";
     case StepActionEventType.STEP_EVENT_TYPE_STARTED:
-      return 'STEP_EVENT_TYPE_STARTED';
+      return "STEP_EVENT_TYPE_STARTED";
     case StepActionEventType.STEP_EVENT_TYPE_COMPLETED:
-      return 'STEP_EVENT_TYPE_COMPLETED';
+      return "STEP_EVENT_TYPE_COMPLETED";
     case StepActionEventType.STEP_EVENT_TYPE_FAILED:
-      return 'STEP_EVENT_TYPE_FAILED';
+      return "STEP_EVENT_TYPE_FAILED";
     case StepActionEventType.STEP_EVENT_TYPE_ACKNOWLEDGED:
-      return 'STEP_EVENT_TYPE_ACKNOWLEDGED';
+      return "STEP_EVENT_TYPE_ACKNOWLEDGED";
     case StepActionEventType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -207,16 +207,16 @@ export enum ResourceType {
 export function resourceTypeFromJSON(object: any): ResourceType {
   switch (object) {
     case 0:
-    case 'RESOURCE_TYPE_UNKNOWN':
+    case "RESOURCE_TYPE_UNKNOWN":
       return ResourceType.RESOURCE_TYPE_UNKNOWN;
     case 1:
-    case 'RESOURCE_TYPE_STEP_RUN':
+    case "RESOURCE_TYPE_STEP_RUN":
       return ResourceType.RESOURCE_TYPE_STEP_RUN;
     case 2:
-    case 'RESOURCE_TYPE_WORKFLOW_RUN':
+    case "RESOURCE_TYPE_WORKFLOW_RUN":
       return ResourceType.RESOURCE_TYPE_WORKFLOW_RUN;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return ResourceType.UNRECOGNIZED;
   }
@@ -225,14 +225,14 @@ export function resourceTypeFromJSON(object: any): ResourceType {
 export function resourceTypeToJSON(object: ResourceType): string {
   switch (object) {
     case ResourceType.RESOURCE_TYPE_UNKNOWN:
-      return 'RESOURCE_TYPE_UNKNOWN';
+      return "RESOURCE_TYPE_UNKNOWN";
     case ResourceType.RESOURCE_TYPE_STEP_RUN:
-      return 'RESOURCE_TYPE_STEP_RUN';
+      return "RESOURCE_TYPE_STEP_RUN";
     case ResourceType.RESOURCE_TYPE_WORKFLOW_RUN:
-      return 'RESOURCE_TYPE_WORKFLOW_RUN';
+      return "RESOURCE_TYPE_WORKFLOW_RUN";
     case ResourceType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -250,28 +250,28 @@ export enum ResourceEventType {
 export function resourceEventTypeFromJSON(object: any): ResourceEventType {
   switch (object) {
     case 0:
-    case 'RESOURCE_EVENT_TYPE_UNKNOWN':
+    case "RESOURCE_EVENT_TYPE_UNKNOWN":
       return ResourceEventType.RESOURCE_EVENT_TYPE_UNKNOWN;
     case 1:
-    case 'RESOURCE_EVENT_TYPE_STARTED':
+    case "RESOURCE_EVENT_TYPE_STARTED":
       return ResourceEventType.RESOURCE_EVENT_TYPE_STARTED;
     case 2:
-    case 'RESOURCE_EVENT_TYPE_COMPLETED':
+    case "RESOURCE_EVENT_TYPE_COMPLETED":
       return ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED;
     case 3:
-    case 'RESOURCE_EVENT_TYPE_FAILED':
+    case "RESOURCE_EVENT_TYPE_FAILED":
       return ResourceEventType.RESOURCE_EVENT_TYPE_FAILED;
     case 4:
-    case 'RESOURCE_EVENT_TYPE_CANCELLED':
+    case "RESOURCE_EVENT_TYPE_CANCELLED":
       return ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED;
     case 5:
-    case 'RESOURCE_EVENT_TYPE_TIMED_OUT':
+    case "RESOURCE_EVENT_TYPE_TIMED_OUT":
       return ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT;
     case 6:
-    case 'RESOURCE_EVENT_TYPE_STREAM':
+    case "RESOURCE_EVENT_TYPE_STREAM":
       return ResourceEventType.RESOURCE_EVENT_TYPE_STREAM;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return ResourceEventType.UNRECOGNIZED;
   }
@@ -280,22 +280,22 @@ export function resourceEventTypeFromJSON(object: any): ResourceEventType {
 export function resourceEventTypeToJSON(object: ResourceEventType): string {
   switch (object) {
     case ResourceEventType.RESOURCE_EVENT_TYPE_UNKNOWN:
-      return 'RESOURCE_EVENT_TYPE_UNKNOWN';
+      return "RESOURCE_EVENT_TYPE_UNKNOWN";
     case ResourceEventType.RESOURCE_EVENT_TYPE_STARTED:
-      return 'RESOURCE_EVENT_TYPE_STARTED';
+      return "RESOURCE_EVENT_TYPE_STARTED";
     case ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED:
-      return 'RESOURCE_EVENT_TYPE_COMPLETED';
+      return "RESOURCE_EVENT_TYPE_COMPLETED";
     case ResourceEventType.RESOURCE_EVENT_TYPE_FAILED:
-      return 'RESOURCE_EVENT_TYPE_FAILED';
+      return "RESOURCE_EVENT_TYPE_FAILED";
     case ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED:
-      return 'RESOURCE_EVENT_TYPE_CANCELLED';
+      return "RESOURCE_EVENT_TYPE_CANCELLED";
     case ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT:
-      return 'RESOURCE_EVENT_TYPE_TIMED_OUT';
+      return "RESOURCE_EVENT_TYPE_TIMED_OUT";
     case ResourceEventType.RESOURCE_EVENT_TYPE_STREAM:
-      return 'RESOURCE_EVENT_TYPE_STREAM';
+      return "RESOURCE_EVENT_TYPE_STREAM";
     case ResourceEventType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -307,10 +307,10 @@ export enum WorkflowRunEventType {
 export function workflowRunEventTypeFromJSON(object: any): WorkflowRunEventType {
   switch (object) {
     case 0:
-    case 'WORKFLOW_RUN_EVENT_TYPE_FINISHED':
+    case "WORKFLOW_RUN_EVENT_TYPE_FINISHED":
       return WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return WorkflowRunEventType.UNRECOGNIZED;
   }
@@ -319,10 +319,10 @@ export function workflowRunEventTypeFromJSON(object: any): WorkflowRunEventType 
 export function workflowRunEventTypeToJSON(object: WorkflowRunEventType): string {
   switch (object) {
     case WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED:
-      return 'WORKFLOW_RUN_EVENT_TYPE_FINISHED';
+      return "WORKFLOW_RUN_EVENT_TYPE_FINISHED";
     case WorkflowRunEventType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -351,13 +351,19 @@ export interface WorkerRegisterRequest {
    * (optional) the number of default slots this worker can handle
    * deprecated: use slot_config instead
    */
-  slots?: number | undefined;
+  slots?:
+    | number
+    | undefined;
   /** (optional) worker labels (i.e. state or other metadata) */
   labels: { [key: string]: WorkerLabels };
   /** (optional) webhookId is the id of the webhook that the worker is associated with (if any) */
-  webhookId?: string | undefined;
+  webhookId?:
+    | string
+    | undefined;
   /** (optional) information regarding the runtime environment of the worker */
-  runtimeInfo?: RuntimeInfo | undefined;
+  runtimeInfo?:
+    | RuntimeInfo
+    | undefined;
   /** (optional) slot config for this worker (slot_type -> units) */
   slotConfig: { [key: string]: number };
 }
@@ -428,19 +434,31 @@ export interface AssignedAction {
   /** the count number of the retry attempt */
   retryCount: number;
   /** (optional) additional metadata set on the workflow */
-  additionalMetadata?: string | undefined;
+  additionalMetadata?:
+    | string
+    | undefined;
   /** (optional) the child workflow index (if this is a child workflow) */
-  childWorkflowIndex?: number | undefined;
+  childWorkflowIndex?:
+    | number
+    | undefined;
   /** (optional) the child workflow key (if this is a child workflow) */
-  childWorkflowKey?: string | undefined;
+  childWorkflowKey?:
+    | string
+    | undefined;
   /** (optional) the parent workflow run id (if this is a child workflow) */
-  parentWorkflowRunId?: string | undefined;
+  parentWorkflowRunId?:
+    | string
+    | undefined;
   /** (optional) the priority of the run */
   priority: number;
   /** (optional) the workflow id */
-  workflowId?: string | undefined;
+  workflowId?:
+    | string
+    | undefined;
   /** (optional) the workflow version id */
-  workflowVersionId?: string | undefined;
+  workflowVersionId?:
+    | string
+    | undefined;
   /** (optional) the invocation count for durable task events (required for durable events, otherwise null) */
   durableTaskInvocationCount?: number | undefined;
 }
@@ -470,7 +488,9 @@ export interface GroupKeyActionEvent {
   getGroupKeyRunId: string;
   /** the action id */
   actionId: string;
-  eventTimestamp: Date | undefined;
+  eventTimestamp:
+    | Date
+    | undefined;
   /** the task event type */
   eventType: GroupKeyActionEventType;
   /** the event payload */
@@ -490,13 +510,17 @@ export interface StepActionEvent {
   taskRunExternalId: string;
   /** the action id */
   actionId: string;
-  eventTimestamp: Date | undefined;
+  eventTimestamp:
+    | Date
+    | undefined;
   /** the task event type */
   eventType: StepActionEventType;
   /** the event payload */
   eventPayload: string;
   /** the retry count */
-  retryCount?: number | undefined;
+  retryCount?:
+    | number
+    | undefined;
   /** a flag indicating if the task should _not_ be retried */
   shouldNotRetry?: boolean | undefined;
 }
@@ -510,9 +534,13 @@ export interface ActionEventResponse {
 
 export interface SubscribeToWorkflowEventsRequest {
   /** the id of the workflow run */
-  workflowRunId?: string | undefined;
+  workflowRunId?:
+    | string
+    | undefined;
   /** the key of the additional meta field to subscribe to */
-  additionalMetaKey?: string | undefined;
+  additionalMetaKey?:
+    | string
+    | undefined;
   /** the value of the additional meta field to subscribe to */
   additionalMetaValue?: string | undefined;
 }
@@ -528,7 +556,9 @@ export interface WorkflowEvent {
   resourceType: ResourceType;
   eventType: ResourceEventType;
   resourceId: string;
-  eventTimestamp: Date | undefined;
+  eventTimestamp:
+    | Date
+    | undefined;
   /** the event payload */
   eventPayload: string;
   /**
@@ -537,7 +567,9 @@ export interface WorkflowEvent {
    */
   hangup: boolean;
   /** (optional) the max number of retries this task can handle */
-  taskRetries?: number | undefined;
+  taskRetries?:
+    | number
+    | undefined;
   /** (optional) the retry count of this task */
   retryCount?: number | undefined;
   eventIndex?: number | undefined;
@@ -570,7 +602,8 @@ export interface OverridesData {
   callerFilename: string;
 }
 
-export interface OverridesDataResponse {}
+export interface OverridesDataResponse {
+}
 
 export interface HeartbeatRequest {
   /** the id of the worker */
@@ -579,7 +612,8 @@ export interface HeartbeatRequest {
   heartbeatAt: Date | undefined;
 }
 
-export interface HeartbeatResponse {}
+export interface HeartbeatResponse {
+}
 
 export interface RefreshTimeoutRequest {
   /** the id of the task run to release */
@@ -596,7 +630,8 @@ export interface ReleaseSlotRequest {
   taskRunExternalId: string;
 }
 
-export interface ReleaseSlotResponse {}
+export interface ReleaseSlotResponse {
+}
 
 export interface RestoreEvictedTaskRequest {
   taskRunExternalId: string;
@@ -606,7 +641,8 @@ export interface RestoreEvictedTaskResponse {
   requeued: boolean;
 }
 
-export interface GetVersionRequest {}
+export interface GetVersionRequest {
+}
 
 export interface GetVersionResponse {
   version: string;
@@ -689,13 +725,7 @@ export const WorkerLabels: MessageFns<WorkerLabels> = {
 };
 
 function createBaseRuntimeInfo(): RuntimeInfo {
-  return {
-    sdkVersion: undefined,
-    language: undefined,
-    languageVersion: undefined,
-    os: undefined,
-    extra: undefined,
-  };
+  return { sdkVersion: undefined, language: undefined, languageVersion: undefined, os: undefined, extra: undefined };
 }
 
 export const RuntimeInfo: MessageFns<RuntimeInfo> = {
@@ -778,9 +808,7 @@ export const RuntimeInfo: MessageFns<RuntimeInfo> = {
     return {
       sdkVersion: isSet(object.sdkVersion) ? globalThis.String(object.sdkVersion) : undefined,
       language: isSet(object.language) ? sDKSFromJSON(object.language) : undefined,
-      languageVersion: isSet(object.languageVersion)
-        ? globalThis.String(object.languageVersion)
-        : undefined,
+      languageVersion: isSet(object.languageVersion) ? globalThis.String(object.languageVersion) : undefined,
       os: isSet(object.os) ? globalThis.String(object.os) : undefined,
       extra: isSet(object.extra) ? globalThis.String(object.extra) : undefined,
     };
@@ -822,7 +850,7 @@ export const RuntimeInfo: MessageFns<RuntimeInfo> = {
 
 function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
   return {
-    workerName: '',
+    workerName: "",
     actions: [],
     services: [],
     slots: undefined,
@@ -835,7 +863,7 @@ function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
 
 export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
   encode(message: WorkerRegisterRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.workerName !== '') {
+    if (message.workerName !== "") {
       writer.uint32(10).string(message.workerName);
     }
     for (const v of message.actions) {
@@ -848,10 +876,7 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       writer.uint32(32).int32(message.slots);
     }
     Object.entries(message.labels).forEach(([key, value]) => {
-      WorkerRegisterRequest_LabelsEntry.encode(
-        { key: key as any, value },
-        writer.uint32(42).fork()
-      ).join();
+      WorkerRegisterRequest_LabelsEntry.encode({ key: key as any, value }, writer.uint32(42).fork()).join();
     });
     if (message.webhookId !== undefined) {
       writer.uint32(50).string(message.webhookId);
@@ -860,10 +885,7 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       RuntimeInfo.encode(message.runtimeInfo, writer.uint32(58).fork()).join();
     }
     Object.entries(message.slotConfig).forEach(([key, value]) => {
-      WorkerRegisterRequest_SlotConfigEntry.encode(
-        { key: key as any, value },
-        writer.uint32(74).fork()
-      ).join();
+      WorkerRegisterRequest_SlotConfigEntry.encode({ key: key as any, value }, writer.uint32(74).fork()).join();
     });
     return writer;
   },
@@ -956,40 +978,30 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
 
   fromJSON(object: any): WorkerRegisterRequest {
     return {
-      workerName: isSet(object.workerName) ? globalThis.String(object.workerName) : '',
-      actions: globalThis.Array.isArray(object?.actions)
-        ? object.actions.map((e: any) => globalThis.String(e))
-        : [],
-      services: globalThis.Array.isArray(object?.services)
-        ? object.services.map((e: any) => globalThis.String(e))
-        : [],
+      workerName: isSet(object.workerName) ? globalThis.String(object.workerName) : "",
+      actions: globalThis.Array.isArray(object?.actions) ? object.actions.map((e: any) => globalThis.String(e)) : [],
+      services: globalThis.Array.isArray(object?.services) ? object.services.map((e: any) => globalThis.String(e)) : [],
       slots: isSet(object.slots) ? globalThis.Number(object.slots) : undefined,
       labels: isObject(object.labels)
-        ? Object.entries(object.labels).reduce<{ [key: string]: WorkerLabels }>(
-            (acc, [key, value]) => {
-              acc[key] = WorkerLabels.fromJSON(value);
-              return acc;
-            },
-            {}
-          )
+        ? Object.entries(object.labels).reduce<{ [key: string]: WorkerLabels }>((acc, [key, value]) => {
+          acc[key] = WorkerLabels.fromJSON(value);
+          return acc;
+        }, {})
         : {},
       webhookId: isSet(object.webhookId) ? globalThis.String(object.webhookId) : undefined,
       runtimeInfo: isSet(object.runtimeInfo) ? RuntimeInfo.fromJSON(object.runtimeInfo) : undefined,
       slotConfig: isObject(object.slotConfig)
-        ? Object.entries(object.slotConfig).reduce<{ [key: string]: number }>(
-            (acc, [key, value]) => {
-              acc[key] = Number(value);
-              return acc;
-            },
-            {}
-          )
+        ? Object.entries(object.slotConfig).reduce<{ [key: string]: number }>((acc, [key, value]) => {
+          acc[key] = Number(value);
+          return acc;
+        }, {})
         : {},
     };
   },
 
   toJSON(message: WorkerRegisterRequest): unknown {
     const obj: any = {};
-    if (message.workerName !== '') {
+    if (message.workerName !== "") {
       obj.workerName = message.workerName;
     }
     if (message.actions?.length) {
@@ -1033,7 +1045,7 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
   },
   fromPartial(object: DeepPartial<WorkerRegisterRequest>): WorkerRegisterRequest {
     const message = createBaseWorkerRegisterRequest();
-    message.workerName = object.workerName ?? '';
+    message.workerName = object.workerName ?? "";
     message.actions = object.actions?.map((e) => e) || [];
     message.services = object.services?.map((e) => e) || [];
     message.slots = object.slots ?? undefined;
@@ -1044,13 +1056,12 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
         }
         return acc;
       },
-      {}
+      {},
     );
     message.webhookId = object.webhookId ?? undefined;
-    message.runtimeInfo =
-      object.runtimeInfo !== undefined && object.runtimeInfo !== null
-        ? RuntimeInfo.fromPartial(object.runtimeInfo)
-        : undefined;
+    message.runtimeInfo = (object.runtimeInfo !== undefined && object.runtimeInfo !== null)
+      ? RuntimeInfo.fromPartial(object.runtimeInfo)
+      : undefined;
     message.slotConfig = Object.entries(object.slotConfig ?? {}).reduce<{ [key: string]: number }>(
       (acc, [key, value]) => {
         if (value !== undefined) {
@@ -1058,22 +1069,19 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
         }
         return acc;
       },
-      {}
+      {},
     );
     return message;
   },
 };
 
 function createBaseWorkerRegisterRequest_LabelsEntry(): WorkerRegisterRequest_LabelsEntry {
-  return { key: '', value: undefined };
+  return { key: "", value: undefined };
 }
 
 export const WorkerRegisterRequest_LabelsEntry: MessageFns<WorkerRegisterRequest_LabelsEntry> = {
-  encode(
-    message: WorkerRegisterRequest_LabelsEntry,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.key !== '') {
+  encode(message: WorkerRegisterRequest_LabelsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
       writer.uint32(10).string(message.key);
     }
     if (message.value !== undefined) {
@@ -1116,14 +1124,14 @@ export const WorkerRegisterRequest_LabelsEntry: MessageFns<WorkerRegisterRequest
 
   fromJSON(object: any): WorkerRegisterRequest_LabelsEntry {
     return {
-      key: isSet(object.key) ? globalThis.String(object.key) : '',
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
       value: isSet(object.value) ? WorkerLabels.fromJSON(object.value) : undefined,
     };
   },
 
   toJSON(message: WorkerRegisterRequest_LabelsEntry): unknown {
     const obj: any = {};
-    if (message.key !== '') {
+    if (message.key !== "") {
       obj.key = message.key;
     }
     if (message.value !== undefined) {
@@ -1135,119 +1143,105 @@ export const WorkerRegisterRequest_LabelsEntry: MessageFns<WorkerRegisterRequest
   create(base?: DeepPartial<WorkerRegisterRequest_LabelsEntry>): WorkerRegisterRequest_LabelsEntry {
     return WorkerRegisterRequest_LabelsEntry.fromPartial(base ?? {});
   },
-  fromPartial(
-    object: DeepPartial<WorkerRegisterRequest_LabelsEntry>
-  ): WorkerRegisterRequest_LabelsEntry {
+  fromPartial(object: DeepPartial<WorkerRegisterRequest_LabelsEntry>): WorkerRegisterRequest_LabelsEntry {
     const message = createBaseWorkerRegisterRequest_LabelsEntry();
-    message.key = object.key ?? '';
-    message.value =
-      object.value !== undefined && object.value !== null
-        ? WorkerLabels.fromPartial(object.value)
-        : undefined;
+    message.key = object.key ?? "";
+    message.value = (object.value !== undefined && object.value !== null)
+      ? WorkerLabels.fromPartial(object.value)
+      : undefined;
     return message;
   },
 };
 
 function createBaseWorkerRegisterRequest_SlotConfigEntry(): WorkerRegisterRequest_SlotConfigEntry {
-  return { key: '', value: 0 };
+  return { key: "", value: 0 };
 }
 
-export const WorkerRegisterRequest_SlotConfigEntry: MessageFns<WorkerRegisterRequest_SlotConfigEntry> =
-  {
-    encode(
-      message: WorkerRegisterRequest_SlotConfigEntry,
-      writer: BinaryWriter = new BinaryWriter()
-    ): BinaryWriter {
-      if (message.key !== '') {
-        writer.uint32(10).string(message.key);
-      }
-      if (message.value !== 0) {
-        writer.uint32(16).int32(message.value);
-      }
-      return writer;
-    },
+export const WorkerRegisterRequest_SlotConfigEntry: MessageFns<WorkerRegisterRequest_SlotConfigEntry> = {
+  encode(message: WorkerRegisterRequest_SlotConfigEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).int32(message.value);
+    }
+    return writer;
+  },
 
-    decode(
-      input: BinaryReader | Uint8Array,
-      length?: number
-    ): WorkerRegisterRequest_SlotConfigEntry {
-      const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-      const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.key = reader.string();
-            continue;
+  decode(input: BinaryReader | Uint8Array, length?: number): WorkerRegisterRequest_SlotConfigEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
           }
-          case 2: {
-            if (tag !== 16) {
-              break;
-            }
 
-            message.value = reader.int32();
-            continue;
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
           }
+
+          message.value = reader.int32();
+          continue;
         }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
       }
-      return message;
-    },
-
-    fromJSON(object: any): WorkerRegisterRequest_SlotConfigEntry {
-      return {
-        key: isSet(object.key) ? globalThis.String(object.key) : '',
-        value: isSet(object.value) ? globalThis.Number(object.value) : 0,
-      };
-    },
-
-    toJSON(message: WorkerRegisterRequest_SlotConfigEntry): unknown {
-      const obj: any = {};
-      if (message.key !== '') {
-        obj.key = message.key;
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
       }
-      if (message.value !== 0) {
-        obj.value = Math.round(message.value);
-      }
-      return obj;
-    },
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-    create(
-      base?: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>
-    ): WorkerRegisterRequest_SlotConfigEntry {
-      return WorkerRegisterRequest_SlotConfigEntry.fromPartial(base ?? {});
-    },
-    fromPartial(
-      object: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>
-    ): WorkerRegisterRequest_SlotConfigEntry {
-      const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
-      message.key = object.key ?? '';
-      message.value = object.value ?? 0;
-      return message;
-    },
-  };
+  fromJSON(object: any): WorkerRegisterRequest_SlotConfigEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? globalThis.Number(object.value) : 0,
+    };
+  },
+
+  toJSON(message: WorkerRegisterRequest_SlotConfigEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== 0) {
+      obj.value = Math.round(message.value);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>): WorkerRegisterRequest_SlotConfigEntry {
+    return WorkerRegisterRequest_SlotConfigEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<WorkerRegisterRequest_SlotConfigEntry>): WorkerRegisterRequest_SlotConfigEntry {
+    const message = createBaseWorkerRegisterRequest_SlotConfigEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
 
 function createBaseWorkerRegisterResponse(): WorkerRegisterResponse {
-  return { tenantId: '', workerId: '', workerName: '' };
+  return { tenantId: "", workerId: "", workerName: "" };
 }
 
 export const WorkerRegisterResponse: MessageFns<WorkerRegisterResponse> = {
   encode(message: WorkerRegisterResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       writer.uint32(10).string(message.tenantId);
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(18).string(message.workerId);
     }
-    if (message.workerName !== '') {
+    if (message.workerName !== "") {
       writer.uint32(26).string(message.workerName);
     }
     return writer;
@@ -1295,21 +1289,21 @@ export const WorkerRegisterResponse: MessageFns<WorkerRegisterResponse> = {
 
   fromJSON(object: any): WorkerRegisterResponse {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : '',
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
-      workerName: isSet(object.workerName) ? globalThis.String(object.workerName) : '',
+      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
+      workerName: isSet(object.workerName) ? globalThis.String(object.workerName) : "",
     };
   },
 
   toJSON(message: WorkerRegisterResponse): unknown {
     const obj: any = {};
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       obj.tenantId = message.tenantId;
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
-    if (message.workerName !== '') {
+    if (message.workerName !== "") {
       obj.workerName = message.workerName;
     }
     return obj;
@@ -1320,30 +1314,24 @@ export const WorkerRegisterResponse: MessageFns<WorkerRegisterResponse> = {
   },
   fromPartial(object: DeepPartial<WorkerRegisterResponse>): WorkerRegisterResponse {
     const message = createBaseWorkerRegisterResponse();
-    message.tenantId = object.tenantId ?? '';
-    message.workerId = object.workerId ?? '';
-    message.workerName = object.workerName ?? '';
+    message.tenantId = object.tenantId ?? "";
+    message.workerId = object.workerId ?? "";
+    message.workerName = object.workerName ?? "";
     return message;
   },
 };
 
 function createBaseUpsertWorkerLabelsRequest(): UpsertWorkerLabelsRequest {
-  return { workerId: '', labels: {} };
+  return { workerId: "", labels: {} };
 }
 
 export const UpsertWorkerLabelsRequest: MessageFns<UpsertWorkerLabelsRequest> = {
-  encode(
-    message: UpsertWorkerLabelsRequest,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.workerId !== '') {
+  encode(message: UpsertWorkerLabelsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.workerId !== "") {
       writer.uint32(10).string(message.workerId);
     }
     Object.entries(message.labels).forEach(([key, value]) => {
-      UpsertWorkerLabelsRequest_LabelsEntry.encode(
-        { key: key as any, value },
-        writer.uint32(18).fork()
-      ).join();
+      UpsertWorkerLabelsRequest_LabelsEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).join();
     });
     return writer;
   },
@@ -1385,22 +1373,19 @@ export const UpsertWorkerLabelsRequest: MessageFns<UpsertWorkerLabelsRequest> = 
 
   fromJSON(object: any): UpsertWorkerLabelsRequest {
     return {
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
       labels: isObject(object.labels)
-        ? Object.entries(object.labels).reduce<{ [key: string]: WorkerLabels }>(
-            (acc, [key, value]) => {
-              acc[key] = WorkerLabels.fromJSON(value);
-              return acc;
-            },
-            {}
-          )
+        ? Object.entries(object.labels).reduce<{ [key: string]: WorkerLabels }>((acc, [key, value]) => {
+          acc[key] = WorkerLabels.fromJSON(value);
+          return acc;
+        }, {})
         : {},
     };
   },
 
   toJSON(message: UpsertWorkerLabelsRequest): unknown {
     const obj: any = {};
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
     if (message.labels) {
@@ -1420,7 +1405,7 @@ export const UpsertWorkerLabelsRequest: MessageFns<UpsertWorkerLabelsRequest> = 
   },
   fromPartial(object: DeepPartial<UpsertWorkerLabelsRequest>): UpsertWorkerLabelsRequest {
     const message = createBaseUpsertWorkerLabelsRequest();
-    message.workerId = object.workerId ?? '';
+    message.workerId = object.workerId ?? "";
     message.labels = Object.entries(object.labels ?? {}).reduce<{ [key: string]: WorkerLabels }>(
       (acc, [key, value]) => {
         if (value !== undefined) {
@@ -1428,115 +1413,100 @@ export const UpsertWorkerLabelsRequest: MessageFns<UpsertWorkerLabelsRequest> = 
         }
         return acc;
       },
-      {}
+      {},
     );
     return message;
   },
 };
 
 function createBaseUpsertWorkerLabelsRequest_LabelsEntry(): UpsertWorkerLabelsRequest_LabelsEntry {
-  return { key: '', value: undefined };
+  return { key: "", value: undefined };
 }
 
-export const UpsertWorkerLabelsRequest_LabelsEntry: MessageFns<UpsertWorkerLabelsRequest_LabelsEntry> =
-  {
-    encode(
-      message: UpsertWorkerLabelsRequest_LabelsEntry,
-      writer: BinaryWriter = new BinaryWriter()
-    ): BinaryWriter {
-      if (message.key !== '') {
-        writer.uint32(10).string(message.key);
-      }
-      if (message.value !== undefined) {
-        WorkerLabels.encode(message.value, writer.uint32(18).fork()).join();
-      }
-      return writer;
-    },
+export const UpsertWorkerLabelsRequest_LabelsEntry: MessageFns<UpsertWorkerLabelsRequest_LabelsEntry> = {
+  encode(message: UpsertWorkerLabelsRequest_LabelsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      WorkerLabels.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
 
-    decode(
-      input: BinaryReader | Uint8Array,
-      length?: number
-    ): UpsertWorkerLabelsRequest_LabelsEntry {
-      const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-      const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseUpsertWorkerLabelsRequest_LabelsEntry();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.key = reader.string();
-            continue;
+  decode(input: BinaryReader | Uint8Array, length?: number): UpsertWorkerLabelsRequest_LabelsEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpsertWorkerLabelsRequest_LabelsEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
           }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
 
-            message.value = WorkerLabels.decode(reader, reader.uint32());
-            continue;
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
           }
+
+          message.value = WorkerLabels.decode(reader, reader.uint32());
+          continue;
         }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
       }
-      return message;
-    },
-
-    fromJSON(object: any): UpsertWorkerLabelsRequest_LabelsEntry {
-      return {
-        key: isSet(object.key) ? globalThis.String(object.key) : '',
-        value: isSet(object.value) ? WorkerLabels.fromJSON(object.value) : undefined,
-      };
-    },
-
-    toJSON(message: UpsertWorkerLabelsRequest_LabelsEntry): unknown {
-      const obj: any = {};
-      if (message.key !== '') {
-        obj.key = message.key;
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
       }
-      if (message.value !== undefined) {
-        obj.value = WorkerLabels.toJSON(message.value);
-      }
-      return obj;
-    },
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-    create(
-      base?: DeepPartial<UpsertWorkerLabelsRequest_LabelsEntry>
-    ): UpsertWorkerLabelsRequest_LabelsEntry {
-      return UpsertWorkerLabelsRequest_LabelsEntry.fromPartial(base ?? {});
-    },
-    fromPartial(
-      object: DeepPartial<UpsertWorkerLabelsRequest_LabelsEntry>
-    ): UpsertWorkerLabelsRequest_LabelsEntry {
-      const message = createBaseUpsertWorkerLabelsRequest_LabelsEntry();
-      message.key = object.key ?? '';
-      message.value =
-        object.value !== undefined && object.value !== null
-          ? WorkerLabels.fromPartial(object.value)
-          : undefined;
-      return message;
-    },
-  };
+  fromJSON(object: any): UpsertWorkerLabelsRequest_LabelsEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? WorkerLabels.fromJSON(object.value) : undefined,
+    };
+  },
+
+  toJSON(message: UpsertWorkerLabelsRequest_LabelsEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== undefined) {
+      obj.value = WorkerLabels.toJSON(message.value);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<UpsertWorkerLabelsRequest_LabelsEntry>): UpsertWorkerLabelsRequest_LabelsEntry {
+    return UpsertWorkerLabelsRequest_LabelsEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<UpsertWorkerLabelsRequest_LabelsEntry>): UpsertWorkerLabelsRequest_LabelsEntry {
+    const message = createBaseUpsertWorkerLabelsRequest_LabelsEntry();
+    message.key = object.key ?? "";
+    message.value = (object.value !== undefined && object.value !== null)
+      ? WorkerLabels.fromPartial(object.value)
+      : undefined;
+    return message;
+  },
+};
 
 function createBaseUpsertWorkerLabelsResponse(): UpsertWorkerLabelsResponse {
-  return { tenantId: '', workerId: '' };
+  return { tenantId: "", workerId: "" };
 }
 
 export const UpsertWorkerLabelsResponse: MessageFns<UpsertWorkerLabelsResponse> = {
-  encode(
-    message: UpsertWorkerLabelsResponse,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.tenantId !== '') {
+  encode(message: UpsertWorkerLabelsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tenantId !== "") {
       writer.uint32(10).string(message.tenantId);
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(18).string(message.workerId);
     }
     return writer;
@@ -1576,17 +1546,17 @@ export const UpsertWorkerLabelsResponse: MessageFns<UpsertWorkerLabelsResponse> 
 
   fromJSON(object: any): UpsertWorkerLabelsResponse {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : '',
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
+      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
     };
   },
 
   toJSON(message: UpsertWorkerLabelsResponse): unknown {
     const obj: any = {};
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       obj.tenantId = message.tenantId;
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
     return obj;
@@ -1597,26 +1567,26 @@ export const UpsertWorkerLabelsResponse: MessageFns<UpsertWorkerLabelsResponse> 
   },
   fromPartial(object: DeepPartial<UpsertWorkerLabelsResponse>): UpsertWorkerLabelsResponse {
     const message = createBaseUpsertWorkerLabelsResponse();
-    message.tenantId = object.tenantId ?? '';
-    message.workerId = object.workerId ?? '';
+    message.tenantId = object.tenantId ?? "";
+    message.workerId = object.workerId ?? "";
     return message;
   },
 };
 
 function createBaseAssignedAction(): AssignedAction {
   return {
-    tenantId: '',
-    workflowRunId: '',
-    getGroupKeyRunId: '',
-    jobId: '',
-    jobName: '',
-    jobRunId: '',
-    taskId: '',
-    taskRunExternalId: '',
-    actionId: '',
+    tenantId: "",
+    workflowRunId: "",
+    getGroupKeyRunId: "",
+    jobId: "",
+    jobName: "",
+    jobRunId: "",
+    taskId: "",
+    taskRunExternalId: "",
+    actionId: "",
     actionType: 0,
-    actionPayload: '',
-    taskName: '',
+    actionPayload: "",
+    taskName: "",
     retryCount: 0,
     additionalMetadata: undefined,
     childWorkflowIndex: undefined,
@@ -1631,40 +1601,40 @@ function createBaseAssignedAction(): AssignedAction {
 
 export const AssignedAction: MessageFns<AssignedAction> = {
   encode(message: AssignedAction, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       writer.uint32(10).string(message.tenantId);
     }
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       writer.uint32(18).string(message.workflowRunId);
     }
-    if (message.getGroupKeyRunId !== '') {
+    if (message.getGroupKeyRunId !== "") {
       writer.uint32(26).string(message.getGroupKeyRunId);
     }
-    if (message.jobId !== '') {
+    if (message.jobId !== "") {
       writer.uint32(34).string(message.jobId);
     }
-    if (message.jobName !== '') {
+    if (message.jobName !== "") {
       writer.uint32(42).string(message.jobName);
     }
-    if (message.jobRunId !== '') {
+    if (message.jobRunId !== "") {
       writer.uint32(50).string(message.jobRunId);
     }
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       writer.uint32(58).string(message.taskId);
     }
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       writer.uint32(66).string(message.taskRunExternalId);
     }
-    if (message.actionId !== '') {
+    if (message.actionId !== "") {
       writer.uint32(74).string(message.actionId);
     }
     if (message.actionType !== 0) {
       writer.uint32(80).int32(message.actionType);
     }
-    if (message.actionPayload !== '') {
+    if (message.actionPayload !== "") {
       writer.uint32(90).string(message.actionPayload);
     }
-    if (message.taskName !== '') {
+    if (message.taskName !== "") {
       writer.uint32(98).string(message.taskName);
     }
     if (message.retryCount !== 0) {
@@ -1883,40 +1853,28 @@ export const AssignedAction: MessageFns<AssignedAction> = {
 
   fromJSON(object: any): AssignedAction {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : '',
-      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : '',
-      getGroupKeyRunId: isSet(object.getGroupKeyRunId)
-        ? globalThis.String(object.getGroupKeyRunId)
-        : '',
-      jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : '',
-      jobName: isSet(object.jobName) ? globalThis.String(object.jobName) : '',
-      jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
-      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      taskRunExternalId: isSet(object.taskRunExternalId)
-        ? globalThis.String(object.taskRunExternalId)
-        : '',
-      actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
+      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "",
+      getGroupKeyRunId: isSet(object.getGroupKeyRunId) ? globalThis.String(object.getGroupKeyRunId) : "",
+      jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : "",
+      jobName: isSet(object.jobName) ? globalThis.String(object.jobName) : "",
+      jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : "",
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
+      taskRunExternalId: isSet(object.taskRunExternalId) ? globalThis.String(object.taskRunExternalId) : "",
+      actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : "",
       actionType: isSet(object.actionType) ? actionTypeFromJSON(object.actionType) : 0,
-      actionPayload: isSet(object.actionPayload) ? globalThis.String(object.actionPayload) : '',
-      taskName: isSet(object.taskName) ? globalThis.String(object.taskName) : '',
+      actionPayload: isSet(object.actionPayload) ? globalThis.String(object.actionPayload) : "",
+      taskName: isSet(object.taskName) ? globalThis.String(object.taskName) : "",
       retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : 0,
-      additionalMetadata: isSet(object.additionalMetadata)
-        ? globalThis.String(object.additionalMetadata)
-        : undefined,
-      childWorkflowIndex: isSet(object.childWorkflowIndex)
-        ? globalThis.Number(object.childWorkflowIndex)
-        : undefined,
-      childWorkflowKey: isSet(object.childWorkflowKey)
-        ? globalThis.String(object.childWorkflowKey)
-        : undefined,
+      additionalMetadata: isSet(object.additionalMetadata) ? globalThis.String(object.additionalMetadata) : undefined,
+      childWorkflowIndex: isSet(object.childWorkflowIndex) ? globalThis.Number(object.childWorkflowIndex) : undefined,
+      childWorkflowKey: isSet(object.childWorkflowKey) ? globalThis.String(object.childWorkflowKey) : undefined,
       parentWorkflowRunId: isSet(object.parentWorkflowRunId)
         ? globalThis.String(object.parentWorkflowRunId)
         : undefined,
       priority: isSet(object.priority) ? globalThis.Number(object.priority) : 0,
       workflowId: isSet(object.workflowId) ? globalThis.String(object.workflowId) : undefined,
-      workflowVersionId: isSet(object.workflowVersionId)
-        ? globalThis.String(object.workflowVersionId)
-        : undefined,
+      workflowVersionId: isSet(object.workflowVersionId) ? globalThis.String(object.workflowVersionId) : undefined,
       durableTaskInvocationCount: isSet(object.durableTaskInvocationCount)
         ? globalThis.Number(object.durableTaskInvocationCount)
         : undefined,
@@ -1925,40 +1883,40 @@ export const AssignedAction: MessageFns<AssignedAction> = {
 
   toJSON(message: AssignedAction): unknown {
     const obj: any = {};
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       obj.tenantId = message.tenantId;
     }
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       obj.workflowRunId = message.workflowRunId;
     }
-    if (message.getGroupKeyRunId !== '') {
+    if (message.getGroupKeyRunId !== "") {
       obj.getGroupKeyRunId = message.getGroupKeyRunId;
     }
-    if (message.jobId !== '') {
+    if (message.jobId !== "") {
       obj.jobId = message.jobId;
     }
-    if (message.jobName !== '') {
+    if (message.jobName !== "") {
       obj.jobName = message.jobName;
     }
-    if (message.jobRunId !== '') {
+    if (message.jobRunId !== "") {
       obj.jobRunId = message.jobRunId;
     }
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       obj.taskId = message.taskId;
     }
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       obj.taskRunExternalId = message.taskRunExternalId;
     }
-    if (message.actionId !== '') {
+    if (message.actionId !== "") {
       obj.actionId = message.actionId;
     }
     if (message.actionType !== 0) {
       obj.actionType = actionTypeToJSON(message.actionType);
     }
-    if (message.actionPayload !== '') {
+    if (message.actionPayload !== "") {
       obj.actionPayload = message.actionPayload;
     }
-    if (message.taskName !== '') {
+    if (message.taskName !== "") {
       obj.taskName = message.taskName;
     }
     if (message.retryCount !== 0) {
@@ -1996,18 +1954,18 @@ export const AssignedAction: MessageFns<AssignedAction> = {
   },
   fromPartial(object: DeepPartial<AssignedAction>): AssignedAction {
     const message = createBaseAssignedAction();
-    message.tenantId = object.tenantId ?? '';
-    message.workflowRunId = object.workflowRunId ?? '';
-    message.getGroupKeyRunId = object.getGroupKeyRunId ?? '';
-    message.jobId = object.jobId ?? '';
-    message.jobName = object.jobName ?? '';
-    message.jobRunId = object.jobRunId ?? '';
-    message.taskId = object.taskId ?? '';
-    message.taskRunExternalId = object.taskRunExternalId ?? '';
-    message.actionId = object.actionId ?? '';
+    message.tenantId = object.tenantId ?? "";
+    message.workflowRunId = object.workflowRunId ?? "";
+    message.getGroupKeyRunId = object.getGroupKeyRunId ?? "";
+    message.jobId = object.jobId ?? "";
+    message.jobName = object.jobName ?? "";
+    message.jobRunId = object.jobRunId ?? "";
+    message.taskId = object.taskId ?? "";
+    message.taskRunExternalId = object.taskRunExternalId ?? "";
+    message.actionId = object.actionId ?? "";
     message.actionType = object.actionType ?? 0;
-    message.actionPayload = object.actionPayload ?? '';
-    message.taskName = object.taskName ?? '';
+    message.actionPayload = object.actionPayload ?? "";
+    message.taskName = object.taskName ?? "";
     message.retryCount = object.retryCount ?? 0;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
     message.childWorkflowIndex = object.childWorkflowIndex ?? undefined;
@@ -2022,12 +1980,12 @@ export const AssignedAction: MessageFns<AssignedAction> = {
 };
 
 function createBaseWorkerListenRequest(): WorkerListenRequest {
-  return { workerId: '' };
+  return { workerId: "" };
 }
 
 export const WorkerListenRequest: MessageFns<WorkerListenRequest> = {
   encode(message: WorkerListenRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(10).string(message.workerId);
     }
     return writer;
@@ -2058,12 +2016,12 @@ export const WorkerListenRequest: MessageFns<WorkerListenRequest> = {
   },
 
   fromJSON(object: any): WorkerListenRequest {
-    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '' };
+    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "" };
   },
 
   toJSON(message: WorkerListenRequest): unknown {
     const obj: any = {};
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
     return obj;
@@ -2074,21 +2032,18 @@ export const WorkerListenRequest: MessageFns<WorkerListenRequest> = {
   },
   fromPartial(object: DeepPartial<WorkerListenRequest>): WorkerListenRequest {
     const message = createBaseWorkerListenRequest();
-    message.workerId = object.workerId ?? '';
+    message.workerId = object.workerId ?? "";
     return message;
   },
 };
 
 function createBaseWorkerUnsubscribeRequest(): WorkerUnsubscribeRequest {
-  return { workerId: '' };
+  return { workerId: "" };
 }
 
 export const WorkerUnsubscribeRequest: MessageFns<WorkerUnsubscribeRequest> = {
-  encode(
-    message: WorkerUnsubscribeRequest,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.workerId !== '') {
+  encode(message: WorkerUnsubscribeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.workerId !== "") {
       writer.uint32(10).string(message.workerId);
     }
     return writer;
@@ -2119,12 +2074,12 @@ export const WorkerUnsubscribeRequest: MessageFns<WorkerUnsubscribeRequest> = {
   },
 
   fromJSON(object: any): WorkerUnsubscribeRequest {
-    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '' };
+    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "" };
   },
 
   toJSON(message: WorkerUnsubscribeRequest): unknown {
     const obj: any = {};
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
     return obj;
@@ -2135,24 +2090,21 @@ export const WorkerUnsubscribeRequest: MessageFns<WorkerUnsubscribeRequest> = {
   },
   fromPartial(object: DeepPartial<WorkerUnsubscribeRequest>): WorkerUnsubscribeRequest {
     const message = createBaseWorkerUnsubscribeRequest();
-    message.workerId = object.workerId ?? '';
+    message.workerId = object.workerId ?? "";
     return message;
   },
 };
 
 function createBaseWorkerUnsubscribeResponse(): WorkerUnsubscribeResponse {
-  return { tenantId: '', workerId: '' };
+  return { tenantId: "", workerId: "" };
 }
 
 export const WorkerUnsubscribeResponse: MessageFns<WorkerUnsubscribeResponse> = {
-  encode(
-    message: WorkerUnsubscribeResponse,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.tenantId !== '') {
+  encode(message: WorkerUnsubscribeResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tenantId !== "") {
       writer.uint32(10).string(message.tenantId);
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(18).string(message.workerId);
     }
     return writer;
@@ -2192,17 +2144,17 @@ export const WorkerUnsubscribeResponse: MessageFns<WorkerUnsubscribeResponse> = 
 
   fromJSON(object: any): WorkerUnsubscribeResponse {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : '',
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
+      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
     };
   },
 
   toJSON(message: WorkerUnsubscribeResponse): unknown {
     const obj: any = {};
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       obj.tenantId = message.tenantId;
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
     return obj;
@@ -2213,36 +2165,36 @@ export const WorkerUnsubscribeResponse: MessageFns<WorkerUnsubscribeResponse> = 
   },
   fromPartial(object: DeepPartial<WorkerUnsubscribeResponse>): WorkerUnsubscribeResponse {
     const message = createBaseWorkerUnsubscribeResponse();
-    message.tenantId = object.tenantId ?? '';
-    message.workerId = object.workerId ?? '';
+    message.tenantId = object.tenantId ?? "";
+    message.workerId = object.workerId ?? "";
     return message;
   },
 };
 
 function createBaseGroupKeyActionEvent(): GroupKeyActionEvent {
   return {
-    workerId: '',
-    workflowRunId: '',
-    getGroupKeyRunId: '',
-    actionId: '',
+    workerId: "",
+    workflowRunId: "",
+    getGroupKeyRunId: "",
+    actionId: "",
     eventTimestamp: undefined,
     eventType: 0,
-    eventPayload: '',
+    eventPayload: "",
   };
 }
 
 export const GroupKeyActionEvent: MessageFns<GroupKeyActionEvent> = {
   encode(message: GroupKeyActionEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(10).string(message.workerId);
     }
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       writer.uint32(18).string(message.workflowRunId);
     }
-    if (message.getGroupKeyRunId !== '') {
+    if (message.getGroupKeyRunId !== "") {
       writer.uint32(26).string(message.getGroupKeyRunId);
     }
-    if (message.actionId !== '') {
+    if (message.actionId !== "") {
       writer.uint32(34).string(message.actionId);
     }
     if (message.eventTimestamp !== undefined) {
@@ -2251,7 +2203,7 @@ export const GroupKeyActionEvent: MessageFns<GroupKeyActionEvent> = {
     if (message.eventType !== 0) {
       writer.uint32(48).int32(message.eventType);
     }
-    if (message.eventPayload !== '') {
+    if (message.eventPayload !== "") {
       writer.uint32(58).string(message.eventPayload);
     }
     return writer;
@@ -2331,32 +2283,28 @@ export const GroupKeyActionEvent: MessageFns<GroupKeyActionEvent> = {
 
   fromJSON(object: any): GroupKeyActionEvent {
     return {
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
-      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : '',
-      getGroupKeyRunId: isSet(object.getGroupKeyRunId)
-        ? globalThis.String(object.getGroupKeyRunId)
-        : '',
-      actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
-      eventTimestamp: isSet(object.eventTimestamp)
-        ? fromJsonTimestamp(object.eventTimestamp)
-        : undefined,
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "",
+      getGroupKeyRunId: isSet(object.getGroupKeyRunId) ? globalThis.String(object.getGroupKeyRunId) : "",
+      actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : "",
+      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
       eventType: isSet(object.eventType) ? groupKeyActionEventTypeFromJSON(object.eventType) : 0,
-      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : '',
+      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : "",
     };
   },
 
   toJSON(message: GroupKeyActionEvent): unknown {
     const obj: any = {};
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       obj.workflowRunId = message.workflowRunId;
     }
-    if (message.getGroupKeyRunId !== '') {
+    if (message.getGroupKeyRunId !== "") {
       obj.getGroupKeyRunId = message.getGroupKeyRunId;
     }
-    if (message.actionId !== '') {
+    if (message.actionId !== "") {
       obj.actionId = message.actionId;
     }
     if (message.eventTimestamp !== undefined) {
@@ -2365,7 +2313,7 @@ export const GroupKeyActionEvent: MessageFns<GroupKeyActionEvent> = {
     if (message.eventType !== 0) {
       obj.eventType = groupKeyActionEventTypeToJSON(message.eventType);
     }
-    if (message.eventPayload !== '') {
+    if (message.eventPayload !== "") {
       obj.eventPayload = message.eventPayload;
     }
     return obj;
@@ -2376,28 +2324,28 @@ export const GroupKeyActionEvent: MessageFns<GroupKeyActionEvent> = {
   },
   fromPartial(object: DeepPartial<GroupKeyActionEvent>): GroupKeyActionEvent {
     const message = createBaseGroupKeyActionEvent();
-    message.workerId = object.workerId ?? '';
-    message.workflowRunId = object.workflowRunId ?? '';
-    message.getGroupKeyRunId = object.getGroupKeyRunId ?? '';
-    message.actionId = object.actionId ?? '';
+    message.workerId = object.workerId ?? "";
+    message.workflowRunId = object.workflowRunId ?? "";
+    message.getGroupKeyRunId = object.getGroupKeyRunId ?? "";
+    message.actionId = object.actionId ?? "";
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventType = object.eventType ?? 0;
-    message.eventPayload = object.eventPayload ?? '';
+    message.eventPayload = object.eventPayload ?? "";
     return message;
   },
 };
 
 function createBaseStepActionEvent(): StepActionEvent {
   return {
-    workerId: '',
-    jobId: '',
-    jobRunId: '',
-    taskId: '',
-    taskRunExternalId: '',
-    actionId: '',
+    workerId: "",
+    jobId: "",
+    jobRunId: "",
+    taskId: "",
+    taskRunExternalId: "",
+    actionId: "",
     eventTimestamp: undefined,
     eventType: 0,
-    eventPayload: '',
+    eventPayload: "",
     retryCount: undefined,
     shouldNotRetry: undefined,
   };
@@ -2405,22 +2353,22 @@ function createBaseStepActionEvent(): StepActionEvent {
 
 export const StepActionEvent: MessageFns<StepActionEvent> = {
   encode(message: StepActionEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(10).string(message.workerId);
     }
-    if (message.jobId !== '') {
+    if (message.jobId !== "") {
       writer.uint32(18).string(message.jobId);
     }
-    if (message.jobRunId !== '') {
+    if (message.jobRunId !== "") {
       writer.uint32(26).string(message.jobRunId);
     }
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       writer.uint32(34).string(message.taskId);
     }
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       writer.uint32(42).string(message.taskRunExternalId);
     }
-    if (message.actionId !== '') {
+    if (message.actionId !== "") {
       writer.uint32(50).string(message.actionId);
     }
     if (message.eventTimestamp !== undefined) {
@@ -2429,7 +2377,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.eventType !== 0) {
       writer.uint32(64).int32(message.eventType);
     }
-    if (message.eventPayload !== '') {
+    if (message.eventPayload !== "") {
       writer.uint32(74).string(message.eventPayload);
     }
     if (message.retryCount !== undefined) {
@@ -2547,44 +2495,38 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
 
   fromJSON(object: any): StepActionEvent {
     return {
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
-      jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : '',
-      jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
-      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      taskRunExternalId: isSet(object.taskRunExternalId)
-        ? globalThis.String(object.taskRunExternalId)
-        : '',
-      actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : '',
-      eventTimestamp: isSet(object.eventTimestamp)
-        ? fromJsonTimestamp(object.eventTimestamp)
-        : undefined,
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
+      jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : "",
+      jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : "",
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
+      taskRunExternalId: isSet(object.taskRunExternalId) ? globalThis.String(object.taskRunExternalId) : "",
+      actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : "",
+      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
       eventType: isSet(object.eventType) ? stepActionEventTypeFromJSON(object.eventType) : 0,
-      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : '',
+      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : "",
       retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : undefined,
-      shouldNotRetry: isSet(object.shouldNotRetry)
-        ? globalThis.Boolean(object.shouldNotRetry)
-        : undefined,
+      shouldNotRetry: isSet(object.shouldNotRetry) ? globalThis.Boolean(object.shouldNotRetry) : undefined,
     };
   },
 
   toJSON(message: StepActionEvent): unknown {
     const obj: any = {};
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
-    if (message.jobId !== '') {
+    if (message.jobId !== "") {
       obj.jobId = message.jobId;
     }
-    if (message.jobRunId !== '') {
+    if (message.jobRunId !== "") {
       obj.jobRunId = message.jobRunId;
     }
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       obj.taskId = message.taskId;
     }
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       obj.taskRunExternalId = message.taskRunExternalId;
     }
-    if (message.actionId !== '') {
+    if (message.actionId !== "") {
       obj.actionId = message.actionId;
     }
     if (message.eventTimestamp !== undefined) {
@@ -2593,7 +2535,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.eventType !== 0) {
       obj.eventType = stepActionEventTypeToJSON(message.eventType);
     }
-    if (message.eventPayload !== '') {
+    if (message.eventPayload !== "") {
       obj.eventPayload = message.eventPayload;
     }
     if (message.retryCount !== undefined) {
@@ -2610,15 +2552,15 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
   },
   fromPartial(object: DeepPartial<StepActionEvent>): StepActionEvent {
     const message = createBaseStepActionEvent();
-    message.workerId = object.workerId ?? '';
-    message.jobId = object.jobId ?? '';
-    message.jobRunId = object.jobRunId ?? '';
-    message.taskId = object.taskId ?? '';
-    message.taskRunExternalId = object.taskRunExternalId ?? '';
-    message.actionId = object.actionId ?? '';
+    message.workerId = object.workerId ?? "";
+    message.jobId = object.jobId ?? "";
+    message.jobRunId = object.jobRunId ?? "";
+    message.taskId = object.taskId ?? "";
+    message.taskRunExternalId = object.taskRunExternalId ?? "";
+    message.actionId = object.actionId ?? "";
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventType = object.eventType ?? 0;
-    message.eventPayload = object.eventPayload ?? '';
+    message.eventPayload = object.eventPayload ?? "";
     message.retryCount = object.retryCount ?? undefined;
     message.shouldNotRetry = object.shouldNotRetry ?? undefined;
     return message;
@@ -2626,15 +2568,15 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
 };
 
 function createBaseActionEventResponse(): ActionEventResponse {
-  return { tenantId: '', workerId: '' };
+  return { tenantId: "", workerId: "" };
 }
 
 export const ActionEventResponse: MessageFns<ActionEventResponse> = {
   encode(message: ActionEventResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       writer.uint32(10).string(message.tenantId);
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(18).string(message.workerId);
     }
     return writer;
@@ -2674,17 +2616,17 @@ export const ActionEventResponse: MessageFns<ActionEventResponse> = {
 
   fromJSON(object: any): ActionEventResponse {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : '',
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
+      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
     };
   },
 
   toJSON(message: ActionEventResponse): unknown {
     const obj: any = {};
-    if (message.tenantId !== '') {
+    if (message.tenantId !== "") {
       obj.tenantId = message.tenantId;
     }
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
     return obj;
@@ -2695,8 +2637,8 @@ export const ActionEventResponse: MessageFns<ActionEventResponse> = {
   },
   fromPartial(object: DeepPartial<ActionEventResponse>): ActionEventResponse {
     const message = createBaseActionEventResponse();
-    message.tenantId = object.tenantId ?? '';
-    message.workerId = object.workerId ?? '';
+    message.tenantId = object.tenantId ?? "";
+    message.workerId = object.workerId ?? "";
     return message;
   },
 };
@@ -2706,10 +2648,7 @@ function createBaseSubscribeToWorkflowEventsRequest(): SubscribeToWorkflowEvents
 }
 
 export const SubscribeToWorkflowEventsRequest: MessageFns<SubscribeToWorkflowEventsRequest> = {
-  encode(
-    message: SubscribeToWorkflowEventsRequest,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
+  encode(message: SubscribeToWorkflowEventsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.workflowRunId !== undefined) {
       writer.uint32(10).string(message.workflowRunId);
     }
@@ -2764,12 +2703,8 @@ export const SubscribeToWorkflowEventsRequest: MessageFns<SubscribeToWorkflowEve
 
   fromJSON(object: any): SubscribeToWorkflowEventsRequest {
     return {
-      workflowRunId: isSet(object.workflowRunId)
-        ? globalThis.String(object.workflowRunId)
-        : undefined,
-      additionalMetaKey: isSet(object.additionalMetaKey)
-        ? globalThis.String(object.additionalMetaKey)
-        : undefined,
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : undefined,
+      additionalMetaKey: isSet(object.additionalMetaKey) ? globalThis.String(object.additionalMetaKey) : undefined,
       additionalMetaValue: isSet(object.additionalMetaValue)
         ? globalThis.String(object.additionalMetaValue)
         : undefined,
@@ -2793,9 +2728,7 @@ export const SubscribeToWorkflowEventsRequest: MessageFns<SubscribeToWorkflowEve
   create(base?: DeepPartial<SubscribeToWorkflowEventsRequest>): SubscribeToWorkflowEventsRequest {
     return SubscribeToWorkflowEventsRequest.fromPartial(base ?? {});
   },
-  fromPartial(
-    object: DeepPartial<SubscribeToWorkflowEventsRequest>
-  ): SubscribeToWorkflowEventsRequest {
+  fromPartial(object: DeepPartial<SubscribeToWorkflowEventsRequest>): SubscribeToWorkflowEventsRequest {
     const message = createBaseSubscribeToWorkflowEventsRequest();
     message.workflowRunId = object.workflowRunId ?? undefined;
     message.additionalMetaKey = object.additionalMetaKey ?? undefined;
@@ -2805,15 +2738,12 @@ export const SubscribeToWorkflowEventsRequest: MessageFns<SubscribeToWorkflowEve
 };
 
 function createBaseSubscribeToWorkflowRunsRequest(): SubscribeToWorkflowRunsRequest {
-  return { workflowRunId: '' };
+  return { workflowRunId: "" };
 }
 
 export const SubscribeToWorkflowRunsRequest: MessageFns<SubscribeToWorkflowRunsRequest> = {
-  encode(
-    message: SubscribeToWorkflowRunsRequest,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.workflowRunId !== '') {
+  encode(message: SubscribeToWorkflowRunsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.workflowRunId !== "") {
       writer.uint32(10).string(message.workflowRunId);
     }
     return writer;
@@ -2844,14 +2774,12 @@ export const SubscribeToWorkflowRunsRequest: MessageFns<SubscribeToWorkflowRunsR
   },
 
   fromJSON(object: any): SubscribeToWorkflowRunsRequest {
-    return {
-      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : '',
-    };
+    return { workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "" };
   },
 
   toJSON(message: SubscribeToWorkflowRunsRequest): unknown {
     const obj: any = {};
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       obj.workflowRunId = message.workflowRunId;
     }
     return obj;
@@ -2862,19 +2790,19 @@ export const SubscribeToWorkflowRunsRequest: MessageFns<SubscribeToWorkflowRunsR
   },
   fromPartial(object: DeepPartial<SubscribeToWorkflowRunsRequest>): SubscribeToWorkflowRunsRequest {
     const message = createBaseSubscribeToWorkflowRunsRequest();
-    message.workflowRunId = object.workflowRunId ?? '';
+    message.workflowRunId = object.workflowRunId ?? "";
     return message;
   },
 };
 
 function createBaseWorkflowEvent(): WorkflowEvent {
   return {
-    workflowRunId: '',
+    workflowRunId: "",
     resourceType: 0,
     eventType: 0,
-    resourceId: '',
+    resourceId: "",
     eventTimestamp: undefined,
-    eventPayload: '',
+    eventPayload: "",
     hangup: false,
     taskRetries: undefined,
     retryCount: undefined,
@@ -2884,7 +2812,7 @@ function createBaseWorkflowEvent(): WorkflowEvent {
 
 export const WorkflowEvent: MessageFns<WorkflowEvent> = {
   encode(message: WorkflowEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       writer.uint32(10).string(message.workflowRunId);
     }
     if (message.resourceType !== 0) {
@@ -2893,13 +2821,13 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     if (message.eventType !== 0) {
       writer.uint32(24).int32(message.eventType);
     }
-    if (message.resourceId !== '') {
+    if (message.resourceId !== "") {
       writer.uint32(34).string(message.resourceId);
     }
     if (message.eventTimestamp !== undefined) {
       Timestamp.encode(toTimestamp(message.eventTimestamp), writer.uint32(42).fork()).join();
     }
-    if (message.eventPayload !== '') {
+    if (message.eventPayload !== "") {
       writer.uint32(50).string(message.eventPayload);
     }
     if (message.hangup !== false) {
@@ -3015,14 +2943,12 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
 
   fromJSON(object: any): WorkflowEvent {
     return {
-      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : '',
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "",
       resourceType: isSet(object.resourceType) ? resourceTypeFromJSON(object.resourceType) : 0,
       eventType: isSet(object.eventType) ? resourceEventTypeFromJSON(object.eventType) : 0,
-      resourceId: isSet(object.resourceId) ? globalThis.String(object.resourceId) : '',
-      eventTimestamp: isSet(object.eventTimestamp)
-        ? fromJsonTimestamp(object.eventTimestamp)
-        : undefined,
-      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : '',
+      resourceId: isSet(object.resourceId) ? globalThis.String(object.resourceId) : "",
+      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
+      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : "",
       hangup: isSet(object.hangup) ? globalThis.Boolean(object.hangup) : false,
       taskRetries: isSet(object.taskRetries) ? globalThis.Number(object.taskRetries) : undefined,
       retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : undefined,
@@ -3032,7 +2958,7 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
 
   toJSON(message: WorkflowEvent): unknown {
     const obj: any = {};
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       obj.workflowRunId = message.workflowRunId;
     }
     if (message.resourceType !== 0) {
@@ -3041,13 +2967,13 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     if (message.eventType !== 0) {
       obj.eventType = resourceEventTypeToJSON(message.eventType);
     }
-    if (message.resourceId !== '') {
+    if (message.resourceId !== "") {
       obj.resourceId = message.resourceId;
     }
     if (message.eventTimestamp !== undefined) {
       obj.eventTimestamp = message.eventTimestamp.toISOString();
     }
-    if (message.eventPayload !== '') {
+    if (message.eventPayload !== "") {
       obj.eventPayload = message.eventPayload;
     }
     if (message.hangup !== false) {
@@ -3070,12 +2996,12 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
   },
   fromPartial(object: DeepPartial<WorkflowEvent>): WorkflowEvent {
     const message = createBaseWorkflowEvent();
-    message.workflowRunId = object.workflowRunId ?? '';
+    message.workflowRunId = object.workflowRunId ?? "";
     message.resourceType = object.resourceType ?? 0;
     message.eventType = object.eventType ?? 0;
-    message.resourceId = object.resourceId ?? '';
+    message.resourceId = object.resourceId ?? "";
     message.eventTimestamp = object.eventTimestamp ?? undefined;
-    message.eventPayload = object.eventPayload ?? '';
+    message.eventPayload = object.eventPayload ?? "";
     message.hangup = object.hangup ?? false;
     message.taskRetries = object.taskRetries ?? undefined;
     message.retryCount = object.retryCount ?? undefined;
@@ -3085,12 +3011,12 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
 };
 
 function createBaseWorkflowRunEvent(): WorkflowRunEvent {
-  return { workflowRunId: '', eventType: 0, eventTimestamp: undefined, results: [] };
+  return { workflowRunId: "", eventType: 0, eventTimestamp: undefined, results: [] };
 }
 
 export const WorkflowRunEvent: MessageFns<WorkflowRunEvent> = {
   encode(message: WorkflowRunEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       writer.uint32(10).string(message.workflowRunId);
     }
     if (message.eventType !== 0) {
@@ -3155,11 +3081,9 @@ export const WorkflowRunEvent: MessageFns<WorkflowRunEvent> = {
 
   fromJSON(object: any): WorkflowRunEvent {
     return {
-      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : '',
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "",
       eventType: isSet(object.eventType) ? workflowRunEventTypeFromJSON(object.eventType) : 0,
-      eventTimestamp: isSet(object.eventTimestamp)
-        ? fromJsonTimestamp(object.eventTimestamp)
-        : undefined,
+      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
       results: globalThis.Array.isArray(object?.results)
         ? object.results.map((e: any) => StepRunResult.fromJSON(e))
         : [],
@@ -3168,7 +3092,7 @@ export const WorkflowRunEvent: MessageFns<WorkflowRunEvent> = {
 
   toJSON(message: WorkflowRunEvent): unknown {
     const obj: any = {};
-    if (message.workflowRunId !== '') {
+    if (message.workflowRunId !== "") {
       obj.workflowRunId = message.workflowRunId;
     }
     if (message.eventType !== 0) {
@@ -3188,7 +3112,7 @@ export const WorkflowRunEvent: MessageFns<WorkflowRunEvent> = {
   },
   fromPartial(object: DeepPartial<WorkflowRunEvent>): WorkflowRunEvent {
     const message = createBaseWorkflowRunEvent();
-    message.workflowRunId = object.workflowRunId ?? '';
+    message.workflowRunId = object.workflowRunId ?? "";
     message.eventType = object.eventType ?? 0;
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.results = object.results?.map((e) => StepRunResult.fromPartial(e)) || [];
@@ -3197,18 +3121,18 @@ export const WorkflowRunEvent: MessageFns<WorkflowRunEvent> = {
 };
 
 function createBaseStepRunResult(): StepRunResult {
-  return { taskRunExternalId: '', taskName: '', jobRunId: '', error: undefined, output: undefined };
+  return { taskRunExternalId: "", taskName: "", jobRunId: "", error: undefined, output: undefined };
 }
 
 export const StepRunResult: MessageFns<StepRunResult> = {
   encode(message: StepRunResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       writer.uint32(10).string(message.taskRunExternalId);
     }
-    if (message.taskName !== '') {
+    if (message.taskName !== "") {
       writer.uint32(18).string(message.taskName);
     }
-    if (message.jobRunId !== '') {
+    if (message.jobRunId !== "") {
       writer.uint32(26).string(message.jobRunId);
     }
     if (message.error !== undefined) {
@@ -3278,11 +3202,9 @@ export const StepRunResult: MessageFns<StepRunResult> = {
 
   fromJSON(object: any): StepRunResult {
     return {
-      taskRunExternalId: isSet(object.taskRunExternalId)
-        ? globalThis.String(object.taskRunExternalId)
-        : '',
-      taskName: isSet(object.taskName) ? globalThis.String(object.taskName) : '',
-      jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId) ? globalThis.String(object.taskRunExternalId) : "",
+      taskName: isSet(object.taskName) ? globalThis.String(object.taskName) : "",
+      jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : "",
       error: isSet(object.error) ? globalThis.String(object.error) : undefined,
       output: isSet(object.output) ? globalThis.String(object.output) : undefined,
     };
@@ -3290,13 +3212,13 @@ export const StepRunResult: MessageFns<StepRunResult> = {
 
   toJSON(message: StepRunResult): unknown {
     const obj: any = {};
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       obj.taskRunExternalId = message.taskRunExternalId;
     }
-    if (message.taskName !== '') {
+    if (message.taskName !== "") {
       obj.taskName = message.taskName;
     }
-    if (message.jobRunId !== '') {
+    if (message.jobRunId !== "") {
       obj.jobRunId = message.jobRunId;
     }
     if (message.error !== undefined) {
@@ -3313,9 +3235,9 @@ export const StepRunResult: MessageFns<StepRunResult> = {
   },
   fromPartial(object: DeepPartial<StepRunResult>): StepRunResult {
     const message = createBaseStepRunResult();
-    message.taskRunExternalId = object.taskRunExternalId ?? '';
-    message.taskName = object.taskName ?? '';
-    message.jobRunId = object.jobRunId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? "";
+    message.taskName = object.taskName ?? "";
+    message.jobRunId = object.jobRunId ?? "";
     message.error = object.error ?? undefined;
     message.output = object.output ?? undefined;
     return message;
@@ -3323,21 +3245,21 @@ export const StepRunResult: MessageFns<StepRunResult> = {
 };
 
 function createBaseOverridesData(): OverridesData {
-  return { taskRunExternalId: '', path: '', value: '', callerFilename: '' };
+  return { taskRunExternalId: "", path: "", value: "", callerFilename: "" };
 }
 
 export const OverridesData: MessageFns<OverridesData> = {
   encode(message: OverridesData, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       writer.uint32(10).string(message.taskRunExternalId);
     }
-    if (message.path !== '') {
+    if (message.path !== "") {
       writer.uint32(18).string(message.path);
     }
-    if (message.value !== '') {
+    if (message.value !== "") {
       writer.uint32(26).string(message.value);
     }
-    if (message.callerFilename !== '') {
+    if (message.callerFilename !== "") {
       writer.uint32(34).string(message.callerFilename);
     }
     return writer;
@@ -3393,27 +3315,25 @@ export const OverridesData: MessageFns<OverridesData> = {
 
   fromJSON(object: any): OverridesData {
     return {
-      taskRunExternalId: isSet(object.taskRunExternalId)
-        ? globalThis.String(object.taskRunExternalId)
-        : '',
-      path: isSet(object.path) ? globalThis.String(object.path) : '',
-      value: isSet(object.value) ? globalThis.String(object.value) : '',
-      callerFilename: isSet(object.callerFilename) ? globalThis.String(object.callerFilename) : '',
+      taskRunExternalId: isSet(object.taskRunExternalId) ? globalThis.String(object.taskRunExternalId) : "",
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
+      value: isSet(object.value) ? globalThis.String(object.value) : "",
+      callerFilename: isSet(object.callerFilename) ? globalThis.String(object.callerFilename) : "",
     };
   },
 
   toJSON(message: OverridesData): unknown {
     const obj: any = {};
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       obj.taskRunExternalId = message.taskRunExternalId;
     }
-    if (message.path !== '') {
+    if (message.path !== "") {
       obj.path = message.path;
     }
-    if (message.value !== '') {
+    if (message.value !== "") {
       obj.value = message.value;
     }
-    if (message.callerFilename !== '') {
+    if (message.callerFilename !== "") {
       obj.callerFilename = message.callerFilename;
     }
     return obj;
@@ -3424,10 +3344,10 @@ export const OverridesData: MessageFns<OverridesData> = {
   },
   fromPartial(object: DeepPartial<OverridesData>): OverridesData {
     const message = createBaseOverridesData();
-    message.taskRunExternalId = object.taskRunExternalId ?? '';
-    message.path = object.path ?? '';
-    message.value = object.value ?? '';
-    message.callerFilename = object.callerFilename ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? "";
+    message.path = object.path ?? "";
+    message.value = object.value ?? "";
+    message.callerFilename = object.callerFilename ?? "";
     return message;
   },
 };
@@ -3476,12 +3396,12 @@ export const OverridesDataResponse: MessageFns<OverridesDataResponse> = {
 };
 
 function createBaseHeartbeatRequest(): HeartbeatRequest {
-  return { workerId: '', heartbeatAt: undefined };
+  return { workerId: "", heartbeatAt: undefined };
 }
 
 export const HeartbeatRequest: MessageFns<HeartbeatRequest> = {
   encode(message: HeartbeatRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       writer.uint32(10).string(message.workerId);
     }
     if (message.heartbeatAt !== undefined) {
@@ -3524,14 +3444,14 @@ export const HeartbeatRequest: MessageFns<HeartbeatRequest> = {
 
   fromJSON(object: any): HeartbeatRequest {
     return {
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : '',
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
       heartbeatAt: isSet(object.heartbeatAt) ? fromJsonTimestamp(object.heartbeatAt) : undefined,
     };
   },
 
   toJSON(message: HeartbeatRequest): unknown {
     const obj: any = {};
-    if (message.workerId !== '') {
+    if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
     if (message.heartbeatAt !== undefined) {
@@ -3545,7 +3465,7 @@ export const HeartbeatRequest: MessageFns<HeartbeatRequest> = {
   },
   fromPartial(object: DeepPartial<HeartbeatRequest>): HeartbeatRequest {
     const message = createBaseHeartbeatRequest();
-    message.workerId = object.workerId ?? '';
+    message.workerId = object.workerId ?? "";
     message.heartbeatAt = object.heartbeatAt ?? undefined;
     return message;
   },
@@ -3595,15 +3515,15 @@ export const HeartbeatResponse: MessageFns<HeartbeatResponse> = {
 };
 
 function createBaseRefreshTimeoutRequest(): RefreshTimeoutRequest {
-  return { taskRunExternalId: '', incrementTimeoutBy: '' };
+  return { taskRunExternalId: "", incrementTimeoutBy: "" };
 }
 
 export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
   encode(message: RefreshTimeoutRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       writer.uint32(10).string(message.taskRunExternalId);
     }
-    if (message.incrementTimeoutBy !== '') {
+    if (message.incrementTimeoutBy !== "") {
       writer.uint32(18).string(message.incrementTimeoutBy);
     }
     return writer;
@@ -3643,21 +3563,17 @@ export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
 
   fromJSON(object: any): RefreshTimeoutRequest {
     return {
-      taskRunExternalId: isSet(object.taskRunExternalId)
-        ? globalThis.String(object.taskRunExternalId)
-        : '',
-      incrementTimeoutBy: isSet(object.incrementTimeoutBy)
-        ? globalThis.String(object.incrementTimeoutBy)
-        : '',
+      taskRunExternalId: isSet(object.taskRunExternalId) ? globalThis.String(object.taskRunExternalId) : "",
+      incrementTimeoutBy: isSet(object.incrementTimeoutBy) ? globalThis.String(object.incrementTimeoutBy) : "",
     };
   },
 
   toJSON(message: RefreshTimeoutRequest): unknown {
     const obj: any = {};
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       obj.taskRunExternalId = message.taskRunExternalId;
     }
-    if (message.incrementTimeoutBy !== '') {
+    if (message.incrementTimeoutBy !== "") {
       obj.incrementTimeoutBy = message.incrementTimeoutBy;
     }
     return obj;
@@ -3668,8 +3584,8 @@ export const RefreshTimeoutRequest: MessageFns<RefreshTimeoutRequest> = {
   },
   fromPartial(object: DeepPartial<RefreshTimeoutRequest>): RefreshTimeoutRequest {
     const message = createBaseRefreshTimeoutRequest();
-    message.taskRunExternalId = object.taskRunExternalId ?? '';
-    message.incrementTimeoutBy = object.incrementTimeoutBy ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? "";
+    message.incrementTimeoutBy = object.incrementTimeoutBy ?? "";
     return message;
   },
 };
@@ -3733,12 +3649,12 @@ export const RefreshTimeoutResponse: MessageFns<RefreshTimeoutResponse> = {
 };
 
 function createBaseReleaseSlotRequest(): ReleaseSlotRequest {
-  return { taskRunExternalId: '' };
+  return { taskRunExternalId: "" };
 }
 
 export const ReleaseSlotRequest: MessageFns<ReleaseSlotRequest> = {
   encode(message: ReleaseSlotRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       writer.uint32(10).string(message.taskRunExternalId);
     }
     return writer;
@@ -3769,16 +3685,12 @@ export const ReleaseSlotRequest: MessageFns<ReleaseSlotRequest> = {
   },
 
   fromJSON(object: any): ReleaseSlotRequest {
-    return {
-      taskRunExternalId: isSet(object.taskRunExternalId)
-        ? globalThis.String(object.taskRunExternalId)
-        : '',
-    };
+    return { taskRunExternalId: isSet(object.taskRunExternalId) ? globalThis.String(object.taskRunExternalId) : "" };
   },
 
   toJSON(message: ReleaseSlotRequest): unknown {
     const obj: any = {};
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       obj.taskRunExternalId = message.taskRunExternalId;
     }
     return obj;
@@ -3789,7 +3701,7 @@ export const ReleaseSlotRequest: MessageFns<ReleaseSlotRequest> = {
   },
   fromPartial(object: DeepPartial<ReleaseSlotRequest>): ReleaseSlotRequest {
     const message = createBaseReleaseSlotRequest();
-    message.taskRunExternalId = object.taskRunExternalId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? "";
     return message;
   },
 };
@@ -3838,15 +3750,12 @@ export const ReleaseSlotResponse: MessageFns<ReleaseSlotResponse> = {
 };
 
 function createBaseRestoreEvictedTaskRequest(): RestoreEvictedTaskRequest {
-  return { taskRunExternalId: '' };
+  return { taskRunExternalId: "" };
 }
 
 export const RestoreEvictedTaskRequest: MessageFns<RestoreEvictedTaskRequest> = {
-  encode(
-    message: RestoreEvictedTaskRequest,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.taskRunExternalId !== '') {
+  encode(message: RestoreEvictedTaskRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.taskRunExternalId !== "") {
       writer.uint32(10).string(message.taskRunExternalId);
     }
     return writer;
@@ -3877,16 +3786,12 @@ export const RestoreEvictedTaskRequest: MessageFns<RestoreEvictedTaskRequest> = 
   },
 
   fromJSON(object: any): RestoreEvictedTaskRequest {
-    return {
-      taskRunExternalId: isSet(object.taskRunExternalId)
-        ? globalThis.String(object.taskRunExternalId)
-        : '',
-    };
+    return { taskRunExternalId: isSet(object.taskRunExternalId) ? globalThis.String(object.taskRunExternalId) : "" };
   },
 
   toJSON(message: RestoreEvictedTaskRequest): unknown {
     const obj: any = {};
-    if (message.taskRunExternalId !== '') {
+    if (message.taskRunExternalId !== "") {
       obj.taskRunExternalId = message.taskRunExternalId;
     }
     return obj;
@@ -3897,7 +3802,7 @@ export const RestoreEvictedTaskRequest: MessageFns<RestoreEvictedTaskRequest> = 
   },
   fromPartial(object: DeepPartial<RestoreEvictedTaskRequest>): RestoreEvictedTaskRequest {
     const message = createBaseRestoreEvictedTaskRequest();
-    message.taskRunExternalId = object.taskRunExternalId ?? '';
+    message.taskRunExternalId = object.taskRunExternalId ?? "";
     return message;
   },
 };
@@ -3907,10 +3812,7 @@ function createBaseRestoreEvictedTaskResponse(): RestoreEvictedTaskResponse {
 }
 
 export const RestoreEvictedTaskResponse: MessageFns<RestoreEvictedTaskResponse> = {
-  encode(
-    message: RestoreEvictedTaskResponse,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
+  encode(message: RestoreEvictedTaskResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.requeued !== false) {
       writer.uint32(8).bool(message.requeued);
     }
@@ -4007,12 +3909,12 @@ export const GetVersionRequest: MessageFns<GetVersionRequest> = {
 };
 
 function createBaseGetVersionResponse(): GetVersionResponse {
-  return { version: '' };
+  return { version: "" };
 }
 
 export const GetVersionResponse: MessageFns<GetVersionResponse> = {
   encode(message: GetVersionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.version !== '') {
+    if (message.version !== "") {
       writer.uint32(10).string(message.version);
     }
     return writer;
@@ -4043,12 +3945,12 @@ export const GetVersionResponse: MessageFns<GetVersionResponse> = {
   },
 
   fromJSON(object: any): GetVersionResponse {
-    return { version: isSet(object.version) ? globalThis.String(object.version) : '' };
+    return { version: isSet(object.version) ? globalThis.String(object.version) : "" };
   },
 
   toJSON(message: GetVersionResponse): unknown {
     const obj: any = {};
-    if (message.version !== '') {
+    if (message.version !== "") {
       obj.version = message.version;
     }
     return obj;
@@ -4059,18 +3961,18 @@ export const GetVersionResponse: MessageFns<GetVersionResponse> = {
   },
   fromPartial(object: DeepPartial<GetVersionResponse>): GetVersionResponse {
     const message = createBaseGetVersionResponse();
-    message.version = object.version ?? '';
+    message.version = object.version ?? "";
     return message;
   },
 };
 
 export type DispatcherDefinition = typeof DispatcherDefinition;
 export const DispatcherDefinition = {
-  name: 'Dispatcher',
-  fullName: 'Dispatcher',
+  name: "Dispatcher",
+  fullName: "Dispatcher",
   methods: {
     register: {
-      name: 'Register',
+      name: "Register",
       requestType: WorkerRegisterRequest,
       requestStream: false,
       responseType: WorkerRegisterResponse,
@@ -4078,7 +3980,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     listen: {
-      name: 'Listen',
+      name: "Listen",
       requestType: WorkerListenRequest,
       requestStream: false,
       responseType: AssignedAction,
@@ -4090,7 +3992,7 @@ export const DispatcherDefinition = {
      * against engine version v0.18.1+
      */
     listenV2: {
-      name: 'ListenV2',
+      name: "ListenV2",
       requestType: WorkerListenRequest,
       requestStream: false,
       responseType: AssignedAction,
@@ -4099,7 +4001,7 @@ export const DispatcherDefinition = {
     },
     /** Heartbeat is a method for workers to send heartbeats to the dispatcher */
     heartbeat: {
-      name: 'Heartbeat',
+      name: "Heartbeat",
       requestType: HeartbeatRequest,
       requestStream: false,
       responseType: HeartbeatResponse,
@@ -4107,7 +4009,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     subscribeToWorkflowEvents: {
-      name: 'SubscribeToWorkflowEvents',
+      name: "SubscribeToWorkflowEvents",
       requestType: SubscribeToWorkflowEventsRequest,
       requestStream: false,
       responseType: WorkflowEvent,
@@ -4115,7 +4017,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     subscribeToWorkflowRuns: {
-      name: 'SubscribeToWorkflowRuns',
+      name: "SubscribeToWorkflowRuns",
       requestType: SubscribeToWorkflowRunsRequest,
       requestStream: true,
       responseType: WorkflowRunEvent,
@@ -4123,7 +4025,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     sendStepActionEvent: {
-      name: 'SendStepActionEvent',
+      name: "SendStepActionEvent",
       requestType: StepActionEvent,
       requestStream: false,
       responseType: ActionEventResponse,
@@ -4131,7 +4033,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     sendGroupKeyActionEvent: {
-      name: 'SendGroupKeyActionEvent',
+      name: "SendGroupKeyActionEvent",
       requestType: GroupKeyActionEvent,
       requestStream: false,
       responseType: ActionEventResponse,
@@ -4139,7 +4041,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     putOverridesData: {
-      name: 'PutOverridesData',
+      name: "PutOverridesData",
       requestType: OverridesData,
       requestStream: false,
       responseType: OverridesDataResponse,
@@ -4147,7 +4049,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     unsubscribe: {
-      name: 'Unsubscribe',
+      name: "Unsubscribe",
       requestType: WorkerUnsubscribeRequest,
       requestStream: false,
       responseType: WorkerUnsubscribeResponse,
@@ -4155,7 +4057,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     refreshTimeout: {
-      name: 'RefreshTimeout',
+      name: "RefreshTimeout",
       requestType: RefreshTimeoutRequest,
       requestStream: false,
       responseType: RefreshTimeoutResponse,
@@ -4163,7 +4065,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     releaseSlot: {
-      name: 'ReleaseSlot',
+      name: "ReleaseSlot",
       requestType: ReleaseSlotRequest,
       requestStream: false,
       responseType: ReleaseSlotResponse,
@@ -4171,7 +4073,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     restoreEvictedTask: {
-      name: 'RestoreEvictedTask',
+      name: "RestoreEvictedTask",
       requestType: RestoreEvictedTaskRequest,
       requestStream: false,
       responseType: RestoreEvictedTaskResponse,
@@ -4179,7 +4081,7 @@ export const DispatcherDefinition = {
       options: {},
     },
     upsertWorkerLabels: {
-      name: 'UpsertWorkerLabels',
+      name: "UpsertWorkerLabels",
       requestType: UpsertWorkerLabelsRequest,
       requestStream: false,
       responseType: UpsertWorkerLabelsResponse,
@@ -4192,7 +4094,7 @@ export const DispatcherDefinition = {
      * Old engines that do not implement this RPC will return UNIMPLEMENTED.
      */
     getVersion: {
-      name: 'GetVersion',
+      name: "GetVersion",
       requestType: GetVersionRequest,
       requestStream: false,
       responseType: GetVersionResponse,
@@ -4205,11 +4107,11 @@ export const DispatcherDefinition = {
 export interface DispatcherServiceImplementation<CallContextExt = {}> {
   register(
     request: WorkerRegisterRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<WorkerRegisterResponse>>;
   listen(
     request: WorkerListenRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<AssignedAction>>;
   /**
    * ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
@@ -4217,52 +4119,49 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
    */
   listenV2(
     request: WorkerListenRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<AssignedAction>>;
   /** Heartbeat is a method for workers to send heartbeats to the dispatcher */
-  heartbeat(
-    request: HeartbeatRequest,
-    context: CallContext & CallContextExt
-  ): Promise<DeepPartial<HeartbeatResponse>>;
+  heartbeat(request: HeartbeatRequest, context: CallContext & CallContextExt): Promise<DeepPartial<HeartbeatResponse>>;
   subscribeToWorkflowEvents(
     request: SubscribeToWorkflowEventsRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<WorkflowEvent>>;
   subscribeToWorkflowRuns(
     request: AsyncIterable<SubscribeToWorkflowRunsRequest>,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<WorkflowRunEvent>>;
   sendStepActionEvent(
     request: StepActionEvent,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ActionEventResponse>>;
   sendGroupKeyActionEvent(
     request: GroupKeyActionEvent,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ActionEventResponse>>;
   putOverridesData(
     request: OverridesData,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<OverridesDataResponse>>;
   unsubscribe(
     request: WorkerUnsubscribeRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<WorkerUnsubscribeResponse>>;
   refreshTimeout(
     request: RefreshTimeoutRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<RefreshTimeoutResponse>>;
   releaseSlot(
     request: ReleaseSlotRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ReleaseSlotResponse>>;
   restoreEvictedTask(
     request: RestoreEvictedTaskRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<RestoreEvictedTaskResponse>>;
   upsertWorkerLabels(
     request: UpsertWorkerLabelsRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<UpsertWorkerLabelsResponse>>;
   /**
    * GetVersion returns the dispatcher protocol version as a simple integer.
@@ -4271,18 +4170,18 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
    */
   getVersion(
     request: GetVersionRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<GetVersionResponse>>;
 }
 
 export interface DispatcherClient<CallOptionsExt = {}> {
   register(
     request: DeepPartial<WorkerRegisterRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<WorkerRegisterResponse>;
   listen(
     request: DeepPartial<WorkerListenRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<AssignedAction>;
   /**
    * ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
@@ -4290,52 +4189,49 @@ export interface DispatcherClient<CallOptionsExt = {}> {
    */
   listenV2(
     request: DeepPartial<WorkerListenRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<AssignedAction>;
   /** Heartbeat is a method for workers to send heartbeats to the dispatcher */
-  heartbeat(
-    request: DeepPartial<HeartbeatRequest>,
-    options?: CallOptions & CallOptionsExt
-  ): Promise<HeartbeatResponse>;
+  heartbeat(request: DeepPartial<HeartbeatRequest>, options?: CallOptions & CallOptionsExt): Promise<HeartbeatResponse>;
   subscribeToWorkflowEvents(
     request: DeepPartial<SubscribeToWorkflowEventsRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<WorkflowEvent>;
   subscribeToWorkflowRuns(
     request: AsyncIterable<DeepPartial<SubscribeToWorkflowRunsRequest>>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<WorkflowRunEvent>;
   sendStepActionEvent(
     request: DeepPartial<StepActionEvent>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<ActionEventResponse>;
   sendGroupKeyActionEvent(
     request: DeepPartial<GroupKeyActionEvent>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<ActionEventResponse>;
   putOverridesData(
     request: DeepPartial<OverridesData>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<OverridesDataResponse>;
   unsubscribe(
     request: DeepPartial<WorkerUnsubscribeRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<WorkerUnsubscribeResponse>;
   refreshTimeout(
     request: DeepPartial<RefreshTimeoutRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<RefreshTimeoutResponse>;
   releaseSlot(
     request: DeepPartial<ReleaseSlotRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<ReleaseSlotResponse>;
   restoreEvictedTask(
     request: DeepPartial<RestoreEvictedTaskRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<RestoreEvictedTaskResponse>;
   upsertWorkerLabels(
     request: DeepPartial<UpsertWorkerLabelsRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<UpsertWorkerLabelsResponse>;
   /**
    * GetVersion returns the dispatcher protocol version as a simple integer.
@@ -4344,21 +4240,17 @@ export interface DispatcherClient<CallOptionsExt = {}> {
    */
   getVersion(
     request: DeepPartial<GetVersionRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<GetVersionResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-  ? T
-  : T extends globalThis.Array<infer U>
-    ? globalThis.Array<DeepPartial<U>>
-    : T extends ReadonlyArray<infer U>
-      ? ReadonlyArray<DeepPartial<U>>
-      : T extends {}
-        ? { [K in keyof T]?: DeepPartial<T[K]> }
-        : Partial<T>;
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
 function toTimestamp(date: Date): Timestamp {
   const seconds = Math.trunc(date.getTime() / 1_000);
@@ -4375,7 +4267,7 @@ function fromTimestamp(t: Timestamp): Date {
 function fromJsonTimestamp(o: any): Date {
   if (o instanceof globalThis.Date) {
     return o;
-  } else if (typeof o === 'string') {
+  } else if (typeof o === "string") {
     return new globalThis.Date(o);
   } else {
     return fromTimestamp(Timestamp.fromJSON(o));
@@ -4385,25 +4277,23 @@ function fromJsonTimestamp(o: any): Date {
 function longToNumber(int64: { toString(): string }): number {
   const num = globalThis.Number(int64.toString());
   if (num > globalThis.Number.MAX_SAFE_INTEGER) {
-    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
   }
   if (num < globalThis.Number.MIN_SAFE_INTEGER) {
-    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
   }
   return num;
 }
 
 function isObject(value: any): boolean {
-  return typeof value === 'object' && value !== null;
+  return typeof value === "object" && value !== null;
 }
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
 }
 
-export type ServerStreamingMethodResult<Response> = {
-  [Symbol.asyncIterator](): AsyncIterator<Response, void>;
-};
+export type ServerStreamingMethodResult<Response> = { [Symbol.asyncIterator](): AsyncIterator<Response, void> };
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;
