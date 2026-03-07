@@ -35,6 +35,7 @@ import { createHash } from 'crypto';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';
+import { ActionKey } from './eviction/eviction-cache';
 import { supportsEviction } from './engine-version';
 import { waitForPreEviction } from './deprecated/pre-eviction';
 // TODO remove this once we have a proper next step type
@@ -867,16 +868,20 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     return this.action.durableTaskInvocationCount ?? 1;
   }
 
+  private get _actionKey(): ActionKey {
+    return `${this.action.taskRunExternalId}/${this.action.retryCount}`;
+  }
+
   private async withEvictionWait<R>(
     waitKind: string,
     resourceId: string,
     fn: () => Promise<R>
   ): Promise<R> {
-    this._evictionManager?.markWaiting(this.action.taskRunExternalId, waitKind, resourceId);
+    this._evictionManager?.markWaiting(this._actionKey, waitKind, resourceId);
     try {
       return await fn();
     } finally {
-      this._evictionManager?.markActive(this.action.taskRunExternalId);
+      this._evictionManager?.markActive(this._actionKey);
     }
   }
 

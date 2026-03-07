@@ -72,9 +72,10 @@ export class DurableEvictionManager {
   registerRun(
     key: ActionKey,
     taskRunExternalId: string,
+    invocationCount: number,
     evictionPolicy: EvictionPolicy | undefined
   ): void {
-    this._cache.registerRun(key, taskRunExternalId, Date.now(), evictionPolicy);
+    this._cache.registerRun(key, taskRunExternalId, invocationCount, Date.now(), evictionPolicy);
   }
 
   unregisterRun(key: ActionKey): void {
@@ -135,14 +136,17 @@ export class DurableEvictionManager {
     }
   }
 
-  handleServerEviction(taskRunExternalId: string): void {
+  handleServerEviction(taskRunExternalId: string, invocationCount: number): void {
     const key = this._cache.findKeyByTaskRunExternalId(taskRunExternalId);
-    if (key) {
-      this._logger.info(
-        `DurableEvictionManager: server-initiated eviction for task_run_external_id=${taskRunExternalId}`
-      );
-      this._evictRun(key);
-    }
+    if (!key) return;
+
+    const rec = this._cache.get(key);
+    if (rec && rec.invocationCount !== invocationCount) return;
+
+    this._logger.info(
+      `DurableEvictionManager: server-initiated eviction for task_run_external_id=${taskRunExternalId} invocation_count=${invocationCount}`
+    );
+    this._evictRun(key);
   }
 
   async evictAllWaiting(): Promise<number> {

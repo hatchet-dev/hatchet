@@ -73,11 +73,13 @@ class DurableEvictionManager:
         key: ActionKey,
         *,
         step_run_id: str,
+        invocation_count: int,
         eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._cache.register_run(
             key,
             step_run_id,
+            invocation_count=invocation_count,
             now=self._now(),
             eviction_policy=eviction_policy,
         )
@@ -161,15 +163,25 @@ class DurableEvictionManager:
                 await self._request_eviction_with_ack(key, rec)
                 self._evict_run(key)
 
-    def handle_server_eviction(self, step_run_id: str) -> None:
+    def handle_server_eviction(
+        self, step_run_id: str, invocation_count: int
+    ) -> None:
         """Handle a server-initiated eviction notification for a stale invocation."""
         key = self._cache.find_key_by_step_run_id(step_run_id)
-        if key is not None:
-            logger.info(
-                f"DurableEvictionManager: server-initiated eviction for "
-                f"step_run_id={step_run_id}"
-            )
-            self._evict_run(key)
+        if key is None:
+            return
+
+        rec = self._cache.get(key)
+        if rec is not None and rec.invocation_count != invocation_count:
+            return
+
+        logger.info(
+            "DurableEvictionManager: server-initiated eviction for "
+            "step_run_id=%s invocation_count=%d",
+            step_run_id,
+            invocation_count,
+        )
+        self._evict_run(key)
 
     async def evict_all_waiting(self) -> int:
         """Evict every currently-waiting durable run. Used during graceful shutdown."""

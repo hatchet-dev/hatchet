@@ -69,8 +69,8 @@ export class InternalWorker {
   evictionManager: DurableEvictionManager | undefined;
   workflow_registry: Array<WorkflowDefinition> = [];
   listener: ActionListener | undefined;
-  futures: Record<Action['taskRunExternalId'], HatchetPromise<any>> = {};
-  contexts: Record<Action['taskRunExternalId'], Context<any, any>> = {};
+  futures: Record<ActionKey, HatchetPromise<any>> = {};
+  contexts: Record<ActionKey, Context<any, any>> = {};
   slots?: number;
   durableSlots?: number;
   slotConfig: SlotConfig;
@@ -461,8 +461,8 @@ export class InternalWorker {
           future.cancel(err);
         }
       },
-      requestEvictionWithAck: async (_key: ActionKey, rec: DurableRunRecord) => {
-        const ctx = this.contexts[rec.taskRunExternalId] as DurableContext<any, any> | undefined;
+      requestEvictionWithAck: async (key: ActionKey, rec: DurableRunRecord) => {
+        const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
         const invocationCount = ctx?.invocationCount ?? 1;
         await this.client.durableListener.sendEvictInvocation(
           rec.taskRunExternalId,
@@ -473,22 +473,23 @@ export class InternalWorker {
       logger: this.logger,
     });
 
-    this.client.durableListener.setOnServerEvict((durableTaskExternalId, _invocationCount) => {
-      this.evictionManager?.handleServerEviction(durableTaskExternalId);
+    this.client.durableListener.setOnServerEvict((durableTaskExternalId, invocationCount) => {
+      this.evictionManager?.handleServerEviction(durableTaskExternalId, invocationCount);
     });
 
     this.evictionManager.start();
     return this.evictionManager;
   }
 
-  private cleanupRun(taskRunExternalId: string): void {
-    this.evictionManager?.unregisterRun(taskRunExternalId);
-    delete this.futures[taskRunExternalId];
-    delete this.contexts[taskRunExternalId];
+  private cleanupRun(key: ActionKey): void {
+    this.evictionManager?.unregisterRun(key);
+    delete this.futures[key];
+    delete this.contexts[key];
   }
 
   async handleStartStepRun(action: Action) {
     const { actionId, taskRunExternalId, taskName } = action;
+    const actionKey: ActionKey = `${taskRunExternalId}/${action.retryCount}`;
 
     try {
       const isDurable = this.durable_action_set.has(actionId);
@@ -502,7 +503,7 @@ export class InternalWorker {
           await durableListener.ensureStarted(this.workerId || '');
           mgr = this.ensureEvictionManager();
           const evictionPolicy = this.eviction_policies.get(actionId);
-          mgr.registerRun(taskRunExternalId, taskRunExternalId, evictionPolicy);
+          mgr.registerRun(actionKey, taskRunExternalId, action.durableTaskInvocationCount ?? 1, evictionPolicy);
         }
 
         context = new DurableContext(
@@ -517,14 +518,14 @@ export class InternalWorker {
         context = new Context(action, this.client, this);
       }
 
-      this.contexts[taskRunExternalId] = context;
+      this.contexts[actionKey] = context;
 
       const step = this.action_registry[actionId];
 
       if (!step) {
         this.logger.error(`Registered actions: '${Object.keys(this.action_registry).join(', ')}'`);
         this.logger.error(`Could not find step '${actionId}'`);
-        this.cleanupRun(taskRunExternalId);
+        this.cleanupRun(actionKey);
         return;
       }
 
@@ -614,7 +615,7 @@ export class InternalWorker {
             `Could not send action event: ${actionEventError.message || actionEventError}`
           );
         } finally {
-          this.cleanupRun(taskRunExternalId);
+          this.cleanupRun(actionKey);
         }
       };
 
@@ -646,7 +647,7 @@ export class InternalWorker {
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
-          this.cleanupRun(taskRunExternalId);
+          this.cleanupRun(actionKey);
         }
       };
 
@@ -675,7 +676,7 @@ export class InternalWorker {
           await success(result);
         })()
       );
-      this.futures[taskRunExternalId] = future;
+      this.futures[actionKey] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(
@@ -700,10 +701,10 @@ export class InternalWorker {
           );
         }
       } finally {
-        this.cleanupRun(taskRunExternalId);
+        this.cleanupRun(actionKey);
       }
     } catch (e: any) {
-      this.cleanupRun(taskRunExternalId);
+      this.cleanupRun(actionKey);
       this.logger.error('Could not send action event (outer): ', e);
     }
   }
@@ -751,10 +752,11 @@ export class InternalWorker {
 
   async handleCancelStepRun(action: Action) {
     const { taskRunExternalId, taskName } = action;
+    const actionKey: ActionKey = `${taskRunExternalId}/${action.retryCount}`;
 
     try {
-      const future = this.futures[taskRunExternalId];
-      const context = this.contexts[taskRunExternalId];
+      const future = this.futures[actionKey];
+      const context = this.contexts[actionKey];
 
       const cancelErr = new TaskRunTerminatedError('cancelled', 'Cancelled by worker');
       if (context && context.abortController) {
@@ -819,7 +821,7 @@ export class InternalWorker {
         `Cancellation: error while supervising cancellation for task run ${taskRunExternalId}: ${e?.message || e}`
       );
     } finally {
-      this.cleanupRun(taskRunExternalId);
+      this.cleanupRun(actionKey);
     }
   }
 

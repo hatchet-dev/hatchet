@@ -20,6 +20,7 @@ class EvictionCause(str, Enum):
 class DurableRunRecord(BaseModel):
     key: ActionKey
     step_run_id: str
+    invocation_count: int
     eviction_policy: EvictionPolicy | None
     registered_at: datetime
 
@@ -47,12 +48,14 @@ class DurableEvictionCache:
         self,
         key: ActionKey,
         step_run_id: str,
+        invocation_count: int,
         now: datetime,
         eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._runs[key] = DurableRunRecord(
             key=key,
             step_run_id=step_run_id,
+            invocation_count=invocation_count,
             eviction_policy=eviction_policy,
             registered_at=now,
         )

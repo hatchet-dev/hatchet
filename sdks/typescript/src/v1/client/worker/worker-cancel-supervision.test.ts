@@ -19,6 +19,8 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
     };
 
     const taskExternalId = 'task-1';
+    const retryCount = 0;
+    const actionKey = `${taskExternalId}/${retryCount}`;
 
     // Use the real HatchetPromise behavior: cancel rejects the wrapper immediately,
     // while the underlying work (`inner`) continues.
@@ -44,8 +46,8 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
       },
       cancellingTaskRuns: new Set(),
       evictionManager: undefined,
-      futures: { [taskExternalId]: future },
-      contexts: { [taskExternalId]: ctx },
+      futures: { [actionKey]: future },
+      contexts: { [actionKey]: ctx },
       cleanupRun(id: string) {
         this.evictionManager?.unregisterRun(id);
         delete this.futures[id];
@@ -53,7 +55,7 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
       },
     };
 
-    const action: any = { taskRunExternalId: taskExternalId };
+    const action: any = { taskRunExternalId: taskExternalId, retryCount };
 
     const p = InternalWorker.prototype.handleCancelStepRun.call(fakeThis, action);
 
@@ -64,8 +66,8 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
     expect(cancelSpy).toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
 
-    expect(fakeThis.futures[taskExternalId]).toBeUndefined();
-    expect(fakeThis.contexts[taskExternalId]).toBeUndefined();
+    expect(fakeThis.futures[actionKey]).toBeUndefined();
+    expect(fakeThis.contexts[actionKey]).toBeUndefined();
   });
 
   it('suppresses "was cancelled" debug log when cancellation is supervised', async () => {

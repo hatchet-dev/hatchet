@@ -222,7 +222,7 @@ class Runner:
         """Called from DurableEventListener when the server notifies a stale invocation."""
         if self.durable_eviction_manager is not None:
             self.durable_eviction_manager.handle_server_eviction(
-                durable_task_external_id
+                durable_task_external_id, invocation_count
             )
 
     async def _eviction_request(self, key: ActionKey, rec: DurableRunRecord) -> None:
@@ -543,6 +543,7 @@ class Runner:
                 self.durable_eviction_manager.register_run(
                     action.key,
                     step_run_id=action.step_run_id,
+                    invocation_count=action.durable_task_invocation_count or 1,
                     eviction_policy=action_func.durable_eviction,
                 )
 
