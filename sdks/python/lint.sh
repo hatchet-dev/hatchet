@@ -2,6 +2,8 @@
 
 set -eo pipefail
 
+unset VIRTUAL_ENV
+
 echo "Linting with ruff"
 poetry run ruff check . --fix
 
