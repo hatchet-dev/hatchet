@@ -16,9 +16,9 @@ export async function retrier<T>(
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
-    } catch (e: any) {
-      lastError = e;
-      logger.error(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      logger.error(`Error: ${lastError.message}`);
 
       // Calculate exponential backoff with random jitter
       const exponentialDelay = interval * 2 ** i * 1000;

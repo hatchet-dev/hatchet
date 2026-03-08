@@ -58,7 +58,7 @@ describe('webhooks-e2e', () => {
     );
 
     expect(runsResp.rows?.length).toBeGreaterThan(0);
-    const run = runsResp.rows![0];
+    const [run] = runsResp.rows!;
     expect(run.status).toBe('COMPLETED');
     expect(run.additionalMetadata).toBeDefined();
     expect((run.additionalMetadata as Record<string, string>).hatchet__event_key).toBe(

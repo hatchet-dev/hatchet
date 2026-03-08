@@ -8,7 +8,7 @@ import {
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
-import HatchetError from '@util/errors/hatchet-error';
+import { toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
@@ -126,8 +126,8 @@ export class AdminClient {
   async putWorkflow(workflow: CreateWorkflowVersionOpts) {
     try {
       return await retrier(async () => this.client.putWorkflow({ opts: workflow }), this.logger);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -139,8 +139,8 @@ export class AdminClient {
   async putWorkflowV1(workflow: CreateWorkflowVersionRequest) {
     try {
       return await retrier(async () => this.v1Client.putWorkflow(workflow), this.logger);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -169,8 +169,8 @@ export class AdminClient {
           }),
         this.logger
       );
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -263,8 +263,8 @@ export class AdminClient {
       });
 
       return new WorkflowRunRef<P>(resp, this.listenerClient, this.workflows, options?.parentId);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
   /**
@@ -344,8 +344,8 @@ export class AdminClient {
           );
         });
       });
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -483,8 +483,8 @@ export class AdminClient {
         schedules: options?.schedules,
         input,
       });
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 

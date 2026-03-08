@@ -3,6 +3,7 @@ import {
   StepRunEvent,
 } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Status } from 'nice-grpc';
+import { getGrpcErrorCode, getGrpcErrorDetails } from './grpc-error';
 import { RunsClient } from '@hatchet/v1';
 import { WorkflowRunEventType } from '../protoc/dispatcher';
 
@@ -33,9 +34,9 @@ async function getWorkflowRunId(workflowRunId: EventualWorkflowRunId): Promise<s
       }
 
       return resolved.workflowRunId;
-    } catch (e: any) {
-      if (e.code && e.code === Status.ALREADY_EXISTS) {
-        throw new DedupeViolationErr(e.details);
+    } catch (e: unknown) {
+      if (getGrpcErrorCode(e) === Status.ALREADY_EXISTS) {
+        throw new DedupeViolationErr(getGrpcErrorDetails(e) ?? '');
       }
 
       throw e;
@@ -135,7 +136,7 @@ export default class WorkflowRunRef<T> {
                 return;
               }
 
-              const outputs: { [readableStepName: string]: any } = {};
+              const outputs: Record<string, unknown> = {};
 
               mostRecentJobRun.stepRuns?.forEach((stepRun) => {
                 const readable = mostRecentJobRun.job?.steps?.find(
@@ -144,7 +145,7 @@ export default class WorkflowRunRef<T> {
                 const readableStepName = `${readable?.readableId}`;
                 try {
                   outputs[readableStepName] = JSON.parse(stepRun.output || '{}');
-                } catch (error) {
+                } catch {
                   outputs[readableStepName] = stepRun.output;
                 }
               });
@@ -171,7 +172,7 @@ export default class WorkflowRunRef<T> {
               return;
             }
 
-            resolve((result as any)[this._standaloneTaskName] as T);
+            resolve((result as Record<string, unknown>)[this._standaloneTaskName] as T);
             return;
           }
         }

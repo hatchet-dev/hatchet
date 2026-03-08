@@ -1,4 +1,5 @@
 import { Channel, ClientFactory, Status } from 'nice-grpc';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { EventEmitter, on } from 'events';
 import {
   DispatcherClient as PbDispatcherClient,
@@ -77,7 +78,7 @@ export class RunEventListener {
   q: Array<StepRunEvent> = [];
   eventEmitter = new EventEmitter();
 
-  pollInterval: any;
+  pollInterval: ReturnType<typeof setInterval> | undefined;
 
   constructor(client: DispatcherClient) {
     this.client = client;
@@ -138,12 +139,12 @@ export class RunEventListener {
 
         this.eventEmitter.emit('complete');
         return;
-      } catch (e: any) {
-        if (e.code === Status.CANCELLED) {
+      } catch (e: unknown) {
+        if (getGrpcErrorCode(e) === Status.CANCELLED) {
           this.eventEmitter.emit('complete');
           return;
         }
-        if (e.code === Status.UNAVAILABLE) {
+        if (getGrpcErrorCode(e) === Status.UNAVAILABLE) {
           listener = await this.retrySubscribe(listenerFactory);
         } else {
           throw e;
@@ -159,7 +160,7 @@ export class RunEventListener {
       try {
         await sleep(DEFAULT_EVENT_LISTENER_RETRY_INTERVAL);
         return listenerFactory();
-      } catch (e: any) {
+      } catch {
         retries += 1;
       }
     }

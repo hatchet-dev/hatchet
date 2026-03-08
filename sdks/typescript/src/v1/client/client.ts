@@ -194,7 +194,7 @@ export class HatchetClient<
         .catch(() => {
           // Do nothing here
         });
-    } catch (e) {
+    } catch {
       // Do nothing here
     }
   }

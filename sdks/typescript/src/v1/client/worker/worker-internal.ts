@@ -8,7 +8,7 @@ import {
   GroupKeyActionEventType,
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
-import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
+import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
 import {
   CreateStepRateLimit,
   DesiredWorkerLabels,
@@ -776,7 +776,7 @@ export class InternalWorker {
         future.promise.catch(() => undefined);
 
         // Cancel the future (rejects the wrapper); user code must still cooperate with AbortSignal.
-        future.cancel('Cancelled by worker'); // TODO this reason is nonsensical
+        future.cancel(CancellationReason.CANCELLED_BY_WORKER);
 
         // Track completion of the underlying work (not the cancelable wrapper).
         // Ensure this promise never throws into our supervision flow.

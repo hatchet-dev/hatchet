@@ -5,6 +5,7 @@ import {
   WorkflowRunEventType,
 } from '@hatchet/protoc/dispatcher';
 import { isAbortError } from 'abort-controller-x';
+import { getErrorMessage } from '@util/errors/hatchet-error';
 import sleep from '@hatchet/util/sleep';
 import { createAbortError } from '@hatchet/util/abort-error';
 import { RunListenerClient } from './child-listener-client';
@@ -142,12 +143,12 @@ export class RunGrpcPooledListener {
       }
 
       this.client.logger.debug('Child listener finished');
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isAbortError(e)) {
         this.client.logger.debug('Child Listener aborted');
         return;
       }
-      this.client.logger.error(`Error in child-listener: ${e.message}`);
+      this.client.logger.error(`Error in child-listener: ${getErrorMessage(e)}`);
     } finally {
       // it is possible the server hangs up early,
       // restart the listener if we still have subscribers

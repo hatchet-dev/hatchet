@@ -21,25 +21,13 @@ export default [
     rules: {
       'prettier/prettier': 'error',
       'unused-imports/no-unused-imports': 'error',
-
-      'no-void': 'off',
-      'no-use-before-define': 'off',
-      'no-await-in-loop': 'off',
-      'no-restricted-syntax': 'off',
-      curly: 'error',
-      'prefer-destructuring': ['error', { object: true, array: false }],
-
-      '@typescript-eslint/no-shadow': 'off',
-      '@typescript-eslint/no-use-before-define': 'off',
+      'prefer-destructuring': 'error',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-empty-object-type': 'off',
-      '@typescript-eslint/no-require-imports': 'off',
-
-      'class-methods-use-this': 'off',
     },
   },
 
@@ -55,6 +43,47 @@ export default [
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       'no-console': 'off',
+    },
+  },
+
+  {
+    files: [
+      'src/v1/types.ts',
+      'src/v1/declaration.ts',
+      'src/v1/client/client.ts',
+      'src/v1/task.ts',
+      'src/clients/hatchet-client/client-config.ts',
+      'src/legacy/step.ts',
+      'src/legacy/workflow.ts',
+      'src/legacy/legacy-transformer.ts',
+      'src/v1/client/worker/worker-internal.ts',
+      'src/v1/client/worker/context.ts',
+      'src/v1/client/worker/slot-utils.ts',
+      'src/v1/client/admin.ts',
+      'src/v1/client/worker/worker.ts',
+      'src/v1/client/features/workflows.ts',
+      'src/v1/client/features/crons.ts',
+      'src/v1/client/features/runs.ts',
+      'src/v1/client/features/cel.ts',
+      'src/v1/client/features/schedules.ts',
+      'src/v1/conditions/parent-condition.ts',
+      'src/v1/conditions/transformer.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+
+  {
+    files: [
+      'src/**/*.test.{ts,tsx}',
+      'src/**/*.e2e.{ts,tsx}',
+      'tests/**/*.{ts,tsx}',
+      'src/**/examples/**/*.{ts,tsx,js}',
+      'src/**/__e2e__/**/*.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ];

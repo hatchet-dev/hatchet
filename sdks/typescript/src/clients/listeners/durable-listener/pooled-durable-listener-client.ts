@@ -6,6 +6,7 @@ import {
   RegisterDurableEventResponse,
 } from '@hatchet/protoc/v1/dispatcher';
 import { isAbortError } from 'abort-controller-x';
+import { getErrorMessage } from '@util/errors/hatchet-error';
 import sleep from '@hatchet/util/sleep';
 import { createAbortError } from '@hatchet/util/abort-error';
 import {
@@ -171,12 +172,12 @@ export class DurableEventGrpcPooledListener {
       }
 
       this.client.logger.debug('Durable event listener finished');
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isAbortError(e)) {
         this.client.logger.debug('Durable event listener aborted');
         return;
       }
-      this.client.logger.error(`Error in durable-event-listener: ${e.message}`);
+      this.client.logger.error(`Error in durable-event-listener: ${getErrorMessage(e)}`);
     } finally {
       const subscriberCount = Object.keys(this.subscribers).length;
       if (subscriberCount > 0) {

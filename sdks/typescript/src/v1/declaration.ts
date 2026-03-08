@@ -902,7 +902,7 @@ export class TaskWorkflowDeclaration<
   O extends OutputType = void,
   GlobalInput extends Record<string, any> = {},
   GlobalOutput extends Record<string, any> = {},
-  MiddlewareBefore extends Record<string, any> = {},
+  _MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   _standalone_task_name: string;
@@ -1132,7 +1132,7 @@ export function CreateDurableTaskWorkflow<
 
   // Move the task from tasks to durableTasks
   if (taskWorkflow.definition._tasks.length > 0) {
-    const task = taskWorkflow.definition._tasks[0];
+    const [task] = taskWorkflow.definition._tasks;
     taskWorkflow.definition._tasks = [];
     taskWorkflow.definition._durableTasks.push(task);
   }
