@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import { Channel, ClientFactory, Status } from 'nice-grpc';
 import { EventEmitter, on } from 'events';
 import {
@@ -19,7 +18,6 @@ import { RunGrpcPooledListener } from './pooled-child-listener-client';
 const DEFAULT_EVENT_LISTENER_RETRY_INTERVAL = 5; // seconds
 const DEFAULT_EVENT_LISTENER_RETRY_COUNT = 5;
 
-// eslint-disable-next-line no-shadow
 export enum RunEventType {
   STEP_RUN_EVENT_TYPE_STARTED = 'STEP_RUN_EVENT_TYPE_STARTED',
   STEP_RUN_EVENT_TYPE_COMPLETED = 'STEP_RUN_EVENT_TYPE_COMPLETED',
@@ -124,27 +122,32 @@ export class RunEventListener {
   async listenLoop(listenerFactory: () => AsyncIterable<WorkflowEvent>) {
     let listener = listenerFactory();
 
-    try {
-      for await (const workflowEvent of listener) {
-        const eventType = resourceTypeMap[workflowEvent.resourceType]?.[workflowEvent.eventType];
-        if (eventType) {
-          this.emit({
-            type: eventType,
-            payload: workflowEvent.eventPayload,
-            resourceId: workflowEvent.resourceId,
-            workflowRunId: workflowEvent.workflowRunId,
-          });
+    while (true) {
+      try {
+        for await (const workflowEvent of listener) {
+          const eventType = resourceTypeMap[workflowEvent.resourceType]?.[workflowEvent.eventType];
+          if (eventType) {
+            this.emit({
+              type: eventType,
+              payload: workflowEvent.eventPayload,
+              resourceId: workflowEvent.resourceId,
+              workflowRunId: workflowEvent.workflowRunId,
+            });
+          }
         }
-      }
 
-      this.eventEmitter.emit('complete');
-    } catch (e: any) {
-      if (e.code === Status.CANCELLED) {
         this.eventEmitter.emit('complete');
         return;
-      }
-      if (e.code === Status.UNAVAILABLE) {
-        listener = await this.retrySubscribe(listenerFactory);
+      } catch (e: any) {
+        if (e.code === Status.CANCELLED) {
+          this.eventEmitter.emit('complete');
+          return;
+        }
+        if (e.code === Status.UNAVAILABLE) {
+          listener = await this.retrySubscribe(listenerFactory);
+        } else {
+          throw e;
+        }
       }
     }
   }
@@ -174,7 +177,6 @@ export class RunEventListener {
       this.eventEmitter.emit('event');
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _ of on(this.eventEmitter, 'event')) {
       while (this.q.length > 0) {
         const r = this.q.shift();
