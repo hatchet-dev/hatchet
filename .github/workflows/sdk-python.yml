@@ -57,6 +57,9 @@ jobs:
       - name: Test install
         run: pip install -e .
 
+      - name: Install guides build deps (Pillow needs libjpeg on Python 3.14)
+        run: ./sdks/guides/python/scripts/setup-build-deps.sh
+
       - name: Install guides dependencies
         working-directory: ./sdks/guides/python
         run: poetry install
