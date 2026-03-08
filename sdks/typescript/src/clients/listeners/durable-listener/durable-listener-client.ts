@@ -167,6 +167,11 @@ export class DurableListenerClient {
     PendingCallbackKey,
     Deferred<DurableTaskEventLogEntryResult>
   >();
+  // Completions that arrived before waitForCallback() registered a deferred
+  // in _pendingCallbacks. This happens when the server delivers an
+  // entryCompleted between the event ack and the waitForCallback call
+  // (e.g. an already-satisfied sleep delivered via polling).
+  private _bufferedCompletions = new Map<PendingCallbackKey, DurableTaskEventLogEntryResult>();
   private _pendingEvictionAcks = new Map<PendingEvictionAckKey, Deferred<void>>();
 
   private _receiveAbort: AbortController | undefined;
@@ -404,10 +409,7 @@ export class DurableListenerClient {
         pending.resolve(result);
         this._pendingCallbacks.delete(key);
       } else {
-        this.logger.warn(
-          `received entry_completed for task ${ref?.durableTaskExternalId ?? ''} ` +
-            `invocation ${ref?.invocationCount ?? 0} but no callback was registered, waiting for poll`
-        );
+        this._bufferedCompletions.set(key, result);
       }
     } else if (response.evictionAck) {
       const ack = response.evictionAck;
@@ -550,6 +552,12 @@ export class DurableListenerClient {
   ): Promise<DurableTaskEventLogEntryResult> {
     const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
 
+    const early = this._bufferedCompletions.get(key);
+    if (early) {
+      this._bufferedCompletions.delete(key);
+      return early;
+    }
+
     if (!this._pendingCallbacks.has(key)) {
       this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
       this._pollWorkerStatus();
@@ -613,6 +621,13 @@ export class DurableListenerClient {
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
         d.reject(new Error('task state cleaned up'));
         this._pendingEventAcks.delete(k);
+      }
+    }
+
+    for (const k of this._bufferedCompletions.keys()) {
+      const parts = k.split(':');
+      if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
+        this._bufferedCompletions.delete(k);
       }
     }
   }

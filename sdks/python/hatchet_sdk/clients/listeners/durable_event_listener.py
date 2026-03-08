@@ -163,6 +163,14 @@ class DurableEventListener:
             PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
+        # Completions that arrived before wait_for_callback() registered a
+        # future in _pending_callbacks. This happens when the server delivers
+        # an entry_completed between the event ack and the wait_for_callback
+        # call (e.g. an already-satisfied sleep delivered via polling).
+        self._buffered_completions: dict[
+            PendingCallback, DurableTaskEventLogEntryResult
+        ] = {}
+
         self._receive_task: asyncio.Task[None] | None = None
         self._send_task: asyncio.Task[None] | None = None
         self._running = False
@@ -403,12 +411,7 @@ class DurableEventListener:
                     completed_future.set_result(result)
                 del self._pending_callbacks[completed_key]
             else:
-                # TODO-DURABLE: remove this once we're confident that this condition is not common
-                logger.warning(
-                    f"received entry_completed for task {completed.ref.durable_task_external_id} "
-                    f"invocation {completed.ref.invocation_count} but no callback was registered, waiting for poll"
-                )
-
+                self._buffered_completions[completed_key] = result
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -563,6 +566,9 @@ class DurableEventListener:
     ) -> DurableTaskEventLogEntryResult:
         key = (durable_task_external_id, invocation_count, branch_id, node_id)
 
+        if key in self._buffered_completions:
+            return self._buffered_completions.pop(key)
+
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
@@ -593,6 +599,14 @@ class DurableEventListener:
             ack_fut = self._pending_event_acks.pop(ak)
             if not ack_fut.done():
                 ack_fut.cancel()
+
+        stale_early_keys = [
+            ek
+            for ek in self._buffered_completions
+            if ek[0] == durable_task_external_id and ek[1] <= invocation_count
+        ]
+        for ek in stale_early_keys:
+            del self._buffered_completions[ek]
 
     _EVICTION_ACK_TIMEOUT_S = 30.0
 

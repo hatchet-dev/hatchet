@@ -300,6 +300,21 @@ describe('DurableListenerClient reconnection', () => {
       expect(l._pendingEvictionAcks.size).toBe(0);
       return expect(d.promise).rejects.toThrow('disconnected');
     });
+
+    it('preserves buffered completions (server-side state survives reconnection)', () => {
+      const l = listener as any;
+      const completion = {
+        durableTaskExternalId: 'task',
+        nodeId: 1,
+        payload: {},
+      };
+      l._bufferedCompletions.set('task:1:0:1', completion);
+
+      l._failPendingAcks(new Error('disconnected'));
+
+      expect(l._bufferedCompletions.size).toBe(1);
+      expect(l._bufferedCompletions.get('task:1:0:1')).toBe(completion);
+    });
   });
 
   // ── pending state rejected on stream disconnect ──
