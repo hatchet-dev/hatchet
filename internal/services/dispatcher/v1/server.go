@@ -481,7 +481,7 @@ func (d *DispatcherServiceImpl) sendNonDeterminismError(invocation *durableTaskI
 func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableTaskInvocation, sie *v1.StaleInvocationError) error {
 	return invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_ServerEvict{
-			ServerEvict: &contracts.DurableTaskServerEvictNotification{
+			ServerEvict: &contracts.DurableTaskServerEvictNotice{
 				DurableTaskExternalId: sie.TaskExternalId.String(),
 				InvocationCount:       sie.ActualInvocationCount,
 				Reason:                sie.Error(),
@@ -943,7 +943,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 					if workerInvocationCount < *currentCount {
 						err = invocation.send(&contracts.DurableTaskResponse{
 							Message: &contracts.DurableTaskResponse_ServerEvict{
-								ServerEvict: &contracts.DurableTaskServerEvictNotification{
+								ServerEvict: &contracts.DurableTaskServerEvictNotice{
 									DurableTaskExternalId: extId.String(),
 									InvocationCount:       workerInvocationCount,
 									Reason:                fmt.Sprintf("stale invocation: server has %d, worker sent %d", *currentCount, workerInvocationCount),

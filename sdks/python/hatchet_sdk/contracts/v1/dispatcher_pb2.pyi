@@ -112,7 +112,7 @@ class DurableTaskAwaitedCompletedEntry(_message.Message):
     invocation_count: int
     def __init__(self, durable_task_external_id: _Optional[str] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ..., invocation_count: _Optional[int] = ...) -> None: ...
 
-class DurableTaskServerEvictNotification(_message.Message):
+class DurableTaskServerEvictNotice(_message.Message):
     __slots__ = ("durable_task_external_id", "invocation_count", "reason")
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -217,8 +217,8 @@ class DurableTaskResponse(_message.Message):
     entry_completed: DurableTaskEventLogEntryCompletedResponse
     error: DurableTaskErrorResponse
     eviction_ack: DurableTaskEvictionAckResponse
-    server_evict: DurableTaskServerEvictNotification
-    def __init__(self, register_worker: _Optional[_Union[DurableTaskResponseRegisterWorker, _Mapping]] = ..., memo_ack: _Optional[_Union[DurableTaskEventMemoAckResponse, _Mapping]] = ..., trigger_runs_ack: _Optional[_Union[DurableTaskEventTriggerRunsAckResponse, _Mapping]] = ..., wait_for_ack: _Optional[_Union[DurableTaskEventWaitForAckResponse, _Mapping]] = ..., entry_completed: _Optional[_Union[DurableTaskEventLogEntryCompletedResponse, _Mapping]] = ..., error: _Optional[_Union[DurableTaskErrorResponse, _Mapping]] = ..., eviction_ack: _Optional[_Union[DurableTaskEvictionAckResponse, _Mapping]] = ..., server_evict: _Optional[_Union[DurableTaskServerEvictNotification, _Mapping]] = ...) -> None: ...
+    server_evict: DurableTaskServerEvictNotice
+    def __init__(self, register_worker: _Optional[_Union[DurableTaskResponseRegisterWorker, _Mapping]] = ..., memo_ack: _Optional[_Union[DurableTaskEventMemoAckResponse, _Mapping]] = ..., trigger_runs_ack: _Optional[_Union[DurableTaskEventTriggerRunsAckResponse, _Mapping]] = ..., wait_for_ack: _Optional[_Union[DurableTaskEventWaitForAckResponse, _Mapping]] = ..., entry_completed: _Optional[_Union[DurableTaskEventLogEntryCompletedResponse, _Mapping]] = ..., error: _Optional[_Union[DurableTaskErrorResponse, _Mapping]] = ..., eviction_ack: _Optional[_Union[DurableTaskEvictionAckResponse, _Mapping]] = ..., server_evict: _Optional[_Union[DurableTaskServerEvictNotice, _Mapping]] = ...) -> None: ...
 
 class RegisterDurableEventRequest(_message.Message):
     __slots__ = ("task_id", "signal_key", "conditions")

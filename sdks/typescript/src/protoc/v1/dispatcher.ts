@@ -106,7 +106,7 @@ export interface DurableTaskAwaitedCompletedEntry {
 }
 
 /** Sent by the server to notify a worker that its invocation is stale and should be cancelled. */
-export interface DurableTaskServerEvictNotification {
+export interface DurableTaskServerEvictNotice {
   durableTaskExternalId: string;
   invocationCount: number;
   reason: string;
@@ -189,7 +189,7 @@ export interface DurableTaskResponse {
   entryCompleted?: DurableTaskEventLogEntryCompletedResponse | undefined;
   error?: DurableTaskErrorResponse | undefined;
   evictionAck?: DurableTaskEvictionAckResponse | undefined;
-  serverEvict?: DurableTaskServerEvictNotification | undefined;
+  serverEvict?: DurableTaskServerEvictNotice | undefined;
 }
 
 export interface RegisterDurableEventRequest {
@@ -1207,13 +1207,13 @@ export const DurableTaskAwaitedCompletedEntry: MessageFns<DurableTaskAwaitedComp
   },
 };
 
-function createBaseDurableTaskServerEvictNotification(): DurableTaskServerEvictNotification {
+function createBaseDurableTaskServerEvictNotice(): DurableTaskServerEvictNotice {
   return { durableTaskExternalId: '', invocationCount: 0, reason: '' };
 }
 
-export const DurableTaskServerEvictNotification: MessageFns<DurableTaskServerEvictNotification> = {
+export const DurableTaskServerEvictNotice: MessageFns<DurableTaskServerEvictNotice> = {
   encode(
-    message: DurableTaskServerEvictNotification,
+    message: DurableTaskServerEvictNotice,
     writer: BinaryWriter = new BinaryWriter()
   ): BinaryWriter {
     if (message.durableTaskExternalId !== '') {
@@ -1228,10 +1228,10 @@ export const DurableTaskServerEvictNotification: MessageFns<DurableTaskServerEvi
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskServerEvictNotification {
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskServerEvictNotice {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDurableTaskServerEvictNotification();
+    const message = createBaseDurableTaskServerEvictNotice();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1268,7 +1268,7 @@ export const DurableTaskServerEvictNotification: MessageFns<DurableTaskServerEvi
     return message;
   },
 
-  fromJSON(object: any): DurableTaskServerEvictNotification {
+  fromJSON(object: any): DurableTaskServerEvictNotice {
     return {
       durableTaskExternalId: isSet(object.durableTaskExternalId)
         ? globalThis.String(object.durableTaskExternalId)
@@ -1280,7 +1280,7 @@ export const DurableTaskServerEvictNotification: MessageFns<DurableTaskServerEvi
     };
   },
 
-  toJSON(message: DurableTaskServerEvictNotification): unknown {
+  toJSON(message: DurableTaskServerEvictNotice): unknown {
     const obj: any = {};
     if (message.durableTaskExternalId !== '') {
       obj.durableTaskExternalId = message.durableTaskExternalId;
@@ -1295,14 +1295,14 @@ export const DurableTaskServerEvictNotification: MessageFns<DurableTaskServerEvi
   },
 
   create(
-    base?: DeepPartial<DurableTaskServerEvictNotification>
-  ): DurableTaskServerEvictNotification {
-    return DurableTaskServerEvictNotification.fromPartial(base ?? {});
+    base?: DeepPartial<DurableTaskServerEvictNotice>
+  ): DurableTaskServerEvictNotice {
+    return DurableTaskServerEvictNotice.fromPartial(base ?? {});
   },
   fromPartial(
-    object: DeepPartial<DurableTaskServerEvictNotification>
-  ): DurableTaskServerEvictNotification {
-    const message = createBaseDurableTaskServerEvictNotification();
+    object: DeepPartial<DurableTaskServerEvictNotice>
+  ): DurableTaskServerEvictNotice {
+    const message = createBaseDurableTaskServerEvictNotice();
     message.durableTaskExternalId = object.durableTaskExternalId ?? '';
     message.invocationCount = object.invocationCount ?? 0;
     message.reason = object.reason ?? '';
@@ -2176,7 +2176,7 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
       DurableTaskEvictionAckResponse.encode(message.evictionAck, writer.uint32(58).fork()).join();
     }
     if (message.serverEvict !== undefined) {
-      DurableTaskServerEvictNotification.encode(
+      DurableTaskServerEvictNotice.encode(
         message.serverEvict,
         writer.uint32(66).fork()
       ).join();
@@ -2261,7 +2261,7 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
             break;
           }
 
-          message.serverEvict = DurableTaskServerEvictNotification.decode(reader, reader.uint32());
+          message.serverEvict = DurableTaskServerEvictNotice.decode(reader, reader.uint32());
           continue;
         }
       }
@@ -2295,7 +2295,7 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
         ? DurableTaskEvictionAckResponse.fromJSON(object.evictionAck)
         : undefined,
       serverEvict: isSet(object.serverEvict)
-        ? DurableTaskServerEvictNotification.fromJSON(object.serverEvict)
+        ? DurableTaskServerEvictNotice.fromJSON(object.serverEvict)
         : undefined,
     };
   },
@@ -2324,7 +2324,7 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
       obj.evictionAck = DurableTaskEvictionAckResponse.toJSON(message.evictionAck);
     }
     if (message.serverEvict !== undefined) {
-      obj.serverEvict = DurableTaskServerEvictNotification.toJSON(message.serverEvict);
+      obj.serverEvict = DurableTaskServerEvictNotice.toJSON(message.serverEvict);
     }
     return obj;
   },
@@ -2364,7 +2364,7 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
         : undefined;
     message.serverEvict =
       object.serverEvict !== undefined && object.serverEvict !== null
-        ? DurableTaskServerEvictNotification.fromPartial(object.serverEvict)
+        ? DurableTaskServerEvictNotice.fromPartial(object.serverEvict)
         : undefined;
     return message;
   },
