@@ -231,10 +231,10 @@ jobs:
 
       - name: Build and Publish SDK
         run: |
-          VERSION=$(jq '.version' package.json)
-          CURRENT_NPM_VERSION=$(pnpm view @hatchet-dev/typescript-sdk version)
+          VERSION=$(jq -r '.version' package.json)
+          CURRENT_NPM_VERSION=$(pnpm view @hatchet-dev/typescript-sdk version 2>/dev/null || echo "")
 
-          if [[ "$VERSION" == "$CURRENT_NPM_VERSION" ]]; then
+          if [[ -n "$CURRENT_NPM_VERSION" && "$VERSION" == "$CURRENT_NPM_VERSION" ]]; then
             echo "Version has not changed. Skipping publish."
             exit 0
           fi
