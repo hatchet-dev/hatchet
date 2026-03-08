@@ -2,7 +2,7 @@
 name = "hatchet-guides-python"
 version = "0.0.0"
 description = "Hatchet guide examples (Python) - docs snippets with integration deps"
-package-mode = false
+authors = ["Hatchet <team@hatchet.run>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
