@@ -1,10 +1,7 @@
 from hatchet_sdk import Context, Hatchet
 from pydantic import BaseModel
 
-try:
-    from .llm_service import get_llm_service
-except ImportError:
-    from llm_service import get_llm_service
+from .llm_service import get_llm_service
 
 hatchet = Hatchet(debug=True)
 
@@ -36,9 +33,9 @@ def _build_prompt(user_input: str, context: str = "") -> str:
 async def generate_task(input: PipelineInput, ctx: Context) -> dict:
     prev = ctx.task_output(prompt_task)
     output = get_llm_service().generate(prev["prompt"])
-    if not output.get("valid"):
+    if not output.valid:
         raise ValueError("Validation failed")
-    return output
+    return output.model_dump()
 
 
 # !!
