@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # > Simple task
-FIRST_TASK = HATCHET.task(name: "first-task") do |input, ctx|
+FIRST_TASK = HATCHET.task(name: "first-task") do |input, _ctx|
   puts "first-task called"
   { "transformed_message" => input["message"].downcase }
 end

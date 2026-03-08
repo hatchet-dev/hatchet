@@ -8,14 +8,14 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 STICKY_WORKFLOW = HATCHET.workflow(
   name: "StickyWorkflow",
   # Specify a sticky strategy when declaring the workflow
-  sticky: :soft
+  sticky: :soft,
 )
 
-STEP1A = STICKY_WORKFLOW.task(:step1a) do |input, ctx|
+STEP1A = STICKY_WORKFLOW.task(:step1a) do |_input, ctx|
   { "worker" => ctx.worker.id }
 end
 
-STEP1B = STICKY_WORKFLOW.task(:step1b) do |input, ctx|
+STEP1B = STICKY_WORKFLOW.task(:step1b) do |_input, ctx|
   { "worker" => ctx.worker.id }
 end
 
@@ -23,12 +23,12 @@ end
 # > StickyChild
 STICKY_CHILD_WORKFLOW = HATCHET.workflow(
   name: "StickyChildWorkflow",
-  sticky: :soft
+  sticky: :soft,
 )
 
-STICKY_WORKFLOW.task(:step2, parents: [STEP1A, STEP1B]) do |input, ctx|
+STICKY_WORKFLOW.task(:step2, parents: [STEP1A, STEP1B]) do |_input, ctx|
   ref = STICKY_CHILD_WORKFLOW.run_no_wait(
-    options: Hatchet::TriggerWorkflowOptions.new(sticky: true)
+    options: Hatchet::TriggerWorkflowOptions.new(sticky: true),
   )
 
   ref.result
@@ -36,14 +36,14 @@ STICKY_WORKFLOW.task(:step2, parents: [STEP1A, STEP1B]) do |input, ctx|
   { "worker" => ctx.worker.id }
 end
 
-STICKY_CHILD_WORKFLOW.task(:child) do |input, ctx|
+STICKY_CHILD_WORKFLOW.task(:child) do |_input, ctx|
   { "worker" => ctx.worker.id }
 end
 
 
 def main
   worker = HATCHET.worker(
-    "sticky-worker", slots: 10, workflows: [STICKY_WORKFLOW, STICKY_CHILD_WORKFLOW]
+    "sticky-worker", slots: 10, workflows: [STICKY_WORKFLOW, STICKY_CHILD_WORKFLOW],
   )
   worker.start
 end

@@ -5,21 +5,28 @@ See docs: /guides/llm-pipelines
 
 from abc import ABC, abstractmethod
 
+from pydantic import BaseModel
+
+
+class GenerationResult(BaseModel):
+    content: str
+    valid: bool
+
 
 class LLMService(ABC):
     """Interface for LLM generation. Implement with OpenAI, Anthropic, etc."""
 
     @abstractmethod
-    def generate(self, prompt: str) -> dict:
-        """Generate from prompt. Returns {content, valid}."""
-        pass
+    def generate(self, prompt: str) -> GenerationResult:
+        """Generate from prompt."""
+        ...
 
 
 class MockLLMService(LLMService):
     """No external API - for demos."""
 
-    def generate(self, prompt: str) -> dict:
-        return {"content": f"Generated for: {prompt[:50]}...", "valid": True}
+    def generate(self, prompt: str) -> GenerationResult:
+        return GenerationResult(content=f"Generated for: {prompt[:50]}...", valid=True)
 
 
 _llm_service: LLMService | None = None

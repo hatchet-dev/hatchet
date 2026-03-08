@@ -1,41 +1,48 @@
 import asyncio
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
+from pydantic import BaseModel
 
-try:
-    from .mock_llm import mock_evaluate, mock_generate_content, mock_safety_check
-except ImportError:
-    from mock_llm import mock_evaluate, mock_generate_content, mock_safety_check
+from .mock_llm import mock_evaluate, mock_generate_content, mock_safety_check
 
 hatchet = Hatchet(debug=True)
 
-content_wf = hatchet.workflow(name="GenerateContent")
-safety_wf = hatchet.workflow(name="SafetyCheck")
-evaluator_wf = hatchet.workflow(name="EvaluateContent")
+
+class MessageInput(BaseModel):
+    message: str
+
+
+class ContentInput(BaseModel):
+    content: str
+
+
+content_wf = hatchet.workflow(name="GenerateContent", input_validator=MessageInput)
+safety_wf = hatchet.workflow(name="SafetyCheck", input_validator=MessageInput)
+evaluator_wf = hatchet.workflow(name="EvaluateContent", input_validator=ContentInput)
 
 
 # > Step 01 Parallel Tasks
 @content_wf.task()
-async def generate_content(input: dict, ctx: Context) -> dict:
-    return {"content": mock_generate_content(input["message"])}
+async def generate_content(input: MessageInput, ctx: Context) -> dict:
+    return {"content": mock_generate_content(input.message)}
 
 
 @safety_wf.task()
-async def safety_check(input: dict, ctx: Context) -> dict:
-    return mock_safety_check(input["message"])
+async def safety_check(input: MessageInput, ctx: Context) -> dict:
+    return mock_safety_check(input.message)
 
 
 @evaluator_wf.task()
-async def evaluate_content(input: dict, ctx: Context) -> dict:
-    return mock_evaluate(input["content"])
+async def evaluate_content(input: ContentInput, ctx: Context) -> dict:
+    return mock_evaluate(input.content)
 
 
 # > Step 02 Sectioning
-@hatchet.durable_task(name="ParallelSectioning", execution_timeout="2m")
-async def sectioning_task(input: EmptyModel, ctx: DurableContext) -> dict:
+@hatchet.durable_task(name="ParallelSectioning", execution_timeout="2m", input_validator=MessageInput)
+async def sectioning_task(input: MessageInput, ctx: DurableContext) -> dict:
     content_result, safety_result = await asyncio.gather(
-        content_wf.aio_run(input={"message": input["message"]}),
-        safety_wf.aio_run(input={"message": input["message"]}),
+        content_wf.aio_run(input=MessageInput(message=input.message)),
+        safety_wf.aio_run(input=MessageInput(message=input.message)),
     )
 
     if not safety_result["safe"]:
@@ -44,12 +51,12 @@ async def sectioning_task(input: EmptyModel, ctx: DurableContext) -> dict:
 
 
 # > Step 03 Voting
-@hatchet.durable_task(name="ParallelVoting", execution_timeout="3m")
-async def voting_task(input: EmptyModel, ctx: DurableContext) -> dict:
+@hatchet.durable_task(name="ParallelVoting", execution_timeout="3m", input_validator=ContentInput)
+async def voting_task(input: ContentInput, ctx: DurableContext) -> dict:
     votes = await asyncio.gather(
-        evaluator_wf.aio_run(input={"content": input["content"]}),
-        evaluator_wf.aio_run(input={"content": input["content"]}),
-        evaluator_wf.aio_run(input={"content": input["content"]}),
+        evaluator_wf.aio_run(input=ContentInput(content=input.content)),
+        evaluator_wf.aio_run(input=ContentInput(content=input.content)),
+        evaluator_wf.aio_run(input=ContentInput(content=input.content)),
     )
 
     approvals = sum(1 for v in votes if v["approved"])

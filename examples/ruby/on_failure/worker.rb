@@ -12,13 +12,13 @@ ERROR_TEXT = "step1 failed"
 
 ON_FAILURE_WF = HATCHET.workflow(name: "OnFailureWorkflow")
 
-ON_FAILURE_WF.task(:step1, execution_timeout: 1) do |input, ctx|
+ON_FAILURE_WF.task(:step1, execution_timeout: 1) do |_input, _ctx|
   # This step will always raise an exception
   raise ERROR_TEXT
 end
 
 # After the workflow fails, this special step will run
-ON_FAILURE_WF.on_failure_task do |input, ctx|
+ON_FAILURE_WF.on_failure_task do |_input, ctx|
   # We can do things like perform cleanup logic
   # or notify a user here
 
@@ -35,17 +35,15 @@ end
 
 ON_FAILURE_WF_WITH_DETAILS = HATCHET.workflow(name: "OnFailureWorkflowWithDetails")
 
-DETAILS_STEP1 = ON_FAILURE_WF_WITH_DETAILS.task(:details_step1, execution_timeout: 1) do |input, ctx|
+DETAILS_STEP1 = ON_FAILURE_WF_WITH_DETAILS.task(:details_step1, execution_timeout: 1) do |_input, _ctx|
   raise ERROR_TEXT
 end
 
 # After the workflow fails, this special step will run
-ON_FAILURE_WF_WITH_DETAILS.on_failure_task do |input, ctx|
+ON_FAILURE_WF_WITH_DETAILS.on_failure_task do |_input, ctx|
   error = ctx.get_task_run_error(DETAILS_STEP1)
 
-  unless error
-    next { "status" => "unexpected success" }
-  end
+  next { "status" => "unexpected success" } unless error
 
   # We can access the failure details here
   raise "Expected Hatchet::TaskRunError" unless error.is_a?(Hatchet::TaskRunError)
@@ -53,7 +51,7 @@ ON_FAILURE_WF_WITH_DETAILS.on_failure_task do |input, ctx|
   if error.message.include?("step1 failed")
     next {
       "status" => "success",
-      "failed_run_external_id" => error.task_run_external_id
+      "failed_run_external_id" => error.task_run_external_id,
     }
   end
 
@@ -65,7 +63,7 @@ def main
   worker = HATCHET.worker(
     "on-failure-worker",
     slots: 4,
-    workflows: [ON_FAILURE_WF, ON_FAILURE_WF_WITH_DETAILS]
+    workflows: [ON_FAILURE_WF, ON_FAILURE_WF_WITH_DETAILS],
   )
   worker.start
 end

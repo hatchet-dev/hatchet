@@ -1,24 +1,24 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
-require 'hatchet-sdk'
+require "hatchet-sdk"
 # require_relative '../src/lib/hatchet-sdk'
 
 # Initialize the Hatchet client
-HATCHET = Hatchet::Client.new() unless defined?(HATCHET)
+HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 result = HATCHET.events.create(
   key: "test-event",
   data: {
-    message: "test"
-  }
+    message: "test",
+  },
 )
 puts "Event created: #{result.inspect}"
-
 
 run = HATCHET.runs.create(
   name: "simple",
   input: {
-    Message: "test workflow run"
+    Message: "test workflow run",
   },
 )
 

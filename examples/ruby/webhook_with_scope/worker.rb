@@ -11,24 +11,24 @@ WEBHOOK_WITH_SCOPE = HATCHET.task(
     Hatchet::DefaultFilter.new(
       expression: "true",
       scope: "test-scope-value",
-      payload: {}
-    )
-  ]
-) do |input, ctx|
+      payload: {},
+    ),
+  ],
+) do |input, _ctx|
   input
 end
 
 WEBHOOK_WITH_STATIC_PAYLOAD = HATCHET.task(
   name: "webhook_with_static_payload",
-  on_events: ["webhook-static:test"]
-) do |input, ctx|
+  on_events: ["webhook-static:test"],
+) do |input, _ctx|
   input
 end
 
 def main
   worker = HATCHET.worker(
     "webhook-scope-worker",
-    workflows: [WEBHOOK_WITH_SCOPE, WEBHOOK_WITH_STATIC_PAYLOAD]
+    workflows: [WEBHOOK_WITH_SCOPE, WEBHOOK_WITH_STATIC_PAYLOAD],
   )
   worker.start
 end

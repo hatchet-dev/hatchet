@@ -10,15 +10,15 @@ class ToolService(ABC):
     """Interface for agent tool execution. Implement with your APIs."""
 
     @abstractmethod
-    def run(self, name: str, args: dict) -> str:
+    def run(self, name: str, args: dict[str, str]) -> str:
         """Execute a tool. Returns string result."""
-        pass
+        ...
 
 
 class MockToolService(ToolService):
     """No external API - returns canned results for demos."""
 
-    def run(self, name: str, args: dict) -> str:
+    def run(self, name: str, args: dict[str, str]) -> str:
         if name == "get_weather":
             loc = args.get("location", "unknown")
             return f"Weather in {loc}: 72°F, sunny"

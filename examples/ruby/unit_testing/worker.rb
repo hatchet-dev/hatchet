@@ -10,7 +10,7 @@ SYNC_STANDALONE = HATCHET.task(name: "sync_standalone") do |input, ctx|
     "key" => input["key"],
     "number" => input["number"],
     "additional_metadata" => ctx.additional_metadata,
-    "retry_count" => ctx.retry_count
+    "retry_count" => ctx.retry_count,
   }
 end
 
@@ -19,7 +19,7 @@ ASYNC_STANDALONE = HATCHET.task(name: "async_standalone") do |input, ctx|
     "key" => input["key"],
     "number" => input["number"],
     "additional_metadata" => ctx.additional_metadata,
-    "retry_count" => ctx.retry_count
+    "retry_count" => ctx.retry_count,
   }
 end
 
@@ -28,7 +28,7 @@ DURABLE_SYNC_STANDALONE = HATCHET.durable_task(name: "durable_sync_standalone") 
     "key" => input["key"],
     "number" => input["number"],
     "additional_metadata" => ctx.additional_metadata,
-    "retry_count" => ctx.retry_count
+    "retry_count" => ctx.retry_count,
   }
 end
 
@@ -37,7 +37,7 @@ DURABLE_ASYNC_STANDALONE = HATCHET.durable_task(name: "durable_async_standalone"
     "key" => input["key"],
     "number" => input["number"],
     "additional_metadata" => ctx.additional_metadata,
-    "retry_count" => ctx.retry_count
+    "retry_count" => ctx.retry_count,
   }
 end
 
@@ -48,7 +48,7 @@ SIMPLE_UNIT_TEST_WORKFLOW.task(:sync_simple_workflow) do |input, ctx|
     "key" => input["key"],
     "number" => input["number"],
     "additional_metadata" => ctx.additional_metadata,
-    "retry_count" => ctx.retry_count
+    "retry_count" => ctx.retry_count,
   }
 end
 
@@ -59,10 +59,10 @@ UNIT_START = COMPLEX_UNIT_TEST_WORKFLOW.task(:start) do |input, ctx|
     "key" => input["key"],
     "number" => input["number"],
     "additional_metadata" => ctx.additional_metadata,
-    "retry_count" => ctx.retry_count
+    "retry_count" => ctx.retry_count,
   }
 end
 
-COMPLEX_UNIT_TEST_WORKFLOW.task(:sync_complex_workflow, parents: [UNIT_START]) do |input, ctx|
+COMPLEX_UNIT_TEST_WORKFLOW.task(:sync_complex_workflow, parents: [UNIT_START]) do |_input, ctx|
   ctx.task_output(UNIT_START)
 end

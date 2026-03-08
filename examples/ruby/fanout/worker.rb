@@ -8,7 +8,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 FANOUT_PARENT_WF = HATCHET.workflow(name: "FanoutParent")
 FANOUT_CHILD_WF = HATCHET.workflow(name: "FanoutChild")
 
-FANOUT_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
+FANOUT_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, _ctx|
   puts "spawning child"
   n = input["n"] || 100
 
@@ -18,10 +18,10 @@ FANOUT_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
         input: { "a" => i.to_s },
         options: Hatchet::TriggerWorkflowOptions.new(
           additional_metadata: { "hello" => "earth" },
-          key: "child#{i}"
-        )
+          key: "child#{i}",
+        ),
       )
-    end
+    end,
   )
 
   puts "results #{result}"
@@ -30,12 +30,12 @@ end
 
 
 # > FanoutChild
-FANOUT_CHILD_PROCESS = FANOUT_CHILD_WF.task(:process) do |input, ctx|
-  puts "child process #{input['a']}"
+FANOUT_CHILD_PROCESS = FANOUT_CHILD_WF.task(:process) do |input, _ctx|
+  puts "child process #{input["a"]}"
   { "status" => input["a"] }
 end
 
-FANOUT_CHILD_WF.task(:process2, parents: [FANOUT_CHILD_PROCESS]) do |input, ctx|
+FANOUT_CHILD_WF.task(:process2, parents: [FANOUT_CHILD_PROCESS]) do |_input, ctx|
   process_output = ctx.task_output(FANOUT_CHILD_PROCESS)
   a = process_output["status"]
   { "status2" => "#{a}2" }

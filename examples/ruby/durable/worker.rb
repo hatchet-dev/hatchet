@@ -13,11 +13,11 @@ EPHEMERAL_WORKFLOW = HATCHET.workflow(name: "EphemeralWorkflow")
 DURABLE_EVENT_KEY = "durable-example:event"
 DURABLE_SLEEP_TIME = 5
 
-DURABLE_WORKFLOW.task(:ephemeral_task) do |input, ctx|
+DURABLE_WORKFLOW.task(:ephemeral_task) do |_input, _ctx|
   puts "Running non-durable task"
 end
 
-DURABLE_WORKFLOW.durable_task(:durable_task, execution_timeout: 60) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:durable_task, execution_timeout: 60) do |_input, ctx|
   puts "Waiting for sleep"
   ctx.sleep_for(duration: DURABLE_SLEEP_TIME)
   puts "Sleep finished"
@@ -25,7 +25,7 @@ DURABLE_WORKFLOW.durable_task(:durable_task, execution_timeout: 60) do |input, c
   puts "Waiting for event"
   ctx.wait_for(
     "event",
-    Hatchet::UserEventCondition.new(event_key: DURABLE_EVENT_KEY, expression: "true")
+    Hatchet::UserEventCondition.new(event_key: DURABLE_EVENT_KEY, expression: "true"),
   )
   puts "Event received"
 
@@ -34,14 +34,14 @@ end
 
 
 # > Add durable tasks that wait for or groups
-DURABLE_WORKFLOW.durable_task(:wait_for_or_group_1, execution_timeout: 60) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:wait_for_or_group_1, execution_timeout: 60) do |_input, ctx|
   start = Time.now
   wait_result = ctx.wait_for(
     SecureRandom.hex(16),
     Hatchet.or_(
       Hatchet::SleepCondition.new(DURABLE_SLEEP_TIME),
-      Hatchet::UserEventCondition.new(event_key: DURABLE_EVENT_KEY)
-    )
+      Hatchet::UserEventCondition.new(event_key: DURABLE_EVENT_KEY),
+    ),
   )
 
   key = wait_result.keys.first
@@ -50,18 +50,18 @@ DURABLE_WORKFLOW.durable_task(:wait_for_or_group_1, execution_timeout: 60) do |i
   {
     "runtime" => (Time.now - start).to_i,
     "key" => key,
-    "event_id" => event_id
+    "event_id" => event_id,
   }
 end
 
-DURABLE_WORKFLOW.durable_task(:wait_for_or_group_2, execution_timeout: 120) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:wait_for_or_group_2, execution_timeout: 120) do |_input, ctx|
   start = Time.now
   wait_result = ctx.wait_for(
     SecureRandom.hex(16),
     Hatchet.or_(
       Hatchet::SleepCondition.new(6 * DURABLE_SLEEP_TIME),
-      Hatchet::UserEventCondition.new(event_key: DURABLE_EVENT_KEY)
-    )
+      Hatchet::UserEventCondition.new(event_key: DURABLE_EVENT_KEY),
+    ),
   )
 
   key = wait_result.keys.first
@@ -70,11 +70,11 @@ DURABLE_WORKFLOW.durable_task(:wait_for_or_group_2, execution_timeout: 120) do |
   {
     "runtime" => (Time.now - start).to_i,
     "key" => key,
-    "event_id" => event_id
+    "event_id" => event_id,
   }
 end
 
-DURABLE_WORKFLOW.durable_task(:wait_for_multi_sleep, execution_timeout: 120) do |input, ctx|
+DURABLE_WORKFLOW.durable_task(:wait_for_multi_sleep, execution_timeout: 120) do |_input, ctx|
   start = Time.now
 
   3.times do
@@ -84,11 +84,11 @@ DURABLE_WORKFLOW.durable_task(:wait_for_multi_sleep, execution_timeout: 120) do 
   { "runtime" => (Time.now - start).to_i }
 end
 
-EPHEMERAL_WORKFLOW.task(:ephemeral_task_2) do |input, ctx|
+EPHEMERAL_WORKFLOW.task(:ephemeral_task_2) do |_input, _ctx|
   puts "Running non-durable task"
 end
 
-WAIT_FOR_SLEEP_TWICE = HATCHET.durable_task(name: "wait_for_sleep_twice", execution_timeout: 60) do |input, ctx|
+WAIT_FOR_SLEEP_TWICE = HATCHET.durable_task(name: "wait_for_sleep_twice", execution_timeout: 60) do |_input, ctx|
   start = Time.now
 
   ctx.sleep_for(duration: DURABLE_SLEEP_TIME)
@@ -100,7 +100,7 @@ end
 def main
   worker = HATCHET.worker(
     "durable-worker",
-    workflows: [DURABLE_WORKFLOW, EPHEMERAL_WORKFLOW, WAIT_FOR_SLEEP_TWICE]
+    workflows: [DURABLE_WORKFLOW, EPHEMERAL_WORKFLOW, WAIT_FOR_SLEEP_TWICE],
   )
   worker.start
 end

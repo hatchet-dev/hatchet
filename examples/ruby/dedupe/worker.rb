@@ -7,43 +7,41 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 DEDUPE_PARENT_WF = HATCHET.workflow(name: "DedupeParent")
 DEDUPE_CHILD_WF = HATCHET.workflow(name: "DedupeChild")
 
-DEDUPE_PARENT_WF.task(:spawn, execution_timeout: 60) do |input, ctx|
+DEDUPE_PARENT_WF.task(:spawn, execution_timeout: 60) do |_input, _ctx|
   puts "spawning child"
 
   results = []
 
   2.times do |i|
-    begin
-      results << DEDUPE_CHILD_WF.run(
-        options: Hatchet::TriggerWorkflowOptions.new(
-          additional_metadata: { "dedupe" => "test" },
-          key: "child#{i}"
-        )
-      )
-    rescue Hatchet::DedupeViolationError => e
-      puts "dedupe violation #{e}"
-      next
-    end
+    results << DEDUPE_CHILD_WF.run(
+      options: Hatchet::TriggerWorkflowOptions.new(
+        additional_metadata: { "dedupe" => "test" },
+        key: "child#{i}",
+      ),
+    )
+  rescue Hatchet::DedupeViolationError => e
+    puts "dedupe violation #{e}"
+    next
   end
 
   puts "results #{results}"
   { "results" => results }
 end
 
-DEDUPE_CHILD_WF.task(:process) do |input, ctx|
+DEDUPE_CHILD_WF.task(:process) do |_input, _ctx|
   sleep 3
   puts "child process"
   { "status" => "success" }
 end
 
-DEDUPE_CHILD_WF.task(:process2) do |input, ctx|
+DEDUPE_CHILD_WF.task(:process2) do |_input, _ctx|
   puts "child process2"
   { "status2" => "success" }
 end
 
 def main
   worker = HATCHET.worker(
-    "fanout-worker", slots: 100, workflows: [DEDUPE_PARENT_WF, DEDUPE_CHILD_WF]
+    "fanout-worker", slots: 100, workflows: [DEDUPE_PARENT_WF, DEDUPE_CHILD_WF],
   )
   worker.start
 end

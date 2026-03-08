@@ -10,11 +10,11 @@ CONCURRENCY_LIMIT_WORKFLOW = HATCHET.workflow(
   concurrency: Hatchet::ConcurrencyExpression.new(
     expression: "input.group_key",
     max_runs: 5,
-    limit_strategy: :cancel_in_progress
-  )
+    limit_strategy: :cancel_in_progress,
+  ),
 )
 
-CONCURRENCY_LIMIT_WORKFLOW.task(:step1) do |input, ctx|
+CONCURRENCY_LIMIT_WORKFLOW.task(:step1) do |input, _ctx|
   sleep 3
   puts "executed step1"
   { "run" => input["run"] }
@@ -23,7 +23,7 @@ end
 
 def main
   worker = HATCHET.worker(
-    "concurrency-demo-worker", slots: 10, workflows: [CONCURRENCY_LIMIT_WORKFLOW]
+    "concurrency-demo-worker", slots: 10, workflows: [CONCURRENCY_LIMIT_WORKFLOW],
   )
   worker.start
 end

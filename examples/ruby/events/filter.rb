@@ -13,20 +13,20 @@ HATCHET_CLIENT.filters.create(
   payload: {
     "main_character" => "Anna",
     "supporting_character" => "Stiva",
-    "location" => "Moscow"
-  }
+    "location" => "Moscow",
+  },
 )
 
 # > Skip a run
 HATCHET_CLIENT.event.push(
   EVENT_KEY,
   { "should_skip" => true },
-  scope: "foobarbaz"
+  scope: "foobarbaz",
 )
 
 # > Trigger a run
 HATCHET_CLIENT.event.push(
   EVENT_KEY,
   { "should_skip" => false },
-  scope: "foobarbaz"
+  scope: "foobarbaz",
 )

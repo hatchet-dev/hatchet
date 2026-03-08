@@ -7,11 +7,11 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 NON_RETRYABLE_WORKFLOW = HATCHET.workflow(name: "NonRetryableWorkflow")
 
 # > Non-retryable task
-NON_RETRYABLE_WORKFLOW.task(:should_not_retry, retries: 1) do |input, ctx|
+NON_RETRYABLE_WORKFLOW.task(:should_not_retry, retries: 1) do |_input, _ctx|
   raise Hatchet::NonRetryableError, "This task should not retry"
 end
 
-NON_RETRYABLE_WORKFLOW.task(:should_retry_wrong_exception_type, retries: 1) do |input, ctx|
+NON_RETRYABLE_WORKFLOW.task(:should_retry_wrong_exception_type, retries: 1) do |_input, _ctx|
   raise TypeError, "This task should retry because it's not a NonRetryableError"
 end
 
