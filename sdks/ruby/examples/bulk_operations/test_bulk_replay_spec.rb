@@ -15,10 +15,10 @@ RSpec.describe "BulkReplay" do
         (n + 1).times.map do
           BULK_REPLAY_TEST_1.create_bulk_run_item(
             options: Hatchet::TriggerWorkflowOptions.new(
-              additional_metadata: { "test_run_id" => test_run_id }
-            )
+              additional_metadata: { "test_run_id" => test_run_id },
+            ),
           )
-        end
+        end,
       )
     end.to raise_error
 
@@ -27,10 +27,10 @@ RSpec.describe "BulkReplay" do
         ((n / 2) - 1).times.map do
           BULK_REPLAY_TEST_2.create_bulk_run_item(
             options: Hatchet::TriggerWorkflowOptions.new(
-              additional_metadata: { "test_run_id" => test_run_id }
-            )
+              additional_metadata: { "test_run_id" => test_run_id },
+            ),
           )
-        end
+        end,
       )
     end.to raise_error
 
@@ -39,10 +39,10 @@ RSpec.describe "BulkReplay" do
         ((n / 2) - 2).times.map do
           BULK_REPLAY_TEST_3.create_bulk_run_item(
             options: Hatchet::TriggerWorkflowOptions.new(
-              additional_metadata: { "test_run_id" => test_run_id }
-            )
+              additional_metadata: { "test_run_id" => test_run_id },
+            ),
           )
-        end
+        end,
       )
     end.to raise_error
 
@@ -52,18 +52,18 @@ RSpec.describe "BulkReplay" do
     HATCHET.runs.bulk_replay(
       filters: {
         workflow_ids: workflow_ids,
-        additional_metadata: { "test_run_id" => test_run_id }
-      }
+        additional_metadata: { "test_run_id" => test_run_id },
+      },
     )
 
-    total_expected = (n + 1) + (n / 2 - 1) + (n / 2 - 2)
+    total_expected = (n + 1) + ((n / 2) - 1) + ((n / 2) - 2)
 
     # Poll until all runs are completed instead of a fixed sleep
     30.times do
       runs = HATCHET.runs.list(
         workflow_ids: workflow_ids,
         additional_metadata: { "test_run_id" => test_run_id },
-        limit: 1000
+        limit: 1000,
       )
 
       all_completed = runs.rows.length == total_expected && runs.rows.all? { |r| r.status == "COMPLETED" }

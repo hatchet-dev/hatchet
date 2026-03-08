@@ -8,7 +8,7 @@ RSpec.describe "TimeoutWorkflow" do
     ref = TIMEOUT_WF.run_no_wait
 
     expect { ref.result }.to raise_error(
-      /Task exceeded timeout|TIMED_OUT|Workflow run .* failed with multiple errors/
+      /Task exceeded timeout|TIMED_OUT|Workflow run .* failed with multiple errors/,
     )
   end
 

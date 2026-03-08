@@ -44,18 +44,18 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
               "test_run_id" => test_run_id,
               "key" => "#{name}-#{digit}",
               "name" => name,
-              "digit" => digit
-            }
-          )
+              "digit" => digit,
+            },
+          ),
         )
-      end
+      end,
     )
 
     run_refs.each(&:result)
 
     workflows = HATCHET.workflows.list(
       workflow_name: CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.name,
-      limit: 1000
+      limit: 1000,
     ).rows
 
     expect(workflows).not_to be_empty
@@ -66,7 +66,7 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
     runs = HATCHET.runs.list(
       workflow_ids: [workflow.metadata.id],
       additional_metadata: { "test_run_id" => test_run_id },
-      limit: 1000
+      limit: 1000,
     )
 
     sorted_runs = runs.rows.map do |r|
@@ -75,10 +75,10 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
         name: (r.additional_metadata || {})["name"],
         digit: (r.additional_metadata || {})["digit"],
         started_at: r.started_at,
-        finished_at: r.finished_at
+        finished_at: r.finished_at,
       }
     end.select { |r| r[:started_at] && r[:finished_at] }
-      .sort_by { |r| r[:started_at] }
+       .sort_by { |r| r[:started_at] }
 
     overlapping_groups = {}
 
@@ -91,16 +91,14 @@ RSpec.describe "ConcurrencyWorkflowManyKeys" do
       end
 
       overlapping_groups.each do |id, group|
-        if group.all? { |task| are_overlapping?(run, task) }
-          overlapping_groups[id] << run
-          has_group_membership = true
-          break
-        end
+        next unless group.all? { |task| are_overlapping?(run, task) }
+
+        overlapping_groups[id] << run
+        has_group_membership = true
+        break
       end
 
-      unless has_group_membership
-        overlapping_groups[overlapping_groups.size + 1] = [run]
-      end
+      overlapping_groups[overlapping_groups.size + 1] = [run] unless has_group_membership
     end
 
     overlapping_groups.each do |id, group|

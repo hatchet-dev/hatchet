@@ -8,11 +8,11 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 WEBHOOK_TASK = HATCHET.task(
   name: "webhook",
-  on_events: ["webhook:test"]
-) do |input, ctx|
+  on_events: ["webhook:test"],
+) do |input, _ctx|
   {
     "type" => input["type"],
-    "message" => input["message"]
+    "message" => input["message"],
   }
 end
 

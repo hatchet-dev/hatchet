@@ -6,7 +6,7 @@ require_relative "worker"
 SIMPLE.run(
   {},
   options: Hatchet::TriggerWorkflowOptions.new(
-    additional_metadata: { "source" => "api" }
-  )
+    additional_metadata: { "source" => "api" },
+  ),
 )
 # !!

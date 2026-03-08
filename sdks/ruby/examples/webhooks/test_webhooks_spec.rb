@@ -27,7 +27,7 @@ RSpec.describe "WebhookWorkflow" do
 
     # This test requires the Hatchet server with webhook support
     # to be running and accessible
-    test_run_id = SecureRandom.uuid
+    SecureRandom.uuid
 
     # Create webhook, send request, verify
     # Full implementation depends on the webhook API being available

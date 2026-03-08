@@ -26,6 +26,6 @@ hatchet.runs.bulk_cancel(
   until_time: Time.now,
   statuses: ["RUNNING"],
   workflow_ids: [workflow.metadata.id],
-  additional_metadata: { "key" => "value" }
+  additional_metadata: { "key" => "value" },
 )
 # !!

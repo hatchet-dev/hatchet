@@ -11,7 +11,7 @@ WILDCARD_KEY = "subscription:*"
 
 EVENT_WORKFLOW = HATCHET.workflow(
   name: "EventWorkflow",
-  on_events: [EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY]
+  on_events: [EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
 )
 
 # !!
@@ -27,13 +27,13 @@ EVENT_WORKFLOW_WITH_FILTER = HATCHET.workflow(
       payload: {
         "main_character" => "Anna",
         "supporting_character" => "Stiva",
-        "location" => "Moscow"
-      }
-    )
-  ]
+        "location" => "Moscow",
+      },
+    ),
+  ],
 )
 
-EVENT_WORKFLOW.task(:task) do |input, ctx|
+EVENT_WORKFLOW.task(:task) do |_input, ctx|
   puts "event received"
   ctx.filter_payload
 end
@@ -41,7 +41,7 @@ end
 # !!
 
 # > Accessing the filter payload
-EVENT_WORKFLOW_WITH_FILTER.task(:filtered_task) do |input, ctx|
+EVENT_WORKFLOW_WITH_FILTER.task(:filtered_task) do |_input, ctx|
   puts ctx.filter_payload.inspect
 end
 

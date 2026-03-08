@@ -12,8 +12,8 @@ RSpec.describe "ConcurrencyCancelNewest" do
     to_run = CONCURRENCY_CANCEL_NEWEST_WORKFLOW.run_no_wait(
       { "group" => "A" },
       options: Hatchet::TriggerWorkflowOptions.new(
-        additional_metadata: { "test_run_id" => test_run_id }
-      )
+        additional_metadata: { "test_run_id" => test_run_id },
+      ),
     )
 
     sleep 1
@@ -23,21 +23,25 @@ RSpec.describe "ConcurrencyCancelNewest" do
         CONCURRENCY_CANCEL_NEWEST_WORKFLOW.create_bulk_run_item(
           input: { "group" => "A" },
           options: Hatchet::TriggerWorkflowOptions.new(
-            additional_metadata: { "test_run_id" => test_run_id }
-          )
+            additional_metadata: { "test_run_id" => test_run_id },
+          ),
         )
-      end
+      end,
     )
 
     to_run.result
-    to_cancel.each { |ref| ref.result rescue nil }
+    to_cancel.each do |ref|
+      ref.result
+    rescue StandardError
+      nil
+    end
 
     # Poll until the OLAP repo has caught up (replaces fixed sleep 5)
     all_runs = nil
     30.times do
       all_runs = HATCHET.runs.list(
         additional_metadata: { "test_run_id" => test_run_id },
-        limit: 100
+        limit: 100,
       ).rows
       break if all_runs.length >= 11
 

@@ -8,10 +8,10 @@ RSpec.describe "ReturnExceptionsTask" do
     results = RETURN_EXCEPTIONS_TASK.run_many(
       10.times.map do |i|
         RETURN_EXCEPTIONS_TASK.create_bulk_run_item(
-          input: { "index" => i }
+          input: { "index" => i },
         )
       end,
-      return_exceptions: true
+      return_exceptions: true,
     )
 
     results.each_with_index do |result, i|

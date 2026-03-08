@@ -23,8 +23,8 @@ async_cm_dep = lambda { |_input, _ctx, deps|
   "#{ASYNC_CM_DEPENDENCY_VALUE}_#{deps[:async_dep]}"
 }
 
-chained_dep = ->(_input, _ctx, deps) { "chained_#{CHAINED_CM_VALUE}" }
-chained_async_dep = ->(_input, _ctx, deps) { "chained_#{CHAINED_ASYNC_CM_VALUE}" }
+chained_dep = ->(_input, _ctx, _deps) { "chained_#{CHAINED_CM_VALUE}" }
+chained_async_dep = ->(_input, _ctx, _deps) { "chained_#{CHAINED_ASYNC_CM_VALUE}" }
 
 # !!
 
@@ -37,16 +37,16 @@ ASYNC_TASK_WITH_DEPS = HATCHET.task(
     sync_cm_dep: sync_cm_dep,
     async_cm_dep: async_cm_dep,
     chained_dep: chained_dep,
-    chained_async_dep: chained_async_dep
-  }
-) do |input, ctx|
+    chained_async_dep: chained_async_dep,
+  },
+) do |_input, ctx|
   {
     "sync_dep" => ctx.deps[:sync_dep],
     "async_dep" => ctx.deps[:async_dep],
     "async_cm_dep" => ctx.deps[:async_cm_dep],
     "sync_cm_dep" => ctx.deps[:sync_cm_dep],
     "chained_dep" => ctx.deps[:chained_dep],
-    "chained_async_dep" => ctx.deps[:chained_async_dep]
+    "chained_async_dep" => ctx.deps[:chained_async_dep],
   }
 end
 
@@ -58,16 +58,16 @@ SYNC_TASK_WITH_DEPS = HATCHET.task(
     sync_cm_dep: sync_cm_dep,
     async_cm_dep: async_cm_dep,
     chained_dep: chained_dep,
-    chained_async_dep: chained_async_dep
-  }
-) do |input, ctx|
+    chained_async_dep: chained_async_dep,
+  },
+) do |_input, ctx|
   {
     "sync_dep" => ctx.deps[:sync_dep],
     "async_dep" => ctx.deps[:async_dep],
     "async_cm_dep" => ctx.deps[:async_cm_dep],
     "sync_cm_dep" => ctx.deps[:sync_cm_dep],
     "chained_dep" => ctx.deps[:chained_dep],
-    "chained_async_dep" => ctx.deps[:chained_async_dep]
+    "chained_async_dep" => ctx.deps[:chained_async_dep],
   }
 end
 
@@ -79,16 +79,16 @@ DURABLE_ASYNC_TASK_WITH_DEPS = HATCHET.durable_task(
     sync_cm_dep: sync_cm_dep,
     async_cm_dep: async_cm_dep,
     chained_dep: chained_dep,
-    chained_async_dep: chained_async_dep
-  }
-) do |input, ctx|
+    chained_async_dep: chained_async_dep,
+  },
+) do |_input, ctx|
   {
     "sync_dep" => ctx.deps[:sync_dep],
     "async_dep" => ctx.deps[:async_dep],
     "async_cm_dep" => ctx.deps[:async_cm_dep],
     "sync_cm_dep" => ctx.deps[:sync_cm_dep],
     "chained_dep" => ctx.deps[:chained_dep],
-    "chained_async_dep" => ctx.deps[:chained_async_dep]
+    "chained_async_dep" => ctx.deps[:chained_async_dep],
   }
 end
 
@@ -100,26 +100,26 @@ DURABLE_SYNC_TASK_WITH_DEPS = HATCHET.durable_task(
     sync_cm_dep: sync_cm_dep,
     async_cm_dep: async_cm_dep,
     chained_dep: chained_dep,
-    chained_async_dep: chained_async_dep
-  }
-) do |input, ctx|
+    chained_async_dep: chained_async_dep,
+  },
+) do |_input, ctx|
   {
     "sync_dep" => ctx.deps[:sync_dep],
     "async_dep" => ctx.deps[:async_dep],
     "async_cm_dep" => ctx.deps[:async_cm_dep],
     "sync_cm_dep" => ctx.deps[:sync_cm_dep],
     "chained_dep" => ctx.deps[:chained_dep],
-    "chained_async_dep" => ctx.deps[:chained_async_dep]
+    "chained_async_dep" => ctx.deps[:chained_async_dep],
   }
 end
 
 DI_WORKFLOW = HATCHET.workflow(name: "dependency-injection-workflow")
 
 # Workflow tasks with dependencies follow the same pattern
-DI_WORKFLOW.task(:wf_task_with_dependencies) do |input, ctx|
+DI_WORKFLOW.task(:wf_task_with_dependencies) do |_input, _ctx|
   {
     "sync_dep" => SYNC_DEPENDENCY_VALUE,
-    "async_dep" => ASYNC_DEPENDENCY_VALUE
+    "async_dep" => ASYNC_DEPENDENCY_VALUE,
   }
 end
 
@@ -133,8 +133,8 @@ def main
       SYNC_TASK_WITH_DEPS,
       DURABLE_ASYNC_TASK_WITH_DEPS,
       DURABLE_SYNC_TASK_WITH_DEPS,
-      DI_WORKFLOW
-    ]
+      DI_WORKFLOW,
+    ],
   )
   worker.start
 end
