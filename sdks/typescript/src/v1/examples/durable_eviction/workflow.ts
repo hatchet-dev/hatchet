@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import sleep from '@hatchet/util/sleep';
 import { EvictionPolicy } from '@hatchet/v1';
 import { hatchet } from '../hatchet-client';

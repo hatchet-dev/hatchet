@@ -1,6 +1,7 @@
 import { EventEmitter, on, getMaxListeners, setMaxListeners } from 'events';
 import { Channel, ClientFactory } from 'nice-grpc';
 import { isAbortError } from 'abort-controller-x';
+import { getErrorMessage } from '@hatchet/util/errors/hatchet-error';
 
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
@@ -76,13 +77,13 @@ export type DurableTaskEventAck =
 export interface DurableTaskEventLogEntryResult {
   durableTaskExternalId: string;
   nodeId: number;
-  payload: Record<string, any> | undefined;
+  payload: Record<string, unknown> | undefined;
 }
 
 function eventLogEntryResultFromProto(
   proto: DurableTaskEventLogEntryCompletedResponse
 ): DurableTaskEventLogEntryResult {
-  let payload: Record<string, any> | undefined;
+  let payload: Record<string, unknown> | undefined;
   if (proto.payload && proto.payload.length > 0) {
     payload = JSON.parse(new TextDecoder().decode(proto.payload));
   }
@@ -138,12 +139,12 @@ function evictionKey(taskExtId: string, invocationCount: number): PendingEvictio
 interface Deferred<T> {
   promise: Promise<T>;
   resolve: (value: T) => void;
-  reject: (reason: any) => void;
+  reject: (reason: unknown) => void;
 }
 
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
-  let reject!: (reason: any) => void;
+  let reject!: (reason: unknown) => void;
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
     reject = rej;
@@ -255,14 +256,14 @@ export class DurableListenerClient {
           await this._connect();
           return;
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (isAbortError(e)) {
           this.logger.debug('durable event listener aborted');
           return;
         }
-        this.logger.error(`error in durable event listener: ${e.message}`);
+        this.logger.error(`error in durable event listener: ${getErrorMessage(e)}`);
         if (this._running) {
-          this._failPendingAcks(new Error(`durable stream error: ${e.message}`));
+          this._failPendingAcks(new Error(`durable stream error: ${getErrorMessage(e)}`));
           await sleep(DEFAULT_RECONNECT_INTERVAL);
           await this._connect();
           return;
@@ -819,7 +820,7 @@ class LegacyPooledListener {
           }
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isAbortError(e)) return;
     } finally {
       if (Object.keys(this.subscribers).length > 0) {

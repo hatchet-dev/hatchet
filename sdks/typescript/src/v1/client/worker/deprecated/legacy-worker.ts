@@ -36,8 +36,8 @@ export async function fetchEngineVersion(v1: HatchetClient): Promise<string | un
   try {
     const version = await v1.dispatcher.getVersion();
     return version || undefined;
-  } catch (e: any) {
-    if (e?.code === Status.UNIMPLEMENTED) {
+  } catch (e: unknown) {
+    if (getGrpcErrorCode(e) == Status.UNIMPLEMENTED) {
       return undefined;
     }
     throw e;

@@ -256,6 +256,7 @@ export class InternalWorker {
 
       if (workflow.onFailure && typeof workflow.onFailure === 'object') {
         const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
+        const scheduleTimeout = onFailure.scheduleTimeout ?? workflow.taskDefaults?.scheduleTimeout;
 
         onFailureTask = {
           readableId: 'on-failure-task',
@@ -263,12 +264,7 @@ export class InternalWorker {
           timeout: durationToString(
             onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s'
           ),
-          scheduleTimeout:
-            onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout
-              ? durationToString(
-                  onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout!
-                )
-              : undefined,
+          scheduleTimeout: scheduleTimeout ? durationToString(scheduleTimeout) : undefined,
           inputs: '{}',
           parents: [],
           retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
@@ -456,7 +452,7 @@ export class InternalWorker {
         const future = this.futures[key];
         if (future) {
           future.promise.catch(() => undefined);
-          future.cancel(err);
+          future.cancel(CancellationReason.EVICTED_BY_WORKER);
         }
       },
       requestEvictionWithAck: async (_key: ActionKey, rec: DurableRunRecord) => {

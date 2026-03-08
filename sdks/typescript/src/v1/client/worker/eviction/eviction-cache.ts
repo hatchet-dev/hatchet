@@ -1,5 +1,3 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable no-shadow */
 import { durationToMs } from '../../duration';
 import { EvictionPolicy } from './eviction-policy';
 
@@ -108,7 +106,7 @@ export class DurableEvictionCache {
           (a.evictionPolicy?.priority ?? 0) - (b.evictionPolicy?.priority ?? 0) ||
           (a.waitingSince ?? now) - (b.waitingSince ?? now)
       );
-      const chosen = ttlEligible[0];
+      const [chosen] = ttlEligible;
       chosen.evictionReason = buildEvictionReason(EvictionCause.TTL_EXCEEDED, chosen);
       return chosen.key;
     }
@@ -131,7 +129,7 @@ export class DurableEvictionCache {
         (a.evictionPolicy?.priority ?? 0) - (b.evictionPolicy?.priority ?? 0) ||
         (a.waitingSince ?? now) - (b.waitingSince ?? now)
     );
-    const chosen = capacityCandidates[0];
+    const [chosen] = capacityCandidates;
     chosen.evictionReason = buildEvictionReason(EvictionCause.CAPACITY_PRESSURE, chosen);
     return chosen.key;
   }

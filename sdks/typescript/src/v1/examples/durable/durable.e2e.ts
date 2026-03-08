@@ -27,7 +27,6 @@ describe('durable-e2e', () => {
 
   function requireEviction() {
     if (!evictionSupported) {
-      // eslint-disable-next-line no-console
       console.log('Skipping: engine does not support durable eviction');
     }
     return !evictionSupported;

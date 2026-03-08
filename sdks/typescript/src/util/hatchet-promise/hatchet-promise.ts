@@ -1,6 +1,7 @@
 /** Canonical reasons when cancelling a HatchetPromise (e.g. worker shutdown). */
 export enum CancellationReason {
   CANCELLED_BY_WORKER = 'Cancelled by worker',
+  EVICTED_BY_WORKER = 'Evicted by worker',
 }
 
 class HatchetPromise<T> {

@@ -16,7 +16,7 @@ export async function waitForPreEviction(
   conditions: Conditions | Conditions[],
   namespace?: string,
   signal?: AbortSignal
-): Promise<{ result: Record<string, any>; nextWaitKey: number }> {
+): Promise<{ result: Record<string, unknown>; nextWaitKey: number }> {
   const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions), namespace);
   const key = `waitFor-${waitKey}`;
 
@@ -34,6 +34,6 @@ export async function waitForPreEviction(
 
   const eventData =
     event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
-  const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
+  const res = JSON.parse(eventData) as Record<string, Record<string, unknown>>;
   return { result: res.CREATE, nextWaitKey: waitKey + 1 };
 }

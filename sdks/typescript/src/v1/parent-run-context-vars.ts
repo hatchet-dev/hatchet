@@ -20,7 +20,7 @@ export interface ParentRunContext {
    * Present when the current task is running in durable mode.
    * Used by child `run()` calls to route through `spawnChild` instead of a fresh trigger.
    */
-  durableContext?: DurableContext<any, any>;
+  durableContext?: DurableContext<unknown, unknown>;
 }
 
 export class ParentRunContextManager {
