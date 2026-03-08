@@ -8,7 +8,6 @@ const sleep = (ms: number) =>
   });
 
 async function main() {
-  // eslint-disable-next-line no-plusplus
   for (let i = 0; i < 20; i++) {
     let group = 0;
 

@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { hatchet } from '../hatchet-client';
 
@@ -38,7 +37,7 @@ durableWorkflow.durableTask({
 function extractKeyAndEventId(waitResult: unknown): { key: string; eventId: string } {
   // DurableContext.waitFor currently returns the CREATE payload directly.
   // The shape is typically `{ [readableDataKey]: { [eventId]: ... } }`.
-  const obj = waitResult as any;
+  const obj = waitResult as Record<string, Record<string, unknown>>;
   if (obj && typeof obj === 'object') {
     const key = Object.keys(obj)[0];
     const inner = obj[key];

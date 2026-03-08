@@ -17,7 +17,6 @@ import { Heartbeat } from './heartbeat/heartbeat-controller';
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5000; // milliseconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 20;
 
-// eslint-disable-next-line no-shadow
 enum ListenStrategy {
   LISTEN_STRATEGY_V1 = 1,
   LISTEN_STRATEGY_V2 = 2,

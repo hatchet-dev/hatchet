@@ -1,5 +1,4 @@
 import { Logger, LogLevel } from '@hatchet/util/logger';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import pino from 'pino';
 import Hatchet from '@hatchet/sdk';
 import { JsonObject } from '@hatchet/v1';
@@ -57,7 +56,6 @@ const hatchet = Hatchet.init({
 const workflow = hatchet.task({
   name: 'byo-logger-example',
   fn: async (ctx) => {
-    // eslint-disable-next-line no-plusplus
     for (let i = 0; i < 5; i++) {
       logger.info(`log message ${i}`);
     }

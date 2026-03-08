@@ -1,5 +1,4 @@
 class HatchetPromise<T> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   cancel: (reason?: any) => void = (_reason?: any) => {};
   promise: Promise<T>;
   /**

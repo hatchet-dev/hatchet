@@ -144,10 +144,12 @@ export class ConfigLoader {
 
       return config as ClientConfig;
     } catch (e) {
-      if (!path) return undefined;
+      if (!path) {
+        return undefined;
+      }
 
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid yaml config: ${e.message}`);
+        throw new Error(`Invalid yaml config: ${e.message}`, { cause: e });
       }
 
       throw e;

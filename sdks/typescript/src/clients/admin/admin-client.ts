@@ -469,10 +469,8 @@ export class AdminClient {
    * @deprecated use hatchet.schedules.create instead
    */
   scheduleWorkflow(name: string, options?: { schedules?: Date[]; input?: object }) {
-    let computedName = name;
-
     try {
-      computedName = applyNamespace(name, this.config.namespace);
+      const computedName = applyNamespace(name, this.config.namespace);
 
       let input: string | undefined;
 

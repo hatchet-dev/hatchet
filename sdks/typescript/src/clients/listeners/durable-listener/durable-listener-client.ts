@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import { Channel, ClientFactory } from 'nice-grpc';
 
 import { ClientConfig } from '@clients/hatchet-client/client-config';

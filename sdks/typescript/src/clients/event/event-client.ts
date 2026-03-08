@@ -12,7 +12,6 @@ import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
 
-// eslint-disable-next-line no-shadow
 export enum LogLevel {
   INFO = 'INFO',
   WARN = 'WARN',

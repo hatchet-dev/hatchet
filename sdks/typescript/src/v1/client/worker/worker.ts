@@ -1,4 +1,3 @@
-/* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import sleep from '@hatchet/util/sleep';
 import { BaseWorkflowDeclaration } from '../../declaration';
@@ -194,7 +193,9 @@ export class Worker {
     const pollInterval = 200;
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      if (this._internal?.workerId) return;
+      if (this._internal?.workerId) {
+        return;
+      }
       await sleep(pollInterval);
     }
     throw new Error(`Worker ${this.name} did not become ready within ${timeoutMs}ms`);

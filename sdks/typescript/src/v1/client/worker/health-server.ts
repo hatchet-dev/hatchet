@@ -67,8 +67,6 @@ export class HealthServer {
 
   private initializeMetrics(): void {
     try {
-      // @ts-ignore - prom-client is an optional dependency
-      // eslint-disable-next-line
       const { Registry, Gauge, collectDefaultMetrics } = require('prom-client');
 
       this.register = new Registry();

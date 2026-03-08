@@ -10,6 +10,6 @@ export function parseJSON(json: string): any {
       return firstParse;
     }
   } catch (e: any) {
-    throw new Error(`Could not parse JSON: ${e.message}`);
+    throw new Error(`Could not parse JSON: ${e.message}`, { cause: e });
   }
 }

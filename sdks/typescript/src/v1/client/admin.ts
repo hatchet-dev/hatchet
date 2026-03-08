@@ -172,7 +172,7 @@ export class AdminClient {
         this.listenerClient,
         this.runs,
         options?.parentId,
-        // eslint-disable-next-line no-underscore-dangle
+
         options?._standaloneTaskName
       );
       await ref.getWorkflowRunId();
@@ -275,7 +275,7 @@ export class AdminClient {
             this.listenerClient,
             this.runs,
             options?.parentId,
-            // eslint-disable-next-line no-underscore-dangle
+
             options?._standaloneTaskName
           );
         });

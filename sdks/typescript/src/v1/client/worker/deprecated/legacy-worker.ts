@@ -6,7 +6,6 @@
  * non-durable workers, each registered with the legacy `slots` proto field.
  */
 
-/* eslint-disable no-underscore-dangle */
 import { Status } from 'nice-grpc';
 import { BaseWorkflowDeclaration } from '../../../declaration';
 import { HatchetClient } from '../../..';

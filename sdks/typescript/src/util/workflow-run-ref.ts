@@ -1,5 +1,3 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable max-classes-per-file */
 import {
   RunListenerClient,
   StepRunEvent,

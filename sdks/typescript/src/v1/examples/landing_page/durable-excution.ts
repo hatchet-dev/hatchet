@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Or } from '@hatchet/v1/conditions';
 import { hatchet } from '../hatchet-client';
 

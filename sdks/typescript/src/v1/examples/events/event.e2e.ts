@@ -38,7 +38,9 @@ describe('events-e2e', () => {
     let persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
     for (let i = 0; i < 50; i += 1) {
       const persistedIdsSoFar = new Set(persisted.map((e) => e.metadata.id));
-      if (Array.from(eventIds).every((id) => persistedIdsSoFar.has(id))) break;
+      if (Array.from(eventIds).every((id) => persistedIdsSoFar.has(id))) {
+        break;
+      }
       await sleep(100);
       persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
     }
@@ -50,7 +52,6 @@ describe('events-e2e', () => {
     const maxAttempts = 60; // 100ms × 60 ≈ 6s for runs to appear and complete
     const eventToRuns: Record<string, any[]> = {};
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       console.log('Waiting for event runs to complete...');
       if (attempts > maxAttempts) {
@@ -99,7 +100,6 @@ describe('events-e2e', () => {
       if (eventRuns.every(({ runs }) => runs.length === 0)) {
         await sleep(100);
 
-        // eslint-disable-next-line no-continue
         continue;
       }
 
@@ -116,7 +116,6 @@ describe('events-e2e', () => {
       if (anyInProgress) {
         await sleep(100);
 
-        // eslint-disable-next-line no-continue
         continue;
       }
 

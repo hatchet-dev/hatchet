@@ -13,7 +13,6 @@ export async function retrier<T>(
 ) {
   let lastError: Error | undefined;
 
-  // eslint-disable-next-line no-plusplus
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();

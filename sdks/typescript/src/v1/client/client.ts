@@ -4,8 +4,7 @@
  *
  * @module Hatchet TypeScript SDK Reference
  */
-/* eslint-disable no-dupe-class-members */
-/* eslint-disable no-underscore-dangle */
+
 import {
   ClientConfig,
   ClientConfigSchema,
@@ -175,7 +174,7 @@ export class HatchetClient<
       this._axiosConfig = axiosConfig;
     } catch (e) {
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid client config: ${e.message}`);
+        throw new Error(`Invalid client config: ${e.message}`, { cause: e });
       }
       throw e;
     }
@@ -241,8 +240,12 @@ export class HatchetClient<
   > {
     const existing: TaskMiddleware = (this._config as any).middleware || {};
     const toArray = <T>(v: T | readonly T[] | undefined): T[] => {
-      if (v == null) return [];
-      if (Array.isArray(v)) return [...v];
+      if (v == null) {
+        return [];
+      }
+      if (Array.isArray(v)) {
+        return [...v];
+      }
       return [v as T];
     };
 
@@ -704,12 +707,8 @@ export class HatchetClient<
    * @returns A promise that resolves with a new HatchetWorker instance
    */
   worker(name: string, options?: CreateWorkerOpts | number): Promise<Worker> {
-    let opts: CreateWorkerOpts = {};
-    if (typeof options === 'number') {
-      opts = { slots: options };
-    } else {
-      opts = options || {};
-    }
+    const opts: CreateWorkerOpts =
+      typeof options === 'number' ? { slots: options } : (options ?? {});
 
     return Worker.create(this, name, opts);
   }
