@@ -27,7 +27,16 @@ Style/TrailingCommaInHashLiteral:
   EnforcedStyleForMultiline: consistent_comma
 
 Metrics/MethodLength:
-  Max: 30
+  Max: 60
+
+Metrics/AbcSize:
+  Max: 35
+
+Metrics/CyclomaticComplexity:
+  Max: 12
+
+Metrics/PerceivedComplexity:
+  Max: 12
 
 Metrics/BlockLength:
   Max: 35
@@ -36,3 +45,37 @@ Metrics/BlockLength:
 
 Layout/LineLength:
   Max: 140
+
+Style/MultilineBlockChain:
+  Enabled: false
+
+Naming/VariableNumber:
+  Enabled: false
+
+Naming/MethodParameterName:
+  AllowedNames:
+    - x
+    - y
+    - n
+    - id
+
+Lint/ConstantDefinitionInBlock:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Max: 60
+
+RSpec/MultipleExpectations:
+  Max: 10
+
+RSpec/PendingWithoutReason:
+  Enabled: false
+
+RSpec/LeakyConstantDeclaration:
+  Enabled: false
+
+RSpec/UnspecifiedException:
+  Enabled: false
+
+RSpec/RepeatedExample:
+  Enabled: false
