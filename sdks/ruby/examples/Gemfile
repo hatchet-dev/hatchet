@@ -2,11 +2,15 @@
 
 source "https://rubygems.org"
 
-gem "hatchet-sdk", path: "../src"
 gem "base64"
+gem "hatchet-sdk", path: "../src"
 
-# Testing
-gem "rspec", "~> 3.0"
+group :development do
+  gem "rspec", "~> 3.0"
+  gem "rubocop", require: false
+  gem "rubocop-rspec", require: false
+  gem "ruby-lsp", require: false
+end
 
 # HTTP for health checks in worker fixture
 gem "net-http"

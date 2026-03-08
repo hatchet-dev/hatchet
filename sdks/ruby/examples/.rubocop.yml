@@ -1,4 +1,6 @@
-# Minimal config for guide examples - doc snippets, not production code
+require:
+  - rubocop-rspec
+
 AllCops:
   NewCops: enable
   TargetRubyVersion: 3.1
@@ -28,7 +30,9 @@ Metrics/MethodLength:
   Max: 30
 
 Metrics/BlockLength:
-  Max: 25
+  Max: 35
+  Exclude:
+    - "**/*_spec.rb"
 
 Layout/LineLength:
   Max: 140

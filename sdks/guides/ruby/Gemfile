@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
 # Hatchet guide examples (Ruby) - docs snippets with integration deps
-source 'https://rubygems.org'
+source "https://rubygems.org"
 
-gem 'hatchet-sdk', path: '../../ruby/src'
+gem "hatchet-sdk", path: "../../ruby/src"
 # LLM / embedding integrations
-gem 'openai'
+gem "openai"
 # OCR integration (requires Tesseract binary)
-gem 'rtesseract'
+gem "rtesseract"
 
 group :development do
-  gem 'rubocop', '~> 1.21'
+  gem "rubocop", "~> 1.21"
+  gem "ruby-lsp", require: false
 end
