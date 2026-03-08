@@ -38,10 +38,10 @@ function extractKeyAndEventId(waitResult: unknown): { key: string; eventId: stri
   // The shape is typically `{ [readableDataKey]: { [eventId]: ... } }`.
   const obj = waitResult as Record<string, Record<string, unknown>>;
   if (obj && typeof obj === 'object') {
-    const key = Object.keys(obj)[0];
+    const [key] = Object.keys(obj);
     const inner = obj[key];
     if (inner && typeof inner === 'object') {
-      const eventId = Object.keys(inner)[0];
+      const [eventId] = Object.keys(inner);
       if (eventId) {
         return { key: 'CREATE', eventId };
       }
