@@ -83,11 +83,11 @@ export class CronClient {
       return response.data;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        throw new Error(`Invalid cron input: ${err.message}`);
+        throw new Error(`Invalid cron input: ${err.message}`, { cause: err });
       }
 
       if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors));
+        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
       }
 
       throw err;

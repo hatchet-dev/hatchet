@@ -105,7 +105,7 @@ export class WorkflowsClient {
       });
 
       if (data && data.rows && data.rows.length > 0) {
-        const wf = data.rows[0];
+        const [wf] = data.rows;
 
         // Cache the result
         this.workflowCache.set(name, {

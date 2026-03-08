@@ -6,7 +6,6 @@ async function main() {
     Message: 'hello',
   });
 
-  // eslint-disable-next-line no-console
   console.log(res.step2);
 }
 

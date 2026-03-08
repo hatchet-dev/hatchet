@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 import { simple, SimpleInput } from './workflow';
 

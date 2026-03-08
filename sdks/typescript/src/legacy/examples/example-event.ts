@@ -36,14 +36,11 @@ hatchet.events
     });
 
     if (keysMatch) {
-      // eslint-disable-next-line no-console
       console.log('All keys match the original events.');
     } else {
-      // eslint-disable-next-line no-console
       console.log('Mismatch found between original events and returned events.');
     }
   })
   .catch((error) => {
-    // eslint-disable-next-line no-console
     console.error('Error during bulk push:', error);
   });

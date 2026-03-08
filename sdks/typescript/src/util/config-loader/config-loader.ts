@@ -82,7 +82,7 @@ export class ConfigLoader {
         yaml?.api_url ??
         this.env('HATCHET_CLIENT_API_URL') ??
         addresses.serverUrl;
-    } catch (e) {
+    } catch {
       grpcBroadcastAddress =
         override?.host_port ?? yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT');
       apiUrl = override?.api_url ?? yaml?.api_url ?? this.env('HATCHET_CLIENT_API_URL');
@@ -144,10 +144,12 @@ export class ConfigLoader {
 
       return config as ClientConfig;
     } catch (e) {
-      if (!path) return undefined;
+      if (!path) {
+        return undefined;
+      }
 
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid yaml config: ${e.message}`);
+        throw new Error(`Invalid yaml config: ${e.message}`, { cause: e });
       }
 
       throw e;

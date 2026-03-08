@@ -19,8 +19,12 @@ export type CreateWebhookOptions = V1CreateWebhookRequestBase & {
 function getAuthType(
   auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth
 ): V1WebhookAuthType {
-  if ('username' in auth && 'password' in auth) return V1WebhookAuthType.BASIC;
-  if ('headerName' in auth && 'apiKey' in auth) return V1WebhookAuthType.API_KEY;
+  if ('username' in auth && 'password' in auth) {
+    return V1WebhookAuthType.BASIC;
+  }
+  if ('headerName' in auth && 'apiKey' in auth) {
+    return V1WebhookAuthType.API_KEY;
+  }
   if (
     'signingSecret' in auth &&
     'signatureHeaderName' in auth &&

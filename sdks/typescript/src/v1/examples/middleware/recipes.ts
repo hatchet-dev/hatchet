@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Demo file with external deps not in SDK
 // @ts-nocheck
 // These snippets demonstrate common middleware patterns.
 // They reference external packages (@aws-sdk/*) that are NOT
@@ -38,7 +39,9 @@ type EncryptedInput = { encrypted?: EncryptedEnvelope };
 
 const e2eEncryption: HatchetMiddleware<EncryptedInput> = {
   before: (input) => {
-    if (!input.encrypted) return input;
+    if (!input.encrypted) {
+      return input;
+    }
     const { ciphertext, iv, tag } = input.encrypted;
     const decrypted = JSON.parse(decrypt(ciphertext, iv, tag));
     return { ...input, ...decrypted, encrypted: undefined };

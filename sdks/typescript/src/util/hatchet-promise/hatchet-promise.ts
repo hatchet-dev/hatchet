@@ -1,6 +1,10 @@
+/** Canonical reasons when cancelling a HatchetPromise (e.g. worker shutdown). */
+export enum CancellationReason {
+  CANCELLED_BY_WORKER = 'Cancelled by worker',
+}
+
 class HatchetPromise<T> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  cancel: (reason?: any) => void = (_reason?: any) => {};
+  cancel: (reason?: CancellationReason) => void = (_reason?: CancellationReason) => {};
   promise: Promise<T>;
   /**
    * The original (non-cancelable) promise passed to the constructor.
