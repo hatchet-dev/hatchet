@@ -8,17 +8,35 @@ on:
       - "internal/**"
       - "pkg/**"
       - "sdks/go/**"
+      - "sdks/guides/go/**"
   push:
     branches:
       - main
     paths:
       - "sdks/go/**"
+      - "sdks/guides/go/**"
 
 defaults:
   run:
     working-directory: ./sdks/go
 
 jobs:
+  lint:
+    runs-on: ubicloud-standard-2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: "1.25"
+      - name: Lint Go guides
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          version: v2.7.2
+          working-directory: sdks/guides/go
+          args: --config .golangci.yml
+
   compile:
     runs-on: ubicloud-standard-2
     steps:

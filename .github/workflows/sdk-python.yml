@@ -8,11 +8,13 @@ on:
       - "internal/**"
       - "pkg/**"
       - "sdks/python/**"
+      - "sdks/guides/python/**"
   push:
     branches:
       - main
     paths:
       - "sdks/python/**"
+      - "sdks/guides/python/**"
 
 defaults:
   run:
@@ -54,6 +56,18 @@ jobs:
 
       - name: Test install
         run: pip install -e .
+
+      - name: Install guides dependencies
+        working-directory: ./sdks/guides/python
+        run: poetry install
+
+      - name: Lint guides with Ruff
+        working-directory: ./sdks/guides/python
+        run: poetry run ruff check .
+
+      - name: Type check guides with MyPy
+        working-directory: ./sdks/guides/python
+        run: poetry run mypy .
 
   test:
     runs-on: ubicloud-standard-4

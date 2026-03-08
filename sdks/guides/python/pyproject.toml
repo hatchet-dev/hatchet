@@ -26,10 +26,18 @@ browserbase = "^1.4.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.15.0"
+mypy = "^1.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+files = ["."]
+exclude = ["integrations/ocr_unstructured\\.py"]
+explicit_package_bases = true
+strict = true
+enable_error_code = ["possibly-undefined", "truthy-bool", "redundant-expr", "truthy-iterable"]
 
 [tool.ruff]
 target-version = "py310"

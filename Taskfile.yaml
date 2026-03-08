@@ -296,7 +296,9 @@ tasks:
     cmd: bash lint.sh
   lint-python-guides:
     dir: sdks/guides/python
-    cmd: poetry run ruff check . --fix
+    cmds:
+      - poetry run ruff check . --fix
+      - poetry run mypy .
   lint-typescript-sdk:
     dir: sdks/typescript
     cmd: pnpm run lint:fix

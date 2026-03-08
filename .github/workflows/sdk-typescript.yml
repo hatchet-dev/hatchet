@@ -8,11 +8,13 @@ on:
       - "internal/**"
       - "pkg/**"
       - "sdks/typescript/**"
+      - "sdks/guides/typescript/**"
   push:
     branches:
       - main
     paths:
       - "sdks/typescript/**"
+      - "sdks/guides/typescript/**"
 defaults:
   run:
     working-directory: ./sdks/typescript
@@ -50,6 +52,14 @@ jobs:
 
       - name: Type check
         run: npx tsc
+
+      - name: Install guides dependencies
+        working-directory: ./sdks/guides/typescript
+        run: pnpm install
+
+      - name: Lint guides
+        working-directory: ./sdks/guides/typescript
+        run: pnpm lint:check
 
   test-unit:
     runs-on: ubicloud-standard-4
