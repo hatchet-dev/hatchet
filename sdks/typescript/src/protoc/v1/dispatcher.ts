@@ -1294,14 +1294,10 @@ export const DurableTaskServerEvictNotice: MessageFns<DurableTaskServerEvictNoti
     return obj;
   },
 
-  create(
-    base?: DeepPartial<DurableTaskServerEvictNotice>
-  ): DurableTaskServerEvictNotice {
+  create(base?: DeepPartial<DurableTaskServerEvictNotice>): DurableTaskServerEvictNotice {
     return DurableTaskServerEvictNotice.fromPartial(base ?? {});
   },
-  fromPartial(
-    object: DeepPartial<DurableTaskServerEvictNotice>
-  ): DurableTaskServerEvictNotice {
+  fromPartial(object: DeepPartial<DurableTaskServerEvictNotice>): DurableTaskServerEvictNotice {
     const message = createBaseDurableTaskServerEvictNotice();
     message.durableTaskExternalId = object.durableTaskExternalId ?? '';
     message.invocationCount = object.invocationCount ?? 0;
@@ -2176,10 +2172,7 @@ export const DurableTaskResponse: MessageFns<DurableTaskResponse> = {
       DurableTaskEvictionAckResponse.encode(message.evictionAck, writer.uint32(58).fork()).join();
     }
     if (message.serverEvict !== undefined) {
-      DurableTaskServerEvictNotice.encode(
-        message.serverEvict,
-        writer.uint32(66).fork()
-      ).join();
+      DurableTaskServerEvictNotice.encode(message.serverEvict, writer.uint32(66).fork()).join();
     }
     return writer;
   },
