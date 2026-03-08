@@ -916,8 +916,9 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 
 		tasks, err := d.repo.Tasks().FlattenExternalIds(ctx, invocation.tenantId, externalIds)
 		if err != nil {
-			d.l.Warn().Err(err).Msg("failed to look up tasks for invocation count check in worker_status")
-		} else if len(tasks) > 0 {
+			return fmt.Errorf("failed to look up tasks for invocation count check in worker_status: %w", err)
+		}
+		if len(tasks) > 0 {
 			idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 			taskIdToExternalId := make(map[v1.IdInsertedAt]uuid.UUID, len(tasks))
 
@@ -929,30 +930,29 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 
 			idInsertedAtToInvocationCount, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
 			if err != nil {
-				d.l.Warn().Err(err).Msg("failed to get invocation counts in worker_status")
-			} else {
-				for key, currentCount := range idInsertedAtToInvocationCount {
-					extId, ok := taskIdToExternalId[key]
-					if !ok || currentCount == nil {
-						continue
-					}
-					workerInvocationCount, has := uniqueExternalIds[extId]
-					if !has {
-						continue
-					}
-					if workerInvocationCount < *currentCount {
-						err = invocation.send(&contracts.DurableTaskResponse{
-							Message: &contracts.DurableTaskResponse_ServerEvict{
-								ServerEvict: &contracts.DurableTaskServerEvictNotice{
-									DurableTaskExternalId: extId.String(),
-									InvocationCount:       workerInvocationCount,
-									Reason:                fmt.Sprintf("stale invocation: server has %d, worker sent %d", *currentCount, workerInvocationCount),
-								},
+				return fmt.Errorf("failed to get invocation counts in worker_status: %w", err)
+			}
+			for key, currentCount := range idInsertedAtToInvocationCount {
+				extId, ok := taskIdToExternalId[key]
+				if !ok || currentCount == nil {
+					continue
+				}
+				workerInvocationCount, has := uniqueExternalIds[extId]
+				if !has {
+					continue
+				}
+				if workerInvocationCount < *currentCount {
+					err = invocation.send(&contracts.DurableTaskResponse{
+						Message: &contracts.DurableTaskResponse_ServerEvict{
+							ServerEvict: &contracts.DurableTaskServerEvictNotice{
+								DurableTaskExternalId: extId.String(),
+								InvocationCount:       workerInvocationCount,
+								Reason:                fmt.Sprintf("stale invocation: server has %d, worker sent %d", *currentCount, workerInvocationCount),
 							},
-						})
-						if err != nil {
-							d.l.Error().Err(err).Msgf("failed to send server eviction notification for task %s", extId.String())
-						}
+						},
+					})
+					if err != nil {
+						d.l.Error().Err(err).Msgf("failed to send server eviction notification for task %s", extId.String())
 					}
 				}
 			}
