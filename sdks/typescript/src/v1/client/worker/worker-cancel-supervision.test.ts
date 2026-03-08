@@ -1,5 +1,5 @@
 import { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
-import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
+import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
 
 describe('V1Worker handleCancelStepRun cancellation supervision', () => {
   beforeEach(() => {
@@ -27,7 +27,7 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
     });
     const future = new HatchetPromise(inner);
     const originalCancel = future.cancel;
-    const cancelSpy = jest.fn((reason: any) => originalCancel(reason));
+    const cancelSpy = jest.fn((reason?: CancellationReason) => originalCancel(reason));
     future.cancel = cancelSpy;
 
     const ctx = {

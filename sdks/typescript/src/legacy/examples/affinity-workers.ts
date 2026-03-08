@@ -14,7 +14,7 @@ const workflow: Workflow = {
       name: 'step1',
       run: async (ctx) => {
         const results: Promise<any>[] = [];
-        // eslint-disable-next-line no-plusplus
+
         for (let i = 0; i < 50; i++) {
           const result = await ctx.spawnWorkflow(childWorkflow.id, {});
           results.push(result.output);

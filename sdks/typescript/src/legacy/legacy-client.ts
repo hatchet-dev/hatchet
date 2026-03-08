@@ -71,7 +71,7 @@ export class LegacyHatchetClient {
       };
     } catch (e) {
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid client config: ${e.message}`);
+        throw new Error(`Invalid client config: ${e.message}`, { cause: e });
       }
       throw e;
     }

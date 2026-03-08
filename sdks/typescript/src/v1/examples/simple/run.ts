@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 import { parent } from './workflow-with-child';

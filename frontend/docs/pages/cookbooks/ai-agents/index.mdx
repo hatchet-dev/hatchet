@@ -1,0 +1,85 @@
+import { Callout, Cards } from "nextra/components";
+
+# What is an AI Agent?
+
+An **AI agent** is a program that uses an LLM to decide what to do next at runtime. Instead of following a fixed pipeline, the agent reasons about its goal, picks a tool or action, observes the result, and loops until the goal is met. This makes agents extremely powerful, but hard to run reliably.
+
+Agents generally fall into two categories:
+
+- **Semi-autonomous agents** rely on pre-written code that codifies business logic or procedures. The LLM decides _which_ tool or path to take, but every action it can invoke is defined ahead of time.
+- **Fully autonomous agents** can write and execute arbitrary code. The LLM generates code at runtime, runs it, and acts on the output. These agents are highly flexible but require sandboxing and careful guardrails.
+
+You can build both with Hatchet, but most teams choose semi-autonomous agents for the majority of production workloads because they are easier to reason about, test, and run more reliably.
+
+Agents fail in production when the process hosting them dies mid-loop, when they hold resources for hours or days while waiting on external input, or when a long-running reasoning chain exhausts a timeout. Hatchet solves these problems by making every agent a **[durable task](/v1/patterns/durable-task-execution)**.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Agent (Durable Task)
+    participant L as LLM
+    participant T as Tool (Child Task)
+
+    U->>A: Send query
+    loop Reasoning loop
+        A->>L: Call LLM
+        L-->>A: Tool call / response
+        A->>T: RunChild (tool execution)
+        T-->>A: Result
+    end
+    A-->>U: Final answer
+```
+
+## How agents map to Hatchet
+
+| Agent concept       | Hatchet primitive                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Agent               | [Durable task](/v1/patterns/durable-task-execution)                                                                 |
+| Reasoning loop      | [Child spawning](/v1/durable-workflows/child-spawning): task re-spawns itself until done                            |
+| Tool calls          | [Child tasks](/v1/durable-workflows/child-spawning): sequential or [parallel](/v1/durable-workflows/child-spawning) |
+| Human approval gate | [WaitForEvent](/v1/durable-workflows/events): slot freed while waiting                                              |
+| Routing by LLM      | `if`/`else` in code + spawn child to different workflows                                                            |
+
+## Why Hatchet for agents
+
+**Simple primitives, flexible composition.** Hatchet gives you a small set of primitives for managing state and distributing workloads. You compose them however your agent needs, and they scale reliably without custom infrastructure.
+
+**Survives crashes.** Every step in an agent's orchestration path is checkpointed. If a worker dies, the agent resumes from the last checkpoint rather than restarting from scratch.
+
+**Frees slots during waits.** When an agent waits for a human approval event, external event, or sleeps for a scheduled retry, the worker slot is [evicted](/v1/durable-workflows/task-eviction) and freed. No resources are held while the agent is idle, even if the wait lasts hours or days.
+
+**Handles streaming.** Pipe LLM tokens from inside the task to connected clients as they're generated. Hatchet manages the plumbing so you don't build your own pub/sub layer. See [Streaming](/v1/streaming).
+
+**Controls concurrency and rate limits.** Use [`CANCEL_IN_PROGRESS`](/v1/concurrency) on a session key so new user messages cancel stale agent runs. Use [`GROUP_ROUND_ROBIN`](/v1/concurrency) to distribute work fairly across users at scale. Add [rate limits](/v1/rate-limits) to stay within external API quotas.
+
+**Full observability.** Every child run appears in the Hatchet dashboard. You can trace the full reasoning chain: which tools were called, what the LLM returned, where the loop terminated.
+
+## Agent patterns
+
+<Cards>
+  <Cards.Card title="Reasoning Loop" href="/cookbooks/ai-agents/reasoning-loop">
+    The core agent pattern. Reason → act → observe → repeat until done. Includes
+    the evaluator-optimizer variant.
+  </Cards.Card>
+  <Cards.Card title="Routing" href="/cookbooks/ai-agents/routing">
+    Classify incoming requests with an LLM or rule, then route to a specialist.
+  </Cards.Card>
+  <Cards.Card title="Multi-Agent" href="/cookbooks/ai-agents/multi-agent">
+    An orchestrator delegates to specialist workflows. Each specialist has its
+    own prompt and tools.
+  </Cards.Card>
+  <Cards.Card
+    title="Parallelization"
+    href="/cookbooks/ai-agents/parallelization"
+  >
+    Fan out independent tool calls or sub-tasks in parallel. Aggregate results
+    before the agent continues.
+  </Cards.Card>
+  <Cards.Card title="Human-in-the-Loop" href="/cookbooks/human-in-the-loop">
+    Pause the agent for human approval. The slot is freed; the agent resumes
+    when the event arrives.
+  </Cards.Card>
+  <Cards.Card title="Streaming" href="/cookbooks/streaming">
+    Pipe LLM tokens to frontends in real time.
+  </Cards.Card>
+</Cards>

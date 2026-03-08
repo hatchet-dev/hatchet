@@ -45,7 +45,9 @@ export async function startWorker({
 }
 
 export async function stopWorker(worker: Worker | undefined) {
-  if (!worker) return;
+  if (!worker) {
+    return;
+  }
   await worker.stop();
   await sleep(300);
 }
@@ -74,9 +76,12 @@ export async function poll<T>(
   }
 ): Promise<T> {
   const start = Date.now();
+
   while (true) {
     const value = await fn();
-    if (shouldStop(value)) return value;
+    if (shouldStop(value)) {
+      return value;
+    }
     if (Date.now() - start > timeoutMs) {
       throw new Error(`Timed out waiting for ${label} after ${timeoutMs}ms`);
     }

@@ -10,6 +10,7 @@ import { AdminClient } from './admin';
 import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
 import { CELClient } from './features/cel';
+import { WebhooksClient } from './features/webhooks';
 
 export interface IHatchetClient {
   /** @deprecated v0 client will be removed in a future release, please upgrade to v1 */
@@ -22,6 +23,7 @@ export interface IHatchetClient {
   runs: RunsClient;
   workflows: WorkflowsClient;
   workers: WorkersClient;
+  webhooks: WebhooksClient;
 
   scheduled: ScheduleClient;
   crons: CronClient;
