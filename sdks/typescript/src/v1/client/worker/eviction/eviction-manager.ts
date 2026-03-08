@@ -1,6 +1,3 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable no-plusplus */
-/* eslint-disable no-continue */
 import { Logger } from '@hatchet/util/logger';
 import { EvictionPolicy } from './eviction-policy';
 import {
@@ -10,6 +7,7 @@ import {
   EvictionCause,
   buildEvictionReason,
 } from './eviction-cache';
+import { getErrorMessage } from '@hatchet/util/errors/hatchet-error';
 
 export interface DurableEvictionConfig {
   /** How often we try selecting an eviction candidate. Default: 1000ms */
@@ -100,8 +98,8 @@ export class DurableEvictionManager {
     this._ticking = true;
     try {
       await this._tick();
-    } catch (err: any) {
-      this._logger.error(`DurableEvictionManager: error in eviction loop: ${err?.message || err}`);
+    } catch (err: unknown) {
+      this._logger.error(`DurableEvictionManager: error in eviction loop: ${getErrorMessage(err)}`);
     } finally {
       this._ticking = false;
     }
@@ -110,7 +108,6 @@ export class DurableEvictionManager {
   private async _tick(): Promise<void> {
     const evictedThisTick = new Set<ActionKey>();
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const key = this._cache.selectEvictionCandidate(
         Date.now(),
@@ -167,10 +164,10 @@ export class DurableEvictionManager {
 
       try {
         await this._requestEvictionWithAck(rec.key, rec);
-      } catch (err: any) {
+      } catch (err: unknown) {
         this._logger.error(
           `DurableEvictionManager: failed to send eviction for ` +
-            `task_run_external_id=${rec.taskRunExternalId}: ${err?.message || err}`
+            `task_run_external_id=${rec.taskRunExternalId}: ${getErrorMessage(err)}`
         );
         continue;
       }

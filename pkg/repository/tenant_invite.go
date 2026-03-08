@@ -48,6 +48,10 @@ type ListTenantInvitesOpts struct {
 }
 
 type TenantInviteRepository interface {
+	RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.TenantInviteLink])
+	RegisterUpdateCallback(callback UnscopedCallback[*sqlcv1.TenantInviteLink])
+	RegisterDeleteCallback(callback UnscopedCallback[*sqlcv1.TenantInviteLink])
+
 	// CreateTenantInvite creates a new tenant invite with the given options
 	CreateTenantInvite(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error)
 
@@ -70,12 +74,40 @@ type TenantInviteRepository interface {
 
 type tenantInviteRepository struct {
 	*sharedRepository
+
+	createCallbacks []UnscopedCallback[*sqlcv1.TenantInviteLink]
+	updateCallbacks []UnscopedCallback[*sqlcv1.TenantInviteLink]
+	deleteCallbacks []UnscopedCallback[*sqlcv1.TenantInviteLink]
 }
 
 func newTenantInviteRepository(shared *sharedRepository) TenantInviteRepository {
 	return &tenantInviteRepository{
 		sharedRepository: shared,
 	}
+}
+
+func (r *tenantInviteRepository) RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.TenantInviteLink]) {
+	if r.createCallbacks == nil {
+		r.createCallbacks = make([]UnscopedCallback[*sqlcv1.TenantInviteLink], 0)
+	}
+
+	r.createCallbacks = append(r.createCallbacks, callback)
+}
+
+func (r *tenantInviteRepository) RegisterUpdateCallback(callback UnscopedCallback[*sqlcv1.TenantInviteLink]) {
+	if r.updateCallbacks == nil {
+		r.updateCallbacks = make([]UnscopedCallback[*sqlcv1.TenantInviteLink], 0)
+	}
+
+	r.updateCallbacks = append(r.updateCallbacks, callback)
+}
+
+func (r *tenantInviteRepository) RegisterDeleteCallback(callback UnscopedCallback[*sqlcv1.TenantInviteLink]) {
+	if r.deleteCallbacks == nil {
+		r.deleteCallbacks = make([]UnscopedCallback[*sqlcv1.TenantInviteLink], 0)
+	}
+
+	r.deleteCallbacks = append(r.deleteCallbacks, callback)
 }
 
 func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error) {
@@ -140,6 +172,10 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 
 	if err := commit(ctx); err != nil {
 		return nil, err
+	}
+
+	for _, cb := range r.createCallbacks {
+		cb.Do(r.l, invite)
 	}
 
 	return invite, nil
@@ -214,17 +250,42 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, id uuid
 		}
 	}
 
-	return r.queries.UpdateTenantInvite(
+	updated, err := r.queries.UpdateTenantInvite(
 		ctx,
 		r.pool,
 		params,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cb := range r.updateCallbacks {
+		cb.Do(r.l, updated)
+	}
+
+	return updated, nil
 }
 
 func (r *tenantInviteRepository) DeleteTenantInvite(ctx context.Context, id uuid.UUID) error {
-	return r.queries.DeleteTenantInvite(
-		ctx,
-		r.pool,
-		id,
-	)
+	var invite *sqlcv1.TenantInviteLink
+
+	if len(r.deleteCallbacks) > 0 {
+		var err error
+		invite, err = r.queries.GetInviteById(ctx, r.pool, id)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := r.queries.DeleteTenantInvite(ctx, r.pool, id); err != nil {
+		return err
+	}
+
+	for _, cb := range r.deleteCallbacks {
+		cb.Do(r.l, invite)
+	}
+
+	return nil
 }

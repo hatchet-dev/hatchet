@@ -21,7 +21,7 @@ function getTaskStatuses(details: any): V1TaskStatus[] {
 
 function getTaskExternalId(details: any): string | undefined {
   const tasks = details?.tasks || [];
-  const t = tasks[0];
+  const [t] = tasks;
   return t?.taskExternalId ?? t?.metadata?.id;
 }
 
@@ -35,7 +35,6 @@ describe('durable-eviction-e2e', () => {
 
   function requireEviction() {
     if (!evictionSupported) {
-      // eslint-disable-next-line no-console
       console.log('Skipping: engine does not support durable eviction');
     }
     return !evictionSupported;

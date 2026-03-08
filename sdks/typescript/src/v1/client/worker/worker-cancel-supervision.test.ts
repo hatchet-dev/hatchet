@@ -1,6 +1,6 @@
 import { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
 import { createAction } from '@hatchet/clients/dispatcher/action-listener';
-import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
+import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
 import { ActionType } from '@hatchet-dev/typescript-sdk/protoc/dispatcher';
 
 describe('V1Worker handleCancelStepRun cancellation supervision', () => {
@@ -31,7 +31,7 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
     });
     const future = new HatchetPromise(inner);
     const originalCancel = future.cancel;
-    const cancelSpy = jest.fn((reason: any) => originalCancel(reason));
+    const cancelSpy = jest.fn((reason?: CancellationReason) => originalCancel(reason));
     future.cancel = cancelSpy;
 
     const ctx = {

@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 
 export const EVENT_KEY = 'user:update';

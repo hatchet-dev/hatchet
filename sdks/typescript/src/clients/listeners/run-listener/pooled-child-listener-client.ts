@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import { EventEmitter, getMaxListeners, on, setMaxListeners } from 'events';
 import {
   WorkflowRunEvent,
@@ -6,6 +5,7 @@ import {
   WorkflowRunEventType,
 } from '@hatchet/protoc/dispatcher';
 import { isAbortError } from 'abort-controller-x';
+import { getErrorMessage } from '@util/errors/hatchet-error';
 import sleep from '@hatchet/util/sleep';
 import { createAbortError } from '@hatchet/util/abort-error';
 import { RunListenerClient } from './child-listener-client';
@@ -25,7 +25,9 @@ export class Streamable {
   }
 
   private cleanupOnce() {
-    if (this.cleanedUp) return;
+    if (this.cleanedUp) {
+      return;
+    }
     this.cleanedUp = true;
     this.onCleanup();
   }
@@ -124,7 +126,9 @@ export class RunGrpcPooledListener {
         signal: this.signal.signal,
       });
 
-      if (retries > 0) setTimeout(() => this.replayRequests(), 100);
+      if (retries > 0) {
+        setTimeout(() => this.replayRequests(), 100);
+      }
 
       for await (const event of this.listener) {
         retryCount = 0;
@@ -139,12 +143,12 @@ export class RunGrpcPooledListener {
       }
 
       this.client.logger.debug('Child listener finished');
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isAbortError(e)) {
         this.client.logger.debug('Child Listener aborted');
         return;
       }
-      this.client.logger.error(`Error in child-listener: ${e.message}`);
+      this.client.logger.error(`Error in child-listener: ${getErrorMessage(e)}`);
     } finally {
       // it is possible the server hangs up early,
       // restart the listener if we still have subscribers
@@ -157,7 +161,9 @@ export class RunGrpcPooledListener {
   }
 
   subscribe(request: SubscribeToWorkflowRunsRequest) {
-    if (!this.listener) throw new Error('listener not initialized');
+    if (!this.listener) {
+      throw new Error('listener not initialized');
+    }
 
     this.subscribers[request.workflowRunId] = new Streamable(
       this.listener,

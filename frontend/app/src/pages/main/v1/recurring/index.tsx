@@ -146,7 +146,7 @@ export default function CronsTable() {
             <p className="text-lg font-semibold">No crons found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.home['cron-runs']}
+                doc={docsPages.v1['cron-runs']}
                 label="Learn about cron jobs in Hatchet"
               />
             </div>

@@ -524,7 +524,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			DesiredWorkerId:     desiredWorker,
 			AdditionalMetadata:  opts.AdditionalMetadata,
 			Priority:            opts.Priority,
-			DesiredWorkerLabels: desiredWorkerLabelsToProto(opts.DesiredWorkerLabels),
+			DesiredWorkerLabels: opts.DesiredWorkerLabels,
 		},
 	)
 
@@ -623,7 +623,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 				ChildKey:            c.Key,
 				DesiredWorkerId:     desiredWorker,
 				AdditionalMetadata:  c.AdditionalMetadata,
-				DesiredWorkerLabels: desiredWorkerLabelsToProto(c.DesiredWorkerLabels),
+				DesiredWorkerLabels: c.DesiredWorkerLabels,
 			},
 		}
 	}

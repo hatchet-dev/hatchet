@@ -1,4 +1,4 @@
-/* eslint-disable no-underscore-dangle, no-plusplus, func-names, no-loop-func, no-empty-function, require-yield */
+/* eslint-disable require-yield */
 import sleep from '@hatchet/util/sleep';
 import { DurableListenerClient } from './durable-listener-client';
 
@@ -79,7 +79,7 @@ function controllableStream() {
         while (true) {
           if (buffer.length > 0) {
             yield buffer.shift()!;
-            // eslint-disable-next-line no-continue
+
             continue;
           }
           if (ended) return;

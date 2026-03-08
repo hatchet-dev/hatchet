@@ -23,7 +23,6 @@ describe('runtime-affinity-e2e', () => {
 
   it('routes runs to the correct worker based on desired labels', async () => {
     if (!evictionSupported) {
-      // eslint-disable-next-line no-console
       return;
     }
 
@@ -61,7 +60,6 @@ describe('runtime-affinity-e2e', () => {
 
     expect(Object.keys(workerLabelToId).sort()).toEqual([...labels].sort());
 
-    // eslint-disable-next-line no-plusplus
     for (let i = 0; i < 20; i++) {
       const targetWorker = labels[i % 2];
       const res = await affinityExampleTask.run(

@@ -1,4 +1,3 @@
-/* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import sleep from '@hatchet/util/sleep';
 import { BaseWorkflowDeclaration } from '../../declaration';
@@ -147,7 +146,6 @@ export class Worker {
     const tasksWithEviction: string[] = [];
 
     for (const wf of workflows) {
-      // eslint-disable-next-line no-continue
       if (!(wf instanceof BaseWorkflowDeclaration)) continue;
       for (const task of wf.definition._durableTasks) {
         if (task.evictionPolicy) {

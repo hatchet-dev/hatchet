@@ -33,7 +33,7 @@ type ChildWorkflowOpts struct {
 	DesiredWorkerId     *string
 	AdditionalMetadata  *map[string]string
 	Priority            *int32
-	DesiredWorkerLabels map[string]*v1contracts.DesiredWorkerLabels
+	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
 
 type WorkflowRun struct {
@@ -277,12 +277,46 @@ func WithPriority(priority int32) RunOptFunc {
 	}
 }
 
-func WithDesiredWorkerLabels(labels map[string]*v1contracts.DesiredWorkerLabels) RunOptFunc {
-	return func(r *v1contracts.TriggerWorkflowRequest) error {
-		r.DesiredWorkerLabels = labels
+func WithDesiredWorkerLabels(labels map[string]*types.DesiredWorkerLabel) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		r.DesiredWorkerLabels = desiredWorkerLabelsToProto(labels)
 
 		return nil
 	}
+}
+
+func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map[string]*admincontracts.DesiredWorkerLabels {
+	if labels == nil {
+		return nil
+	}
+
+	result := make(map[string]*admincontracts.DesiredWorkerLabels, len(labels))
+
+	for key, label := range labels {
+		proto := &admincontracts.DesiredWorkerLabels{
+			Required: &label.Required,
+			Weight:   &label.Weight,
+		}
+
+		if label.Comparator != nil {
+			comparator := admincontracts.WorkerLabelComparator(*label.Comparator)
+			proto.Comparator = &comparator
+		}
+
+		switch v := label.Value.(type) {
+		case string:
+			proto.StrValue = &v
+		case int:
+			intVal := int32(v) // nolint: gosec
+			proto.IntValue = &intVal
+		case int32:
+			proto.IntValue = &v
+		}
+
+		result[key] = proto
+	}
+
+	return result
 }
 
 // func WithSticky(sticky bool) RunOptFunc {
@@ -405,7 +439,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		DesiredWorkerId:         opts.DesiredWorkerId,
 		AdditionalMetadata:      &metadata,
 		Priority:                opts.Priority,
-		DesiredWorkerLabels:     opts.DesiredWorkerLabels,
+		DesiredWorkerLabels:     desiredWorkerLabelsToProto(opts.DesiredWorkerLabels),
 	})
 
 	if err != nil {
@@ -468,7 +502,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			DesiredWorkerId:         workflow.Opts.DesiredWorkerId,
 			AdditionalMetadata:      &metadata,
 			Priority:                workflow.Opts.Priority,
-			DesiredWorkerLabels:     workflow.Opts.DesiredWorkerLabels,
+			DesiredWorkerLabels:     desiredWorkerLabelsToProto(workflow.Opts.DesiredWorkerLabels),
 		}
 
 	}

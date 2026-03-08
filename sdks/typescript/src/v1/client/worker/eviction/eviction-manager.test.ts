@@ -1,4 +1,3 @@
-/* eslint-disable no-underscore-dangle */
 import { Logger } from '@hatchet/util/logger';
 import { DurableEvictionManager } from './eviction-manager';
 import { DurableEvictionCache } from './eviction-cache';

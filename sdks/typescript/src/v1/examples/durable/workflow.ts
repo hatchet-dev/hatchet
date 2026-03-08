@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
 import sleep from '@hatchet/util/sleep';
@@ -38,14 +37,14 @@ durableWorkflow.durableTask({
 });
 
 function extractKeyAndEventId(waitResult: unknown): { key: string; eventId: string } {
-  // Eviction path returns `{ "CREATE": { [readableDataKey]: [...] } }`.
-  // Pre-eviction path returns `{ [readableDataKey]: [...] }` (already unwrapped).
-  const obj = waitResult as any;
+  // DurableContext.waitFor currently returns the CREATE payload directly.
+  // The shape is typically `{ [readableDataKey]: { [eventId]: ... } }`.
+  const obj = waitResult as Record<string, Record<string, unknown>>;
   if (obj && typeof obj === 'object') {
-    const key = Object.keys(obj)[0];
+    const [key] = Object.keys(obj);
     const inner = obj[key];
     if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
-      const eventId = Object.keys(inner)[0];
+      const [eventId] = Object.keys(inner);
       if (eventId) {
         return { key, eventId };
       }

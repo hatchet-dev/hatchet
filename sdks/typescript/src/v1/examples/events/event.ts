@@ -42,7 +42,6 @@ async function main() {
   await hatchet.events.bulkPush('user:create', events);
   // !!
 
-  // eslint-disable-next-line no-console
   console.log(res.eventId);
 }
 

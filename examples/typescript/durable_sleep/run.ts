@@ -4,6 +4,7 @@ async function main() {
   const timeStart = Date.now();
   const res = await durableSleep.run({});
   const timeEnd = Date.now();
+
   console.log(`Time taken: ${timeEnd - timeStart}ms`);
 }
 

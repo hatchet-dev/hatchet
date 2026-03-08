@@ -11,7 +11,7 @@ import {
   RuntimeInfo,
 } from '@hatchet/protoc/dispatcher';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
-import HatchetError from '@util/errors/hatchet-error';
+import { toHatchetError } from '@util/errors/hatchet-error';
 import { Logger } from '@hatchet/util/logger';
 
 import { retrier } from '@hatchet/util/retrier';
@@ -106,16 +106,16 @@ export class DispatcherClient {
 
     try {
       return await retrier(async () => this.client.sendStepActionEvent(event), this.logger);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
   async sendGroupKeyActionEvent(in_: GroupKeyActionEvent) {
     try {
       return await retrier(async () => this.client.sendGroupKeyActionEvent(in_), this.logger);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -131,8 +131,8 @@ export class DispatcherClient {
         taskRunExternalId,
         incrementTimeoutBy,
       });
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -142,8 +142,8 @@ export class DispatcherClient {
         workerId,
         labels: mapLabels(labels),
       });
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 }

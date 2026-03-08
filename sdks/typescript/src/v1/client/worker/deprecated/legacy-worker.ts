@@ -6,7 +6,6 @@
  * non-durable workers, each registered with the legacy `slots` proto field.
  */
 
-/* eslint-disable no-underscore-dangle */
 import { Status } from 'nice-grpc';
 import { BaseWorkflowDeclaration } from '../../../declaration';
 import { HatchetClient } from '../../..';
@@ -16,6 +15,7 @@ import { emitDeprecationNotice, semverLessThan } from './deprecation';
 import { transformLegacyWorkflow } from '../../../../legacy/legacy-transformer';
 
 import { MinEngineVersion } from '../engine-version';
+import { getGrpcErrorCode } from '@hatchet-dev/typescript-sdk/util/grpc-error';
 
 const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
@@ -36,8 +36,8 @@ export async function fetchEngineVersion(v1: HatchetClient): Promise<string | un
   try {
     const version = await v1.dispatcher.getVersion();
     return version || undefined;
-  } catch (e: any) {
-    if (e?.code === Status.UNIMPLEMENTED) {
+  } catch (e: unknown) {
+    if (getGrpcErrorCode(e) == Status.UNIMPLEMENTED) {
       return undefined;
     }
     throw e;
@@ -52,8 +52,10 @@ export async function fetchEngineVersion(v1: HatchetClient): Promise<string | un
  */
 export async function isLegacyEngine(v1: HatchetClient): Promise<boolean> {
   const version = await fetchEngineVersion(v1).catch((e) => {
-    if (e?.code === Status.UNIMPLEMENTED) return undefined;
-    return undefined;
+    if (getGrpcErrorCode(e) === Status.UNIMPLEMENTED) {
+      return undefined;
+    }
+    throw e;
   });
 
   if (!version || semverLessThan(version, MinEngineVersion.SLOT_CONFIG)) {

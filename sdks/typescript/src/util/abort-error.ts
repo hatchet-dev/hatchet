@@ -1,12 +1,24 @@
-export function createAbortError(message = 'Operation aborted'): Error {
-  const err: any = new Error(message);
-  err.name = 'AbortError';
-  err.code = 'ABORT_ERR';
-  return err as Error;
+export class AbortError extends Error {
+  readonly code = 'ABORT_ERR';
+
+  constructor(message = 'Operation aborted') {
+    super(message);
+    this.name = 'AbortError';
+  }
+}
+
+export function createAbortError(message = 'Operation aborted'): AbortError {
+  return new AbortError(message);
 }
 
 export function isAbortError(err: unknown): err is Error {
-  return err instanceof Error && (err.name === 'AbortError' || (err as any).code === 'ABORT_ERR');
+  if (err instanceof AbortError) {
+    return true;
+  }
+  return (
+    err instanceof Error &&
+    (err.name === 'AbortError' || (err as { code?: string }).code === 'ABORT_ERR')
+  );
 }
 
 /**
@@ -75,7 +87,7 @@ export function throwIfAborted(
     );
   }
 
-  const { reason } = signal as any;
+  const { reason } = signal as AbortSignal & { reason?: unknown };
 
   if (reason instanceof Error) {
     throw reason;
