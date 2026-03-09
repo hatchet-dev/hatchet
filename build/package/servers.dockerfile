@@ -75,7 +75,6 @@ WORKDIR /hatchet
 RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates tzdata
 
 COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
-COPY --from=build-go /hatchet/api/v1/server/rbac/rbac.yaml /hatchet/
 
 # NOTE: this is just here for backwards compatibility with old migrate images which require the atlas-apply.sh script.
 # This script is just a wrapped for `/hatchet/hatchet-migrate`.

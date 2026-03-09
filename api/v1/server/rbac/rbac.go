@@ -1,11 +1,9 @@
 package rbac
 
 import (
+	_ "embed"
 	"fmt"
 	"maps"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -148,14 +146,12 @@ func (p *PermissionMap) ValidateSpec(spec openapi3.T) error {
 	return nil
 }
 
+//go:embed rbac.yaml
+var yamlFile []byte
+
 func LoadYaml() (*PermissionMap, error) {
-	_, yamlPath, _, _ := runtime.Caller(0)
-	yamlFile, err := os.ReadFile(filepath.Join(filepath.Dir(yamlPath), "rbac.yaml"))
-	if err != nil {
-		return nil, err
-	}
 	var yamlContents PermissionMap
-	err = yaml.Unmarshal(yamlFile, &yamlContents)
+	err := yaml.Unmarshal(yamlFile, &yamlContents)
 	if err != nil {
 		return nil, err
 	}

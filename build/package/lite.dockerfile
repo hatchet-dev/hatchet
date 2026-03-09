@@ -34,7 +34,6 @@ COPY --from=frontend-build /app/dist ./static-assets
 
 # Copy entrypoint script
 COPY ./hack/lite/start.sh ./entrypoint.sh
-COPY ./api/v1/server/rbac/rbac.yaml ./
 
 ENV LITE_STATIC_ASSET_DIR=/static-assets
 ENV LITE_FRONTEND_PORT=8081
