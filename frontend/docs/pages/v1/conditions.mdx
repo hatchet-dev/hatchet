@@ -158,7 +158,7 @@ Downstream tasks can check whether a parent was skipped using `ctx.was_skipped`:
 
 ## Or Groups
 
-DAG tasks can declare multiple conditions that work together to control when and whether a task runs. Conditions of different types (parent conditions, [event conditions](/v1/events), and [sleep conditions](/v1/durable-workflows/sleep)) can be mixed on a single task using **or groups**.
+DAG tasks can declare multiple conditions that work together to control when and whether a task runs. Conditions of different types (parent conditions, [event conditions](/v1/events), and [sleep conditions](/v1/sleep)) can be mixed on a single task using **or groups**.
 
 An **or group** is a set of conditions combined with an `Or` operator. The group evaluates to `True` if **at least one** of its conditions is satisfied. Multiple or groups on the same task are combined with `AND`, so every group must have at least one satisfied condition for the task to proceed.
 

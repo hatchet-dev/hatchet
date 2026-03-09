@@ -128,7 +128,7 @@ When the human clicks Approve or Reject in your UI, your frontend or API pushes 
 
 ### Run the worker
 
-Register and start the worker. Use [Branching](/v1/durable-workflows/conditions) to route on approve vs reject from the event payload.
+Register and start the worker. Use [Branching](/v1/conditions) to route on approve vs reject from the event payload.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -177,14 +177,14 @@ For DAG workflows with a fixed approval gate, use [Event Conditions](/v1/events)
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Long Waits" href="/v1/durable-workflows/sleep">
+  <Cards.Card title="Long Waits" href="/v1/sleep">
     Pause workflows for external signals (events or sleep) without holding
     slots.
   </Cards.Card>
   <Cards.Card title="AI Agents" href="/cookbooks/ai-agents">
     Agent workflows that may need human approval at decision points.
   </Cards.Card>
-  <Cards.Card title="Branching" href="/v1/durable-workflows/conditions">
+  <Cards.Card title="Branching" href="/v1/conditions">
     Route workflow behavior based on approve vs reject from the event payload.
   </Cards.Card>
   <Cards.Card title="Event Conditions" href="/v1/events">
@@ -198,5 +198,5 @@ For DAG workflows with a fixed approval gate, use [Event Conditions](/v1/events)
 - [Durable Events](/v1/events): `WaitForEvent` API and event filters
 - [Pushing Events](/v1/external-events/pushing-events): push approval events from your frontend or API
 - [Event Conditions](/v1/events): approval gates in DAG workflows
-- [Long Waits](/v1/durable-workflows/sleep): general pattern for durable pauses
-- [Branching](/v1/durable-workflows/conditions): route on approve vs reject
+- [Long Waits](/v1/sleep): general pattern for durable pauses
+- [Branching](/v1/conditions): route on approve vs reject
