@@ -238,6 +238,19 @@ func resolveWorkerSlotConfig(
 	return slotConfig
 }
 
+// Use registers middleware functions on the worker.
+// Middleware functions are called in order for each step run execution.
+//
+//nolint:staticcheck // SA1019: worker.MiddlewareFunc is deprecated but still used internally
+func (w *Worker) Use(mws ...worker.MiddlewareFunc) {
+	if w.worker != nil {
+		w.worker.Use(mws...) //nolint:staticcheck // SA1019
+	}
+	if w.legacyDurable != nil {
+		w.legacyDurable.Use(mws...) //nolint:staticcheck // SA1019
+	}
+}
+
 // Starts the worker instance and returns a cleanup function.
 func (w *Worker) Start() (func() error, error) {
 	var workers []*worker.Worker

@@ -1,3 +1,34 @@
+// Generate agent-prism Tailwind color mappings from CSS custom properties
+const agentPrismTokens = [
+  "background", "foreground", "primary", "primary-foreground", "secondary",
+  "secondary-foreground", "muted", "muted-foreground", "accent", "accent-foreground",
+  "brand", "brand-foreground", "brand-secondary", "brand-secondary-foreground",
+  "border", "border-subtle", "border-strong", "border-inverse",
+  "success", "success-muted", "success-muted-foreground",
+  "error", "error-muted", "error-muted-foreground",
+  "warning", "warning-muted", "warning-muted-foreground",
+  "pending", "pending-muted", "pending-muted-foreground",
+  "code-string", "code-number", "code-key", "code-base",
+  "badge-default", "badge-default-foreground",
+  "avatar-llm", "badge-llm", "badge-llm-foreground", "timeline-llm",
+  "avatar-agent", "badge-agent", "badge-agent-foreground", "timeline-agent",
+  "avatar-tool", "badge-tool", "badge-tool-foreground", "timeline-tool",
+  "avatar-chain", "badge-chain", "badge-chain-foreground", "timeline-chain",
+  "avatar-retrieval", "badge-retrieval", "badge-retrieval-foreground", "timeline-retrieval",
+  "avatar-embedding", "badge-embedding", "badge-embedding-foreground", "timeline-embedding",
+  "avatar-guardrail", "badge-guardrail", "badge-guardrail-foreground", "timeline-guardrail",
+  "avatar-create-agent", "badge-create-agent", "badge-create-agent-foreground", "timeline-create-agent",
+  "avatar-span", "badge-span", "badge-span-foreground", "timeline-span",
+  "avatar-event", "badge-event", "badge-event-foreground", "timeline-event",
+  "avatar-unknown", "badge-unknown", "badge-unknown-foreground", "timeline-unknown",
+];
+const agentPrismColors = Object.fromEntries(
+  agentPrismTokens.map((name) => [
+    `agentprism-${name}`,
+    `oklch(var(--agentprism-${name}) / <alpha-value>)`,
+  ])
+);
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -49,6 +80,7 @@ module.exports = {
     },
     extend: {
       colors: {
+        ...agentPrismColors,
         "purple": {
           "50": "hsl(252, 82%, 95%)",
           "100": "hsl(252, 82%, 90%)",
