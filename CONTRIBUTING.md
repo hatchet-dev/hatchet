@@ -47,7 +47,7 @@ Next, ensure all changes are:
 
 If your changes require documentation updates, modify the relevant files in [`frontend/docs/pages/`](frontend/docs/pages/). You can spin up the documentation site locally by running `task docs`. By default, this will be available at [`http://localhost:3000`](http://localhost:3000).
 
-For configuration changes, see [Updating Configuration](docs/development/updating-configuration.md).
+For configuration changes, see [Updating Configuration](contributing/developer-guides/updating-configuration.md).
 
 ## Testing
 
