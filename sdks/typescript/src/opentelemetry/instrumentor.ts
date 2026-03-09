@@ -25,7 +25,7 @@ import { OTelAttribute, type ActionOTelAttributeValue } from '../util/openteleme
 import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
-import { ScheduleClient } from '../v1/client/features/schedules';
+import { ScheduleClient, CreateScheduledRunInput } from '../v1/client/features/schedules';
 
 try {
   require.resolve('@opentelemetry/api');
@@ -36,14 +36,13 @@ try {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+/* eslint-disable @typescript-eslint/no-require-imports */
 const otelApi = require('@opentelemetry/api') as typeof import('@opentelemetry/api');
-
-const { trace, context, propagation, SpanKind, SpanStatusCode, diag } = otelApi;
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const otelInstrumentation =
   require('@opentelemetry/instrumentation') as typeof import('@opentelemetry/instrumentation');
+/* eslint-enable @typescript-eslint/no-require-imports */
+
+const { context, propagation, SpanKind, SpanStatusCode, diag } = otelApi;
 
 const {
   InstrumentationBase,
@@ -66,7 +65,6 @@ function extractContext(carrier: Carrier | undefined | null): OtelContext {
 function injectContext(carrier: Carrier): void {
   propagation.inject(context.active(), carrier);
 }
-
 
 function getActionOtelAttributes(
   action: Action,
@@ -101,7 +99,7 @@ function getActionOtelAttributes(
 }
 
 function filterAttributes(
-  attributes: Record<string, any>,
+  attributes: Record<string, unknown>,
   excludedAttributes: string[] = []
 ): Attributes {
   const filtered: Attributes = {};
@@ -114,7 +112,8 @@ function filterAttributes(
       value !== '{}' &&
       value !== '[]'
     ) {
-      filtered[`hatchet.${key}`] = typeof value === 'object' ? JSON.stringify(value) : value;
+      filtered[`hatchet.${key}`] =
+        typeof value === 'object' ? JSON.stringify(value) : (value as string | number | boolean);
     }
   }
   return filtered;
@@ -142,6 +141,8 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
   override setConfig(config: Partial<HatchetInstrumentationConfig> = {}): void {
     super.setConfig({ ...DEFAULT_CONFIG, ...config });
   }
+
+  private readonly _getConfig = (): HatchetInstrumentationConfig => this.getConfig();
 
   protected init(): InstanceType<typeof InstrumentationNodeModuleDefinition>[] {
     const eventClientModuleFile = new InstrumentationNodeModuleFile(
@@ -183,27 +184,29 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     return [moduleDefinition];
   }
 
-  private patchEventClient(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.EventClient?.prototype) {
+  private patchEventClient(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { EventClient?: { prototype: EventClient } };
+    if (!exports?.EventClient?.prototype) {
       diag.debug('hatchet instrumentation: EventClient not found in module exports');
       return moduleExports;
     }
-    this._patchPushEvent(moduleExports.EventClient.prototype);
-    this._patchBulkPushEvent(moduleExports.EventClient.prototype);
+    this._patchPushEvent(exports.EventClient.prototype);
+    this._patchBulkPushEvent(exports.EventClient.prototype);
 
     return moduleExports;
   }
 
-  private unpatchEventClient(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.EventClient?.prototype) {
+  private unpatchEventClient(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { EventClient?: { prototype: EventClient } };
+    if (!exports?.EventClient?.prototype) {
       return moduleExports;
     }
 
-    if (isWrapped(moduleExports.EventClient.prototype.push)) {
-      this._unwrap(moduleExports.EventClient.prototype, 'push');
+    if (isWrapped(exports.EventClient.prototype.push)) {
+      this._unwrap(exports.EventClient.prototype, 'push');
     }
-    if (isWrapped(moduleExports.EventClient.prototype.bulkPush)) {
-      this._unwrap(moduleExports.EventClient.prototype, 'bulkPush');
+    if (isWrapped(exports.EventClient.prototype.bulkPush)) {
+      this._unwrap(exports.EventClient.prototype, 'bulkPush');
     }
 
     return moduleExports;
@@ -213,7 +216,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     if (isWrapped(prototype.push)) {
       this._unwrap(prototype, 'push');
     }
-    const self = this;
+    const { tracer, _getConfig: getConfig } = this;
 
     this._wrap(prototype, 'push', (original: EventClient['push']) => {
       return function wrappedPush<T>(
@@ -232,10 +235,10 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             [OTelAttribute.PRIORITY]: options.priority,
             [OTelAttribute.FILTER_SCOPE]: options.scope,
           },
-          self.getConfig().excludedAttributes
+          getConfig().excludedAttributes
         );
 
-        return self.tracer.startActiveSpan(
+        return tracer.startActiveSpan(
           'hatchet.push_event',
           {
             kind: SpanKind.PRODUCER,
@@ -265,7 +268,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     if (isWrapped(prototype.bulkPush)) {
       this._unwrap(prototype, 'bulkPush');
     }
-    const self = this;
+    const { tracer, _getConfig: getConfig } = this;
 
     this._wrap(prototype, 'bulkPush', (original: EventClient['bulkPush']) => {
       return function wrappedBulkPush<T>(
@@ -283,10 +286,10 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               : undefined,
             [OTelAttribute.PRIORITY]: options.priority,
           },
-          self.getConfig().excludedAttributes
+          getConfig().excludedAttributes
         );
 
-        return self.tracer.startActiveSpan(
+        return tracer.startActiveSpan(
           'hatchet.bulk_push_event',
           {
             kind: SpanKind.PRODUCER,
@@ -315,28 +318,30 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     });
   }
 
-  private patchAdminClient(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.AdminClient?.prototype) {
+  private patchAdminClient(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { AdminClient?: { prototype: AdminClient } };
+    if (!exports?.AdminClient?.prototype) {
       diag.debug('hatchet instrumentation: AdminClient not found in module exports');
       return moduleExports;
     }
 
-    this._patchRunWorkflow(moduleExports.AdminClient.prototype);
-    this._patchRunWorkflows(moduleExports.AdminClient.prototype);
+    this._patchRunWorkflow(exports.AdminClient.prototype);
+    this._patchRunWorkflows(exports.AdminClient.prototype);
 
     return moduleExports;
   }
 
-  private unpatchAdminClient(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.AdminClient?.prototype) {
+  private unpatchAdminClient(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { AdminClient?: { prototype: AdminClient } };
+    if (!exports?.AdminClient?.prototype) {
       return moduleExports;
     }
 
-    if (isWrapped(moduleExports.AdminClient.prototype.runWorkflow)) {
-      this._unwrap(moduleExports.AdminClient.prototype, 'runWorkflow');
+    if (isWrapped(exports.AdminClient.prototype.runWorkflow)) {
+      this._unwrap(exports.AdminClient.prototype, 'runWorkflow');
     }
-    if (isWrapped(moduleExports.AdminClient.prototype.runWorkflows)) {
-      this._unwrap(moduleExports.AdminClient.prototype, 'runWorkflows');
+    if (isWrapped(exports.AdminClient.prototype.runWorkflows)) {
+      this._unwrap(exports.AdminClient.prototype, 'runWorkflows');
     }
 
     return moduleExports;
@@ -346,13 +351,13 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     if (isWrapped(prototype.runWorkflow)) {
       this._unwrap(prototype, 'runWorkflow');
     }
-    const self = this;
+    const { tracer, _getConfig: getConfig } = this;
 
     this._wrap(prototype, 'runWorkflow', (original: AdminClient['runWorkflow']) => {
       return async function wrappedRunWorkflow(
         this: AdminClient,
         workflowName: string,
-        input: any,
+        input: unknown,
         options?: {
           parentId?: string;
           parentStepRunId?: string;
@@ -377,10 +382,10 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             [OTelAttribute.PRIORITY]: options?.priority,
             [OTelAttribute.DESIRED_WORKER_ID]: options?.desiredWorkerId,
           },
-          self.getConfig().excludedAttributes
+          getConfig().excludedAttributes
         );
 
-        return self.tracer.startActiveSpan(
+        return tracer.startActiveSpan(
           'hatchet.run_workflow',
           {
             kind: SpanKind.PRODUCER,
@@ -415,14 +420,14 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     if (isWrapped(prototype.runWorkflows)) {
       this._unwrap(prototype, 'runWorkflows');
     }
-    const self = this;
+    const { tracer, _getConfig: getConfig } = this;
 
     this._wrap(prototype, 'runWorkflows', (original: AdminClient['runWorkflows']) => {
       return async function wrappedRunWorkflows(
         this: AdminClient,
         workflowRuns: Array<{
           workflowName: string;
-          input: any;
+          input: unknown;
           options?: {
             parentId?: string;
             parentStepRunId?: string;
@@ -440,10 +445,10 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             [OTelAttribute.WORKFLOW_NAME]: JSON.stringify(workflowRuns.map((r) => r.workflowName)),
             [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(workflowRuns),
           },
-          self.getConfig().excludedAttributes
+          getConfig().excludedAttributes
         );
 
-        return self.tracer.startActiveSpan(
+        return tracer.startActiveSpan(
           'hatchet.run_workflows',
           {
             kind: SpanKind.PRODUCER,
@@ -478,28 +483,30 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     });
   }
 
-  private patchWorker(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.InternalWorker?.prototype) {
+  private patchWorker(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { InternalWorker?: { prototype: InternalWorker } };
+    if (!exports?.InternalWorker?.prototype) {
       diag.debug('hatchet instrumentation: InternalWorker not found in module exports');
       return moduleExports;
     }
 
-    this._patchHandleStartStepRun(moduleExports.InternalWorker.prototype);
-    this._patchHandleCancelStepRun(moduleExports.InternalWorker.prototype);
+    this._patchHandleStartStepRun(exports.InternalWorker.prototype);
+    this._patchHandleCancelStepRun(exports.InternalWorker.prototype);
 
     return moduleExports;
   }
 
-  private unpatchWorker(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.InternalWorker?.prototype) {
+  private unpatchWorker(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { InternalWorker?: { prototype: InternalWorker } };
+    if (!exports?.InternalWorker?.prototype) {
       return moduleExports;
     }
 
-    if (isWrapped(moduleExports.InternalWorker.prototype.handleStartStepRun)) {
-      this._unwrap(moduleExports.InternalWorker.prototype, 'handleStartStepRun');
+    if (isWrapped(exports.InternalWorker.prototype.handleStartStepRun)) {
+      this._unwrap(exports.InternalWorker.prototype, 'handleStartStepRun');
     }
-    if (isWrapped(moduleExports.InternalWorker.prototype.handleCancelStepRun)) {
-      this._unwrap(moduleExports.InternalWorker.prototype, 'handleCancelStepRun');
+    if (isWrapped(exports.InternalWorker.prototype.handleCancelStepRun)) {
+      this._unwrap(exports.InternalWorker.prototype, 'handleCancelStepRun');
     }
 
     return moduleExports;
@@ -510,7 +517,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     if (isWrapped(prototype.handleStartStepRun)) {
       this._unwrap(prototype, 'handleStartStepRun');
     }
-    const self = this;
+    const { tracer, _getConfig: getConfig } = this;
 
     this._wrap(
       prototype,
@@ -526,16 +533,16 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           const parentContext = extractContext(additionalMetadata);
           const attributes = getActionOtelAttributes(
             action,
-            self.getConfig().excludedAttributes,
+            getConfig().excludedAttributes,
             this.workerId
           );
 
           let spanName = 'hatchet.start_step_run';
-          if (self.getConfig().includeTaskNameInSpanName) {
+          if (getConfig().includeTaskNameInSpanName) {
             spanName += `.${action.actionId}`;
           }
 
-          return self.tracer.startActiveSpan(
+          return tracer.startActiveSpan(
             spanName,
             {
               kind: SpanKind.CONSUMER,
@@ -566,7 +573,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     if (isWrapped(prototype.handleCancelStepRun)) {
       this._unwrap(prototype, 'handleCancelStepRun');
     }
-    const self = this;
+    const { tracer } = this;
 
     this._wrap(
       prototype,
@@ -580,7 +587,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             [`hatchet.${OTelAttribute.STEP_RUN_ID}`]: action.stepRunId,
           };
 
-          return self.tracer.startActiveSpan(
+          return tracer.startActiveSpan(
             'hatchet.cancel_step_run',
             {
               kind: SpanKind.CONSUMER,
@@ -599,24 +606,26 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     );
   }
 
-  private patchScheduleClient(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.ScheduleClient?.prototype) {
+  private patchScheduleClient(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { ScheduleClient?: { prototype: ScheduleClient } };
+    if (!exports?.ScheduleClient?.prototype) {
       diag.debug('hatchet instrumentation: ScheduleClient not found in module exports');
       return moduleExports;
     }
 
-    this._patchScheduleCreate(moduleExports.ScheduleClient.prototype);
+    this._patchScheduleCreate(exports.ScheduleClient.prototype);
 
     return moduleExports;
   }
 
-  private unpatchScheduleClient(moduleExports: any, moduleVersion?: string): any {
-    if (!moduleExports?.ScheduleClient?.prototype) {
+  private unpatchScheduleClient(moduleExports: unknown, _moduleVersion?: string): unknown {
+    const exports = moduleExports as { ScheduleClient?: { prototype: ScheduleClient } };
+    if (!exports?.ScheduleClient?.prototype) {
       return moduleExports;
     }
 
-    if (isWrapped(moduleExports.ScheduleClient.prototype.create)) {
-      this._unwrap(moduleExports.ScheduleClient.prototype, 'create');
+    if (isWrapped(exports.ScheduleClient.prototype.create)) {
+      this._unwrap(exports.ScheduleClient.prototype, 'create');
     }
 
     return moduleExports;
@@ -627,13 +636,13 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     if (isWrapped(prototype.create)) {
       this._unwrap(prototype, 'create');
     }
-    const self = this;
+    const { tracer, _getConfig: getConfig } = this;
 
     this._wrap(prototype, 'create', (original: ScheduleClient['create']) => {
       return async function wrappedCreate(
         this: ScheduleClient,
         workflow: string,
-        input: any
+        input: CreateScheduledRunInput
       ): Promise<ScheduledWorkflows> {
         const triggerAtIso =
           input.triggerAt instanceof Date
@@ -650,10 +659,10 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               : undefined,
             [OTelAttribute.PRIORITY]: input.priority,
           },
-          self.getConfig().excludedAttributes
+          getConfig().excludedAttributes
         );
 
-        return self.tracer.startActiveSpan(
+        return tracer.startActiveSpan(
           'hatchet.schedule_workflow',
           {
             kind: SpanKind.PRODUCER,
@@ -670,7 +679,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             };
 
             return original
-              .call(this, workflow, enhancedInput)
+              .call(this, workflow, enhancedInput as CreateScheduledRunInput)
               .catch((error: Error) => {
                 span.recordException(error);
                 span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
