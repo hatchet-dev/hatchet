@@ -39,6 +39,7 @@ type ConfigFile struct {
 	// cannot run inside a transaction block. Required when PgBouncerEnabled is true.
 	DirectDatabaseURL      string `mapstructure:"directDatabaseUrl" json:"directDatabaseUrl,omitempty" default:""`
 	DirectDatabaseMaxConns int    `mapstructure:"directDatabaseMaxConns" json:"directDatabaseMaxConns,omitempty" default:"2"`
+	DirectDatabaseMinConns int    `mapstructure:"directDatabaseMinConns" json:"directDatabaseMinConns,omitempty" default:"1"`
 
 	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
 	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
@@ -106,6 +107,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("pgbouncerEnabled", "DATABASE_PGBOUNCER_ENABLED")
 	_ = v.BindEnv("directDatabaseUrl", "DATABASE_DIRECT_URL")
 	_ = v.BindEnv("directDatabaseMaxConns", "DATABASE_DIRECT_MAX_CONNS")
+	_ = v.BindEnv("directDatabaseMinConns", "DATABASE_DIRECT_MIN_CONNS")
 
 	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
 	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")
