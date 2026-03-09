@@ -670,6 +670,7 @@ export default function UpdateWorkerForm({
               {secretsError && (
                 <div className="text-sm text-red-500">{secretsError}</div>
               )}
+              <Label>Machine Configuration</Label>
               <div className="grid gap-4 pt-4">
                 <Label htmlFor="region">Region</Label>
                 <Select
