@@ -24,8 +24,8 @@ export const OpenTelemetryConfigSchema = z.object({
   excludedAttributes: z.array(z.string()).optional().default([]),
 
   /**
-   * If true, includes the task name in the span name for start_step_run spans.
-   * e.g., "hatchet.start_step_run.my_task" instead of "hatchet.start_step_run"
+   * If true, includes the task name in the span name for task run spans.
+   * e.g., "hatchet task run my_task" instead of "hatchet task run"
    */
   includeTaskNameInSpanName: z.boolean().optional().default(false),
 });

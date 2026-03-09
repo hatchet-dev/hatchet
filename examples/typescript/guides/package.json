@@ -8,7 +8,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@hatchet-dev/typescript-sdk": "^1.15.2",
+    "@hatchet-dev/typescript-sdk": "^1.16.0",
     "@anthropic-ai/sdk": "^0.32.1",
     "@ai-sdk/openai": "^1.0.0",
     "@browserbasehq/sdk": "^2.7.0",

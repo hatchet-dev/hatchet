@@ -21,6 +21,7 @@ import type {
 } from '@hatchet/clients/event/event-client';
 import type { AdminClient } from '@hatchet/v1/client/admin';
 import type { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
+import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
 import { OTelAttribute, type ActionOTelAttributeValue } from '../util/opentelemetry';
 import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
@@ -51,7 +52,23 @@ const {
   isWrapped,
 } = otelInstrumentation;
 
-type HatchetInstrumentationConfig = OpenTelemetryConfig & InstrumentationConfig;
+type HatchetInstrumentationConfig = OpenTelemetryConfig &
+  InstrumentationConfig & {
+    /**
+     * Enable sending traces to the Hatchet engine's OTLP collector.
+     * Requires @opentelemetry/exporter-trace-otlp-grpc and @opentelemetry/sdk-trace-base.
+     * Connection settings (endpoint, token, TLS) are read from the provided clientConfig
+     * or from the same environment variables used by the Hatchet client.
+     */
+    enableHatchetCollector?: boolean;
+
+    /**
+     * The Hatchet ClientConfig to use for the collector connection.
+     * If not provided and enableHatchetCollector is true, config will be loaded
+     * from environment variables / .hatchet.yaml.
+     */
+    clientConfig?: ClientConfig;
+  };
 type Carrier = Record<string, string>;
 
 const INSTRUMENTOR_NAME = '@hatchet-dev/typescript-sdk';
@@ -136,6 +153,56 @@ function filterAttributes(
 export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentationConfig> {
   constructor(config: Partial<HatchetInstrumentationConfig> = {}) {
     super(INSTRUMENTOR_NAME, HATCHET_VERSION, { ...DEFAULT_CONFIG, ...config });
+
+    if (config.enableHatchetCollector) {
+      this._setupHatchetCollector(config.clientConfig);
+    }
+  }
+
+  /**
+   * Sets up the Hatchet OTLP exporter on the current TracerProvider.
+   * Loads client config from environment if not provided.
+   */
+  private _setupHatchetCollector(clientConfig?: ClientConfig): void {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { addHatchetExporter } = require('./hatchet-exporter') as typeof import('./hatchet-exporter');
+
+      let config = clientConfig;
+      if (!config) {
+        // Load config from environment (same as HatchetClient would)
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { ConfigLoader } = require('@hatchet/util/config-loader/config-loader') as typeof import('@hatchet/util/config-loader/config-loader');
+        config = ConfigLoader.loadClientConfig() as ClientConfig;
+      }
+
+      // Get the SDK TracerProvider - either from the global provider or create one
+      let sdkTracerProvider: any;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const sdkTrace = require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+
+        // Check if the global tracer provider is an SDK TracerProvider
+        const globalProvider = otelApi.trace.getTracerProvider();
+        if (globalProvider instanceof sdkTrace.BasicTracerProvider) {
+          sdkTracerProvider = globalProvider;
+        } else {
+          // Create a new SDK TracerProvider and set it as global
+          sdkTracerProvider = new sdkTrace.BasicTracerProvider();
+          sdkTracerProvider.register();
+        }
+      } catch {
+        diag.warn(
+          'hatchet instrumentation: @opentelemetry/sdk-trace-base is required for enableHatchetCollector'
+        );
+        return;
+      }
+
+      addHatchetExporter(sdkTracerProvider, config);
+      diag.info('hatchet instrumentation: Hatchet OTLP collector enabled');
+    } catch (e) {
+      diag.warn(`hatchet instrumentation: Failed to set up Hatchet collector: ${e}`);
+    }
   }
 
   override setConfig(config: Partial<HatchetInstrumentationConfig> = {}): void {
@@ -239,7 +306,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet.push_event',
+          'hatchet push event',
           {
             kind: SpanKind.PRODUCER,
             attributes,
@@ -290,7 +357,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet.bulk_push_event',
+          'hatchet push events',
           {
             kind: SpanKind.PRODUCER,
             attributes,
@@ -386,9 +453,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet.run_workflow',
+          `hatchet trigger task ${workflowName}`,
           {
-            kind: SpanKind.PRODUCER,
+            kind: SpanKind.CLIENT,
             attributes,
           },
           (span: Span) => {
@@ -449,9 +516,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet.run_workflows',
+          'hatchet trigger tasks',
           {
-            kind: SpanKind.PRODUCER,
+            kind: SpanKind.CLIENT,
             attributes,
           },
           (span: Span) => {
@@ -537,9 +604,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             this.workerId
           );
 
-          let spanName = 'hatchet.start_step_run';
+          let spanName = 'hatchet task run';
           if (getConfig().includeTaskNameInSpanName) {
-            spanName += `.${action.actionId}`;
+            spanName += ` ${action.actionId}`;
           }
 
           return tracer.startActiveSpan(
@@ -556,6 +623,8 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
                   if (taskError instanceof Error) {
                     span.recordException(taskError);
                     span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
+                  } else {
+                    span.setStatus({ code: SpanStatusCode.OK });
                   }
                   return taskError;
                 })
@@ -588,7 +657,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           };
 
           return tracer.startActiveSpan(
-            'hatchet.cancel_step_run',
+            'hatchet cancel task run',
             {
               kind: SpanKind.CONSUMER,
               attributes,
@@ -663,9 +732,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet.schedule_workflow',
+          'hatchet schedule task',
           {
-            kind: SpanKind.PRODUCER,
+            kind: SpanKind.CLIENT,
             attributes,
           },
           (span: Span) => {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -48,16 +49,43 @@ func main() {
 
 	tracer := otel.Tracer("otel-propagation-example")
 
+	// generateSpanTree creates a nested span subtree, returning how many spans were created.
+	var generateSpanTree func(ctx context.Context, count *int, limit int, depth int, prefix string)
+	generateSpanTree = func(ctx context.Context, count *int, limit int, depth int, prefix string) {
+		numChildren := 1 + rand.Intn(5) // 1-5 children at this level
+		for i := range numChildren {
+			if *count >= limit {
+				return
+			}
+			name := fmt.Sprintf("%s.%d", prefix, i)
+			childCtx, span := tracer.Start(ctx, name)
+			time.Sleep(time.Duration(1+rand.Intn(3)) * time.Millisecond)
+			*count++
+
+			// Recurse deeper with probability that decreases with depth
+			if *count < limit && depth < 8 && rand.Float64() > float64(depth)*0.12 {
+				generateSpanTree(childCtx, count, limit, depth+1, name)
+			}
+
+			span.End()
+		}
+	}
+
 	// Child task — a standalone task that will be spawned by the parent.
 	childTask := client.NewStandaloneTask(
 		"otel-child-task",
 		func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
-			_, span := tracer.Start(ctx.GetContext(), "child.process")
-			time.Sleep(50 * time.Millisecond)
-			span.End()
+			target := 200 + rand.Intn(101) // 200-300 spans
+			count := 0
+			// Keep spawning top-level subtrees until we hit the target.
+			round := 0
+			for count < target {
+				generateSpanTree(ctx.GetContext(), &count, target, 0, fmt.Sprintf("child.r%d", round))
+				round++
+			}
 
 			return ChildOutput{
-				Message: fmt.Sprintf("Hello from child: %s", input.Greeting),
+				Message: fmt.Sprintf("Hello from child: %s (generated %d spans)", input.Greeting, count),
 			}, nil
 		},
 	)
