@@ -226,6 +226,7 @@ class DurableEventListener:
 
     async def stop(self) -> None:
         self._running = False
+        self._buffered_completions.stop_eviction_job()
 
         if self._receive_task:
             self._receive_task.cancel()

@@ -57,6 +57,9 @@ class TTLCache(Generic[K, V]):
     def pop(self, key: K) -> V:
         return self.cache.pop(key).value
 
+    def stop_eviction_job(self) -> None:
+        self.eviction_job.cancel()
+
     async def _start_eviction_job(self) -> None:
         while True:
             await asyncio.sleep(self.ttl.total_seconds())
