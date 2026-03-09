@@ -18,7 +18,9 @@ export function TaskRunTrace({ taskExternalId }: { taskExternalId: string }) {
 
   const traceSpans = useMemo(() => {
     const rows = tracesQuery.data?.rows;
-    if (!rows || rows.length === 0) return [];
+    if (!rows || rows.length === 0) {
+      return [];
+    }
 
     const otlpSpans = convertOtelSpans(rows);
     return openTelemetrySpanAdapter.convertRawSpansToSpanTree(otlpSpans);

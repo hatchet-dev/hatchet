@@ -96,7 +96,9 @@ export const BrandLogo: FC<BrandLogoProps> = ({
 }) => {
   const Logo = LOGO_REGISTRY[brand as BrandType];
 
-  if (!Logo) return <>{fallback}</>;
+  if (!Logo) {
+    return <>{fallback}</>;
+  }
 
   return <Logo className={className} />;
 };

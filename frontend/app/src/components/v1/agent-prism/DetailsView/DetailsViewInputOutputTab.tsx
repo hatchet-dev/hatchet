@@ -53,14 +53,14 @@ export const DetailsViewInputOutputTab = ({
   return (
     <div className="space-y-4">
       {typeof data.input === 'string' && (
-        <IOSection
+        <IOSectionView
           section="Input"
           content={data.input}
           parsedContent={parsedInput}
         />
       )}
       {typeof data.output === 'string' && (
-        <IOSection
+        <IOSectionView
           section="Output"
           content={data.output}
           parsedContent={parsedOutput}
@@ -76,7 +76,7 @@ interface IOSectionProps {
   parsedContent: string | null;
 }
 
-const IOSection = ({
+const IOSectionView = ({
   section,
   content,
   parsedContent,

@@ -6,10 +6,8 @@ Usage:
 """
 
 import argparse
-import asyncio
 import json
 import time
-from datetime import timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 from typing import Any, cast
@@ -50,12 +48,13 @@ def otel_simple_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"status": "ok"}
 
 
-@hatchet.task(execution_timeout=timedelta(seconds=30), retries=2)
-async def otel_long_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    """Longer task for engine disconnect testing."""
-    for _ in range(20):
-        await asyncio.sleep(0.5)
-    return {"status": "completed"}
+@hatchet.task(retries=1)
+def otel_retry_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    """Task that fails on first attempt and succeeds on retry."""
+    retry_count = ctx.retry_count
+    if retry_count == 0:
+        raise RuntimeError("intentional failure on first attempt")
+    return {"status": "ok", "retry_count": str(retry_count)}
 
 
 # -- Span HTTP server ----------------------------------------------------------
@@ -63,11 +62,12 @@ async def otel_long_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 def _serialize_spans() -> list[dict[str, Any]]:
     spans = span_exporter.get_finished_spans()
-    result = []
+    result: list[dict[str, Any]] = []
     for s in spans:
-        attrs = {}
-        for k, v in s.attributes.items():
-            attrs[k] = str(v) if not isinstance(v, (str, int, float, bool)) else v
+        attrs: dict[str, Any] = {}
+        if s.attributes is not None:
+            for k, v in s.attributes.items():
+                attrs[k] = str(v) if not isinstance(v, (str, int, float, bool)) else v
 
         result.append(
             {
@@ -78,8 +78,8 @@ def _serialize_spans() -> list[dict[str, Any]]:
                     format(s.parent.span_id, "016x") if s.parent else None
                 ),
                 "attributes": attrs,
-                "kind": s.kind.value if s.kind else None,
-                "status_code": s.status.status_code.name if s.status else None,
+                "kind": s.kind.value,
+                "status_code": s.status.status_code.name,
             }
         )
     return result
@@ -130,7 +130,7 @@ def main() -> None:
 
     worker = hatchet.worker(
         "otel-e2e-test-worker",
-        workflows=[otel_simple_task, otel_long_task],
+        workflows=[otel_simple_task, otel_retry_task],
     )
     worker.start()
 

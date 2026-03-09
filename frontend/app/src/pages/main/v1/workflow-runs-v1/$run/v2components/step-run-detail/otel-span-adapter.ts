@@ -23,7 +23,9 @@ const STATUS_CODE_MAP: Record<string, OpenTelemetryStatusCode> = {
 function recordToAttributes(
   record: Record<string, string> | undefined,
 ): TraceSpanAttribute[] {
-  if (!record) return [];
+  if (!record) {
+    return [];
+  }
   return Object.entries(record).map(([key, value]) => ({
     key,
     value: { stringValue: value },

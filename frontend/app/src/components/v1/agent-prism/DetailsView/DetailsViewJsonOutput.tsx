@@ -1,7 +1,6 @@
 import { agentPrismPrefix } from '../theme';
 import { type FC } from 'react';
 import JSONPretty from 'react-json-pretty';
-import colors from 'tailwindcss/colors';
 
 export interface JsonViewerProps {
   content: string;
@@ -16,7 +15,7 @@ export const DetailsViewJsonOutput: FC<JsonViewerProps> = ({
 }) => {
   return (
     <JSONPretty
-      booleanStyle={`color: ${colors.blue[800]};`}
+      booleanStyle="color: #1e40af;"
       className={`overflow-x-hidden rounded-xl p-4 text-left ${className}`}
       data={content}
       id={`json-pretty-${id}`}

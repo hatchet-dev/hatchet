@@ -74,7 +74,9 @@ export const TraceViewer = ({
   }, [allIds]);
 
   useEffect(() => {
-    if (!isMounted || isMobile) return;
+    if (!isMounted || isMobile) {
+      return;
+    }
 
     if (selectedTraceSpans.length > 0 && !selectedSpan) {
       setSelectedSpan(selectedTraceSpans[0]);
