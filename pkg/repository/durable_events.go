@@ -268,7 +268,7 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
-	// TODO-DURABLE: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
+	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
 	dataToHash := []byte(kind)
 
 	if triggerOpts != nil {
