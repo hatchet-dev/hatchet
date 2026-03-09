@@ -416,7 +416,10 @@ export class InternalWorker {
     this.registerActions(workflow);
   }
 
-  // IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchHandleStartStepRun.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
   async handleStartStepRun(action: Action): Promise<Error | undefined> {
     const { actionId, taskRunExternalId, taskName } = action;
 
@@ -758,6 +761,10 @@ export class InternalWorker {
     };
   }
 
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchHandleCancelStepRun.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
   async handleCancelStepRun(action: Action) {
     const { taskRunExternalId, taskName } = action;
 
