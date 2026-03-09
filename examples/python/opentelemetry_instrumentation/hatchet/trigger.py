@@ -36,7 +36,10 @@ def main() -> None:
     with tracer.start_as_current_span("trigger_otel_data_pipeline"):
         result = otel_workflow.run(
             options=TriggerWorkflowOptions(
-                additional_metadata={"source": "otel-example", "pipeline": "data-ingest"},
+                additional_metadata={
+                    "source": "otel-example",
+                    "pipeline": "data-ingest",
+                },
             ),
         )
         print(f"Workflow result: {result}")

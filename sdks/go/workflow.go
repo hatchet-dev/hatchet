@@ -9,7 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
@@ -617,6 +621,27 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	// Start OTel span using the underlying context (not the HatchetContext itself)
+	// so that the HatchetContext type assertion still works downstream.
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, fmt.Sprintf("hatchet trigger task %s", w.declaration.Name()),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.String("hatchet.task_name", w.declaration.Name())),
+	)
+	defer span.End()
+
+	// Update the HatchetContext's inner context with the OTel span context,
+	// or use the OTel context directly for plain context.Context callers.
+	if hCtx, ok := ctx.(Context); ok {
+		hCtx.SetContext(otelCtx)
+	} else {
+		ctx = otelCtx
+	}
+
 	runOpts := &runOpts{}
 	for _, opt := range opts {
 		opt(runOpts)
@@ -628,7 +653,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 	}
 
 	// Inject traceparent for cross-workflow trace propagation
-	runOpts.AdditionalMetadata = injectTraceparentToMap(ctx, runOpts.AdditionalMetadata)
+	runOpts.AdditionalMetadata = injectTraceparentToMap(otelCtx, runOpts.AdditionalMetadata)
 
 	var v0Opts []v0Client.RunOptFunc
 
@@ -661,8 +686,13 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 	}
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.String("hatchet.workflow_run_id", v0Workflow.RunId()))
+	span.SetStatus(codes.Ok, "")
 
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }

@@ -22,9 +22,9 @@ export function TaskRunTrace({ taskExternalId }: { taskExternalId: string }) {
       return [];
     }
 
-    const otlpSpans = convertOtelSpans(rows);
+    const otlpSpans = convertOtelSpans(rows, taskExternalId);
     return openTelemetrySpanAdapter.convertRawSpansToSpanTree(otlpSpans);
-  }, [tracesQuery.data]);
+  }, [tracesQuery.data, taskExternalId]);
 
   const allIds = useMemo(
     () => flattenSpans(traceSpans).map((s) => s.id),

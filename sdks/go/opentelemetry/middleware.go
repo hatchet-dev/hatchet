@@ -11,7 +11,7 @@ import (
 // NewMiddleware creates a Hatchet middleware that wraps each step run execution
 // with an OpenTelemetry span. It:
 //   - Extracts W3C traceparent from AdditionalMetadata for distributed trace propagation
-//   - Creates a "hatchet.start_step_run" span with hatchet.* attributes
+//   - Creates a "hatchet task run" span with hatchet.* attributes
 //   - Stores attributes in context so HatchetAttributeSpanProcessor can inject
 //     them into all child spans
 //
@@ -38,7 +38,7 @@ func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc {
 		parentCtx = withHatchetAttributes(parentCtx, attrs)
 
 		// Start span
-		spanCtx, span := tracer.Start(parentCtx, "hatchet.start_step_run",
+		spanCtx, span := tracer.Start(parentCtx, "hatchet task run",
 			trace.WithSpanKind(trace.SpanKindConsumer),
 			trace.WithAttributes(attrs...),
 		)
@@ -52,6 +52,8 @@ func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc {
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
+		} else {
+			span.SetStatus(codes.Ok, "")
 		}
 
 		return err

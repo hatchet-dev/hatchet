@@ -7,6 +7,10 @@ import (
 	"fmt"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -615,6 +619,27 @@ func (c *Client) Run(ctx context.Context, workflowName string, input any, opts .
 // RunNoWait executes a workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	// Start OTel span using the underlying context (not the HatchetContext itself)
+	// so that the HatchetContext type assertion still works downstream.
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, fmt.Sprintf("hatchet trigger task %s", workflowName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.String("hatchet.task_name", workflowName)),
+	)
+	defer span.End()
+
+	// Update the HatchetContext's inner context with the OTel span context,
+	// or use the OTel context directly for plain context.Context callers.
+	if hCtx, ok := ctx.(Context); ok {
+		hCtx.SetContext(otelCtx)
+	} else {
+		ctx = otelCtx
+	}
+
 	runOpts := &runOpts{}
 	for _, opt := range opts {
 		opt(runOpts)
@@ -634,7 +659,7 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 	}
 
 	// Inject traceparent for cross-workflow trace propagation
-	additionalMetadata = injectTraceparentToMap(ctx, additionalMetadata)
+	additionalMetadata = injectTraceparentToMap(otelCtx, additionalMetadata)
 
 	var v0Opts []v0Client.RunOptFunc
 	if additionalMetadata != nil {
@@ -660,8 +685,13 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 	}
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.String("hatchet.workflow_run_id", v0Workflow.RunId()))
+	span.SetStatus(codes.Ok, "")
 
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }

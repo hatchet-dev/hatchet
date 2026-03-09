@@ -24,7 +24,7 @@ otel_workflow = hatchet.workflow(name="OTelDataPipeline")
 
 # Module-level tracer — will be set in main() before the worker starts.
 # Tasks use this to create custom child spans inside the auto-instrumented
-# hatchet.start_step_run parent span.
+# hatchet task run parent span.
 _tracer = None
 
 
