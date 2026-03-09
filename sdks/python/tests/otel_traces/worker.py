@@ -20,7 +20,6 @@ from opentelemetry.trace import get_tracer, set_tracer_provider
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
-
 # -- OTel setup ----------------------------------------------------------------
 
 span_exporter = InMemorySpanExporter()

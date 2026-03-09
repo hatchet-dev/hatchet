@@ -75,9 +75,9 @@ async def test_otel_spans_created_on_task_run(
     # Verify hatchet attributes exist
     attrs = step_span["attributes"]
     assert "hatchet.step_run_id" in attrs, f"Missing hatchet.step_run_id in {attrs}"
-    assert "hatchet.workflow_run_id" in attrs, (
-        f"Missing hatchet.workflow_run_id in {attrs}"
-    )
+    assert (
+        "hatchet.workflow_run_id" in attrs
+    ), f"Missing hatchet.workflow_run_id in {attrs}"
     assert "hatchet.tenant_id" in attrs, f"Missing hatchet.tenant_id in {attrs}"
 
     # Verify span kind is CONSUMER (value=4 in OTel Python SDK)
@@ -93,23 +93,23 @@ async def test_otel_spans_created_on_task_run(
     child_span = child_spans[-1]
 
     # Child span should share the same trace_id as the step run span
-    assert child_span["trace_id"] == step_span["trace_id"], (
-        f"Child trace_id {child_span['trace_id']} != step run trace_id {step_span['trace_id']}"
-    )
+    assert (
+        child_span["trace_id"] == step_span["trace_id"]
+    ), f"Child trace_id {child_span['trace_id']} != step run trace_id {step_span['trace_id']}"
 
     # Child span should have hatchet.* attributes injected by _HatchetAttributeSpanProcessor
     child_attrs = child_span["attributes"]
-    assert "hatchet.step_run_id" in child_attrs, (
-        f"Child span missing hatchet.step_run_id (attribute propagation failed). Attrs: {child_attrs}"
-    )
-    assert child_attrs["hatchet.step_run_id"] == attrs["hatchet.step_run_id"], (
-        "Child span hatchet.step_run_id doesn't match parent"
-    )
+    assert (
+        "hatchet.step_run_id" in child_attrs
+    ), f"Child span missing hatchet.step_run_id (attribute propagation failed). Attrs: {child_attrs}"
+    assert (
+        child_attrs["hatchet.step_run_id"] == attrs["hatchet.step_run_id"]
+    ), "Child span hatchet.step_run_id doesn't match parent"
 
     # Verify the custom attribute is present
-    assert child_attrs.get("test.marker") == "hello", (
-        f"Missing test.marker attribute on child span. Attrs: {child_attrs}"
-    )
+    assert (
+        child_attrs.get("test.marker") == "hello"
+    ), f"Missing test.marker attribute on child span. Attrs: {child_attrs}"
 
 
 @pytest.mark.parametrize("on_demand_worker", ON_DEMAND_WORKER_PARAMS, indirect=True)
@@ -156,18 +156,18 @@ async def test_otel_traces_on_retry(
     # All step run spans should have valid hatchet.* attributes
     for span in step_run_spans:
         attrs = span["attributes"]
-        assert "hatchet.step_run_id" in attrs, (
-            f"Step run span missing hatchet.step_run_id. Attrs: {attrs}"
-        )
-        assert "hatchet.workflow_run_id" in attrs, (
-            f"Step run span missing hatchet.workflow_run_id. Attrs: {attrs}"
-        )
-        assert "hatchet.tenant_id" in attrs, (
-            f"Step run span missing hatchet.tenant_id. Attrs: {attrs}"
-        )
+        assert (
+            "hatchet.step_run_id" in attrs
+        ), f"Step run span missing hatchet.step_run_id. Attrs: {attrs}"
+        assert (
+            "hatchet.workflow_run_id" in attrs
+        ), f"Step run span missing hatchet.workflow_run_id. Attrs: {attrs}"
+        assert (
+            "hatchet.tenant_id" in attrs
+        ), f"Step run span missing hatchet.tenant_id. Attrs: {attrs}"
 
     # Verify retry count differs between attempts
     retry_counts = [s["attributes"].get("hatchet.retry_count") for s in step_run_spans]
-    assert len(set(retry_counts)) >= 2, (
-        f"Expected different retry_count values across attempts, got {retry_counts}"
-    )
+    assert (
+        len(set(retry_counts)) >= 2
+    ), f"Expected different retry_count values across attempts, got {retry_counts}"
