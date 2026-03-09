@@ -57,6 +57,7 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
                 span.set_attribute(key, value)
         super().on_start(span, parent_context)
 
+
 import inspect
 from datetime import datetime
 
