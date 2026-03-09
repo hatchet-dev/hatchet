@@ -20,6 +20,7 @@ class EvictionCause(str, Enum):
 class DurableRunRecord(BaseModel):
     key: ActionKey
     step_run_id: str
+    invocation_count: int
     eviction_policy: EvictionPolicy | None
     registered_at: datetime
 
@@ -47,12 +48,14 @@ class DurableEvictionCache:
         self,
         key: ActionKey,
         step_run_id: str,
+        invocation_count: int,
         now: datetime,
         eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._runs[key] = DurableRunRecord(
             key=key,
             step_run_id=step_run_id,
+            invocation_count=invocation_count,
             eviction_policy=eviction_policy,
             registered_at=now,
         )
@@ -65,6 +68,12 @@ class DurableEvictionCache:
 
     def get_all_waiting(self) -> list[DurableRunRecord]:
         return [r for r in self._runs.values() if r.is_waiting]
+
+    def find_key_by_step_run_id(self, step_run_id: str) -> ActionKey | None:
+        for key, rec in self._runs.items():
+            if rec.step_run_id == step_run_id:
+                return key
+        return None
 
     def mark_waiting(
         self,

@@ -65,9 +65,6 @@ TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.runnables.workflow import (
-        BaseWorkflow,
-    )
 
 
 def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
@@ -626,8 +623,6 @@ class DurableContext(Context):
     # TODO-DURABLE: instrumentor for this
     async def _spawn_children_no_wait(
         self,
-        ## TODO-DURABLE: Remove this param?
-        workflow: BaseWorkflow[TWorkflowInput],
         configs: list[WorkflowRunTriggerConfig],
     ) -> list[tuple[int, int, str]]:
         listener = self._durable_listener

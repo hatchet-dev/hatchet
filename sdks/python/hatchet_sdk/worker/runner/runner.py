@@ -143,7 +143,9 @@ class Runner:
         )
         if has_durable_tasks and self._supports_durable_eviction:
             self.durable_event_listener = DurableEventListener(
-                self.config, admin_client=self.admin_client
+                self.config,
+                admin_client=self.admin_client,
+                on_server_evict=self._server_evict_callback,
             )
         elif has_durable_tasks:
             self.durable_event_listener = PreEvictionDurableEventListener(self.config)
@@ -212,6 +214,15 @@ class Runner:
             self.cancellations[key] = True
         if key in self.tasks:
             self.tasks[key].cancel()
+
+    def _server_evict_callback(
+        self, durable_task_external_id: str, invocation_count: int
+    ) -> None:
+        """Called from DurableEventListener when the server notifies a stale invocation."""
+        if self.durable_eviction_manager is not None:
+            self.durable_eviction_manager.handle_server_eviction(
+                durable_task_external_id, invocation_count
+            )
 
     async def _eviction_request(self, key: ActionKey, rec: DurableRunRecord) -> None:
         """Called from DurableEvictionManager when it needs to request eviction from the server."""
@@ -442,8 +453,15 @@ class Runner:
             del self.threads[key]
 
         if key in self.contexts:
-            if self.contexts[key].exit_flag:
+            ctx = self.contexts[key]
+            if ctx.exit_flag:
                 self.cancellations[key] = True
+            if isinstance(
+                self.durable_event_listener, DurableEventListener
+            ) and isinstance(ctx, DurableContext):
+                self.durable_event_listener.cleanup_task_state(
+                    ctx.step_run_id, ctx.invocation_count
+                )
             del self.contexts[key]
 
         if self.durable_eviction_manager is not None:
@@ -531,6 +549,7 @@ class Runner:
                 self.durable_eviction_manager.register_run(
                     action.key,
                     step_run_id=action.step_run_id,
+                    invocation_count=action.durable_task_invocation_count or 1,
                     eviction_policy=action_func.durable_eviction,
                 )
 

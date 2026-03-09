@@ -733,7 +733,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 input=self._serialize_input(input, target="string"),
                 options=self._create_options_with_combined_additional_meta(options),
             )
-            refs = await durable_ctx._spawn_children_no_wait(self, [config])
+            refs = await durable_ctx._spawn_children_no_wait([config])
             if not refs:
                 raise RuntimeError(
                     "Failed to spawn durable child workflow: no run references returned"
@@ -817,7 +817,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
-            spawned_refs = await durable_ctx._spawn_children_no_wait(self, workflows)
+            spawned_refs = await durable_ctx._spawn_children_no_wait(workflows)
             return await asyncio.gather(
                 *[
                     durable_ctx._aio_result_for_spawned_child(

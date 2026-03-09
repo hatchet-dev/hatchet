@@ -70,9 +70,10 @@ export class DurableEvictionManager {
   registerRun(
     key: ActionKey,
     taskRunExternalId: string,
+    invocationCount: number,
     evictionPolicy: EvictionPolicy | undefined
   ): void {
-    this._cache.registerRun(key, taskRunExternalId, Date.now(), evictionPolicy);
+    this._cache.registerRun(key, taskRunExternalId, invocationCount, Date.now(), evictionPolicy);
   }
 
   unregisterRun(key: ActionKey): void {
@@ -85,6 +86,11 @@ export class DurableEvictionManager {
 
   markActive(key: ActionKey): void {
     this._cache.markActive(key);
+  }
+
+  private _evictRun(key: ActionKey): void {
+    this._cancelLocal(key);
+    this.unregisterRun(key);
   }
 
   private async _tickSafe(): Promise<void> {
@@ -123,9 +129,21 @@ export class DurableEvictionManager {
       );
 
       await this._requestEvictionWithAck(key, rec);
-      this._cancelLocal(key);
-      this.unregisterRun(key);
+      this._evictRun(key);
     }
+  }
+
+  handleServerEviction(taskRunExternalId: string, invocationCount: number): void {
+    const key = this._cache.findKeyByTaskRunExternalId(taskRunExternalId);
+    if (!key) return;
+
+    const rec = this._cache.get(key);
+    if (rec && rec.invocationCount !== invocationCount) return;
+
+    this._logger.info(
+      `DurableEvictionManager: server-initiated eviction for task_run_external_id=${taskRunExternalId} invocation_count=${invocationCount}`
+    );
+    this._evictRun(key);
   }
 
   async evictAllWaiting(): Promise<number> {
@@ -154,8 +172,7 @@ export class DurableEvictionManager {
         continue;
       }
 
-      this._cancelLocal(rec.key);
-      this.unregisterRun(rec.key);
+      this._evictRun(rec.key);
       evicted++;
     }
 

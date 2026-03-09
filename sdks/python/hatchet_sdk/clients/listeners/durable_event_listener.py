@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Annotated, Literal, cast
@@ -136,7 +136,12 @@ PendingEvictionAck = tuple[TaskExternalId, InvocationCount]
 
 
 class DurableEventListener:
-    def __init__(self, config: ClientConfig, admin_client: AdminClient):
+    def __init__(
+        self,
+        config: ClientConfig,
+        admin_client: AdminClient,
+        on_server_evict: Callable[[str, int], None] | None = None,
+    ):
         self.config = config
         self.token = config.token
         self.admin_client = admin_client
@@ -158,9 +163,11 @@ class DurableEventListener:
             PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
-        # TODO-DURABLE: This is a hack to handle the case where a task is completed before the event listener is connected.
-        # We should probably figure out WHY this is happening and fix it.
-        self._early_completions: dict[
+        # Completions that arrived before wait_for_callback() registered a
+        # future in _pending_callbacks. This happens when the server delivers
+        # an entry_completed between the event ack and the wait_for_callback
+        # call (e.g. an already-satisfied sleep delivered via polling).
+        self._buffered_completions: dict[
             PendingCallback, DurableTaskEventLogEntryResult
         ] = {}
 
@@ -168,6 +175,8 @@ class DurableEventListener:
         self._send_task: asyncio.Task[None] | None = None
         self._running = False
         self._start_lock = asyncio.Lock()
+
+        self._on_server_evict = on_server_evict
 
     @property
     def worker_id(self) -> str | None:
@@ -193,6 +202,7 @@ class DurableEventListener:
         )
 
         await self._register_worker()
+        await self._poll_worker_status()
         logger.info("durable event listener connected")
 
     async def start(self, worker_id: str) -> None:
@@ -251,10 +261,11 @@ class DurableEventListener:
         waiting = [
             DurableTaskAwaitedCompletedEntry(
                 durable_task_external_id=task_ext_id,
+                invocation_count=inv_count,
                 node_id=node_id,
                 branch_id=branch_id,
             )
-            for (task_ext_id, _, branch_id, node_id) in self._pending_callbacks
+            for (task_ext_id, inv_count, branch_id, node_id) in self._pending_callbacks
         ]
 
         request = DurableTaskRequest(
@@ -270,6 +281,11 @@ class DurableEventListener:
             if not future.done():
                 future.set_exception(exc)
         self._pending_event_acks.clear()
+
+        for eviction_future in self._pending_eviction_acks.values():
+            if not eviction_future.done():
+                eviction_future.set_exception(exc)
+        self._pending_eviction_acks.clear()
 
     async def _receive_loop(self) -> None:
         while self._running:
@@ -395,7 +411,7 @@ class DurableEventListener:
                     completed_future.set_result(result)
                 del self._pending_callbacks[completed_key]
             else:
-                self._early_completions[completed_key] = result
+                self._buffered_completions[completed_key] = result
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -406,6 +422,19 @@ class DurableEventListener:
                 future = self._pending_eviction_acks.pop(eviction_key)
                 if not future.done():
                     future.set_result(None)
+        elif response.HasField("server_evict"):
+            evict = response.server_evict
+            logger.info(
+                f"received server eviction notification for task {evict.durable_task_external_id} "
+                f"invocation {evict.invocation_count}: {evict.reason}"
+            )
+            self.cleanup_task_state(
+                evict.durable_task_external_id, evict.invocation_count
+            )
+            if self._on_server_evict is not None:
+                self._on_server_evict(
+                    evict.durable_task_external_id, evict.invocation_count
+                )
         elif response.HasField("error"):
             error = response.error
             exc: Exception
@@ -537,12 +566,13 @@ class DurableEventListener:
     ) -> DurableTaskEventLogEntryResult:
         key = (durable_task_external_id, invocation_count, branch_id, node_id)
 
-        if key in self._early_completions:
-            return self._early_completions.pop(key)
+        if key in self._buffered_completions:
+            return self._buffered_completions.pop(key)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
+            await self._poll_worker_status()
 
         return await self._pending_callbacks[key]
 
@@ -572,11 +602,11 @@ class DurableEventListener:
 
         stale_early_keys = [
             ek
-            for ek in self._early_completions
+            for ek in self._buffered_completions
             if ek[0] == durable_task_external_id and ek[1] <= invocation_count
         ]
         for ek in stale_early_keys:
-            del self._early_completions[ek]
+            del self._buffered_completions[ek]
 
     _EVICTION_ACK_TIMEOUT_S = 30.0
 

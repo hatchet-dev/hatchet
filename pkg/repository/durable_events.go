@@ -155,6 +155,16 @@ func (m *NonDeterminismError) Error() string {
 	return fmt.Sprintf("non-determinism detected for durable event log entry in task %s at node id %d", m.TaskExternalId.String(), m.NodeId)
 }
 
+type StaleInvocationError struct {
+	TaskExternalId          uuid.UUID
+	ExpectedInvocationCount int32
+	ActualInvocationCount   int32
+}
+
+func (e *StaleInvocationError) Error() string {
+	return fmt.Sprintf("invocation count mismatch for task %s: server has %d, worker sent %d", e.TaskExternalId.String(), e.ExpectedInvocationCount, e.ActualInvocationCount)
+}
+
 type GetOrCreateLogEntryOpt struct {
 	Kind            sqlcv1.V1DurableEventLogKind
 	IdempotencyKey  []byte
@@ -653,8 +663,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	if logFile.LatestInvocationCount != opts.InvocationCount {
-		// TODO-DURABLE: should evict this invocation if this happens
-		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d, rejecting event write", logFile.LatestInvocationCount, opts.InvocationCount)
+		return nil, &StaleInvocationError{
+			TaskExternalId:          opts.Task.ExternalID,
+			ExpectedInvocationCount: logFile.LatestInvocationCount,
+			ActualInvocationCount:   opts.InvocationCount,
+		}
 	}
 
 	baseNodeId := logFile.LatestNodeID + 1

@@ -3,12 +3,38 @@
 package repository
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestStaleInvocationError_ImplementsError(t *testing.T) {
+	id := uuid.New()
+	err := &StaleInvocationError{
+		TaskExternalId:          id,
+		ExpectedInvocationCount: 3,
+		ActualInvocationCount:   1,
+	}
+
+	var target *StaleInvocationError
+	assert.True(t, errors.As(err, &target))
+	assert.Equal(t, id, target.TaskExternalId)
+	assert.Equal(t, int32(3), target.ExpectedInvocationCount)
+	assert.Equal(t, int32(1), target.ActualInvocationCount)
+	assert.Contains(t, err.Error(), id.String())
+	assert.Contains(t, err.Error(), "server has 3")
+	assert.Contains(t, err.Error(), "worker sent 1")
+}
+
+func TestStaleInvocationError_NotMatchedByOtherErrors(t *testing.T) {
+	err := errors.New("some other error")
+	var target *StaleInvocationError
+	assert.False(t, errors.As(err, &target))
+}
 
 func TestResolveBranchForNode_NoBranchPoints(t *testing.T) {
 	// Single branch, no forks. All nodes resolve to branch 1.

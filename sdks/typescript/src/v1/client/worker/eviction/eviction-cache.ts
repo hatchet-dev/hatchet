@@ -1,7 +1,8 @@
-import { durationToMs } from '../../duration';
+import { ActionKey } from '@hatchet/clients/dispatcher/action-listener';
 import { EvictionPolicy } from './eviction-policy';
+import { durationToMs } from '../../duration';
 
-export type ActionKey = string;
+export type { ActionKey };
 
 export enum EvictionCause {
   TTL_EXCEEDED = 'ttl_exceeded',
@@ -12,6 +13,7 @@ export enum EvictionCause {
 export interface DurableRunRecord {
   key: ActionKey;
   taskRunExternalId: string;
+  invocationCount: number;
   evictionPolicy: EvictionPolicy | undefined;
   registeredAt: number;
 
@@ -32,12 +34,14 @@ export class DurableEvictionCache {
   registerRun(
     key: ActionKey,
     taskRunExternalId: string,
+    invocationCount: number,
     now: number,
     evictionPolicy: EvictionPolicy | undefined
   ): void {
     this._runs.set(key, {
       key,
       taskRunExternalId,
+      invocationCount,
       evictionPolicy,
       registeredAt: now,
       waitingSince: undefined,
@@ -58,6 +62,13 @@ export class DurableEvictionCache {
 
   getAllWaiting(): DurableRunRecord[] {
     return [...this._runs.values()].filter((r) => r._waitCount > 0);
+  }
+
+  findKeyByTaskRunExternalId(taskRunExternalId: string): ActionKey | undefined {
+    for (const [key, rec] of this._runs) {
+      if (rec.taskRunExternalId === taskRunExternalId) return key;
+    }
+    return undefined;
   }
 
   markWaiting(key: ActionKey, now: number, waitKind: string, resourceId: string): void {
