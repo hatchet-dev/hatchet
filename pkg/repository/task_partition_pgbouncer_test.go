@@ -137,8 +137,8 @@ func setupPostgresWithPgBouncer(t *testing.T) (directPool *pgxpool.Pool, pgbounc
 	cleanup = func() {
 		pgbouncerPool.Close()
 		directPool.Close()
-		pgBouncerContainer.Terminate(ctx)  // nolint: errcheck
-		postgresContainer.Terminate(ctx)   // nolint: errcheck
+		pgBouncerContainer.Terminate(ctx) // nolint: errcheck
+		postgresContainer.Terminate(ctx)  // nolint: errcheck
 		if originalDatabaseURL != "" {
 			os.Setenv("DATABASE_URL", originalDatabaseURL)
 		} else {
