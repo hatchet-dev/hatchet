@@ -198,7 +198,7 @@ const createManagedWorkerSchema = z.object({
       }),
     ),
   }),
-  isIac: z.boolean().default(false),
+
   secrets: z.object({
     add: z.array(
       z.object({
@@ -354,7 +354,7 @@ export default function CreateWorkerForm({
   }, [can, autoscalingMaxReplicas]);
 
   const [secrets, setSecrets] = useState<KeyValueType[]>([]);
-  const [isIac, setIsIac] = useState(false);
+
   const [scalingType, setScalingType] = useState<ScalingType>('Static');
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
@@ -668,451 +668,422 @@ export default function CreateWorkerForm({
             {secretsError && (
               <div className="text-sm text-red-500">{secretsError}</div>
             )}
-            <Label>Machine Configuration Method</Label>
-            <Tabs
-              defaultValue="activity"
-              value={isIac ? 'iac' : 'ui'}
-              onValueChange={(value) => {
-                setIsIac(value === 'iac');
-                setValue('isIac', value === 'iac');
-              }}
-            >
-              <TabsList layout="underlined">
-                <TabsTrigger variant="underlined" value="ui">
-                  UI
-                </TabsTrigger>
-                <TabsTrigger variant="underlined" value="iac">
-                  Infra-As-Code
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="iac" className="grid gap-4 pt-4">
-                <a
-                  href="https://docs.hatchet.run/compute/cpu"
-                  className="underline"
-                >
-                  Learn how to configure infra-as-code.
-                </a>
-              </TabsContent>
-              <TabsContent value="ui" className="grid gap-4 pt-4">
-                <Label htmlFor="region">Region</Label>
-                <Select
-                  value={region?.toString()}
-                  onValueChange={(value) => {
-                    const region = regions.find((i) => i.value === value);
-                    if (!region) {
-                      return;
-                    }
-                    setValue('runtimeConfig.regions', [region.value]);
-                  }}
-                >
-                  <SelectTrigger className="w-fit">
-                    <SelectValue id="region" placeholder="Choose region" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {regions.map((i) => (
-                      <SelectItem key={i.value} value={i.value}>
-                        {i.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Label htmlFor="machineType">Machine type</Label>
-                <Controller
-                  control={control}
-                  name="runtimeConfig.cpuKind"
-                  render={({ field }) => {
-                    return (
-                      <Select
-                        {...field}
-                        value={machineType}
-                        onValueChange={(value) => {
-                          const machineType = machineTypes.find(
-                            (i) => i.title === value,
-                          );
-                          setMachineType(value);
-                          setValue(
-                            'runtimeConfig.cpus',
-                            machineType?.cpus || 1,
-                          );
-                          setValue(
-                            'runtimeConfig.memoryMb',
-                            machineType?.memoryMb || 1024,
-                          );
-                          setValue(
-                            'runtimeConfig.cpuKind',
-                            machineType?.cpuKind || 'shared',
-                          );
-                        }}
-                      >
-                        <SelectTrigger className="w-fit">
-                          <SelectValue
-                            id="machineType"
-                            placeholder="Choose type"
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {machineTypes.map(renderMachineTypeSelectItem)}
-                        </SelectContent>
-                      </Select>
-                    );
-                  }}
-                />
-                {!isComputeAllowed && (
-                  <UpgradeMessage
-                    feature={`The selected machine type (${machineType})`}
-                  />
-                )}
-                {cpuKindError && (
-                  <div className="text-sm text-red-500 dark:text-red-400">
-                    {cpuKindError}
-                  </div>
-                )}
-                {cpusError && (
-                  <div className="text-sm text-red-500 dark:text-red-400">
-                    {cpusError}
-                  </div>
-                )}
-                {memoryMbError && (
-                  <div className="text-sm text-red-500 dark:text-red-400">
-                    {memoryMbError}
-                  </div>
-                )}
-                <Label>Scaling Method</Label>
-                <Tabs
-                  defaultValue="Static"
-                  value={scalingType}
-                  onValueChange={(value) => {
-                    if (value === 'Static') {
-                      setScalingType('Static');
-                      setValue('runtimeConfig.numReplicas', 1);
-                      setValue('runtimeConfig.autoscaling', undefined);
-                      return;
-                    } else {
-                      setScalingType('Autoscaling');
-                      setValue('runtimeConfig.numReplicas', undefined);
-                      setValue('runtimeConfig.autoscaling', {
-                        waitDuration: '1m',
-                        rollingWindowDuration: '2m',
-                        utilizationScaleUpThreshold: 0.75,
-                        utilizationScaleDownThreshold: 0.25,
-                        increment: 1,
-                        scaleToZero: true,
-                        minAwakeReplicas: 1,
-                        maxReplicas: Math.min(10, getMaxReplicas),
-                        fly: {
-                          autoscalingKey: 'dashboard',
-                          currentReplicas: 1,
-                        },
-                      });
-                    }
-                  }}
-                >
-                  <TabsList layout="underlined">
-                    {scalingTypes.map((type) => (
-                      <TabsTrigger variant="underlined" value={type} key={type}>
-                        {type}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  <TabsContent value="Static" className="grid gap-4 pt-4">
-                    <Label htmlFor="numReplicas">
-                      Number of replicas (max: {getMaxReplicas})
-                    </Label>
-                    <Controller
-                      control={control}
-                      name="runtimeConfig.numReplicas"
-                      render={({ field }) => {
-                        return (
-                          <Input
-                            {...field}
-                            type="number"
-                            onChange={(e) => {
-                              if (e.target.value === '') {
-                                field.onChange(e.target.value);
-                                return;
-                              }
-                              field.onChange(parseInt(e.target.value));
-                            }}
-                            min={0}
-                            id="numReplicas"
-                            placeholder="1"
-                          />
+            <div className="grid gap-4 pt-4">
+              <Label htmlFor="region">Region</Label>
+              <Select
+                value={region?.toString()}
+                onValueChange={(value) => {
+                  const region = regions.find((i) => i.value === value);
+                  if (!region) {
+                    return;
+                  }
+                  setValue('runtimeConfig.regions', [region.value]);
+                }}
+              >
+                <SelectTrigger className="w-fit">
+                  <SelectValue id="region" placeholder="Choose region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {regions.map((i) => (
+                    <SelectItem key={i.value} value={i.value}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Label htmlFor="machineType">Machine type</Label>
+              <Controller
+                control={control}
+                name="runtimeConfig.cpuKind"
+                render={({ field }) => {
+                  return (
+                    <Select
+                      {...field}
+                      value={machineType}
+                      onValueChange={(value) => {
+                        const machineType = machineTypes.find(
+                          (i) => i.title === value,
+                        );
+                        setMachineType(value);
+                        setValue('runtimeConfig.cpus', machineType?.cpus || 1);
+                        setValue(
+                          'runtimeConfig.memoryMb',
+                          machineType?.memoryMb || 1024,
+                        );
+                        setValue(
+                          'runtimeConfig.cpuKind',
+                          machineType?.cpuKind || 'shared',
                         );
                       }}
+                    >
+                      <SelectTrigger className="w-fit">
+                        <SelectValue
+                          id="machineType"
+                          placeholder="Choose type"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {machineTypes.map(renderMachineTypeSelectItem)}
+                      </SelectContent>
+                    </Select>
+                  );
+                }}
+              />
+              {!isComputeAllowed && (
+                <UpgradeMessage
+                  feature={`The selected machine type (${machineType})`}
+                />
+              )}
+              {cpuKindError && (
+                <div className="text-sm text-red-500 dark:text-red-400">
+                  {cpuKindError}
+                </div>
+              )}
+              {cpusError && (
+                <div className="text-sm text-red-500 dark:text-red-400">
+                  {cpusError}
+                </div>
+              )}
+              {memoryMbError && (
+                <div className="text-sm text-red-500 dark:text-red-400">
+                  {memoryMbError}
+                </div>
+              )}
+              <Label>Scaling Method</Label>
+              <Tabs
+                defaultValue="Static"
+                value={scalingType}
+                onValueChange={(value) => {
+                  if (value === 'Static') {
+                    setScalingType('Static');
+                    setValue('runtimeConfig.numReplicas', 1);
+                    setValue('runtimeConfig.autoscaling', undefined);
+                    return;
+                  } else {
+                    setScalingType('Autoscaling');
+                    setValue('runtimeConfig.numReplicas', undefined);
+                    setValue('runtimeConfig.autoscaling', {
+                      waitDuration: '1m',
+                      rollingWindowDuration: '2m',
+                      utilizationScaleUpThreshold: 0.75,
+                      utilizationScaleDownThreshold: 0.25,
+                      increment: 1,
+                      scaleToZero: true,
+                      minAwakeReplicas: 1,
+                      maxReplicas: Math.min(10, getMaxReplicas),
+                      fly: {
+                        autoscalingKey: 'dashboard',
+                        currentReplicas: 1,
+                      },
+                    });
+                  }
+                }}
+              >
+                <TabsList layout="underlined">
+                  {scalingTypes.map((type) => (
+                    <TabsTrigger variant="underlined" value={type} key={type}>
+                      {type}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <TabsContent value="Static" className="grid gap-4 pt-4">
+                  <Label htmlFor="numReplicas">
+                    Number of replicas (max: {getMaxReplicas})
+                  </Label>
+                  <Controller
+                    control={control}
+                    name="runtimeConfig.numReplicas"
+                    render={({ field }) => {
+                      return (
+                        <Input
+                          {...field}
+                          type="number"
+                          onChange={(e) => {
+                            if (e.target.value === '') {
+                              field.onChange(e.target.value);
+                              return;
+                            }
+                            field.onChange(parseInt(e.target.value));
+                          }}
+                          min={0}
+                          id="numReplicas"
+                          placeholder="1"
+                        />
+                      );
+                    }}
+                  />
+                  {!isReplicaCountAllowed && (
+                    <UpgradeMessage
+                      feature={`More than ${getMaxReplicas} replicas`}
                     />
-                    {!isReplicaCountAllowed && (
-                      <UpgradeMessage
-                        feature={`More than ${getMaxReplicas} replicas`}
-                      />
-                    )}
-                    {numReplicasError && (
-                      <div className="text-sm text-red-500 dark:text-red-400">
-                        {numReplicasError}
-                      </div>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="Autoscaling" className="grid gap-4 pt-4">
-                    <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
-                    <Controller
-                      control={control}
-                      name="runtimeConfig.autoscaling.minAwakeReplicas"
-                      render={({ field }) => {
-                        return (
-                          <Input
-                            {...field}
-                            id="minAwakeReplicas"
-                            type="number"
-                            onChange={(e) => {
-                              const minValue = parseInt(e.target.value);
-                              field.onChange(minValue);
+                  )}
+                  {numReplicasError && (
+                    <div className="text-sm text-red-500 dark:text-red-400">
+                      {numReplicasError}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="Autoscaling" className="grid gap-4 pt-4">
+                  <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
+                  <Controller
+                    control={control}
+                    name="runtimeConfig.autoscaling.minAwakeReplicas"
+                    render={({ field }) => {
+                      return (
+                        <Input
+                          {...field}
+                          id="minAwakeReplicas"
+                          type="number"
+                          onChange={(e) => {
+                            const minValue = parseInt(e.target.value);
+                            field.onChange(minValue);
 
+                            setValue(
+                              'runtimeConfig.autoscaling.fly.currentReplicas',
+                              minValue,
+                            );
+
+                            // If min replicas is greater than max replicas, update max replicas
+                            const maxReplicas = watch(
+                              'runtimeConfig.autoscaling.maxReplicas',
+                            );
+                            if (maxReplicas < minValue) {
                               setValue(
-                                'runtimeConfig.autoscaling.fly.currentReplicas',
+                                'runtimeConfig.autoscaling.maxReplicas',
                                 minValue,
                               );
+                            }
+                          }}
+                        />
+                      );
+                    }}
+                  />
+                  {autoscalingMinAwakeReplicasError && (
+                    <div className="text-sm text-red-500 dark:text-red-400">
+                      {autoscalingMinAwakeReplicasError}
+                    </div>
+                  )}
+                  <Label htmlFor="maxReplicas">
+                    Max Replicas (max: {getMaxReplicas})
+                  </Label>
+                  <Controller
+                    control={control}
+                    name="runtimeConfig.autoscaling.maxReplicas"
+                    render={({ field }) => {
+                      const minReplicas =
+                        watch('runtimeConfig.autoscaling.minAwakeReplicas') ||
+                        1;
+                      return (
+                        <Input
+                          {...field}
+                          id="maxReplicas"
+                          min={minReplicas}
+                          type="number"
+                          onChange={(e) => {
+                            const maxValue = parseInt(e.target.value);
+                            // Ensure max replicas is never less than min replicas
+                            const validatedMax = Math.max(
+                              maxValue,
+                              minReplicas,
+                            );
+                            field.onChange(validatedMax);
 
-                              // If min replicas is greater than max replicas, update max replicas
-                              const maxReplicas = watch(
-                                'runtimeConfig.autoscaling.maxReplicas',
-                              );
-                              if (maxReplicas < minValue) {
-                                setValue(
-                                  'runtimeConfig.autoscaling.maxReplicas',
-                                  minValue,
-                                );
-                              }
-                            }}
-                          />
-                        );
-                      }}
+                            if (validatedMax !== maxValue) {
+                              // If we had to adjust the value, update the input
+                              e.target.value = validatedMax.toString();
+                            }
+                          }}
+                        />
+                      );
+                    }}
+                  />
+                  {!isAutoscalingMaxReplicasAllowed && (
+                    <UpgradeMessage
+                      feature={`More than ${getMaxReplicas} max replicas`}
                     />
-                    {autoscalingMinAwakeReplicasError && (
-                      <div className="text-sm text-red-500 dark:text-red-400">
-                        {autoscalingMinAwakeReplicasError}
-                      </div>
-                    )}
-                    <Label htmlFor="maxReplicas">
-                      Max Replicas (max: {getMaxReplicas})
-                    </Label>
-                    <Controller
-                      control={control}
-                      name="runtimeConfig.autoscaling.maxReplicas"
-                      render={({ field }) => {
-                        const minReplicas =
-                          watch('runtimeConfig.autoscaling.minAwakeReplicas') ||
-                          1;
-                        return (
-                          <Input
-                            {...field}
-                            id="maxReplicas"
-                            min={minReplicas}
-                            type="number"
-                            onChange={(e) => {
-                              const maxValue = parseInt(e.target.value);
-                              // Ensure max replicas is never less than min replicas
-                              const validatedMax = Math.max(
-                                maxValue,
-                                minReplicas,
-                              );
-                              field.onChange(validatedMax);
-
-                              if (validatedMax !== maxValue) {
-                                // If we had to adjust the value, update the input
-                                e.target.value = validatedMax.toString();
-                              }
-                            }}
-                          />
-                        );
-                      }}
-                    />
-                    {!isAutoscalingMaxReplicasAllowed && (
-                      <UpgradeMessage
-                        feature={`More than ${getMaxReplicas} max replicas`}
-                      />
-                    )}
-                    {autoscalingMaxReplicasError && (
-                      <div className="text-sm text-red-500 dark:text-red-400">
-                        {autoscalingMaxReplicasError}
-                      </div>
-                    )}
-                    <Controller
-                      control={control}
-                      name="runtimeConfig.autoscaling.scaleToZero"
-                      render={({ field }) => {
-                        return (
-                          <div className="flex flex-row items-center gap-4">
-                            <Label htmlFor="scaleToZero">
-                              Scale to zero during periods of inactivity?
-                            </Label>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </div>
-                        );
-                      }}
-                    />
-                    {autoscalingScaleToZeroError && (
-                      <div className="text-sm text-red-500 dark:text-red-400">
-                        {autoscalingScaleToZeroError}
-                      </div>
-                    )}
-                    <Accordion type="single" collapsible>
-                      <AccordionItem value="advanced">
-                        <AccordionTrigger>
-                          Advanced autoscaling settings
-                        </AccordionTrigger>
-                        <AccordionContent className="flex flex-col gap-4">
-                          <Label htmlFor="waitDuration">Wait Duration</Label>
-                          <div className="text-sm text-muted-foreground">
-                            How long to wait between autoscaling events. For
-                            example: 10s (10 seconds), 5m (5 minutes), 1h (1
-                            hour).
-                          </div>
-                          <Controller
-                            control={control}
-                            name="runtimeConfig.autoscaling.waitDuration"
-                            render={({ field }) => {
-                              return (
-                                <Input
-                                  {...field}
-                                  id="waitDuration"
-                                  placeholder="1m"
-                                />
-                              );
-                            }}
-                          />
-                          {autoscalingWaitDurationError && (
-                            <div className="text-sm text-red-500 dark:text-red-400">
-                              {autoscalingWaitDurationError}
-                            </div>
-                          )}
-                          <Label htmlFor="rollingWindowDuration">
-                            Rolling Window Duration
+                  )}
+                  {autoscalingMaxReplicasError && (
+                    <div className="text-sm text-red-500 dark:text-red-400">
+                      {autoscalingMaxReplicasError}
+                    </div>
+                  )}
+                  <Controller
+                    control={control}
+                    name="runtimeConfig.autoscaling.scaleToZero"
+                    render={({ field }) => {
+                      return (
+                        <div className="flex flex-row items-center gap-4">
+                          <Label htmlFor="scaleToZero">
+                            Scale to zero during periods of inactivity?
                           </Label>
-                          <div className="text-sm text-muted-foreground">
-                            The amount of time to look at utilization metrics
-                            for autoscaling. Lower values will lead to faster
-                            scale-up and scale-down. Example: 2m (2 minutes), 5m
-                            (5 minutes), 1h (1 hour).
-                          </div>
-                          <Controller
-                            control={control}
-                            name="runtimeConfig.autoscaling.rollingWindowDuration"
-                            render={({ field }) => {
-                              return (
-                                <Input
-                                  {...field}
-                                  id="rollingWindowDuration"
-                                  placeholder="2m"
-                                />
-                              );
-                            }}
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
                           />
-                          {autoscalingRollingWindowDurationError && (
-                            <div className="text-sm text-red-500 dark:text-red-400">
-                              {autoscalingRollingWindowDurationError}
-                            </div>
-                          )}
-                          <Label htmlFor="utilizationScaleUpThreshold">
-                            Utilization Scale Up Threshold
-                          </Label>
-                          <div className="text-sm text-muted-foreground">
-                            A value between 0 and 1 which represents the
-                            utilization threshold at which to scale up. For
-                            example, 0.75 means that if the utilization is above
-                            75%, scale up.
+                        </div>
+                      );
+                    }}
+                  />
+                  {autoscalingScaleToZeroError && (
+                    <div className="text-sm text-red-500 dark:text-red-400">
+                      {autoscalingScaleToZeroError}
+                    </div>
+                  )}
+                  <Accordion type="single" collapsible>
+                    <AccordionItem value="advanced">
+                      <AccordionTrigger>
+                        Advanced autoscaling settings
+                      </AccordionTrigger>
+                      <AccordionContent className="flex flex-col gap-4">
+                        <Label htmlFor="waitDuration">Wait Duration</Label>
+                        <div className="text-sm text-muted-foreground">
+                          How long to wait between autoscaling events. For
+                          example: 10s (10 seconds), 5m (5 minutes), 1h (1
+                          hour).
+                        </div>
+                        <Controller
+                          control={control}
+                          name="runtimeConfig.autoscaling.waitDuration"
+                          render={({ field }) => {
+                            return (
+                              <Input
+                                {...field}
+                                id="waitDuration"
+                                placeholder="1m"
+                              />
+                            );
+                          }}
+                        />
+                        {autoscalingWaitDurationError && (
+                          <div className="text-sm text-red-500 dark:text-red-400">
+                            {autoscalingWaitDurationError}
                           </div>
-                          <Controller
-                            control={control}
-                            name="runtimeConfig.autoscaling.utilizationScaleUpThreshold"
-                            render={({ field }) => {
-                              return (
-                                <Input
-                                  {...field}
-                                  id="utilizationScaleUpThreshold"
-                                  type="number"
-                                  min={0}
-                                  max={1}
-                                  step={0.01}
-                                  onChange={(e) => {
-                                    field.onChange(parseFloat(e.target.value));
-                                  }}
-                                />
-                              );
-                            }}
-                          />
-                          {autoscalingUtilizationScaleUpThresholdError && (
-                            <div className="text-sm text-red-500 dark:text-red-400">
-                              {autoscalingUtilizationScaleUpThresholdError}
-                            </div>
-                          )}
-                          <Label htmlFor="utilizationScaleDownThreshold">
-                            Utilization Scale Down Threshold
-                          </Label>
-                          <div className="text-sm text-muted-foreground">
-                            A value between 0 and 1 which represents the
-                            utilization threshold at which to scale down. For
-                            example, 0.25 means that if the utilization is below
-                            25%, scale down.
+                        )}
+                        <Label htmlFor="rollingWindowDuration">
+                          Rolling Window Duration
+                        </Label>
+                        <div className="text-sm text-muted-foreground">
+                          The amount of time to look at utilization metrics for
+                          autoscaling. Lower values will lead to faster scale-up
+                          and scale-down. Example: 2m (2 minutes), 5m (5
+                          minutes), 1h (1 hour).
+                        </div>
+                        <Controller
+                          control={control}
+                          name="runtimeConfig.autoscaling.rollingWindowDuration"
+                          render={({ field }) => {
+                            return (
+                              <Input
+                                {...field}
+                                id="rollingWindowDuration"
+                                placeholder="2m"
+                              />
+                            );
+                          }}
+                        />
+                        {autoscalingRollingWindowDurationError && (
+                          <div className="text-sm text-red-500 dark:text-red-400">
+                            {autoscalingRollingWindowDurationError}
                           </div>
-                          <Controller
-                            control={control}
-                            name="runtimeConfig.autoscaling.utilizationScaleDownThreshold"
-                            render={({ field }) => {
-                              return (
-                                <Input
-                                  {...field}
-                                  id="utilizationScaleDownThreshold"
-                                  type="number"
-                                  min={0}
-                                  max={1}
-                                  step={0.01}
-                                  onChange={(e) => {
-                                    field.onChange(parseFloat(e.target.value));
-                                  }}
-                                />
-                              );
-                            }}
-                          />
-                          {autoscalingUtilizationScaleDownThresholdError && (
-                            <div className="text-sm text-red-500 dark:text-red-400">
-                              {autoscalingUtilizationScaleDownThresholdError}
-                            </div>
-                          )}
-                          <Label htmlFor="increment">Scaling Increment</Label>
-                          <div className="text-sm text-muted-foreground">
-                            The number of replicas to scale by when scaling up
-                            or down.
+                        )}
+                        <Label htmlFor="utilizationScaleUpThreshold">
+                          Utilization Scale Up Threshold
+                        </Label>
+                        <div className="text-sm text-muted-foreground">
+                          A value between 0 and 1 which represents the
+                          utilization threshold at which to scale up. For
+                          example, 0.75 means that if the utilization is above
+                          75%, scale up.
+                        </div>
+                        <Controller
+                          control={control}
+                          name="runtimeConfig.autoscaling.utilizationScaleUpThreshold"
+                          render={({ field }) => {
+                            return (
+                              <Input
+                                {...field}
+                                id="utilizationScaleUpThreshold"
+                                type="number"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                onChange={(e) => {
+                                  field.onChange(parseFloat(e.target.value));
+                                }}
+                              />
+                            );
+                          }}
+                        />
+                        {autoscalingUtilizationScaleUpThresholdError && (
+                          <div className="text-sm text-red-500 dark:text-red-400">
+                            {autoscalingUtilizationScaleUpThresholdError}
                           </div>
-                          <Controller
-                            control={control}
-                            name="runtimeConfig.autoscaling.increment"
-                            render={({ field }) => {
-                              return (
-                                <Input
-                                  {...field}
-                                  id="increment"
-                                  type="number"
-                                  onChange={(e) => {
-                                    field.onChange(parseInt(e.target.value));
-                                  }}
-                                />
-                              );
-                            }}
-                          />
-                          {autoscalingIncrementError && (
-                            <div className="text-sm text-red-500 dark:text-red-400">
-                              {autoscalingIncrementError}
-                            </div>
-                          )}
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-            </Tabs>
+                        )}
+                        <Label htmlFor="utilizationScaleDownThreshold">
+                          Utilization Scale Down Threshold
+                        </Label>
+                        <div className="text-sm text-muted-foreground">
+                          A value between 0 and 1 which represents the
+                          utilization threshold at which to scale down. For
+                          example, 0.25 means that if the utilization is below
+                          25%, scale down.
+                        </div>
+                        <Controller
+                          control={control}
+                          name="runtimeConfig.autoscaling.utilizationScaleDownThreshold"
+                          render={({ field }) => {
+                            return (
+                              <Input
+                                {...field}
+                                id="utilizationScaleDownThreshold"
+                                type="number"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                onChange={(e) => {
+                                  field.onChange(parseFloat(e.target.value));
+                                }}
+                              />
+                            );
+                          }}
+                        />
+                        {autoscalingUtilizationScaleDownThresholdError && (
+                          <div className="text-sm text-red-500 dark:text-red-400">
+                            {autoscalingUtilizationScaleDownThresholdError}
+                          </div>
+                        )}
+                        <Label htmlFor="increment">Scaling Increment</Label>
+                        <div className="text-sm text-muted-foreground">
+                          The number of replicas to scale by when scaling up or
+                          down.
+                        </div>
+                        <Controller
+                          control={control}
+                          name="runtimeConfig.autoscaling.increment"
+                          render={({ field }) => {
+                            return (
+                              <Input
+                                {...field}
+                                id="increment"
+                                type="number"
+                                onChange={(e) => {
+                                  field.onChange(parseInt(e.target.value));
+                                }}
+                              />
+                            );
+                          }}
+                        />
+                        {autoscalingIncrementError && (
+                          <div className="text-sm text-red-500 dark:text-red-400">
+                            {autoscalingIncrementError}
+                          </div>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
         </Step>
         <Step title="Name">
