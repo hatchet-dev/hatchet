@@ -39,3 +39,21 @@ export const OTelAttribute = {
 } as const;
 
 export type OTelAttributeType = (typeof OTelAttribute)[keyof typeof OTelAttribute];
+
+type ActionOTelAttributeKey =
+  | 'TENANT_ID'
+  | 'WORKER_ID'
+  | 'WORKFLOW_RUN_ID'
+  | 'STEP_ID'
+  | 'STEP_RUN_ID'
+  | 'RETRY_COUNT'
+  | 'PARENT_WORKFLOW_RUN_ID'
+  | 'CHILD_WORKFLOW_INDEX'
+  | 'CHILD_WORKFLOW_KEY'
+  | 'ACTION_PAYLOAD'
+  | 'WORKFLOW_NAME'
+  | 'ACTION_NAME'
+  | 'WORKFLOW_ID'
+  | 'WORKFLOW_VERSION_ID';
+
+export type ActionOTelAttributeValue = (typeof OTelAttribute)[ActionOTelAttributeKey];

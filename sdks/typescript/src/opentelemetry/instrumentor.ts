@@ -21,7 +21,8 @@ import type {
 } from '@hatchet/clients/event/event-client';
 import type { AdminClient } from '@hatchet/v1/client/admin';
 import type { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
-import { OTelAttribute } from '../util/opentelemetry';
+import { OTelAttribute, type ActionOTelAttributeValue } from '../util/opentelemetry';
+import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
 import { ScheduleClient } from '../v1/client/features/schedules';
@@ -55,6 +56,7 @@ type HatchetInstrumentationConfig = OpenTelemetryConfig & InstrumentationConfig;
 type Carrier = Record<string, string>;
 
 const INSTRUMENTOR_NAME = '@hatchet-dev/typescript-sdk';
+// FIXME: refactor version check to use the new pattern introduced in #2954
 const SUPPORTED_VERSIONS = ['>=1.16.0'];
 
 function extractContext(carrier: Carrier | undefined | null): OtelContext {
@@ -65,23 +67,13 @@ function injectContext(carrier: Carrier): void {
   propagation.inject(context.active(), carrier);
 }
 
-function parseAdditionalMetadata(action: Action): Record<string, any> | undefined {
-  if (!action.additionalMetadata) {
-    return undefined;
-  }
-  try {
-    return JSON.parse(action.additionalMetadata);
-  } catch {
-    return undefined;
-  }
-}
 
 function getActionOtelAttributes(
   action: Action,
   excludedAttributes: string[] = [],
   workerId?: string
 ): Attributes {
-  const attributes: Attributes = {
+  const attributes = {
     [OTelAttribute.TENANT_ID]: action.tenantId,
     [OTelAttribute.WORKER_ID]: workerId,
     [OTelAttribute.WORKFLOW_RUN_ID]: action.workflowRunId,
@@ -96,7 +88,7 @@ function getActionOtelAttributes(
     [OTelAttribute.ACTION_NAME]: action.actionId,
     [OTelAttribute.WORKFLOW_ID]: action.workflowId,
     [OTelAttribute.WORKFLOW_VERSION_ID]: action.workflowVersionId,
-  };
+  } satisfies Record<ActionOTelAttributeValue, Attributes[string] | undefined>;
 
   const filtered: Attributes = {};
   for (const [key, value] of Object.entries(attributes)) {
@@ -528,7 +520,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           this: InternalWorker,
           action: Action
         ): Promise<Error | undefined> {
-          const additionalMetadata = parseAdditionalMetadata(action);
+          const additionalMetadata = action.additionalMetadata
+            ? parseJSON(action.additionalMetadata)
+            : undefined;
           const parentContext = extractContext(additionalMetadata);
           const attributes = getActionOtelAttributes(
             action,
