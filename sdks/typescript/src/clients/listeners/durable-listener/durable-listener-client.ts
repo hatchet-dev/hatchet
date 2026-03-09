@@ -35,6 +35,58 @@ import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error'
 import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
 import sleep from '@hatchet/util/sleep';
 
+class TTLMap<K, V> {
+  private cache = new Map<K, { value: V; expiresAt: number }>();
+  private timer: ReturnType<typeof setInterval>;
+
+  constructor(private ttlMs: number) {
+    this.timer = setInterval(() => this.evict(), ttlMs);
+  }
+
+  set(key: K, value: V): void {
+    this.cache.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+  }
+
+  get(key: K): V | undefined {
+    return this.cache.get(key)?.value;
+  }
+
+  has(key: K): boolean {
+    return this.cache.has(key);
+  }
+
+  delete(key: K): boolean {
+    return this.cache.delete(key);
+  }
+
+  keys(): IterableIterator<K> {
+    return this.cache.keys();
+  }
+
+  pop(key: K): V | undefined {
+    const entry = this.cache.get(key);
+    if (entry) {
+      this.cache.delete(key);
+      return entry.value;
+    }
+    return undefined;
+  }
+
+  destroy(): void {
+    clearInterval(this.timer);
+    this.cache.clear();
+  }
+
+  private evict(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache) {
+      if (entry.expiresAt <= now) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
 const DEFAULT_RECONNECT_INTERVAL = 3000;
 const EVICTION_ACK_TIMEOUT_MS = 30_000;
 const WORKER_STATUS_POLL_INTERVAL_MS = 1000;
@@ -171,7 +223,9 @@ export class DurableListenerClient {
   // in _pendingCallbacks. This happens when the server delivers an
   // entryCompleted between the event ack and the waitForCallback call
   // (e.g. an already-satisfied sleep delivered via polling).
-  private _bufferedCompletions = new Map<PendingCallbackKey, DurableTaskEventLogEntryResult>();
+  private _bufferedCompletions = new TTLMap<PendingCallbackKey, DurableTaskEventLogEntryResult>(
+    10_000
+  );
   private _pendingEvictionAcks = new Map<PendingEvictionAckKey, Deferred<void>>();
 
   private _receiveAbort: AbortController | undefined;
@@ -224,6 +278,7 @@ export class DurableListenerClient {
       this._receiveAbort.abort();
     }
     this._failPendingAcks(new Error('DurableListener stopped'));
+    this._bufferedCompletions.destroy();
   }
 
   private async _connect(): Promise<void> {
