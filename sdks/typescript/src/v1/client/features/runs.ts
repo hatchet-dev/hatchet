@@ -91,7 +91,6 @@ export class RunsClient {
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
 
-    // eslint-disable-next-line no-underscore-dangle
     this.listener = client._listener;
   }
 

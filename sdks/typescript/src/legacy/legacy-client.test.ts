@@ -69,7 +69,6 @@ describe('Client', () => {
             cert_file: 'TLS_CERT_FILE',
             key_file: 'TLS_KEY_FILE',
             ca_file: 'TLS_ROOT_CA_FILE',
-            // @ts-ignore
             server_name: undefined,
           },
         })

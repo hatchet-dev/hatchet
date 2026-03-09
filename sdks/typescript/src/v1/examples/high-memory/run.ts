@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { parent } from './workflow-with-child';
 
 async function main() {

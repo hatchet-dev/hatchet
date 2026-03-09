@@ -3,7 +3,6 @@
  * instead of `slotConfig`. Used when connected to pre-slot-config engines.
  */
 
-/* eslint-disable no-underscore-dangle */
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { HatchetClient } from '@hatchet/v1';
 import { InternalWorker } from '../worker-internal';

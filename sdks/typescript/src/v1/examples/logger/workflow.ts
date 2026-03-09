@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { HatchetClient } from '@hatchet/v1';
 
 export function createLoggingWorkflow(client: HatchetClient) {

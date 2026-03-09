@@ -1,5 +1,5 @@
-import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
-import { WorkerList } from '@hatchet-dev/typescript-sdk/clients/rest/generated/data-contracts';
+import sleep from '@hatchet/util/sleep';
+import { WorkerList } from '@hatchet/clients/rest/generated/data-contracts';
 import { stopWorker } from '../__e2e__/harness';
 import { Worker } from '../../client/worker/worker';
 import { hatchet } from '../hatchet-client';
@@ -51,7 +51,6 @@ describe('runtime-affinity-e2e', () => {
 
     expect(Object.keys(workerLabelToId).sort()).toEqual([...labels].sort());
 
-    // eslint-disable-next-line no-plusplus
     for (let i = 0; i < 20; i++) {
       const targetWorker = labels[i % 2];
       const res = await affinityExampleTask.run(

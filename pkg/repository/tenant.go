@@ -86,6 +86,12 @@ type GetQueueMetricsResponse struct {
 
 type TenantRepository interface {
 	RegisterCreateCallback(callback UnscopedCallback[*sqlcv1.Tenant])
+	RegisterUpdateCallback(callback UnscopedCallback[*sqlcv1.Tenant])
+	RegisterDeleteCallback(callback UnscopedCallback[*sqlcv1.Tenant])
+
+	RegisterCreateMemberCallback(callback UnscopedCallback[*sqlcv1.PopulateTenantMembersRow])
+	RegisterUpdateMemberCallback(callback UnscopedCallback[*sqlcv1.PopulateTenantMembersRow])
+	RegisterDeleteMemberCallback(callback UnscopedCallback[*sqlcv1.PopulateTenantMembersRow])
 
 	// CreateTenant creates a new tenant.
 	CreateTenant(ctx context.Context, opts *CreateTenantOpts) (*sqlcv1.Tenant, error)
@@ -181,6 +187,12 @@ type tenantRepository struct {
 	cache                cache.Cacheable
 	defaultTenantVersion sqlcv1.TenantMajorEngineVersion
 	createCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
+	updateCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
+	deleteCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
+
+	createMemberCallbacks []UnscopedCallback[*sqlcv1.PopulateTenantMembersRow]
+	updateMemberCallbacks []UnscopedCallback[*sqlcv1.PopulateTenantMembersRow]
+	deleteMemberCallbacks []UnscopedCallback[*sqlcv1.PopulateTenantMembersRow]
 }
 
 func newTenantRepository(shared *sharedRepository, cacheDuration time.Duration) TenantRepository {
@@ -197,6 +209,46 @@ func (r *tenantRepository) RegisterCreateCallback(callback UnscopedCallback[*sql
 	}
 
 	r.createCallbacks = append(r.createCallbacks, callback)
+}
+
+func (r *tenantRepository) RegisterUpdateCallback(callback UnscopedCallback[*sqlcv1.Tenant]) {
+	if r.updateCallbacks == nil {
+		r.updateCallbacks = make([]UnscopedCallback[*sqlcv1.Tenant], 0)
+	}
+
+	r.updateCallbacks = append(r.updateCallbacks, callback)
+}
+
+func (r *tenantRepository) RegisterDeleteCallback(callback UnscopedCallback[*sqlcv1.Tenant]) {
+	if r.deleteCallbacks == nil {
+		r.deleteCallbacks = make([]UnscopedCallback[*sqlcv1.Tenant], 0)
+	}
+
+	r.deleteCallbacks = append(r.deleteCallbacks, callback)
+}
+
+func (r *tenantRepository) RegisterCreateMemberCallback(callback UnscopedCallback[*sqlcv1.PopulateTenantMembersRow]) {
+	if r.createMemberCallbacks == nil {
+		r.createMemberCallbacks = make([]UnscopedCallback[*sqlcv1.PopulateTenantMembersRow], 0)
+	}
+
+	r.createMemberCallbacks = append(r.createMemberCallbacks, callback)
+}
+
+func (r *tenantRepository) RegisterUpdateMemberCallback(callback UnscopedCallback[*sqlcv1.PopulateTenantMembersRow]) {
+	if r.updateMemberCallbacks == nil {
+		r.updateMemberCallbacks = make([]UnscopedCallback[*sqlcv1.PopulateTenantMembersRow], 0)
+	}
+
+	r.updateMemberCallbacks = append(r.updateMemberCallbacks, callback)
+}
+
+func (r *tenantRepository) RegisterDeleteMemberCallback(callback UnscopedCallback[*sqlcv1.PopulateTenantMembersRow]) {
+	if r.deleteMemberCallbacks == nil {
+		r.deleteMemberCallbacks = make([]UnscopedCallback[*sqlcv1.PopulateTenantMembersRow], 0)
+	}
+
+	r.deleteMemberCallbacks = append(r.deleteMemberCallbacks, callback)
 }
 
 func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantOpts) (*sqlcv1.Tenant, error) {
@@ -310,11 +362,21 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 		params.Version = *opts.Version
 	}
 
-	return r.queries.UpdateTenant(
+	updated, err := r.queries.UpdateTenant(
 		ctx,
 		r.pool,
 		params,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cb := range r.updateCallbacks {
+		cb.Do(r.l, updated)
+	}
+
+	return updated, nil
 }
 
 func (r *tenantRepository) GetTenantByID(ctx context.Context, id uuid.UUID) (*sqlcv1.Tenant, error) {
@@ -350,7 +412,17 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, createdMember.ID)
+	populated, err := r.populateSingleTenantMember(ctx, createdMember.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cb := range r.createMemberCallbacks {
+		cb.Do(r.l, populated)
+	}
+
+	return populated, nil
 }
 
 func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
@@ -447,7 +519,17 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, updatedMember.ID)
+	populated, err := r.populateSingleTenantMember(ctx, updatedMember.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cb := range r.updateMemberCallbacks {
+		cb.Do(r.l, populated)
+	}
+
+	return populated, nil
 }
 
 func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
@@ -473,11 +555,26 @@ func (r *sharedRepository) populateTenantMembers(ctx context.Context, ids []uuid
 }
 
 func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId uuid.UUID) error {
-	return r.queries.DeleteTenantMember(
-		ctx,
-		r.pool,
-		memberId,
-	)
+	var populated *sqlcv1.PopulateTenantMembersRow
+
+	if len(r.deleteMemberCallbacks) > 0 {
+		var err error
+		populated, err = r.populateSingleTenantMember(ctx, memberId)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := r.queries.DeleteTenantMember(ctx, r.pool, memberId); err != nil {
+		return err
+	}
+
+	for _, cb := range r.deleteMemberCallbacks {
+		cb.Do(r.l, populated)
+	}
+
+	return nil
 }
 
 func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error) {
@@ -789,7 +886,26 @@ func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Cont
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
-	return r.queries.DeleteTenant(ctx, r.pool, id)
+	var tenant *sqlcv1.Tenant
+
+	if len(r.deleteCallbacks) > 0 {
+		var err error
+		tenant, err = r.queries.GetTenantByID(ctx, r.pool, id)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := r.queries.DeleteTenant(ctx, r.pool, id); err != nil {
+		return err
+	}
+
+	for _, cb := range r.deleteCallbacks {
+		cb.Do(r.l, tenant)
+	}
+
+	return nil
 }
 
 func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error) {

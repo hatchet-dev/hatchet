@@ -1,5 +1,3 @@
-/* eslint-disable import/no-duplicates */
-/* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 import { SimpleOutput } from './stub-workflow';
 // > Enqueuing a Workflow (Fire and Forget)

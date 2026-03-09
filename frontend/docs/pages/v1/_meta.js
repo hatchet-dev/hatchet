@@ -111,9 +111,6 @@ export default {
   "advanced-tasks": {
     display: "hidden",
   },
-  runnables: {
-    display: "hidden",
-  },
   "error-handling": {
     display: "hidden",
   },

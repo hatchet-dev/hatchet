@@ -11,7 +11,7 @@ describe('simple-run-modes-e2e', () => {
       const x1 = await task.run({});
       const x2 = await (await task.runNoWait({})).output;
 
-      const x3 = (await task.run([{}]))[0];
+      const [x3] = await task.run([{}]);
       const x4 = await (await task.runNoWait([{}]))[0].output;
 
       // output alias for output

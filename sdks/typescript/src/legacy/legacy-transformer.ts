@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { Workflow } from '@hatchet/legacy/workflow';
 import { V0Context } from '@hatchet/legacy/step';
 import type { CreateStep } from '@hatchet/legacy/step';
@@ -89,7 +88,7 @@ export function transformLegacyWorkflow(workflow: Workflow): WorkflowDeclaration
   for (const step of workflow.steps) {
     const taskOpts = legacyStepToTaskOpts(step, taskMap, workflow.timeout);
     taskMap[step.name] = taskOpts;
-    // eslint-disable-next-line no-underscore-dangle
+
     declaration.definition._tasks.push(taskOpts);
   }
 
@@ -136,9 +135,9 @@ function wrapLegacyStepRun(step: CreateStep<any, any>) {
   return (input: any, ctx: any) => {
     // Access the V1Worker from the ContextWorker's private field.
     // This is intentionally accessing a private field for legacy compatibility.
-    // eslint-disable-next-line no-underscore-dangle
+
     const v1Worker = (ctx.worker as any).worker;
-    // eslint-disable-next-line no-underscore-dangle
+
     const v0ctx = new V0Context(ctx.action, ctx.v1.v0, v1Worker);
     // Share the abort controller so cancellation propagates
     v0ctx.controller = ctx.controller;
@@ -152,7 +151,9 @@ function wrapLegacyStepRun(step: CreateStep<any, any>) {
 function mapLegacyRateLimits(
   limits?: CreateStep<any, any>['rate_limits']
 ): CreateWorkflowTaskOpts<any, any>['rateLimits'] {
-  if (!limits) return undefined;
+  if (!limits) {
+    return undefined;
+  }
   return limits.map((l) => ({
     staticKey: l.staticKey || l.key,
     dynamicKey: l.dynamicKey,

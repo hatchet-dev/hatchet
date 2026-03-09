@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { refreshTimeoutTask, timeoutTask } from './workflow';
 
 async function main() {

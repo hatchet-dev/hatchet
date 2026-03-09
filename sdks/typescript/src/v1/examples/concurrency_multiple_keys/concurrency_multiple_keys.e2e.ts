@@ -46,8 +46,12 @@ function isValidGroup(group: RunMetadata[]): boolean {
     names[task.name] = (names[task.name] || 0) + 1;
   }
 
-  if (Object.values(digits).some((v) => v > DIGIT_MAX_RUNS)) return false;
-  if (Object.values(names).some((v) => v > NAME_MAX_RUNS)) return false;
+  if (Object.values(digits).some((v) => v > DIGIT_MAX_RUNS)) {
+    return false;
+  }
+  if (Object.values(names).some((v) => v > NAME_MAX_RUNS)) {
+    return false;
+  }
 
   return true;
 }
