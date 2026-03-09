@@ -11,7 +11,7 @@ RAG and indexing pipelines share a common shape: ingest documents, split them in
 
 <RAGPipelineDiagram />
 
-You declare the full graph (ingest → chunk → embed → index) and Hatchet executes tasks in order, running independent tasks in parallel automatically. You can add [fanout](/v1/durable-workflows/child-spawning) within the chunking stage to process documents in parallel.
+You declare the full graph (ingest → chunk → embed → index) and Hatchet executes tasks in order, running independent tasks in parallel automatically. You can add [fanout](/v1/child-spawning) within the chunking stage to process documents in parallel.
 
 ## Step-by-step walkthrough
 
@@ -83,7 +83,7 @@ Add a task that ingests documents. A trigger (event, cron, or API call) starts t
 
 ### Chunk the documents
 
-The ingest task (Step 2) fans out to one child per document. Each child splits its document into chunks. Use [child spawning](/v1/durable-workflows/child-spawning) for per-document parallelism.
+The ingest task (Step 2) fans out to one child per document. Each child splits its document into chunks. Use [child spawning](/v1/child-spawning) for per-document parallelism.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -112,7 +112,7 @@ The ingest task (Step 2) fans out to one child per document. Each child splits i
 
 ### Embed and index
 
-Define a standalone `embed-chunk` task, then spawn one [child task](/v1/durable-workflows/child-spawning) per chunk from the DAG's `chunk-and-embed` task. Each child runs on any available worker and is individually retryable, so a single embedding failure does not restart the entire batch. [Rate Limits](/v1/rate-limits) throttle embedding API calls across all workers.
+Define a standalone `embed-chunk` task, then spawn one [child task](/v1/child-spawning) per chunk from the DAG's `chunk-and-embed` task. Each child runs on any available worker and is individually retryable, so a single embedding failure does not restart the entire batch. [Rate Limits](/v1/rate-limits) throttle embedding API calls across all workers.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -222,10 +222,10 @@ For SaaS applications where multiple tenants share the same pipeline:
   <Cards.Card title="DAG Workflows" href="/v1/patterns/directed-acyclic-graphs">
     Declare tasks and dependencies upfront so Hatchet can execute them in order.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
+  <Cards.Card title="Fanout" href="/v1/child-spawning">
     Parallelize document and chunk processing across your worker fleet.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/v1/durable-workflows/child-spawning">
+  <Cards.Card title="Cycles" href="/v1/child-spawning">
     Implement incremental indexing that re-crawls until all changes are
     processed.
   </Cards.Card>
@@ -242,5 +242,5 @@ For SaaS applications where multiple tenants share the same pipeline:
 
 - [DAG Workflows](/v1/patterns/directed-acyclic-graphs): define multi-stage pipelines
 - [Rate Limits](/v1/rate-limits): configure rate limiting for embedding APIs
-- [Child Spawning](/v1/durable-workflows/child-spawning): fan out to per-document tasks
+- [Child Spawning](/v1/child-spawning): fan out to per-document tasks
 - [Concurrency Control](/v1/concurrency): fair scheduling for multi-tenant indexing

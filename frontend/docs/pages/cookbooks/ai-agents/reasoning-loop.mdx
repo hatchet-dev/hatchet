@@ -11,7 +11,7 @@ AI agents follow a **reason-act-observe** loop that can run for minutes or hours
 
 <AgentLoopDiagram />
 
-In Hatchet, this is implemented as a [durable task](/v1/patterns/durable-task-execution) with a loop. At each iteration, the task [spawns a child](/v1/durable-workflows/child-spawning) to call the LLM, execute any tool calls, and determine whether additional iterations are required. Each completed iteration is checkpointed, so the agent survives crashes and worker slots are freed between iterations.
+In Hatchet, this is implemented as a [durable task](/v1/patterns/durable-task-execution) with a loop. At each iteration, the task [spawns a child](/v1/child-spawning) to call the LLM, execute any tool calls, and determine whether additional iterations are required. Each completed iteration is checkpointed, so the agent survives crashes and worker slots are freed between iterations.
 
 ## When to use
 
@@ -190,7 +190,7 @@ Create separate tasks for generation and evaluation. The generator takes a topic
 
 ### Optimization loop
 
-The evaluator-optimizer task loops: generate, evaluate, check score. Each generator and evaluator call is a [spawned child task](/v1/durable-workflows/child-spawning) that is checkpointed on completion.
+The evaluator-optimizer task loops: generate, evaluate, check score. Each generator and evaluator call is a [spawned child task](/v1/child-spawning) that is checkpointed on completion.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -231,24 +231,21 @@ The evaluator-optimizer task loops: generate, evaluate, check score. Each genera
 ## Related Patterns
 
 <Cards>
-  <Cards.Card
-    title="Child Spawning"
-    href="/v1/durable-workflows/child-spawning"
-  >
+  <Cards.Card title="Child Spawning" href="/v1/child-spawning">
     The core loop pattern behind agent reasoning, where a task re-spawns itself
     until a goal is met.
   </Cards.Card>
-  <Cards.Card title="Long Waits" href="/v1/durable-workflows/sleep">
+  <Cards.Card title="Long Waits" href="/v1/sleep">
     Pause agents for human feedback or scheduled retries without holding worker
     slots.
   </Cards.Card>
   <Cards.Card title="Human-in-the-Loop" href="/cookbooks/human-in-the-loop">
     Add approval gates to agent workflows. Pause for human review, then resume.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
+  <Cards.Card title="Fanout" href="/v1/child-spawning">
     Agents that spawn parallel tool calls or sub-agent tasks.
   </Cards.Card>
-  <Cards.Card title="Branching" href="/v1/durable-workflows/conditions">
+  <Cards.Card title="Branching" href="/v1/conditions">
     Route agent behavior based on LLM tool call decisions or user preferences.
   </Cards.Card>
 </Cards>
