@@ -45,6 +45,4 @@ class OTelAttribute(str, Enum):
     ## Durable Context
     SIGNAL_KEY = "signal_key"
     NUM_CONDITIONS = "num_conditions"
-    MEMO_KEY = "memo_key"
     MEMO_FN_NAME = "memo_fn_name"
-    MEMO_CACHED = "memo_cached"
