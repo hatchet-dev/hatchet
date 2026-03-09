@@ -198,6 +198,9 @@ func startEngine() func() {
 	// Switch to PgBouncer for the engine if enabled
 	if pgBouncerEnabled {
 		log.Printf("Switching DATABASE_URL to PgBouncer: %s", pgBouncerConnStr)
+		// Keep a direct connection to postgres for DDL operations that cannot go through pgbouncer
+		os.Setenv("DATABASE_PGBOUNCER_ENABLED", "true")
+		os.Setenv("DATABASE_DIRECT_URL", postgresConnStr)
 		os.Setenv("DATABASE_URL", pgBouncerConnStr)
 	}
 

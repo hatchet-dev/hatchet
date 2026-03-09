@@ -143,29 +143,6 @@ func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Po
 	return conn.Conn(), release, nil
 }
 
-// ExecWithStatementTimeout executes a SQL statement with a custom statement timeout using
-// PostgreSQL's simple query protocol. By combining the SET and the SQL statement into a single
-// protocol message, this ensures they are executed on the same backend connection, which is
-// required for correctness when using pgbouncer in transaction pooling mode.
-func ExecWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int, sql string) error {
-	conn, err := pool.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Reset statement timeout before releasing the connection back to the pool.
-		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := conn.Conn().PgConn().Exec(resetCtx, "SET statement_timeout=30000").Close(); err != nil {
-			l.Error().Err(err).Msg("failed to reset statement timeout on released connection")
-		}
-		conn.Release()
-	}()
-
-	combined := fmt.Sprintf("SET statement_timeout=%d; %s", timeoutMs, sql)
-	return conn.Conn().PgConn().Exec(ctx, combined).Close()
-}
-
 func DeferRollback(ctx context.Context, l *zerolog.Logger, rollback func(context.Context) error) {
 	if err := rollback(ctx); err != nil {
 		if !errors.Is(err, pgx.ErrTxClosed) {

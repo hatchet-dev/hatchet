@@ -363,27 +363,40 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
+	// Use the direct pool (bypasses pgbouncer) for DDL operations because
+	// DETACH PARTITION CONCURRENTLY cannot run inside a transaction block.
+	ddlPool := r.DDLPool()
+
 	for _, partition := range partitions {
 		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
-		// Use simple query protocol to combine SET + DDL in a single protocol message.
-		// This is required for pgbouncer transaction pooling mode where separate statements
-		// outside a transaction may be routed to different backend connections.
-		err = sqlchelpers.ExecWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000, // 30 minutes
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, ddlPool, r.l, 30*60*1000) // 30 minutes
+
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(
+			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
 		if err != nil {
+			release()
 			return err
 		}
 
-		err = sqlchelpers.ExecWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000, // 30 minutes
+		_, err = conn.Exec(
+			ctx,
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
 
 		if err != nil {
+			release()
 			return err
 		}
+
+		release()
 	}
 
 	err = commit(ctx)
