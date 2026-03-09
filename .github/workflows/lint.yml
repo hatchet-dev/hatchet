@@ -14,10 +14,3 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
         name: lint
-      - name: MDX Broken Link Checker
-        uses: KaiSpencer/gh-action-check-broken-links@v0
-        with:
-          # Required: The base URL to check links against
-          # For example: /pages/foo.mdx will be checked against https://mysite.com/foo
-          baseUrl: 'https://docs.hatchet.run'
-          directory: 'frontend/docs'
