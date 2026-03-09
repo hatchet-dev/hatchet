@@ -1,5 +1,6 @@
 import asyncio
 from collections import OrderedDict
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Generic, TypeVar
@@ -29,7 +30,7 @@ class TTLCacheEntry(Generic[V]):
     expires_at: datetime
 
 
-class TTLCache(dict[K, V]):
+class TTLCache(Generic[K, V]):
     def __init__(self, ttl: timedelta) -> None:
         self.ttl = ttl
         self.cache: dict[K, TTLCacheEntry[V]] = {}
@@ -44,12 +45,24 @@ class TTLCache(dict[K, V]):
     def __getitem__(self, key: K) -> V:
         return self.cache[key].value
 
+    def __contains__(self, key: object) -> bool:
+        return key in self.cache
+
+    def __delitem__(self, key: K) -> None:
+        del self.cache[key]
+
+    def __iter__(self) -> Iterator[K]:
+        return iter(self.cache)
+
+    def pop(self, key: K) -> V:
+        return self.cache.pop(key).value
+
     async def _start_eviction_job(self) -> None:
         while True:
-            now = datetime.now(tz=UTC)
-
-            for key, entry in self.cache.items():
-                if entry.expires_at <= now:
-                    del self.cache[key]
-
             await asyncio.sleep(self.ttl.total_seconds())
+
+            now = datetime.now(tz=UTC)
+            expired = [k for k, entry in self.cache.items() if entry.expires_at <= now]
+
+            for key in expired:
+                del self.cache[key]
