@@ -20,13 +20,6 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		return gen.TenantMemberUpdate400JSONResponse(*apiErrors), nil
 	}
 
-	// Check if the user has permission to update roles
-	if tenantMember.Role == sqlcv1.TenantMemberRoleMEMBER {
-		return gen.TenantMemberUpdate403JSONResponse(
-			apierrors.NewAPIErrors("Only admins and owners can update member roles"),
-		), nil
-	}
-
 	// if user is not an owner, they cannot change a role to owner or change owner roles
 	if tenantMember.Role != sqlcv1.TenantMemberRoleOWNER {
 		if request.Body.Role == gen.OWNER {
