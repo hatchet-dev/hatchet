@@ -94,3 +94,13 @@ jobs:
       - name: Build
         working-directory: frontend/docs
         run: npm run build
+      - name: MDX Broken Link Checker
+        uses: KaiSpencer/gh-action-check-broken-links@v0
+        with:
+          # Required: The base URL to check links against
+          # For example: /pages/foo.mdx will be checked against https://mysite.com/foo
+          baseUrl: 'https://docs.hatchet.run'
+          directory: 'frontend/docs/pages'
+          whitelist: |
+            https://github.com/
+            https://platform.openai.com/
