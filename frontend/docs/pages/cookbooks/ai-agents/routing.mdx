@@ -22,12 +22,12 @@ flowchart TD
 
 ## When to use
 
-| Scenario                                               | Fit                                                                        |
-| ------------------------------------------------------ | -------------------------------------------------------------------------- |
-| Customer service (support vs. sales vs. billing)       | Good: distinct domains with different prompts and tools                    |
-| Document processing (invoice vs. receipt vs. contract) | Good: each type needs different extraction logic                           |
-| Request triage (simple auto-reply vs. complex agent)   | Good: avoid expensive agent loops for easy questions                       |
-| All requests follow the same path                      | Skip: no benefit from routing                                              |
+| Scenario                                               | Fit                                                      |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| Customer service (support vs. sales vs. billing)       | Good: distinct domains with different prompts and tools  |
+| Document processing (invoice vs. receipt vs. contract) | Good: each type needs different extraction logic         |
+| Request triage (simple auto-reply vs. complex agent)   | Good: avoid expensive agent loops for easy questions     |
+| All requests follow the same path                      | Skip: no benefit from routing                            |
 | Routing rules are simple and known at definition time  | Use [Parent Conditions](/v1/conditions) in a DAG instead |
 
 ## How it maps to Hatchet
