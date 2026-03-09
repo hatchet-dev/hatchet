@@ -315,7 +315,10 @@ export const TaskRunDetail = ({
             </TabsContent>
             {isCloudEnabled && (
               <TabsContent value={TabOption.Trace}>
-                <TaskRunTrace taskExternalId={taskRun.metadata.id} />
+                <TaskRunTrace
+                  taskExternalId={taskRun.metadata.id}
+                  isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+                />
               </TabsContent>
             )}
             <TabsContent value={TabOption.AdditionalMetadata}>

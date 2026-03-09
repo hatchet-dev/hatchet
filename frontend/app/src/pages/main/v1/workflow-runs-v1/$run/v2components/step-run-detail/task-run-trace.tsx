@@ -7,13 +7,20 @@ import { flattenSpans } from '@evilmartians/agent-prism-data';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
-export function TaskRunTrace({ taskExternalId }: { taskExternalId: string }) {
+export function TaskRunTrace({
+  taskExternalId,
+  isRunning,
+}: {
+  taskExternalId: string;
+  isRunning: boolean;
+}) {
   const tracesQuery = useQuery({
     queryKey: ['cloud:traces', taskExternalId],
     queryFn: async () => {
       const res = await cloudApi.otelTracesList(taskExternalId);
       return res.data;
     },
+    refetchInterval: isRunning ? 100 : false,
   });
 
   const traceSpans = useMemo(() => {
