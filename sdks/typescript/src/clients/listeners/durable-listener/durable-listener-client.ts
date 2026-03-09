@@ -1,4 +1,4 @@
-import { EventEmitter, on, getMaxListeners, setMaxListeners } from 'events';
+import { EventEmitter, on } from 'events';
 import { Channel, ClientFactory } from 'nice-grpc';
 import { isAbortError } from 'abort-controller-x';
 import { getErrorMessage } from '@hatchet/util/errors/hatchet-error';
@@ -32,7 +32,7 @@ import {
 } from '@hatchet/protoc/v1/shared/condition';
 import { TriggerWorkflowRequest } from '@hatchet/protoc/v1/shared/trigger';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
-import { createAbortError } from '@hatchet/util/abort-error';
+import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
 import sleep from '@hatchet/util/sleep';
 
 const DEFAULT_RECONNECT_INTERVAL = 3000;
@@ -583,12 +583,7 @@ export class DurableListenerClient {
         reject(createAbortError('Operation cancelled by AbortSignal'));
       };
 
-      // TODO-DURABLE: this will likely be an issue, we're doing this one other place too
-      const max = getMaxListeners(signal);
-      if (max !== 0 && max < 50) {
-        setMaxListeners(50, signal);
-      }
-      signal.addEventListener('abort', onAbort, { once: true });
+      bindAbortSignalHandler(signal, onAbort);
 
       d.promise.then(
         (value) => {
@@ -774,11 +769,7 @@ export class LegacyDurableEventStreamable {
 
       this.responseEmitter.once('response', onResponse);
       if (signal) {
-        const max = getMaxListeners(signal);
-        if (max !== 0 && max < 50) {
-          setMaxListeners(50, signal);
-        }
-        signal.addEventListener('abort', onAbort, { once: true });
+        bindAbortSignalHandler(signal, onAbort);
       }
     });
   }
