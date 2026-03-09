@@ -37,7 +37,8 @@ type ConfigFile struct {
 	// DirectDatabaseURL is a connection string that bypasses pgbouncer and connects directly
 	// to PostgreSQL. This is used for DDL operations like DETACH PARTITION CONCURRENTLY that
 	// cannot run inside a transaction block. Required when PgBouncerEnabled is true.
-	DirectDatabaseURL string `mapstructure:"directDatabaseUrl" json:"directDatabaseUrl,omitempty" default:""`
+	DirectDatabaseURL      string `mapstructure:"directDatabaseUrl" json:"directDatabaseUrl,omitempty" default:""`
+	DirectDatabaseMaxConns int    `mapstructure:"directDatabaseMaxConns" json:"directDatabaseMaxConns,omitempty" default:"2"`
 
 	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
 	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
@@ -104,6 +105,7 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("pgbouncerEnabled", "DATABASE_PGBOUNCER_ENABLED")
 	_ = v.BindEnv("directDatabaseUrl", "DATABASE_DIRECT_URL")
+	_ = v.BindEnv("directDatabaseMaxConns", "DATABASE_DIRECT_MAX_CONNS")
 
 	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
 	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")

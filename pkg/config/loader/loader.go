@@ -278,7 +278,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return nil, fmt.Errorf("could not parse direct database url: %w", err)
 		}
 
-		directConfig.MaxConns = 2
+		directConfig.MaxConns = int32(cf.DirectDatabaseMaxConns) // nolint: gosec
 		directConfig.MinConns = 0
 		directConfig.MaxConnLifetime = cf.MaxConnLifetime
 		directConfig.MaxConnIdleTime = cf.MaxConnIdleTime
