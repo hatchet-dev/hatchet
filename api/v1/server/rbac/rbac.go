@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"go.yaml.in/yaml/v4"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 
