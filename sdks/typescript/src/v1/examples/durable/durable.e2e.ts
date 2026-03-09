@@ -195,7 +195,6 @@ describe('durable-e2e', () => {
       const runId = await ref.getWorkflowRunId();
       const taskExternalId = await hatchet.runs.getTaskExternalId(runId);
       await hatchet.runs.branchDurableTask(taskExternalId, nodeId);
-      // TODO-DURABLE: race condition here, we should wait for the task to be reset
       await sleep('1s');
 
       const resetStart = Date.now();

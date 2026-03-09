@@ -2185,8 +2185,6 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
 
-		// TODO-DURABLE: Add `is_durable` to the `v1_task` and wire up the writes from the step into there
-		// then, on the dispatcher check if the task is durable, and if it is then lock and increment its invocation count on send
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
 			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])

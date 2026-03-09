@@ -268,7 +268,7 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
-	// TODO-DURABLE: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
+	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
 	dataToHash := []byte(kind)
 
 	if triggerOpts != nil {
@@ -964,7 +964,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			}
 		}
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
-		// TODO-DURABLE: Figure out what to do here if we read more than one row out of the db
+		if len(logEntries) != 1 {
+			// note: we implicitly assume that there will only be one log entry for wait for conditions
+			// if we get more than one, it's an indication something is wrong
+			return nil, fmt.Errorf("expected to get exactly one log entry for wait for condition, but got %d", len(logEntries))
+		}
 		le := logEntries[0]
 
 		if !le.AlreadyExisted {
@@ -981,7 +985,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			AlreadyExisted:  le.AlreadyExisted,
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
-		// TODO-DURABLE: Figure out what to do here if we read more than one row out of the db
+		if len(logEntries) != 1 {
+			// note: we implicitly assume that there will only be one log entry for memo
+			// if we get more than one, it's an indication something is wrong
+			return nil, fmt.Errorf("expected to get exactly one log entry for memo, but got %d", len(logEntries))
+		}
+
 		le := logEntries[0]
 
 		memoResult = &IngestMemoResult{

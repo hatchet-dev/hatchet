@@ -548,7 +548,8 @@ class DurableContext(Context):
 
         return index
 
-    # TODO-DURABLE: instrumentor for this
+    ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_wait_for.
+    ## Keep the signature in sync with the instrumentor wrapper.
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -620,7 +621,8 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
-    # TODO-DURABLE: instrumentor for this
+    ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
+    ## Keep the signature in sync with the instrumentor wrapper.
     async def _spawn_children_no_wait(
         self,
         configs: list[WorkflowRunTriggerConfig],
@@ -685,6 +687,8 @@ class DurableContext(Context):
     def invocation_count(self) -> int:
         return self.action.durable_task_invocation_count or 1
 
+    ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
+    ## Keep the signature in sync with the instrumentor wrapper.
     async def aio_memo(
         self,
         fn: Callable[PMemo, Awaitable[TMemo]],
