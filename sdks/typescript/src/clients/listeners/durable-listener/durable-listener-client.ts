@@ -51,6 +51,10 @@ class TTLMap<K, V> {
     return this.cache.get(key)?.value;
   }
 
+  get size(): number {
+    return this.cache.size;
+  }
+
   has(key: K): boolean {
     return this.cache.has(key);
   }
