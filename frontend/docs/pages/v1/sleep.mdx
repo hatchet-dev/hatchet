@@ -20,9 +20,8 @@ Both durable tasks and DAGs support sleeping, but the API differs: durable tasks
 Durable sleep pauses execution for a specified amount of time and frees the worker slot until the sleep expires.
 
 <Callout type="info">
-  Sleeping puts the task into an [evictable
-  state](/v1/durable-workflows/task-eviction), the worker slot is freed and the
-  task is re-queued when the sleep expires.
+  Sleeping puts the task into an [evictable state](/v1/task-eviction), the
+  worker slot is freed and the task is re-queued when the sleep expires.
 </Callout>
 
 Unlike a language-level sleep (e.g. `time.sleep` in Python or `setTimeout` in Node), durable sleep is guaranteed to respect the original duration across interruptions. A language-level sleep ties the wait to the local process, so if the process restarts, the sleep starts over from zero.

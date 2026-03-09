@@ -30,7 +30,7 @@ A durable task is a single long-running function that acts as an **orchestrator*
 
 ## How It Works
 
-A durable task builds the workflow at runtime through **child spawning**. The task function runs, inspects data, and decides what to do next by spawning child tasks. The parent is [evicted](/v1/durable-workflows/task-eviction) while children execute, freeing its worker slot. When children complete, the parent resumes from its checkpoint and continues.
+A durable task builds the workflow at runtime through **child spawning**. The task function runs, inspects data, and decides what to do next by spawning child tasks. The parent is [evicted](/v1/task-eviction) while children execute, freeing its worker slot. When children complete, the parent resumes from its checkpoint and continues.
 
 ```mermaid
 sequenceDiagram
@@ -59,7 +59,7 @@ Each call to `SleepFor`, `WaitForEvent`, `WaitFor`, `Memo`, or `RunChild` create
 
 ### Worker slot is freed during waits
 
-When a durable task enters a wait (sleep, event, or child result), Hatchet [evicts](/v1/durable-workflows/task-eviction) it from the worker. The slot is immediately available for other tasks.
+When a durable task enters a wait (sleep, event, or child result), Hatchet [evicts](/v1/task-eviction) it from the worker. The slot is immediately available for other tasks.
 
 ### Task resumes from checkpoint
 
