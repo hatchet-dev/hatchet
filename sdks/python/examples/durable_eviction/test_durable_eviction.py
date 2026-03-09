@@ -17,6 +17,7 @@ import pytest
 
 from examples.durable_eviction.worker import (
     EVENT_KEY,
+    capacity_evictable_sleep,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
     evictable_sleep,
@@ -379,6 +380,59 @@ async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
         status = await hatchet.runs.aio_get_status(ref.workflow_run_id)
 
     assert status == V1TaskStatus.CANCELLED
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_capacity_eviction_fires(hatchet: Hatchet) -> None:
+    """A task with ttl=None but allow_capacity_eviction=True should be evicted
+    under durable-slot pressure (durable_slots=1)."""
+    command = [
+        "poetry",
+        "run",
+        "python",
+        "-m",
+        "examples.durable_eviction.capacity_worker",
+    ]
+    with hatchet_worker(command, healthcheck_port=8005) as _proc:
+        ref = capacity_evictable_sleep.run_no_wait()
+
+        await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+        details = await _poll_until_status(
+            hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+        )
+        statuses = {t.status for t in details.task_runs.values()}
+
+        assert (
+            V1TaskStatus.EVICTED in statuses
+        ), f"Expected capacity eviction (ttl=None), got: {statuses}"
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_capacity_eviction_restore_completes(hatchet: Hatchet) -> None:
+    """After capacity eviction, restore should let the task resume and complete."""
+    command = [
+        "poetry",
+        "run",
+        "python",
+        "-m",
+        "examples.durable_eviction.capacity_worker",
+    ]
+    with hatchet_worker(command, healthcheck_port=8005) as _proc:
+        ref = capacity_evictable_sleep.run_no_wait()
+
+        await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+        details = await _poll_until_status(
+            hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+        )
+        task_id = _get_task_id(details)
+
+        with hatchet.runs.client() as client:
+            TaskApi(client).v1_task_restore(task=task_id)
+
+        result = await ref.aio_result()
+        assert result["status"] == "completed"
 
 
 @requires_durable_eviction
