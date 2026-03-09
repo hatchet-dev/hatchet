@@ -18,7 +18,7 @@ export const child = hatchet.workflow<ChildInput>({
 export const child1 = child.task({
   name: 'child1',
   fn: async (input: ChildInput, ctx) => {
-    await sleep(10000);
+    await sleep(30 * 1000);
 
     ctx.logger.info('hello from the child1', { hello: 'moon' });
     return {
@@ -50,6 +50,7 @@ export const child3 = child.task({
 
 export const parent = hatchet.task({
   name: 'parent',
+  executionTimeout: '5m',
   fn: async (input: ParentInput, ctx) => {
     const c = await ctx.runChild(child, {
       Message: input.Message,

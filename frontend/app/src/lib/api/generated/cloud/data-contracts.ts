@@ -39,7 +39,6 @@ export enum TemplateOptions {
 }
 
 export enum AutoscalingTargetKind {
-  PORTER = "PORTER",
   FLY = "FLY",
 }
 
@@ -146,7 +145,6 @@ export interface ManagedWorker {
   metadata: APIResourceMeta;
   name: string;
   buildConfig?: ManagedWorkerBuildConfig;
-  isIac: boolean;
   directSecrets: ManagedWorkerSecret[];
   globalSecrets: ManagedWorkerSecret[];
   runtimeConfigs?: ManagedWorkerRuntimeConfig[];
@@ -256,7 +254,6 @@ export interface CreateManagedWorkerRequest {
   name: string;
   buildConfig: CreateManagedWorkerBuildConfigRequest;
   secrets?: CreateManagedWorkerSecretRequest;
-  isIac: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
 
@@ -264,7 +261,6 @@ export interface UpdateManagedWorkerRequest {
   name?: string;
   buildConfig?: CreateManagedWorkerBuildConfigRequest;
   secrets?: UpdateManagedWorkerSecretRequest;
-  isIac?: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
 

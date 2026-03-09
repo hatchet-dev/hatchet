@@ -32,13 +32,13 @@ sequenceDiagram
 
 ## How agents map to Hatchet
 
-| Agent concept       | Hatchet primitive                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Agent               | [Durable task](/v1/patterns/durable-task-execution)                                                                 |
-| Reasoning loop      | [Child spawning](/v1/durable-workflows/child-spawning): task re-spawns itself until done                            |
-| Tool calls          | [Child tasks](/v1/durable-workflows/child-spawning): sequential or [parallel](/v1/durable-workflows/child-spawning) |
-| Human approval gate | [WaitForEvent](/v1/durable-workflows/events): slot freed while waiting                                              |
-| Routing by LLM      | `if`/`else` in code + spawn child to different workflows                                                            |
+| Agent concept       | Hatchet primitive                                                               |
+| ------------------- | ------------------------------------------------------------------------------- |
+| Agent               | [Durable task](/v1/patterns/durable-task-execution)                             |
+| Reasoning loop      | [Child spawning](/v1/child-spawning): task re-spawns itself until done          |
+| Tool calls          | [Child tasks](/v1/child-spawning): sequential or [parallel](/v1/child-spawning) |
+| Human approval gate | [WaitForEvent](/v1/events): slot freed while waiting                            |
+| Routing by LLM      | `if`/`else` in code + spawn child to different workflows                        |
 
 ## Why Hatchet for agents
 
@@ -46,7 +46,7 @@ sequenceDiagram
 
 **Survives crashes.** Every step in an agent's orchestration path is checkpointed. If a worker dies, the agent resumes from the last checkpoint rather than restarting from scratch.
 
-**Frees slots during waits.** When an agent waits for a human approval event, external event, or sleeps for a scheduled retry, the worker slot is [evicted](/v1/durable-workflows/task-eviction) and freed. No resources are held while the agent is idle, even if the wait lasts hours or days.
+**Frees slots during waits.** When an agent waits for a human approval event, external event, or sleeps for a scheduled retry, the worker slot is [evicted](/v1/task-eviction) and freed. No resources are held while the agent is idle, even if the wait lasts hours or days.
 
 **Handles streaming.** Pipe LLM tokens from inside the task to connected clients as they're generated. Hatchet manages the plumbing so you don't build your own pub/sub layer. See [Streaming](/v1/streaming).
 
