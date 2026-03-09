@@ -633,6 +633,9 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 		}
 	}
 
+	// Inject traceparent for cross-workflow trace propagation
+	additionalMetadata = injectTraceparentToMap(ctx, additionalMetadata)
+
 	var v0Opts []v0Client.RunOptFunc
 	if additionalMetadata != nil {
 		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*additionalMetadata))

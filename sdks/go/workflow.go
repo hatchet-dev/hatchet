@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
+
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -18,6 +20,27 @@ import (
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
+
+// injectTraceparentToMap serializes the current span's W3C traceparent from ctx
+// into the metadata map so child workflows inherit the trace.
+func injectTraceparentToMap(ctx context.Context, meta *map[string]string) *map[string]string {
+	propagator := propagation.TraceContext{}
+	carrier := propagation.MapCarrier{}
+	propagator.Inject(ctx, carrier)
+
+	tp, ok := carrier["traceparent"]
+	if !ok || tp == "" {
+		return meta
+	}
+
+	if meta == nil {
+		m := map[string]string{"traceparent": tp}
+		return &m
+	}
+
+	(*meta)["traceparent"] = tp
+	return meta
+}
 
 type RunPriority = features.RunPriority
 
@@ -603,6 +626,9 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 	if runOpts.Priority != nil {
 		priority = &[]int32{int32(*runOpts.Priority)}[0]
 	}
+
+	// Inject traceparent for cross-workflow trace propagation
+	runOpts.AdditionalMetadata = injectTraceparentToMap(ctx, runOpts.AdditionalMetadata)
 
 	var v0Opts []v0Client.RunOptFunc
 
