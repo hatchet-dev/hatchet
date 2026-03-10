@@ -42,9 +42,9 @@ type DispatcherImpl struct {
 	repov1                      v1.Repository
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
-	defaultMaxWorkerBacklogSize  int64
-	workflowRunBufferSize        int
-	streamEventBufferTimeout     time.Duration
+	defaultMaxWorkerBacklogSize int64
+	workflowRunBufferSize       int
+	streamEventBufferTimeout    time.Duration
 
 	dispatcherId uuid.UUID
 	workers      *workers
@@ -124,10 +124,10 @@ type DispatcherOpts struct {
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
 	payloadSizeThreshold        int
-	defaultMaxWorkerBacklogSize  int64
-	workflowRunBufferSize        int
-	streamEventBufferTimeout     time.Duration
-	version                      string
+	defaultMaxWorkerBacklogSize int64
+	workflowRunBufferSize       int
+	streamEventBufferTimeout    time.Duration
+	version                     string
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -265,10 +265,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		a:                           a,
 		cache:                       opts.cache,
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
-		defaultMaxWorkerBacklogSize:  opts.defaultMaxWorkerBacklogSize,
-		workflowRunBufferSize:        opts.workflowRunBufferSize,
-		streamEventBufferTimeout:     opts.streamEventBufferTimeout,
-		version:                      opts.version,
+		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
+		workflowRunBufferSize:       opts.workflowRunBufferSize,
+		streamEventBufferTimeout:    opts.streamEventBufferTimeout,
+		version:                     opts.version,
 	}, nil
 }
 
