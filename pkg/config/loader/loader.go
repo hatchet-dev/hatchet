@@ -263,6 +263,40 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
+	// A small direct pool for DDL operations that cannot go through pgbouncer
+	// (e.g. DETACH PARTITION CONCURRENTLY which cannot run inside a transaction block).
+	var directPool *pgxpool.Pool
+
+	if cf.PgBouncerEnabled && cf.DirectDatabaseURL == "" {
+		return nil, fmt.Errorf("DATABASE_PGBOUNCER_ENABLED is set but DATABASE_DIRECT_URL is not; " +
+			"a direct PostgreSQL connection is required for DDL operations like DETACH PARTITION CONCURRENTLY")
+	}
+
+	if cf.DirectDatabaseURL != "" {
+		directConfig, err := pgxpool.ParseConfig(cf.DirectDatabaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse direct database url: %w", err)
+		}
+
+		if cf.DirectDatabaseMaxConns != 0 {
+			directConfig.MaxConns = int32(cf.DirectDatabaseMaxConns) // nolint: gosec
+		}
+
+		if cf.DirectDatabaseMinConns != 0 {
+			directConfig.MinConns = int32(cf.DirectDatabaseMinConns) // nolint: gosec
+		}
+
+		directConfig.MaxConnLifetime = cf.MaxConnLifetime
+		directConfig.MaxConnIdleTime = cf.MaxConnIdleTime
+		directConfig.AfterConnect = pgxpoolConnAfterConnect
+		directConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+
+		directPool, err = pgxpool.NewWithConfig(context.Background(), directConfig)
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to direct database: %w", err)
+		}
+	}
+
 	ch := cache.New(cf.CacheDuration)
 
 	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
@@ -305,6 +339,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	v1, cleanupV1 := repov1.NewRepository(
 		pool,
+		directPool,
 		&l,
 		cf.CacheDuration,
 		retentionPeriod,
@@ -328,10 +363,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			return cleanupV1()
 		},
-		Pool:      pool,
-		QueuePool: pool,
-		V1:        v1,
-		Seed:      cf.Seed,
+		Pool:       pool,
+		QueuePool:  pool,
+		DirectPool: directPool,
+		V1:         v1,
+		Seed:       cf.Seed,
 	}, nil
 
 }

@@ -10,7 +10,7 @@ Batch processing involves running the same operation across a large set of items
 
 <BatchProcessingDiagram />
 
-At its core, batch processing is [Fanout](/v1/durable-workflows/child-spawning) applied at scale. If your batch also has fixed stages (e.g., validate → transform → load), you can combine it with [Pre-Determined Pipelines](/v1/patterns/directed-acyclic-graphs).
+At its core, batch processing is [Fanout](/v1/child-spawning) applied at scale. If your batch also has fixed stages (e.g., validate → transform → load), you can combine it with [Pre-Determined Pipelines](/v1/patterns/directed-acyclic-graphs).
 
 ## Step-by-step walkthrough
 
@@ -133,7 +133,7 @@ Register and start the worker with both parent and child workflows. For large ba
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
+  <Cards.Card title="Fanout" href="/v1/child-spawning">
     The core pattern behind batch processing, spawning N children from a parent.
   </Cards.Card>
   <Cards.Card
@@ -145,14 +145,14 @@ Register and start the worker with both parent and child workflows. For large ba
   <Cards.Card title="RAG & Indexing" href="/cookbooks/rag-and-indexing">
     A specialized batch processing use case for document indexing pipelines.
   </Cards.Card>
-  <Cards.Card title="Cycles" href="/v1/durable-workflows/child-spawning">
+  <Cards.Card title="Cycles" href="/v1/child-spawning">
     Process paginated results one page at a time with iterative child spawning.
   </Cards.Card>
 </Cards>
 
 ## Next Steps
 
-- [Child Spawning](/v1/durable-workflows/child-spawning): learn the fan-out API for batch processing
+- [Child Spawning](/v1/child-spawning): learn the fan-out API for batch processing
 - [Bulk Run](/v1/bulk-run): trigger large batches efficiently
 - [Concurrency Control](/v1/concurrency): limit concurrent item processing
 - [Rate Limits](/v1/rate-limits): protect external APIs during batch operations

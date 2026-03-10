@@ -7,7 +7,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Parallelization spawns multiple independent tasks at the same time and aggregates results before continuing. Inside an agent loop, this typically means running several tool calls concurrently when they don't depend on each other. At a system level, it can mean running the same input through multiple evaluators and picking the best (or majority) result.
 
-Hatchet distributes child runs across all running workers where the task is registered. The parent's slot is [freed while children execute](/v1/durable-workflows/task-eviction), so you don't hold resources during parallel work.
+Hatchet distributes child runs across all running workers where the task is registered. The parent's slot is [freed while children execute](/v1/task-eviction), so you don't hold resources during parallel work.
 
 There are two common variants:
 
@@ -46,7 +46,7 @@ flowchart LR
 
 ## How it maps to Hatchet
 
-The parent task spawns children via [child spawning](/v1/durable-workflows/child-spawning). Each child runs on any available worker. The parent's slot is [evicted](/v1/durable-workflows/task-eviction) while children execute, so you're not holding resources during the parallel work. When all children complete, the parent resumes and aggregates.
+The parent task spawns children via [child spawning](/v1/child-spawning). Each child runs on any available worker. The parent's slot is [evicted](/v1/task-eviction) while children execute, so you're not holding resources during the parallel work. When all children complete, the parent resumes and aggregates.
 
 ## Step-by-step walkthrough
 
@@ -182,14 +182,14 @@ Register all tasks and start the worker.
     Combine voting (parallel evaluators) with optimization (feedback loop) for
     higher-quality iteration.
   </Cards.Card>
-  <Cards.Card title="Fanout" href="/v1/durable-workflows/child-spawning">
+  <Cards.Card title="Fanout" href="/v1/child-spawning">
     The Hatchet concept: spawn children in parallel, parent waits for all.
   </Cards.Card>
 </Cards>
 
 ## Next Steps
 
-- [Child Spawning](/v1/durable-workflows/child-spawning): spawn parallel children from a parent task
-- [Task Eviction](/v1/durable-workflows/task-eviction): free the parent's slot while children execute
+- [Child Spawning](/v1/child-spawning): spawn parallel children from a parent task
+- [Task Eviction](/v1/task-eviction): free the parent's slot while children execute
 - [Rate Limits](/v1/rate-limits): throttle parallel calls to external APIs
 - [Concurrency Control](/v1/concurrency): limit how many children run simultaneously

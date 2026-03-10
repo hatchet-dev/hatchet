@@ -94,6 +94,7 @@ type repositoryImpl struct {
 
 func NewRepository(
 	pool *pgxpool.Pool,
+	directPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
@@ -107,7 +108,7 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, directPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 

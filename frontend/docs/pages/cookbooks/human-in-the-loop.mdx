@@ -10,7 +10,7 @@ Human-in-the-loop [durable tasks](/v1/patterns/durable-task-execution) pause for
 
 <HumanInLoopDiagram />
 
-The task pauses on a [durable event](/v1/durable-workflows/events), freeing the worker slot until the approval arrives. If your workflow is a fixed DAG and the approval gate is known at definition time, [Event Conditions](/v1/durable-workflows/events) are a simpler alternative. It is your responsibility to emit the event from a different part of your application to restore the task.
+The task pauses on a [durable event](/v1/events), freeing the worker slot until the approval arrives. If your workflow is a fixed DAG and the approval gate is known at definition time, [Event Conditions](/v1/events) are a simpler alternative. It is your responsibility to emit the event from a different part of your application to restore the task.
 
 ## Step-by-step walkthrough
 
@@ -20,7 +20,7 @@ You'll build a durable task that proposes an action, waits for a human to push a
 
 ### Write a wait-for-approval helper
 
-Define a helper that calls `WaitForEvent` to pause execution until a human responds. The [CEL expression](/v1/durable-workflows/events#event-filters) filters on the workflow run ID so the event only matches the specific task that is waiting. Hatchet frees the worker slot while the task is suspended and resumes it when the matching event arrives.
+Define a helper that calls `WaitForEvent` to pause execution until a human responds. The [CEL expression](/v1/events#event-filters) filters on the workflow run ID so the event only matches the specific task that is waiting. Hatchet frees the worker slot while the task is suspended and resumes it when the matching event arrives.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -128,7 +128,7 @@ When the human clicks Approve or Reject in your UI, your frontend or API pushes 
 
 ### Run the worker
 
-Register and start the worker. Use [Branching](/v1/durable-workflows/conditions) to route on approve vs reject from the event payload.
+Register and start the worker. Use [Branching](/v1/conditions) to route on approve vs reject from the event payload.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -172,22 +172,22 @@ Register and start the worker. Use [Branching](/v1/durable-workflows/conditions)
 | **Customer support escalation** | Agent drafts response; human reviews and sends, or edits before sending |
 | **LLM output review**           | Agent generates copy or code; human approves before it goes live        |
 
-For DAG workflows with a fixed approval gate, use [Event Conditions](/v1/durable-workflows/events). For agent loops where the decision to wait is dynamic, use a durable task with `WaitForEvent`.
+For DAG workflows with a fixed approval gate, use [Event Conditions](/v1/events). For agent loops where the decision to wait is dynamic, use a durable task with `WaitForEvent`.
 
 ## Related Patterns
 
 <Cards>
-  <Cards.Card title="Long Waits" href="/v1/durable-workflows/sleep">
+  <Cards.Card title="Long Waits" href="/v1/sleep">
     Pause workflows for external signals (events or sleep) without holding
     slots.
   </Cards.Card>
   <Cards.Card title="AI Agents" href="/cookbooks/ai-agents">
     Agent workflows that may need human approval at decision points.
   </Cards.Card>
-  <Cards.Card title="Branching" href="/v1/durable-workflows/conditions">
+  <Cards.Card title="Branching" href="/v1/conditions">
     Route workflow behavior based on approve vs reject from the event payload.
   </Cards.Card>
-  <Cards.Card title="Event Conditions" href="/v1/durable-workflows/events">
+  <Cards.Card title="Event Conditions" href="/v1/events">
     Declare approval gates in DAG workflows when the wait is known at definition
     time.
   </Cards.Card>
@@ -195,8 +195,8 @@ For DAG workflows with a fixed approval gate, use [Event Conditions](/v1/durable
 
 ## Next Steps
 
-- [Durable Events](/v1/durable-workflows/events): `WaitForEvent` API and event filters
+- [Durable Events](/v1/events): `WaitForEvent` API and event filters
 - [Pushing Events](/v1/external-events/pushing-events): push approval events from your frontend or API
-- [Event Conditions](/v1/durable-workflows/events): approval gates in DAG workflows
-- [Long Waits](/v1/durable-workflows/sleep): general pattern for durable pauses
-- [Branching](/v1/durable-workflows/conditions): route on approve vs reject
+- [Event Conditions](/v1/events): approval gates in DAG workflows
+- [Long Waits](/v1/sleep): general pattern for durable pauses
+- [Branching](/v1/conditions): route on approve vs reject
