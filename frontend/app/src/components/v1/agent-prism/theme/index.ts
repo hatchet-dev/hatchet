@@ -95,5 +95,5 @@ export const agentPrismTailwindColors = Object.fromEntries(
 ) as AgentPrismColors;
 
 function token(name: string) {
-  return `oklch(var(--${agentPrismPrefix}-${name}) / <alpha-value>)`;
+  return `hsl(var(--${agentPrismPrefix}-${name}) / <alpha-value>)`;
 }

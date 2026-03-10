@@ -25,7 +25,7 @@ const agentPrismTokens = [
 const agentPrismColors = Object.fromEntries(
   agentPrismTokens.map((name) => [
     `agentprism-${name}`,
-    `oklch(var(--agentprism-${name}) / <alpha-value>)`,
+    `hsl(var(--agentprism-${name}) / <alpha-value>)`,
   ])
 );
 
