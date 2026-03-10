@@ -1,37 +1,21 @@
 import { convertOtelSpans } from './otel-span-adapter';
 import { TreeView } from '@/components/v1/agent-prism/TreeView';
-import { Loading } from '@/components/v1/ui/loading';
-import api from '@/lib/api/api';
+import { OtelSpan } from '@/lib/api/generated/data-contracts';
 import { openTelemetrySpanAdapter } from '@evilmartians/agent-prism-data';
 import { flattenSpans } from '@evilmartians/agent-prism-data';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
 export function TaskRunTrace({
-  taskExternalId,
-  isRunning,
+  spans,
+  taskRunId,
 }: {
-  taskExternalId: string;
-  isRunning: boolean;
+  spans: OtelSpan[];
+  taskRunId: string;
 }) {
-  const tracesQuery = useQuery({
-    queryKey: ['task:trace', taskExternalId],
-    queryFn: async () => {
-      const res = await api.v1TaskGetTrace(taskExternalId);
-      return res.data;
-    },
-    refetchInterval: isRunning ? 100 : false,
-  });
-
   const traceSpans = useMemo(() => {
-    const rows = tracesQuery.data?.rows;
-    if (!rows || rows.length === 0) {
-      return [];
-    }
-
-    const otlpSpans = convertOtelSpans(rows, taskExternalId);
+    const otlpSpans = convertOtelSpans(spans, taskRunId);
     return openTelemetrySpanAdapter.convertRawSpansToSpanTree(otlpSpans);
-  }, [tracesQuery.data, taskExternalId]);
+  }, [spans, taskRunId]);
 
   const allIds = useMemo(
     () => flattenSpans(traceSpans).map((s) => s.id),
@@ -46,18 +30,6 @@ export function TaskRunTrace({
       setExpandedSpansIds(allIds);
     }
   }, [allIds]);
-
-  if (tracesQuery.isLoading) {
-    return <Loading />;
-  }
-
-  if (tracesQuery.isError) {
-    return (
-      <div className="py-4 text-sm text-muted-foreground">
-        Failed to load traces.
-      </div>
-    );
-  }
 
   if (traceSpans.length === 0) {
     return (
