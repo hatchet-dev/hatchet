@@ -21,7 +21,7 @@ Hatchet supports two patterns for building durable workflows, and you can [mix t
 
 <DurableWorkflowComparisonDiagram />
 
-**Durable task execution** — The shape of work is **dynamic**. A single long-running function that can pause for time or external signals (`SleepFor`, `WaitForEvent`) and [spawn child tasks](/v1/durable-workflows/child-spawning) at runtime. Use durable tasks when:
+**Durable task execution** — The shape of work is **dynamic**. A single long-running function that can pause for time or external signals (`SleepFor`, `WaitForEvent`) and [spawn child tasks](/v1/child-spawning) at runtime. Use durable tasks when:
 
 - The work is IO-bound — waiting for time to pass, external events, or human approval
 - The number of subtasks is determined at runtime (dynamic fan-out)
