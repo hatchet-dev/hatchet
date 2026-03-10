@@ -10,11 +10,11 @@ OtelSpan:
     span_name:
       type: string
     span_kind:
-      type: string
+      $ref: "#/OtelSpanKind"
     service_name:
       type: string
     status_code:
-      type: string
+      $ref: "#/OtelStatusCode"
     status_message:
       type: string
     duration:
@@ -44,6 +44,23 @@ OtelSpan:
     - status_code
     - duration
     - created_at
+
+OtelSpanKind:
+  type: string
+  enum:
+    - UNSPECIFIED
+    - INTERNAL
+    - SERVER
+    - CLIENT
+    - PRODUCER
+    - CONSUMER
+
+OtelStatusCode:
+  type: string
+  enum:
+    - UNSET
+    - OK
+    - ERROR
 
 OtelSpanList:
   type: object

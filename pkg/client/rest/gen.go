@@ -90,6 +90,23 @@ const (
 	LogLineOrderByFieldCreatedAt LogLineOrderByField = "createdAt"
 )
 
+// Defines values for OtelSpanKind.
+const (
+	CLIENT      OtelSpanKind = "CLIENT"
+	CONSUMER    OtelSpanKind = "CONSUMER"
+	INTERNAL    OtelSpanKind = "INTERNAL"
+	PRODUCER    OtelSpanKind = "PRODUCER"
+	SERVER      OtelSpanKind = "SERVER"
+	UNSPECIFIED OtelSpanKind = "UNSPECIFIED"
+)
+
+// Defines values for OtelStatusCode.
+const (
+	OtelStatusCodeERROR OtelStatusCode = "ERROR"
+	OtelStatusCodeOK    OtelStatusCode = "OK"
+	OtelStatusCodeUNSET OtelStatusCode = "UNSET"
+)
+
 // Defines values for RateLimitOrderByDirection.
 const (
 	Asc  RateLimitOrderByDirection = "asc"
@@ -200,8 +217,8 @@ const (
 
 // Defines values for V1CELDebugResponseStatus.
 const (
-	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
-	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
+	ERROR   V1CELDebugResponseStatus = "ERROR"
+	SUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
@@ -766,18 +783,24 @@ type OtelSpan struct {
 	ServiceName        string             `json:"service_name"`
 	SpanAttributes     *map[string]string `json:"span_attributes,omitempty"`
 	SpanId             string             `json:"span_id"`
-	SpanKind           string             `json:"span_kind"`
+	SpanKind           OtelSpanKind       `json:"span_kind"`
 	SpanName           string             `json:"span_name"`
-	StatusCode         string             `json:"status_code"`
+	StatusCode         OtelStatusCode     `json:"status_code"`
 	StatusMessage      *string            `json:"status_message,omitempty"`
 	TraceId            string             `json:"trace_id"`
 }
+
+// OtelSpanKind defines model for OtelSpanKind.
+type OtelSpanKind string
 
 // OtelSpanList defines model for OtelSpanList.
 type OtelSpanList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]OtelSpan         `json:"rows,omitempty"`
 }
+
+// OtelStatusCode defines model for OtelStatusCode.
+type OtelStatusCode string
 
 // PaginationResponse defines model for PaginationResponse.
 type PaginationResponse struct {
