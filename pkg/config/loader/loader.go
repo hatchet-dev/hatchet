@@ -522,6 +522,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		analyticsEmitter, err = posthog.NewPosthogAnalytics(&posthog.PosthogAnalyticsOpts{
 			ApiKey:   cf.Analytics.Posthog.ApiKey,
 			Endpoint: cf.Analytics.Posthog.Endpoint,
+			Logger:   &l,
 		})
 
 		if cf.Analytics.Posthog.FeApiKey != "" && cf.Analytics.Posthog.FeApiHost != "" {
