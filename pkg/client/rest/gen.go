@@ -755,6 +755,29 @@ type LogLineOrderByField string
 // LogLineSearch defines model for LogLineSearch.
 type LogLineSearch = string
 
+// OtelSpan defines model for OtelSpan.
+type OtelSpan struct {
+	CreatedAt          time.Time          `json:"created_at"`
+	Duration           int64              `json:"duration"`
+	ParentSpanId       *string            `json:"parent_span_id,omitempty"`
+	ResourceAttributes *map[string]string `json:"resource_attributes,omitempty"`
+	ScopeName          *string            `json:"scope_name,omitempty"`
+	ScopeVersion       *string            `json:"scope_version,omitempty"`
+	ServiceName        string             `json:"service_name"`
+	SpanAttributes     *map[string]string `json:"span_attributes,omitempty"`
+	SpanId             string             `json:"span_id"`
+	SpanKind           string             `json:"span_kind"`
+	SpanName           string             `json:"span_name"`
+	StatusCode         string             `json:"status_code"`
+	StatusMessage      *string            `json:"status_message,omitempty"`
+	TraceId            string             `json:"trace_id"`
+}
+
+// OtelSpanList defines model for OtelSpanList.
+type OtelSpanList struct {
+	Rows *[]OtelSpan `json:"rows,omitempty"`
+}
+
 // PaginationResponse defines model for PaginationResponse.
 type PaginationResponse struct {
 	// CurrentPage the current page
@@ -3266,6 +3289,9 @@ type ClientInterface interface {
 	// V1TaskEventList request
 	V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1TaskGetTrace request
+	V1TaskGetTrace(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1CelDebugWithBody request with any body
 	V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3909,6 +3935,18 @@ func (c *Client) V1LogLineList(ctx context.Context, task openapi_types.UUID, par
 
 func (c *Client) V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskEventListRequest(c.Server, task, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskGetTrace(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskGetTraceRequest(c.Server, task)
 	if err != nil {
 		return nil, err
 	}
@@ -6555,6 +6593,40 @@ func NewV1TaskEventListRequest(server string, task openapi_types.UUID, params *V
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1TaskGetTraceRequest generates requests for V1TaskGetTrace
+func NewV1TaskGetTraceRequest(server string, task openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "task", runtime.ParamLocationPath, task)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tasks/%s/trace", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -13268,6 +13340,9 @@ type ClientWithResponsesInterface interface {
 	// V1TaskEventListWithResponse request
 	V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error)
 
+	// V1TaskGetTraceWithResponse request
+	V1TaskGetTraceWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskGetTraceResponse, error)
+
 	// V1CelDebugWithBodyWithResponse request with any body
 	V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
 
@@ -14113,6 +14188,31 @@ func (r V1TaskEventListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1TaskEventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskGetTraceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OtelSpanList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskGetTraceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskGetTraceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17116,6 +17216,15 @@ func (c *ClientWithResponses) V1TaskEventListWithResponse(ctx context.Context, t
 	return ParseV1TaskEventListResponse(rsp)
 }
 
+// V1TaskGetTraceWithResponse request returning *V1TaskGetTraceResponse
+func (c *ClientWithResponses) V1TaskGetTraceWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskGetTraceResponse, error) {
+	rsp, err := c.V1TaskGetTrace(ctx, task, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskGetTraceResponse(rsp)
+}
+
 // V1CelDebugWithBodyWithResponse request with arbitrary body returning *V1CelDebugResponse
 func (c *ClientWithResponses) V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error) {
 	rsp, err := c.V1CelDebugWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -19136,6 +19245,53 @@ func ParseV1TaskEventListResponse(rsp *http.Response) (*V1TaskEventListResponse,
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskGetTraceResponse parses an HTTP response from a V1TaskGetTraceWithResponse call
+func ParseV1TaskGetTraceResponse(rsp *http.Response) (*V1TaskGetTraceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskGetTraceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OtelSpanList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

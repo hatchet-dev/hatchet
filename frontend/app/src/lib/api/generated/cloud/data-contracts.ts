@@ -474,29 +474,6 @@ export interface LogLineList {
   pagination?: PaginationResponse;
 }
 
-export interface OtelSpan {
-  trace_id: string;
-  span_id: string;
-  parent_span_id?: string;
-  span_name: string;
-  span_kind: string;
-  service_name: string;
-  status_code: string;
-  status_message?: string;
-  /** @format int64 */
-  duration: number;
-  /** @format date-time */
-  created_at: string;
-  resource_attributes?: Record<string, string>;
-  span_attributes?: Record<string, string>;
-  scope_name?: string;
-  scope_version?: string;
-}
-
-export interface OtelSpanList {
-  rows?: OtelSpan[];
-}
-
 export type Matrix = SampleStream[];
 
 export interface SampleStream {

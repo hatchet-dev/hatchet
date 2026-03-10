@@ -516,6 +516,29 @@ export interface V1LogLineList {
   rows?: V1LogLine[];
 }
 
+export interface OtelSpan {
+  trace_id: string;
+  span_id: string;
+  parent_span_id?: string;
+  span_name: string;
+  span_kind: string;
+  service_name: string;
+  status_code: string;
+  status_message?: string;
+  /** @format int64 */
+  duration: number;
+  /** @format date-time */
+  created_at: string;
+  resource_attributes?: Record<string, string>;
+  span_attributes?: Record<string, string>;
+  scope_name?: string;
+  scope_version?: string;
+}
+
+export interface OtelSpanList {
+  rows?: OtelSpan[];
+}
+
 export interface V1TaskFilter {
   /** @format date-time */
   since: string;

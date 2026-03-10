@@ -1,4 +1,4 @@
-import type { OtelSpan } from '@/lib/api/generated/cloud/data-contracts';
+import type { OtelSpan } from '@/lib/api/generated/data-contracts';
 import type {
   OpenTelemetrySpan,
   OpenTelemetrySpanKind,

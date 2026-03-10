@@ -23,7 +23,6 @@ import {
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
@@ -109,7 +108,6 @@ export const TaskRunDetail = ({
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const { open } = useSidePanel();
-  const { isCloudEnabled } = useCloud();
   const [logsResetKey, setLogsResetKey] = useState(0);
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -252,11 +250,9 @@ export const TaskRunDetail = ({
               <TabsTrigger variant="underlined" value={TabOption.Logs}>
                 Logs
               </TabsTrigger>
-              {isCloudEnabled && (
-                <TabsTrigger variant="underlined" value={TabOption.Trace}>
-                  Trace
-                </TabsTrigger>
-              )}
+              <TabsTrigger variant="underlined" value={TabOption.Trace}>
+                Trace
+              </TabsTrigger>
               <TabsTrigger
                 variant="underlined"
                 value={TabOption.AdditionalMetadata}
@@ -313,14 +309,12 @@ export const TaskRunDetail = ({
             <TabsContent value={TabOption.Logs}>
               <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
             </TabsContent>
-            {isCloudEnabled && (
-              <TabsContent value={TabOption.Trace}>
-                <TaskRunTrace
-                  taskExternalId={taskRun.metadata.id}
-                  isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-                />
-              </TabsContent>
-            )}
+            <TabsContent value={TabOption.Trace}>
+              <TaskRunTrace
+                taskExternalId={taskRun.metadata.id}
+                isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+              />
+            </TabsContent>
             <TabsContent value={TabOption.AdditionalMetadata}>
               <CodeHighlighter
                 className="my-4 h-[400px] max-h-[400px] overflow-y-auto"

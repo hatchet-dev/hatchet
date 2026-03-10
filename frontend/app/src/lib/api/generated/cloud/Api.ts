@@ -45,7 +45,6 @@ import {
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
-  OtelSpanList,
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
@@ -738,23 +737,6 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
-      ...params,
-    });
-  /**
-   * @description Lists OTel spans for a task
-   *
-   * @tags Observability
-   * @name OtelTracesList
-   * @summary List OTel Traces
-   * @request GET:/api/v1/cloud/tasks/{task}/traces
-   * @secure
-   */
-  otelTracesList = (task: string, params: RequestParams = {}) =>
-    this.request<OtelSpanList, APIErrors>({
-      path: `/api/v1/cloud/tasks/${task}/traces`,
-      method: "GET",
-      secure: true,
-      format: "json",
       ...params,
     });
   /**

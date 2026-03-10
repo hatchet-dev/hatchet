@@ -3203,6 +3203,27 @@ type V1OperationIntervalSettings struct {
 	IntervalNanoseconds int64     `json:"interval_nanoseconds"`
 }
 
+type V1OtelTraces struct {
+	ID                    int64              `json:"id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	TraceID               string             `json:"trace_id"`
+	SpanID                string             `json:"span_id"`
+	ParentSpanID          string             `json:"parent_span_id"`
+	SpanName              string             `json:"span_name"`
+	SpanKind              string             `json:"span_kind"`
+	ServiceName           string             `json:"service_name"`
+	StatusCode            string             `json:"status_code"`
+	StatusMessage         string             `json:"status_message"`
+	DurationNs            int64              `json:"duration_ns"`
+	ResourceAttributes    []byte             `json:"resource_attributes"`
+	SpanAttributes        []byte             `json:"span_attributes"`
+	ScopeName             string             `json:"scope_name"`
+	ScopeVersion          string             `json:"scope_version"`
+	TaskRunExternalID     *uuid.UUID         `json:"task_run_external_id"`
+	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
+	StartTime             pgtype.Timestamptz `json:"start_time"`
+}
+
 type V1Payload struct {
 	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`

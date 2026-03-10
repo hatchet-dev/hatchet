@@ -1,0 +1,54 @@
+OtelSpan:
+  type: object
+  properties:
+    trace_id:
+      type: string
+    span_id:
+      type: string
+    parent_span_id:
+      type: string
+    span_name:
+      type: string
+    span_kind:
+      type: string
+    service_name:
+      type: string
+    status_code:
+      type: string
+    status_message:
+      type: string
+    duration:
+      type: integer
+      format: int64
+    created_at:
+      type: string
+      format: date-time
+    resource_attributes:
+      type: object
+      additionalProperties:
+        type: string
+    span_attributes:
+      type: object
+      additionalProperties:
+        type: string
+    scope_name:
+      type: string
+    scope_version:
+      type: string
+  required:
+    - trace_id
+    - span_id
+    - span_name
+    - span_kind
+    - service_name
+    - status_code
+    - duration
+    - created_at
+
+OtelSpanList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/OtelSpan"

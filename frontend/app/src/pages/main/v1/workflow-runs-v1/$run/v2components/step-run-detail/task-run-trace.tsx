@@ -1,7 +1,7 @@
 import { convertOtelSpans } from './otel-span-adapter';
 import { TreeView } from '@/components/v1/agent-prism/TreeView';
 import { Loading } from '@/components/v1/ui/loading';
-import { cloudApi } from '@/lib/api/api';
+import api from '@/lib/api/api';
 import { openTelemetrySpanAdapter } from '@evilmartians/agent-prism-data';
 import { flattenSpans } from '@evilmartians/agent-prism-data';
 import { useQuery } from '@tanstack/react-query';
@@ -15,9 +15,9 @@ export function TaskRunTrace({
   isRunning: boolean;
 }) {
   const tracesQuery = useQuery({
-    queryKey: ['cloud:traces', taskExternalId],
+    queryKey: ['task:trace', taskExternalId],
     queryFn: async () => {
-      const res = await cloudApi.otelTracesList(taskExternalId);
+      const res = await api.v1TaskGetTrace(taskExternalId);
       return res.data;
     },
     refetchInterval: isRunning ? 100 : false,
