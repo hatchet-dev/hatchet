@@ -775,7 +775,8 @@ type OtelSpan struct {
 
 // OtelSpanList defines model for OtelSpanList.
 type OtelSpanList struct {
-	Rows *[]OtelSpan `json:"rows,omitempty"`
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]OtelSpan         `json:"rows,omitempty"`
 }
 
 // PaginationResponse defines model for PaginationResponse.
@@ -2517,6 +2518,15 @@ type V1TaskEventListParams struct {
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// V1TaskGetTraceParams defines parameters for V1TaskGetTrace.
+type V1TaskGetTraceParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // V1EventListParams defines parameters for V1EventList.
 type V1EventListParams struct {
 	// Offset The number to skip
@@ -3290,7 +3300,7 @@ type ClientInterface interface {
 	V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskGetTrace request
-	V1TaskGetTrace(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1TaskGetTrace(ctx context.Context, task openapi_types.UUID, params *V1TaskGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1CelDebugWithBody request with any body
 	V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3945,8 +3955,8 @@ func (c *Client) V1TaskEventList(ctx context.Context, task openapi_types.UUID, p
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1TaskGetTrace(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1TaskGetTraceRequest(c.Server, task)
+func (c *Client) V1TaskGetTrace(ctx context.Context, task openapi_types.UUID, params *V1TaskGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskGetTraceRequest(c.Server, task, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6604,7 +6614,7 @@ func NewV1TaskEventListRequest(server string, task openapi_types.UUID, params *V
 }
 
 // NewV1TaskGetTraceRequest generates requests for V1TaskGetTrace
-func NewV1TaskGetTraceRequest(server string, task openapi_types.UUID) (*http.Request, error) {
+func NewV1TaskGetTraceRequest(server string, task openapi_types.UUID, params *V1TaskGetTraceParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6627,6 +6637,44 @@ func NewV1TaskGetTraceRequest(server string, task openapi_types.UUID) (*http.Req
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -13341,7 +13389,7 @@ type ClientWithResponsesInterface interface {
 	V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error)
 
 	// V1TaskGetTraceWithResponse request
-	V1TaskGetTraceWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskGetTraceResponse, error)
+	V1TaskGetTraceWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetTraceParams, reqEditors ...RequestEditorFn) (*V1TaskGetTraceResponse, error)
 
 	// V1CelDebugWithBodyWithResponse request with any body
 	V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
@@ -17217,8 +17265,8 @@ func (c *ClientWithResponses) V1TaskEventListWithResponse(ctx context.Context, t
 }
 
 // V1TaskGetTraceWithResponse request returning *V1TaskGetTraceResponse
-func (c *ClientWithResponses) V1TaskGetTraceWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskGetTraceResponse, error) {
-	rsp, err := c.V1TaskGetTrace(ctx, task, reqEditors...)
+func (c *ClientWithResponses) V1TaskGetTraceWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetTraceParams, reqEditors ...RequestEditorFn) (*V1TaskGetTraceResponse, error) {
+	rsp, err := c.V1TaskGetTrace(ctx, task, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

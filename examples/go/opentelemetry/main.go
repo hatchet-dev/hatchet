@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand/v2" //nolint:gosec // G404: example code, not security-sensitive
+	"math/rand"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -15,31 +14,20 @@ import (
 	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
-type PipelineInput struct {
-	URL string `json:"url"`
+type ParentInput struct {
+	Name string `json:"name"`
 }
 
-type FetchOutput struct {
-	Data string `json:"data"`
+type ParentOutput struct {
+	ChildResult string `json:"child_result"`
 }
 
-type ValidateOutput struct {
-	Valid      bool `json:"valid"`
-	FieldCount int  `json:"field_count"`
+type ChildInput struct {
+	Greeting string `json:"greeting"`
 }
 
-type ProcessOutput struct {
-	ProcessedData string `json:"processed_data"`
-	RecordCount   int    `json:"record_count"`
-}
-
-type SaveOutput struct {
-	Location     string `json:"location"`
-	RecordsSaved int    `json:"records_saved"`
-}
-
-func randMillis(base, jitter int) time.Duration {
-	return time.Duration(base+rand.IntN(jitter)) * time.Millisecond //nolint:gosec // G404
+type ChildOutput struct {
+	Message string `json:"message"`
 }
 
 func main() {
@@ -48,9 +36,6 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
-	// Set up OpenTelemetry instrumentation.
-	// EnableHatchetCollector() auto-configures from the same env vars as the client
-	// (HATCHET_CLIENT_HOST_PORT, HATCHET_CLIENT_TOKEN, HATCHET_CLIENT_TLS_STRATEGY).
 	instrumentor, err := hatchetotel.NewInstrumentor(
 		hatchetotel.EnableHatchetCollector(),
 	)
@@ -60,83 +45,72 @@ func main() {
 
 	tracer := otel.Tracer("otel-example")
 
-	// Create a multi-task workflow
-	workflow := client.NewWorkflow("otel-data-pipeline")
+	var generateSpanTree func(ctx context.Context, count *int, limit int, depth int, prefix string)
+	generateSpanTree = func(ctx context.Context, count *int, limit int, depth int, prefix string) {
+		numChildren := 1 + rand.Intn(5)
+		for i := range numChildren {
+			if *count >= limit {
+				return
+			}
+			name := fmt.Sprintf("%s.%d", prefix, i)
+			childCtx, span := tracer.Start(ctx, name)
+			time.Sleep(time.Duration(1+rand.Intn(3)) * time.Millisecond)
+			*count++
 
-	fetchData := workflow.NewTask("fetch-data", func(ctx hatchet.Context, input PipelineInput) (*FetchOutput, error) {
-		_, span := tracer.Start(ctx.GetContext(), fmt.Sprintf("GET %s", input.URL))
-		time.Sleep(randMillis(10, 20))
-		span.End()
+			if *count < limit && depth < 8 && rand.Float64() > float64(depth)*0.12 {
+				generateSpanTree(childCtx, count, limit, depth+1, name)
+			}
 
-		_, parseSpan := tracer.Start(ctx.GetContext(), "json.parse")
-		time.Sleep(randMillis(5, 10))
-		parseSpan.End()
-
-		return &FetchOutput{
-			Data: `{"users": [{"name": "Alice"}, {"name": "Bob"}]}`,
-		}, nil
-	})
-
-	validateData := workflow.NewTask("validate-data", func(ctx hatchet.Context, input PipelineInput) (*ValidateOutput, error) {
-		var parentOutput FetchOutput
-		if parentErr := ctx.ParentOutput(fetchData, &parentOutput); parentErr != nil {
-			return nil, parentErr
-		}
-
-		_, span := tracer.Start(ctx.GetContext(), "schema.validate")
-		time.Sleep(randMillis(5, 10))
-
-		var parsed map[string]any
-		if unmarshalErr := json.Unmarshal([]byte(parentOutput.Data), &parsed); unmarshalErr != nil {
 			span.End()
-			return nil, fmt.Errorf("invalid JSON: %w", unmarshalErr)
 		}
-		span.End()
+	}
 
-		return &ValidateOutput{
-			Valid:      true,
-			FieldCount: len(parsed),
-		}, nil
-	}, hatchet.WithParents(fetchData))
+	childTask := client.NewStandaloneTask(
+		"otel-child-task",
+		func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
+			target := 200 + rand.Intn(101)
+			count := 0
+			round := 0
+			for count < target {
+				generateSpanTree(ctx.GetContext(), &count, target, 0, fmt.Sprintf("child.r%d", round))
+				round++
+			}
 
-	processData := workflow.NewTask("process-data", func(ctx hatchet.Context, input PipelineInput) (*ProcessOutput, error) {
-		var validateOutput ValidateOutput
-		if parentErr := ctx.ParentOutput(validateData, &validateOutput); parentErr != nil {
-			return nil, parentErr
-		}
+			return ChildOutput{
+				Message: fmt.Sprintf("Hello from child: %s (generated %d spans)", input.Greeting, count),
+			}, nil
+		},
+	)
 
-		_, span := tracer.Start(ctx.GetContext(), "data.transform")
-		time.Sleep(randMillis(10, 15))
-		span.End()
+	parentTask := client.NewStandaloneTask(
+		"otel-parent-task",
+		func(ctx hatchet.Context, input ParentInput) (ParentOutput, error) {
+			_, span := tracer.Start(ctx.GetContext(), "parent.prepare")
+			time.Sleep(30 * time.Millisecond)
+			span.End()
 
-		_, enrichSpan := tracer.Start(ctx.GetContext(), "data.enrich")
-		time.Sleep(randMillis(5, 10))
-		enrichSpan.End()
+			result, err := childTask.Run(ctx, ChildInput{
+				Greeting: fmt.Sprintf("greetings from %s", input.Name),
+			})
+			if err != nil {
+				return ParentOutput{}, fmt.Errorf("child task failed: %w", err)
+			}
 
-		return &ProcessOutput{
-			ProcessedData: "transformed_and_enriched",
-			RecordCount:   validateOutput.FieldCount,
-		}, nil
-	}, hatchet.WithParents(validateData))
+			var childOutput ChildOutput
+			if err := result.Into(&childOutput); err != nil {
+				return ParentOutput{}, fmt.Errorf("failed to parse child output: %w", err)
+			}
 
-	workflow.NewTask("save-results", func(ctx hatchet.Context, input PipelineInput) (*SaveOutput, error) {
-		var processOutput ProcessOutput
-		if parentErr := ctx.ParentOutput(processData, &processOutput); parentErr != nil {
-			return nil, parentErr
-		}
+			return ParentOutput{
+				ChildResult: childOutput.Message,
+			}, nil
+		},
+	)
 
-		_, span := tracer.Start(ctx.GetContext(), "db.insert")
-		time.Sleep(randMillis(10, 20))
-		span.End()
-
-		return &SaveOutput{
-			RecordsSaved: processOutput.RecordCount,
-			Location:     "postgresql://localhost/pipeline_results",
-		}, nil
-	}, hatchet.WithParents(processData))
-
-	// Create worker and register the OTel middleware
-	worker, err := client.NewWorker("otel-worker", hatchet.WithWorkflows(workflow))
+	worker, err := client.NewWorker(
+		"otel-worker",
+		hatchet.WithWorkflows(parentTask, childTask),
+	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
 	}
@@ -146,11 +120,8 @@ func main() {
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
 
-	fmt.Println("Starting worker with OpenTelemetry instrumentation...")
-
 	go func() {
 		<-interruptCtx.Done()
-		// Flush remaining spans before exit
 		if shutdownErr := instrumentor.Shutdown(context.Background()); shutdownErr != nil {
 			log.Printf("failed to shutdown instrumentor: %v", shutdownErr)
 		}

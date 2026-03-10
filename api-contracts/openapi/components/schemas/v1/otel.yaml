@@ -48,6 +48,8 @@ OtelSpan:
 OtelSpanList:
   type: object
   properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
     rows:
       type: array
       items:

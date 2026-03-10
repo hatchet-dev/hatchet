@@ -2,10 +2,40 @@ import { convertOtelSpans } from './otel-span-adapter';
 import { TreeView } from '@/components/v1/agent-prism/TreeView';
 import { Loading } from '@/components/v1/ui/loading';
 import api from '@/lib/api/api';
+import { OtelSpan } from '@/lib/api/generated/data-contracts';
 import { openTelemetrySpanAdapter } from '@evilmartians/agent-prism-data';
 import { flattenSpans } from '@evilmartians/agent-prism-data';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+
+const PAGE_SIZE = 200;
+
+async function fetchAllSpans(taskExternalId: string): Promise<OtelSpan[]> {
+  const allSpans: OtelSpan[] = [];
+  let offset = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const res = await api.v1TaskGetTrace(taskExternalId, {
+      offset,
+      limit: PAGE_SIZE,
+    });
+
+    const rows = res.data.rows ?? [];
+    allSpans.push(...rows);
+
+    const numPages = res.data.pagination?.num_pages ?? 1;
+    const currentPage = res.data.pagination?.current_page ?? 1;
+
+    if (currentPage >= numPages || rows.length === 0) {
+      break;
+    }
+
+    offset += PAGE_SIZE;
+  }
+
+  return allSpans;
+}
 
 export function TaskRunTrace({
   taskExternalId,
@@ -16,15 +46,12 @@ export function TaskRunTrace({
 }) {
   const tracesQuery = useQuery({
     queryKey: ['task:trace', taskExternalId],
-    queryFn: async () => {
-      const res = await api.v1TaskGetTrace(taskExternalId);
-      return res.data;
-    },
+    queryFn: () => fetchAllSpans(taskExternalId),
     refetchInterval: isRunning ? 100 : false,
   });
 
   const traceSpans = useMemo(() => {
-    const rows = tracesQuery.data?.rows;
+    const rows = tracesQuery.data;
     if (!rows || rows.length === 0) {
       return [];
     }

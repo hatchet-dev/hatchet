@@ -1397,6 +1397,95 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 	return string(ns.V1MatchKind), nil
 }
 
+type V1OtelSpanKind string
+
+const (
+	V1OtelSpanKindUNSPECIFIED V1OtelSpanKind = "UNSPECIFIED"
+	V1OtelSpanKindINTERNAL    V1OtelSpanKind = "INTERNAL"
+	V1OtelSpanKindSERVER      V1OtelSpanKind = "SERVER"
+	V1OtelSpanKindCLIENT      V1OtelSpanKind = "CLIENT"
+	V1OtelSpanKindPRODUCER    V1OtelSpanKind = "PRODUCER"
+	V1OtelSpanKindCONSUMER    V1OtelSpanKind = "CONSUMER"
+)
+
+func (e *V1OtelSpanKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OtelSpanKind(s)
+	case string:
+		*e = V1OtelSpanKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OtelSpanKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1OtelSpanKind struct {
+	V1OtelSpanKind V1OtelSpanKind `json:"v1_otel_span_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if V1OtelSpanKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1OtelSpanKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1OtelSpanKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1OtelSpanKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1OtelSpanKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1OtelSpanKind), nil
+}
+
+type V1OtelStatusCode string
+
+const (
+	V1OtelStatusCodeUNSET V1OtelStatusCode = "UNSET"
+	V1OtelStatusCodeOK    V1OtelStatusCode = "OK"
+	V1OtelStatusCodeERROR V1OtelStatusCode = "ERROR"
+)
+
+func (e *V1OtelStatusCode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OtelStatusCode(s)
+	case string:
+		*e = V1OtelStatusCode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OtelStatusCode: %T", src)
+	}
+	return nil
+}
+
+type NullV1OtelStatusCode struct {
+	V1OtelStatusCode V1OtelStatusCode `json:"v1_otel_status_code"`
+	Valid            bool             `json:"valid"` // Valid is true if V1OtelStatusCode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1OtelStatusCode) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1OtelStatusCode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1OtelStatusCode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1OtelStatusCode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1OtelStatusCode), nil
+}
+
 type V1PayloadLocation string
 
 const (
@@ -3210,9 +3299,9 @@ type V1OtelTraces struct {
 	SpanID                string             `json:"span_id"`
 	ParentSpanID          string             `json:"parent_span_id"`
 	SpanName              string             `json:"span_name"`
-	SpanKind              string             `json:"span_kind"`
+	SpanKind              V1OtelSpanKind     `json:"span_kind"`
 	ServiceName           string             `json:"service_name"`
-	StatusCode            string             `json:"status_code"`
+	StatusCode            V1OtelStatusCode   `json:"status_code"`
 	StatusMessage         string             `json:"status_message"`
 	DurationNs            int64              `json:"duration_ns"`
 	ResourceAttributes    []byte             `json:"resource_attributes"`

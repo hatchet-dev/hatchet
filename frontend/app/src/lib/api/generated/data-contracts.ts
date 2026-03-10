@@ -536,6 +536,7 @@ export interface OtelSpan {
 }
 
 export interface OtelSpanList {
+  pagination?: PaginationResponse;
   rows?: OtelSpan[];
 }
 
