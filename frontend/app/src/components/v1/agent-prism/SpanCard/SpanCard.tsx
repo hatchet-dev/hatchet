@@ -1,7 +1,6 @@
 import type { AvatarProps } from '../Avatar';
 import { Avatar } from '../Avatar';
 import { BrandLogo } from '../BrandLogo';
-import { SpanStatus } from '../SpanStatus';
 import { SpanCardBadges } from './SpanCardBadges';
 import type { SpanCardConnectorType } from './SpanCardConnector';
 import { SpanCardConnector } from './SpanCardConnector';
@@ -423,15 +422,15 @@ export const SpanCard: FC<SpanCardProps> = ({
                 {data.title}
               </h3>
 
-              <SpanCardBadges data={data} />
+              {/* <SpanCardBadges data={data} /> */}
             </div>
 
             <div className="flex grow flex-wrap items-center justify-end gap-1">
-              {expandButton === 'outside' && withStatus && (
+              {/* {expandButton === 'outside' && withStatus && (
                 <div>
                   <SpanStatus status={data.status} />
                 </div>
-              )}
+              )} */}
 
               <SpanCardTimeline
                 minStart={minStart}
@@ -444,11 +443,11 @@ export const SpanCard: FC<SpanCardProps> = ({
                   {formatDuration(durationMs)}
                 </span>
 
-                {expandButton === 'inside' && withStatus && (
+                {/* {expandButton === 'inside' && withStatus && (
                   <div>
                     <SpanStatus status={data.status} />
                   </div>
-                )}
+                )} */}
               </div>
             </div>
           </div>
