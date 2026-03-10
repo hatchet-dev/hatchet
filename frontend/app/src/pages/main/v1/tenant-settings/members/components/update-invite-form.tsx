@@ -91,7 +91,6 @@ export function UpdateInviteForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="OWNER">Owner</SelectItem>
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="MEMBER">Member</SelectItem>
                       </SelectContent>
