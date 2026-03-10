@@ -1,78 +1,68 @@
-import {
-  Or,
-  SleepCondition,
-  UserEventCondition,
-} from "@hatchet-dev/typescript-sdk/v1/conditions";
-import { NonDeterminismError } from "@hatchet-dev/typescript-sdk/v1/errors/non-determinism-error";
-import sleep from "@hatchet-dev/typescript-sdk/util/sleep";
-import { hatchet } from "../hatchet-client";
+import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
+import { NonDeterminismError } from '@hatchet-dev/typescript-sdk/util/errors/non-determinism-error';
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
+import { hatchet } from '../hatchet-client';
 
-export const EVENT_KEY = "durable-example:event";
+export const EVENT_KEY = 'durable-example:event';
 export const SLEEP_TIME_SECONDS = 2;
 export const SLEEP_TIME = `${SLEEP_TIME_SECONDS}s` as const;
 
 // > Create a durable workflow
 export const durableWorkflow = hatchet.workflow({
-  name: "durable-workflow",
+  name: 'durable-workflow',
 });
 
 durableWorkflow.task({
-  name: "ephemeral_task",
+  name: 'ephemeral_task',
   fn: async () => {
-    console.log("Running non-durable task");
+    console.log('Running non-durable task');
   },
 });
 
 durableWorkflow.durableTask({
-  name: "durable_task",
-  executionTimeout: "10m",
+  name: 'durable_task',
+  executionTimeout: '10m',
   fn: async (_input, ctx) => {
-    console.log("Waiting for sleep");
+    console.log('Waiting for sleep');
     await ctx.sleepFor(SLEEP_TIME);
-    console.log("Sleep finished");
+    console.log('Sleep finished');
 
-    console.log("Waiting for event");
+    console.log('Waiting for event');
     await ctx.waitFor({ eventKey: EVENT_KEY });
-    console.log("Event received");
+    console.log('Event received');
 
-    return { status: "success" };
+    return { status: 'success' };
   },
 });
 
-function extractKeyAndEventId(waitResult: unknown): {
-  key: string;
-  eventId: string;
-} {
+function extractKeyAndEventId(waitResult: unknown): { key: string; eventId: string } {
   // DurableContext.waitFor currently returns the CREATE payload directly.
   // The shape is typically `{ [readableDataKey]: { [eventId]: ... } }`.
   const obj = waitResult as Record<string, Record<string, unknown>>;
-  if (obj && typeof obj === "object") {
+  if (obj && typeof obj === 'object') {
     const [key] = Object.keys(obj);
     const inner = obj[key];
-    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
       const [eventId] = Object.keys(inner);
       if (eventId) {
         return { key, eventId };
       }
     }
     if (key) {
-      return { key: "CREATE", eventId: key };
+      return { key: 'CREATE', eventId: key };
     }
   }
 
-  return { key: "CREATE", eventId: "" };
+  return { key: 'CREATE', eventId: '' };
 }
 
 durableWorkflow.durableTask({
-  name: "wait_for_or_group_1",
-  executionTimeout: "10m",
+  name: 'wait_for_or_group_1',
+  executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const start = Date.now();
     const waitResult = await ctx.waitFor(
-      Or(
-        new SleepCondition(SLEEP_TIME, "sleep"),
-        new UserEventCondition(EVENT_KEY, "", "event"),
-      ),
+      Or(new SleepCondition(SLEEP_TIME, 'sleep'), new UserEventCondition(EVENT_KEY, '', 'event'))
     );
     const { key, eventId } = extractKeyAndEventId(waitResult);
     return {
@@ -84,15 +74,15 @@ durableWorkflow.durableTask({
 });
 
 durableWorkflow.durableTask({
-  name: "wait_for_or_group_2",
-  executionTimeout: "10m",
+  name: 'wait_for_or_group_2',
+  executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const start = Date.now();
     const waitResult = await ctx.waitFor(
       Or(
-        new SleepCondition(`${6 * SLEEP_TIME_SECONDS}s`, "sleep"),
-        new UserEventCondition(EVENT_KEY, "", "event"),
-      ),
+        new SleepCondition(`${6 * SLEEP_TIME_SECONDS}s`, 'sleep'),
+        new UserEventCondition(EVENT_KEY, '', 'event')
+      )
     );
     const { key, eventId } = extractKeyAndEventId(waitResult);
     return {
@@ -104,8 +94,8 @@ durableWorkflow.durableTask({
 });
 
 durableWorkflow.durableTask({
-  name: "wait_for_multi_sleep",
-  executionTimeout: "10m",
+  name: 'wait_for_multi_sleep',
+  executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const start = Date.now();
     // sleep 3 times
@@ -118,8 +108,8 @@ durableWorkflow.durableTask({
 });
 
 export const waitForSleepTwice = hatchet.durableTask({
-  name: "wait-for-sleep-twice",
-  executionTimeout: "10m",
+  name: 'wait-for-sleep-twice',
+  executionTimeout: '10m',
   fn: async (_input, ctx) => {
     try {
       const start = Date.now();
@@ -134,15 +124,15 @@ export const waitForSleepTwice = hatchet.durableTask({
 // --- Spawn child from durable task ---
 
 export const spawnChildTask = hatchet.task({
-  name: "spawn-child-task",
+  name: 'spawn-child-task',
   fn: async (input: { n?: number }) => {
     return { message: `hello from child ${input.n ?? 1}` };
   },
 });
 
 export const durableWithSpawn = hatchet.durableTask({
-  name: "durable-with-spawn",
-  executionTimeout: "10s",
+  name: 'durable-with-spawn',
+  executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const childResult = await spawnChildTask.run({});
     return { child_output: childResult };
@@ -150,8 +140,8 @@ export const durableWithSpawn = hatchet.durableTask({
 });
 
 export const durableWithBulkSpawn = hatchet.durableTask({
-  name: "durable-with-bulk-spawn",
-  executionTimeout: "10m",
+  name: 'durable-with-bulk-spawn',
+  executionTimeout: '10m',
   fn: async (input: { n?: number }, ctx) => {
     const n = input.n ?? 10;
     const inputs = Array.from({ length: n }, (_, i) => ({ n: i }));
@@ -161,8 +151,8 @@ export const durableWithBulkSpawn = hatchet.durableTask({
 });
 
 export const durableSleepEventSpawn = hatchet.durableTask({
-  name: "durable-sleep-event-spawn",
-  executionTimeout: "10m",
+  name: 'durable-sleep-event-spawn',
+  executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const start = Date.now();
 
@@ -182,8 +172,8 @@ export const durableSleepEventSpawn = hatchet.durableTask({
 // --- Spawn child using explicit ctx.spawnChild ---
 
 export const durableWithExplicitSpawn = hatchet.durableTask({
-  name: "durable-with-explicit-spawn",
-  executionTimeout: "10m",
+  name: 'durable-with-explicit-spawn',
+  executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const childResult = await ctx.spawnChild(spawnChildTask, {});
     return { child_output: childResult };
@@ -193,8 +183,8 @@ export const durableWithExplicitSpawn = hatchet.durableTask({
 // --- Non-determinism detection ---
 
 export const durableNonDeterminism = hatchet.durableTask({
-  name: "durable-non-determinism",
-  executionTimeout: "10s",
+  name: 'durable-non-determinism',
+  executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const sleepTime = ctx.invocationCount * 2;
 
@@ -225,8 +215,8 @@ export const durableNonDeterminism = hatchet.durableTask({
 const MEMO_SLEEP_MS = 2000;
 
 export const memoTask = hatchet.durableTask({
-  name: "memo-task",
-  executionTimeout: "10m",
+  name: 'memo-task',
+  executionTimeout: '10m',
   fn: async (input: { message: string }, ctx) => {
     const start = Date.now();
     const res = await ctx.memo(async () => {
@@ -245,8 +235,8 @@ export const REPLAY_RESET_MEMOIZED_MAX_SECONDS = 5;
 const REPLAY_RESET_SLEEP = `${REPLAY_RESET_SLEEP_SECONDS}s` as const;
 
 export const durableReplayReset = hatchet.durableTask({
-  name: "durable-replay-reset",
-  executionTimeout: "20s",
+  name: 'durable-replay-reset',
+  executionTimeout: '20s',
   fn: async (_input, ctx) => {
     let start = Date.now();
     await ctx.sleepFor(REPLAY_RESET_SLEEP);
@@ -271,29 +261,29 @@ export const durableReplayReset = hatchet.durableTask({
 // --- Spawn DAG from durable task ---
 
 export const dagChildWorkflow = hatchet.workflow({
-  name: "dag-child-workflow-ts",
+  name: 'dag-child-workflow-ts',
 });
 
 const dagChild1 = dagChildWorkflow.task({
-  name: "dag-child-1",
+  name: 'dag-child-1',
   fn: async () => {
     await sleep(1000);
-    return { result: "child1" };
+    return { result: 'child1' };
   },
 });
 
 dagChildWorkflow.task({
-  name: "dag-child-2",
+  name: 'dag-child-2',
   parents: [dagChild1],
   fn: async () => {
     await sleep(2000);
-    return { result: "child2" };
+    return { result: 'child2' };
   },
 });
 
 export const durableSpawnDag = hatchet.durableTask({
-  name: "durable-spawn-dag",
-  executionTimeout: "10s",
+  name: 'durable-spawn-dag',
+  executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const sleepStart = Date.now();
     const sleepResult = await ctx.sleepFor(SLEEP_TIME);
