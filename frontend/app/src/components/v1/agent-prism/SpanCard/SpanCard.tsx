@@ -1,6 +1,3 @@
-import type { AvatarProps } from '../Avatar';
-import { Avatar } from '../Avatar';
-import { BrandLogo } from '../BrandLogo';
 import type { SpanCardConnectorType } from './SpanCardConnector';
 import { SpanCardConnector } from './SpanCardConnector';
 import { SpanCardTimeline } from './SpanCardTimeline';
@@ -36,7 +33,6 @@ interface SpanCardProps {
   data: TraceSpan;
   level?: number;
   selectedSpan?: TraceSpan;
-  avatar?: AvatarProps;
   onSpanSelect?: (span: TraceSpan) => void;
   minStart: number;
   maxEnd: number;
@@ -233,36 +229,22 @@ const SpanCardChildren: FC<{
     <div className="relative">
       <Collapsible.Content>
         <ul role="group">
-          {data.children.map((child, idx) => {
-            const brand = child.metadata?.brand as { type: string } | undefined;
-
-            return (
-              <SpanCard
-                viewOptions={viewOptions}
-                key={child.id}
-                data={child}
-                minStart={minStart}
-                maxEnd={maxEnd}
-                level={level + 1}
-                selectedSpan={selectedSpan}
-                onSpanSelect={onSpanSelect}
-                isLastChild={idx === (data.children || []).length - 1}
-                prevLevelConnectors={prevLevelConnectors}
-                expandedSpansIds={expandedSpansIds}
-                onExpandSpansIdsChange={onExpandSpansIdsChange}
-                avatar={
-                  brand
-                    ? {
-                        children: <BrandLogo brand={brand.type} />,
-                        size: '4',
-                        rounded: 'sm',
-                        category: child.type,
-                      }
-                    : undefined
-                }
-              />
-            );
-          })}
+          {data.children.map((child, idx) => (
+            <SpanCard
+              viewOptions={viewOptions}
+              key={child.id}
+              data={child}
+              minStart={minStart}
+              maxEnd={maxEnd}
+              level={level + 1}
+              selectedSpan={selectedSpan}
+              onSpanSelect={onSpanSelect}
+              isLastChild={idx === (data.children || []).length - 1}
+              prevLevelConnectors={prevLevelConnectors}
+              expandedSpansIds={expandedSpansIds}
+              onExpandSpansIdsChange={onExpandSpansIdsChange}
+            />
+          ))}
         </ul>
       </Collapsible.Content>
     </div>
@@ -275,7 +257,6 @@ export const SpanCard: FC<SpanCardProps> = ({
   selectedSpan,
   onSpanSelect,
   viewOptions = DEFAULT_VIEW_OPTIONS,
-  avatar,
   minStart,
   maxEnd,
   isLastChild,
@@ -411,8 +392,6 @@ export const SpanCard: FC<SpanCardProps> = ({
                 minWidth: 140,
               }}
             >
-              {avatar && <Avatar size="4" {...avatar} />}
-
               <h3
                 className="text-agentprism-foreground truncate text-sm leading-[14px]"
                 title={data.title}
