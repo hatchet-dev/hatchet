@@ -419,17 +419,9 @@ export const SpanCard: FC<SpanCardProps> = ({
               >
                 {data.title}
               </h3>
-
-              {/* <SpanCardBadges data={data} /> */}
             </div>
 
             <div className="flex grow flex-wrap items-center justify-end gap-1">
-              {/* {expandButton === 'outside' && withStatus && (
-                <div>
-                  <SpanStatus status={data.status} />
-                </div>
-              )} */}
-
               <SpanCardTimeline
                 minStart={minStart}
                 maxEnd={maxEnd}
@@ -440,12 +432,6 @@ export const SpanCard: FC<SpanCardProps> = ({
                 <span className="text-agentprism-foreground inline-block w-14 flex-1 shrink-0 whitespace-nowrap px-1 text-right text-xs">
                   {formatDuration(durationMs)}
                 </span>
-
-                {/* {expandButton === 'inside' && withStatus && (
-                  <div>
-                    <SpanStatus status={data.status} />
-                  </div>
-                )} */}
               </div>
             </div>
           </div>
