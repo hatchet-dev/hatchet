@@ -5,6 +5,7 @@ const { SEMRESATTRS_SERVICE_NAME } = require('@opentelemetry/semantic-convention
 const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 const { registerInstrumentations } = require('@opentelemetry/instrumentation');
 const { trace } = require('@opentelemetry/api');
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 import type { TracerProvider, Tracer } from '@opentelemetry/api';
 import { HatchetInstrumentor } from '@hatchet-dev/typescript-sdk/opentelemetry';

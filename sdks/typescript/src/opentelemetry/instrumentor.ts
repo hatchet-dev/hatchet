@@ -165,22 +165,25 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
    */
   private _setupHatchetCollector(clientConfig?: ClientConfig): void {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { addHatchetExporter } = require('./hatchet-exporter') as typeof import('./hatchet-exporter');
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { addHatchetExporter } =
+        require('./hatchet-exporter') as typeof import('./hatchet-exporter');
 
       let config = clientConfig;
       if (!config) {
         // Load config from environment (same as HatchetClient would)
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { ConfigLoader } = require('@hatchet/util/config-loader/config-loader') as typeof import('@hatchet/util/config-loader/config-loader');
+        const { ConfigLoader } =
+          require('@hatchet/util/config-loader/config-loader') as typeof import('@hatchet/util/config-loader/config-loader');
         config = ConfigLoader.loadClientConfig() as ClientConfig;
       }
 
       // Get the SDK TracerProvider - either from the global provider or create one
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let sdkTracerProvider: any;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const sdkTrace = require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+        const sdkTrace =
+          require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+        /* eslint-enable @typescript-eslint/no-require-imports */
 
         // Check if the global tracer provider is an SDK TracerProvider
         const globalProvider = otelApi.trace.getTracerProvider();

@@ -22,11 +22,10 @@ try {
 }
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {
-  OTLPTraceExporter,
-} = require('@opentelemetry/exporter-trace-otlp-grpc') as typeof import('@opentelemetry/exporter-trace-otlp-grpc');
-const sdkTraceBase =
-  require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+// prettier-ignore
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc') as typeof import('@opentelemetry/exporter-trace-otlp-grpc');
+// prettier-ignore
+const sdkTraceBase = require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const { BatchSpanProcessor } = sdkTraceBase;
@@ -53,9 +52,8 @@ function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTr
 
   return new OTLPTraceExporter({
     url: `${insecure ? 'http' : 'https'}://${config.host_port}`,
-    metadata: {
-      authorization: `Bearer ${config.token}`,
-    } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: { authorization: `Bearer ${config.token}` } as any,
   });
 }
 
@@ -64,11 +62,9 @@ function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTr
  * The exporter sends spans to the Hatchet engine's collector endpoint
  * using the same connection settings as the Hatchet client.
  */
-export function addHatchetExporter(
-  tracerProvider: SdkTracerProvider,
-  config: ClientConfig
-): void {
+export function addHatchetExporter(tracerProvider: SdkTracerProvider, config: ClientConfig): void {
   const exporter = createHatchetExporter(config);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const processor = new HatchetAttributeSpanProcessor(exporter as any);
 
   tracerProvider.addSpanProcessor(processor);

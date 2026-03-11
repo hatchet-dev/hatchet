@@ -13,7 +13,7 @@ import time
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
-from opentelemetry.trace import StatusCode
+from opentelemetry.trace import StatusCode, Tracer
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
@@ -25,10 +25,10 @@ otel_workflow = hatchet.workflow(name="OTelDataPipeline")
 # Module-level tracer — will be set in main() before the worker starts.
 # Tasks use this to create custom child spans inside the auto-instrumented
 # hatchet task run parent span.
-_tracer = None
+_tracer: Tracer | None = None
 
 
-def _get_tracer():
+def _get_tracer() -> Tracer:
     global _tracer
     if _tracer is None:
         from opentelemetry.trace import get_tracer
