@@ -5,7 +5,7 @@ import hashlib
 import json
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
@@ -57,7 +57,11 @@ from hatchet_sdk.utils.timedelta_to_expression import (
     expr_to_timedelta,
     timedelta_to_expr,
 )
-from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.utils.typing import (
+    DataclassInstance,
+    JSONSerializableMapping,
+    LogLevel,
+)
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
     aio_durable_eviction_wait,
 )
@@ -71,14 +75,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
 
 
-class Event(BaseModel):
-    id: str
-    tenant_id: str
-    key: str
-    payload: JSONSerializableMapping
-    seen_at: datetime
-    additional_metadata: JSONSerializableMapping | None
-    scope: str | None
+TPayload = TypeVar("TPayload", bound=BaseModel | DataclassInstance | dict[str, Any])
 
 
 class SleepResult(BaseModel):
@@ -658,13 +655,39 @@ class DurableContext(Context):
             )
         )
 
+    @overload
     async def aio_wait_for_event(
-        self, key: str, expression: str | None = None
-    ) -> Event:
+        self,
+        key: str,
+        expression: str | None = None,
+        *,
+        payload_validator: type[TPayload],
+    ) -> TPayload: ...
+
+    @overload
+    async def aio_wait_for_event(
+        self,
+        key: str,
+        expression: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    async def aio_wait_for_event(
+        self,
+        key: str,
+        expression: str | None = None,
+        *,
+        payload_validator: type[Any] | None = None,
+    ) -> Any:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
 
         For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+        :param key: The event key to wait for.
+        :param expression: An optional CEL expression to filter events.
+        :param payload_validator: An optional type (e.g. a Pydantic model, dataclass, or TypedDict) to validate the event payload against. If provided, the payload will be validated and returned as an instance of this type.
+
+        :return: The payload of the event, validated against the provided payload_validator if it was given, or as a raw dictionary if no payload_validator was provided.
         """
 
         wait_index = self._increment_wait_index()
@@ -683,17 +706,15 @@ class DurableContext(Context):
         _, raw_matches = next(iter(matches.items()))
         event = raw_matches[0]
 
-        return Event(
-            id=event.get("id", ""),
-            tenant_id=self.action.tenant_id,
-            key=event.get("key", key),
-            payload=event.get("data", {}),
-            seen_at=datetime.fromisoformat(
-                event.get("seen_at", datetime.now(UTC).isoformat())
-            ),
-            additional_metadata=event.get("additional_metadata"),
-            scope=event.get("scope"),
-        )
+        raw_payload = event.get("data", {})
+
+        if payload_validator is not None:
+            adapter = TypeAdapter(payload_validator)
+            return adapter.validate_python(
+                raw_payload, context=HATCHET_PYDANTIC_SENTINEL
+            )
+
+        return raw_payload
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
     ## Keep the signature in sync with the instrumentor wrapper.

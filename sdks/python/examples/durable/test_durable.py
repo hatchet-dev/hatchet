@@ -20,6 +20,7 @@ from examples.durable.worker import (
     MemoInput,
     DurableBulkSpawnInput,
     memo_now_caching,
+    AwaitedEvent,
 )
 from hatchet_sdk import Hatchet
 
@@ -29,10 +30,13 @@ requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_evicti
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable(hatchet: Hatchet) -> None:
     ref = durable_workflow.run_no_wait()
+    id = str(uuid4())
 
     await asyncio.sleep(SLEEP_TIME + 10)
 
-    event = await hatchet.event.aio_push(EVENT_KEY, {"test": "test"})
+    event = await hatchet.event.aio_push(
+        EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json")
+    )
 
     result = await ref.aio_result()
 
