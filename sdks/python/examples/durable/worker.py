@@ -315,7 +315,7 @@ async def expensive_computation(message: str) -> SleepResult:
 @hatchet.durable_task(input_validator=MemoInput)
 async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     start = time.time()
-    res = await ctx.aio_memo(
+    res = await ctx._aio_memo(
         expensive_computation,
         SleepResult,
         input.message,

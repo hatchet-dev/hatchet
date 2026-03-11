@@ -689,7 +689,7 @@ class DurableContext(Context):
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
     ## Keep the signature in sync with the instrumentor wrapper.
-    async def aio_memo(
+    async def _aio_memo(
         self,
         fn: Callable[PMemo, Awaitable[TMemo]],
         result_validator: type[TMemo],
