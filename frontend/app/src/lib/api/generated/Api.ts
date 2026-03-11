@@ -46,6 +46,7 @@ import {
   LogLineOrderByDirection,
   LogLineOrderByField,
   LogLineSearch,
+  OtelSpanList,
   RateLimitList,
   RateLimitOrderByDirection,
   RateLimitOrderByField,
@@ -252,6 +253,39 @@ export class Api<
   ) =>
     this.request<V1LogLineList, APIErrors>({
       path: `/api/v1/stable/tasks/${task}/logs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get OTel trace for a task run
+   *
+   * @tags Task
+   * @name V1TaskGetTrace
+   * @summary Get OTel trace
+   * @request GET:/api/v1/stable/tasks/{task}/trace
+   * @secure
+   */
+  v1TaskGetTrace = (
+    task: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<OtelSpanList, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/trace`,
       method: "GET",
       query: query,
       secure: true,

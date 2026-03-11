@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -90,6 +91,12 @@ type HatchetContext interface {
 	ParentOutput(parent create.NamedTask, output interface{}) error
 
 	WasSkipped(parent create.NamedTask) bool
+
+	TenantId() string
+
+	WorkerId() string
+
+	ActionId() string
 
 	client() client.Client
 
@@ -206,6 +213,18 @@ func (h *hatchetContext) client() client.Client {
 
 func (h *hatchetContext) action() *client.Action {
 	return h.a
+}
+
+func (h *hatchetContext) TenantId() string {
+	return h.a.TenantId
+}
+
+func (h *hatchetContext) WorkerId() string {
+	return h.a.WorkerId
+}
+
+func (h *hatchetContext) ActionId() string {
+	return h.a.ActionId
 }
 
 func (h *hatchetContext) Worker() HatchetWorkerContext {
@@ -481,12 +500,35 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 	return h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
 }
 
+// injectTraceparent serializes the current span's W3C traceparent from ctx
+// into the AdditionalMetadata map so child workflows inherit the trace.
+func injectTraceparent(ctx context.Context, meta *map[string]string) *map[string]string {
+	propagator := propagation.TraceContext{}
+	carrier := propagation.MapCarrier{}
+	propagator.Inject(ctx, carrier)
+
+	tp, ok := carrier["traceparent"]
+	if !ok || tp == "" {
+		return meta
+	}
+
+	if meta == nil {
+		m := map[string]string{"traceparent": tp}
+		return &m
+	}
+
+	(*meta)["traceparent"] = tp
+	return meta
+}
+
 // Deprecated: SpawnWorkflow is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
 	if opts == nil {
 		opts = &SpawnWorkflowOpts{}
 	}
+
+	opts.AdditionalMetadata = injectTraceparent(h.GetContext(), opts.AdditionalMetadata)
 
 	var desiredWorker *string
 
@@ -554,6 +596,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	listener, err := h.saveOrLoadListener()
 
 	for i, c := range childWorkflows {
+		c.AdditionalMetadata = injectTraceparent(h.GetContext(), c.AdditionalMetadata)
 
 		var desiredWorker *string
 

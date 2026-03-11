@@ -140,3 +140,4 @@ roles:
       - WorkflowCronDelete
       - WorkflowCronGet
       - WorkflowCronUpdate
+      - V1TaskGetTrace

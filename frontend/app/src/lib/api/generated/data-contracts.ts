@@ -256,6 +256,21 @@ export enum TenantVersion {
   V1 = "V1",
 }
 
+export enum OtelStatusCode {
+  UNSET = "UNSET",
+  OK = "OK",
+  ERROR = "ERROR",
+}
+
+export enum OtelSpanKind {
+  UNSPECIFIED = "UNSPECIFIED",
+  INTERNAL = "INTERNAL",
+  SERVER = "SERVER",
+  CLIENT = "CLIENT",
+  PRODUCER = "PRODUCER",
+  CONSUMER = "CONSUMER",
+}
+
 export enum V1LogLineOrderByDirection {
   ASC = "ASC",
   DESC = "DESC",
@@ -514,6 +529,30 @@ export interface V1LogLine {
 export interface V1LogLineList {
   pagination?: PaginationResponse;
   rows?: V1LogLine[];
+}
+
+export interface OtelSpan {
+  trace_id: string;
+  span_id: string;
+  parent_span_id?: string;
+  span_name: string;
+  span_kind: OtelSpanKind;
+  service_name: string;
+  status_code: OtelStatusCode;
+  status_message?: string;
+  /** @format int64 */
+  duration: number;
+  /** @format date-time */
+  created_at: string;
+  resource_attributes?: Record<string, string>;
+  span_attributes?: Record<string, string>;
+  scope_name?: string;
+  scope_version?: string;
+}
+
+export interface OtelSpanList {
+  pagination?: PaginationResponse;
+  rows?: OtelSpan[];
 }
 
 export interface V1TaskFilter {

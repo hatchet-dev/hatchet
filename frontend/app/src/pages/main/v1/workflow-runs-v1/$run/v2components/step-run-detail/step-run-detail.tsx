@@ -5,7 +5,7 @@ import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { Waterfall } from '../waterfall';
+import { Observability } from './observability/observability';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -19,7 +19,6 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
@@ -28,14 +27,14 @@ import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 export enum TabOption {
   Output = 'output',
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
   Logs = 'logs',
-  Waterfall = 'waterfall',
+  Observability = 'observability',
   AdditionalMetadata = 'additional-metadata',
   Activity = 'activity',
 }
@@ -105,21 +104,7 @@ export const TaskRunDetail = ({
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
-  const { open } = useSidePanel();
   const [logsResetKey, setLogsResetKey] = useState(0);
-  const handleTaskRunExpand = useCallback(
-    (taskRunId: string) => {
-      open({
-        type: 'task-run-details',
-        content: {
-          taskRunId,
-          defaultOpenTab: TabOption.Output,
-          showViewTaskRunButton: true,
-        },
-      });
-    },
-    [open],
-  );
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -208,8 +193,8 @@ export const TaskRunDetail = ({
             Overview
           </TabsTrigger>
           {isStandaloneTaskRun && (
-            <TabsTrigger variant="underlined" value="waterfall">
-              Waterfall
+            <TabsTrigger variant="underlined" value="observability">
+              Observability
             </TabsTrigger>
           )}
         </TabsList>
@@ -316,11 +301,10 @@ export const TaskRunDetail = ({
           </Tabs>
         </TabsContent>
         {isStandaloneTaskRun && (
-          <TabsContent value="waterfall" className="min-h-0 flex-1">
-            <Waterfall
-              workflowRunId={taskRunId}
-              selectedTaskId={undefined}
-              handleTaskSelect={handleTaskRunExpand}
+          <TabsContent value="observability" className="min-h-0 flex-1">
+            <Observability
+              taskRunId={taskRunId}
+              isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
             />
           </TabsContent>
         )}

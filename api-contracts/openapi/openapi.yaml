@@ -29,6 +29,8 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTaskEvents"
   /api/v1/stable/tasks/{task}/logs:
     $ref: "./paths/v1/tasks/tasks.yaml#/listLogs"
+  /api/v1/stable/tasks/{task}/trace:
+    $ref: "./paths/v1/tasks/tasks.yaml#/getTrace"
   /api/v1/stable/tenants/{tenant}/tasks/cancel:
     $ref: "./paths/v1/tasks/tasks.yaml#/cancelTasks"
   /api/v1/stable/tenants/{tenant}/tasks/replay:
