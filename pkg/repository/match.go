@@ -368,6 +368,16 @@ type DurableTaskNodeIdKey struct {
 	BranchId              int64
 }
 
+type MatchedEvent struct {
+	Id                 uuid.UUID      `json:"id"`
+	Key                string         `json:"key"`
+	SeenAt             time.Time      `json:"seen_at"`
+	TenantId           uuid.UUID      `json:"tenant_id"`
+	Scope              *string        `json:"scope,omitempty"`
+	AdditionalMetadata map[string]any `json:"additional_metadata,omitempty"`
+	Data               map[string]any `json:"data,omitempty"`
+}
+
 func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
 	start := time.Now()
 
@@ -465,12 +475,30 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			conditionIds = append(conditionIds, condition.ID)
 
 			if condition.EventType == sqlcv1.V1EventTypeUSER {
-				if dj, err := json.Marshal(EventTriggerOpts{
-					ExternalId:         eventId,
+				additionalMeta := make(map[string]any)
+
+				if event.AdditionalMetadata != nil {
+					if err := json.Unmarshal(event.AdditionalMetadata, &additionalMeta); err != nil {
+						m.l.Error().Err(err).Msgf("failed to unmarshal additional metadata for event with id %s", eventId)
+					}
+				}
+
+				eventPayload := make(map[string]any)
+
+				if event.Data != nil {
+					if err := json.Unmarshal(event.Data, &eventPayload); err != nil {
+						m.l.Error().Err(err).Msgf("failed to unmarshal data for event with id %s", eventId)
+					}
+				}
+
+				if dj, err := json.Marshal(MatchedEvent{
+					Id:                 eventId,
+					TenantId:           tenantId,
 					Key:                event.Key,
-					Data:               event.Data,
-					AdditionalMetadata: event.AdditionalMetadata,
+					Data:               eventPayload,
+					AdditionalMetadata: additionalMeta,
 					Scope:              event.Scope,
+					SeenAt:             event.EventTimestamp,
 				}); err != nil {
 					datas = append(datas, event.Data)
 				} else {
