@@ -19,16 +19,16 @@ type AuthZ struct {
 	l      *zerolog.Logger
 }
 
-func NewAuthZ(config *server.ServerConfig) *AuthZ {
+func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 	rbacAuthorizer, err := rbac.NewAuthorizer()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
 		rbac:   rbacAuthorizer,
-	}
+	}, nil
 }
 
 func (a *AuthZ) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
