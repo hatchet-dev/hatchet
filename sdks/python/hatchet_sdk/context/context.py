@@ -639,6 +639,11 @@ class DurableContext(Context):
             SleepCondition(duration=duration),
         )
 
+        ## lots of implicit use of engine semantics / internal logic here.
+        ## the engine returns an object like this:
+        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
+        ## since we have a single match we're looking for, we know that
+        ## the list of matches will only have one item, so we can extract and parse it
         matches: dict[str, list[dict[str, Any]]] = res.get("CREATE", {})
         _, raw_matches = next(iter(matches.items()))
         sleep = raw_matches[0]
@@ -661,9 +666,14 @@ class DurableContext(Context):
             UserEventCondition(event_key=key, expression=expression),
         )
 
+        ## lots of implicit use of engine semantics / internal logic here.
+        ## the engine returns an object like this:
+        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
+        ## since we have a single match we're looking for, we know that
+        ## the list of matches will only have one item, so we can extract and parse it
         matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
-        key, raw_events = next(iter(matches.items()))
-        event = raw_events[0]
+        _, raw_matches = next(iter(matches.items()))
+        event = raw_matches[0]
 
         return Event(
             id=event["id"],
