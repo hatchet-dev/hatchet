@@ -1,17 +1,9 @@
-import type { AvatarProps } from '../Avatar';
-import { Avatar } from '../Avatar';
-import { BrandLogo } from '../BrandLogo';
-import { SpanStatus } from '../SpanStatus';
-import { SpanCardBadges } from './SpanCardBadges';
+import { formatDuration, getTimelineData } from '../agent-prism-data';
+import type { OtelSpanTree } from '../span-tree-type';
 import type { SpanCardConnectorType } from './SpanCardConnector';
 import { SpanCardConnector } from './SpanCardConnector';
 import { SpanCardTimeline } from './SpanCardTimeline';
 import { SpanCardToggle } from './SpanCardToggle';
-import {
-  formatDuration,
-  getTimelineData,
-} from '@evilmartians/agent-prism-data';
-import type { TraceSpan } from '@evilmartians/agent-prism-types';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import cn from 'classnames';
 import type { FC, KeyboardEvent, MouseEvent } from 'react';
@@ -35,11 +27,10 @@ const DEFAULT_VIEW_OPTIONS: Required<SpanCardViewOptions> = {
 };
 
 interface SpanCardProps {
-  data: TraceSpan;
+  data: OtelSpanTree;
   level?: number;
-  selectedSpan?: TraceSpan;
-  avatar?: AvatarProps;
-  onSpanSelect?: (span: TraceSpan) => void;
+  selectedSpan?: OtelSpanTree;
+  onSpanSelect?: (span: OtelSpanTree) => void;
   minStart: number;
   maxEnd: number;
   isLastChild: boolean;
@@ -173,8 +164,8 @@ const getConnectorsLayout = ({
 };
 
 const useSpanCardEventHandlers = (
-  data: TraceSpan,
-  onSpanSelect?: (span: TraceSpan) => void,
+  data: OtelSpanTree,
+  onSpanSelect?: (span: OtelSpanTree) => void,
 ) => {
   const handleCardClick = useCallback((): void => {
     onSpanSelect?.(data);
@@ -205,10 +196,10 @@ const useSpanCardEventHandlers = (
 };
 
 const SpanCardChildren: FC<{
-  data: TraceSpan;
+  data: OtelSpanTree;
   level: number;
-  selectedSpan?: TraceSpan;
-  onSpanSelect?: (span: TraceSpan) => void;
+  selectedSpan?: OtelSpanTree;
+  onSpanSelect?: (span: OtelSpanTree) => void;
   minStart: number;
   maxEnd: number;
   prevLevelConnectors: SpanCardConnectorType[];
@@ -235,36 +226,22 @@ const SpanCardChildren: FC<{
     <div className="relative">
       <Collapsible.Content>
         <ul role="group">
-          {data.children.map((child, idx) => {
-            const brand = child.metadata?.brand as { type: string } | undefined;
-
-            return (
-              <SpanCard
-                viewOptions={viewOptions}
-                key={child.id}
-                data={child}
-                minStart={minStart}
-                maxEnd={maxEnd}
-                level={level + 1}
-                selectedSpan={selectedSpan}
-                onSpanSelect={onSpanSelect}
-                isLastChild={idx === (data.children || []).length - 1}
-                prevLevelConnectors={prevLevelConnectors}
-                expandedSpansIds={expandedSpansIds}
-                onExpandSpansIdsChange={onExpandSpansIdsChange}
-                avatar={
-                  brand
-                    ? {
-                        children: <BrandLogo brand={brand.type} />,
-                        size: '4',
-                        rounded: 'sm',
-                        category: child.type,
-                      }
-                    : undefined
-                }
-              />
-            );
-          })}
+          {data.children.map((child, idx) => (
+            <SpanCard
+              viewOptions={viewOptions}
+              key={child.span_id}
+              data={child}
+              minStart={minStart}
+              maxEnd={maxEnd}
+              level={level + 1}
+              selectedSpan={selectedSpan}
+              onSpanSelect={onSpanSelect}
+              isLastChild={idx === (data.children || []).length - 1}
+              prevLevelConnectors={prevLevelConnectors}
+              expandedSpansIds={expandedSpansIds}
+              onExpandSpansIdsChange={onExpandSpansIdsChange}
+            />
+          ))}
         </ul>
       </Collapsible.Content>
     </div>
@@ -277,7 +254,6 @@ export const SpanCard: FC<SpanCardProps> = ({
   selectedSpan,
   onSpanSelect,
   viewOptions = DEFAULT_VIEW_OPTIONS,
-  avatar,
   minStart,
   maxEnd,
   isLastChild,
@@ -285,31 +261,32 @@ export const SpanCard: FC<SpanCardProps> = ({
   expandedSpansIds,
   onExpandSpansIdsChange,
 }) => {
-  const isExpanded = expandedSpansIds.includes(data.id);
+  const isExpanded = expandedSpansIds.includes(data.span_id);
 
-  const withStatus = viewOptions.withStatus ?? DEFAULT_VIEW_OPTIONS.withStatus;
   const expandButton =
     viewOptions.expandButton || DEFAULT_VIEW_OPTIONS.expandButton;
 
   const handleToggleClick = useCallback(
     (expanded: boolean) => {
-      const alreadyExpanded = expandedSpansIds.includes(data.id);
+      const alreadyExpanded = expandedSpansIds.includes(data.span_id);
 
       if (alreadyExpanded && !expanded) {
-        onExpandSpansIdsChange(expandedSpansIds.filter((id) => id !== data.id));
+        onExpandSpansIdsChange(
+          expandedSpansIds.filter((id) => id !== data.span_id),
+        );
       }
 
       if (!alreadyExpanded && expanded) {
-        onExpandSpansIdsChange([...expandedSpansIds, data.id]);
+        onExpandSpansIdsChange([...expandedSpansIds, data.span_id]);
       }
     },
-    [expandedSpansIds, data.id, onExpandSpansIdsChange],
+    [expandedSpansIds, data.span_id, onExpandSpansIdsChange],
   );
 
   const state: SpanCardState = {
     isExpanded,
     hasChildren: Boolean(data.children?.length),
-    isSelected: selectedSpan?.id === data.id,
+    isSelected: selectedSpan?.span_id === data.span_id,
   };
 
   const eventHandlers = useSpanCardEventHandlers(data, onSpanSelect);
@@ -362,6 +339,7 @@ export const SpanCard: FC<SpanCardProps> = ({
         <div
           className={cn(
             'relative grid w-full',
+            onSpanSelect && 'cursor-pointer',
             state.isSelected &&
               'before:bg-agentprism-muted/75 before:absolute before:-top-2 before:h-2 before:w-full',
             state.isSelected &&
@@ -373,14 +351,16 @@ export const SpanCard: FC<SpanCardProps> = ({
             backgroundPosition: 'top',
             backgroundRepeat: 'no-repeat',
           }}
-          onClick={eventHandlers.handleCardClick}
-          onKeyDown={eventHandlers.handleKeyDown}
-          tabIndex={0}
-          role="button"
-          aria-pressed={state.isSelected}
-          aria-describedby={`span-card-desc-${data.id}`}
+          {...(onSpanSelect && {
+            onClick: eventHandlers.handleCardClick,
+            onKeyDown: eventHandlers.handleKeyDown,
+            tabIndex: 0,
+            role: 'button',
+            'aria-pressed': state.isSelected,
+            'aria-label': `${state.isSelected ? 'Selected' : 'Not selected'} span card for ${data.span_name} at level ${level}`,
+          })}
+          aria-describedby={`span-card-desc-${data.span_id}`}
           aria-expanded={state.hasChildren ? state.isExpanded : undefined}
-          aria-label={`${state.isSelected ? 'Selected' : 'Not selected'} span card for ${data.title} at level ${level}`}
         >
           <div className="flex flex-nowrap">
             {connectors.map((connector, idx) => (
@@ -391,7 +371,7 @@ export const SpanCard: FC<SpanCardProps> = ({
               <div className="flex w-5 flex-col items-center">
                 <SpanCardToggle
                   isExpanded={state.isExpanded}
-                  title={data.title}
+                  title={data.span_name}
                   onToggleClick={eventHandlers.handleToggleClick}
                 />
 
@@ -402,37 +382,33 @@ export const SpanCard: FC<SpanCardProps> = ({
           <div
             className={cn(
               'flex flex-wrap items-start gap-x-2 gap-y-1',
-              'mb-3 min-h-5 w-full cursor-pointer',
+              'mb-3 min-h-5 w-full',
               level !== 0 && !hasExpandButtonAsFirstChild && 'pl-2',
               level !== 0 && hasExpandButtonAsFirstChild && 'pl-1',
             )}
           >
-            <div
-              className="relative flex min-h-4 shrink-0 flex-wrap items-center gap-1.5"
-              style={{
-                width: `min(${contentWidth}px, 100%)`,
-                minWidth: 140,
-              }}
-            >
-              {avatar && <Avatar size="4" {...avatar} />}
-
-              <h3
-                className="text-agentprism-foreground truncate text-sm leading-[14px]"
-                title={data.title}
+            <Collapsible.Trigger asChild disabled={!state.hasChildren}>
+              <div
+                className={cn(
+                  'relative flex min-h-4 shrink-0 flex-wrap items-center gap-1.5',
+                  state.hasChildren && 'cursor-pointer',
+                )}
+                style={{
+                  width: `min(${contentWidth}px, 100%)`,
+                  minWidth: 140,
+                }}
+                onClick={eventHandlers.handleToggleClick}
               >
-                {data.title}
-              </h3>
-
-              <SpanCardBadges data={data} />
-            </div>
+                <h3
+                  className="text-agentprism-foreground truncate text-sm leading-[14px]"
+                  title={data.span_name}
+                >
+                  {data.span_name}
+                </h3>
+              </div>
+            </Collapsible.Trigger>
 
             <div className="flex grow flex-wrap items-center justify-end gap-1">
-              {expandButton === 'outside' && withStatus && (
-                <div>
-                  <SpanStatus status={data.status} />
-                </div>
-              )}
-
               <SpanCardTimeline
                 minStart={minStart}
                 maxEnd={maxEnd}
@@ -443,12 +419,6 @@ export const SpanCard: FC<SpanCardProps> = ({
                 <span className="text-agentprism-foreground inline-block w-14 flex-1 shrink-0 whitespace-nowrap px-1 text-right text-xs">
                   {formatDuration(durationMs)}
                 </span>
-
-                {expandButton === 'inside' && withStatus && (
-                  <div>
-                    <SpanStatus status={data.status} />
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -457,7 +427,7 @@ export const SpanCard: FC<SpanCardProps> = ({
             (state.hasChildren ? (
               <SpanCardToggle
                 isExpanded={state.isExpanded}
-                title={data.title}
+                title={data.span_name}
                 onToggleClick={eventHandlers.handleToggleClick}
               />
             ) : (

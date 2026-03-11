@@ -1,29 +1,19 @@
-import { getTimelineData } from '@evilmartians/agent-prism-data';
-import type {
-  TraceSpan,
-  TraceSpanCategory,
-} from '@evilmartians/agent-prism-types';
+import { getTimelineData } from '../agent-prism-data';
+import type { OtelSpanTree } from '../span-tree-type';
+import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import cn from 'classnames';
 
 interface SpanCardTimelineProps {
-  spanCard: TraceSpan;
+  spanCard: OtelSpanTree;
   minStart: number;
   maxEnd: number;
   className?: string;
 }
 
-const timelineBgColors: Record<TraceSpanCategory, string> = {
-  llm_call: 'bg-agentprism-timeline-llm',
-  agent_invocation: 'bg-agentprism-timeline-agent',
-  tool_execution: 'bg-agentprism-timeline-tool',
-  chain_operation: 'bg-agentprism-timeline-chain',
-  retrieval: 'bg-agentprism-timeline-retrieval',
-  embedding: 'bg-agentprism-timeline-embedding',
-  guardrail: 'bg-agentprism-timeline-guardrail',
-  create_agent: 'bg-agentprism-timeline-create-agent',
-  span: 'bg-agentprism-timeline-span',
-  event: 'bg-agentprism-timeline-event',
-  unknown: 'bg-agentprism-timeline-unknown',
+const timelineBgColors: Record<OtelStatusCode, string> = {
+  [OtelStatusCode.OK]: 'bg-success',
+  [OtelStatusCode.UNSET]: 'bg-success',
+  [OtelStatusCode.ERROR]: 'bg-danger',
 };
 
 export const SpanCardTimeline = ({
@@ -39,15 +29,10 @@ export const SpanCardTimeline = ({
   });
 
   return (
-    <span
-      className={cn(
-        'bg-agentprism-secondary relative flex h-4 min-w-20 flex-1 rounded-md',
-        className,
-      )}
-    >
-      <span className="pointer-events-none absolute inset-x-1 top-1/2 h-1.5 -translate-y-1/2">
+    <span className={cn('relative flex h-6 min-w-20 flex-1', className)}>
+      <span className="pointer-events-none absolute inset-x-1 top-1/2 h-5 -translate-y-1/2">
         <span
-          className={`absolute h-full rounded-sm ${timelineBgColors[spanCard.type]}`}
+          className={`absolute h-full ${timelineBgColors[spanCard.status_code]}`}
           style={{
             left: `${startPercent}%`,
             width: `${widthPercent}%`,

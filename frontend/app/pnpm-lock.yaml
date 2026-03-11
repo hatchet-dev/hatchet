@@ -18,12 +18,6 @@ importers:
 
   .:
     dependencies:
-      '@evilmartians/agent-prism-data':
-        specifier: ^0.0.9
-        version: 0.0.9
-      '@evilmartians/agent-prism-types':
-        specifier: ^0.0.9
-        version: 0.0.9
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@18.3.1)
@@ -586,12 +580,6 @@ packages:
   '@eslint/js@8.57.1':
     resolution: {integrity: sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
-
-  '@evilmartians/agent-prism-data@0.0.9':
-    resolution: {integrity: sha512-CyFGIMfTfRRhr+6c/EB+6wT2irx0x6gAMK7cCnmvGJtq/Hs/EWXnxprMCMf1Ct9dErlcYXiF8Y5AZbQP82ICoA==}
-
-  '@evilmartians/agent-prism-types@0.0.9':
-    resolution: {integrity: sha512-rQW62z5XGF31oMnmdzNiGwzKTYJigsxKoPWWH/ZeVAxFi0c4bi+f8TndqgAebGBdHWcn5JRaFDZ76ywlNu4c6A==}
 
   '@floating-ui/core@1.7.3':
     resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
@@ -4658,12 +4646,6 @@ snapshots:
       - supports-color
 
   '@eslint/js@8.57.1': {}
-
-  '@evilmartians/agent-prism-data@0.0.9':
-    dependencies:
-      '@evilmartians/agent-prism-types': 0.0.9
-
-  '@evilmartians/agent-prism-types@0.0.9': {}
 
   '@floating-ui/core@1.7.3':
     dependencies:

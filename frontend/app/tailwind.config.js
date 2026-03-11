@@ -10,22 +10,22 @@ const agentPrismTokens = [
   "pending", "pending-muted", "pending-muted-foreground",
   "code-string", "code-number", "code-key", "code-base",
   "badge-default", "badge-default-foreground",
-  "avatar-llm", "badge-llm", "badge-llm-foreground", "timeline-llm",
-  "avatar-agent", "badge-agent", "badge-agent-foreground", "timeline-agent",
-  "avatar-tool", "badge-tool", "badge-tool-foreground", "timeline-tool",
+  "avatar-llm", "badge-llm", "badge-llm-foreground",
+  "avatar-agent", "badge-agent", "badge-agent-foreground",
+  "avatar-tool", "badge-tool", "badge-tool-foreground",
   "avatar-chain", "badge-chain", "badge-chain-foreground", "timeline-chain",
-  "avatar-retrieval", "badge-retrieval", "badge-retrieval-foreground", "timeline-retrieval",
-  "avatar-embedding", "badge-embedding", "badge-embedding-foreground", "timeline-embedding",
-  "avatar-guardrail", "badge-guardrail", "badge-guardrail-foreground", "timeline-guardrail",
-  "avatar-create-agent", "badge-create-agent", "badge-create-agent-foreground", "timeline-create-agent",
-  "avatar-span", "badge-span", "badge-span-foreground", "timeline-span",
-  "avatar-event", "badge-event", "badge-event-foreground", "timeline-event",
-  "avatar-unknown", "badge-unknown", "badge-unknown-foreground", "timeline-unknown",
+  "avatar-retrieval", "badge-retrieval", "badge-retrieval-foreground",
+  "avatar-embedding", "badge-embedding", "badge-embedding-foreground",
+  "avatar-guardrail", "badge-guardrail", "badge-guardrail-foreground",
+  "avatar-create-agent", "badge-create-agent", "badge-create-agent-foreground",
+  "avatar-span", "badge-span", "badge-span-foreground",
+  "avatar-event", "badge-event", "badge-event-foreground",
+  "avatar-unknown", "badge-unknown", "badge-unknown-foreground",
 ];
 const agentPrismColors = Object.fromEntries(
   agentPrismTokens.map((name) => [
     `agentprism-${name}`,
-    `oklch(var(--agentprism-${name}) / <alpha-value>)`,
+    `hsl(var(--agentprism-${name}) / <alpha-value>)`,
   ])
 );
 
@@ -127,6 +127,8 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        success: "hsl(var(--success))",
+        danger: "hsl(var(--danger))",
       },
       borderRadius: {
         lg: "var(--radius)",
