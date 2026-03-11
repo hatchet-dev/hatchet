@@ -1,6 +1,6 @@
 import type { ComponentSize } from './shared';
 import { ROUNDED_CLASSES } from './shared';
-import type { TraceSpanCategory } from '@evilmartians/agent-prism-types';
+import type { TraceSpanCategory } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import cn from 'classnames';
 import { User } from 'lucide-react';
 import type { ComponentPropsWithRef, ReactElement } from 'react';

@@ -1,7 +1,7 @@
 import type { AvatarProps } from '../Avatar';
 import { Avatar } from '../Avatar';
 import { Badge } from '../Badge';
-import type { TraceRecord } from '@evilmartians/agent-prism-types';
+import type { TraceRecord } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 
 interface TraceListItemHeaderProps {
   trace: TraceRecord;

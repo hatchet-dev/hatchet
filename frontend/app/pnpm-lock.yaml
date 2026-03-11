@@ -21,9 +21,6 @@ importers:
       '@evilmartians/agent-prism-data':
         specifier: ^0.0.9
         version: 0.0.9
-      '@evilmartians/agent-prism-types':
-        specifier: ^0.0.9
-        version: 0.0.9
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@18.3.1)

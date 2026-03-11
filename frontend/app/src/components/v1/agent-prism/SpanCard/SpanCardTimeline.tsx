@@ -1,8 +1,8 @@
-import { getTimelineData } from '@evilmartians/agent-prism-data';
 import type {
   TraceSpan,
   TraceSpanStatus,
-} from '@evilmartians/agent-prism-types';
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
+import { getTimelineData } from '@evilmartians/agent-prism-data';
 import cn from 'classnames';
 
 interface SpanCardTimelineProps {

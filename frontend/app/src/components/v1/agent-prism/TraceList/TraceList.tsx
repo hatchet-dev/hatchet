@@ -2,7 +2,7 @@ import type { BadgeProps } from '../Badge';
 import { Badge } from '../Badge';
 import { IconButton } from '../IconButton';
 import { TraceListItem } from './TraceListItem';
-import type { TraceRecord } from '@evilmartians/agent-prism-types';
+import type { TraceRecord } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import cn from 'classnames';
 import { ArrowLeft } from 'lucide-react';
 

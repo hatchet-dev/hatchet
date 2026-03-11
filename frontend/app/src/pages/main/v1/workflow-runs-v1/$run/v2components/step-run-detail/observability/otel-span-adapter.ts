@@ -1,10 +1,10 @@
-import type { OtelSpan } from '@/lib/api/generated/data-contracts';
 import type {
   OpenTelemetrySpan,
   OpenTelemetrySpanKind,
   OpenTelemetryStatusCode,
   TraceSpanAttribute,
-} from '@evilmartians/agent-prism-types';
+} from './agent-prism-types';
+import type { OtelSpan } from '@/lib/api/generated/data-contracts';
 
 const SPAN_KIND_MAP: Record<string, OpenTelemetrySpanKind> = {
   INTERNAL: 'SPAN_KIND_INTERNAL',

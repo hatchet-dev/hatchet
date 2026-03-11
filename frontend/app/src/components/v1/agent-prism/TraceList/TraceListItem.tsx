@@ -5,7 +5,7 @@ import { PriceBadge } from '../PriceBadge';
 import { TimestampBadge } from '../TimestampBadge';
 import { TokensBadge } from '../TokensBadge';
 import { TraceListItemHeader } from './TraceListItemHeader';
-import type { TraceRecord } from '@evilmartians/agent-prism-types';
+import type { TraceRecord } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import cn from 'classnames';
 import type { KeyboardEvent } from 'react';
 import { useCallback } from 'react';

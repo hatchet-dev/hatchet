@@ -1,4 +1,4 @@
-import type { TraceSpanCategory } from '@evilmartians/agent-prism-types';
+import type { TraceSpanCategory } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import type { LucideIcon } from 'lucide-react';
 import {
   Zap,
