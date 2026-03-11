@@ -82,10 +82,7 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]
     print("Sleep finished")
 
     print("Waiting for event")
-    await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key=EVENT_KEY, expression="true"),
-    )
+    await ctx.aio_wait_for_event(EVENT_KEY, "true")
     print("Event received")
 
     return {

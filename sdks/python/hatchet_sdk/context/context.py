@@ -4,11 +4,11 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 from warnings import warn
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
@@ -65,6 +65,16 @@ TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
+
+
+class Event(BaseModel):
+    id: str
+    tenant_id: str
+    key: str
+    payload: JSONSerializableMapping
+    seen_at: datetime
+    additional_metadata: JSONSerializableMapping | None
+    scope: str | None
 
 
 def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
@@ -619,6 +629,36 @@ class DurableContext(Context):
         return await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
+        )
+
+    async def aio_wait_for_event(
+        self, key: str, expression: str | None = None
+    ) -> Event:
+        """
+        Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
+
+        For more complicated conditions, use `ctx.aio_wait_for` directly.
+        """
+
+        wait_index = self._increment_wait_index()
+
+        result = await self.aio_wait_for(
+            f"event:{key}-{wait_index}",
+            UserEventCondition(event_key=key, expression=expression),
+        )
+
+        matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
+        key, raw_events = next(iter(matches.items()))
+        event = raw_events[0]
+
+        return Event(
+            id=event["id"],
+            tenant_id=event["tenant_id"],
+            key=event["key"],
+            payload=event.get("data", {}),
+            seen_at=datetime.fromisoformat(event["seen_at"]),
+            additional_metadata=event.get("additional_metadata"),
+            scope=event.get("scope"),
         )
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
