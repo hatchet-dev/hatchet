@@ -35,29 +35,6 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
         "To use the HatchetInstrumentor, you must install Hatchet's `otel` extra using (e.g.) `pip install hatchet-sdk[otel]`"
     ) from e
 
-# ContextVar that holds the hatchet.* attributes from the active
-# hatchet.start_step_run span so they can be injected into child spans.
-_hatchet_span_attributes: contextvars.ContextVar[dict[str, str | int] | None] = (
-    contextvars.ContextVar("_hatchet_span_attributes", default=None)
-)
-
-
-class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
-    """SpanProcessor that injects hatchet.* attributes into every span
-    created within a step run context, so that child spans are queryable
-    by the same attributes (e.g. hatchet.step_run_id) as the parent."""
-
-    def __init__(self, span_exporter: SpanExporter) -> None:
-        super().__init__(span_exporter)
-
-    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
-        attrs = _hatchet_span_attributes.get()
-        if attrs and span.is_recording():
-            for key, value in attrs.items():
-                span.set_attribute(key, value)
-        super().on_start(span, parent_context)
-
-
 import inspect
 from datetime import datetime
 
@@ -85,6 +62,29 @@ from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 hatchet_sdk_version = version("hatchet-sdk")
+
+# ContextVar that holds the hatchet.* attributes from the active
+# hatchet.start_step_run span so they can be injected into child spans.
+_hatchet_span_attributes: contextvars.ContextVar[dict[str, str | int] | None] = (
+    contextvars.ContextVar("_hatchet_span_attributes", default=None)
+)
+
+
+class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
+    """SpanProcessor that injects hatchet.* attributes into every span
+    created within a step run context, so that child spans are queryable
+    by the same attributes (e.g. hatchet.step_run_id) as the parent."""
+
+    def __init__(self, span_exporter: SpanExporter) -> None:
+        super().__init__(span_exporter)
+
+    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
+        attrs = _hatchet_span_attributes.get()
+        if attrs and span.is_recording():
+            for key, value in attrs.items():
+                span.set_attribute(key, value)
+        super().on_start(span, parent_context)
+
 
 InstrumentKwargs = TracerProvider | MeterProvider | None
 
