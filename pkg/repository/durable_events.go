@@ -88,6 +88,7 @@ type IngestWaitForResult struct {
 	NodeId          int64
 	BranchId        int64
 	AlreadyExisted  bool
+	ResultPayload   []byte
 }
 
 type IngestDurableTaskEventResult struct {
@@ -983,6 +984,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			NodeId:          le.Entry.NodeID,
 			BranchId:        le.Entry.BranchID,
 			AlreadyExisted:  le.AlreadyExisted,
+			ResultPayload:   le.ResultPayload,
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if len(logEntries) != 1 {

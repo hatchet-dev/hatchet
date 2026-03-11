@@ -115,7 +115,7 @@ async def wait_for_or_group_1(
     event_id = list(wait_result[key].keys())[0]
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
         "key": key,
         "event_id": event_id,
     }
@@ -141,7 +141,7 @@ async def wait_for_or_group_2(
     event_id = list(wait_result[key].keys())[0]
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
         "key": key,
         "event_id": event_id,
     }
@@ -150,7 +150,7 @@ async def wait_for_or_group_2(
 @durable_workflow.durable_task()
 async def wait_for_multi_sleep(
     _i: EmptyModel, ctx: DurableContext
-) -> dict[str, str | int]:
+) -> dict[str, str | float]:
     start = time.time()
 
     for _ in range(3):
@@ -159,7 +159,7 @@ async def wait_for_multi_sleep(
         )
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
     }
 
 
@@ -171,7 +171,7 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
 @hatchet.durable_task()
 async def wait_for_sleep_twice(
     input: EmptyModel, ctx: DurableContext
-) -> dict[str, int]:
+) -> dict[str, float]:
     try:
         start = time.time()
 
@@ -180,10 +180,10 @@ async def wait_for_sleep_twice(
         )
 
         return {
-            "runtime": int(time.time() - start),
+            "runtime": time.time() - start,
         }
     except asyncio.CancelledError:
-        return {"runtime": -1}
+        return {"runtime": -1.0}
 
 
 class DurableBulkSpawnInput(BaseModel):
@@ -232,7 +232,7 @@ async def durable_sleep_event_spawn(
     child_result = await spawn_child_task.aio_run()
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
         "child_output": child_result,
     }
 
