@@ -2,7 +2,6 @@ import type {
   OpenTelemetrySpan,
   TraceSpan,
   TraceSpanCategory,
-  TraceSpanStatus,
   TraceSpanAttribute,
 } from './agent-prism-types';
 import {
@@ -46,17 +45,6 @@ const getSpanDuration = (span: OpenTelemetrySpan): number => {
   const startNano = BigInt(span.startTimeUnixNano);
   const endNano = BigInt(span.endTimeUnixNano);
   return Number((endNano - startNano) / BigInt(1_000_000));
-};
-
-const getSpanStatus = (span: OpenTelemetrySpan): TraceSpanStatus => {
-  switch (span.status.code) {
-    case 'STATUS_CODE_OK':
-      return 'success';
-    case 'STATUS_CODE_ERROR':
-      return 'error';
-    default:
-      return 'warning';
-  }
 };
 
 const getSpanTitle = (span: OpenTelemetrySpan): string => {
@@ -254,7 +242,7 @@ const convertRawSpanToTraceSpan = (span: OpenTelemetrySpan): TraceSpan => ({
   id: span.spanId,
   title: getSpanTitle(span),
   type: getSpanCategory(span),
-  status: getSpanStatus(span),
+  status: span.status.code,
   attributes: span.attributes,
   duration: getSpanDuration(span),
   tokensCount: getSpanTokensCount(span),

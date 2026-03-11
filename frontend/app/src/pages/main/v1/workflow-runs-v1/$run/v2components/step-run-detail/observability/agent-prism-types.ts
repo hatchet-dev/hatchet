@@ -1,5 +1,3 @@
-// Types
-
 export type TraceRecord = {
   id: string;
   name: string;
@@ -10,8 +8,6 @@ export type TraceRecord = {
   totalTokens?: number;
   startTime?: number;
 };
-
-export type TraceSpanStatus = 'success' | 'error' | 'pending' | 'warning';
 
 export type InputOutputData = {
   input?: string;
@@ -28,7 +24,7 @@ export type TraceSpan<TMetadata = Record<string, unknown>> = InputOutputData & {
   raw: string;
   attributes?: TraceSpanAttribute[];
   children?: TraceSpan<TMetadata>[];
-  status: TraceSpanStatus;
+  status: OpenTelemetryStatusCode;
   cost?: number;
   tokensCount?: number;
   metadata?: TMetadata;
@@ -120,7 +116,7 @@ export type OpenTelemetryLink = {
 };
 
 export type OpenTelemetryStatus = {
-  code?: OpenTelemetryStatusCode;
+  code: OpenTelemetryStatusCode;
   message?: string;
 };
 

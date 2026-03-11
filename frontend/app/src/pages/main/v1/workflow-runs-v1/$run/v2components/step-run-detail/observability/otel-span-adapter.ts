@@ -57,7 +57,7 @@ export function convertOtelSpanToOpenTelemetrySpan(
       { key: 'service.name', value: { stringValue: span.service_name } },
     ],
     status: {
-      code: STATUS_CODE_MAP[span.status_code] || 'STATUS_CODE_UNSET',
+      code: STATUS_CODE_MAP[span.status_code],
       message: span.status_message,
     },
     flags: 0,

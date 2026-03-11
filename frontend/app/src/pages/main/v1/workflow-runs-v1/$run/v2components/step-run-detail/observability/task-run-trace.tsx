@@ -1,8 +1,8 @@
+import { flattenSpans } from './agent-prism-data';
 import { convertSpansToTree } from './convert-spans-to-tree';
 import { convertOtelSpans } from './otel-span-adapter';
 import { TreeView } from '@/components/v1/agent-prism/TreeView';
 import { OtelSpan } from '@/lib/api/generated/data-contracts';
-import { flattenSpans } from '@evilmartians/agent-prism-data';
 import { useEffect, useMemo, useState } from 'react';
 
 export function TaskRunTrace({

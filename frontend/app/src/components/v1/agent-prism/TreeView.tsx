@@ -1,8 +1,11 @@
 import { BrandLogo } from './BrandLogo';
 import type { SpanCardViewOptions } from './SpanCard/SpanCard';
 import { SpanCard } from './SpanCard/SpanCard';
+import {
+  flattenSpans,
+  findTimeRange,
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-data';
 import type { TraceSpan } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
-import { flattenSpans, findTimeRange } from '@evilmartians/agent-prism-data';
 import cn from 'classnames';
 import { type FC } from 'react';
 

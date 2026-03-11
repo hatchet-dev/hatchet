@@ -1,8 +1,8 @@
+import { getTimelineData } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-data';
 import type {
   TraceSpan,
-  TraceSpanStatus,
+  OpenTelemetryStatusCode,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
-import { getTimelineData } from '@evilmartians/agent-prism-data';
 import cn from 'classnames';
 
 interface SpanCardTimelineProps {
@@ -12,11 +12,10 @@ interface SpanCardTimelineProps {
   className?: string;
 }
 
-const timelineBgColors: Record<TraceSpanStatus, string> = {
-  success: 'bg-success',
-  pending: 'bg-success',
-  warning: 'bg-success',
-  error: 'bg-danger',
+const timelineBgColors: Record<OpenTelemetryStatusCode, string> = {
+  STATUS_CODE_OK: 'bg-success',
+  STATUS_CODE_UNSET: 'bg-success',
+  STATUS_CODE_ERROR: 'bg-danger',
 };
 
 export const SpanCardTimeline = ({

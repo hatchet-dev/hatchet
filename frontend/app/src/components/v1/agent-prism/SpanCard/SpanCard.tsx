@@ -5,11 +5,11 @@ import type { SpanCardConnectorType } from './SpanCardConnector';
 import { SpanCardConnector } from './SpanCardConnector';
 import { SpanCardTimeline } from './SpanCardTimeline';
 import { SpanCardToggle } from './SpanCardToggle';
-import type { TraceSpan } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import {
   formatDuration,
   getTimelineData,
-} from '@evilmartians/agent-prism-data';
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-data';
+import type { TraceSpan } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import cn from 'classnames';
 import type { FC, KeyboardEvent, MouseEvent } from 'react';

@@ -23,7 +23,6 @@
     "docs:gen": "cd ../snippets && python3 generate.py"
   },
   "dependencies": {
-    "@evilmartians/agent-prism-data": "^0.0.9",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^3.10.0",
     "@lukemorales/query-key-factory": "^1.3.4",
