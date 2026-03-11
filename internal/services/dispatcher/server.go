@@ -101,11 +101,11 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	s.analytics.Count(ctx, analytics.Worker, analytics.Register, analytics.Props(
 		"worker_name", request.WorkerName,
-		"runtime_language", strings.ToLower(request.RuntimeInfo.GetLanguage().String()),
-		"runtime_sdk_version", request.RuntimeInfo.GetSdkVersion(),
-		"runtime_language_version", request.RuntimeInfo.GetLanguageVersion(),
-		"runtime_os", request.RuntimeInfo.GetOs(),
-		"runtime_extra", request.RuntimeInfo.GetExtra(),
+		"runtime_language", strings.ToLower(request.GetRuntimeInfo().GetLanguage().String()),
+		"runtime_sdk_version", request.GetRuntimeInfo().GetSdkVersion(),
+		"runtime_language_version", request.GetRuntimeInfo().GetLanguageVersion(),
+		"runtime_os", request.GetRuntimeInfo().GetOs(),
+		"runtime_extra", request.GetRuntimeInfo().GetExtra(),
 		"has_labels", len(request.Labels) > 0,
 		"has_webhook_id", request.WebhookId != nil,
 		"has_runtime_info", request.RuntimeInfo != nil,
