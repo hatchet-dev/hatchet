@@ -34,6 +34,7 @@ interface UpdateInviteFormProps {
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   invite: TenantInvite;
+  isCloudEnabled?: boolean;
 }
 
 export function UpdateInviteForm({
@@ -52,7 +53,6 @@ export function UpdateInviteForm({
   });
 
   const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
-
   return (
     <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
@@ -91,7 +91,9 @@ export function UpdateInviteForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="OWNER">Owner</SelectItem>
+                        {!props.isCloudEnabled && (
+                          <SelectItem value="OWNER">Owner</SelectItem>
+                        )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="MEMBER">Member</SelectItem>
                       </SelectContent>
