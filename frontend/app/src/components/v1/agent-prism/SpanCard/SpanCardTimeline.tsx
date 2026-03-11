@@ -1,7 +1,7 @@
 import { getTimelineData } from '@evilmartians/agent-prism-data';
 import type {
   TraceSpan,
-  TraceSpanCategory,
+  TraceSpanStatus,
 } from '@evilmartians/agent-prism-types';
 import cn from 'classnames';
 
@@ -12,18 +12,11 @@ interface SpanCardTimelineProps {
   className?: string;
 }
 
-const timelineBgColors: Record<TraceSpanCategory, string> = {
-  llm_call: 'bg-agentprism-timeline-llm',
-  agent_invocation: 'bg-agentprism-timeline-agent',
-  tool_execution: 'bg-agentprism-timeline-tool',
-  chain_operation: 'bg-agentprism-timeline-chain',
-  retrieval: 'bg-agentprism-timeline-retrieval',
-  embedding: 'bg-agentprism-timeline-embedding',
-  guardrail: 'bg-agentprism-timeline-guardrail',
-  create_agent: 'bg-agentprism-timeline-create-agent',
-  span: 'bg-agentprism-timeline-span',
-  event: 'bg-agentprism-timeline-event',
-  unknown: 'bg-agentprism-timeline-unknown',
+const timelineBgColors: Record<TraceSpanStatus, string> = {
+  success: 'bg-success',
+  pending: 'bg-success',
+  warning: 'bg-success',
+  error: 'bg-danger',
 };
 
 export const SpanCardTimeline = ({
@@ -47,7 +40,7 @@ export const SpanCardTimeline = ({
     >
       <span className="pointer-events-none absolute inset-x-1 top-1/2 h-1.5 -translate-y-1/2">
         <span
-          className={`absolute h-full rounded-sm ${timelineBgColors[spanCard.type]}`}
+          className={`absolute h-full rounded-sm ${timelineBgColors[spanCard.status]}`}
           style={{
             left: `${startPercent}%`,
             width: `${widthPercent}%`,
