@@ -16,9 +16,9 @@ Implements
 
 #### Properties
 
-| Property                         | Type     | Description                          |
-| -------------------------------- | -------- | ------------------------------------ |
-| <a id="tenantid"></a> `tenantId` | `string` | The tenant ID for the Hatchet client |
+| Property                                  | Type     | Description                          |
+| ----------------------------------------- | -------- | ------------------------------------ |
+| <a id="property-tenantid"></a> `tenantId` | `string` | The tenant ID for the Hatchet client |
 
 Accessors
 
@@ -91,6 +91,32 @@ Returns
 
 A filters client instance
 
+Implementation of
+
+```ts
+IHatchetClient.filters;
+```
+
+<a id="logs"></a>
+
+##### `logs`
+
+Get Signature
+
+Get the logs client for creating and managing logs
+
+Returns
+
+[`LogsClient`](feature-clients/logs.mdx#logsclient)
+
+A logs client instance
+
+Implementation of
+
+```ts
+IHatchetClient.logs;
+```
+
 <a id="metrics"></a>
 
 ##### `metrics`
@@ -124,6 +150,12 @@ Returns
 [`RatelimitsClient`](feature-clients/ratelimits.mdx#ratelimitsclient)
 
 A rate limits client instance
+
+Implementation of
+
+```ts
+IHatchetClient.ratelimits;
+```
 
 <a id="runs"></a>
 
@@ -207,6 +239,12 @@ Returns
 
 A tenant client instance
 
+Implementation of
+
+```ts
+IHatchetClient.tenant;
+```
+
 <a id="webhooks"></a>
 
 ##### `webhooks`
@@ -220,6 +258,12 @@ Returns
 [`WebhooksClient`](feature-clients/webhooks.mdx#webhooksclient)
 
 A webhooks client instance
+
+Implementation of
+
+```ts
+IHatchetClient.webhooks;
+```
 
 <a id="workers"></a>
 

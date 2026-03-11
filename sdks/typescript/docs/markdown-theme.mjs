@@ -11,6 +11,7 @@ const HEADING_RENAMES = {
   MetricsClient: 'Metrics Client',
   RateLimitsClient: 'Rate Limits Client',
   RunsClient: 'Runs Client',
+  LogsClient: 'Logs Client',
   SchedulesClient: 'Schedules Client',
   WorkersClient: 'Workers Client',
   WorkflowsClient: 'Workflows Client',
