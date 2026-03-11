@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	"golang.org/x/time/rate"
+
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 )
 
 type HatchetApiTokenRateLimiter struct {
@@ -65,7 +67,7 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 		return status.Errorf(codes.Internal, "no server in context")
 	}
 
-	rateLimitToken := ctx.Value("rate_limit_token").(uuid.UUID)
+	rateLimitToken := ctx.Value(analytics.APITokenIDKey).(uuid.UUID)
 
 	if rateLimitToken == uuid.Nil {
 		return status.Errorf(codes.Unauthenticated, "no rate limit token found")

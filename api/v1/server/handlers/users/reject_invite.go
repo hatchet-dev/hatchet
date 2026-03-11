@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -71,14 +72,13 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	u.config.Analytics.Enqueue(
-		"user-invite:reject",
-		userId.String(),
+		ctx.Request().Context(),
+		analytics.Invite, analytics.Reject,
+		&userId,
 		&invite.TenantId,
-		nil,
+		inviteId.String(),
 		map[string]interface{}{
-			"user_id":   userId.String(),
-			"invite_id": inviteId.String(),
-			"role":      invite.Role,
+			"role": string(invite.Role),
 		},
 	)
 

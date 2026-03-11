@@ -19,6 +19,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -661,13 +662,12 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	}
 
 	a.analytics.Enqueue(
-		"workflow:create",
-		"grpc",
-		&tenantId,
+		ctx,
+		analytics.Workflow, analytics.Create,
 		nil,
-		map[string]interface{}{
-			"workflow_id": currWorkflow.WorkflowVersion.WorkflowId.String(),
-		},
+		&tenantId,
+		currWorkflow.WorkflowVersion.WorkflowId.String(),
+		nil,
 	)
 
 	// notify that a new set of queues have been created

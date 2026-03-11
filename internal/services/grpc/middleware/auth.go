@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
@@ -41,7 +42,7 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 		return nil, forbidden
 	}
 
-	ctx = context.WithValue(ctx, "rate_limit_token", tokenUUID)
+	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 
 	// get the tenant id
 	queriedTenant, err := a.config.V1.Tenant().GetTenantByID(ctx, tenantId)

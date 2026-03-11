@@ -549,15 +549,16 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 
 		analyticsEmitter.Enqueue(
-			"user:create",
-			opts.User.ID.String(),
+			context.Background(),
+			analytics.User, analytics.Create,
+			&opts.User.ID,
 			nil,
+			opts.User.ID.String(),
 			map[string]interface{}{
 				"email":    opts.Email,
 				"name":     opts.Name.String,
 				"provider": provider,
 			},
-			nil,
 		)
 		return nil
 	})
@@ -570,18 +571,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			"slug": tenant.Slug,
 		})
 
-		analyticsEmitter.Enqueue(
-			"tenant:create",
-			"system",
-			&tenantId,
-			map[string]interface{}{
-				"tenant_created": true,
-			},
-			map[string]interface{}{
-				"name": tenant.Name,
-				"slug": tenant.Slug,
-			},
-		)
 		return nil
 	})
 

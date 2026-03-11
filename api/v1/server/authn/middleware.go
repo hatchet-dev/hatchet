@@ -217,7 +217,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	}
 
 	// Validate the token.
-	tenantId, _, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
+	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
 
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error validating tenant token")
@@ -232,6 +232,8 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 		return forbidden
 	}
+
+	c.Set("api_token_id", tokenUUID)
 
 	return nil
 }

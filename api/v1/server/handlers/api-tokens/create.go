@@ -7,6 +7,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -48,14 +49,14 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
 	a.config.Analytics.Enqueue(
-		"api-token:create",
-		user.ID.String(),
+		ctx.Request().Context(),
+		analytics.Token, analytics.Create,
+		&user.ID,
 		&tenantId,
-		nil,
+		token.TokenId.String(),
 		map[string]interface{}{
 			"name":       request.Body.Name,
 			"expires_at": expiresAt,
-			"token_id":   token.TokenId.String(),
 		},
 	)
 

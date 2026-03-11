@@ -5,6 +5,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -29,13 +30,12 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
 	a.config.Analytics.Enqueue(
-		"api-token:revoke",
-		user.ID.String(),
+		ctx.Request().Context(),
+		analytics.Token, analytics.Revoke,
+		&user.ID,
 		apiToken.TenantId,
+		apiToken.ID.String(),
 		nil,
-		map[string]interface{}{
-			"token_id": apiToken.ID.String(),
-		},
 	)
 	return gen.ApiTokenUpdateRevoke204Response{}, nil
 }
