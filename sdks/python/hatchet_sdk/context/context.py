@@ -85,6 +85,10 @@ class SleepResult(BaseModel):
     duration: timedelta
 
 
+class MemoNowResult(BaseModel):
+    ts: datetime
+
+
 def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
     h = hashlib.sha256()
     h.update(task_run_external_id.encode())
@@ -834,3 +838,20 @@ class DurableContext(Context):
             )
 
         return result
+
+    async def _now(self) -> MemoNowResult:
+        ts = await asyncio.to_thread(datetime.now, UTC)
+        return MemoNowResult(ts=ts)
+
+    async def aio_now(self) -> datetime:
+        """
+        Get the current timestamp. This is a wrapper around `datetime.now()` that is memoized using durable storage, so that it will return the same timestamp across replays of the same task run.
+
+        :return: The current timestamp, memoized across replays of the same task run.
+        """
+        now = await self._aio_memo(
+            self._now,
+            MemoNowResult,
+        )
+
+        return now.ts
