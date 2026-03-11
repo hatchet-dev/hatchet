@@ -1080,10 +1080,8 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 			ID:             event.EventExternalId,
 			EventTimestamp: time.Now(),
 			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
-			Key:                event.EventKey,
-			Data:               event.EventData,
-			AdditionalMetadata: event.EventAdditionalMetadata,
-			Scope:              event.EventScope,
+			Key:  event.EventKey,
+			Data: event.EventData,
 		})
 	}
 
