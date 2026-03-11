@@ -1,18 +1,15 @@
 import type { SpanCardViewOptions } from './SpanCard/SpanCard';
 import { SpanCard } from './SpanCard/SpanCard';
-import {
-  flattenSpans,
-  findTimeRange,
-} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-data';
-import type { TraceSpan } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
+import { flattenSpans, findTimeRange } from './agent-prism-data';
+import type { AgentPrismTraceSpan } from './agent-prism-types';
 import cn from 'classnames';
 import { type FC } from 'react';
 
 interface TreeViewProps {
-  spans: TraceSpan[];
+  spans: AgentPrismTraceSpan[];
   className?: string;
-  selectedSpan?: TraceSpan;
-  onSpanSelect?: (span: TraceSpan) => void;
+  selectedSpan?: AgentPrismTraceSpan;
+  onSpanSelect?: (span: AgentPrismTraceSpan) => void;
   expandedSpansIds: string[];
   onExpandSpansIdsChange: (ids: string[]) => void;
   spanCardViewOptions?: SpanCardViewOptions;

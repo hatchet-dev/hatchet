@@ -1,12 +1,9 @@
+import { formatDuration, getTimelineData } from '../agent-prism-data';
+import type { AgentPrismTraceSpan } from '../agent-prism-types';
 import type { SpanCardConnectorType } from './SpanCardConnector';
 import { SpanCardConnector } from './SpanCardConnector';
 import { SpanCardTimeline } from './SpanCardTimeline';
 import { SpanCardToggle } from './SpanCardToggle';
-import {
-  formatDuration,
-  getTimelineData,
-} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-data';
-import type { TraceSpan } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import cn from 'classnames';
 import type { FC, KeyboardEvent, MouseEvent } from 'react';
@@ -30,10 +27,10 @@ const DEFAULT_VIEW_OPTIONS: Required<SpanCardViewOptions> = {
 };
 
 interface SpanCardProps {
-  data: TraceSpan;
+  data: AgentPrismTraceSpan;
   level?: number;
-  selectedSpan?: TraceSpan;
-  onSpanSelect?: (span: TraceSpan) => void;
+  selectedSpan?: AgentPrismTraceSpan;
+  onSpanSelect?: (span: AgentPrismTraceSpan) => void;
   minStart: number;
   maxEnd: number;
   isLastChild: boolean;
@@ -167,8 +164,8 @@ const getConnectorsLayout = ({
 };
 
 const useSpanCardEventHandlers = (
-  data: TraceSpan,
-  onSpanSelect?: (span: TraceSpan) => void,
+  data: AgentPrismTraceSpan,
+  onSpanSelect?: (span: AgentPrismTraceSpan) => void,
 ) => {
   const handleCardClick = useCallback((): void => {
     onSpanSelect?.(data);
@@ -199,10 +196,10 @@ const useSpanCardEventHandlers = (
 };
 
 const SpanCardChildren: FC<{
-  data: TraceSpan;
+  data: AgentPrismTraceSpan;
   level: number;
-  selectedSpan?: TraceSpan;
-  onSpanSelect?: (span: TraceSpan) => void;
+  selectedSpan?: AgentPrismTraceSpan;
+  onSpanSelect?: (span: AgentPrismTraceSpan) => void;
   minStart: number;
   maxEnd: number;
   prevLevelConnectors: SpanCardConnectorType[];

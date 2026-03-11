@@ -1,8 +1,10 @@
-import type { TraceSpan } from './agent-prism-types';
+import type { AgentPrismTraceSpan } from './agent-prism-types';
 
-export const flattenSpans = (spans: TraceSpan[]): TraceSpan[] => {
-  const result: TraceSpan[] = [];
-  const traverse = (items: TraceSpan[]) => {
+export const flattenSpans = (
+  spans: AgentPrismTraceSpan[],
+): AgentPrismTraceSpan[] => {
+  const result: AgentPrismTraceSpan[] = [];
+  const traverse = (items: AgentPrismTraceSpan[]) => {
     items.forEach((item) => {
       result.push(item);
       if (item.children?.length) {
@@ -15,7 +17,7 @@ export const flattenSpans = (spans: TraceSpan[]): TraceSpan[] => {
 };
 
 export const findTimeRange = (
-  cards: TraceSpan[],
+  cards: AgentPrismTraceSpan[],
 ): { minStart: number; maxEnd: number } =>
   cards.reduce(
     (acc, c) => {
@@ -61,7 +63,7 @@ export const getTimelineData = ({
   minStart,
   maxEnd,
 }: {
-  spanCard: TraceSpan;
+  spanCard: AgentPrismTraceSpan;
   minStart: number;
   maxEnd: number;
 }): { durationMs: number; startPercent: number; widthPercent: number } => {
