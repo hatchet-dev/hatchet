@@ -371,3 +371,51 @@ func (r iteratorForInsertLogLine) Err() error {
 func (q *Queries) InsertLogLine(ctx context.Context, db DBTX, arg []InsertLogLineParams) (int64, error) {
 	return db.CopyFrom(ctx, []string{"v1_log_line"}, []string{"tenant_id", "task_id", "task_inserted_at", "message", "metadata", "retry_count", "level"}, &iteratorForInsertLogLine{rows: arg})
 }
+
+// iteratorForInsertOtelSpans implements pgx.CopyFromSource.
+type iteratorForInsertOtelSpans struct {
+	rows                 []InsertOtelSpansParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForInsertOtelSpans) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForInsertOtelSpans) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].TenantID,
+		r.rows[0].TraceID,
+		r.rows[0].SpanID,
+		r.rows[0].ParentSpanID,
+		r.rows[0].SpanName,
+		r.rows[0].SpanKind,
+		r.rows[0].ServiceName,
+		r.rows[0].StatusCode,
+		r.rows[0].StatusMessage,
+		r.rows[0].DurationNs,
+		r.rows[0].ResourceAttributes,
+		r.rows[0].SpanAttributes,
+		r.rows[0].ScopeName,
+		r.rows[0].ScopeVersion,
+		r.rows[0].TaskRunExternalID,
+		r.rows[0].WorkflowRunExternalID,
+		r.rows[0].StartTime,
+	}, nil
+}
+
+func (r iteratorForInsertOtelSpans) Err() error {
+	return nil
+}
+
+func (q *Queries) InsertOtelSpans(ctx context.Context, db DBTX, arg []InsertOtelSpansParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"v1_otel_traces"}, []string{"tenant_id", "trace_id", "span_id", "parent_span_id", "span_name", "span_kind", "service_name", "status_code", "status_message", "duration_ns", "resource_attributes", "span_attributes", "scope_name", "scope_version", "task_run_external_id", "workflow_run_external_id", "start_time"}, &iteratorForInsertOtelSpans{rows: arg})
+}

@@ -268,10 +268,26 @@ export class Api<
    * @request GET:/api/v1/stable/tasks/{task}/trace
    * @secure
    */
-  v1TaskGetTrace = (task: string, params: RequestParams = {}) =>
+  v1TaskGetTrace = (
+    task: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<OtelSpanList, APIErrors>({
       path: `/api/v1/stable/tasks/${task}/trace`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

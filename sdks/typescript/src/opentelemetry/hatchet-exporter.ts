@@ -11,6 +11,8 @@
 
 import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
 
+import { hatchetSpanAttributes } from './hatchet-span-context';
+
 try {
   require.resolve('@opentelemetry/exporter-trace-otlp-grpc');
   require.resolve('@opentelemetry/sdk-trace-base');
@@ -22,24 +24,33 @@ try {
 }
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {
-  OTLPTraceExporter,
-} = require('@opentelemetry/exporter-trace-otlp-grpc') as typeof import('@opentelemetry/exporter-trace-otlp-grpc');
-const sdkTraceBase =
-  require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+// prettier-ignore
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc') as typeof import('@opentelemetry/exporter-trace-otlp-grpc');
+// prettier-ignore
+const sdkTraceBase = require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const { BatchSpanProcessor } = sdkTraceBase;
 
 type SdkTracerProvider = import('@opentelemetry/sdk-trace-base').BasicTracerProvider;
 type ReadableSpan = import('@opentelemetry/sdk-trace-base').ReadableSpan;
+type SdkSpan = import('@opentelemetry/sdk-trace-base').Span;
 
 /**
- * HatchetAttributeSpanProcessor wraps a BatchSpanProcessor.
- * The hatchet.* attributes are already injected by the instrumentor's
- * startActiveSpan call, making them available to all child spans in context.
+ * HatchetAttributeSpanProcessor wraps a BatchSpanProcessor and injects
+ * hatchet.* attributes into every span created within a step run context.
+ * This ensures child spans are queryable by the same attributes (e.g.
+ * hatchet.step_run_id) as the parent span.
  */
 class HatchetAttributeSpanProcessor extends BatchSpanProcessor {
+  onStart(span: SdkSpan): void {
+    const attrs = hatchetSpanAttributes.getStore();
+    if (attrs) {
+      span.setAttributes(attrs);
+    }
+    super.onStart(span, undefined as never);
+  }
+
   onEnd(span: ReadableSpan): void {
     super.onEnd(span);
   }
@@ -53,9 +64,8 @@ function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTr
 
   return new OTLPTraceExporter({
     url: `${insecure ? 'http' : 'https'}://${config.host_port}`,
-    metadata: {
-      authorization: `Bearer ${config.token}`,
-    } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: { authorization: `Bearer ${config.token}` } as any,
   });
 }
 
@@ -64,11 +74,9 @@ function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTr
  * The exporter sends spans to the Hatchet engine's collector endpoint
  * using the same connection settings as the Hatchet client.
  */
-export function addHatchetExporter(
-  tracerProvider: SdkTracerProvider,
-  config: ClientConfig
-): void {
+export function addHatchetExporter(tracerProvider: SdkTracerProvider, config: ClientConfig): void {
   const exporter = createHatchetExporter(config);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const processor = new HatchetAttributeSpanProcessor(exporter as any);
 
   tracerProvider.addSpanProcessor(processor);

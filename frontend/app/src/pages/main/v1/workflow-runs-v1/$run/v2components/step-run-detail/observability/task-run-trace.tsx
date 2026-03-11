@@ -24,7 +24,6 @@ export function TaskRunTrace({
 
   const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>([]);
 
-  // Auto-expand all spans when data loads
   useEffect(() => {
     if (allIds.length > 0) {
       setExpandedSpansIds(allIds);

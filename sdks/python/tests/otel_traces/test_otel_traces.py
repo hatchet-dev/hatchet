@@ -64,7 +64,7 @@ async def test_otel_spans_created_on_task_run(
     spans = _get_spans()
 
     # Find the hatchet task run span
-    step_run_spans = [s for s in spans if s["name"] == "hatchet task run"]
+    step_run_spans = [s for s in spans if s["name"] == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 1, (
         f"Expected at least one hatchet task run span, got {len(step_run_spans)}. "
         f"All spans: {[s['name'] for s in spans]}"
@@ -140,7 +140,7 @@ async def test_otel_traces_on_retry(
     spans = _get_spans()
 
     # Both the failed first attempt and the successful retry should have spans
-    step_run_spans = [s for s in spans if s["name"] == "hatchet task run"]
+    step_run_spans = [s for s in spans if s["name"] == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 2, (
         f"Expected at least 2 hatchet task run spans (initial + retry), "
         f"got {len(step_run_spans)}. All spans: {[s['name'] for s in spans]}"

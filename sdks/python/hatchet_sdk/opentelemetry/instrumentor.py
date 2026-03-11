@@ -15,7 +15,7 @@ try:
     )
     from opentelemetry.instrumentation.utils import unwrap
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
-    from opentelemetry.sdk.trace import ReadableSpan, Span
+    from opentelemetry.sdk.trace import Span
     from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
     from opentelemetry.trace import (
@@ -34,29 +34,6 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     raise ModuleNotFoundError(
         "To use the HatchetInstrumentor, you must install Hatchet's `otel` extra using (e.g.) `pip install hatchet-sdk[otel]`"
     ) from e
-
-# ContextVar that holds the hatchet.* attributes from the active
-# hatchet task run span so they can be injected into child spans.
-_hatchet_span_attributes: contextvars.ContextVar[dict[str, str | int] | None] = (
-    contextvars.ContextVar("_hatchet_span_attributes", default=None)
-)
-
-
-class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
-    """SpanProcessor that injects hatchet.* attributes into every span
-    created within a step run context, so that child spans are queryable
-    by the same attributes (e.g. hatchet.step_run_id) as the parent."""
-
-    def __init__(self, span_exporter: SpanExporter) -> None:
-        super().__init__(span_exporter)
-
-    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
-        attrs = _hatchet_span_attributes.get()
-        if attrs and span.is_recording():
-            for key, value in attrs.items():
-                span.set_attribute(key, value)
-        super().on_start(span, parent_context)
-
 
 import inspect
 from datetime import datetime
@@ -85,6 +62,29 @@ from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 hatchet_sdk_version = version("hatchet-sdk")
+
+# ContextVar that holds the hatchet.* attributes from the active
+# hatchet.start_step_run span so they can be injected into child spans.
+_hatchet_span_attributes: contextvars.ContextVar[dict[str, str | int] | None] = (
+    contextvars.ContextVar("_hatchet_span_attributes", default=None)
+)
+
+
+class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
+    """SpanProcessor that injects hatchet.* attributes into every span
+    created within a step run context, so that child spans are queryable
+    by the same attributes (e.g. hatchet.step_run_id) as the parent."""
+
+    def __init__(self, span_exporter: SpanExporter) -> None:
+        super().__init__(span_exporter)
+
+    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
+        attrs = _hatchet_span_attributes.get()
+        if attrs and span.is_recording():
+            for key, value in attrs.items():
+                span.set_attribute(key, value)
+        super().on_start(span, parent_context)
+
 
 InstrumentKwargs = TracerProvider | MeterProvider | None
 
@@ -391,10 +391,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         action = cast(Action, params[0])
 
         traceparent = _parse_carrier_from_metadata(action.additional_metadata)
-        span_name = "hatchet task run"
+        span_name = "hatchet.start_step_run"
 
         if self.config.otel.include_task_name_in_start_step_run_span_name:
-            span_name += f" {action.action_id}"
+            span_name += f".{action.action_id}"
 
         hatchet_attrs = action.get_otel_attributes(self.config)
         token = _hatchet_span_attributes.set(hatchet_attrs)
@@ -426,7 +426,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         action = args[0]
 
         with self._tracer.start_as_current_span(
-            "hatchet cancel task run",
+            "hatchet.cancel_step_run",
             attributes={
                 "hatchet.step_run_id": action.step_run_id,
             },
@@ -467,7 +467,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         }
 
         with self._tracer.start_as_current_span(
-            "hatchet push event",
+            "hatchet.push_event",
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
@@ -509,7 +509,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         unique_event_keys = {event.key for event in bulk_events}
 
         with self._tracer.start_as_current_span(
-            "hatchet push events",
+            "hatchet.bulk_push_event",
             attributes={
                 "hatchet.num_events": num_bulk_events,
                 "hatchet.unique_event_keys": json.dumps(unique_event_keys, default=str),
@@ -569,7 +569,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         }
 
         with self._tracer.start_as_current_span(
-            "hatchet trigger task",
+            "hatchet.run_workflow",
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
@@ -627,7 +627,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         }
 
         with self._tracer.start_as_current_span(
-            "hatchet trigger task",
+            "hatchet.run_workflow",
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
@@ -709,7 +709,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         }
 
         with self._tracer.start_as_current_span(
-            "hatchet schedule task",
+            "hatchet.schedule_workflow",
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
@@ -749,7 +749,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         }
 
         with self._tracer.start_as_current_span(
-            "hatchet trigger tasks",
+            "hatchet.run_workflows",
             attributes={
                 "hatchet.num_workflows": num_workflows,
                 "hatchet.unique_workflow_names": json.dumps(
@@ -792,7 +792,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         }
 
         with self._tracer.start_as_current_span(
-            "hatchet trigger tasks",
+            "hatchet.run_workflows",
             attributes={
                 "hatchet.num_workflows": num_workflows,
                 "hatchet.unique_workflow_names": json.dumps(

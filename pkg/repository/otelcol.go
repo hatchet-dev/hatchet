@@ -8,28 +8,31 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type SpanData struct {
+	TenantID             uuid.UUID
 	WorkflowRunID        *uuid.UUID
 	TaskRunExternalID    *uuid.UUID
 	StatusMessage        string
 	InstrumentationScope string
 	Name                 string
-	ResourceAttributes   []byte
-	Attributes           []byte
-	Events               []byte
-	Links                []byte
+	ResourceAttributes   json.RawMessage
+	Attributes           json.RawMessage
+	Events               json.RawMessage
+	Links                json.RawMessage
 	TraceID              []byte
 	ParentSpanID         []byte
 	SpanID               []byte
 	EndTimeUnixNano      uint64
 	StartTimeUnixNano    uint64
-	StatusCode           int32
-	Kind                 int32
-	TenantID             uuid.UUID
+	StatusCode           tracev1.Status_StatusCode
+	Kind                 tracev1.Span_SpanKind
 }
 
 type CreateSpansOpts struct {
@@ -37,26 +40,14 @@ type CreateSpansOpts struct {
 	Spans    []*SpanData
 }
 
-type OtelSpanRow struct {
-	CreatedAt          time.Time
-	SpanAttributes     map[string]string
-	ResourceAttributes map[string]string
-	SpanName           string
-	SpanKind           string
-	ServiceName        string
-	StatusCode         string
-	StatusMessage      string
-	TraceID            string
-	ParentSpanID       string
-	SpanID             string
-	ScopeName          string
-	ScopeVersion       string
-	Duration           uint64
+type ListSpansResult struct {
+	Rows  []*sqlcv1.ListSpansByTaskExternalIDRow
+	Total int64
 }
 
 type OTelCollectorRepository interface {
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
-	ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID) ([]*OtelSpanRow, error)
+	ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error)
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -67,65 +58,6 @@ func newOTelCollectorRepository(s *sharedRepository) OTelCollectorRepository {
 	return &otelCollectorRepositoryImpl{
 		sharedRepository: s,
 	}
-}
-
-// transformedSpan holds pre-processed span data ready for insertion.
-type transformedSpan struct {
-	startTime             time.Time
-	taskRunExternalID     *uuid.UUID
-	workflowRunExternalID *uuid.UUID
-	statusMessage         string
-	scopeVersion          string
-	spanKind              string
-	serviceName           string
-	statusCode            string
-	traceID               string
-	spanID                string
-	parentSpanID          string
-	spanName              string
-	scopeName             string
-	spanAttributes        []byte
-	resourceAttributes    []byte
-	durationNs            int64
-	tenantID              uuid.UUID
-}
-
-// spanCopyFromSource implements pgx.CopyFromSource for batch inserts.
-type spanCopyFromSource struct {
-	spans []transformedSpan
-	idx   int
-}
-
-func (s *spanCopyFromSource) Next() bool {
-	s.idx++
-	return s.idx < len(s.spans)
-}
-
-func (s *spanCopyFromSource) Values() ([]interface{}, error) {
-	span := s.spans[s.idx]
-	return []interface{}{
-		span.tenantID,
-		span.traceID,
-		span.spanID,
-		span.parentSpanID,
-		span.spanName,
-		span.spanKind,
-		span.serviceName,
-		span.statusCode,
-		span.statusMessage,
-		span.durationNs,
-		span.resourceAttributes,
-		span.spanAttributes,
-		span.scopeName,
-		span.scopeVersion,
-		span.taskRunExternalID,
-		span.workflowRunExternalID,
-		span.startTime,
-	}, nil
-}
-
-func (s *spanCopyFromSource) Err() error {
-	return nil
 }
 
 func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
@@ -141,125 +73,98 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		return nil
 	}
 
-	transformed := make([]transformedSpan, 0, len(opts.Spans))
-	for _, sd := range opts.Spans {
-		ts := transformedSpan{
-			tenantID:      tenantId,
-			traceID:       hex.EncodeToString(sd.TraceID),
-			spanID:        hex.EncodeToString(sd.SpanID),
-			spanName:      sd.Name,
-			spanKind:      spanKindToString(sd.Kind),
-			serviceName:   extractServiceName(sd.ResourceAttributes),
-			statusCode:    spanStatusCodeToString(sd.StatusCode),
-			statusMessage: sd.StatusMessage,
-			durationNs:    int64(sd.EndTimeUnixNano - sd.StartTimeUnixNano), //nolint:gosec
-			scopeName:     sd.InstrumentationScope,
-			startTime:     time.Unix(0, int64(sd.StartTimeUnixNano)), //nolint:gosec
-		}
-
+	params := make([]sqlcv1.InsertOtelSpansParams, len(opts.Spans))
+	for i, sd := range opts.Spans {
+		var parentSpanID string
 		if len(sd.ParentSpanID) > 0 {
-			ts.parentSpanID = hex.EncodeToString(sd.ParentSpanID)
+			parentSpanID = hex.EncodeToString(sd.ParentSpanID)
 		}
 
-		ts.resourceAttributes = jsonBytesToJSONB(sd.ResourceAttributes)
-		ts.spanAttributes = jsonBytesToJSONB(sd.Attributes)
+		resourceAttrs := []byte(sd.ResourceAttributes)
+		if len(resourceAttrs) == 0 {
+			resourceAttrs = []byte("{}")
+		}
 
+		spanAttrs := []byte(sd.Attributes)
+		if len(spanAttrs) == 0 {
+			spanAttrs = []byte("{}")
+		}
+
+		var taskRunExternalID *uuid.UUID
 		if sd.TaskRunExternalID != nil && *sd.TaskRunExternalID != uuid.Nil {
 			id := *sd.TaskRunExternalID
-			ts.taskRunExternalID = &id
+			taskRunExternalID = &id
 		}
 
+		var workflowRunExternalID *uuid.UUID
 		if sd.WorkflowRunID != nil && *sd.WorkflowRunID != uuid.Nil {
 			id := *sd.WorkflowRunID
-			ts.workflowRunExternalID = &id
+			workflowRunExternalID = &id
 		}
 
-		transformed = append(transformed, ts)
+		startTime := time.Unix(0, int64(sd.StartTimeUnixNano)) //nolint:gosec
+
+		params[i] = sqlcv1.InsertOtelSpansParams{
+			TenantID:              tenantId,
+			TraceID:               hex.EncodeToString(sd.TraceID),
+			SpanID:                hex.EncodeToString(sd.SpanID),
+			ParentSpanID:          parentSpanID,
+			SpanName:              sd.Name,
+			SpanKind:              protoSpanKindToDB(sd.Kind),
+			ServiceName:           extractServiceName(sd.ResourceAttributes),
+			StatusCode:            protoStatusCodeToDB(sd.StatusCode),
+			StatusMessage:         sd.StatusMessage,
+			DurationNs:            int64(sd.EndTimeUnixNano - sd.StartTimeUnixNano), //nolint:gosec
+			ResourceAttributes:    resourceAttrs,
+			SpanAttributes:        spanAttrs,
+			ScopeName:             sd.InstrumentationScope,
+			TaskRunExternalID:     taskRunExternalID,
+			WorkflowRunExternalID: workflowRunExternalID,
+			StartTime:             pgtype.Timestamptz{Time: startTime, Valid: true},
+		}
 	}
 
-	_, err := o.pool.CopyFrom(
-		ctx,
-		pgx.Identifier{"v1_otel_traces"},
-		[]string{
-			"tenant_id", "trace_id", "span_id", "parent_span_id",
-			"span_name", "span_kind", "service_name", "status_code",
-			"status_message", "duration_ns", "resource_attributes",
-			"span_attributes", "scope_name", "scope_version",
-			"task_run_external_id", "workflow_run_external_id", "start_time",
-		},
-		&spanCopyFromSource{spans: transformed, idx: -1},
-	)
-
+	_, err := o.queries.InsertOtelSpans(ctx, o.pool, params)
 	if err != nil {
-		return fmt.Errorf("error copying spans to v1_otel_traces: %w", err)
+		return fmt.Errorf("error inserting otel spans: %w", err)
 	}
 
 	return nil
 }
 
-func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID) ([]*OtelSpanRow, error) {
-	query := `
-		SELECT
-			trace_id, span_id, parent_span_id, span_name, span_kind,
-			service_name, status_code, status_message, duration_ns, start_time,
-			resource_attributes, span_attributes, scope_name, scope_version
-		FROM v1_otel_traces
-		WHERE tenant_id = $1 AND trace_id IN (
-			SELECT DISTINCT trace_id FROM v1_otel_traces
-			WHERE tenant_id = $1 AND task_run_external_id = $2
-		)
-		ORDER BY start_time ASC
-		LIMIT 1000
-	`
-
-	rows, err := o.pool.Query(ctx, query, tenantId, taskExternalID)
+func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
 	if err != nil {
-		return nil, fmt.Errorf("error querying v1_otel_traces: %w", err)
+		return nil, fmt.Errorf("error starting transaction: %w", err)
 	}
-	defer rows.Close()
+	defer rollback()
 
-	var result []*OtelSpanRow
-	for rows.Next() {
-		row := &OtelSpanRow{}
-		var durationNs int64
-		var resourceAttrsJSON, spanAttrsJSON []byte
-
-		if err := rows.Scan(
-			&row.TraceID,
-			&row.SpanID,
-			&row.ParentSpanID,
-			&row.SpanName,
-			&row.SpanKind,
-			&row.ServiceName,
-			&row.StatusCode,
-			&row.StatusMessage,
-			&durationNs,
-			&row.CreatedAt,
-			&resourceAttrsJSON,
-			&spanAttrsJSON,
-			&row.ScopeName,
-			&row.ScopeVersion,
-		); err != nil {
-			return nil, fmt.Errorf("error scanning v1_otel_traces row: %w", err)
-		}
-
-		row.Duration = uint64(durationNs) //nolint:gosec
-		row.ResourceAttributes = jsonbToStringMap(resourceAttrsJSON)
-		row.SpanAttributes = jsonbToStringMap(spanAttrsJSON)
-
-		result = append(result, row)
+	total, err := o.queries.CountSpansByTaskExternalID(ctx, tx, sqlcv1.CountSpansByTaskExternalIDParams{
+		Tenantid:       tenantId,
+		Taskexternalid: taskExternalID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error counting otel spans: %w", err)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating v1_otel_traces rows: %w", err)
+	rows, err := o.queries.ListSpansByTaskExternalID(ctx, tx, sqlcv1.ListSpansByTaskExternalIDParams{
+		Tenantid:       tenantId,
+		Taskexternalid: taskExternalID,
+		Spanoffset:     offset,
+		Spanlimit:      limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error listing otel spans: %w", err)
 	}
 
-	return result, nil
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return &ListSpansResult{Rows: rows, Total: total}, nil
 }
 
-// Helper functions for data transformation
-
-func extractServiceName(resourceAttrsJSON []byte) string {
+func extractServiceName(resourceAttrsJSON json.RawMessage) string {
 	if len(resourceAttrsJSON) == 0 {
 		return "unknown"
 	}
@@ -276,76 +181,30 @@ func extractServiceName(resourceAttrsJSON []byte) string {
 	return "unknown"
 }
 
-func jsonBytesToJSONB(jsonBytes []byte) []byte {
-	if len(jsonBytes) == 0 {
-		return []byte("{}")
-	}
-	// Validate it's valid JSON; if not, return empty object
-	var raw json.RawMessage
-	if err := json.Unmarshal(jsonBytes, &raw); err != nil {
-		return []byte("{}")
-	}
-	return jsonBytes
-}
-
-func jsonbToStringMap(jsonBytes []byte) map[string]string {
-	if len(jsonBytes) == 0 {
-		return make(map[string]string)
-	}
-
-	var jsonMap map[string]interface{}
-	if err := json.Unmarshal(jsonBytes, &jsonMap); err != nil {
-		return make(map[string]string)
-	}
-
-	result := make(map[string]string, len(jsonMap))
-	for k, v := range jsonMap {
-		switch val := v.(type) {
-		case string:
-			result[k] = val
-		case nil:
-			result[k] = ""
-		default:
-			b, err := json.Marshal(v)
-			if err != nil {
-				result[k] = fmt.Sprintf("%v", v)
-			} else {
-				result[k] = string(b)
-			}
-		}
-	}
-
-	return result
-}
-
-func spanKindToString(kind int32) string {
-	switch tracev1.Span_SpanKind(kind) {
-	case tracev1.Span_SPAN_KIND_UNSPECIFIED:
-		return "UNSPECIFIED"
+func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
+	switch kind {
 	case tracev1.Span_SPAN_KIND_INTERNAL:
-		return "INTERNAL"
+		return sqlcv1.V1OtelSpanKindINTERNAL
 	case tracev1.Span_SPAN_KIND_SERVER:
-		return "SERVER"
+		return sqlcv1.V1OtelSpanKindSERVER
 	case tracev1.Span_SPAN_KIND_CLIENT:
-		return "CLIENT"
+		return sqlcv1.V1OtelSpanKindCLIENT
 	case tracev1.Span_SPAN_KIND_PRODUCER:
-		return "PRODUCER"
+		return sqlcv1.V1OtelSpanKindPRODUCER
 	case tracev1.Span_SPAN_KIND_CONSUMER:
-		return "CONSUMER"
+		return sqlcv1.V1OtelSpanKindCONSUMER
 	default:
-		return "UNKNOWN"
+		return sqlcv1.V1OtelSpanKindUNSPECIFIED
 	}
 }
 
-func spanStatusCodeToString(code int32) string {
-	switch tracev1.Status_StatusCode(code) {
-	case tracev1.Status_STATUS_CODE_UNSET:
-		return "UNSET"
+func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode {
+	switch code {
 	case tracev1.Status_STATUS_CODE_OK:
-		return "OK"
+		return sqlcv1.V1OtelStatusCodeOK
 	case tracev1.Status_STATUS_CODE_ERROR:
-		return "ERROR"
+		return sqlcv1.V1OtelStatusCodeERROR
 	default:
-		return "UNKNOWN"
+		return sqlcv1.V1OtelStatusCodeUNSET
 	}
 }

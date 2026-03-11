@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 const { resourceFromAttributes } = require('@opentelemetry/resources');
@@ -5,9 +6,10 @@ const { SEMRESATTRS_SERVICE_NAME } = require('@opentelemetry/semantic-convention
 const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 const { registerInstrumentations } = require('@opentelemetry/instrumentation');
 const { trace } = require('@opentelemetry/api');
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 import type { TracerProvider, Tracer } from '@opentelemetry/api';
-import { HatchetInstrumentor } from '@hatchet-dev/typescript-sdk/opentelemetry';
+import { HatchetInstrumentor } from '@hatchet/opentelemetry';
 
 const isCI = process.env.CI === 'true';
 
@@ -25,7 +27,6 @@ if (isCI) {
       process.env.HATCHET_CLIENT_OTEL_SERVICE_NAME || 'hatchet-typescript-example',
   });
 
-  // Parse headers from environment variable in format "key=value"
   const headersEnv = process.env.HATCHET_CLIENT_OTEL_EXPORTER_OTLP_HEADERS;
   const headers: Record<string, string> | undefined = headersEnv
     ? { [headersEnv.split('=')[0]]: headersEnv.split('=')[1] }
@@ -46,22 +47,15 @@ if (isCI) {
 
   traceProvider = provider;
 
-
-  // NOTE: Instrumentation has to be registered before the instrumented libraries are imported
   registerInstrumentations({
     tracerProvider: traceProvider,
     instrumentations: [
       new HatchetInstrumentor({
-        // Optional: exclude sensitive attributes from spans
-        // excludedAttributes: ['payload', 'additional_metadata'],
-
-        // Optional: include task name in span names for better filtering
         includeTaskNameInSpanName: true,
       }),
     ],
   });
 }
-
 
 function getTracer(name: string): Tracer {
   return trace.getTracer(name);

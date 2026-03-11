@@ -25,6 +25,7 @@ import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config
 import { OTelAttribute, type ActionOTelAttributeValue } from '../util/opentelemetry';
 import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
+import { setHatchetSpanAttributes } from './hatchet-span-context';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
 import { ScheduleClient, CreateScheduledRunInput } from '../v1/client/features/schedules';
 
@@ -165,22 +166,25 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
    */
   private _setupHatchetCollector(clientConfig?: ClientConfig): void {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { addHatchetExporter } = require('./hatchet-exporter') as typeof import('./hatchet-exporter');
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { addHatchetExporter } =
+        require('./hatchet-exporter') as typeof import('./hatchet-exporter');
 
       let config = clientConfig;
       if (!config) {
         // Load config from environment (same as HatchetClient would)
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { ConfigLoader } = require('@hatchet/util/config-loader/config-loader') as typeof import('@hatchet/util/config-loader/config-loader');
+        const { ConfigLoader } =
+          require('@hatchet/util/config-loader/config-loader') as typeof import('@hatchet/util/config-loader/config-loader');
         config = ConfigLoader.loadClientConfig() as ClientConfig;
       }
 
       // Get the SDK TracerProvider - either from the global provider or create one
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let sdkTracerProvider: any;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const sdkTrace = require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+        const sdkTrace =
+          require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+        /* eslint-enable @typescript-eslint/no-require-imports */
 
         // Check if the global tracer provider is an SDK TracerProvider
         const globalProvider = otelApi.trace.getTracerProvider();
@@ -306,7 +310,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet push event',
+          'hatchet.push_event',
           {
             kind: SpanKind.PRODUCER,
             attributes,
@@ -357,7 +361,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet push events',
+          'hatchet.bulk_push_event',
           {
             kind: SpanKind.PRODUCER,
             attributes,
@@ -453,9 +457,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          `hatchet trigger task ${workflowName}`,
+          'hatchet.run_workflow',
           {
-            kind: SpanKind.CLIENT,
+            kind: SpanKind.PRODUCER,
             attributes,
           },
           (span: Span) => {
@@ -516,9 +520,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet trigger tasks',
+          'hatchet.run_workflows',
           {
-            kind: SpanKind.CLIENT,
+            kind: SpanKind.PRODUCER,
             attributes,
           },
           (span: Span) => {
@@ -604,10 +608,20 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             this.workerId
           );
 
-          let spanName = 'hatchet task run';
+          let spanName = 'hatchet.start_step_run';
           if (getConfig().includeTaskNameInSpanName) {
-            spanName += ` ${action.actionId}`;
+            spanName += `.${action.actionId}`;
           }
+
+          // Store hatchet.* attributes in async context so the SpanProcessor
+          // can inject them into child spans (mirrors Go/Python attribute propagation).
+          const hatchetAttrs: Attributes = {};
+          for (const [key, value] of Object.entries(attributes)) {
+            if (value !== undefined) {
+              hatchetAttrs[`hatchet.${key}`] = value;
+            }
+          }
+          setHatchetSpanAttributes(hatchetAttrs);
 
           return tracer.startActiveSpan(
             spanName,
@@ -657,7 +671,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           };
 
           return tracer.startActiveSpan(
-            'hatchet cancel task run',
+            'hatchet.cancel_step_run',
             {
               kind: SpanKind.CONSUMER,
               attributes,
@@ -732,9 +746,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet schedule task',
+          'hatchet.schedule_workflow',
           {
-            kind: SpanKind.CLIENT,
+            kind: SpanKind.PRODUCER,
             attributes,
           },
           (span: Span) => {
