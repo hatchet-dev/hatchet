@@ -166,6 +166,14 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
 
 
 @hatchet.durable_task()
+async def memo_now_caching(_i: EmptyModel, ctx: DurableContext) -> dict[str, str]:
+    now = await ctx.aio_now()
+    return {
+        "start_time": now.isoformat(),
+    }
+
+
+@hatchet.durable_task()
 async def wait_for_sleep_twice(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, float]:

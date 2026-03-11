@@ -289,6 +289,7 @@ async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
     assert result_1.message == result_2.message
 
 
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
     ref = await memo_now_caching.aio_run_no_wait()
