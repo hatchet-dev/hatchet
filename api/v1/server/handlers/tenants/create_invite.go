@@ -93,8 +93,6 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 	t.config.Analytics.Enqueue(ctx.Request().Context(),
 		analytics.Invite, analytics.Create,
-		&user.ID,
-		&tenantId,
 		invite.ID.String(),
 		map[string]interface{}{
 			"role": string(request.Body.Role),

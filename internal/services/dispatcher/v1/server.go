@@ -23,7 +23,7 @@ import (
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	d.analytics.Count(ctx, analytics.Worker, analytics.Register, tenantId)
+	d.analytics.Count(ctx, analytics.Worker, analytics.Register)
 	taskId, err := uuid.Parse(req.TaskId)
 
 	if err != nil {
@@ -155,7 +155,7 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatcher_ListenForDurableEventServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	d.analytics.Count(server.Context(), analytics.Worker, analytics.Listen, tenantId)
+	d.analytics.Count(server.Context(), analytics.Worker, analytics.Listen)
 
 	acks := &durableEventAcks{
 		acks: make(map[v1.TaskIdInsertedAtSignalKey]uuid.UUID),

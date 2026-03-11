@@ -95,8 +95,6 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	u.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.Invite, analytics.Accept,
-		&userId,
-		&invite.TenantId,
 		inviteId.String(),
 		map[string]interface{}{
 			"role": string(invite.Role),

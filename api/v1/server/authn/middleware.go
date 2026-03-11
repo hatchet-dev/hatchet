@@ -190,9 +190,11 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return fmt.Errorf("error getting user by id: %w", err)
 	}
 
-	// set the user and session in context
 	c.Set("user", user)
 	c.Set("session", session)
+
+	ctx := context.WithValue(c.Request().Context(), analytics.UserIDKey, userIdUUID)
+	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
 }
@@ -238,6 +240,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	c.Set(string(analytics.APITokenIDKey), tokenUUID)
 
 	ctx := context.WithValue(c.Request().Context(), analytics.APITokenIDKey, tokenUUID)
+	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil

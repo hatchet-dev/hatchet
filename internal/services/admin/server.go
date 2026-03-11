@@ -22,8 +22,7 @@ import (
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
-	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenant.ID, analytics.Props(
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"is_child", req.ParentId != nil,
 		"has_additional_meta", req.AdditionalMetadata != nil,
@@ -34,9 +33,8 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 }
 
 func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
-	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	for _, w := range req.Workflows {
-		a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenant.ID, analytics.Props(
+		a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
 			"has_priority", w.Priority != nil,
 			"is_child", w.ParentId != nil,
 			"has_additional_meta", w.AdditionalMetadata != nil,
@@ -50,7 +48,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.Workflow, analytics.Create, tenantId, putWorkflowAnalyticsFeatureFlags(req.Opts))
+	a.analytics.Count(ctx, analytics.Workflow, analytics.Create, putWorkflowAnalyticsFeatureFlags(req.Opts))
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -124,7 +122,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenantId, analytics.Props(
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"is_child", req.ParentId != nil,
 		"has_additional_meta", req.AdditionalMetadata != nil,
@@ -239,7 +237,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.RateLimit, analytics.Create, tenantId)
+	a.analytics.Count(ctx, analytics.RateLimit, analytics.Create)
 
 	if req.Key == "" {
 		return nil, status.Error(

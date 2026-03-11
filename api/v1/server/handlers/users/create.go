@@ -101,8 +101,6 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	u.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.User, analytics.Create,
-		&user.ID,
-		nil,
 		user.ID.String(),
 		map[string]interface{}{"provider": "basic"},
 	)

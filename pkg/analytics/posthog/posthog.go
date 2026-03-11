@@ -78,11 +78,10 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 	return p, nil
 }
 
-func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resource, action analytics.Action, userID *uuid.UUID, tenantId *uuid.UUID, resourceId string, properties map[string]interface{}) {
-	var tokenID *uuid.UUID
-	if userID == nil {
-		tokenID = analytics.TokenIDFromContext(ctx)
-	}
+func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resource, action analytics.Action, resourceId string, properties map[string]interface{}) {
+	userID := analytics.UserIDFromContext(ctx)
+	tenantID := analytics.TenantIDFromContext(ctx)
+	tokenID := analytics.TokenIDFromContext(ctx)
 
 	event := string(resource) + ":" + string(action)
 
@@ -101,12 +100,12 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 
 	var group posthog.Groups
 
-	if tenantId != nil {
-		group = posthog.NewGroups().Set("tenant", *tenantId)
+	if tenantID != nil {
+		group = posthog.NewGroups().Set("tenant", *tenantID)
 	}
 
 	err := (*p.client).Enqueue(posthog.Capture{
-		DistinctId: analytics.DistinctID(userID, tokenID, tenantId),
+		DistinctId: analytics.DistinctID(userID, tokenID, tenantID),
 		Event:      event,
 		Properties: props,
 		Groups:     group,
@@ -117,9 +116,16 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	}
 }
 
-func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, props ...map[string]interface{}) {
+func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, props ...map[string]interface{}) {
+	tenantID := analytics.TenantIDFromContext(ctx)
 	tokenID := analytics.TokenIDFromContext(ctx)
-	p.aggregator.Count(resource, action, tenantID, tokenID, 1, props...)
+
+	var tid uuid.UUID
+	if tenantID != nil {
+		tid = *tenantID
+	}
+
+	p.aggregator.Count(resource, action, tid, tokenID, 1, props...)
 }
 
 func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties map[string]interface{}) {
@@ -128,10 +134,11 @@ func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analyt
 		merged[k] = v
 	}
 	ctx := context.Background()
+	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantID)
 	if tokenID != nil {
 		ctx = context.WithValue(ctx, analytics.APITokenIDKey, *tokenID)
 	}
-	p.Enqueue(ctx, resource, action, nil, &tenantID, "", merged)
+	p.Enqueue(ctx, resource, action, "", merged)
 }
 
 func (p *PosthogAnalytics) Start() {

@@ -43,8 +43,8 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	}
 
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
+	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 
-	// get the tenant id
 	queriedTenant, err := a.config.V1.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {

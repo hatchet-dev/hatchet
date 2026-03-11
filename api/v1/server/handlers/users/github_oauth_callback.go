@@ -64,8 +64,6 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	u.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.User, analytics.Login,
-		&user.ID,
-		nil,
 		user.ID.String(),
 		map[string]interface{}{"provider": "github"},
 	)

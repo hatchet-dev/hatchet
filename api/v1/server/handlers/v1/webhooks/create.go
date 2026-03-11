@@ -15,7 +15,6 @@ import (
 )
 
 func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
-	user, _ := ctx.Get("user").(*sqlcv1.User)
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	canCreate, _, err := w.config.V1.TenantLimit().CanCreate(ctx.Request().Context(), sqlcv1.LimitResourceINCOMINGWEBHOOK, tenant.ID, 1)
@@ -55,16 +54,9 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 		return nil, fmt.Errorf("failed to create webhook: %w", err)
 	}
 
-	tenantID := tenant.ID
-	var userID *uuid.UUID
-	if user != nil {
-		userID = &user.ID
-	}
 	w.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.WebhookWorker, analytics.Create,
-		userID,
-		&tenantID,
 		webhook.Name,
 		nil,
 	)

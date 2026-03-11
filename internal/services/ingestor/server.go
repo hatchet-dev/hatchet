@@ -20,7 +20,7 @@ import (
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	i.analytics.Count(ctx, analytics.Event, analytics.Create, tenant.ID, analytics.Props(
+	i.analytics.Count(ctx, analytics.Event, analytics.Create, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"has_scope", req.Scope != nil,
 		"has_additional_meta", req.AdditionalMetadata != nil,
@@ -85,7 +85,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	for _, e := range req.Events {
-		i.analytics.Count(ctx, analytics.Event, analytics.Create, tenant.ID, analytics.Props(
+		i.analytics.Count(ctx, analytics.Event, analytics.Create, analytics.Props(
 			"has_priority", e.Priority != nil,
 			"has_scope", e.Scope != nil,
 			"has_additional_meta", e.AdditionalMetadata != nil,
@@ -199,13 +199,13 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	i.analytics.Count(ctx, analytics.StreamEvent, analytics.Create, tenant.ID)
+	i.analytics.Count(ctx, analytics.StreamEvent, analytics.Create)
 	return i.putStreamEventV1(ctx, tenant, req)
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	i.analytics.Count(ctx, analytics.Log, analytics.Create, tenant.ID)
+	i.analytics.Count(ctx, analytics.Log, analytics.Create)
 	return i.putLogV1(ctx, tenant, req)
 }
 

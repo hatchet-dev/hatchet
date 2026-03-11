@@ -68,8 +68,6 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	u.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.User, analytics.Login,
-		&existingUser.ID,
-		nil,
 		existingUser.ID.String(),
 		map[string]interface{}{"provider": "basic"},
 	)

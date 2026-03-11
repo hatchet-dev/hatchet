@@ -30,7 +30,7 @@ import (
 func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.CancelTasksRequest) (*contracts.CancelTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	// FIXME-ANALYTICS: Count number of tasks cancelled
-	a.analytics.Count(ctx, analytics.TaskRun, analytics.Cancel, tenant.ID)
+	a.analytics.Count(ctx, analytics.TaskRun, analytics.Cancel)
 
 	externalIds := make([]uuid.UUID, 0)
 
@@ -178,7 +178,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	// FIXME-ANALYTICS: Count number of tasks replayed
-	a.analytics.Count(ctx, analytics.TaskRun, analytics.Replay, tenant.ID)
+	a.analytics.Count(ctx, analytics.TaskRun, analytics.Replay)
 
 	externalIds := make([]uuid.UUID, 0)
 	for _, idStr := range req.ExternalIds {
@@ -379,7 +379,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenantId, analytics.Props(
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"has_additional_meta", len(req.AdditionalMetadata) > 0,
 		"has_desired_worker_labels", len(req.DesiredWorkerLabels) > 0,
@@ -435,7 +435,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Get, tenantId)
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Get)
 
 	externalId, err := uuid.Parse(req.ExternalId)
 
@@ -636,7 +636,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.Workflow, analytics.Create, tenantId, putWorkflowFeatureFlags(req))
+	a.analytics.Count(ctx, analytics.Workflow, analytics.Create, putWorkflowFeatureFlags(req))
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -675,8 +675,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	a.analytics.Enqueue(
 		ctx,
 		analytics.Workflow, analytics.Create,
-		nil,
-		&tenantId,
 		currWorkflow.WorkflowVersion.WorkflowId.String(),
 		nil,
 	)

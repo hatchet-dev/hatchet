@@ -49,11 +49,15 @@ const (
 
 type contextKey string
 
-const APITokenIDKey = contextKey("api_token_id")
+const (
+	APITokenIDKey = contextKey("api_token_id")
+	TenantIDKey   = contextKey("tenant_id")
+	UserIDKey     = contextKey("user_id")
+)
 
 type Analytics interface {
-	Enqueue(ctx context.Context, resource Resource, action Action, userID *uuid.UUID, tenantId *uuid.UUID, resourceId string, properties map[string]interface{})
-	Count(ctx context.Context, resource Resource, action Action, tenantID uuid.UUID, props ...map[string]interface{})
+	Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties map[string]interface{})
+	Count(ctx context.Context, resource Resource, action Action, props ...map[string]interface{})
 	Identify(userId uuid.UUID, properties map[string]interface{})
 	Tenant(tenantId uuid.UUID, data map[string]interface{})
 	Close() error
@@ -61,6 +65,20 @@ type Analytics interface {
 
 func TokenIDFromContext(ctx context.Context) *uuid.UUID {
 	if id, ok := ctx.Value(APITokenIDKey).(uuid.UUID); ok && id != uuid.Nil {
+		return &id
+	}
+	return nil
+}
+
+func TenantIDFromContext(ctx context.Context) *uuid.UUID {
+	if id, ok := ctx.Value(TenantIDKey).(uuid.UUID); ok && id != uuid.Nil {
+		return &id
+	}
+	return nil
+}
+
+func UserIDFromContext(ctx context.Context) *uuid.UUID {
+	if id, ok := ctx.Value(UserIDKey).(uuid.UUID); ok && id != uuid.Nil {
 		return &id
 	}
 	return nil
@@ -107,10 +125,10 @@ func Props(kvs ...interface{}) map[string]interface{} {
 
 type NoOpAnalytics struct{}
 
-func (a NoOpAnalytics) Enqueue(ctx context.Context, resource Resource, action Action, userID *uuid.UUID, tenantId *uuid.UUID, resourceId string, properties map[string]interface{}) {
+func (a NoOpAnalytics) Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties map[string]interface{}) {
 }
 
-func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, tenantID uuid.UUID, props ...map[string]interface{}) {
+func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, props ...map[string]interface{}) {
 }
 
 func (a NoOpAnalytics) Identify(userId uuid.UUID, properties map[string]interface{}) {}

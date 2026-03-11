@@ -1,7 +1,6 @@
 package webhooksv1
 
 import (
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
@@ -12,7 +11,6 @@ import (
 )
 
 func (w *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1WebhookDeleteRequestObject) (gen.V1WebhookDeleteResponseObject, error) {
-	user, _ := ctx.Get("user").(*sqlcv1.User)
 	webhook := ctx.Get("v1-webhook").(*sqlcv1.V1IncomingWebhook)
 
 	webhook, err := w.config.V1.Webhooks().DeleteWebhook(
@@ -25,16 +23,9 @@ func (w *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1Webh
 		return gen.V1WebhookDelete400JSONResponse(apierrors.NewAPIErrors("failed to delete webhook")), nil
 	}
 
-	tenantID := webhook.TenantID
-	var userID *uuid.UUID
-	if user != nil {
-		userID = &user.ID
-	}
 	w.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.WebhookWorker, analytics.Delete,
-		userID,
-		&tenantID,
 		webhook.Name,
 		nil,
 	)

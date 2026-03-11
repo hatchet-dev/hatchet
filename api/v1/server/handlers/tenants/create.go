@@ -100,8 +100,6 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	t.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.Tenant, analytics.Create,
-		&user.ID,
-		&tenantId,
 		tenantId.String(),
 		map[string]interface{}{
 			"name": tenant.Name,

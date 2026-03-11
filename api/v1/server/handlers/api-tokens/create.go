@@ -14,7 +14,6 @@ import (
 
 func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenCreateRequestObject) (gen.ApiTokenCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	user := ctx.Get("user").(*sqlcv1.User)
 
 	tenantId := tenant.ID
 
@@ -51,8 +50,6 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	a.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.Token, analytics.Create,
-		&user.ID,
-		&tenantId,
 		token.TokenId.String(),
 		map[string]interface{}{
 			"name":       request.Body.Name,

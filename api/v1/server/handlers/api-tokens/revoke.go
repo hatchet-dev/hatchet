@@ -12,7 +12,6 @@ import (
 
 func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.ApiTokenUpdateRevokeRequestObject) (gen.ApiTokenUpdateRevokeResponseObject, error) {
 	apiToken := ctx.Get("api-token").(*sqlcv1.APIToken)
-	user := ctx.Get("user").(*sqlcv1.User)
 
 	if apiToken.Internal {
 		return gen.ApiTokenUpdateRevoke403JSONResponse(
@@ -32,8 +31,6 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 	a.config.Analytics.Enqueue(
 		ctx.Request().Context(),
 		analytics.Token, analytics.Revoke,
-		&user.ID,
-		apiToken.TenantId,
 		apiToken.ID.String(),
 		nil,
 	)
