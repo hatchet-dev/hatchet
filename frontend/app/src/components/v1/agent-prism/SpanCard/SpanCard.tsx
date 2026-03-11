@@ -1,7 +1,6 @@
 import type { AvatarProps } from '../Avatar';
 import { Avatar } from '../Avatar';
 import { BrandLogo } from '../BrandLogo';
-import { SpanCardBadges } from './SpanCardBadges';
 import type { SpanCardConnectorType } from './SpanCardConnector';
 import { SpanCardConnector } from './SpanCardConnector';
 import { SpanCardTimeline } from './SpanCardTimeline';
@@ -286,7 +285,6 @@ export const SpanCard: FC<SpanCardProps> = ({
 }) => {
   const isExpanded = expandedSpansIds.includes(data.id);
 
-  const withStatus = viewOptions.withStatus ?? DEFAULT_VIEW_OPTIONS.withStatus;
   const expandButton =
     viewOptions.expandButton || DEFAULT_VIEW_OPTIONS.expandButton;
 
