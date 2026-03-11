@@ -11,11 +11,15 @@ import (
 func ToV1OtelSpanList(spans []*sqlcv1.ListSpansByTaskExternalIDRow, limit, offset, total int64) gen.OtelSpanList {
 	apiSpans := ToV1OtelSpan(spans)
 
+	if limit < 1 {
+		limit = 1000
+	}
+
 	numPages := int64(math.Ceil(float64(total) / float64(limit)))
 	currentPage := (offset / limit) + 1
 
 	var nextPage int64
-	if total < offset+limit {
+	if currentPage >= numPages {
 		nextPage = currentPage
 	} else {
 		nextPage = currentPage + 1

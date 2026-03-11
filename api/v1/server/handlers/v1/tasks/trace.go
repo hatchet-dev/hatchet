@@ -22,6 +22,14 @@ func (t *TasksService) V1TaskGetTrace(ctx echo.Context, request gen.V1TaskGetTra
 		offset = *request.Params.Offset
 	}
 
+	if limit < 1 {
+		limit = 1000
+	}
+
+	if offset < 0 {
+		offset = 0
+	}
+
 	result, err := t.config.V1.OTelCollector().ListSpansByTaskExternalID(ctx.Request().Context(), task.TenantID, task.ExternalID, offset, limit)
 	if err != nil {
 		return nil, err

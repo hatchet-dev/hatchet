@@ -11,6 +11,8 @@
 
 import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
 
+import { hatchetSpanAttributes } from './hatchet-span-context';
+
 try {
   require.resolve('@opentelemetry/exporter-trace-otlp-grpc');
   require.resolve('@opentelemetry/sdk-trace-base');
@@ -32,13 +34,23 @@ const { BatchSpanProcessor } = sdkTraceBase;
 
 type SdkTracerProvider = import('@opentelemetry/sdk-trace-base').BasicTracerProvider;
 type ReadableSpan = import('@opentelemetry/sdk-trace-base').ReadableSpan;
+type SdkSpan = import('@opentelemetry/sdk-trace-base').Span;
 
 /**
- * HatchetAttributeSpanProcessor wraps a BatchSpanProcessor.
- * The hatchet.* attributes are already injected by the instrumentor's
- * startActiveSpan call, making them available to all child spans in context.
+ * HatchetAttributeSpanProcessor wraps a BatchSpanProcessor and injects
+ * hatchet.* attributes into every span created within a step run context.
+ * This ensures child spans are queryable by the same attributes (e.g.
+ * hatchet.step_run_id) as the parent span.
  */
 class HatchetAttributeSpanProcessor extends BatchSpanProcessor {
+  onStart(span: SdkSpan): void {
+    const attrs = hatchetSpanAttributes.getStore();
+    if (attrs) {
+      span.setAttributes(attrs);
+    }
+    super.onStart(span, undefined as never);
+  }
+
   onEnd(span: ReadableSpan): void {
     super.onEnd(span);
   }

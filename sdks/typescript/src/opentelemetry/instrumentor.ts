@@ -25,6 +25,7 @@ import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config
 import { OTelAttribute, type ActionOTelAttributeValue } from '../util/opentelemetry';
 import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
+import { setHatchetSpanAttributes } from './hatchet-span-context';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
 import { ScheduleClient, CreateScheduledRunInput } from '../v1/client/features/schedules';
 
@@ -611,6 +612,16 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           if (getConfig().includeTaskNameInSpanName) {
             spanName += `.${action.actionId}`;
           }
+
+          // Store hatchet.* attributes in async context so the SpanProcessor
+          // can inject them into child spans (mirrors Go/Python attribute propagation).
+          const hatchetAttrs: Attributes = {};
+          for (const [key, value] of Object.entries(attributes)) {
+            if (value !== undefined) {
+              hatchetAttrs[`hatchet.${key}`] = value;
+            }
+          }
+          setHatchetSpanAttributes(hatchetAttrs);
 
           return tracer.startActiveSpan(
             spanName,
