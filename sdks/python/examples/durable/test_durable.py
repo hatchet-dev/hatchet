@@ -31,7 +31,7 @@ async def test_durable(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(SLEEP_TIME + 10)
 
-    hatchet.event.push(EVENT_KEY, {"test": "test"})
+    event = await hatchet.event.aio_push(EVENT_KEY, {"test": "test"})
 
     result = await ref.aio_result()
 
@@ -47,6 +47,8 @@ async def test_durable(hatchet: Hatchet) -> None:
     )
 
     assert result["durable_task"]["status"] == "success"
+    assert result["durable_task"]["event_id"] == event.event_id
+    assert result["durable_task"]["sleep_duration_seconds"] == SLEEP_TIME
 
     wait_group_1 = result["wait_for_or_group_1"]
     wait_group_2 = result["wait_for_or_group_2"]

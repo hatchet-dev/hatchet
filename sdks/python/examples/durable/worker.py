@@ -76,17 +76,19 @@ async def ephemeral_task(input: EmptyModel, ctx: Context) -> None:
 
 
 @durable_workflow.durable_task()
-async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]:
+async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str | int]:
     print("Waiting for sleep")
-    await ctx.aio_sleep_for(duration=timedelta(seconds=SLEEP_TIME))
+    sleep = await ctx.aio_sleep_for(duration=timedelta(seconds=SLEEP_TIME))
     print("Sleep finished")
 
     print("Waiting for event")
-    await ctx.aio_wait_for_event(EVENT_KEY, "true")
+    event = await ctx.aio_wait_for_event(EVENT_KEY, "true")
     print("Event received")
 
     return {
         "status": "success",
+        "event_id": event.id,
+        "sleep_duration_seconds": sleep.duration.seconds,
     }
 
 
