@@ -25,7 +25,6 @@ if (isCI) {
       process.env.HATCHET_CLIENT_OTEL_SERVICE_NAME || 'hatchet-typescript-example',
   });
 
-  // Parse headers from environment variable in format "key=value"
   const headersEnv = process.env.HATCHET_CLIENT_OTEL_EXPORTER_OTLP_HEADERS;
   const headers: Record<string, string> | undefined = headersEnv
     ? { [headersEnv.split('=')[0]]: headersEnv.split('=')[1] }
@@ -46,22 +45,15 @@ if (isCI) {
 
   traceProvider = provider;
 
-
-  // NOTE: Instrumentation has to be registered before the instrumented libraries are imported
   registerInstrumentations({
     tracerProvider: traceProvider,
     instrumentations: [
       new HatchetInstrumentor({
-        // Optional: exclude sensitive attributes from spans
-        // excludedAttributes: ['payload', 'additional_metadata'],
-
-        // Optional: include task name in span names for better filtering
         includeTaskNameInSpanName: true,
       }),
     ],
   });
 }
-
 
 function getTracer(name: string): Tracer {
   return trace.getTracer(name);

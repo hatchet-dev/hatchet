@@ -1,4 +1,4 @@
-import { hatchet } from './client';
+import { hatchet } from '../hatchet-client';
 import { getTracer } from './tracer';
 import { SpanStatusCode } from '@opentelemetry/api';
 
@@ -24,9 +24,6 @@ otelWorkflow.task({
   },
 });
 
-/**
- * Task demonstrating that span hierarchy is preserved even when errors occur.
- */
 otelWorkflow.task({
   name: 'step-with-error',
   fn: async () => {
@@ -44,9 +41,6 @@ otelWorkflow.task({
   },
 });
 
-/**
- * Task that is automatically instrumented without any manual span creation.
- */
 otelWorkflow.task({
   name: 'auto-instrumented-step',
   fn: async () => {
@@ -55,9 +49,6 @@ otelWorkflow.task({
   },
 });
 
-/**
- * Task demonstrating error handling in auto-instrumented steps.
- */
 otelWorkflow.task({
   name: 'auto-instrumented-step-with-error',
   fn: async () => {
@@ -66,9 +57,6 @@ otelWorkflow.task({
 });
 
 async function main() {
-  console.log('Starting OpenTelemetry instrumented worker...');
-  console.log('Instrumentation is automatic via module patching.');
-
   const worker = await hatchet.worker('otel-example-worker-ts', {
     slots: 1,
     workflows: [otelWorkflow],
