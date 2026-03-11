@@ -53,6 +53,7 @@ export default {
   "child-spawning": "Child Spawning",
   sleep: "Sleep & Delays",
   events: "Wait For Events",
+  memo: "Memoization",
   conditions: "Conditions & Branching",
   "on-failure": "Error Handling",
   "task-eviction": "Resource Management",
