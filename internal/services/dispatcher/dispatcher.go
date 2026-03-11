@@ -45,6 +45,7 @@ type DispatcherImpl struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	streamEventBufferTimeout    time.Duration
 
 	dispatcherId uuid.UUID
 	workers      *workers
@@ -128,6 +129,7 @@ type DispatcherOpts struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	streamEventBufferTimeout    time.Duration
 	version                     string
 }
 
@@ -144,6 +146,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		payloadSizeThreshold:        3 * 1024 * 1024,
 		defaultMaxWorkerBacklogSize: 20,
 		workflowRunBufferSize:       1000,
+		streamEventBufferTimeout:    5 * time.Second,
 	}
 }
 
@@ -204,6 +207,12 @@ func WithDefaultMaxWorkerBacklogSize(size int64) DispatcherOpt {
 func WithWorkflowRunBufferSize(size int) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.workflowRunBufferSize = size
+	}
+}
+
+func WithStreamEventBufferTimeout(timeout time.Duration) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.streamEventBufferTimeout = timeout
 	}
 }
 
@@ -268,7 +277,11 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
+<<<<<<< feat--consistent-analytics-events
 		analytics:                   opts.analytics,
+=======
+		streamEventBufferTimeout:    opts.streamEventBufferTimeout,
+>>>>>>> main
 		version:                     opts.version,
 	}, nil
 }
