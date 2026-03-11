@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 from warnings import warn
 
@@ -648,7 +648,11 @@ class DurableContext(Context):
         _, raw_matches = next(iter(matches.items()))
         sleep = raw_matches[0]
 
-        return SleepResult(duration=expr_to_timedelta(sleep["sleep_duration"]))
+        return SleepResult(
+            duration=expr_to_timedelta(
+                sleep.get("sleep_duration", timedelta_to_expr(duration))
+            )
+        )
 
     async def aio_wait_for_event(
         self, key: str, expression: str | None = None
@@ -676,11 +680,13 @@ class DurableContext(Context):
         event = raw_matches[0]
 
         return Event(
-            id=event["id"],
-            tenant_id=event["tenant_id"],
-            key=event["key"],
+            id=event.get("id", ""),
+            tenant_id=self.action.tenant_id,
+            key=event.get("key", key),
             payload=event.get("data", {}),
-            seen_at=datetime.fromisoformat(event["seen_at"]),
+            seen_at=datetime.fromisoformat(
+                event.get("seen_at", datetime.now(UTC).isoformat())
+            ),
             additional_metadata=event.get("additional_metadata"),
             scope=event.get("scope"),
         )
