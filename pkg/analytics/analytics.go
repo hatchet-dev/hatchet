@@ -39,7 +39,6 @@ const (
 	Replay    Action = "replay"
 	List      Action = "list"
 	Get       Action = "get"
-	Heartbeat Action = "heartbeat"
 	Register  Action = "register"
 	Subscribe Action = "subscribe"
 	Listen    Action = "listen"

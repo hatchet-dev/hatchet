@@ -396,7 +396,6 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	s.analytics.Count(ctx, analytics.Worker, analytics.Heartbeat, tenantId)
 	workerId, err := uuid.Parse(req.WorkerId)
 
 	if err != nil {
