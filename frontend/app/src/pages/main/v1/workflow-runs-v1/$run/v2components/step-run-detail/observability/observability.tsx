@@ -8,6 +8,10 @@ import { OtelSpan } from '@/lib/api/generated/data-contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
+function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
+  return arr.length > 0;
+}
+
 const PAGE_SIZE = 200;
 
 async function fetchAllSpans(taskExternalId: string): Promise<OtelSpan[]> {
@@ -70,7 +74,9 @@ export const Observability = ({
     return <Loading />;
   }
 
-  if (!tracesQuery.data || tracesQuery.data.length === 0) {
+  const traces = tracesQuery.data;
+
+  if (!traces || !hasAtLeastOneElement(traces)) {
     return (
       <Waterfall
         workflowRunId={taskRunId}
@@ -80,5 +86,5 @@ export const Observability = ({
     );
   }
 
-  return <TaskRunTrace spans={tracesQuery.data} />;
+  return <TaskRunTrace spans={traces} />;
 };

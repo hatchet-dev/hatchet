@@ -1,12 +1,12 @@
 import type { SpanCardViewOptions } from './SpanCard/SpanCard';
 import { SpanCard } from './SpanCard/SpanCard';
-import { flattenSpans, findTimeRange } from './agent-prism-data';
+import { findTimeRange } from './agent-prism-data';
 import type { OtelSpanTree } from './span-tree-type';
 import cn from 'classnames';
 import { type FC } from 'react';
 
 interface TreeViewProps {
-  spans: OtelSpanTree[];
+  spanTree: OtelSpanTree;
   className?: string;
   selectedSpan?: OtelSpanTree;
   onSpanSelect?: (span: OtelSpanTree) => void;
@@ -16,7 +16,7 @@ interface TreeViewProps {
 }
 
 export const TreeView: FC<TreeViewProps> = ({
-  spans,
+  spanTree,
   onSpanSelect,
   className = '',
   selectedSpan,
@@ -24,8 +24,7 @@ export const TreeView: FC<TreeViewProps> = ({
   onExpandSpansIdsChange,
   spanCardViewOptions,
 }) => {
-  const allCards = flattenSpans(spans);
-  const { minStart, maxEnd } = findTimeRange(allCards);
+  const { minStart, maxEnd } = findTimeRange(spanTree);
 
   return (
     <div className="w-full min-w-0 px-4">
@@ -34,21 +33,19 @@ export const TreeView: FC<TreeViewProps> = ({
         role="tree"
         aria-label="Hierarchical card list"
       >
-        {spans.map((span, idx) => (
-          <SpanCard
-            key={span.span_id}
-            data={span}
-            level={0}
-            selectedSpan={selectedSpan}
-            onSpanSelect={onSpanSelect}
-            minStart={minStart}
-            maxEnd={maxEnd}
-            isLastChild={idx === spans.length - 1}
-            expandedSpansIds={expandedSpansIds}
-            onExpandSpansIdsChange={onExpandSpansIdsChange}
-            viewOptions={spanCardViewOptions}
-          />
-        ))}
+        <SpanCard
+          key={spanTree.span_id}
+          data={spanTree}
+          level={0}
+          selectedSpan={selectedSpan}
+          onSpanSelect={onSpanSelect}
+          minStart={minStart}
+          maxEnd={maxEnd}
+          isLastChild={true}
+          expandedSpansIds={expandedSpansIds}
+          onExpandSpansIdsChange={onExpandSpansIdsChange}
+          viewOptions={spanCardViewOptions}
+        />
       </ul>
     </div>
   );

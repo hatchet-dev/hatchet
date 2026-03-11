@@ -1,5 +1,6 @@
 import type { OtelSpanTree } from './span-tree-type';
 import type { OtelSpan } from '@/lib/api/generated/data-contracts';
+import invariant from 'tiny-invariant';
 
 const convertOtelSpanToTraceSpan = (span: OtelSpan): OtelSpanTree => ({
   ...span,
@@ -7,11 +8,11 @@ const convertOtelSpanToTraceSpan = (span: OtelSpan): OtelSpanTree => ({
   children: [],
 });
 
-export const convertOtelSpansToAgentPrismSpanTree = (
-  spans: OtelSpan[],
-): OtelSpanTree[] => {
+export const convertOtelSpansToOtelSpanTree = (
+  spans: [OtelSpan, ...OtelSpan[]],
+): OtelSpanTree => {
   const spanMap = new Map<string, OtelSpanTree>();
-  const rootSpans: OtelSpanTree[] = [];
+  let rootSpan: OtelSpanTree | null = null;
 
   spans.forEach((span) => {
     const converted = convertOtelSpanToTraceSpan(span);
@@ -23,18 +24,17 @@ export const convertOtelSpansToAgentPrismSpanTree = (
     const parentSpanId = span.parent_span_id;
     if (parentSpanId) {
       const parent = spanMap.get(parentSpanId);
-      if (parent) {
-        if (!parent.children) {
-          parent.children = [];
-        }
-        parent.children.push(converted);
-      } else {
-        rootSpans.push(converted);
+      invariant(parent, 'Must have a parent span');
+      if (!parent.children) {
+        parent.children = [];
       }
+      parent.children.push(converted);
     } else {
-      rootSpans.push(converted);
+      rootSpan = converted;
     }
   });
 
-  return rootSpans;
+  invariant(rootSpan, 'Must have a root span');
+
+  return rootSpan;
 };

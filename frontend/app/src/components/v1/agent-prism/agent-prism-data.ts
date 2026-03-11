@@ -1,40 +1,23 @@
 import type { OtelSpanTree } from './span-tree-type';
 
-export const flattenSpans = (spans: OtelSpanTree[]): OtelSpanTree[] => {
-  const result: OtelSpanTree[] = [];
-  const traverse = (items: OtelSpanTree[]) => {
-    items.forEach((item) => {
-      result.push(item);
-      if (item.children?.length) {
-        traverse(item.children);
-      }
-    });
-  };
-  traverse(spans);
-  return result;
-};
-
 export const findTimeRange = (
-  cards: OtelSpanTree[],
-): { minStart: number; maxEnd: number } =>
-  cards.reduce(
-    (acc, c) => {
-      const start = new Date(c.created_at).getTime();
-      const end = start + c.duration_ms;
-      return {
-        minStart: Math.min(acc.minStart, start),
-        maxEnd: Math.max(acc.maxEnd, end),
-      };
-    },
-    {
-      minStart:
-        cards.length > 0 ? new Date(cards[0].created_at).getTime() : Infinity,
-      maxEnd:
-        cards.length > 0
-          ? new Date(cards[0].created_at).getTime() + cards[0].duration_ms
-          : -Infinity,
-    },
-  );
+  spanTree: OtelSpanTree,
+): { minStart: number; maxEnd: number } => {
+  let minStart = Infinity;
+  let maxEnd = -Infinity;
+
+  const traverse = (node: OtelSpanTree) => {
+    const start = new Date(node.created_at).getTime();
+    const end = start + node.duration_ms;
+    minStart = Math.min(minStart, start);
+    maxEnd = Math.max(maxEnd, end);
+    node.children?.forEach(traverse);
+  };
+
+  traverse(spanTree);
+
+  return { minStart, maxEnd };
+};
 
 export const formatDuration = (durationMs: number): string => {
   if (durationMs <= 0) {

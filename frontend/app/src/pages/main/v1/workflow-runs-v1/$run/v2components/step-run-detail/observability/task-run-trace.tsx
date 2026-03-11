@@ -1,29 +1,33 @@
 import { TreeView } from '@/components/v1/agent-prism/TreeView';
-import { flattenSpans } from '@/components/v1/agent-prism/agent-prism-data';
-import { convertOtelSpansToAgentPrismSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
+import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { OtelSpan } from '@/lib/api/generated/data-contracts';
 import { useEffect, useMemo, useState } from 'react';
 
-export function TaskRunTrace({ spans }: { spans: OtelSpan[] }) {
-  const traceSpans = useMemo(
-    () => convertOtelSpansToAgentPrismSpanTree(spans),
-    [spans],
-  );
+const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
+  if (!spanTree.span_name.startsWith('hatchet ')) {
+    return [];
+  }
 
-  const allIds = useMemo(
-    () => flattenSpans(traceSpans).map((s) => s.span_id),
-    [traceSpans],
+  return [
+    spanTree.span_id,
+    ...spanTree.children.flatMap(getSpanIdsOfAllHatchetSpans),
+  ];
+};
+
+export function TaskRunTrace({ spans }: { spans: [OtelSpan, ...OtelSpan[]] }) {
+  const traceSpanTree = useMemo(
+    () => convertOtelSpansToOtelSpanTree(spans),
+    [spans],
   );
 
   const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (allIds.length > 0) {
-      setExpandedSpansIds(allIds);
-    }
-  }, [allIds]);
+    setExpandedSpansIds(getSpanIdsOfAllHatchetSpans(traceSpanTree));
+  }, [traceSpanTree]);
 
-  if (traceSpans.length === 0) {
+  if (!traceSpanTree) {
     return (
       <div className="py-4 text-sm text-muted-foreground">
         No trace found for this task run. To collect traces, use the{' '}
@@ -46,7 +50,7 @@ export function TaskRunTrace({ spans }: { spans: OtelSpan[] }) {
       </div>
       <div className="max-h-[500px] overflow-y-auto">
         <TreeView
-          spans={traceSpans}
+          spanTree={traceSpanTree}
           expandedSpansIds={expandedSpansIds}
           onExpandSpansIdsChange={setExpandedSpansIds}
         />
