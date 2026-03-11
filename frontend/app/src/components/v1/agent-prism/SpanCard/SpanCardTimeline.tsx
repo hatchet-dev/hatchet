@@ -1,8 +1,6 @@
+import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { getTimelineData } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-data';
-import type {
-  TraceSpan,
-  OpenTelemetryStatusCode,
-} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
+import type { TraceSpan } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/agent-prism-types';
 import cn from 'classnames';
 
 interface SpanCardTimelineProps {
@@ -12,10 +10,10 @@ interface SpanCardTimelineProps {
   className?: string;
 }
 
-const timelineBgColors: Record<OpenTelemetryStatusCode, string> = {
-  STATUS_CODE_OK: 'bg-success',
-  STATUS_CODE_UNSET: 'bg-success',
-  STATUS_CODE_ERROR: 'bg-danger',
+const timelineBgColors: Record<OtelStatusCode, string> = {
+  [OtelStatusCode.OK]: 'bg-success',
+  [OtelStatusCode.UNSET]: 'bg-success',
+  [OtelStatusCode.ERROR]: 'bg-danger',
 };
 
 export const SpanCardTimeline = ({

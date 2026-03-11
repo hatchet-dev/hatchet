@@ -1,3 +1,8 @@
+import type {
+  OtelSpanKind,
+  OtelStatusCode,
+} from '@/lib/api/generated/data-contracts';
+
 export type InputOutputData = {
   input?: string;
   output?: string;
@@ -12,7 +17,7 @@ export type TraceSpan<TMetadata = Record<string, unknown>> = InputOutputData & {
   raw: string;
   attributes?: TraceSpanAttribute[];
   children?: TraceSpan<TMetadata>[];
-  status: OpenTelemetryStatusCode;
+  status: OtelStatusCode;
   cost?: number;
   metadata?: TMetadata;
 };
@@ -60,7 +65,7 @@ export type OpenTelemetrySpan = {
   spanId: string;
   parentSpanId?: string;
   name: string;
-  kind: OpenTelemetrySpanKind;
+  kind: OtelSpanKind;
   startTimeUnixNano: string;
   endTimeUnixNano: string;
   attributes: TraceSpanAttribute[];
@@ -90,21 +95,9 @@ export type OpenTelemetryLink = {
 };
 
 export type OpenTelemetryStatus = {
-  code: OpenTelemetryStatusCode;
+  code: OtelStatusCode;
   message?: string;
 };
-
-export type OpenTelemetrySpanKind =
-  | 'SPAN_KIND_INTERNAL'
-  | 'SPAN_KIND_SERVER'
-  | 'SPAN_KIND_CLIENT'
-  | 'SPAN_KIND_PRODUCER'
-  | 'SPAN_KIND_CONSUMER';
-
-export type OpenTelemetryStatusCode =
-  | 'STATUS_CODE_OK'
-  | 'STATUS_CODE_ERROR'
-  | 'STATUS_CODE_UNSET';
 
 export const INPUT_OUTPUT_ATTRIBUTES = {
   INPUT_VALUE: 'input.value',
