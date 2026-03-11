@@ -73,7 +73,7 @@ function filterSpansForTask(
   spans: OtelSpan[],
   taskExternalId: string,
 ): OtelSpan[] {
-  // Find the root span for this task (the "hatchet task run" span)
+  // Find the root span for this task (the "hatchet.start_step_run" span)
   const taskRootSpan = spans.find(
     (s) => s.span_attributes?.['hatchet.step_run_id'] === taskExternalId,
   );

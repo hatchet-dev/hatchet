@@ -36,7 +36,7 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     ) from e
 
 # ContextVar that holds the hatchet.* attributes from the active
-# hatchet task run span so they can be injected into child spans.
+# hatchet.start_step_run span so they can be injected into child spans.
 _hatchet_span_attributes: contextvars.ContextVar[dict[str, str | int] | None] = (
     contextvars.ContextVar("_hatchet_span_attributes", default=None)
 )
