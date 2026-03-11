@@ -32,6 +32,12 @@ type CandidateEventMatch struct {
 
 	// Data for the event
 	Data []byte
+
+	// AdditionalMetadata for the event (user events only)
+	AdditionalMetadata []byte
+
+	// Scope for the event (user events only)
+	Scope *string
 }
 
 type ExternalCreateSignalMatchOpts struct {
@@ -458,7 +464,21 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			matchIds = append(matchIds, condition.V1MatchID)
 			conditionIds = append(conditionIds, condition.ID)
 
-			datas = append(datas, event.Data)
+			if condition.EventType == sqlcv1.V1EventTypeUSER {
+				if dj, err := json.Marshal(EventTriggerOpts{
+					ExternalId:         eventId,
+					Key:                event.Key,
+					Data:               event.Data,
+					AdditionalMetadata: event.AdditionalMetadata,
+					Scope:              event.Scope,
+				}); err != nil {
+					datas = append(datas, event.Data)
+				} else {
+					datas = append(datas, dj)
+				}
+			} else {
+				datas = append(datas, event.Data)
+			}
 		}
 	}
 

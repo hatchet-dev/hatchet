@@ -22,19 +22,19 @@ import (
 )
 
 type EventTriggerOpts struct {
-	ExternalId uuid.UUID
+	ExternalId uuid.UUID `json:"external_id"`
 
-	Key string
+	Key string `json:"key"`
 
-	Data []byte
+	Data []byte `json:"data"`
 
-	AdditionalMetadata []byte
+	AdditionalMetadata []byte `json:"additional_metadata"`
 
-	Priority *int32
+	Priority *int32 `json:"priority"`
 
-	Scope *string
+	Scope *string `json:"scope"`
 
-	TriggeringWebhookName *string
+	TriggeringWebhookName *string `json:"triggering_webhook_name"`
 }
 
 type TriggerTaskData struct {
