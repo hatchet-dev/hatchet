@@ -6,9 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -143,16 +145,33 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 	}
 }
 
+type NonDeterminismDetail struct {
+	Expected string
+	Received string
+}
+
 type NonDeterminismError struct {
-	NodeId                 int64
-	BranchId               int64
-	TaskExternalId         uuid.UUID
-	ExpectedIdempotencyKey []byte
-	ActualIdempotencyKey   []byte
+	NodeId                  int64
+	BranchId                int64
+	TaskExternalId          uuid.UUID
+	ExpectedIdempotencyKey  []byte
+	ActualIdempotencyKey    []byte
+	ExpectedKind            sqlcv1.V1DurableEventLogKind
+	ActualKind              sqlcv1.V1DurableEventLogKind
+	ExistingEntryId         int64
+	ExistingEntryInsertedAt pgtype.Timestamptz
+	ExistingEntryTenantId   uuid.UUID
+	Detail                  *NonDeterminismDetail
 }
 
 func (m *NonDeterminismError) Error() string {
-	return fmt.Sprintf("non-determinism detected for durable event log entry in task %s at node id %d", m.TaskExternalId.String(), m.NodeId)
+	msg := fmt.Sprintf("non-determinism error in task %s at node %d:%d", m.TaskExternalId, m.NodeId, m.BranchId)
+
+	if m.Detail != nil {
+		msg += "\n  expected: " + m.Detail.Expected + "\n  received: " + m.Detail.Received
+	}
+
+	return msg
 }
 
 type StaleInvocationError struct {
@@ -163,6 +182,95 @@ type StaleInvocationError struct {
 
 func (e *StaleInvocationError) Error() string {
 	return fmt.Sprintf("invocation count mismatch for task %s: server has %d, worker sent %d", e.TaskExternalId.String(), e.ExpectedInvocationCount, e.ActualInvocationCount)
+}
+
+func formatCall(opts IngestDurableTaskEventOpts) string {
+	switch opts.Kind {
+	case sqlcv1.V1DurableEventLogKindRUN:
+		if opts.TriggerRuns != nil {
+			names := make([]string, 0, len(opts.TriggerRuns.TriggerOpts))
+			for _, t := range opts.TriggerRuns.TriggerOpts {
+				names = append(names, t.WorkflowName)
+			}
+			return "run(" + strings.Join(names, ", ") + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		if opts.WaitFor != nil {
+			parts := make([]string, 0, len(opts.WaitFor.WaitForConditions))
+			for _, c := range opts.WaitFor.WaitForConditions {
+				switch c.Kind {
+				case CreateExternalSignalConditionKindSLEEP:
+					if c.SleepFor != nil {
+						parts = append(parts, "sleep("+*c.SleepFor+")")
+					} else {
+						parts = append(parts, "sleep")
+					}
+				case CreateExternalSignalConditionKindUSEREVENT:
+					if c.UserEventKey != nil {
+						parts = append(parts, "waitForEvent("+*c.UserEventKey+")")
+					} else {
+						parts = append(parts, "waitForEvent")
+					}
+				default:
+					parts = append(parts, string(c.Kind))
+				}
+			}
+			return "waitFor(" + strings.Join(parts, ", ") + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindMEMO:
+		return "memo"
+	}
+
+	return string(opts.Kind)
+}
+
+func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) string {
+	if len(payload) == 0 {
+		return string(kind)
+	}
+
+	switch kind {
+	case sqlcv1.V1DurableEventLogKindRUN:
+		var triggerOpts WorkflowNameTriggerOpts
+		if json.Unmarshal(payload, &triggerOpts) == nil && triggerOpts.WorkflowName != "" {
+			return "run(" + triggerOpts.WorkflowName + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		var conditions []CreateExternalSignalConditionOpt
+		if json.Unmarshal(payload, &conditions) == nil && len(conditions) > 0 {
+			parts := make([]string, 0, len(conditions))
+			for _, c := range conditions {
+				switch c.Kind {
+				case CreateExternalSignalConditionKindSLEEP:
+					if c.SleepFor != nil {
+						parts = append(parts, "sleep("+*c.SleepFor+")")
+					} else {
+						parts = append(parts, "sleep")
+					}
+				case CreateExternalSignalConditionKindUSEREVENT:
+					if c.UserEventKey != nil {
+						parts = append(parts, "waitForEvent("+*c.UserEventKey+")")
+					} else {
+						parts = append(parts, "waitForEvent")
+					}
+				default:
+					parts = append(parts, string(c.Kind))
+				}
+			}
+			return "waitFor(" + strings.Join(parts, ", ") + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindMEMO:
+		return "memo"
+	}
+
+	return string(kind)
+}
+
+func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V1DurableEventLogKind, existingPayload []byte) *NonDeterminismDetail {
+	return &NonDeterminismDetail{
+		Expected: formatStoredPayload(expectedKind, existingPayload),
+		Received: formatCall(opts),
+	}
 }
 
 type GetOrCreateLogEntryOpt struct {
@@ -476,11 +584,16 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 
 		if !bytes.Equal(o.IdempotencyKey, existingEntry.IdempotencyKey) {
 			return nil, &NonDeterminismError{
-				BranchId:               o.BranchId,
-				NodeId:                 o.NodeId,
-				TaskExternalId:         opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey: existingEntry.IdempotencyKey,
-				ActualIdempotencyKey:   o.IdempotencyKey,
+				BranchId:                o.BranchId,
+				NodeId:                  o.NodeId,
+				TaskExternalId:          opts.DurableTaskExternalId,
+				ExpectedIdempotencyKey:  existingEntry.IdempotencyKey,
+				ActualIdempotencyKey:    o.IdempotencyKey,
+				ExpectedKind:            existingEntry.Kind,
+				ActualKind:              o.Kind,
+				ExistingEntryId:         existingEntry.ID,
+				ExistingEntryInsertedAt: existingEntry.InsertedAt,
+				ExistingEntryTenantId:   existingEntry.TenantID,
 			}
 		}
 
@@ -774,6 +887,26 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	logEntries, err := r.getOrCreateEventLogEntries(ctx, tx, getOrCreateOpts)
 	if err != nil {
+		var nde *NonDeterminismError
+		if errors.As(err, &nde) {
+			var existingPayload []byte
+			payloads, retrieveErr := r.payloadStore.Retrieve(ctx, tx, RetrievePayloadOpts{
+				Id:         nde.ExistingEntryId,
+				InsertedAt: nde.ExistingEntryInsertedAt,
+				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+				TenantId:   nde.ExistingEntryTenantId,
+			})
+			if retrieveErr == nil {
+				existingPayload = payloads[RetrievePayloadOpts{
+					Id:         nde.ExistingEntryId,
+					InsertedAt: nde.ExistingEntryInsertedAt,
+					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+					TenantId:   nde.ExistingEntryTenantId,
+				}]
+			}
+			nde.Detail = nonDeterminismDetail(opts, nde.ExpectedKind, existingPayload)
+		}
+
 		return nil, fmt.Errorf("failed to get or create event log entries: %w", err)
 	}
 
