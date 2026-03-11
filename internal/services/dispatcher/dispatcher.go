@@ -277,11 +277,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
-<<<<<<< feat--consistent-analytics-events
 		analytics:                   opts.analytics,
-=======
 		streamEventBufferTimeout:    opts.streamEventBufferTimeout,
->>>>>>> main
 		version:                     opts.version,
 	}, nil
 }
