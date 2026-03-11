@@ -19,6 +19,7 @@ from examples.durable.worker import (
     memo_task,
     MemoInput,
     DurableBulkSpawnInput,
+    memo_now_caching,
 )
 from hatchet_sdk import Hatchet
 
@@ -281,3 +282,16 @@ async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
     assert duration_1 >= SLEEP_TIME
     assert duration_2 < 1
     assert result_1.message == result_2.message
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
+    ref = await memo_now_caching.aio_run_no_wait()
+
+    result_1 = await ref.aio_result()
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+
+    result_2 = await ref.aio_result()
+
+    assert result_1["start_time"] == result_2["start_time"]
