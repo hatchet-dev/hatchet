@@ -339,6 +339,7 @@ export const SpanCard: FC<SpanCardProps> = ({
         <div
           className={cn(
             'relative grid w-full',
+            onSpanSelect && 'cursor-pointer',
             state.isSelected &&
               'before:bg-agentprism-muted/75 before:absolute before:-top-2 before:h-2 before:w-full',
             state.isSelected &&
@@ -350,14 +351,16 @@ export const SpanCard: FC<SpanCardProps> = ({
             backgroundPosition: 'top',
             backgroundRepeat: 'no-repeat',
           }}
-          onClick={eventHandlers.handleCardClick}
-          onKeyDown={eventHandlers.handleKeyDown}
-          tabIndex={0}
-          role="button"
-          aria-pressed={state.isSelected}
+          {...(onSpanSelect && {
+            onClick: eventHandlers.handleCardClick,
+            onKeyDown: eventHandlers.handleKeyDown,
+            tabIndex: 0,
+            role: 'button',
+            'aria-pressed': state.isSelected,
+            'aria-label': `${state.isSelected ? 'Selected' : 'Not selected'} span card for ${data.span_name} at level ${level}`,
+          })}
           aria-describedby={`span-card-desc-${data.span_id}`}
           aria-expanded={state.hasChildren ? state.isExpanded : undefined}
-          aria-label={`${state.isSelected ? 'Selected' : 'Not selected'} span card for ${data.span_name} at level ${level}`}
         >
           <div className="flex flex-nowrap">
             {connectors.map((connector, idx) => (
@@ -379,25 +382,31 @@ export const SpanCard: FC<SpanCardProps> = ({
           <div
             className={cn(
               'flex flex-wrap items-start gap-x-2 gap-y-1',
-              'mb-3 min-h-5 w-full cursor-pointer',
+              'mb-3 min-h-5 w-full',
               level !== 0 && !hasExpandButtonAsFirstChild && 'pl-2',
               level !== 0 && hasExpandButtonAsFirstChild && 'pl-1',
             )}
           >
-            <div
-              className="relative flex min-h-4 shrink-0 flex-wrap items-center gap-1.5"
-              style={{
-                width: `min(${contentWidth}px, 100%)`,
-                minWidth: 140,
-              }}
-            >
-              <h3
-                className="text-agentprism-foreground truncate text-sm leading-[14px]"
-                title={data.span_name}
+            <Collapsible.Trigger asChild disabled={!state.hasChildren}>
+              <div
+                className={cn(
+                  'relative flex min-h-4 shrink-0 flex-wrap items-center gap-1.5',
+                  state.hasChildren && 'cursor-pointer',
+                )}
+                style={{
+                  width: `min(${contentWidth}px, 100%)`,
+                  minWidth: 140,
+                }}
+                onClick={eventHandlers.handleToggleClick}
               >
-                {data.span_name}
-              </h3>
-            </div>
+                <h3
+                  className="text-agentprism-foreground truncate text-sm leading-[14px]"
+                  title={data.span_name}
+                >
+                  {data.span_name}
+                </h3>
+              </div>
+            </Collapsible.Trigger>
 
             <div className="flex grow flex-wrap items-center justify-end gap-1">
               <SpanCardTimeline
