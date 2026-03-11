@@ -1,4 +1,7 @@
-import { V1LogLineLevel, V1LogLineOrderByDirection } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  V1LogLineLevel,
+  V1LogLineOrderByDirection,
+} from '@hatchet/clients/rest/generated/data-contracts';
 import { HatchetClient } from '../client';
 
 /**
@@ -39,10 +42,7 @@ export class LogsClient {
    * @param opts - The options filter for the list operation.
    * @returns A promise that resolves to the list of logs.
    */
-  async list(
-    taskRunId: string,
-    opts?: ListLogsOpts
-  ) {
+  async list(taskRunId: string, opts?: ListLogsOpts) {
     const { data } = await this.api.v1LogLineList(taskRunId, {
       limit: opts?.limit,
       since: opts?.since?.toISOString(),

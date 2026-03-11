@@ -32,7 +32,7 @@ export interface IHatchetClient {
   workers: WorkersClient;
   webhooks: WebhooksClient;
   tenant: TenantClient;
-  filters: FiltersClient; 
+  filters: FiltersClient;
   ratelimits: RatelimitsClient;
   scheduled: ScheduleClient;
   crons: CronClient;
