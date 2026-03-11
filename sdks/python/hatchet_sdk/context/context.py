@@ -52,7 +52,11 @@ from hatchet_sdk.runnables.types import (
     ValidTaskReturnType,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import (
+    Duration,
+    expr_to_timedelta,
+    timedelta_to_expr,
+)
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
     aio_durable_eviction_wait,
@@ -75,6 +79,10 @@ class Event(BaseModel):
     seen_at: datetime
     additional_metadata: JSONSerializableMapping | None
     scope: str | None
+
+
+class SleepResult(BaseModel):
+    duration: timedelta
 
 
 def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
@@ -617,7 +625,7 @@ class DurableContext(Context):
 
         return result.payload or {}
 
-    async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
+    async def aio_sleep_for(self, duration: Duration) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
@@ -626,10 +634,16 @@ class DurableContext(Context):
 
         wait_index = self._increment_wait_index()
 
-        return await self.aio_wait_for(
+        res = await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
+
+        matches: dict[str, list[dict[str, Any]]] = res.get("CREATE", {})
+        _, raw_matches = next(iter(matches.items()))
+        sleep = raw_matches[0]
+
+        return SleepResult(duration=expr_to_timedelta(sleep["sleep_duration"]))
 
     async def aio_wait_for_event(
         self, key: str, expression: str | None = None
