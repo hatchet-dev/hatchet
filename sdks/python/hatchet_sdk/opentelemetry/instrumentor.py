@@ -15,7 +15,7 @@ try:
     )
     from opentelemetry.instrumentation.utils import unwrap
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
-    from opentelemetry.sdk.trace import ReadableSpan, Span
+    from opentelemetry.sdk.trace import Span
     from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
     from opentelemetry.trace import (
