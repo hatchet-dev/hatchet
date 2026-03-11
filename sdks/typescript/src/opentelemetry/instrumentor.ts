@@ -306,7 +306,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet push event',
+          'hatchet.push_event',
           {
             kind: SpanKind.PRODUCER,
             attributes,
@@ -357,7 +357,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet push events',
+          'hatchet.bulk_push_event',
           {
             kind: SpanKind.PRODUCER,
             attributes,
@@ -453,9 +453,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          `hatchet trigger task ${workflowName}`,
+          'hatchet.run_workflow',
           {
-            kind: SpanKind.CLIENT,
+            kind: SpanKind.PRODUCER,
             attributes,
           },
           (span: Span) => {
@@ -516,9 +516,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet trigger tasks',
+          'hatchet.run_workflows',
           {
-            kind: SpanKind.CLIENT,
+            kind: SpanKind.PRODUCER,
             attributes,
           },
           (span: Span) => {
@@ -604,9 +604,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             this.workerId
           );
 
-          let spanName = 'hatchet task run';
+          let spanName = 'hatchet.start_step_run';
           if (getConfig().includeTaskNameInSpanName) {
-            spanName += ` ${action.actionId}`;
+            spanName += `.${action.actionId}`;
           }
 
           return tracer.startActiveSpan(
@@ -657,7 +657,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           };
 
           return tracer.startActiveSpan(
-            'hatchet cancel task run',
+            'hatchet.cancel_step_run',
             {
               kind: SpanKind.CONSUMER,
               attributes,
@@ -732,9 +732,9 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
 
         return tracer.startActiveSpan(
-          'hatchet schedule task',
+          'hatchet.schedule_workflow',
           {
-            kind: SpanKind.CLIENT,
+            kind: SpanKind.PRODUCER,
             attributes,
           },
           (span: Span) => {
