@@ -222,9 +222,9 @@ async def durable_sleep_event_spawn(
 
     await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
 
-    await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    await ctx.aio_wait_for_event(
+        EVENT_KEY,
+        "true",
     )
 
     child_result = await spawn_child_task.aio_run()

@@ -56,9 +56,9 @@ async def evictable_wait_for_event(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, Any]:
     """Waits for a user event -- long enough for TTL eviction to fire."""
-    await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    await ctx.aio_wait_for_event(
+        EVENT_KEY,
+        "true",
     )
     return {"status": "completed"}
 
