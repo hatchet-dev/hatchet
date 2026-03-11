@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -235,6 +236,9 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	}
 
 	c.Set(string(analytics.APITokenIDKey), tokenUUID)
+
+	ctx := context.WithValue(c.Request().Context(), analytics.APITokenIDKey, tokenUUID)
+	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
 }

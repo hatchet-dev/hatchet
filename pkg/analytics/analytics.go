@@ -79,7 +79,10 @@ func DistinctID(userID *uuid.UUID, tokenID *uuid.UUID, tenantID *uuid.UUID) stri
 	return ""
 }
 
-func FeatureProps(kvs ...interface{}) map[string]interface{} {
+// Props builds a property map from variadic key-value pairs, keeping all
+// non-nil values regardless of type. Keys must be strings; non-string keys
+// are skipped. Nil values are omitted.
+func Props(kvs ...interface{}) map[string]interface{} {
 	if len(kvs) == 0 || len(kvs)%2 != 0 {
 		return nil
 	}
@@ -90,13 +93,14 @@ func FeatureProps(kvs ...interface{}) map[string]interface{} {
 		if !ok {
 			continue
 		}
-		if v, ok := kvs[i+1].(bool); !ok || !v {
+		v := kvs[i+1]
+		if v == nil {
 			continue
 		}
 		if m == nil {
 			m = make(map[string]interface{}, len(kvs)/2)
 		}
-		m[k] = true
+		m[k] = v
 	}
 	return m
 }

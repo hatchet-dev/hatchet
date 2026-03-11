@@ -321,8 +321,52 @@ func TestCount_FlagsPassedToFlush(t *testing.T) {
 	}
 }
 
-func TestFeatureProps(t *testing.T) {
-	got := FeatureProps(
+func TestProps(t *testing.T) {
+	got := Props(
+		"worker_name", "my-worker",
+		"runtime_language", "go",
+		"has_labels", true,
+		"has_webhook_id", false,
+	)
+	if got["worker_name"] != "my-worker" {
+		t.Errorf("expected worker_name='my-worker', got %v", got["worker_name"])
+	}
+	if got["runtime_language"] != "go" {
+		t.Errorf("expected runtime_language='go', got %v", got["runtime_language"])
+	}
+	if got["has_labels"] != true {
+		t.Error("expected has_labels=true")
+	}
+	if got["has_webhook_id"] != false {
+		t.Errorf("expected has_webhook_id=false, got %v", got["has_webhook_id"])
+	}
+
+	nilResult := Props()
+	if nilResult != nil {
+		t.Errorf("expected nil for empty call, got %v", nilResult)
+	}
+
+	oddResult := Props("a")
+	if oddResult != nil {
+		t.Errorf("expected nil for odd-length call, got %v", oddResult)
+	}
+}
+
+func TestProps_NilValuesOmitted(t *testing.T) {
+	got := Props(
+		"present", "value",
+		"absent", nil,
+	)
+	if got["present"] != "value" {
+		t.Errorf("expected present='value', got %v", got["present"])
+	}
+	if _, ok := got["absent"]; ok {
+		t.Error("expected nil value to be omitted")
+	}
+}
+
+func TestProps_BooleanFlags(t *testing.T) {
+	got := Props(
 		"has_priority", true,
 		"has_scope", false,
 		"has_additional_meta", true,
@@ -330,20 +374,10 @@ func TestFeatureProps(t *testing.T) {
 	if got["has_priority"] != true {
 		t.Error("expected has_priority=true")
 	}
-	if _, ok := got["has_scope"]; ok {
-		t.Error("expected has_scope to be omitted")
+	if got["has_scope"] != false {
+		t.Errorf("expected has_scope=false, got %v", got["has_scope"])
 	}
 	if got["has_additional_meta"] != true {
 		t.Error("expected has_additional_meta=true")
-	}
-
-	nilResult := FeatureProps("a", false, "b", false)
-	if nilResult != nil {
-		t.Errorf("expected nil for all-false flags, got %v", nilResult)
-	}
-
-	nilResult2 := FeatureProps()
-	if nilResult2 != nil {
-		t.Errorf("expected nil for empty call, got %v", nilResult2)
 	}
 }

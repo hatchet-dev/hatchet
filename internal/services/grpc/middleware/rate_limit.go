@@ -67,9 +67,9 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 		return status.Errorf(codes.Internal, "no server in context")
 	}
 
-	rateLimitToken := ctx.Value(analytics.APITokenIDKey).(uuid.UUID)
+	rateLimitToken, ok := ctx.Value(analytics.APITokenIDKey).(uuid.UUID)
 
-	if rateLimitToken == uuid.Nil {
+	if !ok || rateLimitToken == uuid.Nil {
 		return status.Errorf(codes.Unauthenticated, "no rate limit token found")
 	}
 

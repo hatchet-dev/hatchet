@@ -99,7 +99,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	s.analytics.Count(ctx, analytics.Worker, analytics.Register, tenantId, analytics.FeatureProps(
+	s.analytics.Count(ctx, analytics.Worker, analytics.Register, tenantId, analytics.Props(
 		"worker_name", request.WorkerName,
 		"runtime_language", strings.ToLower(request.RuntimeInfo.GetLanguage().String()),
 		"runtime_sdk_version", request.RuntimeInfo.GetSdkVersion(),

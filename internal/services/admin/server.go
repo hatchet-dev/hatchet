@@ -23,7 +23,7 @@ import (
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenant.ID, analytics.FeatureProps(
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenant.ID, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"is_child", req.ParentId != nil,
 		"has_additional_meta", req.AdditionalMetadata != nil,
@@ -36,7 +36,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	for _, w := range req.Workflows {
-		a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenant.ID, analytics.FeatureProps(
+		a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenant.ID, analytics.Props(
 			"has_priority", w.Priority != nil,
 			"is_child", w.ParentId != nil,
 			"has_additional_meta", w.AdditionalMetadata != nil,
@@ -124,7 +124,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenantId, analytics.FeatureProps(
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenantId, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"is_child", req.ParentId != nil,
 		"has_additional_meta", req.AdditionalMetadata != nil,
@@ -545,7 +545,7 @@ func putWorkflowAnalyticsFeatureFlags(opts *contracts.CreateWorkflowVersionOpts)
 		}
 	}
 
-	return analytics.FeatureProps(
+	return analytics.Props(
 		"has_wf_concurrency", opts.Concurrency != nil,
 		"has_wf_sticky", opts.Sticky != nil,
 		"has_wf_default_priority", opts.DefaultPriority != nil,

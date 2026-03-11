@@ -20,7 +20,7 @@ import (
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	i.analytics.Count(ctx, analytics.Event, analytics.Create, tenant.ID, analytics.FeatureProps(
+	i.analytics.Count(ctx, analytics.Event, analytics.Create, tenant.ID, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"has_scope", req.Scope != nil,
 		"has_additional_meta", req.AdditionalMetadata != nil,
@@ -85,7 +85,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	for _, e := range req.Events {
-		i.analytics.Count(ctx, analytics.Event, analytics.Create, tenant.ID, analytics.FeatureProps(
+		i.analytics.Count(ctx, analytics.Event, analytics.Create, tenant.ID, analytics.Props(
 			"has_priority", e.Priority != nil,
 			"has_scope", e.Scope != nil,
 			"has_additional_meta", e.AdditionalMetadata != nil,

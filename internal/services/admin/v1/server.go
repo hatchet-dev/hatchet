@@ -379,7 +379,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenantId, analytics.FeatureProps(
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenantId, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"has_additional_meta", len(req.AdditionalMetadata) > 0,
 		"has_desired_worker_labels", len(req.DesiredWorkerLabels) > 0,
@@ -1164,7 +1164,7 @@ func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[st
 		hasTaskScheduleTimeout = hasTaskScheduleTimeout || t.ScheduleTimeout != nil
 	}
 
-	return analytics.FeatureProps(
+	return analytics.Props(
 		"has_wf_concurrency", len(req.ConcurrencyArr) > 0,
 		"has_wf_sticky", req.Sticky != nil,
 		"has_wf_default_priority", req.DefaultPriority != nil,

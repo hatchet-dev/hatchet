@@ -530,6 +530,13 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 
 		phAnalytics.Start()
+		defer func() {
+			if err != nil {
+				if closeErr := phAnalytics.Close(); closeErr != nil {
+					l.Error().Err(closeErr).Msg("error closing analytics emitter during cleanup")
+				}
+			}
+		}()
 		analyticsEmitter = phAnalytics
 
 		if cf.Analytics.Posthog.FeApiKey != "" && cf.Analytics.Posthog.FeApiHost != "" {
