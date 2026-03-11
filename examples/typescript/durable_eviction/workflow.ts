@@ -50,7 +50,7 @@ export const evictableWaitForEvent = hatchet.durableTask({
   executionTimeout: '5m',
   evictionPolicy: EVICTION_POLICY,
   fn: async (_input, ctx) => {
-    await ctx.waitFor({ eventKey: EVENT_KEY });
+    await ctx.waitForEvent(EVENT_KEY, 'true');
     return { status: 'completed' };
   },
 });

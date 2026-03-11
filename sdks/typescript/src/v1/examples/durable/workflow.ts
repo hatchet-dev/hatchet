@@ -25,14 +25,18 @@ durableWorkflow.durableTask({
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     console.log('Waiting for sleep');
-    await ctx.sleepFor(SLEEP_TIME);
+    const sleepResult = await ctx.sleepFor(SLEEP_TIME);
     console.log('Sleep finished');
 
     console.log('Waiting for event');
-    await ctx.waitFor({ eventKey: EVENT_KEY });
+    const event = await ctx.waitForEvent(EVENT_KEY, 'true');
     console.log('Event received');
 
-    return { status: 'success' };
+    return {
+      status: 'success',
+      event_id: event.id,
+      sleep_duration_ms: sleepResult.durationMs,
+    };
   },
 });
 
@@ -159,12 +163,12 @@ export const durableSleepEventSpawn = hatchet.durableTask({
 
     await ctx.sleepFor(SLEEP_TIME);
 
-    await ctx.waitFor({ eventKey: EVENT_KEY });
+    await ctx.waitForEvent(EVENT_KEY, 'true');
 
     const childResult = await spawnChildTask.run({});
 
     return {
-      runtime: Math.round((Date.now() - start) / 1000),
+      runtime: (Date.now() - start) / 1000,
       child_output: childResult,
     };
   },
@@ -259,6 +263,15 @@ export const durableReplayReset = hatchet.durableTask({
   },
 });
 
+export const memoNowCaching = hatchet.durableTask({
+  name: 'memo-now-caching',
+  executionTimeout: '10m',
+  fn: async (_input, ctx) => {
+    const now = await ctx.now();
+    return { start_time: now.toISOString() };
+  },
+});
+
 // --- Spawn DAG from durable task ---
 
 export const dagChildWorkflow = hatchet.workflow({
@@ -296,7 +309,7 @@ export const durableSpawnDag = hatchet.durableTask({
 
     return {
       sleep_duration: sleepDuration,
-      sleep_result: sleepResult,
+      sleep_duration_ms: sleepResult.durationMs,
       spawn_duration: spawnDuration,
       spawn_result: spawnResult,
     };

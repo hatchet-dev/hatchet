@@ -32,7 +32,7 @@ import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
 import { InternalWorker } from './worker-internal';
-import { Duration, durationToString } from '../duration';
+import { Duration, durationToMs, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { ActionKey } from './eviction/eviction-cache';
 import { supportsEviction } from './engine-version';
@@ -42,6 +42,21 @@ import { waitForPreEviction } from './deprecated/pre-eviction';
 type TriggerData = Record<string, Record<string, any>>;
 
 type ChildRunOpts = RunOpts & { key?: string; sticky?: boolean };
+
+export interface SleepResult {
+  /** The sleep duration in milliseconds. */
+  durationMs: number;
+}
+
+export interface HatchetEvent {
+  id: string;
+  tenantId: string;
+  key: string;
+  payload: Record<string, any>;
+  seenAt: Date;
+  additionalMetadata: Record<string, any> | null;
+  scope: string | null;
+}
 
 type LogExtra = {
   extra?: any;
@@ -880,10 +895,34 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * Pauses execution for the specified duration.
    * Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
    * @param duration - The duration to sleep for.
-   * @returns A promise that resolves when the sleep duration has elapsed.
+   * @returns A promise that resolves with a SleepResult when the sleep duration has elapsed.
    */
-  async sleepFor(duration: Duration, readableDataKey?: string) {
-    return this.waitFor({ sleepFor: duration, readableDataKey });
+  async sleepFor(duration: Duration, readableDataKey?: string): Promise<SleepResult> {
+    const res = await this.waitFor({ sleepFor: duration, readableDataKey });
+
+    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const [firstMatch] = Object.values(matches);
+
+    if (!firstMatch || firstMatch.length === 0) {
+      return { durationMs: durationToMs(duration) };
+    }
+
+    const [sleep] = firstMatch;
+    const sleepDuration: string | undefined = sleep?.sleep_duration;
+
+    if (sleepDuration) {
+      const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
+      const match = sleepDuration.match(DURATION_RE);
+      if (match) {
+        const [, h, m, s] = match;
+        const ms =
+          (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) *
+          1000;
+        return { durationMs: ms };
+      }
+    }
+
+    return { durationMs: durationToMs(duration) };
   }
 
   /**
@@ -930,6 +969,54 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       );
       return result.payload || {};
     });
+  }
+
+  /**
+   * Waits for a user event with the given key.
+   * @param key - The event key to wait for.
+   * @param expression - An optional CEL expression to filter events.
+   * @returns A promise that resolves with a HatchetEvent when the event is received.
+   */
+  async waitForEvent(key: string, expression?: string): Promise<HatchetEvent> {
+    const res = await this.waitFor({ eventKey: key, expression });
+
+    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const [firstMatch] = Object.values(matches);
+
+    if (!firstMatch || firstMatch.length === 0) {
+      return {
+        id: '',
+        tenantId: this.action.tenantId,
+        key,
+        payload: {},
+        seenAt: new Date(),
+        additionalMetadata: null,
+        scope: null,
+      };
+    }
+
+    const [event] = firstMatch;
+
+    return {
+      id: event?.id ?? '',
+      tenantId: event?.tenant_id ?? this.action.tenantId,
+      key: event?.key ?? key,
+      payload: event?.data ?? {},
+      seenAt: event?.seen_at ? new Date(event.seen_at) : new Date(),
+      additionalMetadata: event?.additional_metadata ?? null,
+      scope: event?.scope ?? null,
+    };
+  }
+
+  /**
+   * Get the current timestamp, memoized across replays. Returns the same Date on every replay of the same task run.
+   * @returns The memoized current timestamp.
+   */
+  async now(): Promise<Date> {
+    const result = await this.memo(async () => {
+      return { ts: new Date().toISOString() };
+    }, []);
+    return new Date(result.ts);
   }
 
   private async _waitForPreEviction(
