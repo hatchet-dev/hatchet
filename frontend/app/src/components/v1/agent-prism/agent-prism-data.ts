@@ -1,10 +1,8 @@
-import type { AgentPrismTraceSpan } from './agent-prism-types';
+import type { OtelSpanTree } from './span-tree-type';
 
-export const flattenSpans = (
-  spans: AgentPrismTraceSpan[],
-): AgentPrismTraceSpan[] => {
-  const result: AgentPrismTraceSpan[] = [];
-  const traverse = (items: AgentPrismTraceSpan[]) => {
+export const flattenSpans = (spans: OtelSpanTree[]): OtelSpanTree[] => {
+  const result: OtelSpanTree[] = [];
+  const traverse = (items: OtelSpanTree[]) => {
     items.forEach((item) => {
       result.push(item);
       if (item.children?.length) {
@@ -17,7 +15,7 @@ export const flattenSpans = (
 };
 
 export const findTimeRange = (
-  cards: AgentPrismTraceSpan[],
+  cards: OtelSpanTree[],
 ): { minStart: number; maxEnd: number } =>
   cards.reduce(
     (acc, c) => {
@@ -63,7 +61,7 @@ export const getTimelineData = ({
   minStart,
   maxEnd,
 }: {
-  spanCard: AgentPrismTraceSpan;
+  spanCard: OtelSpanTree;
   minStart: number;
   maxEnd: number;
 }): { durationMs: number; startPercent: number; widthPercent: number } => {

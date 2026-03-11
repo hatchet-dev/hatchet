@@ -1,10 +1,10 @@
 import { getTimelineData } from '../agent-prism-data';
-import type { AgentPrismTraceSpan } from '../agent-prism-types';
+import type { OtelSpanTree } from '../span-tree-type';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import cn from 'classnames';
 
 interface SpanCardTimelineProps {
-  spanCard: AgentPrismTraceSpan;
+  spanCard: OtelSpanTree;
   minStart: number;
   maxEnd: number;
   className?: string;
@@ -37,7 +37,7 @@ export const SpanCardTimeline = ({
     >
       <span className="pointer-events-none absolute inset-x-1 top-1/2 h-1.5 -translate-y-1/2">
         <span
-          className={`absolute h-full rounded-sm ${timelineBgColors[spanCard.status]}`}
+          className={`absolute h-full rounded-sm ${timelineBgColors[spanCard.status_code]}`}
           style={{
             left: `${startPercent}%`,
             width: `${widthPercent}%`,

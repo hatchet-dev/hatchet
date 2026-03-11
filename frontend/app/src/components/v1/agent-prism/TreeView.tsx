@@ -1,15 +1,15 @@
 import type { SpanCardViewOptions } from './SpanCard/SpanCard';
 import { SpanCard } from './SpanCard/SpanCard';
 import { flattenSpans, findTimeRange } from './agent-prism-data';
-import type { AgentPrismTraceSpan } from './agent-prism-types';
+import type { OtelSpanTree } from './span-tree-type';
 import cn from 'classnames';
 import { type FC } from 'react';
 
 interface TreeViewProps {
-  spans: AgentPrismTraceSpan[];
+  spans: OtelSpanTree[];
   className?: string;
-  selectedSpan?: AgentPrismTraceSpan;
-  onSpanSelect?: (span: AgentPrismTraceSpan) => void;
+  selectedSpan?: OtelSpanTree;
+  onSpanSelect?: (span: OtelSpanTree) => void;
   expandedSpansIds: string[];
   onExpandSpansIdsChange: (ids: string[]) => void;
   spanCardViewOptions?: SpanCardViewOptions;
@@ -36,7 +36,7 @@ export const TreeView: FC<TreeViewProps> = ({
       >
         {spans.map((span, idx) => (
           <SpanCard
-            key={span.id}
+            key={span.span_id}
             data={span}
             level={0}
             selectedSpan={selectedSpan}

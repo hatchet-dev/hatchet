@@ -11,7 +11,7 @@ export function TaskRunTrace({ spans }: { spans: OtelSpan[] }) {
   );
 
   const allIds = useMemo(
-    () => flattenSpans(traceSpans).map((s) => s.id),
+    () => flattenSpans(traceSpans).map((s) => s.span_id),
     [traceSpans],
   );
 

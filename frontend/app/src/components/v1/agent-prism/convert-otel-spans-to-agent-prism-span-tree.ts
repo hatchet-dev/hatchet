@@ -1,25 +1,21 @@
-import type { AgentPrismTraceSpan } from './agent-prism-types';
+import type { OtelSpanTree } from './span-tree-type';
 import type { OtelSpan } from '@/lib/api/generated/data-contracts';
 
-const convertOtelSpanToTraceSpan = (span: OtelSpan): AgentPrismTraceSpan => ({
-  id: span.span_id,
-  title: span.span_name,
-  status: span.status_code,
+const convertOtelSpanToTraceSpan = (span: OtelSpan): OtelSpanTree => ({
+  ...span,
   duration_ms: span.duration / 1_000_000,
-  raw: JSON.stringify(span, null, 2),
-  created_at: span.created_at,
   children: [],
 });
 
 export const convertOtelSpansToAgentPrismSpanTree = (
   spans: OtelSpan[],
-): AgentPrismTraceSpan[] => {
-  const spanMap = new Map<string, AgentPrismTraceSpan>();
-  const rootSpans: AgentPrismTraceSpan[] = [];
+): OtelSpanTree[] => {
+  const spanMap = new Map<string, OtelSpanTree>();
+  const rootSpans: OtelSpanTree[] = [];
 
   spans.forEach((span) => {
     const converted = convertOtelSpanToTraceSpan(span);
-    spanMap.set(converted.id, converted);
+    spanMap.set(converted.span_id, converted);
   });
 
   spans.forEach((span) => {
