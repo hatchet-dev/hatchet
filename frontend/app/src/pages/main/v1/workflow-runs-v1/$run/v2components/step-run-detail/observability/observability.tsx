@@ -80,5 +80,5 @@ export const Observability = ({
     );
   }
 
-  return <TaskRunTrace spans={tracesQuery.data} taskRunId={taskRunId} />;
+  return <TaskRunTrace spans={tracesQuery.data} />;
 };

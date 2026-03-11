@@ -1,21 +1,15 @@
 import { flattenSpans } from './agent-prism-data';
 import { convertSpansToTree } from './convert-spans-to-tree';
-import { convertOtelSpans } from './otel-span-adapter';
+import { convertOtelSpansToAgentPrismSpans } from './otel-span-adapter';
 import { TreeView } from '@/components/v1/agent-prism/TreeView';
 import { OtelSpan } from '@/lib/api/generated/data-contracts';
 import { useEffect, useMemo, useState } from 'react';
 
-export function TaskRunTrace({
-  spans,
-  taskRunId,
-}: {
-  spans: OtelSpan[];
-  taskRunId: string;
-}) {
+export function TaskRunTrace({ spans }: { spans: OtelSpan[] }) {
   const traceSpans = useMemo(() => {
-    const otlpSpans = convertOtelSpans(spans, taskRunId);
+    const otlpSpans = convertOtelSpansToAgentPrismSpans(spans);
     return convertSpansToTree(otlpSpans);
-  }, [spans, taskRunId]);
+  }, [spans]);
 
   const allIds = useMemo(
     () => flattenSpans(traceSpans).map((s) => s.id),

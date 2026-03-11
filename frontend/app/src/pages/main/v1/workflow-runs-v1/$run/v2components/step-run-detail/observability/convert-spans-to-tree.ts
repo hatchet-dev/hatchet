@@ -1,65 +1,13 @@
-import type {
-  OpenTelemetrySpan,
-  TraceSpan,
-  TraceSpanAttribute,
-} from './agent-prism-types';
-import { INPUT_OUTPUT_ATTRIBUTES } from './agent-prism-types';
-
-const getAttributeValue = (
-  span: OpenTelemetrySpan,
-  key: string,
-): string | number | boolean | undefined => {
-  const attr = span.attributes.find((a: TraceSpanAttribute) => a.key === key);
-  if (!attr) {
-    return undefined;
-  }
-  const { value } = attr;
-  if (value.stringValue !== undefined) {
-    return value.stringValue;
-  }
-  if (value.intValue !== undefined) {
-    return parseFloat(value.intValue);
-  }
-  if (value.boolValue !== undefined) {
-    return value.boolValue;
-  }
-  return undefined;
-};
-
-const nanoToDate = (nanoString: string): Date => {
-  const nanoseconds = BigInt(nanoString);
-  const milliseconds = Number(nanoseconds / BigInt(1_000_000));
-  return new Date(milliseconds);
-};
-
-const getSpanDuration = (span: OpenTelemetrySpan): number => {
-  const startNano = BigInt(span.startTimeUnixNano);
-  const endNano = BigInt(span.endTimeUnixNano);
-  return Number((endNano - startNano) / BigInt(1_000_000));
-};
-
-const getSpanInputOutput = (
-  span: OpenTelemetrySpan,
-): { input?: string; output?: string } => {
-  const input = getAttributeValue(span, INPUT_OUTPUT_ATTRIBUTES.INPUT_VALUE);
-  const output = getAttributeValue(span, INPUT_OUTPUT_ATTRIBUTES.OUTPUT_VALUE);
-  return {
-    input: typeof input === 'string' ? input : undefined,
-    output: typeof output === 'string' ? output : undefined,
-  };
-};
+import type { OpenTelemetrySpan, TraceSpan } from './agent-prism-types';
 
 const convertRawSpanToTraceSpan = (span: OpenTelemetrySpan): TraceSpan => ({
   id: span.spanId,
   title: span.name,
-  status: span.status.code,
-  attributes: span.attributes,
-  duration: getSpanDuration(span),
+  status: span.status_code,
+  duration_ms: span.duration_ns / 1_000_000,
   raw: JSON.stringify(span, null, 2),
-  startTime: nanoToDate(span.startTimeUnixNano),
-  endTime: nanoToDate(span.endTimeUnixNano),
+  created_at: span.created_at,
   children: [],
-  ...getSpanInputOutput(span),
 });
 
 export const convertSpansToTree = (spans: OpenTelemetrySpan[]): TraceSpan[] => {

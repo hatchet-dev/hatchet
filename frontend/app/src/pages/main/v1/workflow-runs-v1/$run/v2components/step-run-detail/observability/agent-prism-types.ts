@@ -3,61 +3,16 @@ import type {
   OtelStatusCode,
 } from '@/lib/api/generated/data-contracts';
 
-export type InputOutputData = {
-  input?: string;
-  output?: string;
-};
-
-export type TraceSpan<TMetadata = Record<string, unknown>> = InputOutputData & {
+export type TraceSpan<TMetadata = Record<string, unknown>> = {
   id: string;
   title: string;
-  startTime: Date;
-  endTime: Date;
-  duration: number;
+  created_at: string;
+  duration_ms: number;
   raw: string;
-  attributes?: TraceSpanAttribute[];
   children?: TraceSpan<TMetadata>[];
   status: OtelStatusCode;
   cost?: number;
   metadata?: TMetadata;
-};
-
-export type TraceSpanAttribute = {
-  key: string;
-  value: TraceSpanAttributeValue;
-};
-
-export type TraceSpanAttributeValue = {
-  stringValue?: string;
-  intValue?: string;
-  boolValue?: boolean;
-};
-
-// OpenTelemetry types
-
-export type OpenTelemetryDocument = {
-  resourceSpans: OpenTelemetryResourceSpan[];
-};
-
-export type OpenTelemetryResourceSpan = {
-  resource: OpenTelemetryResource;
-  scopeSpans: OpenTelemetryScopeSpan[];
-  schemaUrl?: string;
-};
-
-export type OpenTelemetryResource = {
-  attributes: TraceSpanAttribute[];
-};
-
-export type OpenTelemetryScopeSpan = {
-  scope: OpenTelemetryScope;
-  spans: OpenTelemetrySpan[];
-  schemaUrl?: string;
-};
-
-export type OpenTelemetryScope = {
-  name: string;
-  version?: string;
 };
 
 export type OpenTelemetrySpan = {
@@ -66,40 +21,9 @@ export type OpenTelemetrySpan = {
   parentSpanId?: string;
   name: string;
   kind: OtelSpanKind;
-  startTimeUnixNano: string;
-  endTimeUnixNano: string;
-  attributes: TraceSpanAttribute[];
-  status: OpenTelemetryStatus;
-  flags: number;
-  events?: OpenTelemetryEvent[];
-  traceState?: string;
-  droppedAttributesCount?: number;
-  droppedEventsCount?: number;
-  droppedLinksCount?: number;
-  links?: OpenTelemetryLink[];
+  created_at: string;
+  duration_ns: number;
+  span_attributes?: Record<string, string>;
+  resource_attributes?: Record<string, string>;
+  status_code: OtelStatusCode;
 };
-
-export type OpenTelemetryEvent = {
-  timeUnixNano: string;
-  name: string;
-  attributes?: TraceSpanAttribute[];
-  droppedAttributesCount?: number;
-};
-
-export type OpenTelemetryLink = {
-  traceId: string;
-  spanId: string;
-  traceState?: string;
-  attributes?: TraceSpanAttribute[];
-  droppedAttributesCount?: number;
-};
-
-export type OpenTelemetryStatus = {
-  code: OtelStatusCode;
-  message?: string;
-};
-
-export const INPUT_OUTPUT_ATTRIBUTES = {
-  INPUT_VALUE: 'input.value',
-  OUTPUT_VALUE: 'output.value',
-} as const;

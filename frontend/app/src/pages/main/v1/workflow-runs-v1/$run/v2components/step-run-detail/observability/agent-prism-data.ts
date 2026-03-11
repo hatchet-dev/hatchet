@@ -19,16 +19,20 @@ export const findTimeRange = (
 ): { minStart: number; maxEnd: number } =>
   cards.reduce(
     (acc, c) => {
-      const start = +new Date(c.startTime);
-      const end = +new Date(c.endTime);
+      const start = new Date(c.created_at).getTime();
+      const end = start + c.duration_ms;
       return {
         minStart: Math.min(acc.minStart, start),
         maxEnd: Math.max(acc.maxEnd, end),
       };
     },
     {
-      minStart: cards.length > 0 ? +new Date(cards[0].startTime) : Infinity,
-      maxEnd: cards.length > 0 ? +new Date(cards[0].endTime) : -Infinity,
+      minStart:
+        cards.length > 0 ? new Date(cards[0].created_at).getTime() : Infinity,
+      maxEnd:
+        cards.length > 0
+          ? new Date(cards[0].created_at).getTime() + cards[0].duration_ms
+          : -Infinity,
     },
   );
 
@@ -52,12 +56,6 @@ export const formatDuration = (durationMs: number): string => {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 };
 
-const getDurationMs = (spanCard: TraceSpan): number => {
-  const startMs = +spanCard.startTime;
-  const endMs = +spanCard.endTime;
-  return endMs - startMs;
-};
-
 export const getTimelineData = ({
   spanCard,
   minStart,
@@ -67,9 +65,9 @@ export const getTimelineData = ({
   minStart: number;
   maxEnd: number;
 }): { durationMs: number; startPercent: number; widthPercent: number } => {
-  const startMs = +spanCard.startTime;
+  const startMs = new Date(spanCard.created_at).getTime();
   const totalRange = maxEnd - minStart;
-  const durationMs = getDurationMs(spanCard);
+  const durationMs = spanCard.duration_ms;
   const startPercent = ((startMs - minStart) / totalRange) * 100;
   const widthPercent = (durationMs / totalRange) * 100;
   return { durationMs, startPercent, widthPercent };
