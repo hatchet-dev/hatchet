@@ -3,6 +3,7 @@ package posthog
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/posthog/posthog-go"
@@ -32,14 +33,16 @@ func (z *zerologAdapter) Errorf(format string, args ...interface{}) {
 }
 
 type PosthogAnalytics struct {
-	client *posthog.Client
-	l      *zerolog.Logger
+	client     *posthog.Client
+	l          *zerolog.Logger
+	aggregator *analytics.Aggregator
 }
 
 type PosthogAnalyticsOpts struct {
-	ApiKey   string
-	Endpoint string
-	Logger   *zerolog.Logger
+	ApiKey        string
+	Endpoint      string
+	Logger        *zerolog.Logger
+	FlushInterval time.Duration
 }
 
 func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) {
@@ -48,6 +51,11 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 	}
 	if opts.Logger == nil {
 		return nil, fmt.Errorf("logger is required")
+	}
+
+	flushInterval := opts.FlushInterval
+	if flushInterval == 0 {
+		flushInterval = 30 * time.Second
 	}
 
 	phClient, err := posthog.NewWithConfig(
@@ -62,10 +70,12 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 		return nil, fmt.Errorf("failed to create posthog client: %w", err)
 	}
 
-	return &PosthogAnalytics{
+	p := &PosthogAnalytics{
 		client: &phClient,
 		l:      opts.Logger,
-	}, nil
+	}
+	p.aggregator = analytics.NewAggregator(flushInterval, p.flushCount)
+	return p, nil
 }
 
 func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resource, action analytics.Action, userID *uuid.UUID, tenantId *uuid.UUID, resourceId string, properties map[string]interface{}) {
@@ -96,27 +106,48 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	}
 
 	err := (*p.client).Enqueue(posthog.Capture{
-		DistinctId: analytics.DistinctID(userID, tokenID),
+		DistinctId: analytics.DistinctID(userID, tokenID, tenantId),
 		Event:      event,
 		Properties: props,
 		Groups:     group,
 	})
 
 	if err != nil {
-		p.l.Error().Err(err).Msg("error enqueuing posthog event")
+		p.l.Error().Err(err).Str("event", event).Msg("error enqueuing posthog event")
 	}
+}
+
+func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, props ...map[string]interface{}) {
+	tokenID := analytics.TokenIDFromContext(ctx)
+	p.aggregator.Count(resource, action, tenantID, tokenID, 1, props...)
+}
+
+func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties map[string]interface{}) {
+	merged := map[string]interface{}{"count": count}
+	for k, v := range properties {
+		merged[k] = v
+	}
+	ctx := context.Background()
+	if tokenID != nil {
+		ctx = context.WithValue(ctx, analytics.APITokenIDKey, *tokenID)
+	}
+	p.Enqueue(ctx, resource, action, nil, &tenantID, "", merged)
+}
+
+func (p *PosthogAnalytics) Start() {
+	p.aggregator.Start()
 }
 
 func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties map[string]interface{}) {
 	err := (*p.client).Enqueue(posthog.Identify{
-		DistinctId: analytics.DistinctID(&userId, nil),
+		DistinctId: analytics.DistinctID(&userId, nil, nil),
 		Properties: map[string]interface{}{
 			"$set": properties,
 		},
 	})
 
 	if err != nil {
-		p.l.Error().Err(err).Msg("error enqueuing posthog identify")
+		p.l.Error().Err(err).Str("user_id", userId.String()).Msg("error enqueuing posthog identify")
 	}
 }
 
@@ -129,6 +160,11 @@ func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data map[string]interface{
 		},
 	})
 	if err != nil {
-		p.l.Error().Err(err).Msg("error enqueuing posthog group identify")
+		p.l.Error().Err(err).Str("tenant_id", tenantId.String()).Msg("error enqueuing posthog group identify")
 	}
+}
+
+func (p *PosthogAnalytics) Close() error {
+	p.aggregator.Shutdown()
+	return (*p.client).Close()
 }

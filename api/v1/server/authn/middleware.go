@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -233,7 +234,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		return forbidden
 	}
 
-	c.Set("api_token_id", tokenUUID)
+	c.Set(string(analytics.APITokenIDKey), tokenUUID)
 
 	return nil
 }

@@ -29,6 +29,8 @@ import (
 
 func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.CancelTasksRequest) (*contracts.CancelTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	// FIXME-ANALYTICS: Count number of tasks cancelled
+	a.analytics.Count(ctx, analytics.TaskRun, analytics.Cancel, tenant.ID)
 
 	externalIds := make([]uuid.UUID, 0)
 
@@ -175,6 +177,8 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	// FIXME-ANALYTICS: Count number of tasks replayed
+	a.analytics.Count(ctx, analytics.TaskRun, analytics.Replay, tenant.ID)
 
 	externalIds := make([]uuid.UUID, 0)
 	for _, idStr := range req.ExternalIds {
@@ -375,6 +379,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, tenantId, analytics.FeatureProps(
+		"has_priority", req.Priority != nil,
+		"has_additional_meta", len(req.AdditionalMetadata) > 0,
+		"has_desired_worker_labels", len(req.DesiredWorkerLabels) > 0,
+	))
 
 	canCreateTR, trLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
@@ -426,6 +435,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.GetRunDetailsRequest) (*contracts.GetRunDetailsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Get, tenantId)
 
 	externalId, err := uuid.Parse(req.ExternalId)
 
@@ -626,6 +636,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	a.analytics.Count(ctx, analytics.Workflow, analytics.Create, tenantId, putWorkflowFeatureFlags(req))
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -1125,6 +1136,56 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 	}
 
 	return steps, nil
+}
+
+func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[string]interface{} {
+	if req == nil {
+		return nil
+	}
+
+	var hasTaskRateLimits, hasTaskWorkerLabels, hasTaskRetries, hasTaskBackoff,
+		hasTaskTimeout, hasTaskDag, hasTaskConcurrency, hasTaskConditions,
+		hasTaskDurable, hasTaskSlotRequests, hasTaskScheduleTimeout bool
+
+	for _, t := range req.Tasks {
+		if t == nil {
+			continue
+		}
+		hasTaskRateLimits = hasTaskRateLimits || len(t.RateLimits) > 0
+		hasTaskWorkerLabels = hasTaskWorkerLabels || len(t.WorkerLabels) > 0
+		hasTaskRetries = hasTaskRetries || t.Retries > 0
+		hasTaskBackoff = hasTaskBackoff || t.BackoffFactor != nil
+		hasTaskTimeout = hasTaskTimeout || t.Timeout != ""
+		hasTaskDag = hasTaskDag || len(t.Parents) > 0
+		hasTaskConcurrency = hasTaskConcurrency || len(t.Concurrency) > 0
+		hasTaskConditions = hasTaskConditions || t.Conditions != nil
+		hasTaskDurable = hasTaskDurable || t.IsDurable
+		hasTaskSlotRequests = hasTaskSlotRequests || len(t.SlotRequests) > 0
+		hasTaskScheduleTimeout = hasTaskScheduleTimeout || t.ScheduleTimeout != nil
+	}
+
+	return analytics.FeatureProps(
+		"has_wf_concurrency", len(req.ConcurrencyArr) > 0,
+		"has_wf_sticky", req.Sticky != nil,
+		"has_wf_default_priority", req.DefaultPriority != nil,
+		"has_wf_on_failure", req.OnFailureTask != nil,
+		"has_wf_cron_triggers", len(req.CronTriggers) > 0,
+		"has_wf_event_triggers", len(req.EventTriggers) > 0,
+		"has_wf_cron_input", req.CronInput != nil,
+		"has_wf_default_filters", len(req.DefaultFilters) > 0,
+		"has_wf_input_schema", len(req.InputJsonSchema) > 0,
+		"has_task_rate_limits", hasTaskRateLimits,
+		"has_task_worker_labels", hasTaskWorkerLabels,
+		"has_task_retries", hasTaskRetries,
+		"has_task_backoff", hasTaskBackoff,
+		"has_task_timeout", hasTaskTimeout,
+		"has_task_dag", hasTaskDag,
+		"has_task_concurrency", hasTaskConcurrency,
+		"has_task_conditions", hasTaskConditions,
+		"has_task_durable", hasTaskDurable,
+		"has_task_slot_requests", hasTaskSlotRequests,
+		"has_task_schedule_timeout", hasTaskScheduleTimeout,
+	)
 }
 
 func protoMapToDesiredWorkerLabels(m map[string]*contracts.DesiredWorkerLabels) []*sqlcv1.GetDesiredLabelsRow {
