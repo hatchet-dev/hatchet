@@ -225,6 +225,8 @@ class DurableEventListener:
     async def stop(self) -> None:
         self._running = False
 
+        self._fail_all_pending(Exception("DurableListener stopped"))
+
         if self._receive_task:
             self._receive_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -286,6 +288,15 @@ class DurableEventListener:
             if not eviction_future.done():
                 eviction_future.set_exception(exc)
         self._pending_eviction_acks.clear()
+
+    def _fail_all_pending(self, exc: Exception) -> None:
+        self._fail_pending_acks(exc)
+
+        for future in self._pending_callbacks.values():
+            if not future.done():
+                future.set_exception(exc)
+        self._pending_callbacks.clear()
+        self._buffered_completions.clear()
 
     async def _receive_loop(self) -> None:
         while self._running:

@@ -246,6 +246,8 @@ async def test_pending_callbacks_survive_disconnect(
     await harness.start()
 
     future: asyncio.Future[object] = asyncio.get_event_loop().create_future()
+    # Swallow the exception that stop() will set during teardown
+    future.add_done_callback(lambda f: f.exception() if f.done() and not f.cancelled() else None)
     harness.listener._pending_callbacks[("task1", 1, 0, 1)] = future  # type: ignore[assignment]
 
     await asyncio.sleep(0.15)

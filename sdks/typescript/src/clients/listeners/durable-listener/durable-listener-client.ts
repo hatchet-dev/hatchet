@@ -223,7 +223,7 @@ export class DurableListenerClient {
     if (this._receiveAbort) {
       this._receiveAbort.abort();
     }
-    this._failPendingAcks(new Error('DurableListener stopped'));
+    this._failAllPending(new Error('DurableListener stopped'));
   }
 
   private async _connect(): Promise<void> {
@@ -341,6 +341,16 @@ export class DurableListenerClient {
       d.reject(exc);
     }
     this._pendingEvictionAcks.clear();
+  }
+
+  private _failAllPending(exc: Error): void {
+    this._failPendingAcks(exc);
+
+    for (const d of this._pendingCallbacks.values()) {
+      d.reject(exc);
+    }
+    this._pendingCallbacks.clear();
+    this._bufferedCompletions.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
