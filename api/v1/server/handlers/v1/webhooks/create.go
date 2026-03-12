@@ -56,7 +56,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 
 	w.config.Analytics.Enqueue(
 		ctx.Request().Context(),
-		analytics.WebhookWorker, analytics.Create,
+		analytics.Webhook, analytics.Create,
 		webhook.Name,
 		nil,
 	)

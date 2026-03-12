@@ -25,7 +25,7 @@ func (w *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1Webh
 
 	w.config.Analytics.Enqueue(
 		ctx.Request().Context(),
-		analytics.WebhookWorker, analytics.Delete,
+		analytics.Webhook, analytics.Delete,
 		webhook.Name,
 		nil,
 	)

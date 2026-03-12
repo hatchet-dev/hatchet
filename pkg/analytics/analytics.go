@@ -15,14 +15,14 @@ const (
 	Token    Resource = "api-token"
 	Workflow Resource = "workflow"
 
-	Event         Resource = "event"
-	WorkflowRun   Resource = "workflow-run"
-	TaskRun       Resource = "task-run"
-	Worker        Resource = "worker"
-	RateLimit     Resource = "rate-limit"
-	WebhookWorker Resource = "webhook-worker"
-	Log           Resource = "log"
-	StreamEvent   Resource = "stream-event"
+	Event       Resource = "event"
+	WorkflowRun Resource = "workflow-run"
+	TaskRun     Resource = "task-run"
+	Worker      Resource = "worker"
+	RateLimit   Resource = "rate-limit"
+	Webhook     Resource = "webhook"
+	Log         Resource = "log"
+	StreamEvent Resource = "stream-event"
 )
 
 type Action string
