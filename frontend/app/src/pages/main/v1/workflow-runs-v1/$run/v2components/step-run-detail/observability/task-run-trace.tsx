@@ -48,7 +48,7 @@ export function TaskRunTrace({ spans }: { spans: [OtelSpan, ...OtelSpan[]] }) {
           </h4>
         </div>
       </div>
-      <div className="max-h-[500px] overflow-y-auto">
+      <div className="overflow-y-auto">
         <TreeView
           spanTree={traceSpanTree}
           expandedSpansIds={expandedSpansIds}
