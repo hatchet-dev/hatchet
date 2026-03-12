@@ -233,6 +233,13 @@ const (
 	V1LogLineOrderByDirectionDESC V1LogLineOrderByDirection = "DESC"
 )
 
+// Defines values for V1RunningFilter.
+const (
+	ALL      V1RunningFilter = "ALL"
+	EVICTED  V1RunningFilter = "EVICTED"
+	ONWORKER V1RunningFilter = "ON_WORKER"
+)
+
 // Defines values for V1TaskEventType.
 const (
 	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
@@ -264,7 +271,6 @@ const (
 const (
 	V1TaskStatusCANCELLED V1TaskStatus = "CANCELLED"
 	V1TaskStatusCOMPLETED V1TaskStatus = "COMPLETED"
-	V1TaskStatusEVICTED   V1TaskStatus = "EVICTED"
 	V1TaskStatusFAILED    V1TaskStatus = "FAILED"
 	V1TaskStatusQUEUED    V1TaskStatus = "QUEUED"
 	V1TaskStatusRUNNING   V1TaskStatus = "RUNNING"
@@ -1710,6 +1716,18 @@ type V1RestoreTaskResponse struct {
 	Requeued bool `json:"requeued"`
 }
 
+// V1RunningDetailCount defines model for V1RunningDetailCount.
+type V1RunningDetailCount struct {
+	// Evicted The number of evicted tasks within the RUNNING status bucket.
+	Evicted int `json:"evicted"`
+
+	// OnWorker The number of tasks currently on a worker within the RUNNING status bucket.
+	OnWorker int `json:"onWorker"`
+}
+
+// V1RunningFilter defines model for V1RunningFilter.
+type V1RunningFilter string
+
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
 	// Attempt The attempt number of the task.
@@ -1760,8 +1778,9 @@ type V1TaskPointMetrics struct {
 
 // V1TaskRunMetric defines model for V1TaskRunMetric.
 type V1TaskRunMetric struct {
-	Count  int          `json:"count"`
-	Status V1TaskStatus `json:"status"`
+	Count              int                   `json:"count"`
+	RunningDetailCount *V1RunningDetailCount `json:"runningDetailCount,omitempty"`
+	Status             V1TaskStatus          `json:"status"`
 }
 
 // V1TaskRunMetrics defines model for V1TaskRunMetrics.
@@ -1800,8 +1819,11 @@ type V1TaskSummary struct {
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
 	// Input The input of the task run.
-	Input    openapi.NonNullableJSON `json:"input"`
-	Metadata APIResourceMeta         `json:"metadata"`
+	Input openapi.NonNullableJSON `json:"input"`
+
+	// IsEvicted Whether the task has been evicted from a worker (still counts as RUNNING).
+	IsEvicted *bool           `json:"isEvicted,omitempty"`
+	Metadata  APIResourceMeta `json:"metadata"`
 
 	// NumSpawnedChildren The number of spawned children tasks
 	NumSpawnedChildren int `json:"numSpawnedChildren"`
@@ -1862,8 +1884,11 @@ type V1TaskTiming struct {
 	Depth int `json:"depth"`
 
 	// FinishedAt The timestamp the task run finished.
-	FinishedAt *time.Time      `json:"finishedAt,omitempty"`
-	Metadata   APIResourceMeta `json:"metadata"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// IsEvicted Whether the task has been evicted from a worker (still counts as RUNNING).
+	IsEvicted *bool           `json:"isEvicted,omitempty"`
+	Metadata  APIResourceMeta `json:"metadata"`
 
 	// ParentTaskExternalId The external ID of the parent task.
 	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
@@ -2656,6 +2681,9 @@ type V1WorkflowRunListParams struct {
 
 	// IncludePayloads A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
 	IncludePayloads *bool `form:"include_payloads,omitempty" json:"include_payloads,omitempty"`
+
+	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -2680,6 +2708,9 @@ type V1WorkflowRunExternalIdsListParams struct {
 
 	// WorkflowIds The workflow ids to find runs for
 	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -8175,6 +8206,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 
 		}
 
+		if params.RunningFilter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -8330,6 +8377,22 @@ func NewV1WorkflowRunExternalIdsListRequest(server string, tenant openapi_types.
 		if params.WorkflowIds != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.RunningFilter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

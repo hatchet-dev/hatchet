@@ -12,8 +12,6 @@ function statusToFriendlyName(status: V1TaskStatus) {
       return 'Cancelled';
     case V1TaskStatus.COMPLETED:
       return 'Succeeded';
-    case V1TaskStatus.EVICTED:
-      return 'Evicted';
     case V1TaskStatus.FAILED:
       return 'Failed';
     case V1TaskStatus.QUEUED:
@@ -30,8 +28,6 @@ function statusToIcon(status: V1TaskStatus) {
   switch (status) {
     case V1TaskStatus.COMPLETED:
       return CheckCircleIcon;
-    case V1TaskStatus.EVICTED:
-      return ClockIcon;
     case V1TaskStatus.FAILED:
       return X;
     case V1TaskStatus.CANCELLED:
@@ -152,11 +148,6 @@ export const V1WorkflowRunsMetricsView = () => {
       <MetricBadge
         status={V1TaskStatus.QUEUED}
         className={`text-slate-800 data-[is-selected=false]:border data-[is-selected=false]:border-slate-500/20 data-[is-selected=true]:bg-slate-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-slate-500/20 hover:data-[is-selected=true]:bg-slate-500/20 dark:text-slate-300`}
-      />
-
-      <MetricBadge
-        status={V1TaskStatus.EVICTED}
-        className={`text-indigo-800 data-[is-selected=false]:border data-[is-selected=false]:border-indigo-500/20 data-[is-selected=true]:bg-indigo-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-indigo-500/20 hover:data-[is-selected=true]:bg-indigo-500/20 dark:text-indigo-300`}
       />
 
       {!hideMetrics && (

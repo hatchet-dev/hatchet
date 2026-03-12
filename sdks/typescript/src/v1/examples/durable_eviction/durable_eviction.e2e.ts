@@ -20,6 +20,10 @@ function getTaskStatuses(details: any): V1TaskStatus[] {
   return (details?.tasks || []).map((t: any) => t.status);
 }
 
+function hasEvictedTask(details: any): boolean {
+  return (details?.tasks || []).some((t: any) => t.isEvicted === true);
+}
+
 function getTaskExternalId(details: any): string | undefined {
   const tasks = details?.tasks || [];
   const [t] = tasks;
@@ -68,6 +72,28 @@ describe('durable-eviction-e2e', () => {
     );
   }
 
+  async function pollUntilEvicted(runId: string, maxPollsOverride?: number) {
+    const maxPolls = maxPollsOverride || 15;
+    const interval = 2000;
+
+    return poll(
+      async () => {
+        try {
+          return await hatchet.runs.get(runId);
+        } catch (e: any) {
+          if (e?.response?.status === 404) return undefined;
+          throw e;
+        }
+      },
+      {
+        timeoutMs: maxPolls * interval,
+        intervalMs: interval,
+        shouldStop: (details: any) => details != null && hasEvictedTask(details),
+        label: 'isEvicted=true',
+      }
+    );
+  }
+
   it('non-evictable task completes normally', async () => {
     if (requireEviction()) return;
     const start = Date.now();
@@ -86,9 +112,8 @@ describe('durable-eviction-e2e', () => {
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
     await sleep(7000);
     const details = await hatchet.runs.get(runId);
-    const statuses = getTaskStatuses(details);
 
-    expect(statuses).not.toContain(V1TaskStatus.EVICTED);
+    expect(hasEvictedTask(details)).toBe(false);
 
     const result = await ref.output;
     expect(result.status).toBe('completed');
@@ -100,10 +125,9 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-    const statuses = getTaskStatuses(details);
+    const details = await pollUntilEvicted(runId);
 
-    expect(statuses).toContain(V1TaskStatus.EVICTED);
+    expect(hasEvictedTask(details)).toBe(true);
   }, 120_000);
 
   it('evictable task restore re-enqueues the task', async () => {
@@ -112,7 +136,7 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const details = await pollUntilEvicted(runId);
     const taskId = getTaskExternalId(details);
     expect(taskId).toBeDefined();
 
@@ -130,7 +154,7 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const details = await pollUntilEvicted(runId);
     const taskId = getTaskExternalId(details);
     expect(taskId).toBeDefined();
 
@@ -148,10 +172,9 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-    const statuses = getTaskStatuses(details);
+    const details = await pollUntilEvicted(runId);
 
-    expect(statuses).toContain(V1TaskStatus.EVICTED);
+    expect(hasEvictedTask(details)).toBe(true);
   }, 120_000);
 
   it('evictable wait-for-event restore + event completes', async () => {
@@ -160,7 +183,7 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const details = await pollUntilEvicted(runId);
     const taskId = getTaskExternalId(details);
     expect(taskId).toBeDefined();
 
@@ -179,10 +202,9 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-    const statuses = getTaskStatuses(details);
+    const details = await pollUntilEvicted(runId);
 
-    expect(statuses).toContain(V1TaskStatus.EVICTED);
+    expect(hasEvictedTask(details)).toBe(true);
   }, 120_000);
 
   it('evictable child spawn restore completes', async () => {
@@ -191,7 +213,7 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const details = await pollUntilEvicted(runId);
     const taskId = getTaskExternalId(details);
     expect(taskId).toBeDefined();
 
@@ -208,7 +230,7 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const details = await pollUntilEvicted(runId);
     const taskId = getTaskExternalId(details);
     expect(taskId).toBeDefined();
 
@@ -227,7 +249,7 @@ describe('durable-eviction-e2e', () => {
     let evictionCount = 0;
     for (let i = 0; i < 3; i += 1) {
       await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+      const details = await pollUntilEvicted(runId);
       evictionCount += 1;
       const taskId = getTaskExternalId(details)!;
       await hatchet.runs.restoreTask(taskId);
@@ -252,18 +274,16 @@ describe('durable-eviction-e2e', () => {
 
     // First eviction cycle
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    let details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-    let statuses = getTaskStatuses(details);
-    expect(statuses).toContain(V1TaskStatus.EVICTED);
+    let details = await pollUntilEvicted(runId);
+    expect(hasEvictedTask(details)).toBe(true);
 
     let taskId = getTaskExternalId(details)!;
     await hatchet.runs.restoreTask(taskId);
 
     // Second eviction cycle
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-    statuses = getTaskStatuses(details);
-    expect(statuses).toContain(V1TaskStatus.EVICTED);
+    details = await pollUntilEvicted(runId);
+    expect(hasEvictedTask(details)).toBe(true);
 
     taskId = getTaskExternalId(details)!;
     await hatchet.runs.restoreTask(taskId);
@@ -280,7 +300,7 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    await pollUntilEvicted(runId);
 
     await hatchet.runs.replay({ ids: [runId] });
 
@@ -294,9 +314,8 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-    const statuses = getTaskStatuses(details);
-    expect(statuses).toContain(V1TaskStatus.EVICTED);
+    const details = await pollUntilEvicted(runId);
+    expect(hasEvictedTask(details)).toBe(true);
 
     await hatchet.runs.cancel({ ids: [runId] });
 
@@ -311,7 +330,7 @@ describe('durable-eviction-e2e', () => {
     const runId = await ref.getWorkflowRunId();
 
     await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-    const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
+    const details = await pollUntilEvicted(runId);
     const taskId = getTaskExternalId(details)!;
 
     await hatchet.runs.restoreTask(taskId);
@@ -372,10 +391,9 @@ describe('durable-eviction-e2e', () => {
       const runId = await ref.getWorkflowRunId();
 
       await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED, 20);
-      const statuses = getTaskStatuses(details);
+      const details = await pollUntilEvicted(runId, 20);
 
-      expect(statuses).toContain(V1TaskStatus.EVICTED);
+      expect(hasEvictedTask(details)).toBe(true);
     } finally {
       try {
         workerProc.kill('SIGKILL');
@@ -436,7 +454,7 @@ describe('durable-eviction-e2e', () => {
       const runId = await ref.getWorkflowRunId();
 
       await pollUntilStatus(runId, V1TaskStatus.RUNNING);
-      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED, 20);
+      const details = await pollUntilEvicted(runId, 20);
       const taskId = getTaskExternalId(details)!;
 
       await hatchet.runs.restoreTask(taskId);
@@ -485,7 +503,6 @@ describe('durable-eviction-e2e', () => {
       }
     );
 
-    // Drain stdout/stderr so the subprocess never blocks on a full pipe buffer.
     workerProc.stdout?.on('data', () => {});
     workerProc.stderr?.on('data', () => {});
 
@@ -518,9 +535,8 @@ describe('durable-eviction-e2e', () => {
 
       workerProc.kill('SIGTERM');
 
-      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED);
-      const evictedStatuses = getTaskStatuses(details);
-      expect(evictedStatuses).toContain(V1TaskStatus.EVICTED);
+      const details = await pollUntilEvicted(runId);
+      expect(hasEvictedTask(details)).toBe(true);
     } finally {
       try {
         workerProc.kill('SIGKILL');

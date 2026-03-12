@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -34,6 +34,11 @@ class V1TaskTiming(BaseModel):
     metadata: APIResourceMeta
     depth: StrictInt = Field(description="The depth of the task in the waterfall.")
     status: V1TaskStatus
+    is_evicted: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the task has been evicted from a worker (still counts as RUNNING).",
+        alias="isEvicted",
+    )
     task_display_name: StrictStr = Field(
         description="The display name of the task run.", alias="taskDisplayName"
     )
@@ -86,6 +91,7 @@ class V1TaskTiming(BaseModel):
         "metadata",
         "depth",
         "status",
+        "isEvicted",
         "taskDisplayName",
         "taskExternalId",
         "taskId",
@@ -160,6 +166,7 @@ class V1TaskTiming(BaseModel):
                 ),
                 "depth": obj.get("depth"),
                 "status": obj.get("status"),
+                "isEvicted": obj.get("isEvicted"),
                 "taskDisplayName": obj.get("taskDisplayName"),
                 "taskExternalId": obj.get("taskExternalId"),
                 "taskId": obj.get("taskId"),

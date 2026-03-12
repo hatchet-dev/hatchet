@@ -97,6 +97,22 @@ export const evictableChildBulkSpawn = hatchet.durableTask({
   },
 });
 
+export const CAPACITY_SLEEP_SECONDS = 20;
+
+export const capacityEvictableSleep = hatchet.durableTask({
+  name: 'capacity-evictable-sleep',
+  executionTimeout: '5m',
+  evictionPolicy: {
+    ttl: undefined,
+    allowCapacityEviction: true,
+    priority: 0,
+  },
+  fn: async (_input, ctx) => {
+    await ctx.sleepFor(`${CAPACITY_SLEEP_SECONDS}s`);
+    return { status: 'completed' };
+  },
+});
+
 export const nonEvictableSleep = hatchet.durableTask({
   name: 'non-evictable-sleep',
   executionTimeout: '5m',

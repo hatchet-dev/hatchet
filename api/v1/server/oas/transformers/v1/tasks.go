@@ -19,6 +19,13 @@ func jsonToMap(jsonBytes []byte) map[string]interface{} {
 	return result
 }
 
+func mapOlapStatus(olapStatus string) (gen.V1TaskStatus, bool) {
+	if olapStatus == "EVICTED" {
+		return gen.V1TaskStatusRUNNING, true
+	}
+	return gen.V1TaskStatus(olapStatus), false
+}
+
 func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 	workflowVersionID := task.WorkflowVersionID
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
@@ -47,7 +54,10 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
-	return gen.V1TaskSummary{
+
+	status, isEvicted := mapOlapStatus(string(task.Status))
+
+	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
@@ -62,7 +72,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		FinishedAt:            finishedAt,
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage.String,
-		Status:                gen.V1TaskStatus(task.Status),
+		Status:                status,
 		TenantId:              task.TenantID,
 		WorkflowId:            task.WorkflowID,
 		TaskId:                int(task.ID),
@@ -76,6 +86,12 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		Attempt:               &attempt,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
 	}
+
+	if isEvicted {
+		summary.IsEvicted = &isEvicted
+	}
+
+	return summary
 }
 
 func ToTaskSummaryRows(
@@ -201,27 +217,33 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	statuses := []gen.V1TaskStatus{
 		gen.V1TaskStatusCANCELLED,
 		gen.V1TaskStatusCOMPLETED,
-		gen.V1TaskStatusEVICTED,
 		gen.V1TaskStatusFAILED,
 		gen.V1TaskStatusQUEUED,
 		gen.V1TaskStatusRUNNING,
 	}
 
+	metricsMap := make(map[string]v1.TaskRunMetric)
+	for _, m := range *metrics {
+		metricsMap[m.Status] = m
+	}
+
 	toReturn := make([]gen.V1TaskRunMetric, len(statuses))
 
 	for i, status := range statuses {
-		metric := v1.TaskRunMetric{Count: 0}
-
-		for _, m := range *metrics {
-			if m.Status == string(status) {
-				metric = m
-				break
-			}
-		}
+		metric := metricsMap[string(status)]
 
 		toReturn[i] = gen.V1TaskRunMetric{
 			Count:  int(metric.Count), // nolint: gosec
 			Status: status,
+		}
+
+		if status == gen.V1TaskStatusRUNNING {
+			evicted := int(metric.EvictedCount)   // nolint: gosec
+			onWorker := int(metric.OnWorkerCount) // nolint: gosec
+			toReturn[i].RunningDetailCount = &gen.V1RunningDetailCount{
+				Evicted:  evicted,
+				OnWorker: onWorker,
+			}
 		}
 	}
 
@@ -280,7 +302,9 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		}
 	}
 
-	return gen.V1TaskSummary{
+	taskStatus, isEvicted := mapOlapStatus(string(taskWithData.Status))
+
+	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        taskWithData.ExternalID.String(),
 			CreatedAt: taskWithData.InsertedAt.Time,
@@ -294,7 +318,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		StartedAt:             startedAt,
 		FinishedAt:            finishedAt,
 		Output:                output,
-		Status:                gen.V1TaskStatus(taskWithData.Status),
+		Status:                taskStatus,
 		Input:                 input,
 		TenantId:              taskWithData.TenantID,
 		WorkflowId:            taskWithData.WorkflowID,
@@ -311,6 +335,12 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		WorkflowConfig:        &workflowConfig,
 		ParentTaskExternalId:  parentTaskExternalId,
 	}
+
+	if isEvicted {
+		summary.IsEvicted = &isEvicted
+	}
+
+	return summary
 }
 
 func ToWorkflowRunDetails(
@@ -333,6 +363,8 @@ func ToWorkflowRunDetails(
 
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
+	wrStatus, _ := mapOlapStatus(string(workflowRun.ReadableStatus))
+
 	parsedWorkflowRun := gen.V1WorkflowRun{
 		AdditionalMetadata:   &additionalMetadata,
 		CreatedAt:            &workflowRun.CreatedAt.Time,
@@ -347,7 +379,7 @@ func ToWorkflowRunDetails(
 			UpdatedAt: workflowRun.InsertedAt.Time,
 		},
 		StartedAt:         &workflowRun.StartedAt.Time,
-		Status:            gen.V1TaskStatus(workflowRun.ReadableStatus),
+		Status:            wrStatus,
 		TenantId:          workflowRun.TenantID,
 		WorkflowId:        workflowRun.WorkflowID,
 		WorkflowVersionId: &workflowVersionId,
@@ -422,13 +454,15 @@ func ToTaskTimings(
 		retryCount := int(timing.RetryCount)
 		attempt := retryCount + 1
 
+		timingStatus, timingIsEvicted := mapOlapStatus(string(timing.Status))
+
 		toReturn[i] = gen.V1TaskTiming{
 			Metadata: gen.APIResourceMeta{
 				Id:        timing.ExternalID.String(),
 				CreatedAt: timing.InsertedAt.Time,
 				UpdatedAt: timing.InsertedAt.Time,
 			},
-			Status:               gen.V1TaskStatus(timing.Status),
+			Status:               timingStatus,
 			TaskDisplayName:      timing.DisplayName,
 			TaskId:               int(timing.ID),
 			TaskInsertedAt:       timing.InsertedAt.Time,
@@ -439,6 +473,10 @@ func ToTaskTimings(
 			RetryCount:           &retryCount,
 			Attempt:              &attempt,
 			ParentTaskExternalId: timing.ParentTaskExternalID,
+		}
+
+		if timingIsEvicted {
+			toReturn[i].IsEvicted = &timingIsEvicted
 		}
 
 		if timing.QueuedAt.Valid {

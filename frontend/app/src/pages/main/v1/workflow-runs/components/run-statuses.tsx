@@ -62,8 +62,6 @@ function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
       return { text: 'Running', variant: 'inProgress' };
     case V1TaskStatus.QUEUED:
       return { text: 'Queued', variant: 'queued' };
-    case V1TaskStatus.EVICTED:
-      return { text: 'Evicted', variant: 'evicted' };
     default: {
       const exhaustivenessCheck: never = status;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);
@@ -131,17 +129,34 @@ export function RunStatus({
 export function V1RunStatus({
   status,
   errorMessage,
+  isEvicted,
   className,
 }: {
   status: V1TaskStatus;
   errorMessage?: string;
+  isEvicted?: boolean;
   className?: string;
 }) {
   const { text, variant } = createV1RunStatusVariant(status);
 
   const StatusBadge = () => (
     <Badge variant={variant} className={className}>
-      {capitalize(text)}
+      <span className="flex items-center gap-1">
+        {capitalize(isEvicted ? 'Running' : text)}
+        {isEvicted && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>&#x23FE;</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                This task was evicted from a worker and is waiting to be
+                restored
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </span>
     </Badge>
   );
 

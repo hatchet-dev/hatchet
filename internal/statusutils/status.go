@@ -54,7 +54,7 @@ func (s *V1RunStatus) ToProto() (*contracts.RunStatus, error) {
 		r := contracts.RunStatus_RUNNING
 		return &r, nil
 	case V1RunStatusEvicted:
-		r := contracts.RunStatus_EVICTED
+		r := contracts.RunStatus_RUNNING
 		return &r, nil
 	case V1RunStatusCancelled:
 		r := contracts.RunStatus_CANCELLED
@@ -68,6 +68,10 @@ func (s *V1RunStatus) ToProto() (*contracts.RunStatus, error) {
 	default:
 		return nil, fmt.Errorf("unknown run status: %v", *s)
 	}
+}
+
+func (s *V1RunStatus) IsEvicted() bool {
+	return *s == V1RunStatusEvicted
 }
 
 func V1RunStatusFromEventType(eventType sqlcv1.V1TaskEventType) (*V1RunStatus, error) {

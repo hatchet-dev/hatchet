@@ -515,10 +515,14 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 			Output:     details.OutputPayload,
 			ReadableId: string(readableId),
 			ExternalId: details.ExternalId.String(),
+			IsEvicted:  details.Status.IsEvicted(),
 		}
 	}
 
-	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING")
+	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING") && !listutils.Any(statuses, "EVICTED")
+
+	anyEvicted := listutils.Any(statuses, "EVICTED")
+
 	derivedWorkflowRunStatus, err := statusutils.DeriveWorkflowRunStatus(ctx, statuses)
 
 	if err != nil {
@@ -537,6 +541,7 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		TaskRuns:           taskRunDetails,
 		Status:             *derivedStatusPtr,
 		Done:               done,
+		IsEvicted:          anyEvicted,
 	}, nil
 }
 
