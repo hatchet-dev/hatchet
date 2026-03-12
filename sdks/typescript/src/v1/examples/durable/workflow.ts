@@ -34,7 +34,7 @@ durableWorkflow.durableTask({
 
     return {
       status: 'success',
-      event_id: event.id,
+      event: event,
       sleep_duration_ms: sleepResult.durationMs,
     };
   },

@@ -31,6 +31,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
+import { z } from 'zod';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToMs, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';
@@ -46,16 +47,6 @@ type ChildRunOpts = RunOpts & { key?: string; sticky?: boolean };
 export interface SleepResult {
   /** The sleep duration in milliseconds. */
   durationMs: number;
-}
-
-export interface HatchetEvent {
-  id: string;
-  tenantId: string;
-  key: string;
-  payload: Record<string, any>;
-  seenAt: Date;
-  additionalMetadata: Record<string, any> | null;
-  scope: string | null;
 }
 
 type LogExtra = {
@@ -972,40 +963,50 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   }
 
   /**
-   * Waits for a user event with the given key.
+   * Lightweight wrapper for waiting for a user event. Allows for shorthand usage of
+   * `ctx.waitFor` when specifying a user event condition.
+   *
+   * For more complicated conditions, use `ctx.waitFor` directly.
+   *
    * @param key - The event key to wait for.
    * @param expression - An optional CEL expression to filter events.
-   * @returns A promise that resolves with a HatchetEvent when the event is received.
+   * @param payloadSchema - An optional Zod schema to validate and parse the event payload.
+   * @returns The event payload, validated against the schema if provided.
    */
-  async waitForEvent(key: string, expression?: string): Promise<HatchetEvent> {
+  async waitForEvent<T extends z.ZodTypeAny>(
+    key: string,
+    expression?: string,
+    payloadSchema?: T
+  ): Promise<z.infer<T>>;
+  async waitForEvent(key: string, expression?: string): Promise<Record<string, any>>;
+  async waitForEvent(
+    key: string,
+    expression?: string,
+    payloadSchema?: z.ZodTypeAny
+  ): Promise<unknown> {
     const res = await this.waitFor({ eventKey: key, expression });
 
+    // The engine returns an object like:
+    // {"CREATE": {"signal_key_1": [{"id": ..., "data": {...}}]}}
+    // Since we have a single match, the list will only have one item.
     const matches: Record<string, any[]> = res['CREATE'] || {};
     const [firstMatch] = Object.values(matches);
 
     if (!firstMatch || firstMatch.length === 0) {
-      return {
-        id: '',
-        tenantId: this.action.tenantId,
-        key,
-        payload: {},
-        seenAt: new Date(),
-        additionalMetadata: null,
-        scope: null,
-      };
+      if (payloadSchema) {
+        return payloadSchema.parse({});
+      }
+      return {};
     }
 
     const [event] = firstMatch;
+    const rawPayload = event?.data ?? {};
 
-    return {
-      id: event?.id ?? '',
-      tenantId: event?.tenant_id ?? this.action.tenantId,
-      key: event?.key ?? key,
-      payload: event?.data ?? {},
-      seenAt: event?.seen_at ? new Date(event.seen_at) : new Date(),
-      additionalMetadata: event?.additional_metadata ?? null,
-      scope: event?.scope ?? null,
-    };
+    if (payloadSchema) {
+      return payloadSchema.parse(rawPayload);
+    }
+
+    return rawPayload;
   }
 
   /**
