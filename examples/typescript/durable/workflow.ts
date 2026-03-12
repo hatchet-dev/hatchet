@@ -214,23 +214,6 @@ export const durableNonDeterminism = hatchet.durableTask({
   },
 });
 
-// --- Memo task ---
-
-const MEMO_SLEEP_MS = 2000;
-
-export const memoTask = hatchet.durableTask({
-  name: 'memo-task',
-  executionTimeout: '10m',
-  fn: async (input: { message: string }, ctx) => {
-    const start = Date.now();
-    const res = await ctx.memo(async () => {
-      await sleep(MEMO_SLEEP_MS);
-      return { message: input.message, duration: MEMO_SLEEP_MS / 1000 };
-    }, [input.message]);
-    return { message: res.message, duration: (Date.now() - start) / 1000 };
-  },
-});
-
 // --- Replay reset ---
 
 export const REPLAY_RESET_SLEEP_SECONDS = 3;

@@ -1028,7 +1028,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   async now(): Promise<Date> {
     const result = await this.memo(async () => {
       return { ts: new Date().toISOString() };
-    }, []);
+    }, ['now']);
     return new Date(result.ts);
   }
 
@@ -1171,7 +1171,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param deps - Dependency values that form the memoization key.
    * @returns The memoized value, either from durable storage or freshly computed.
    */
-  async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
+  private async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
     this.throwIfCancelled();
 
     if (!this.supportsEviction) {

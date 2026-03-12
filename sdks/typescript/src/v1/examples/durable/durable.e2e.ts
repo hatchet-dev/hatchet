@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import sleep from '@hatchet/util/sleep';
 import { makeE2EClient, checkDurableEvictionSupport } from '../__e2e__/harness';
 import {
@@ -14,7 +13,6 @@ import {
   durableSpawnDag,
   durableNonDeterminism,
   durableReplayReset,
-  memoTask,
 } from './workflow';
 
 describe('durable-e2e', () => {
@@ -220,24 +218,4 @@ describe('durable-e2e', () => {
     },
     300_000
   );
-
-  it('durable memoization via replay', async () => {
-    if (requireEviction()) return;
-    const message = randomUUID();
-    const start1 = Date.now();
-    const ref = await memoTask.runNoWait({ message });
-    const result1 = await ref.output;
-    const duration1 = (Date.now() - start1) / 1000;
-
-    await ref.replay();
-
-    const start2 = Date.now();
-    const result2 = await ref.output;
-    const duration2 = (Date.now() - start2) / 1000;
-
-    expect(duration1).toBeGreaterThanOrEqual(1);
-    expect(duration2).toBeLessThan(2);
-    expect(result1.message).toBe(result2.message);
-    expect(result1.message).toBe(message);
-  }, 300_000);
 });
