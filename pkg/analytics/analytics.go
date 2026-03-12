@@ -55,6 +55,7 @@ const (
 	SourceUI   Source = "ui"
 	SourceAPI  Source = "api"
 	SourceGRPC Source = "grpc"
+	SourceCLI  Source = "cli"
 )
 
 type contextKey string
