@@ -52,7 +52,11 @@ interface FilterControlProps<TData> {
   };
 }
 
-function FilterControl<TData>({ table, column, filter }: FilterControlProps<TData>) {
+function FilterControl<TData>({
+  table,
+  column,
+  filter,
+}: FilterControlProps<TData>) {
   const value = column?.getFilterValue();
   const [searchTerm, setSearchTerm] = React.useState('');
   const keyInputRef = React.useRef<HTMLInputElement>(null);
@@ -430,8 +434,7 @@ function FilterControl<TData>({ table, column, filter }: FilterControlProps<TDat
                               id={`${filter.columnId}-${option.value}-${sub.value}`}
                               checked={subIsChecked}
                               onCheckedChange={(checked) => {
-                                const subColumnId =
-                                  option.subFilterColumnId!;
+                                const subColumnId = option.subFilterColumnId!;
                                 table.setColumnFilters((prev) => {
                                   const next = prev.filter(
                                     (f) =>

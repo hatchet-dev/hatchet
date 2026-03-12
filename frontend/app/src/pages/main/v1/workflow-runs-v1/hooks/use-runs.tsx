@@ -1,7 +1,12 @@
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries, V1RunningFilter, V1TaskSummary, V1TaskStatus } from '@/lib/api';
+import {
+  queries,
+  V1RunningFilter,
+  V1TaskSummary,
+  V1TaskStatus,
+} from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { RowSelectionState } from '@tanstack/react-table';
 import { useCallback, useMemo, useState } from 'react';

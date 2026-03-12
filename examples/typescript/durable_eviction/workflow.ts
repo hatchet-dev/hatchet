@@ -3,7 +3,7 @@ import { EvictionPolicy } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 
 export const EVICTION_TTL_SECONDS = 5;
-export const LONG_SLEEP_SECONDS = 15;
+export const LONG_SLEEP_SECONDS = 1500;
 export const EVENT_KEY = 'durable-eviction:event';
 
 const EVICTION_POLICY: EvictionPolicy = {
