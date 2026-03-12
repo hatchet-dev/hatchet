@@ -56,7 +56,7 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     # hack for old engine test
     assert (
         result["durable_task"]["event_id"] == ""
-        or result["durable_task"]["event_id"] == event.event_id
+        or result["durable_task"]["event_id"] == id
     )
     assert result["durable_task"]["sleep_duration_seconds"] == SLEEP_TIME
 
