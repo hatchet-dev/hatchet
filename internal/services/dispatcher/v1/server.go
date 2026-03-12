@@ -528,7 +528,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 				result.WaitForResult.InvocationCount,
 				result.WaitForResult.BranchId,
 				result.WaitForResult.NodeId,
-				nil,
+				result.WaitForResult.ResultPayload,
 			); err != nil {
 				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.WaitForResult.NodeId, err)
 			}

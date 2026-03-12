@@ -1,12 +1,3 @@
-"""
-Minimal example demonstrating durable slot eviction.
-
-The evictable_sleep task has a short eviction TTL (5s). When it enters a long
-durable sleep, the eviction manager sees the TTL exceeded and evicts the task
--- freeing the worker slot.  A subsequent REST restore re-enqueues the task so
-it can resume from its durable event log.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -56,9 +47,9 @@ async def evictable_wait_for_event(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, Any]:
     """Waits for a user event -- long enough for TTL eviction to fire."""
-    await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    await ctx.aio_wait_for_event(
+        EVENT_KEY,
+        "true",
     )
     return {"status": "completed"}
 

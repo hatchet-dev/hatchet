@@ -74,21 +74,26 @@ async def ephemeral_task(input: EmptyModel, ctx: Context) -> None:
     print("Running non-durable task")
 
 
+class AwaitedEvent(BaseModel):
+    id: str
+
+
 @durable_workflow.durable_task()
-async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]:
+async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str | int]:
     print("Waiting for sleep")
-    await ctx.aio_sleep_for(duration=timedelta(seconds=SLEEP_TIME))
+    sleep = await ctx.aio_sleep_for(duration=timedelta(seconds=SLEEP_TIME))
     print("Sleep finished")
 
     print("Waiting for event")
-    await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    event = await ctx.aio_wait_for_event(
+        EVENT_KEY, "true", payload_validator=AwaitedEvent
     )
     print("Event received")
 
     return {
         "status": "success",
+        "event_id": event.id,
+        "sleep_duration_seconds": sleep.duration.seconds,
     }
 
 
@@ -100,7 +105,7 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]
 @durable_workflow.durable_task()
 async def wait_for_or_group_1(
     _i: EmptyModel, ctx: DurableContext
-) -> dict[str, str | int]:
+) -> dict[str, str | int | float]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
         uuid4().hex,
@@ -114,7 +119,7 @@ async def wait_for_or_group_1(
     event_id = list(wait_result[key].keys())[0]
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
         "key": key,
         "event_id": event_id,
     }
@@ -125,7 +130,7 @@ async def wait_for_or_group_1(
 @durable_workflow.durable_task()
 async def wait_for_or_group_2(
     _i: EmptyModel, ctx: DurableContext
-) -> dict[str, str | int]:
+) -> dict[str, str | int | float]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
         uuid4().hex,
@@ -139,7 +144,7 @@ async def wait_for_or_group_2(
     event_id = list(wait_result[key].keys())[0]
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
         "key": key,
         "event_id": event_id,
     }
@@ -148,7 +153,7 @@ async def wait_for_or_group_2(
 @durable_workflow.durable_task()
 async def wait_for_multi_sleep(
     _i: EmptyModel, ctx: DurableContext
-) -> dict[str, str | int]:
+) -> dict[str, str | float]:
     start = time.time()
 
     for _ in range(3):
@@ -157,7 +162,7 @@ async def wait_for_multi_sleep(
         )
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
     }
 
 
@@ -167,9 +172,17 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
 
 
 @hatchet.durable_task()
+async def memo_now_caching(_i: EmptyModel, ctx: DurableContext) -> dict[str, str]:
+    now = await ctx.aio_now()
+    return {
+        "start_time": now.isoformat(),
+    }
+
+
+@hatchet.durable_task()
 async def wait_for_sleep_twice(
     input: EmptyModel, ctx: DurableContext
-) -> dict[str, int]:
+) -> dict[str, float]:
     try:
         start = time.time()
 
@@ -178,10 +191,10 @@ async def wait_for_sleep_twice(
         )
 
         return {
-            "runtime": int(time.time() - start),
+            "runtime": time.time() - start,
         }
     except asyncio.CancelledError:
-        return {"runtime": -1}
+        return {"runtime": -1.0}
 
 
 class DurableBulkSpawnInput(BaseModel):
@@ -222,15 +235,15 @@ async def durable_sleep_event_spawn(
 
     await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
 
-    await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    await ctx.aio_wait_for_event(
+        EVENT_KEY,
+        "true",
     )
 
     child_result = await spawn_child_task.aio_run()
 
     return {
-        "runtime": int(time.time() - start),
+        "runtime": time.time() - start,
         "child_output": child_result,
     }
 
@@ -312,7 +325,7 @@ async def expensive_computation(message: str) -> SleepResult:
 @hatchet.durable_task(input_validator=MemoInput)
 async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     start = time.time()
-    res = await ctx.aio_memo(
+    res = await ctx._aio_memo(
         expensive_computation,
         SleepResult,
         input.message,

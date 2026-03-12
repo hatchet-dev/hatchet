@@ -50,7 +50,7 @@ export const evictableWaitForEvent = hatchet.durableTask({
   executionTimeout: '5m',
   evictionPolicy: EVICTION_POLICY,
   fn: async (_input, ctx) => {
-    await ctx.waitFor({ eventKey: EVENT_KEY });
+    await ctx.waitForEvent(EVENT_KEY, 'true');
     return { status: 'completed' };
   },
 });
@@ -94,6 +94,22 @@ export const evictableChildBulkSpawn = hatchet.durableTask({
     }));
     const childResults = await bulkChildTask.run(inputs);
     return { child_results: childResults, status: 'completed' };
+  },
+});
+
+export const CAPACITY_SLEEP_SECONDS = 20;
+
+export const capacityEvictableSleep = hatchet.durableTask({
+  name: 'capacity-evictable-sleep',
+  executionTimeout: '5m',
+  evictionPolicy: {
+    ttl: undefined,
+    allowCapacityEviction: true,
+    priority: 0,
+  },
+  fn: async (_input, ctx) => {
+    await ctx.sleepFor(`${CAPACITY_SLEEP_SECONDS}s`);
+    return { status: 'completed' };
   },
 });
 

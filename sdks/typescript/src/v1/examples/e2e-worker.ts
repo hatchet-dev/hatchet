@@ -24,7 +24,6 @@ import {
   durableWithExplicitSpawn,
   durableNonDeterminism,
   durableReplayReset,
-  memoTask,
   dagChildWorkflow,
   durableSpawnDag,
 } from './durable/workflow';
@@ -73,7 +72,6 @@ const workflows = [
   durableWithExplicitSpawn,
   durableNonDeterminism,
   durableReplayReset,
-  memoTask,
   dagChildWorkflow,
   durableSpawnDag,
   durableEvent,

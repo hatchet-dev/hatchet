@@ -24,14 +24,18 @@ durableWorkflow.durableTask({
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     console.log('Waiting for sleep');
-    await ctx.sleepFor(SLEEP_TIME);
+    const sleepResult = await ctx.sleepFor(SLEEP_TIME);
     console.log('Sleep finished');
 
     console.log('Waiting for event');
-    await ctx.waitFor({ eventKey: EVENT_KEY });
+    const event = await ctx.waitForEvent(EVENT_KEY, 'true');
     console.log('Event received');
 
-    return { status: 'success' };
+    return {
+      status: 'success',
+      event: event,
+      sleep_duration_ms: sleepResult.durationMs,
+    };
   },
 });
 
@@ -158,12 +162,12 @@ export const durableSleepEventSpawn = hatchet.durableTask({
 
     await ctx.sleepFor(SLEEP_TIME);
 
-    await ctx.waitFor({ eventKey: EVENT_KEY });
+    await ctx.waitForEvent(EVENT_KEY, 'true');
 
     const childResult = await spawnChildTask.run({});
 
     return {
-      runtime: Math.round((Date.now() - start) / 1000),
+      runtime: (Date.now() - start) / 1000,
       child_output: childResult,
     };
   },
@@ -210,23 +214,6 @@ export const durableNonDeterminism = hatchet.durableTask({
   },
 });
 
-// --- Memo task ---
-
-const MEMO_SLEEP_MS = 2000;
-
-export const memoTask = hatchet.durableTask({
-  name: 'memo-task',
-  executionTimeout: '10m',
-  fn: async (input: { message: string }, ctx) => {
-    const start = Date.now();
-    const res = await ctx.memo(async () => {
-      await sleep(MEMO_SLEEP_MS);
-      return { message: input.message, duration: MEMO_SLEEP_MS / 1000 };
-    }, [input.message]);
-    return { message: res.message, duration: (Date.now() - start) / 1000 };
-  },
-});
-
 // --- Replay reset ---
 
 export const REPLAY_RESET_SLEEP_SECONDS = 3;
@@ -255,6 +242,15 @@ export const durableReplayReset = hatchet.durableTask({
       sleep_2_duration: sleep2Duration,
       sleep_3_duration: sleep3Duration,
     };
+  },
+});
+
+export const memoNowCaching = hatchet.durableTask({
+  name: 'memo-now-caching',
+  executionTimeout: '10m',
+  fn: async (_input, ctx) => {
+    const now = await ctx.now();
+    return { start_time: now.toISOString() };
   },
 });
 
@@ -295,7 +291,7 @@ export const durableSpawnDag = hatchet.durableTask({
 
     return {
       sleep_duration: sleepDuration,
-      sleep_result: sleepResult,
+      sleep_duration_ms: sleepResult.durationMs,
       spawn_duration: spawnDuration,
       spawn_result: spawnResult,
     };

@@ -1,12 +1,3 @@
-"""
-Minimal example demonstrating durable slot eviction.
-
-The evictable_sleep task has a short eviction TTL (5s). When it enters a long
-durable sleep, the eviction manager sees the TTL exceeded and evicts the task
--- freeing the worker slot.  A subsequent REST restore re-enqueues the task so
-it can resume from its durable event log.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -56,9 +47,9 @@ async def evictable_wait_for_event(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, Any]:
     """Waits for a user event -- long enough for TTL eviction to fire."""
-    await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key=EVENT_KEY, expression="true"),
+    await ctx.aio_wait_for_event(
+        EVENT_KEY,
+        "true",
     )
     return {"status": "completed"}
 
@@ -119,6 +110,27 @@ async def multiple_eviction(input: EmptyModel, ctx: DurableContext) -> dict[str,
     """Sleeps twice, expecting eviction+restore after each sleep."""
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
+    return {"status": "completed"}
+
+
+CAPACITY_EVICTION_POLICY = EvictionPolicy(
+    ttl=None,
+    allow_capacity_eviction=True,
+    priority=0,
+)
+
+CAPACITY_SLEEP_SECONDS = 20
+
+
+@hatchet.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=CAPACITY_EVICTION_POLICY,
+)
+async def capacity_evictable_sleep(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
+    """No TTL -- only evictable via capacity pressure (durable_slots=1)."""
+    await ctx.aio_sleep_for(timedelta(seconds=CAPACITY_SLEEP_SECONDS))
     return {"status": "completed"}
 
 
