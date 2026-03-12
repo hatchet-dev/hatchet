@@ -999,8 +999,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return {};
     }
 
-    const [event] = firstMatch;
-    const rawPayload = event?.data ?? {};
+    const [rawPayload] = firstMatch;
 
     if (payloadSchema) {
       return payloadSchema.parse(rawPayload);

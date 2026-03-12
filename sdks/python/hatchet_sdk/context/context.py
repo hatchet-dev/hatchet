@@ -704,9 +704,7 @@ class DurableContext(Context):
         ## the list of matches will only have one item, so we can extract and parse it
         matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
         _, raw_matches = next(iter(matches.items()))
-        event = raw_matches[0]
-
-        raw_payload = event.get("data", {})
+        raw_payload = raw_matches[0]
 
         if payload_validator is not None:
             adapter = TypeAdapter(payload_validator)
