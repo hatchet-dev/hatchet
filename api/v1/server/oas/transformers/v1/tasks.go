@@ -85,10 +85,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
-	}
-
-	if isEvicted {
-		summary.IsEvicted = &isEvicted
+		IsEvicted:             &isEvicted,
 	}
 
 	return summary
@@ -213,7 +210,7 @@ func ToWorkflowRunTaskRunEventsMany(
 	}
 }
 
-func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
+func StatusToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	statuses := []gen.V1TaskStatus{
 		gen.V1TaskStatusCANCELLED,
 		gen.V1TaskStatusCOMPLETED,
@@ -222,15 +219,15 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 		gen.V1TaskStatusRUNNING,
 	}
 
-	metricsMap := make(map[string]v1.TaskRunMetric)
+	metricsMap := make(map[gen.V1TaskStatus]v1.TaskRunMetric)
 	for _, m := range *metrics {
-		metricsMap[m.Status] = m
+		metricsMap[gen.V1TaskStatus(m.Status)] = m
 	}
 
 	toReturn := make([]gen.V1TaskRunMetric, len(statuses))
 
 	for i, status := range statuses {
-		metric := metricsMap[string(status)]
+		metric := metricsMap[status]
 
 		toReturn[i] = gen.V1TaskRunMetric{
 			Count:  int(metric.Count), // nolint: gosec
