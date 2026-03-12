@@ -378,10 +378,10 @@ export default function Search({ className }: { className?: string }) {
       }
     };
     updatePos();
-    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("scroll", updatePos);
     window.addEventListener("resize", updatePos);
     return () => {
-      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("scroll", updatePos);
       window.removeEventListener("resize", updatePos);
     };
   }, [showDropdown]);
@@ -497,14 +497,14 @@ export default function Search({ className }: { className?: string }) {
               right: dropdownPos.right,
               width: dropdownPos.width,
               zIndex: 50,
+              overflowY: "auto",
+              maxHeight: "min(calc(100vh - 5rem), 400px)",
             }}
             className={[
               "nextra-search-results nextra-scrollbar",
               "_rounded-xl _py-2.5 _shadow-xl",
               "_border _border-gray-200 dark:_border-neutral-800",
               "_backdrop-blur-lg _bg-[rgb(var(--nextra-bg),.8)]",
-              "_max-h-[min(calc(100vh-5rem),400px)]",
-              "_overflow-y-auto",
               "contrast-more:_border contrast-more:_border-gray-900 contrast-more:dark:_border-gray-50",
               "_transition-opacity _opacity-100",
             ].join(" ")}
