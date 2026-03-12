@@ -36,9 +36,9 @@ CREATE INDEX idx_v1_otel_trace_workflow_lookup
 CREATE INDEX idx_v1_otel_trace_trace
     ON v1_otel_trace (tenant_id, trace_id, start_time);
 
-SELECT create_v1_range_partition('v1_otel_trace'::text, CURRENT_DATE::date);
+SELECT create_v1_range_partition('v1_otel_trace'::TEXT, NOW()::DATE);
 
-SELECT create_v1_range_partition('v1_otel_trace'::text, CURRENT_DATE::date + INTERVAL '1 day');
+SELECT create_v1_range_partition('v1_otel_trace'::TEXT, (NOW() + INTERVAL '1 day')::DATE);
 
 -- +goose Down
 DROP TABLE IF EXISTS v1_otel_trace;
