@@ -2,12 +2,6 @@ import type { OtelSpanTree } from './span-tree-type';
 import type { OtelSpan } from '@/lib/api/generated/data-contracts';
 import invariant from 'tiny-invariant';
 
-const convertOtelSpanToTraceSpan = (span: OtelSpan): OtelSpanTree => ({
-  ...span,
-  durationMs: span.durationNs / 1_000_000,
-  children: [],
-});
-
 export const convertOtelSpansToOtelSpanTree = (
   spans: [OtelSpan, ...OtelSpan[]],
 ): OtelSpanTree => {
@@ -15,8 +9,10 @@ export const convertOtelSpansToOtelSpanTree = (
   let rootSpan: OtelSpanTree | null = null;
 
   spans.forEach((span) => {
-    const converted = convertOtelSpanToTraceSpan(span);
-    spanMap.set(converted.spanId, converted);
+    spanMap.set(span.spanId, {
+      ...span,
+      children: [],
+    });
   });
 
   spans.forEach((span) => {
@@ -30,6 +26,7 @@ export const convertOtelSpansToOtelSpanTree = (
       }
       parent.children.push(converted);
     } else {
+      invariant(rootSpan === null, 'There can be only one (root span)');
       rootSpan = converted;
     }
   });
