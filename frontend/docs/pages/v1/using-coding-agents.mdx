@@ -8,6 +8,11 @@ import {
   ClaudeCodeTabLabel,
   OtherAgentsTabLabel,
 } from "@/components/McpSetup";
+import {
+  McpRuntimeUrl,
+  CursorRuntimeMcpConfig,
+  ClaudeCodeRuntimeCommand,
+} from "@/components/McpRuntimeSetup";
 
 # Using Coding Agents
 
@@ -135,6 +140,58 @@ MCP endpoint: <McpUrl />
 
   </Tabs.Tab>
 </Tabs>
+
+## Runtime MCP Server
+
+The **Runtime MCP Server** lets AI agents inspect your live Hatchet system: runs, workers, workflows, and queue metrics. Unlike the docs MCP (which only searches documentation), the runtime MCP requires a Bearer token and proxies requests to your Hatchet API.
+
+**Use cases:**
+
+- "Why did my workflow fail in the last hour?"
+- "Show me all runs for `audit_id=abc123`"
+- "What's the current queue depth for `embed-workflow`?"
+- "List all active workers and their registered workflows"
+
+**Tools:** `list_workflows`, `list_runs`, `get_run`, `search_runs`, `get_queue_metrics`, `list_workers`, plus optional write tools (`cancel_run`, `replay_run`) when enabled.
+
+**Setup:** You need a Hatchet API token (create one in your Hatchet dashboard). Replace `your-token` in the config below with your token, or use an environment variable if your MCP client supports it.
+
+Runtime MCP endpoint: <McpRuntimeUrl />
+
+<Tabs items={[<CursorTabLabel />, <ClaudeCodeTabLabel />]}>
+  <Tabs.Tab>
+
+    <Steps>
+
+    ### Open Cursor Settings
+
+    Go to **Cursor Settings** → **MCP** → **Add new MCP server**.
+
+    ### Add the server configuration
+
+    <CursorRuntimeMcpConfig />
+
+    Replace `your-token` with your Hatchet API token.
+
+    ### Use in chat
+
+    Reference the runtime MCP in Cursor chat with `@hatchet-runtime` to let the agent inspect runs, workers, and queue metrics.
+
+    </Steps>
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+    Run this command in your terminal (replace `your-token` with your Hatchet API token):
+
+    <ClaudeCodeRuntimeCommand />
+
+  </Tabs.Tab>
+</Tabs>
+
+<Callout type="warning">
+  The runtime MCP endpoint must be deployed with `HATCHET_CLIENT_API_URL` set to your Hatchet API base URL (e.g. `https://api.hatchet.run`). For self-hosted Hatchet, point it to your instance. Write tools (`cancel_run`, `replay_run`) require `HATCHET_MCP_ALLOW_WRITES=true`.
+</Callout>
 
 ## llms.txt
 
