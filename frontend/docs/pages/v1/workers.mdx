@@ -104,8 +104,8 @@ Once the worker starts, you will see logs confirming it is connected:
 ```
 
 <Callout type="info">
-  For self-hosted engines, there may be additional gRPC configuration
-  options needed. See the [Self-Hosting](/self-hosting/worker-configuration-options)
+  For self-hosted engines, there may be additional gRPC configuration options
+  needed. See the [Self-Hosting](/self-hosting/worker-configuration-options)
   docs for details.
 </Callout>
 
@@ -145,8 +145,8 @@ Start with a slot count that matches the degree of parallelism the worker can re
 
 <Callout type="info">
   Adding slots is only helpful up to the point where the worker is not
-  bottlenecked by another resource. If the worker is CPU-bound, memory-bound,
-  or waiting on network I/O, more slots will just increase contention.
+  bottlenecked by another resource. If the worker is CPU-bound, memory-bound, or
+  waiting on network I/O, more slots will just increase contention.
 </Callout>
 
 ## Scaling workers
@@ -182,3 +182,4 @@ In development, the fastest way to run a worker is `hatchet worker dev`, which h
 
 Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means workers can be organized by resource requirements, deployment boundary, or any other criterion, and Hatchet handles routing tasks to the right place.
 
+**Keywords**: Worker, slots, registration, concurrency, horizontal scaling, autoscaling
