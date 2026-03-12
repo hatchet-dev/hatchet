@@ -8,25 +8,15 @@ Then run this:
     poetry run python -m examples.opentelemetry_instrumentation.hatchet.trigger
 """
 
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.trace import get_tracer
 
 from examples.opentelemetry_instrumentation.hatchet.worker import otel_workflow
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
-# Use the same console exporter so you can see trigger-side spans too
-resource = Resource(attributes={SERVICE_NAME: "hatchet-otel-pipeline-trigger"})
-provider = TracerProvider(resource=resource)
-provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+HatchetInstrumentor(enable_hatchet_otel_collector=True).instrument()
 
-HatchetInstrumentor(
-    tracer_provider=provider,
-    enable_hatchet_otel_collector=True,
-).instrument()
-
-tracer = provider.get_tracer(__name__)
+tracer = get_tracer(__name__)
 
 
 def main() -> None:

@@ -8,7 +8,7 @@ SELECT
     create_v1_range_partition('v1_event', @date::date),
     create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
     create_v1_range_partition('v1_event_to_run', @date::date),
-    create_v1_range_partition('v1_otel_traces', @date::date);
+    create_v1_range_partition('v1_otel_trace', @date::date);
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -27,7 +27,7 @@ WITH tomorrow_date AS (
     UNION ALL
     SELECT 'v1_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
-    SELECT 'v1_otel_traces_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    SELECT 'v1_otel_trace_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -59,8 +59,8 @@ WITH task_partitions AS (
     SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', @date::date) AS p
 ), event_to_run_partitions AS (
     SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
-), otel_traces_partitions AS (
-    SELECT 'v1_otel_traces' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_traces', @date::date) AS p
+), otel_trace_partitions AS (
+    SELECT 'v1_otel_trace' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace', @date::date) AS p
 )
 
 SELECT
@@ -122,7 +122,7 @@ UNION ALL
 SELECT
     *
 FROM
-    otel_traces_partitions
+    otel_trace_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one

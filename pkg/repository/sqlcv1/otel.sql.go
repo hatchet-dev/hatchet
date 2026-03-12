@@ -13,9 +13,9 @@ import (
 )
 
 const countSpansByTaskExternalID = `-- name: CountSpansByTaskExternalID :one
-SELECT COUNT(*) FROM v1_otel_traces
+SELECT COUNT(*) FROM v1_otel_trace
 WHERE tenant_id = $1::UUID AND trace_id IN (
-    SELECT DISTINCT trace_id FROM v1_otel_traces
+    SELECT DISTINCT trace_id FROM v1_otel_trace
     WHERE tenant_id = $1::UUID AND task_run_external_id = $2::UUID
 )
 `
@@ -36,17 +36,17 @@ type InsertOtelSpansParams struct {
 	TenantID              uuid.UUID          `json:"tenant_id"`
 	TraceID               string             `json:"trace_id"`
 	SpanID                string             `json:"span_id"`
-	ParentSpanID          string             `json:"parent_span_id"`
+	ParentSpanID          pgtype.Text        `json:"parent_span_id"`
 	SpanName              string             `json:"span_name"`
 	SpanKind              V1OtelSpanKind     `json:"span_kind"`
 	ServiceName           string             `json:"service_name"`
 	StatusCode            V1OtelStatusCode   `json:"status_code"`
-	StatusMessage         string             `json:"status_message"`
+	StatusMessage         pgtype.Text        `json:"status_message"`
 	DurationNs            int64              `json:"duration_ns"`
 	ResourceAttributes    []byte             `json:"resource_attributes"`
 	SpanAttributes        []byte             `json:"span_attributes"`
-	ScopeName             string             `json:"scope_name"`
-	ScopeVersion          string             `json:"scope_version"`
+	ScopeName             pgtype.Text        `json:"scope_name"`
+	ScopeVersion          pgtype.Text        `json:"scope_version"`
 	TaskRunExternalID     *uuid.UUID         `json:"task_run_external_id"`
 	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
 	StartTime             pgtype.Timestamptz `json:"start_time"`
@@ -57,9 +57,9 @@ SELECT
     trace_id, span_id, parent_span_id, span_name, span_kind,
     service_name, status_code, status_message, duration_ns, start_time,
     resource_attributes, span_attributes, scope_name, scope_version
-FROM v1_otel_traces
+FROM v1_otel_trace
 WHERE tenant_id = $1::UUID AND trace_id IN (
-    SELECT DISTINCT trace_id FROM v1_otel_traces
+    SELECT DISTINCT trace_id FROM v1_otel_trace
     WHERE tenant_id = $1::UUID AND task_run_external_id = $2::UUID
 )
 ORDER BY start_time ASC
@@ -77,18 +77,18 @@ type ListSpansByTaskExternalIDParams struct {
 type ListSpansByTaskExternalIDRow struct {
 	TraceID            string             `json:"trace_id"`
 	SpanID             string             `json:"span_id"`
-	ParentSpanID       string             `json:"parent_span_id"`
+	ParentSpanID       pgtype.Text        `json:"parent_span_id"`
 	SpanName           string             `json:"span_name"`
 	SpanKind           V1OtelSpanKind     `json:"span_kind"`
 	ServiceName        string             `json:"service_name"`
 	StatusCode         V1OtelStatusCode   `json:"status_code"`
-	StatusMessage      string             `json:"status_message"`
+	StatusMessage      pgtype.Text        `json:"status_message"`
 	DurationNs         int64              `json:"duration_ns"`
 	StartTime          pgtype.Timestamptz `json:"start_time"`
 	ResourceAttributes []byte             `json:"resource_attributes"`
 	SpanAttributes     []byte             `json:"span_attributes"`
-	ScopeName          string             `json:"scope_name"`
-	ScopeVersion       string             `json:"scope_version"`
+	ScopeName          pgtype.Text        `json:"scope_name"`
+	ScopeVersion       pgtype.Text        `json:"scope_version"`
 }
 
 func (q *Queries) ListSpansByTaskExternalID(ctx context.Context, db DBTX, arg ListSpansByTaskExternalIDParams) ([]*ListSpansByTaskExternalIDRow, error) {

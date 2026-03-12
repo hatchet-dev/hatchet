@@ -1,5 +1,5 @@
 -- name: InsertOtelSpans :copyfrom
-INSERT INTO v1_otel_traces (
+INSERT INTO v1_otel_trace (
     tenant_id,
     trace_id,
     span_id,
@@ -22,9 +22,9 @@ INSERT INTO v1_otel_traces (
 );
 
 -- name: CountSpansByTaskExternalID :one
-SELECT COUNT(*) FROM v1_otel_traces
+SELECT COUNT(*) FROM v1_otel_trace
 WHERE tenant_id = @tenantId::UUID AND trace_id IN (
-    SELECT DISTINCT trace_id FROM v1_otel_traces
+    SELECT DISTINCT trace_id FROM v1_otel_trace
     WHERE tenant_id = @tenantId::UUID AND task_run_external_id = @taskExternalId::UUID
 );
 
@@ -33,9 +33,9 @@ SELECT
     trace_id, span_id, parent_span_id, span_name, span_kind,
     service_name, status_code, status_message, duration_ns, start_time,
     resource_attributes, span_attributes, scope_name, scope_version
-FROM v1_otel_traces
+FROM v1_otel_trace
 WHERE tenant_id = @tenantId::UUID AND trace_id IN (
-    SELECT DISTINCT trace_id FROM v1_otel_traces
+    SELECT DISTINCT trace_id FROM v1_otel_trace
     WHERE tenant_id = @tenantId::UUID AND task_run_external_id = @taskExternalId::UUID
 )
 ORDER BY start_time ASC

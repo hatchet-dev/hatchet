@@ -234,7 +234,7 @@ SELECT
     create_v1_range_partition('v1_event', $1::date),
     create_v1_weekly_range_partition('v1_event_lookup_table', $1::date),
     create_v1_range_partition('v1_event_to_run', $1::date),
-    create_v1_range_partition('v1_otel_traces', $1::date)
+    create_v1_range_partition('v1_otel_trace', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -331,7 +331,7 @@ WITH tomorrow_date AS (
     UNION ALL
     SELECT 'v1_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
-    SELECT 'v1_otel_traces_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    SELECT 'v1_otel_trace_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -1245,8 +1245,8 @@ WITH task_partitions AS (
     SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', $1::date) AS p
 ), event_to_run_partitions AS (
     SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', $1::date) AS p
-), otel_traces_partitions AS (
-    SELECT 'v1_otel_traces' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_traces', $1::date) AS p
+), otel_trace_partitions AS (
+    SELECT 'v1_otel_trace' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace', $1::date) AS p
 )
 
 SELECT
@@ -1308,7 +1308,7 @@ UNION ALL
 SELECT
     parent_table, partition_name
 FROM
-    otel_traces_partitions
+    otel_trace_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"math"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -45,22 +47,29 @@ func ToV1OtelSpan(spans []*sqlcv1.ListSpansByTaskExternalIDRow) []gen.OtelSpan {
 		result[i] = gen.OtelSpan{
 			TraceId:            s.TraceID,
 			SpanId:             s.SpanID,
-			ParentSpanId:       &s.ParentSpanID,
+			ParentSpanId:       pgTextPtr(s.ParentSpanID),
 			SpanName:           s.SpanName,
 			SpanKind:           gen.OtelSpanKind(s.SpanKind),
 			ServiceName:        s.ServiceName,
 			StatusCode:         gen.OtelStatusCode(s.StatusCode),
-			StatusMessage:      &s.StatusMessage,
+			StatusMessage:      pgTextPtr(s.StatusMessage),
 			Duration:           s.DurationNs,
 			CreatedAt:          s.StartTime.Time,
 			ResourceAttributes: &resourceAttrs,
 			SpanAttributes:     &spanAttrs,
-			ScopeName:          &s.ScopeName,
-			ScopeVersion:       &s.ScopeVersion,
+			ScopeName:          pgTextPtr(s.ScopeName),
+			ScopeVersion:       pgTextPtr(s.ScopeVersion),
 		}
 	}
 
 	return result
+}
+
+func pgTextPtr(t pgtype.Text) *string {
+	if !t.Valid {
+		return nil
+	}
+	return &t.String
 }
 
 func jsonbToStringMap(data []byte) map[string]string {

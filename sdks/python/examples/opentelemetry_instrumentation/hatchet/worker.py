@@ -10,10 +10,9 @@ Then trigger it from another terminal:
 
 import time
 
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
-from opentelemetry.trace import StatusCode, Tracer
+from pydantic import BaseModel
+
+from opentelemetry.trace import StatusCode, get_tracer
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
@@ -22,24 +21,27 @@ hatchet = Hatchet()
 
 otel_workflow = hatchet.workflow(name="OTelDataPipeline")
 
-# Module-level tracer — will be set in main() before the worker starts.
-# Tasks use this to create custom child spans inside the auto-instrumented
-# hatchet task run parent span.
-_tracer: Tracer | None = None
+
+class FetchDataOutput(BaseModel):
+    records_fetched: int
 
 
-def _get_tracer() -> Tracer:
-    global _tracer
-    if _tracer is None:
-        from opentelemetry.trace import get_tracer
+class ValidateDataOutput(BaseModel):
+    valid_records: int
+    dropped: int
 
-        _tracer = get_tracer(__name__)
-    return _tracer
+
+class ProcessDataOutput(BaseModel):
+    processed_groups: int
+
+
+class SaveResultsOutput(BaseModel):
+    saved: bool
 
 
 @otel_workflow.task()
-def fetch_data(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    tracer = _get_tracer()
+def fetch_data(input: EmptyModel, ctx: Context) -> FetchDataOutput:
+    tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span(
         "http.request",
@@ -53,12 +55,12 @@ def fetch_data(input: EmptyModel, ctx: Context) -> dict[str, str]:
         time.sleep(0.01)
         span.set_attribute("json.record_count", 42)
 
-    return {"records_fetched": "42"}
+    return FetchDataOutput(records_fetched=42)
 
 
 @otel_workflow.task()
-def validate_data(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    tracer = _get_tracer()
+def validate_data(input: EmptyModel, ctx: Context) -> ValidateDataOutput:
+    tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span("schema.validate") as span:
         time.sleep(0.02)
@@ -72,12 +74,12 @@ def validate_data(input: EmptyModel, ctx: Context) -> dict[str, str]:
         span.set_attribute("clean.records_dropped", 2)
         span.set_attribute("clean.records_remaining", 40)
 
-    return {"valid_records": "40", "dropped": "2"}
+    return ValidateDataOutput(valid_records=40, dropped=2)
 
 
 @otel_workflow.task()
-def process_data(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    tracer = _get_tracer()
+def process_data(input: EmptyModel, ctx: Context) -> ProcessDataOutput:
+    tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span("transform.pipeline") as pipeline_span:
         pipeline_span.set_attribute("pipeline.stages", 3)
@@ -94,12 +96,12 @@ def process_data(input: EmptyModel, ctx: Context) -> dict[str, str]:
             agg_span.set_attribute("aggregate.groups", 8)
             agg_span.set_attribute("aggregate.method", "sum")
 
-    return {"processed_groups": "8"}
+    return ProcessDataOutput(processed_groups=8)
 
 
 @otel_workflow.task()
-def save_results(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    tracer = _get_tracer()
+def save_results(input: EmptyModel, ctx: Context) -> SaveResultsOutput:
+    tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span(
         "db.query",
@@ -117,21 +119,11 @@ def save_results(input: EmptyModel, ctx: Context) -> dict[str, str]:
         span.set_attribute("notification.channel", "webhook")
         span.set_attribute("notification.status", "delivered")
 
-    return {"saved": "true"}
+    return SaveResultsOutput(saved=True)
 
 
 def main() -> None:
-    resource = Resource(attributes={SERVICE_NAME: "hatchet-otel-pipeline-example"})
-    provider = TracerProvider(resource=resource)
-    provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-
-    HatchetInstrumentor(
-        tracer_provider=provider,
-        enable_hatchet_otel_collector=True,
-    ).instrument()
-
-    global _tracer
-    _tracer = provider.get_tracer(__name__)
+    HatchetInstrumentor(enable_hatchet_otel_collector=True).instrument()
 
     worker = hatchet.worker(
         "otel-pipeline-worker",

@@ -2279,31 +2279,35 @@ CREATE TYPE v1_otel_span_kind AS ENUM ('UNSPECIFIED', 'INTERNAL', 'SERVER', 'CLI
 
 CREATE TYPE v1_otel_status_code AS ENUM ('UNSET', 'OK', 'ERROR');
 
-CREATE TABLE v1_otel_traces (
+CREATE TABLE v1_otel_trace (
     id              BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id       UUID NOT NULL,
     trace_id        TEXT NOT NULL,
     span_id         TEXT NOT NULL,
-    parent_span_id  TEXT NOT NULL DEFAULT '',
+    parent_span_id  TEXT,
     span_name       TEXT NOT NULL,
-    span_kind       v1_otel_span_kind NOT NULL DEFAULT 'INTERNAL',
+    span_kind       v1_otel_span_kind NOT NULL DEFAULT 'UNSPECIFIED',
     service_name    TEXT NOT NULL DEFAULT 'unknown',
     status_code     v1_otel_status_code NOT NULL DEFAULT 'UNSET',
-    status_message  TEXT NOT NULL DEFAULT '',
+    status_message  TEXT,
     duration_ns     BIGINT NOT NULL DEFAULT 0,
-    resource_attributes JSONB NOT NULL DEFAULT '{}',
-    span_attributes     JSONB NOT NULL DEFAULT '{}',
-    scope_name      TEXT NOT NULL DEFAULT '',
-    scope_version   TEXT NOT NULL DEFAULT '',
+    resource_attributes JSONB,
+    span_attributes     JSONB,
+    scope_name      TEXT,
+    scope_version   TEXT,
     task_run_external_id    UUID,
     workflow_run_external_id UUID,
     start_time      TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (id, start_time)
 ) PARTITION BY RANGE (start_time);
 
-CREATE INDEX idx_v1_otel_traces_task_lookup
-    ON v1_otel_traces (tenant_id, task_run_external_id)
+CREATE INDEX idx_v1_otel_trace_task_lookup
+    ON v1_otel_trace (tenant_id, task_run_external_id)
     WHERE task_run_external_id IS NOT NULL;
 
-CREATE INDEX idx_v1_otel_traces_trace
-    ON v1_otel_traces (tenant_id, trace_id, start_time);
+CREATE INDEX idx_v1_otel_trace_workflow_lookup
+    ON v1_otel_trace (tenant_id, workflow_run_external_id)
+    WHERE workflow_run_external_id IS NOT NULL;
+
+CREATE INDEX idx_v1_otel_trace_trace
+    ON v1_otel_trace (tenant_id, trace_id, start_time);

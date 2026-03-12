@@ -257,7 +257,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if tracer_provider is not None:
             self.tracer_provider = tracer_provider
         elif enable_hatchet_otel_collector:
+            from opentelemetry.trace import set_tracer_provider
+
             self.tracer_provider = SDKTracerProvider()
+            set_tracer_provider(self.tracer_provider)
         else:
             self.tracer_provider = get_tracer_provider()
 
