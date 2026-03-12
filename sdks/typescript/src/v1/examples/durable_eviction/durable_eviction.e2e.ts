@@ -9,6 +9,7 @@ import {
   evictableChildBulkSpawn,
   multipleEviction,
   nonEvictableSleep,
+  capacityEvictableSleep,
   LONG_SLEEP_SECONDS,
   EVICTION_TTL_SECONDS,
   EVENT_KEY,
@@ -318,6 +319,137 @@ describe('durable-eviction-e2e', () => {
 
     const result = await ref.output;
     expect(result.status).toBe('completed');
+  }, 180_000);
+
+  it('capacity eviction fires with durable_slots=1 and ttl=undefined', async () => {
+    if (requireEviction()) return;
+    const { spawn } = await import('child_process');
+
+    const workerProc = spawn(
+      'pnpm',
+      [
+        'exec',
+        'ts-node',
+        '-r',
+        'tsconfig-paths/register',
+        '-P',
+        'tsconfig.json',
+        'src/v1/examples/durable_eviction/capacity-worker.ts',
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8105',
+        },
+        stdio: 'pipe',
+      }
+    );
+
+    workerProc.stdout?.on('data', () => {});
+    workerProc.stderr?.on('data', () => {});
+
+    try {
+      await poll(
+        async () => {
+          try {
+            const resp = await fetch('http://localhost:8105/health');
+            return resp.ok;
+          } catch {
+            return false;
+          }
+        },
+        {
+          timeoutMs: 30_000,
+          intervalMs: 1000,
+          shouldStop: (healthy) => healthy === true,
+          label: 'capacity-worker-health',
+        }
+      );
+
+      const ref = await capacityEvictableSleep.runNoWait({});
+      const runId = await ref.getWorkflowRunId();
+
+      await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED, 20);
+      const statuses = getTaskStatuses(details);
+
+      expect(statuses).toContain(V1TaskStatus.EVICTED);
+    } finally {
+      try {
+        workerProc.kill('SIGKILL');
+      } catch {
+        // ignore
+      }
+    }
+  }, 120_000);
+
+  it('capacity eviction restore completes', async () => {
+    if (requireEviction()) return;
+    const { spawn } = await import('child_process');
+
+    const workerProc = spawn(
+      'pnpm',
+      [
+        'exec',
+        'ts-node',
+        '-r',
+        'tsconfig-paths/register',
+        '-P',
+        'tsconfig.json',
+        'src/v1/examples/durable_eviction/capacity-worker.ts',
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8106',
+        },
+        stdio: 'pipe',
+      }
+    );
+
+    workerProc.stdout?.on('data', () => {});
+    workerProc.stderr?.on('data', () => {});
+
+    try {
+      await poll(
+        async () => {
+          try {
+            const resp = await fetch('http://localhost:8106/health');
+            return resp.ok;
+          } catch {
+            return false;
+          }
+        },
+        {
+          timeoutMs: 30_000,
+          intervalMs: 1000,
+          shouldStop: (healthy) => healthy === true,
+          label: 'capacity-worker-health',
+        }
+      );
+
+      const ref = await capacityEvictableSleep.runNoWait({});
+      const runId = await ref.getWorkflowRunId();
+
+      await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+      const details = await pollUntilStatus(runId, V1TaskStatus.EVICTED, 20);
+      const taskId = getTaskExternalId(details)!;
+
+      await hatchet.runs.restoreTask(taskId);
+
+      const result = await ref.output;
+      expect(result.status).toBe('completed');
+    } finally {
+      try {
+        workerProc.kill('SIGKILL');
+      } catch {
+        // ignore
+      }
+    }
   }, 180_000);
 
   it('graceful termination evicts waiting runs', async () => {

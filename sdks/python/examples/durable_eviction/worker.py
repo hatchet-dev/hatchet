@@ -113,6 +113,27 @@ async def multiple_eviction(input: EmptyModel, ctx: DurableContext) -> dict[str,
     return {"status": "completed"}
 
 
+CAPACITY_EVICTION_POLICY = EvictionPolicy(
+    ttl=None,
+    allow_capacity_eviction=True,
+    priority=0,
+)
+
+CAPACITY_SLEEP_SECONDS = 20
+
+
+@hatchet.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=CAPACITY_EVICTION_POLICY,
+)
+async def capacity_evictable_sleep(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
+    """No TTL -- only evictable via capacity pressure (durable_slots=1)."""
+    await ctx.aio_sleep_for(timedelta(seconds=CAPACITY_SLEEP_SECONDS))
+    return {"status": "completed"}
+
+
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EvictionPolicy(

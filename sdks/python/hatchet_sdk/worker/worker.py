@@ -36,6 +36,7 @@ from hatchet_sdk.worker.action_listener_process import (
     worker_action_listener_process,
 )
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
+from hatchet_sdk.worker.slot_types import SlotType
 
 T = TypeVar("T")
 
@@ -335,6 +336,7 @@ class Worker:
                 self.name,
                 self.action_registry,
                 sum(self.slot_config.values()),
+                self.slot_config.get(SlotType.DURABLE.value, 0),
                 self.config,
                 self.action_queue,
                 self.event_queue,
