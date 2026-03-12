@@ -528,7 +528,7 @@ type FailTaskInternalFailureRow struct {
 	RetryCount int32              `json:"retry_count"`
 }
 
-// Fails a task due to an application-level error
+// Fails a task due to an internal error
 func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg FailTaskInternalFailureParams) ([]*FailTaskInternalFailureRow, error) {
 	rows, err := db.Query(ctx, failTaskInternalFailure,
 		arg.Maxinternalretries,
