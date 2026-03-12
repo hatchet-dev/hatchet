@@ -4,10 +4,6 @@ on:
   pull_request:
     paths:
       - ".github/**"
-      - "api/**"
-      - "api-contracts/**"
-      - "internal/**"
-      - "pkg/**"
       - "sdks/ruby/**"
   push:
     branches:
@@ -27,7 +23,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@09a7688d3b55cf0e976497ff046b70949eeaccfd # v1.288.0
+        uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1.292.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -64,7 +60,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
@@ -98,7 +94,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@09a7688d3b55cf0e976497ff046b70949eeaccfd # v1.288.0
+        uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1.292.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -129,27 +125,78 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@09a7688d3b55cf0e976497ff046b70949eeaccfd # v1.288.0
+        uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1.292.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
           working-directory: ./sdks/ruby/examples
 
-      - name: Start example worker
-        working-directory: ./sdks/ruby/examples
-        run: bundle exec ruby worker.rb > worker.log 2>&1 &
-
-      - name: Wait for worker health
+      - name: Wait for API readiness
+        working-directory: .
         run: |
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8001/health > /dev/null 2>&1; then
-              echo "Worker is healthy after ${i}s"
-              exit 0
+          echo "Waiting for API at http://localhost:8080/api/ready..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/api/ready > /dev/null 2>&1; then
+              echo "API ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "API did not become ready within 60s"
+              tail -n 50 engine.log 2>/dev/null || true
+              tail -n 50 api.log 2>/dev/null || true
+              exit 1
             fi
             sleep 1
           done
-          echo "Worker failed to start within 30s"
-          cat ./sdks/ruby/examples/worker.log || true
+          sleep 5
+
+      - name: Start example worker and wait for health
+        working-directory: ./sdks/ruby/examples
+        run: |
+          export HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT=8001
+          stdbuf -o0 -e0 bundle exec ruby worker.rb > worker.log 2>&1 &
+          WORKER_PID=$!
+          echo "Worker started with PID $WORKER_PID"
+
+          MAX_WAIT=45
+          POLL_INTERVAL=1
+          echo "Waiting 5s for worker to initialize..."
+          sleep 5
+
+          for i in $(seq 1 $MAX_WAIT); do
+            if ! kill -0 "$WORKER_PID" 2>/dev/null; then
+              echo "Worker process (PID $WORKER_PID) exited before becoming healthy"
+              echo "=== worker.log ==="
+              cat worker.log || true
+              echo "=== tail engine.log ==="
+              tail -n 80 "$GITHUB_WORKSPACE/engine.log" 2>/dev/null || true
+              echo "=== tail api.log ==="
+              tail -n 80 "$GITHUB_WORKSPACE/api.log" 2>/dev/null || true
+              exit 1
+            fi
+            if curl -sf http://localhost:8001/health > /dev/null 2>&1; then
+              echo "Worker is healthy after ${i}s"
+              exit 0
+            fi
+            if [ $((i % 5)) -eq 0 ]; then
+              echo "Still waiting for worker health... ${i}s/${MAX_WAIT}s"
+              echo "--- worker.log (last 25 lines) ---"
+              tail -n 25 worker.log 2>/dev/null || true
+              echo "--- engine.log (last 25 lines) ---"
+              tail -n 25 "$GITHUB_WORKSPACE/engine.log" 2>/dev/null || true
+              echo "--- api.log (last 25 lines) ---"
+              tail -n 25 "$GITHUB_WORKSPACE/api.log" 2>/dev/null || true
+            fi
+            sleep $POLL_INTERVAL
+          done
+
+          echo "Worker failed to become healthy within ${MAX_WAIT}s"
+          echo "=== worker.log ==="
+          cat worker.log || true
+          echo "=== tail engine.log ==="
+          tail -n 80 "$GITHUB_WORKSPACE/engine.log" 2>/dev/null || true
+          echo "=== tail api.log ==="
+          tail -n 80 "$GITHUB_WORKSPACE/api.log" 2>/dev/null || true
           exit 1
 
       - name: Run e2e tests
@@ -191,7 +238,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@09a7688d3b55cf0e976497ff046b70949eeaccfd # v1.288.0
+        uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1.292.0
         with:
           ruby-version: "3.2"
           bundler-cache: true

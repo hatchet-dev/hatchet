@@ -1,19 +1,51 @@
 export default {
-  home: {
+  v1: {
     title: "Guide",
     type: "page",
     theme: {
-      toc: false,
+      toc: true,
     },
   },
-  _setup: {
+  cookbooks: {
+    title: "Cookbooks",
+    type: "page",
     display: "hidden",
+    theme: {
+      toc: true,
+    },
   },
   "self-hosting": {
-    title: "Self Hosting",
+    title: "Self-Hosting",
     type: "page",
     theme: {
-      toc: false,
+      toc: true,
+    },
+  },
+  reference: {
+    title: "Reference",
+    type: "menu",
+    items: {
+      cli: {
+        title: "CLI Reference",
+        href: "/reference/cli",
+        type: "page",
+      },
+      python: {
+        title: "Python SDK",
+        href: "/reference/python/client",
+        type: "page",
+      },
+      typescript: {
+        title: "Typescript SDK",
+        href: "/reference/typescript/client",
+        type: "page",
+      },
+      go: {
+        title: "Go SDK",
+        href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",
+        type: "page",
+        newWindow: true,
+      },
     },
   },
   contributing: {
@@ -21,14 +53,7 @@ export default {
     type: "page",
     display: "hidden",
     theme: {
-      toc: false,
-    },
-  },
-  cli: {
-    title: "CLI Reference",
-    type: "page",
-    theme: {
-      toc: false,
+      toc: true,
     },
   },
   "agent-instructions": {
@@ -37,23 +62,6 @@ export default {
     display: "hidden",
     theme: {
       toc: false,
-    },
-  },
-  sdks: {
-    title: "SDK Reference",
-    type: "menu",
-    items: {
-      python: {
-        title: "Python",
-        href: "/sdks/python/client",
-        type: "page",
-      },
-      go: {
-        title: "Go",
-        href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",
-        type: "page",
-        newWindow: true,
-      },
     },
   },
 };

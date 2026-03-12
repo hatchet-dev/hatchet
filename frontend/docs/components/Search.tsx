@@ -17,13 +17,17 @@ import {
 } from "@/lib/search-config";
 
 // ---------------------------------------------------------------------------
-// Lazy singleton for the search index
+// Lazy singleton for the search index (keyed by basePath so basePath changes don't reuse wrong index)
 // ---------------------------------------------------------------------------
 let indexPromise: Promise<MiniSearch> | null = null;
+let indexPromiseBasePath: string | undefined = undefined;
 
-function loadIndex(): Promise<MiniSearch> {
-  if (!indexPromise) {
-    indexPromise = fetch("/llms-search-index.json")
+function loadIndex(basePath: string = ""): Promise<MiniSearch> {
+  const prefix = basePath ? basePath.replace(/\/$/, "") : "";
+  const url = `${prefix}/llms-search-index.json`;
+  if (indexPromise === null || indexPromiseBasePath !== basePath) {
+    indexPromiseBasePath = basePath;
+    indexPromise = fetch(url)
       .then((res) => {
         if (!res.ok)
           throw new Error(`Failed to load search index: ${res.status}`);
@@ -36,7 +40,13 @@ function loadIndex(): Promise<MiniSearch> {
 
 /** Convert a MiniSearch doc id to a Next.js route. */
 function idToRoute(id: string): string {
-  return "/" + id.replace("hatchet://docs/", "");
+  return (
+    "/" +
+    id
+      .replace("hatchet://docs/", "")
+      .replace(/\/index$/, "")
+      .replace(/\/index#/, "#")
+  );
 }
 
 /** Extract the page route (without anchor) from a result. */
@@ -222,6 +232,8 @@ export default function Search({ className }: { className?: string }) {
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
+  const basePath = router.basePath ?? "";
+
   // Lazy-load the search index on first interaction (focus / open) rather
   // than on every page load.  The search-query effect below already handles
   // the case where the index isn't ready yet, so this is purely a preload
@@ -230,9 +242,9 @@ export default function Search({ className }: { className?: string }) {
   const preloadIndex = useCallback(() => {
     if (!preloadTriggered.current) {
       preloadTriggered.current = true;
-      loadIndex().then(() => setIndexReady(true));
+      loadIndex(basePath).then(() => setIndexReady(true));
     }
-  }, []);
+  }, [basePath]);
 
   // Run the search when the query changes
   useEffect(() => {
@@ -258,7 +270,7 @@ export default function Search({ className }: { className?: string }) {
 
     if (!indexReady) {
       setLoading(true);
-      loadIndex()
+      loadIndex(basePath)
         .then((idx) => {
           setIndexReady(true);
           setLoading(false);
@@ -268,10 +280,10 @@ export default function Search({ className }: { className?: string }) {
       return;
     }
 
-    loadIndex()
+    loadIndex(basePath)
       .then(runSearch)
       .catch(() => {});
-  }, [query, indexReady]);
+  }, [query, indexReady, basePath]);
 
   // Global keyboard shortcut: / or Cmd/Ctrl+K
   useEffect(() => {

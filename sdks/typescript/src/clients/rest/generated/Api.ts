@@ -92,6 +92,8 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1BranchDurableTaskRequest,
+  V1BranchDurableTaskResponse,
   V1CELDebugRequest,
   V1CELDebugResponse,
   V1CancelTaskRequest,
@@ -108,6 +110,7 @@ import {
   V1LogLineOrderByDirection,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
+  V1RestoreTaskResponse,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -120,6 +123,7 @@ import {
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
+  V1WebhookResponse,
   V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
@@ -290,6 +294,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Restore an evicted durable task
+   *
+   * @tags Task
+   * @name V1TaskRestore
+   * @summary Restore a task
+   * @request POST:/api/v1/stable/tasks/{task}/restore
+   * @secure
+   */
+  v1TaskRestore = (task: string, params: RequestParams = {}) =>
+    this.request<V1RestoreTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/restore`,
+      method: 'POST',
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -478,6 +499,29 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Branch a durable task from a specific node, creating a new branch and re-processing its matches.
+   *
+   * @tags Workflow Runs
+   * @name V1DurableTaskBranch
+   * @summary Branch durable task
+   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/branch
+   * @secure
+   */
+  v1DurableTaskBranch = (
+    tenant: string,
+    data: V1BranchDurableTaskRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1BranchDurableTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/branch`,
       method: 'POST',
       body: data,
       secure: true,
@@ -965,7 +1009,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    */
   v1WebhookReceive = (tenant: string, v1Webhook: string, data?: any, params: RequestParams = {}) =>
-    this.request<Record<string, any>, APIErrors>({
+    this.request<V1WebhookResponse, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: 'POST',
       body: data,

@@ -90,6 +90,11 @@ class MetricsClient(BaseRestClient):
         return await asyncio.to_thread(self.scrape_tenant_prometheus_metrics)
 
     def get_task_stats(self) -> dict[str, TaskStat]:
+        """
+        Get task statistics for the tenant.
+
+        :return: A dictionary mapping task names to their statistics.
+        """
         with self.client() as client:
             get_task_stats = tenacity_retry(
                 self._ta(client).tenant_get_task_stats, self.client_config.tenacity
@@ -99,6 +104,11 @@ class MetricsClient(BaseRestClient):
             )
 
     async def aio_get_task_stats(self) -> dict[str, TaskStat]:
+        """
+        Get task statistics for the tenant.
+
+        :return: A dictionary mapping task names to their statistics.
+        """
         return await asyncio.to_thread(self.get_task_stats)
 
     def get_task_metrics(

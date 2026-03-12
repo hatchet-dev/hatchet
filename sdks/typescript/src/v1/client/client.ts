@@ -1,5 +1,10 @@
-/* eslint-disable no-dupe-class-members */
-/* eslint-disable no-underscore-dangle */
+/**
+ * This is the TypeScript SDK reference, documenting methods available for interacting with Hatchet resources.
+ * Check out the [user guide](https://docs.hatchet.run/home/) for an introduction to getting your first tasks running.
+ *
+ * @module Hatchet TypeScript SDK Reference
+ */
+
 import {
   ClientConfig,
   ClientConfigSchema,
@@ -11,16 +16,17 @@ import {
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { V0DurableContext } from '@hatchet/step';
 import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
 import { z } from 'zod';
-import { LogLevel } from '@hatchet/clients/event/event-client';
+import { EventClient, LogLevel } from '@hatchet/clients/event/event-client';
+import { DispatcherClient } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { Logger } from '@hatchet/util/logger';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
+import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
-import { createClientFactory } from 'nice-grpc';
+import { ChannelCredentials, ClientFactory, createClientFactory } from 'nice-grpc';
 import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
@@ -33,12 +39,24 @@ import {
   CreateDurableTaskWorkflow,
   CreateDurableTaskWorkflowOpts,
 } from '../declaration';
+import type { LegacyWorkflow } from '../../legacy/legacy-transformer';
+import { getWorkflowName } from '../../legacy/legacy-transformer';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker/worker';
-import { MetricsClient } from './features/metrics';
-import { WorkersClient } from './features/workers';
-import { WorkflowsClient } from './features/workflows';
-import { RunsClient } from './features/runs';
+import {
+  CELClient,
+  CronClient,
+  FiltersClient,
+  LogsClient,
+  MetricsClient,
+  RatelimitsClient,
+  RunsClient,
+  ScheduleClient,
+  TenantClient,
+  WebhooksClient,
+  WorkersClient,
+  WorkflowsClient,
+} from './features';
 import {
   InputType,
   OutputType,
@@ -46,14 +64,8 @@ import {
   StrictWorkflowOutputType,
   Resolved,
 } from '../types';
-import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
-import { FiltersClient } from './features/filters';
-import { ScheduleClient } from './features/schedules';
-import { CronClient } from './features/crons';
-import { CELClient } from './features/cel';
-import { TenantClient } from './features/tenant';
-import { WebhooksClient } from './features/webhooks';
+import { DurableContext } from './worker/context';
 
 type MergeIfNonEmpty<Base, Extra extends Record<string, any>> = keyof Extra extends never
   ? Base
@@ -72,22 +84,40 @@ export class HatchetClient<
   GlobalOutput extends Record<string, any> = {},
   MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
-> implements IHatchetClient
-{
-  /** The underlying v0 client instance */
-  _v0: LegacyHatchetClient;
+> implements IHatchetClient {
+  private _v0: LegacyHatchetClient | undefined;
   _api: Api;
   _listener: RunListenerClient;
+  private _options: HatchetClientOptions | undefined;
+  private _axiosConfig: AxiosRequestConfig | undefined;
+  private _clientFactory: ClientFactory;
+  private _credentials: ChannelCredentials;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
+   * @hidden
    */
   get v0() {
+    if (!this._v0) {
+      this._v0 = new LegacyHatchetClient(
+        this._config,
+        this._options,
+        this._axiosConfig,
+        this.runs,
+        this._listener,
+        this.events,
+        this.dispatcher,
+        this.logger,
+        this.durableListener
+      );
+    }
     return this._v0;
   }
 
   /** The tenant ID for the Hatchet client */
   tenantId: string;
+
+  logger: Logger;
 
   _isV1: boolean | undefined = true;
 
@@ -100,6 +130,7 @@ export class HatchetClient<
    * @param config - Optional configuration for the client
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
+   * @internal
    */
   constructor(
     config?: Partial<ClientConfig>,
@@ -127,29 +158,25 @@ export class HatchetClient<
       this._config = clientConfig;
 
       this.tenantId = clientConfig.tenant_id;
+      this.logger = clientConfig.logger('HatchetClient', clientConfig.log_level);
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
 
-      const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
-      const credentials =
+      this._clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+      this._credentials =
         options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
 
       this._listener = new RunListenerClient(
         this.config,
-        channelFactory(this.config, credentials),
-        clientFactory,
+        channelFactory(this.config, this._credentials),
+        this._clientFactory,
         this.api
       );
 
-      this._v0 = new LegacyHatchetClient(
-        clientConfig,
-        options,
-        axiosConfig,
-        this.runs,
-        this._listener
-      );
+      this._options = options;
+      this._axiosConfig = axiosConfig;
     } catch (e) {
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid client config: ${e.message}`);
+        throw new Error(`Invalid client config: ${e.message}`, { cause: e });
       }
       throw e;
     }
@@ -169,7 +196,7 @@ export class HatchetClient<
         .catch(() => {
           // Do nothing here
         });
-    } catch (e) {
+    } catch {
       // Do nothing here
     }
   }
@@ -182,6 +209,7 @@ export class HatchetClient<
    * @param options - Optional client options.
    * @param axiosConfig - Optional Axios configuration for HTTP requests.
    * @returns A new Hatchet client instance. Chain `.withMiddleware()` to attach typed middleware.
+   * @internal
    */
   static init<T extends Record<string, any> = {}, U extends Record<string, any> = {}>(
     config?: Omit<Partial<ClientConfig>, 'middleware'>,
@@ -197,6 +225,7 @@ export class HatchetClient<
    *
    * Use this after `init<T, U>()` to get full middleware return-type inference
    * that TypeScript can't provide when global types are explicitly set on `init`.
+   * @internal
    */
   withMiddleware<
     const M extends TaskMiddleware<
@@ -213,8 +242,12 @@ export class HatchetClient<
   > {
     const existing: TaskMiddleware = (this._config as any).middleware || {};
     const toArray = <T>(v: T | readonly T[] | undefined): T[] => {
-      if (v == null) return [];
-      if (Array.isArray(v)) return [...v];
+      if (v == null) {
+        return [];
+      }
+      if (Array.isArray(v)) {
+        return [...v];
+      }
       return [v as T];
     };
 
@@ -321,7 +354,7 @@ export class HatchetClient<
    * @returns A TaskWorkflowDeclaration instance with inferred types
    */
   durableTask<
-    Fn extends (input: I, ctx: V0DurableContext<I>) => O | Promise<O>,
+    Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
     I extends InputType = Parameters<Fn>[0],
     O extends OutputType = ReturnType<Fn> extends Promise<infer P>
       ? P extends OutputType
@@ -353,34 +386,26 @@ export class HatchetClient<
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
   async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts
   ): Promise<WorkflowRunRef<O>> {
-    let name: string;
-    if (typeof workflow === 'string') {
-      name = workflow;
-    } else if ('id' in workflow) {
-      name = workflow.id;
-    } else {
-      throw new Error('unable to identify workflow');
-    }
-
+    const name = getWorkflowName(workflow);
     return this.admin.runWorkflow<I, O>(name, input, options);
   }
 
   /**
-   * @alias run
    * Triggers a workflow run and waits for the result.
    * @template I - The input type for the workflow
    * @template O - The return type of the workflow
    * @param workflow - The workflow to run, either as a Workflow instance or workflow name
    * @param input - The input data for the workflow
+   * @alias run
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
   async runAndWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
@@ -397,7 +422,7 @@ export class HatchetClient<
    * @returns A promise that resolves with the workflow result
    */
   async run<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
@@ -410,6 +435,7 @@ export class HatchetClient<
   /**
    * Get the CEL client for debugging CEL expressions
    * @returns A CEL client instance
+   * @internal
    */
   get cel() {
     if (!this._cel) {
@@ -435,6 +461,7 @@ export class HatchetClient<
    * Get the cron client for creating and managing cron workflow runs
    * @returns A cron client instance
    * @deprecated use client.crons instead
+   * @hidden
    */
   get cron() {
     return this.crons;
@@ -457,6 +484,7 @@ export class HatchetClient<
    * Get the schedule client for creating and managing scheduled workflow runs
    * @returns A schedule client instance
    * @deprecated use client.scheduled instead
+   * @hidden
    */
   get schedule() {
     return this.scheduled;
@@ -469,18 +497,73 @@ export class HatchetClient<
     return this.scheduled;
   }
 
+  private _dispatcher: DispatcherClient | undefined;
+
+  /**
+   * Get the dispatcher client for sending action events and managing worker registration
+   * @returns A dispatcher client instance
+   * @internal
+   */
+  get dispatcher() {
+    if (!this._dispatcher) {
+      this._dispatcher = new DispatcherClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory
+      );
+    }
+    return this._dispatcher;
+  }
+
+  private _event: EventClient | undefined;
+
   /**
    * Get the event client for creating and managing event workflow runs
    * @returns A event client instance
    */
   get events() {
-    return this._v0.event;
+    if (!this._event) {
+      this._event = new EventClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory,
+        this.api
+      );
+    }
+    return this._event;
+  }
+
+  private _durableListener: DurableListenerClient | undefined;
+
+  /**
+   * Get the durable listener client for managing durable event subscriptions
+   * @returns A durable listener client instance
+   * @internal
+   */
+  get durableListener() {
+    if (!this._durableListener) {
+      this._durableListener = new DurableListenerClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory,
+        this.api
+      );
+    }
+    return this._durableListener;
   }
 
   /**
-   * Get the event client for creating and managing event workflow runs
-   * @returns A event client instance
+   * Get the run listener client for streaming workflow run results
+   * @returns A run listener client instance
+   * @internal
+   */
+  get listener() {
+    return this._listener;
+  }
+
+  /**
    * @deprecated use client.events instead
+   * @hidden
    */
   get event() {
     return this.events;
@@ -535,6 +618,19 @@ export class HatchetClient<
       this._webhooks = new WebhooksClient(this);
     }
     return this._webhooks;
+  }
+
+  private _logs: LogsClient | undefined;
+
+  /**
+   * Get the logs client for creating and managing logs
+   * @returns A logs client instance
+   */
+  get logs() {
+    if (!this._logs) {
+      this._logs = new LogsClient(this);
+    }
+    return this._logs;
   }
 
   private _ratelimits: RatelimitsClient | undefined;
@@ -611,10 +707,11 @@ export class HatchetClient<
   /**
    * Get the admin client for creating and managing workflows
    * @returns A admin client instance
+   * @internal
    */
   get admin() {
     if (!this._admin) {
-      this._admin = new AdminClient(this._v0.config, this.api, this.runs);
+      this._admin = new AdminClient(this._config, this.api, this.runs);
     }
     return this._admin;
   }
@@ -625,23 +722,10 @@ export class HatchetClient<
    * @returns A promise that resolves with a new HatchetWorker instance
    */
   worker(name: string, options?: CreateWorkerOpts | number): Promise<Worker> {
-    let opts: CreateWorkerOpts = {};
-    if (typeof options === 'number') {
-      opts = { slots: options };
-    } else {
-      opts = options || {};
-    }
+    const opts: CreateWorkerOpts =
+      typeof options === 'number' ? { slots: options } : (options ?? {});
 
-    return Worker.create(this, this._v0, name, opts);
-  }
-
-  /**
-   * Register a webhook with the worker
-   * @param workflows - The workflows to register on the webhooks
-   * @returns A promise that resolves when the webhook is registered
-   */
-  v0webhooks(workflows: V0Workflow[]) {
-    return this._v0.webhooks(workflows);
+    return Worker.create(this, name, opts);
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {

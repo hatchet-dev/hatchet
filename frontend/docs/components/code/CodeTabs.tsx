@@ -1,7 +1,8 @@
 import React from "react";
+import { DOC_LANGUAGES } from "@/lib/docs-languages";
 import UniversalTabs from "../UniversalTabs";
 
-const languages = ["Python", "Typescript", "Go", "Ruby"];
+const languages = [...DOC_LANGUAGES];
 
 type CodeSource = {
   path?: string;
@@ -45,6 +46,3 @@ export const CodeTabs: React.FC<CodeTabsProps> = ({ children }) => {
 };
 
 export default UniversalTabs;
-function useMemo(arg0: () => any, arg1: any[]) {
-  throw new Error("Function not implemented.");
-}

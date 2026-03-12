@@ -9,6 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -63,13 +65,17 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 			Priority:           &priority,
 		},
 	)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "unique constraint") {
 			return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("cron trigger with that name-expression pair already exists")), nil
 		}
 
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("error creating cron trigger")), nil
+	}
+	msg := tasktypes.NewCronUpdateMessage(request.Tenant, msgqueue.MsgIDCronCreate)
+	err = t.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.TICKER_UPDATE_QUEUE, msg)
+	if err != nil {
+		t.config.Logger.Err(err).Msg("could not send cron trigger update message")
 	}
 
 	return gen.CronWorkflowTriggerCreate200JSONResponse(

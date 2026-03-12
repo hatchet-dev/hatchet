@@ -6,14 +6,14 @@
  * non-durable workers, each registered with the legacy `slots` proto field.
  */
 
-/* eslint-disable no-underscore-dangle */
-import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { Status } from 'nice-grpc';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { BaseWorkflowDeclaration } from '../../../declaration';
 import { HatchetClient } from '../../..';
 import { CreateWorkerOpts } from '../worker';
 import { LegacyV1Worker } from './legacy-v1-worker';
 import { emitDeprecationNotice, semverLessThan } from './deprecation';
+import { transformLegacyWorkflow } from '../../../../legacy/legacy-transformer';
 
 const DEFAULT_DEFAULT_SLOTS = 100;
 const DEFAULT_DURABLE_SLOTS = 1_000;
@@ -37,11 +37,11 @@ const LEGACY_ENGINE_MESSAGE =
  */
 export async function isLegacyEngine(v1: HatchetClient): Promise<boolean> {
   try {
-    const version = await v1._v0.dispatcher.getVersion();
+    const version = await v1.dispatcher.getVersion();
 
     // If the version is empty or older than the minimum, treat as legacy
     if (!version || semverLessThan(version, MIN_SLOT_CONFIG_VERSION)) {
-      const logger = v1._v0.config.logger('Worker', v1._v0.config.log_level);
+      const logger = v1.config.logger('Worker', v1.config.log_level);
       emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
         errorDays: 180,
       });
@@ -49,9 +49,9 @@ export async function isLegacyEngine(v1: HatchetClient): Promise<boolean> {
     }
 
     return false;
-  } catch (e: any) {
-    if (e?.code === Status.UNIMPLEMENTED) {
-      const logger = v1._v0.config.logger('Worker', v1._v0.config.log_level);
+  } catch (e: unknown) {
+    if (getGrpcErrorCode(e) === Status.UNIMPLEMENTED) {
+      const logger = v1.config.logger('Worker', v1.config.log_level);
       emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
         errorDays: 180,
       });
@@ -124,14 +124,14 @@ export class LegacyDualWorker {
     for (const wf of options.workflows || []) {
       if (wf instanceof BaseWorkflowDeclaration) {
         if (wf.definition._durableTasks.length > 0 && durableWorker) {
-          await durableWorker.registerWorkflowV1(wf);
-          durableWorker.registerDurableActionsV1(wf.definition);
+          await durableWorker.registerWorkflow(wf);
+          durableWorker.registerDurableActions(wf.definition);
         } else {
-          await nonDurable.registerWorkflowV1(wf);
+          await nonDurable.registerWorkflow(wf);
         }
       } else {
         // fallback to v0 client for backwards compatibility
-        await nonDurable.registerWorkflow(wf as V0Workflow);
+        await nonDurable.registerWorkflow(transformLegacyWorkflow(wf));
       }
     }
 

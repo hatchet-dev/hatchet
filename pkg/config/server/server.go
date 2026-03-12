@@ -298,6 +298,10 @@ type ConfigFileRuntime struct {
 
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
+
+	// StreamEventBufferTimeout is the timeout duration for the stream event buffer in the dispatcher.
+	// This controls how long the buffer waits for out-of-order events before flushing them.
+	StreamEventBufferTimeout time.Duration `mapstructure:"streamEventBufferTimeout" json:"streamEventBufferTimeout,omitempty" default:"5s"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -533,9 +537,11 @@ type SMTPEmailConfigAuthBasic struct {
 }
 type CustomAuthenticator interface {
 	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
-	Authenticate(c echo.Context) error
+	Authenticate(c echo.Context, r *middleware.RouteInfo) error
+
 	// Authorize is called to authorize for endpoints that support the customAuth security scheme
 	Authorize(c echo.Context, r *middleware.RouteInfo) error
+
 	// CookieAuthorizerHook is called as part of cookie authorization
 	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
 }
@@ -905,6 +911,7 @@ func BindAllEnv(v *viper.Viper) {
 
 	// dispatcher options
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
+	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")

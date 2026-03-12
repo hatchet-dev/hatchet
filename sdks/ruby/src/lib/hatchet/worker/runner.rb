@@ -136,6 +136,7 @@ module Hatchet
           additional_metadata: ContextVars.additional_metadata,
           retry_count: action.retry_count,
           parent_outputs: parent_outputs,
+          worker_id: ContextVars.worker_id,
         )
 
         # Parse input from action payload

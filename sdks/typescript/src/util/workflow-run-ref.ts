@@ -1,10 +1,9 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable max-classes-per-file */
 import {
   RunListenerClient,
   StepRunEvent,
 } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Status } from 'nice-grpc';
+import { getGrpcErrorCode, getGrpcErrorDetails } from './grpc-error';
 import { RunsClient } from '@hatchet/v1';
 import { WorkflowRunEventType } from '../protoc/dispatcher';
 
@@ -35,9 +34,9 @@ async function getWorkflowRunId(workflowRunId: EventualWorkflowRunId): Promise<s
       }
 
       return resolved.workflowRunId;
-    } catch (e: any) {
-      if (e.code && e.code === Status.ALREADY_EXISTS) {
-        throw new DedupeViolationErr(e.details);
+    } catch (e: unknown) {
+      if (getGrpcErrorCode(e) === Status.ALREADY_EXISTS) {
+        throw new DedupeViolationErr(getGrpcErrorDetails(e) ?? '');
       }
 
       throw e;
@@ -53,6 +52,12 @@ export default class WorkflowRunRef<T> {
   private client: RunListenerClient;
   private runs: RunsClient | undefined;
   _standaloneTaskName?: string;
+  /**
+   * Optional default AbortSignal used for listener-backed waits (e.g. `.result()`).
+   * This is primarily set when a run is spawned from within a task so cancellations propagate
+   * without manually threading `{ signal }` everywhere.
+   */
+  defaultSignal?: AbortSignal;
 
   constructor(
     workflowRunId:
@@ -64,13 +69,15 @@ export default class WorkflowRunRef<T> {
     client: RunListenerClient,
     runsClient?: RunsClient,
     parentWorkflowRunId?: string,
-    standaloneTaskName?: string
+    standaloneTaskName?: string,
+    defaultSignal?: AbortSignal
   ) {
     this.workflowRunId = workflowRunId;
     this.parentWorkflowRunId = parentWorkflowRunId;
     this.client = client;
     this.runs = runsClient;
     this._standaloneTaskName = standaloneTaskName;
+    this.defaultSignal = defaultSignal;
   }
 
   // TODO docstrings
@@ -103,7 +110,8 @@ export default class WorkflowRunRef<T> {
 
     return new Promise<T>((resolve, reject) => {
       (async () => {
-        for await (const event of streamable.stream()) {
+        const signal = this.defaultSignal;
+        for await (const event of streamable.stream({ signal })) {
           if (event.eventType === WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED) {
             if (event.results.some((r) => r.error !== undefined)) {
               // HACK: this might replace intentional empty errors but this is the more common case
@@ -128,7 +136,7 @@ export default class WorkflowRunRef<T> {
                 return;
               }
 
-              const outputs: { [readableStepName: string]: any } = {};
+              const outputs: Record<string, unknown> = {};
 
               mostRecentJobRun.stepRuns?.forEach((stepRun) => {
                 const readable = mostRecentJobRun.job?.steps?.find(
@@ -137,7 +145,7 @@ export default class WorkflowRunRef<T> {
                 const readableStepName = `${readable?.readableId}`;
                 try {
                   outputs[readableStepName] = JSON.parse(stepRun.output || '{}');
-                } catch (error) {
+                } catch {
                   outputs[readableStepName] = stepRun.output;
                 }
               });
@@ -164,11 +172,11 @@ export default class WorkflowRunRef<T> {
               return;
             }
 
-            resolve((result as any)[this._standaloneTaskName] as T);
+            resolve((result as Record<string, unknown>)[this._standaloneTaskName] as T);
             return;
           }
         }
-      })();
+      })().catch(reject);
     });
   }
 

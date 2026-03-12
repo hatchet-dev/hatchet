@@ -1,31 +1,93 @@
-// eslint-disable-next-line max-classes-per-file
-import { EventEmitter, on } from 'events';
+import { EventEmitter, getMaxListeners, on, setMaxListeners } from 'events';
 import {
   WorkflowRunEvent,
   SubscribeToWorkflowRunsRequest,
   WorkflowRunEventType,
 } from '@hatchet/protoc/dispatcher';
 import { isAbortError } from 'abort-controller-x';
+import { getErrorMessage } from '@util/errors/hatchet-error';
 import sleep from '@hatchet/util/sleep';
+import { createAbortError } from '@hatchet/util/abort-error';
 import { RunListenerClient } from './child-listener-client';
 
 export class Streamable {
   listener: AsyncIterable<WorkflowRunEvent>;
   id: string;
+  onCleanup: () => void;
+  private cleanedUp = false;
 
   responseEmitter = new EventEmitter();
 
-  constructor(listener: AsyncIterable<WorkflowRunEvent>, id: string) {
+  constructor(listener: AsyncIterable<WorkflowRunEvent>, id: string, onCleanup: () => void) {
     this.listener = listener;
     this.id = id;
+    this.onCleanup = onCleanup;
   }
 
-  async *stream(): AsyncGenerator<WorkflowRunEvent, void, unknown> {
+  private cleanupOnce() {
+    if (this.cleanedUp) {
+      return;
+    }
+    this.cleanedUp = true;
+    this.onCleanup();
+  }
+
+  async get(opts?: { signal?: AbortSignal }): Promise<WorkflowRunEvent> {
+    const signal = opts?.signal;
+
+    return new Promise((resolve, reject) => {
+      const cleanupListeners = () => {
+        this.responseEmitter.removeListener('response', onResponse);
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+      };
+
+      const onResponse = (event: WorkflowRunEvent) => {
+        cleanupListeners();
+        resolve(event);
+      };
+
+      const onAbort = () => {
+        cleanupListeners();
+        this.cleanupOnce();
+        reject(createAbortError('Operation cancelled by AbortSignal'));
+      };
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      this.responseEmitter.once('response', onResponse);
+      if (signal) {
+        /**
+         * Node defaults AbortSignal max listeners to 10, which is easy to exceed with
+         * legitimate high-concurrency waits (e.g. a cancelled parent task fanning out
+         * to many child `.result()` waits).
+         *
+         * If the signal is still at the default cap, bump it to a reasonable level
+         * to avoid noisy `MaxListenersExceededWarning` while still keeping protection
+         * against true leaks in unusual cases.
+         */
+        const max = getMaxListeners(signal);
+        if (max !== 0 && max < 50) {
+          setMaxListeners(50, signal);
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    });
+  }
+
+  async *stream(opts?: { signal?: AbortSignal }): AsyncGenerator<WorkflowRunEvent, void, unknown> {
     while (true) {
-      const req: WorkflowRunEvent = await new Promise((resolve) => {
-        this.responseEmitter.once('response', resolve);
-      });
-      yield req;
+      const event = await this.get(opts);
+      yield event;
+
+      if (event.eventType === WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED) {
+        this.cleanupOnce();
+        break;
+      }
     }
   }
 }
@@ -64,7 +126,9 @@ export class RunGrpcPooledListener {
         signal: this.signal.signal,
       });
 
-      if (retries > 0) setTimeout(() => this.replayRequests(), 100);
+      if (retries > 0) {
+        setTimeout(() => this.replayRequests(), 100);
+      }
 
       for await (const event of this.listener) {
         retryCount = 0;
@@ -79,12 +143,12 @@ export class RunGrpcPooledListener {
       }
 
       this.client.logger.debug('Child listener finished');
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isAbortError(e)) {
         this.client.logger.debug('Child Listener aborted');
         return;
       }
-      this.client.logger.error(`Error in child-listener: ${e.message}`);
+      this.client.logger.error(`Error in child-listener: ${getErrorMessage(e)}`);
     } finally {
       // it is possible the server hangs up early,
       // restart the listener if we still have subscribers
@@ -97,9 +161,17 @@ export class RunGrpcPooledListener {
   }
 
   subscribe(request: SubscribeToWorkflowRunsRequest) {
-    if (!this.listener) throw new Error('listener not initialized');
+    if (!this.listener) {
+      throw new Error('listener not initialized');
+    }
 
-    this.subscribers[request.workflowRunId] = new Streamable(this.listener, request.workflowRunId);
+    this.subscribers[request.workflowRunId] = new Streamable(
+      this.listener,
+      request.workflowRunId,
+      () => {
+        delete this.subscribers[request.workflowRunId];
+      }
+    );
     this.requestEmitter.emit('subscribe', request);
     return this.subscribers[request.workflowRunId];
   }

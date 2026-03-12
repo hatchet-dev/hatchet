@@ -696,19 +696,27 @@ LIMIT 1;
 -- name: GetWorkflowVersionById :one
 SELECT
     sqlc.embed(wv),
-    sqlc.embed(w),
-    wc.id as "concurrencyId",
-    wc.max_concurrency as "concurrencyMaxRuns",
-    wc.strategy as "concurrencyLimitStrategy",
-    wc.expression as "concurrencyExpression"
+    sqlc.embed(w)
 FROM
     "WorkflowVersion" as wv
 JOIN "Workflow" as w on w."id" = wv."workflowId"
-LEFT JOIN v1_workflow_concurrency as wc ON (wc.workflow_version_id, wc.workflow_id) = (wv."id", w."id")
 WHERE
     wv."id" = @id::uuid AND
     wv."deletedAt" IS NULL
 LIMIT 1;
+
+-- name: ListWorkflowConcurrencyByVersionId :many
+SELECT
+    wc.id,
+    wc.max_concurrency AS "maxRuns",
+    wc.strategy AS "limitStrategy",
+    wc.expression
+FROM
+    v1_workflow_concurrency wc
+WHERE
+    wc.workflow_version_id = @workflowVersionId::uuid AND
+    wc.workflow_id = @workflowId::uuid
+ORDER BY wc.id ASC;
 
 -- name: ListWorkflows :many
 SELECT

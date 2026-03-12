@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import { Channel, ClientFactory } from 'nice-grpc';
 
 import { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -31,6 +30,16 @@ export class DurableListenerClient {
     }
 
     return this.pooledListener.subscribe(request);
+  }
+
+  result(request: { taskId: string; signalKey: string }, opts?: { signal?: AbortSignal }) {
+    if (!this.pooledListener) {
+      this.pooledListener = new DurableEventGrpcPooledListener(this, () => {
+        this.pooledListener = undefined;
+      });
+    }
+
+    return this.pooledListener.result(request, opts);
   }
 
   registerDurableEvent(request: {

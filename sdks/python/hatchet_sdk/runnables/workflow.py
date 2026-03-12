@@ -33,11 +33,10 @@ from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
-    DesiredWorkerLabels,
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
-from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk.labels import DesiredWorkerLabel, transform_desired_worker_label
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
@@ -116,17 +115,6 @@ class ComputedTaskParameters(BaseModel):
         )
 
         return self
-
-
-def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
-    value = d.value
-    return DesiredWorkerLabels(
-        str_value=value if not isinstance(value, int) else None,
-        int_value=value if isinstance(value, int) else None,
-        required=d.required,
-        weight=d.weight,
-        comparator=d.comparator,  # type: ignore[arg-type]
-    )
 
 
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
@@ -306,15 +294,20 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
             key=key,
         )
 
-    def _serialize_input(self, input: TWorkflowInput | None) -> JSONSerializableMapping:
-        if not input:
-            return {}
+    def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:
+        return self.config.input_validator.dump_json(
+            input,  # type: ignore[arg-type]
+            context=HATCHET_PYDANTIC_SENTINEL,
+        ).decode("utf-8")
 
+    def _serialize_input_to_dict(
+        self, input: TWorkflowInput | None
+    ) -> JSONSerializableMapping:
         return cast(
             JSONSerializableMapping,
             self.config.input_validator.dump_python(
@@ -323,6 +316,32 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 context=HATCHET_PYDANTIC_SENTINEL,
             ),
         )
+
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["string"] = "string"
+    ) -> str | None: ...
+
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["dict"] = "dict"
+    ) -> JSONSerializableMapping: ...
+
+    def _serialize_input(
+        self,
+        input: TWorkflowInput | None,
+        target: Literal["string"] | Literal["dict"] = "string",
+    ) -> JSONSerializableMapping | str | None:
+        if not input:
+            return None
+
+        if target == "string":
+            return self._serialize_input_to_str(input)
+
+        if target == "dict":
+            return self._serialize_input_to_dict(input)
+
+        raise ValueError(f"Invalid target for input serialization: {target}")
 
     @cached_property
     def id(self) -> str:
@@ -490,7 +509,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return self.client._client.admin.schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=options,
         )
 
@@ -511,7 +530,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=options,
         )
 
@@ -538,7 +557,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="dict"),
             additional_metadata=additional_metadata or {},
             priority=priority,
         )
@@ -566,7 +585,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="dict"),
             additional_metadata=additional_metadata or {},
             priority=priority,
         )
@@ -641,7 +660,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
 
@@ -663,7 +682,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
 
@@ -686,7 +705,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
 
@@ -707,7 +726,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
 

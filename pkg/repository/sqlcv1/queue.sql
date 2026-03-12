@@ -358,7 +358,8 @@ WITH input AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
 )
 INSERT INTO v1_rate_limited_queue_items (
     requeue_after,
@@ -376,7 +377,8 @@ INSERT INTO v1_rate_limited_queue_items (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     i.requeue_after,
@@ -394,7 +396,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM moved_items
 JOIN input i ON moved_items.id = i.id
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -417,7 +420,8 @@ WITH ready_items AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM
         v1_rate_limited_queue_items
     WHERE
@@ -463,7 +467,8 @@ INSERT INTO v1_queue_item (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     tenant_id,
@@ -480,7 +485,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
 

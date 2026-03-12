@@ -27,6 +27,7 @@ from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.contextvars import ctx_hatchet_context
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     DefaultFilter,
@@ -722,3 +723,11 @@ class Hatchet:
             )
 
         return inner
+
+    def get_current_context(self) -> Context | None:
+        """
+        Get the current Hatchet context, if it exists. This is only available within the execution of a task or workflow.
+
+        :returns: The current `Context` object, or `None` if there is no current context (i.e. if this is called outside of the execution of a task or workflow).
+        """
+        return ctx_hatchet_context.get()

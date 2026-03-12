@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 
 // > Simple Step Retries
@@ -13,7 +12,7 @@ export const retries = hatchet.task({
 
 // > Retries with Count
 export const retriesWithCount = hatchet.task({
-  name: 'retriesWithCount',
+  name: 'retries-with-count',
   retries: 3,
   fn: async (_, ctx) => {
     // > Get the current retry count
@@ -34,7 +33,7 @@ export const retriesWithCount = hatchet.task({
 
 // > Retries with Backoff
 export const withBackoff = hatchet.task({
-  name: 'withBackoff',
+  name: 'with-backoff',
   retries: 10,
   backoff: {
     // 👀 Maximum number of seconds to wait between retries

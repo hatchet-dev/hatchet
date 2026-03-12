@@ -230,6 +230,8 @@ message TriggerWorkflowRequest {
 
     // (optional) override for the priority of the workflow tasks, will set all tasks to this priority
     optional int32 priority = 9;
+
+    map<string, DesiredWorkerLabels> desired_worker_labels = 10; // (optional) override for the desired worker labels for the workflow tasks, used for routing to specific workers (or worker pools)
 }
 
 message TriggerWorkflowResponse {

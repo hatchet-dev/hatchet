@@ -75,6 +75,9 @@ type CreateTaskOpts struct {
 
 	// (optional) the child key for the task
 	ChildKey *string
+
+	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
 }
 
 type ReplayTasksResult struct {
@@ -360,10 +363,14 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
+	// Use the direct pool (bypasses pgbouncer) for DDL operations because
+	// DETACH PARTITION CONCURRENTLY cannot run inside a transaction block.
+	ddlPool := r.DDLPool()
+
 	for _, partition := range partitions {
 		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, ddlPool, r.l, 30*60*1000) // 30 minutes
 
 		if err != nil {
 			return err
@@ -1755,6 +1762,7 @@ func (r *sharedRepository) insertTasks(
 	createExpressionOpts := make(map[uuid.UUID][]createTaskExpressionEvalOpt, 0)
 	workflowVersionIds := make([]uuid.UUID, len(tasks))
 	workflowRunIds := make([]uuid.UUID, len(tasks))
+	desiredWorkerLabels := make([][]byte, len(tasks))
 
 	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
 
@@ -1796,6 +1804,14 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		priorities[i] = priority
+
+		if len(task.DesiredWorkerLabels) > 0 {
+			labelBytes, err := json.Marshal(task.DesiredWorkerLabels)
+			if err != nil {
+				return nil, fmt.Errorf("could not marshal desired worker labels: %w", err)
+			}
+			desiredWorkerLabels[i] = labelBytes
+		}
 
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 
@@ -2064,6 +2080,7 @@ func (r *sharedRepository) insertTasks(
 				WorkflowVersionIds:           make([]uuid.UUID, 0),
 				WorkflowRunIds:               make([]uuid.UUID, 0),
 				Inputs:                       make([][]byte, 0),
+				DesiredWorkerLabels:          make([][]byte, 0),
 			}
 		}
 
@@ -2076,6 +2093,7 @@ func (r *sharedRepository) insertTasks(
 		params.Scheduletimeouts = append(params.Scheduletimeouts, scheduleTimeouts[i])
 		params.Steptimeouts = append(params.Steptimeouts, stepTimeouts[i])
 		params.Priorities = append(params.Priorities, priorities[i])
+		params.DesiredWorkerLabels = append(params.DesiredWorkerLabels, desiredWorkerLabels[i])
 		params.Stickies = append(params.Stickies, stickies[i])
 		params.Desiredworkerids = append(params.Desiredworkerids, desiredWorkerIds[i])
 		params.Externalids = append(params.Externalids, externalIds[i])

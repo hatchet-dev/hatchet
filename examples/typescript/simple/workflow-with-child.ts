@@ -1,4 +1,5 @@
 // > Declaring a Task
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -16,7 +17,9 @@ export const child = hatchet.workflow<ChildInput>({
 
 export const child1 = child.task({
   name: 'child1',
-  fn: (input: ChildInput, ctx) => {
+  fn: async (input: ChildInput, ctx) => {
+    await sleep(30 * 1000);
+
     ctx.logger.info('hello from the child1', { hello: 'moon' });
     return {
       TransformedMessage: input.Message.toLowerCase(),
@@ -37,7 +40,7 @@ export const child2 = child.task({
 export const child3 = child.task({
   name: 'child3',
   parents: [child1, child2],
-  fn: (input: ChildInput, ctx) => {
+  fn: async (input: ChildInput, ctx) => {
     ctx.logger.info('hello from the child3');
     return {
       TransformedMessage: input.Message.toLowerCase(),
@@ -47,6 +50,7 @@ export const child3 = child.task({
 
 export const parent = hatchet.task({
   name: 'parent',
+  executionTimeout: '5m',
   fn: async (input: ParentInput, ctx) => {
     const c = await ctx.runChild(child, {
       Message: input.Message,
