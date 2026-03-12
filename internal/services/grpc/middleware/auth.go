@@ -6,6 +6,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -44,6 +45,14 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
+
+	source := analytics.SourceGRPC
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if vals := md.Get(analytics.SourceMetadataKey); len(vals) > 0 {
+			source = analytics.Source(vals[0])
+		}
+	}
+	ctx = context.WithValue(ctx, analytics.SourceKey, source)
 
 	queriedTenant, err := a.config.V1.Tenant().GetTenantByID(ctx, tenantId)
 

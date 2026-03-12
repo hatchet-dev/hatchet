@@ -194,6 +194,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	c.Set("session", session)
 
 	ctx := context.WithValue(c.Request().Context(), analytics.UserIDKey, userIdUUID)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceUI)
 	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
@@ -241,6 +242,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	ctx := context.WithValue(c.Request().Context(), analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
 	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil

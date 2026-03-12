@@ -49,12 +49,23 @@ const (
 
 type Properties map[string]interface{}
 
+type Source string
+
+const (
+	SourceUI   Source = "ui"
+	SourceAPI  Source = "api"
+	SourceGRPC Source = "grpc"
+)
+
 type contextKey string
 
 const (
 	APITokenIDKey = contextKey("api_token_id")
 	TenantIDKey   = contextKey("tenant_id")
 	UserIDKey     = contextKey("user_id")
+	SourceKey     = contextKey("source")
+
+	SourceMetadataKey = "x-hatchet-source"
 )
 
 type Analytics interface {
@@ -84,6 +95,13 @@ func UserIDFromContext(ctx context.Context) *uuid.UUID {
 		return &id
 	}
 	return nil
+}
+
+func SourceFromContext(ctx context.Context) Source {
+	if s, ok := ctx.Value(SourceKey).(Source); ok {
+		return s
+	}
+	return ""
 }
 
 func DistinctID(userID *uuid.UUID, tokenID *uuid.UUID, tenantID *uuid.UUID) string {

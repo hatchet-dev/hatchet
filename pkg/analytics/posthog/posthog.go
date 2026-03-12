@@ -93,6 +93,9 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	if tokenID != nil {
 		props["token_id"] = tokenID.String()
 	}
+	if source := analytics.SourceFromContext(ctx); source != "" {
+		props["source"] = string(source)
+	}
 	for k, v := range properties {
 		props[k] = v
 	}
@@ -124,7 +127,17 @@ func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resourc
 		tid = *tenantID
 	}
 
-	p.aggregator.Count(resource, action, tid, tokenID, 1, props...)
+	merged := make(analytics.Properties)
+	if len(props) > 0 && props[0] != nil {
+		for k, v := range props[0] {
+			merged[k] = v
+		}
+	}
+	if source := analytics.SourceFromContext(ctx); source != "" {
+		merged["source"] = string(source)
+	}
+
+	p.aggregator.Count(resource, action, tid, tokenID, 1, merged)
 }
 
 func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties analytics.Properties) {
