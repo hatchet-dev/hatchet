@@ -166,9 +166,7 @@ func (p *PosthogAnalytics) Start() {
 func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties analytics.Properties) {
 	err := (*p.client).Enqueue(posthog.Identify{
 		DistinctId: analytics.DistinctID(&userId, nil, nil),
-		Properties: posthog.Properties{
-			"$set": properties,
-		},
+		Properties: posthog.Properties(properties),
 	})
 
 	if err != nil {
@@ -180,9 +178,7 @@ func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data analytics.Properties)
 	err := (*p.client).Enqueue(posthog.GroupIdentify{
 		Type: "tenant",
 		Key:  tenantId.String(),
-		Properties: posthog.Properties{
-			"$set": data,
-		},
+		Properties: posthog.Properties(data),
 	})
 	if err != nil {
 		p.l.Error().Err(err).Str("tenant_id", tenantId.String()).Msg("error enqueuing posthog group identify")
