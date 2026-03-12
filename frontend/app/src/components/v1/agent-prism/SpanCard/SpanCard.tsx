@@ -69,7 +69,7 @@ const getContentWidth = ({
     width -= LAYOUT_CONSTANTS.CONNECTOR_WIDTH;
   }
 
-  return width - contentPadding;
+  return Math.max(width - contentPadding, 40);
 };
 
 const getGridTemplateColumns = ({
@@ -395,7 +395,6 @@ export const SpanCard: FC<SpanCardProps> = ({
                 )}
                 style={{
                   width: `min(${contentWidth}px, 100%)`,
-                  minWidth: 140,
                 }}
                 onClick={eventHandlers.handleToggleClick}
               >
