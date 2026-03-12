@@ -7,13 +7,19 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 # What is Hatchet?
 
-Hatchet is a modern orchestration platform that helps engineering teams build low-latency and high-throughput data ingestion and agentic AI pipelines.
+Hatchet is a developer platform that helps engineering teams build and deploy mission-critical AI agents, durable workflows, and background tasks.
 
 You write functions in Python, Typescript, Go, or Ruby and let Hatchet handle scheduling, retries, fault tolerance, and observability.
 
+## Using our docs
+
+Every docs page in the user guide uses inline code snippets across all four SDKs which are generated from tested examples:
+
 <LanguageSwitcher />
 
-The core mental model has three parts:
+## Concepts
+
+There are three primary concepts to understand when getting started with Hatchet:
 
 - **[Tasks](/v1/tasks)** — the fundamental unit of work. A task wraps a single function and gives Hatchet everything it needs to schedule, execute, and observe it.
 - **[Workers](/v1/workers)** — long-running processes in your infrastructure that pick up and execute tasks.
@@ -25,46 +31,17 @@ All tasks and workflows are **defined as code**, making them easy to version, te
 
 While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
 
-- **Real-time data processing** — data ingestion for keeping LLM contexts up-to-date, ETL pipelines that require fast execution and high throughput.
-- **AI agents** — features like [webhooks](/v1/webhooks), [child spawning](/v1/child-spawning), and dynamic workflows are designed to support agentic patterns.
-- **Event-driven systems** — Hatchet's [eventing features](/v1/external-events/run-on-event) let you build event-driven architectures without additional infrastructure.
+- **AI agents** — Hatchet's durability features allow agents to automatically checkpoint their current state and pickup where they left off when faced with unexpected errors. Hatchet's observability features and distributed-first approach are built for debugging long-running agents at scale.
+- **Massive parallelization** - Hatchet is built to handle millions of parallel task executions without overloading your workers. Worker-level slot control allows your workers to only accept the amount of work they can handle, while features like [fairness](/v1/concurrency) and [priorities](/v1/priority) are built to help scale massively parallel ingestion.
+- **Mission-critical workloads** - everything in Hatchet is durable by default. This means that every task, DAG, event or agent invocation is stored in a durable event log and ready to be replayed at some point in the future.
 
-## Why Hatchet?
-
-⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](/v1/rate-limits), [fairness](/v1/concurrency), and [priorities](/v1/priority) without complex configuration.
-
-🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](/v1/patterns/durable-task-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
-
-🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
+## Self Hosting
 
 If you plan on self-hosting or have requirements for an on-premise deployment, there are some additional considerations:
 
-🐘 **Minimal Infra Dependencies** - Hatchet is built on top of PostgreSQL and for simple workloads, [its all you need](/self-hosting/hatchet-lite).
+🐘 **Minimal Infra Dependencies** - Hatchet is built on top of PostgreSQL and for simple workloads, [it's all you need](/self-hosting/hatchet-lite).
 
 ⬆️ **Fully Featured Open Source** - Hatchet is 100% MIT licensed, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](/self-hosting) when you need more control.
-
-## Hatchet vs. Alternatives
-
-Today, developers who need background task processing and workflow orchestration face two main options:
-
-1. Adopt external services like Temporal or Airflow, which are powerful but complex to run or introduce latency, or
-2. Use simple task queue libraries like Celery or BullMQ, which lack critical workflow features and become difficult to debug at scale.
-
-| Feature                                     | Hatchet | Celery     | Airflow    | Temporal     |
-| ------------------------------------------- | ------- | ---------- | ---------- | ------------ |
-| **Task Start Latency**                      | 25ms    | 5-100ms+   | 5-30s      | 25ms         |
-| **Concurrent Tasks**                        | 1000s   | Variable\* | Variable\* | 10000        |
-| **Code-First Workflows**                    | ✅      | ✅         | ✅         | ✅           |
-| **Cron Jobs and Scheduling**                | ✅      | ✅         | ✅         | ✅           |
-| **Priority Queues**                         | ✅      | ✅         | ✅         | ✅ (beta)    |
-| **Durable Sleep/Checkpoints**               | ✅      | ❌         | ❌         | ✅           |
-| **Sticky Assignment/Complex Routing Logic** | ✅      | ❌         | ❌         | ✅ (limited) |
-| **Event-Based Triggering**                  | ✅      | ❌         | ✅         | ❌           |
-| **Real-time Streaming**                     | ✅      | ❌         | ❌         | ❌           |
-| **Global Rate Limits**                      | ✅      | ❌         | ❌         | ❌           |
-| **Event Streaming**                         | ✅      | ❌         | ❌         | ❌           |
-
-\*Requires careful configuration and infrastructure scaling
 
 ## Production Readiness
 
@@ -76,8 +53,8 @@ Hatchet has been battle-tested in production environments, processing billions o
 > "Hatchet enables Aevy to process up to 50,000 documents in under an hour through optimized parallel execution, compared to nearly a week with our previous setup."
 > — Ymir, CTO @ Aevy
 
-## Ready to dive deeper?
+## Ready to get started?
 
-Check out the **[Architecture & Guarantees](/v1/architecture-and-guarantees)** page to learn how Hatchet is built, its guarantees, and when to use it.
+Get started quickly with the **[Hatchet Cloud Quickstart](/v1/quickstart)** or **[self-hosting](/self-hosting)**.
 
-Or get started with the **[Hatchet Cloud Quickstart](/v1/quickstart)** or **[self-hosting](/self-hosting)**.
+Keywords: overview, introduction, concepts, use cases, production readiness, self hosting
