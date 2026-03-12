@@ -106,10 +106,18 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 		props[k] = v
 	}
 
+	orgID := analytics.OrganizationIDFromContext(ctx)
+
 	var group posthog.Groups
 
-	if tenantID != nil {
-		group = posthog.NewGroups().Set("tenant", *tenantID)
+	if tenantID != nil || orgID != nil {
+		group = posthog.NewGroups()
+		if tenantID != nil {
+			group.Set("tenant", *tenantID)
+		}
+		if orgID != nil {
+			group.Set("organization", *orgID)
+		}
 	}
 
 	err := (*p.client).Enqueue(posthog.Capture{
@@ -175,13 +183,17 @@ func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties analytics.Prope
 }
 
 func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data analytics.Properties) {
+	p.Group("tenant", tenantId.String(), data)
+}
+
+func (p *PosthogAnalytics) Group(groupType string, groupKey string, data analytics.Properties) {
 	err := (*p.client).Enqueue(posthog.GroupIdentify{
-		Type:       "tenant",
-		Key:        tenantId.String(),
-		Properties: posthog.Properties(data),
+		Type:       groupType,
+		Key:        groupKey,
+		Properties: posthog.Properties{"$set": data},
 	})
 	if err != nil {
-		p.l.Error().Err(err).Str("tenant_id", tenantId.String()).Msg("error enqueuing posthog group identify")
+		p.l.Error().Err(err).Str("group_type", groupType).Str("group_key", groupKey).Msg("error enqueuing posthog group identify")
 	}
 }
 
