@@ -36,7 +36,7 @@ require (
 	github.com/oapi-codegen/runtime v1.2.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
-	github.com/posthog/posthog-go v1.10.0
+	github.com/posthog/posthog-go v1.11.1
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/sethvargo/go-retry v0.3.0
