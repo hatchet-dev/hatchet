@@ -528,6 +528,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			AggregateEnabled: cf.Analytics.AggregateEnabled,
 			FlushInterval:    flushInterval,
 			MaxKeys:          int64(cf.Analytics.AggregateMaxKeys),
+			ServerURL:        cf.Runtime.ServerURL,
 		})
 
 		if phErr != nil {

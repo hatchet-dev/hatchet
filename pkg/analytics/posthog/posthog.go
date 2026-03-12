@@ -36,6 +36,7 @@ type PosthogAnalytics struct {
 	client     *posthog.Client
 	l          *zerolog.Logger
 	aggregator *analytics.Aggregator
+	serverURL  string
 }
 
 type PosthogAnalyticsOpts struct {
@@ -45,6 +46,7 @@ type PosthogAnalyticsOpts struct {
 	AggregateEnabled bool
 	FlushInterval    time.Duration
 	MaxKeys          int64
+	ServerURL        string
 }
 
 func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) {
@@ -70,8 +72,9 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 	}
 
 	p := &PosthogAnalytics{
-		client: &phClient,
-		l:      opts.Logger,
+		client:    &phClient,
+		l:         opts.Logger,
+		serverURL: opts.ServerURL,
 	}
 	p.aggregator = analytics.NewAggregator(opts.Logger, opts.AggregateEnabled, flushInterval, opts.MaxKeys, p.flushCount)
 	return p, nil
@@ -95,6 +98,9 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	}
 	if source := analytics.SourceFromContext(ctx); source != "" {
 		props["source"] = string(source)
+	}
+	if p.serverURL != "" {
+		props["server_url"] = p.serverURL
 	}
 	for k, v := range properties {
 		props[k] = v
