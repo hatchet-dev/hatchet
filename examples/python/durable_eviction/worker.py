@@ -1,12 +1,3 @@
-"""
-Minimal example demonstrating durable slot eviction.
-
-The evictable_sleep task has a short eviction TTL (5s). When it enters a long
-durable sleep, the eviction manager sees the TTL exceeded and evicts the task
--- freeing the worker slot.  A subsequent REST restore re-enqueues the task so
-it can resume from its durable event log.
-"""
-
 from __future__ import annotations
 
 import asyncio
