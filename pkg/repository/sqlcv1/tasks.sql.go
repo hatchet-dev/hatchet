@@ -441,6 +441,12 @@ WITH input AS (
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = $5::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -545,13 +551,16 @@ WITH input AS (
         t.id
     FROM
         v1_task t
-    -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
-    -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
-    -- a retry.
     JOIN
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = $5::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -590,7 +599,7 @@ type FailTaskInternalFailureRow struct {
 	RetryCount int32              `json:"retry_count"`
 }
 
-// Fails a task due to an application-level error
+// Fails a task due to an internal error
 func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg FailTaskInternalFailureParams) ([]*FailTaskInternalFailureRow, error) {
 	rows, err := db.Query(ctx, failTaskInternalFailure,
 		arg.Maxinternalretries,

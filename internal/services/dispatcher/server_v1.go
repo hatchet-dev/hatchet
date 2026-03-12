@@ -916,7 +916,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	var mu sync.Mutex     // Mutex to protect activeRunIds
 	var sendMu sync.Mutex // Mutex to protect sending messages
 
-	streamBuffer := NewStreamEventBuffer(5 * time.Second)
+	streamBuffer := NewStreamEventBuffer(s.streamEventBufferTimeout)
 	defer streamBuffer.Close()
 
 	// Handle events from the stream buffer

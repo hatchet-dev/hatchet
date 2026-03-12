@@ -13,6 +13,13 @@ export default {
     },
   },
 
+  logs: {
+    title: "Logs",
+    theme: {
+      toc: true,
+    },
+  },
+
   metrics: {
     title: "Metrics",
     theme: {
