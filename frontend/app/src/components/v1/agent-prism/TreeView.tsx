@@ -34,7 +34,7 @@ export const TreeView: FC<TreeViewProps> = ({
         aria-label="Hierarchical card list"
       >
         <SpanCard
-          key={spanTree.span_id}
+          key={spanTree.spanId}
           data={spanTree}
           level={0}
           selectedSpan={selectedSpan}

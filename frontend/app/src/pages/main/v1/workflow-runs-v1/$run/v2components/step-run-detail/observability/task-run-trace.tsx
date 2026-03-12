@@ -5,12 +5,12 @@ import { OtelSpan } from '@/lib/api/generated/data-contracts';
 import { useEffect, useMemo, useState } from 'react';
 
 const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
-  if (!spanTree.span_name.startsWith('hatchet ')) {
+  if (!spanTree.spanName.startsWith('hatchet.')) {
     return [];
   }
 
   return [
-    spanTree.span_id,
+    spanTree.spanId,
     ...spanTree.children.flatMap(getSpanIdsOfAllHatchetSpans),
   ];
 };

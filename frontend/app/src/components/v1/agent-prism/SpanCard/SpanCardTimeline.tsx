@@ -32,7 +32,7 @@ export const SpanCardTimeline = ({
     <span className={cn('relative flex h-6 min-w-20 flex-1', className)}>
       <span className="pointer-events-none absolute inset-x-1 top-1/2 h-5 -translate-y-1/2">
         <span
-          className={`absolute h-full ${timelineBgColors[spanCard.status_code]}`}
+          className={`absolute h-full ${timelineBgColors[spanCard.statusCode]}`}
           style={{
             left: `${startPercent}%`,
             width: `${widthPercent}%`,

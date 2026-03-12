@@ -532,22 +532,22 @@ export interface V1LogLineList {
 }
 
 export interface OtelSpan {
-  trace_id: string;
-  span_id: string;
-  parent_span_id?: string;
-  span_name: string;
-  span_kind: OtelSpanKind;
-  service_name: string;
-  status_code: OtelStatusCode;
-  status_message?: string;
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  spanName: string;
+  spanKind: OtelSpanKind;
+  serviceName: string;
+  statusCode: OtelStatusCode;
+  statusMessage?: string;
   /** @format int64 */
-  duration: number;
+  durationNs: number;
   /** @format date-time */
-  created_at: string;
-  resource_attributes?: Record<string, string>;
-  span_attributes?: Record<string, string>;
-  scope_name?: string;
-  scope_version?: string;
+  createdAt: string;
+  resourceAttributes?: Record<string, string>;
+  spanAttributes?: Record<string, string>;
+  scopeName?: string;
+  scopeVersion?: string;
 }
 
 export interface OtelSpanList {

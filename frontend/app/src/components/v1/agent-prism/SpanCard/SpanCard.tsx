@@ -229,7 +229,7 @@ const SpanCardChildren: FC<{
           {data.children.map((child, idx) => (
             <SpanCard
               viewOptions={viewOptions}
-              key={child.span_id}
+              key={child.spanId}
               data={child}
               minStart={minStart}
               maxEnd={maxEnd}
@@ -261,32 +261,32 @@ export const SpanCard: FC<SpanCardProps> = ({
   expandedSpansIds,
   onExpandSpansIdsChange,
 }) => {
-  const isExpanded = expandedSpansIds.includes(data.span_id);
+  const isExpanded = expandedSpansIds.includes(data.spanId);
 
   const expandButton =
     viewOptions.expandButton || DEFAULT_VIEW_OPTIONS.expandButton;
 
   const handleToggleClick = useCallback(
     (expanded: boolean) => {
-      const alreadyExpanded = expandedSpansIds.includes(data.span_id);
+      const alreadyExpanded = expandedSpansIds.includes(data.spanId);
 
       if (alreadyExpanded && !expanded) {
         onExpandSpansIdsChange(
-          expandedSpansIds.filter((id) => id !== data.span_id),
+          expandedSpansIds.filter((id) => id !== data.spanId),
         );
       }
 
       if (!alreadyExpanded && expanded) {
-        onExpandSpansIdsChange([...expandedSpansIds, data.span_id]);
+        onExpandSpansIdsChange([...expandedSpansIds, data.spanId]);
       }
     },
-    [expandedSpansIds, data.span_id, onExpandSpansIdsChange],
+    [expandedSpansIds, data.spanId, onExpandSpansIdsChange],
   );
 
   const state: SpanCardState = {
     isExpanded,
     hasChildren: Boolean(data.children?.length),
-    isSelected: selectedSpan?.span_id === data.span_id,
+    isSelected: selectedSpan?.spanId === data.spanId,
   };
 
   const eventHandlers = useSpanCardEventHandlers(data, onSpanSelect);
@@ -357,9 +357,9 @@ export const SpanCard: FC<SpanCardProps> = ({
             tabIndex: 0,
             role: 'button',
             'aria-pressed': state.isSelected,
-            'aria-label': `${state.isSelected ? 'Selected' : 'Not selected'} span card for ${data.span_name} at level ${level}`,
+            'aria-label': `${state.isSelected ? 'Selected' : 'Not selected'} span card for ${data.spanName} at level ${level}`,
           })}
-          aria-describedby={`span-card-desc-${data.span_id}`}
+          aria-describedby={`span-card-desc-${data.spanId}`}
           aria-expanded={state.hasChildren ? state.isExpanded : undefined}
         >
           <div className="flex flex-nowrap">
@@ -371,7 +371,7 @@ export const SpanCard: FC<SpanCardProps> = ({
               <div className="flex w-5 flex-col items-center">
                 <SpanCardToggle
                   isExpanded={state.isExpanded}
-                  title={data.span_name}
+                  title={data.spanName}
                   onToggleClick={eventHandlers.handleToggleClick}
                 />
 
@@ -401,9 +401,9 @@ export const SpanCard: FC<SpanCardProps> = ({
               >
                 <h3
                   className="text-agentprism-foreground truncate text-sm leading-[14px]"
-                  title={data.span_name}
+                  title={data.spanName}
                 >
-                  {data.span_name}
+                  {data.spanName}
                 </h3>
               </div>
             </Collapsible.Trigger>
@@ -427,7 +427,7 @@ export const SpanCard: FC<SpanCardProps> = ({
             (state.hasChildren ? (
               <SpanCardToggle
                 isExpanded={state.isExpanded}
-                title={data.span_name}
+                title={data.spanName}
                 onToggleClick={eventHandlers.handleToggleClick}
               />
             ) : (

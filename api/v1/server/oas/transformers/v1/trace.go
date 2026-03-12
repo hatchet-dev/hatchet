@@ -53,7 +53,7 @@ func ToV1OtelSpan(spans []*sqlcv1.ListSpansByTaskExternalIDRow) []gen.OtelSpan {
 			ServiceName:        s.ServiceName,
 			StatusCode:         gen.OtelStatusCode(s.StatusCode),
 			StatusMessage:      pgTextPtr(s.StatusMessage),
-			Duration:           s.DurationNs,
+			DurationNs:         s.DurationNs,
 			CreatedAt:          s.StartTime.Time,
 			ResourceAttributes: &resourceAttrs,
 			SpanAttributes:     &spanAttrs,

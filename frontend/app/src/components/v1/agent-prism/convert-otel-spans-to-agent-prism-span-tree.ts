@@ -4,7 +4,7 @@ import invariant from 'tiny-invariant';
 
 const convertOtelSpanToTraceSpan = (span: OtelSpan): OtelSpanTree => ({
   ...span,
-  duration_ms: span.duration / 1_000_000,
+  durationMs: span.durationNs / 1_000_000,
   children: [],
 });
 
@@ -16,12 +16,12 @@ export const convertOtelSpansToOtelSpanTree = (
 
   spans.forEach((span) => {
     const converted = convertOtelSpanToTraceSpan(span);
-    spanMap.set(converted.span_id, converted);
+    spanMap.set(converted.spanId, converted);
   });
 
   spans.forEach((span) => {
-    const converted = spanMap.get(span.span_id)!;
-    const parentSpanId = span.parent_span_id;
+    const converted = spanMap.get(span.spanId)!;
+    const parentSpanId = span.parentSpanId;
     if (parentSpanId) {
       const parent = spanMap.get(parentSpanId);
       invariant(parent, 'Must have a parent span');

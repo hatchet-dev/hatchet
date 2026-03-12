@@ -1,49 +1,49 @@
 OtelSpan:
   type: object
   properties:
-    trace_id:
+    traceId:
       type: string
-    span_id:
+    spanId:
       type: string
-    parent_span_id:
+    parentSpanId:
       type: string
-    span_name:
+    spanName:
       type: string
-    span_kind:
+    spanKind:
       $ref: "#/OtelSpanKind"
-    service_name:
+    serviceName:
       type: string
-    status_code:
+    statusCode:
       $ref: "#/OtelStatusCode"
-    status_message:
+    statusMessage:
       type: string
-    duration:
+    durationNs:
       type: integer
       format: int64
-    created_at:
+    createdAt:
       type: string
       format: date-time
-    resource_attributes:
+    resourceAttributes:
       type: object
       additionalProperties:
         type: string
-    span_attributes:
+    spanAttributes:
       type: object
       additionalProperties:
         type: string
-    scope_name:
+    scopeName:
       type: string
-    scope_version:
+    scopeVersion:
       type: string
   required:
-    - trace_id
-    - span_id
-    - span_name
-    - span_kind
-    - service_name
-    - status_code
-    - duration
-    - created_at
+    - traceId
+    - spanId
+    - spanName
+    - spanKind
+    - serviceName
+    - statusCode
+    - durationNs
+    - createdAt
 
 OtelSpanKind:
   type: string

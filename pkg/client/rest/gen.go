@@ -774,20 +774,20 @@ type LogLineSearch = string
 
 // OtelSpan defines model for OtelSpan.
 type OtelSpan struct {
-	CreatedAt          time.Time          `json:"created_at"`
-	Duration           int64              `json:"duration"`
-	ParentSpanId       *string            `json:"parent_span_id,omitempty"`
-	ResourceAttributes *map[string]string `json:"resource_attributes,omitempty"`
-	ScopeName          *string            `json:"scope_name,omitempty"`
-	ScopeVersion       *string            `json:"scope_version,omitempty"`
-	ServiceName        string             `json:"service_name"`
-	SpanAttributes     *map[string]string `json:"span_attributes,omitempty"`
-	SpanId             string             `json:"span_id"`
-	SpanKind           OtelSpanKind       `json:"span_kind"`
-	SpanName           string             `json:"span_name"`
-	StatusCode         OtelStatusCode     `json:"status_code"`
-	StatusMessage      *string            `json:"status_message,omitempty"`
-	TraceId            string             `json:"trace_id"`
+	CreatedAt          time.Time          `json:"createdAt"`
+	DurationNs         int64              `json:"durationNs"`
+	ParentSpanId       *string            `json:"parentSpanId,omitempty"`
+	ResourceAttributes *map[string]string `json:"resourceAttributes,omitempty"`
+	ScopeName          *string            `json:"scopeName,omitempty"`
+	ScopeVersion       *string            `json:"scopeVersion,omitempty"`
+	ServiceName        string             `json:"serviceName"`
+	SpanAttributes     *map[string]string `json:"spanAttributes,omitempty"`
+	SpanId             string             `json:"spanId"`
+	SpanKind           OtelSpanKind       `json:"spanKind"`
+	SpanName           string             `json:"spanName"`
+	StatusCode         OtelStatusCode     `json:"statusCode"`
+	StatusMessage      *string            `json:"statusMessage,omitempty"`
+	TraceId            string             `json:"traceId"`
 }
 
 // OtelSpanKind defines model for OtelSpanKind.

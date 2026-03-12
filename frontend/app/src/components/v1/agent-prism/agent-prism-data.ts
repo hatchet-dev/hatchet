@@ -7,8 +7,8 @@ export const findTimeRange = (
   let maxEnd = -Infinity;
 
   const traverse = (node: OtelSpanTree) => {
-    const start = new Date(node.created_at).getTime();
-    const end = start + node.duration_ms;
+    const start = new Date(node.createdAt).getTime();
+    const end = start + node.durationMs;
     minStart = Math.min(minStart, start);
     maxEnd = Math.max(maxEnd, end);
     node.children?.forEach(traverse);
@@ -48,9 +48,9 @@ export const getTimelineData = ({
   minStart: number;
   maxEnd: number;
 }): { durationMs: number; startPercent: number; widthPercent: number } => {
-  const startMs = new Date(spanCard.created_at).getTime();
+  const startMs = new Date(spanCard.createdAt).getTime();
   const totalRange = maxEnd - minStart;
-  const durationMs = spanCard.duration_ms;
+  const durationMs = spanCard.durationMs;
   const startPercent = ((startMs - minStart) / totalRange) * 100;
   const widthPercent = (durationMs / totalRange) * 100;
   return { durationMs, startPercent, widthPercent };
