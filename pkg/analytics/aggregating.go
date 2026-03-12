@@ -41,6 +41,7 @@ type Aggregator struct {
 	keyCount atomic.Int64
 	l        *zerolog.Logger
 	disabled bool
+	flushMu  sync.Mutex
 }
 
 func NewAggregator(l *zerolog.Logger, enabled bool, interval time.Duration, maxKeys int64, fn FlushFunc) *Aggregator {
@@ -138,6 +139,12 @@ func (a *Aggregator) Shutdown() {
 }
 
 func (a *Aggregator) flush() {
+	if !a.flushMu.TryLock() {
+		a.l.Warn().Dur("interval", a.interval).Msg("aggregator flush still running, skipping interval")
+		return
+	}
+	defer a.flushMu.Unlock()
+
 	defer func() {
 		if r := recover(); r != nil {
 			a.l.Error().Interface("panic", r).Msg("recovered panic in aggregator flush")
