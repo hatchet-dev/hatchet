@@ -61,8 +61,10 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
+	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, user.ID)
+	analyticsCtx = context.WithValue(analyticsCtx, analytics.SourceKey, analytics.SourceUI)
 	u.config.Analytics.Enqueue(
-		ctx.Request().Context(),
+		analyticsCtx,
 		analytics.User, analytics.Login,
 		user.ID.String(),
 		map[string]interface{}{"provider": "github"},

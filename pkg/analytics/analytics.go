@@ -61,10 +61,11 @@ const (
 type contextKey string
 
 const (
-	APITokenIDKey = contextKey("api_token_id")
-	TenantIDKey   = contextKey("tenant_id")
-	UserIDKey     = contextKey("user_id")
-	SourceKey     = contextKey("source")
+	APITokenIDKey     = contextKey("api_token_id")
+	TenantIDKey       = contextKey("tenant_id")
+	OrganizationIDKey = contextKey("organization_id")
+	UserIDKey         = contextKey("user_id")
+	SourceKey         = contextKey("source")
 
 	SourceMetadataKey = "x-hatchet-source"
 )
@@ -74,6 +75,7 @@ type Analytics interface {
 	Count(ctx context.Context, resource Resource, action Action, props ...Properties)
 	Identify(userId uuid.UUID, properties Properties)
 	Tenant(tenantId uuid.UUID, data Properties)
+	Group(groupType string, groupKey string, data Properties)
 	Close() error
 }
 
@@ -86,6 +88,13 @@ func TokenIDFromContext(ctx context.Context) *uuid.UUID {
 
 func TenantIDFromContext(ctx context.Context) *uuid.UUID {
 	if id, ok := ctx.Value(TenantIDKey).(uuid.UUID); ok && id != uuid.Nil {
+		return &id
+	}
+	return nil
+}
+
+func OrganizationIDFromContext(ctx context.Context) *uuid.UUID {
+	if id, ok := ctx.Value(OrganizationIDKey).(uuid.UUID); ok && id != uuid.Nil {
 		return &id
 	}
 	return nil
@@ -155,5 +164,7 @@ func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Acti
 func (a NoOpAnalytics) Identify(userId uuid.UUID, properties Properties) {}
 
 func (a NoOpAnalytics) Tenant(tenantId uuid.UUID, data Properties) {}
+
+func (a NoOpAnalytics) Group(groupType string, groupKey string, data Properties) {}
 
 func (a NoOpAnalytics) Close() error { return nil }
