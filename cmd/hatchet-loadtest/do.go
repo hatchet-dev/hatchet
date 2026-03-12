@@ -4,12 +4,66 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
+
+	"github.com/go-echarts/go-echarts/v2/charts"
+	"github.com/go-echarts/go-echarts/v2/opts"
 )
 
+type LatencySnapshot struct {
+	t       time.Time
+	latency time.Duration
+}
+type LatencyResult struct {
+	snapshots []LatencySnapshot
+}
+
+func (lr *LatencyResult) PlotLatency(outputFile string) error {
+	line := charts.NewLine()
+
+	xvals := make([]string, 0, len(lr.snapshots))
+	yvals := make([]opts.LineData, 0, len(lr.snapshots))
+	start := lr.snapshots[0].t
+
+	for _, s := range lr.snapshots {
+		elapsedMs := float64(s.t.Sub(start).Seconds())
+
+		xvals = append(xvals, fmt.Sprintf("%f", elapsedMs))
+		yvals = append(yvals, opts.LineData{
+			Value: float64(s.latency.Microseconds()) / 1000.0, // ms
+		})
+	}
+
+	line.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: "Latency Over Time",
+		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Name: "Latency (ms)",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Name: "Time",
+		}),
+	)
+
+	line.SetXAxis(xvals).
+		AddSeries("Latency", yvals)
+
+	f, err := os.Create(outputFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return line.Render(f)
+}
+
 type avgResult struct {
-	count int64
-	avg   time.Duration
+	count         int64
+	avg           time.Duration
+	latencyResult LatencyResult
 }
 
 func do(config LoadTestConfig) error {
@@ -32,6 +86,8 @@ func do(config LoadTestConfig) error {
 	go func() {
 		var count int64
 		var avg time.Duration
+		var snapshots []LatencySnapshot
+
 		for d := range durations {
 			count++
 			if count == 1 {
@@ -39,8 +95,12 @@ func do(config LoadTestConfig) error {
 			} else {
 				avg += (d - avg) / time.Duration(count)
 			}
+			snapshots = append(snapshots, LatencySnapshot{
+				t:       time.Now(),
+				latency: d,
+			})
 		}
-		durationsResult <- avgResult{count: count, avg: avg}
+		durationsResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
 	// Start worker and ensure it has time to register
@@ -77,6 +137,7 @@ func do(config LoadTestConfig) error {
 	go func() {
 		var count int64
 		var avg time.Duration
+		var snapshots []LatencySnapshot
 		for d := range scheduled {
 			count++
 			if count == 1 {
@@ -84,8 +145,12 @@ func do(config LoadTestConfig) error {
 			} else {
 				avg += (d - avg) / time.Duration(count)
 			}
+			snapshots = append(snapshots, LatencySnapshot{
+				t:       time.Now(),
+				latency: d,
+			})
 		}
-		scheduledResult <- avgResult{count: count, avg: avg}
+		scheduledResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
 	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize)
@@ -118,7 +183,17 @@ func do(config LoadTestConfig) error {
 
 	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
-
+	if config.PlotDir != "" {
+		log.Printf("ℹ️ exporting scheduling/duration snapshot data")
+		err := finalScheduledResult.latencyResult.PlotLatency(filepath.Join(config.PlotDir, "scheduling_latency.html"))
+		if err != nil {
+			return err
+		}
+		err = finalDurationResult.latencyResult.PlotLatency(filepath.Join(config.PlotDir, "duration_latency.html"))
+		if err != nil {
+			return err
+		}
+	}
 	if expected != executed {
 		log.Printf("⚠️ warning: pushed and executed counts do not match: expected=%d got=%d", expected, executed)
 	}
