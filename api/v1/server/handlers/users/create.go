@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -98,8 +99,9 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		), nil
 	}
 
+	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, user.ID)
 	u.config.Analytics.Enqueue(
-		ctx.Request().Context(),
+		analyticsCtx,
 		analytics.User, analytics.Create,
 		user.ID.String(),
 		map[string]interface{}{"provider": "basic"},

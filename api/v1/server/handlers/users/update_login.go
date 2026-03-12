@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -65,8 +66,9 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
+	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, existingUser.ID)
 	u.config.Analytics.Enqueue(
-		ctx.Request().Context(),
+		analyticsCtx,
 		analytics.User, analytics.Login,
 		existingUser.ID.String(),
 		map[string]interface{}{"provider": "basic"},
