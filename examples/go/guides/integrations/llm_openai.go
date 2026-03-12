@@ -34,3 +34,4 @@ func Complete(ctx context.Context, messages []openai.ChatCompletionMessage) (map
 		"done":       len(toolCalls) == 0,
 	}, nil
 }
+

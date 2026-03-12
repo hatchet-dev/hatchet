@@ -14,3 +14,4 @@ func ParseDocument(content []byte) (string, error) {
 	defer client.Close()
 	return client.SetImageFromBytes(content).GetText()
 }
+
