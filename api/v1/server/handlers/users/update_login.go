@@ -67,6 +67,8 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	}
 
 	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, existingUser.ID)
+	analyticsCtx = context.WithValue(analyticsCtx, analytics.SourceKey, analytics.SourceUI)
+
 	u.config.Analytics.Enqueue(
 		analyticsCtx,
 		analytics.User, analytics.Login,

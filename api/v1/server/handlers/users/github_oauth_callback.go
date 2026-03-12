@@ -62,6 +62,7 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, user.ID)
+	analyticsCtx = context.WithValue(analyticsCtx, analytics.SourceKey, analytics.SourceUI)
 	u.config.Analytics.Enqueue(
 		analyticsCtx,
 		analytics.User, analytics.Login,

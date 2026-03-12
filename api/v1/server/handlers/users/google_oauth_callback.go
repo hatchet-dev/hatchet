@@ -56,13 +56,13 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, user.ID)
+	analyticsCtx = context.WithValue(analyticsCtx, analytics.SourceKey, analytics.SourceUI)
 	u.config.Analytics.Enqueue(
 		analyticsCtx,
 		analytics.User, analytics.Login,
 		user.ID.String(),
 		map[string]interface{}{"provider": "google"},
 	)
-
 	return gen.UserUpdateGoogleOauthCallback302Response{
 		Headers: gen.UserUpdateGoogleOauthCallback302ResponseHeaders{
 			Location: u.config.Runtime.ServerURL,
