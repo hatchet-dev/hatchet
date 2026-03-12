@@ -4,6 +4,7 @@ asIndexPage: true
 
 import { Callout } from "nextra/components";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import Keywords from "@/components/Keywords";
 
 # What is Hatchet?
 
@@ -31,7 +32,7 @@ All tasks and workflows are **defined as code**, making them easy to version, te
 
 While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
 
-- **AI agents** — Hatchet's durability features allow agents to automatically checkpoint their current state and pickup where they left off when faced with unexpected errors. Hatchet's observability features and distributed-first approach are built for debugging long-running agents at scale.
+- **AI agents** — Hatchet's durability features allow agents to automatically checkpoint their current state and pick up where they left off when faced with unexpected errors. Hatchet's observability features and distributed-first approach are built for debugging long-running agents at scale.
 - **Massive parallelization** - Hatchet is built to handle millions of parallel task executions without overloading your workers. Worker-level slot control allows your workers to only accept the amount of work they can handle, while features like [fairness](/v1/concurrency) and [priorities](/v1/priority) are built to help scale massively parallel ingestion.
 - **Mission-critical workloads** - everything in Hatchet is durable by default. This means that every task, DAG, event or agent invocation is stored in a durable event log and ready to be replayed at some point in the future.
 
@@ -39,9 +40,9 @@ While Hatchet is a general-purpose orchestration platform, it's particularly wel
 
 If you plan on self-hosting or have requirements for an on-premise deployment, there are some additional considerations:
 
-🐘 **Minimal Infra Dependencies** - Hatchet is built on top of PostgreSQL and for simple workloads, [it's all you need](/self-hosting/hatchet-lite).
+**Minimal Infra Dependencies** - Hatchet is built on top of PostgreSQL and for simple workloads, [it's all you need](/self-hosting/hatchet-lite).
 
-⬆️ **Fully Featured Open Source** - Hatchet is 100% MIT licensed, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](/self-hosting) when you need more control.
+**Fully Featured Open Source** - Hatchet is 100% MIT licensed, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](/self-hosting) when you need more control.
 
 ## Production Readiness
 
@@ -57,4 +58,4 @@ Hatchet has been battle-tested in production environments, processing billions o
 
 Get started quickly with the **[Hatchet Cloud Quickstart](/v1/quickstart)** or **[self-hosting](/self-hosting)**.
 
-Keywords: overview, introduction, concepts, use cases, production readiness, self hosting
+<Keywords keywords="overview, introduction, concepts, use cases, production readiness, self hosting" />
