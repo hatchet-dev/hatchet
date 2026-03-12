@@ -6,12 +6,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-
-	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 )
 
 func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequestObject) (gen.UserCreateResponseObject, error) {
@@ -97,6 +97,13 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 			apierrors.NewAPIErrors(ErrRegistrationFailed),
 		), nil
 	}
+
+	u.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.User, analytics.Create,
+		user.ID.String(),
+		map[string]interface{}{"provider": "basic"},
+	)
 
 	return gen.UserCreate200JSONResponse(
 		*transformers.ToUser(user, false, nil),

@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -63,6 +64,13 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		u.config.Logger.Err(err).Msg("failed to save authenticated session")
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
+
+	u.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.User, analytics.Login,
+		existingUser.ID.String(),
+		map[string]interface{}{"provider": "basic"},
+	)
 
 	return gen.UserUpdateLogin200JSONResponse(
 		*transformers.ToUser(existingUser, false, nil),

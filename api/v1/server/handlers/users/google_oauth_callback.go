@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -53,6 +54,13 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
+
+	u.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.User, analytics.Login,
+		user.ID.String(),
+		map[string]interface{}{"provider": "google"},
+	)
 
 	return gen.UserUpdateGoogleOauthCallback302Response{
 		Headers: gen.UserUpdateGoogleOauthCallback302ResponseHeaders{
