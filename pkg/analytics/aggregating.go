@@ -1,14 +1,15 @@
 package analytics
 
 import (
-	"fmt"
 	"hash/fnv"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 type counterKey struct {
@@ -21,11 +22,11 @@ type counterKey struct {
 
 type counterEntry struct {
 	count   *atomic.Int64
-	props   map[string]interface{}
+	props   Properties
 	tokenID *uuid.UUID
 }
 
-type FlushFunc func(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties map[string]interface{})
+type FlushFunc func(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties Properties)
 
 // Aggregator batches Count calls into periodic flushes. It is intended to be
 // embedded inside an Analytics implementation (e.g. PosthogAnalytics) so that
@@ -36,13 +37,27 @@ type Aggregator struct {
 	counters sync.Map
 	wg       sync.WaitGroup
 	interval time.Duration
+	maxKeys  int64
+	keyCount atomic.Int64
+	l        *zerolog.Logger
+	disabled bool
 }
 
-func NewAggregator(interval time.Duration, fn FlushFunc) *Aggregator {
+func NewAggregator(l *zerolog.Logger, enabled bool, interval time.Duration, maxKeys int64, fn FlushFunc) *Aggregator {
+	if interval == 0 {
+		interval = 60 * time.Minute
+	}
+	if maxKeys <= 0 {
+		maxKeys = 500
+	}
+
 	return &Aggregator{
 		done:     make(chan struct{}),
 		interval: interval,
 		flushFn:  fn,
+		maxKeys:  maxKeys,
+		l:        l,
+		disabled: !enabled,
 	}
 }
 
@@ -51,8 +66,12 @@ func NewAggregator(interval time.Duration, fn FlushFunc) *Aggregator {
 // different feature combinations (e.g. priority=1 vs priority=3) are counted
 // separately. This is the non-blocking hot path: sync.Map.Load + atomic.Add
 // on the common case.
-func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, n int64, props ...map[string]interface{}) {
-	var p map[string]interface{}
+func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, n int64, props ...Properties) {
+	if a.disabled {
+		return
+	}
+
+	var p Properties
 	if len(props) > 0 {
 		p = props[0]
 	}
@@ -75,15 +94,26 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 		return
 	}
 
+	if a.keyCount.Load() >= a.maxKeys {
+		a.l.Warn().Int64("max_keys", a.maxKeys).Str("resource", string(resource)).Str("action", string(action)).Str("tenant_id", tenantID.String()).Msg("aggregator at max keys, dropping event")
+		return
+	}
+
 	c := &atomic.Int64{}
 	c.Add(n)
 	entry := &counterEntry{count: c, props: p, tokenID: tokenID}
 	if existing, loaded := a.counters.LoadOrStore(key, entry); loaded {
 		existing.(*counterEntry).count.Add(n)
+	} else {
+		a.keyCount.Add(1)
 	}
 }
 
 func (a *Aggregator) Start() {
+	if a.disabled {
+		return
+	}
+
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
@@ -108,6 +138,12 @@ func (a *Aggregator) Shutdown() {
 }
 
 func (a *Aggregator) flush() {
+	defer func() {
+		if r := recover(); r != nil {
+			a.l.Error().Interface("panic", r).Msg("recovered panic in aggregator flush")
+		}
+	}()
+
 	a.counters.Range(func(key, val any) bool {
 		k := key.(counterKey)
 		e := val.(*counterEntry)
@@ -116,6 +152,7 @@ func (a *Aggregator) flush() {
 			a.flushFn(k.Resource, k.Action, k.TenantID, e.tokenID, count, e.props)
 		} else {
 			a.counters.Delete(key)
+			a.keyCount.Add(-1)
 		}
 		return true
 	})
@@ -123,7 +160,8 @@ func (a *Aggregator) flush() {
 
 // hashProps produces a stable FNV-1a hash of sorted key=value pairs.
 // A nil/empty map always returns 0 so callers without properties pay no cost.
-func hashProps(m map[string]interface{}) uint64 {
+// Values are restricted to string, bool, and integer types.
+func hashProps(m Properties) uint64 {
 	if len(m) == 0 {
 		return 0
 	}
@@ -136,7 +174,25 @@ func hashProps(m map[string]interface{}) uint64 {
 
 	h := fnv.New64a()
 	for _, k := range keys {
-		fmt.Fprintf(h, "%s=%v\x00", k, m[k])
+		h.Write([]byte(k))
+		h.Write([]byte{'='})
+		switch v := m[k].(type) {
+		case string:
+			h.Write([]byte(v))
+		case bool:
+			if v {
+				h.Write([]byte{'1'})
+			} else {
+				h.Write([]byte{'0'})
+			}
+		case int:
+			h.Write(strconv.AppendInt(nil, int64(v), 10))
+		case int64:
+			h.Write(strconv.AppendInt(nil, v, 10))
+		case int32:
+			h.Write(strconv.AppendInt(nil, int64(v), 10))
+		}
+		h.Write([]byte{0})
 	}
 	return h.Sum64()
 }

@@ -47,6 +47,8 @@ const (
 	Send      Action = "send"
 )
 
+type Properties map[string]interface{}
+
 type contextKey string
 
 const (
@@ -56,10 +58,10 @@ const (
 )
 
 type Analytics interface {
-	Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties map[string]interface{})
-	Count(ctx context.Context, resource Resource, action Action, props ...map[string]interface{})
-	Identify(userId uuid.UUID, properties map[string]interface{})
-	Tenant(tenantId uuid.UUID, data map[string]interface{})
+	Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties Properties)
+	Count(ctx context.Context, resource Resource, action Action, props ...Properties)
+	Identify(userId uuid.UUID, properties Properties)
+	Tenant(tenantId uuid.UUID, data Properties)
 	Close() error
 }
 
@@ -100,12 +102,12 @@ func DistinctID(userID *uuid.UUID, tokenID *uuid.UUID, tenantID *uuid.UUID) stri
 // Props builds a property map from variadic key-value pairs, keeping all
 // non-nil values regardless of type. Keys must be strings; non-string keys
 // are skipped. Nil values are omitted.
-func Props(kvs ...interface{}) map[string]interface{} {
+func Props(kvs ...interface{}) Properties {
 	if len(kvs) == 0 || len(kvs)%2 != 0 {
 		return nil
 	}
 
-	var m map[string]interface{}
+	var m Properties
 	for i := 0; i < len(kvs); i += 2 {
 		k, ok := kvs[i].(string)
 		if !ok {
@@ -116,7 +118,7 @@ func Props(kvs ...interface{}) map[string]interface{} {
 			continue
 		}
 		if m == nil {
-			m = make(map[string]interface{}, len(kvs)/2)
+			m = make(Properties, len(kvs)/2)
 		}
 		m[k] = v
 	}
@@ -125,14 +127,14 @@ func Props(kvs ...interface{}) map[string]interface{} {
 
 type NoOpAnalytics struct{}
 
-func (a NoOpAnalytics) Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties map[string]interface{}) {
+func (a NoOpAnalytics) Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties Properties) {
 }
 
-func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, props ...map[string]interface{}) {
+func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, props ...Properties) {
 }
 
-func (a NoOpAnalytics) Identify(userId uuid.UUID, properties map[string]interface{}) {}
+func (a NoOpAnalytics) Identify(userId uuid.UUID, properties Properties) {}
 
-func (a NoOpAnalytics) Tenant(tenantId uuid.UUID, data map[string]interface{}) {}
+func (a NoOpAnalytics) Tenant(tenantId uuid.UUID, data Properties) {}
 
 func (a NoOpAnalytics) Close() error { return nil }

@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
+
+var nopLogger = zerolog.Nop()
 
 type flushedEvent struct {
 	Resource   Resource
@@ -16,7 +19,7 @@ type flushedEvent struct {
 	TenantID   uuid.UUID
 	TokenID    *uuid.UUID
 	Count      int64
-	Properties map[string]interface{}
+	Properties Properties
 }
 
 type flushRecorder struct {
@@ -24,7 +27,7 @@ type flushRecorder struct {
 	events []flushedEvent
 }
 
-func (r *flushRecorder) record(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties map[string]interface{}) {
+func (r *flushRecorder) record(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties Properties) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.events = append(r.events, flushedEvent{
@@ -47,7 +50,7 @@ func (r *flushRecorder) getEvents() []flushedEvent {
 
 func TestCount_SingleTenant(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(50*time.Millisecond, rec.record)
+	agg := NewAggregator(&nopLogger, true, 50*time.Millisecond, 0, rec.record)
 	agg.Start()
 	defer agg.Shutdown()
 
@@ -81,7 +84,7 @@ func TestCount_SingleTenant(t *testing.T) {
 
 func TestCount_BatchSize(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(50*time.Millisecond, rec.record)
+	agg := NewAggregator(&nopLogger, true, 50*time.Millisecond, 0, rec.record)
 	agg.Start()
 	defer agg.Shutdown()
 
@@ -104,7 +107,7 @@ func TestCount_BatchSize(t *testing.T) {
 
 func TestCount_MultipleTenants(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(50*time.Millisecond, rec.record)
+	agg := NewAggregator(&nopLogger, true, 50*time.Millisecond, 0, rec.record)
 	agg.Start()
 	defer agg.Shutdown()
 
@@ -141,7 +144,7 @@ func TestCount_MultipleTenants(t *testing.T) {
 
 func TestFlush_EvictsIdleKeys(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(50*time.Millisecond, rec.record)
+	agg := NewAggregator(&nopLogger, true, 50*time.Millisecond, 0, rec.record)
 	agg.Start()
 	defer agg.Shutdown()
 
@@ -167,7 +170,7 @@ func TestFlush_EvictsIdleKeys(t *testing.T) {
 
 func TestShutdown_FinalFlush(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(10*time.Second, rec.record) // long interval
+	agg := NewAggregator(&nopLogger, true, 10*time.Second, 0, rec.record) // long interval
 	agg.Start()
 
 	tenantID := uuid.New()
@@ -186,7 +189,7 @@ func TestShutdown_FinalFlush(t *testing.T) {
 
 func TestCount_ConcurrentAccess(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(200*time.Millisecond, rec.record)
+	agg := NewAggregator(&nopLogger, true, 200*time.Millisecond, 0, rec.record)
 	agg.Start()
 	defer agg.Shutdown()
 
@@ -222,7 +225,7 @@ func TestCount_ConcurrentAccess(t *testing.T) {
 
 func TestCount_NoLossUnderContention(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(20*time.Millisecond, rec.record)
+	agg := NewAggregator(&nopLogger, true, 20*time.Millisecond, 0, rec.record)
 	agg.Start()
 
 	tenantID := uuid.New()
@@ -256,14 +259,14 @@ func TestCount_NoLossUnderContention(t *testing.T) {
 
 func TestCount_WithFeatureFlags(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(50*time.Millisecond, rec.record)
+	agg := NewAggregator(&nopLogger, true, 50*time.Millisecond, 0, rec.record)
 	agg.Start()
 	defer agg.Shutdown()
 
 	tenantID := uuid.New()
 
-	flagA := map[string]interface{}{"has_priority": true}
-	flagAB := map[string]interface{}{"has_priority": true, "has_scope": true}
+	flagA := Properties{"has_priority": true}
+	flagAB := Properties{"has_priority": true, "has_scope": true}
 
 	agg.Count(Event, Create, tenantID, nil, 3, flagA)
 	agg.Count(Event, Create, tenantID, nil, 7, flagAB)
@@ -298,11 +301,11 @@ func TestCount_WithFeatureFlags(t *testing.T) {
 
 func TestCount_FlagsPassedToFlush(t *testing.T) {
 	rec := &flushRecorder{}
-	agg := NewAggregator(10*time.Second, rec.record)
+	agg := NewAggregator(&nopLogger, true, 10*time.Second, 0, rec.record)
 	agg.Start()
 
 	tenantID := uuid.New()
-	props := map[string]interface{}{"has_priority": true, "has_scope": true}
+	props := Properties{"has_priority": true, "has_scope": true}
 	agg.Count(Event, Create, tenantID, nil, 10, props)
 
 	agg.Shutdown()

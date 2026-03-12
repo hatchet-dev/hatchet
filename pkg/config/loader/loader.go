@@ -519,10 +519,15 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	var feAnalyticsConfig *server.FePosthogConfig
 
 	if cf.Analytics.Posthog.Enabled {
+		flushInterval, _ := time.ParseDuration(cf.Analytics.AggregateFlushInterval)
+
 		phAnalytics, phErr := posthog.NewPosthogAnalytics(&posthog.PosthogAnalyticsOpts{
-			ApiKey:   cf.Analytics.Posthog.ApiKey,
-			Endpoint: cf.Analytics.Posthog.Endpoint,
-			Logger:   &l,
+			ApiKey:           cf.Analytics.Posthog.ApiKey,
+			Endpoint:         cf.Analytics.Posthog.Endpoint,
+			Logger:           &l,
+			AggregateEnabled: cf.Analytics.AggregateEnabled,
+			FlushInterval:    flushInterval,
+			MaxKeys:          int64(cf.Analytics.AggregateMaxKeys),
 		})
 
 		if phErr != nil {

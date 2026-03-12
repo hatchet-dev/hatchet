@@ -39,10 +39,12 @@ type PosthogAnalytics struct {
 }
 
 type PosthogAnalyticsOpts struct {
-	ApiKey        string
-	Endpoint      string
-	Logger        *zerolog.Logger
-	FlushInterval time.Duration
+	ApiKey           string
+	Endpoint         string
+	Logger           *zerolog.Logger
+	AggregateEnabled bool
+	FlushInterval    time.Duration
+	MaxKeys          int64
 }
 
 func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) {
@@ -54,9 +56,6 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 	}
 
 	flushInterval := opts.FlushInterval
-	if flushInterval == 0 {
-		flushInterval = 30 * time.Second
-	}
 
 	phClient, err := posthog.NewWithConfig(
 		opts.ApiKey,
@@ -74,18 +73,18 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 		client: &phClient,
 		l:      opts.Logger,
 	}
-	p.aggregator = analytics.NewAggregator(flushInterval, p.flushCount)
+	p.aggregator = analytics.NewAggregator(opts.Logger, opts.AggregateEnabled, flushInterval, opts.MaxKeys, p.flushCount)
 	return p, nil
 }
 
-func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resource, action analytics.Action, resourceId string, properties map[string]interface{}) {
+func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resource, action analytics.Action, resourceId string, properties analytics.Properties) {
 	userID := analytics.UserIDFromContext(ctx)
 	tenantID := analytics.TenantIDFromContext(ctx)
 	tokenID := analytics.TokenIDFromContext(ctx)
 
 	event := string(resource) + ":" + string(action)
 
-	props := map[string]interface{}{
+	props := analytics.Properties{
 		"resource_id": resourceId,
 	}
 	if userID != nil {
@@ -107,7 +106,7 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	err := (*p.client).Enqueue(posthog.Capture{
 		DistinctId: analytics.DistinctID(userID, tokenID, tenantID),
 		Event:      event,
-		Properties: props,
+		Properties: posthog.Properties(props),
 		Groups:     group,
 	})
 
@@ -116,7 +115,7 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	}
 }
 
-func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, props ...map[string]interface{}) {
+func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, props ...analytics.Properties) {
 	tenantID := analytics.TenantIDFromContext(ctx)
 	tokenID := analytics.TokenIDFromContext(ctx)
 
@@ -128,8 +127,8 @@ func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resourc
 	p.aggregator.Count(resource, action, tid, tokenID, 1, props...)
 }
 
-func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties map[string]interface{}) {
-	merged := map[string]interface{}{"count": count}
+func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties analytics.Properties) {
+	merged := analytics.Properties{"count": count}
 	for k, v := range properties {
 		merged[k] = v
 	}
@@ -145,10 +144,10 @@ func (p *PosthogAnalytics) Start() {
 	p.aggregator.Start()
 }
 
-func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties map[string]interface{}) {
+func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties analytics.Properties) {
 	err := (*p.client).Enqueue(posthog.Identify{
 		DistinctId: analytics.DistinctID(&userId, nil, nil),
-		Properties: map[string]interface{}{
+		Properties: posthog.Properties{
 			"$set": properties,
 		},
 	})
@@ -158,11 +157,11 @@ func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties map[string]inte
 	}
 }
 
-func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data map[string]interface{}) {
+func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data analytics.Properties) {
 	err := (*p.client).Enqueue(posthog.GroupIdentify{
 		Type: "tenant",
 		Key:  tenantId.String(),
-		Properties: map[string]interface{}{
+		Properties: posthog.Properties{
 			"$set": data,
 		},
 	})
