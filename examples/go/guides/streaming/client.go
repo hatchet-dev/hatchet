@@ -16,4 +16,3 @@ func runAndSubscribe(client *hatchet.Client) {
 		fmt.Print(chunk)
 	}
 }
-

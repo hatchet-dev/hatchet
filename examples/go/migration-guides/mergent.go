@@ -45,7 +45,6 @@ func ProcessImageMergent(req MergentRequest) (*MergentResponse, error) {
 	}, nil
 }
 
-
 // > After (Hatchet)
 type ImageProcessInput struct {
 	ImageURL string   `json:"image_url"`
