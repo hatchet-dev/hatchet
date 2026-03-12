@@ -237,12 +237,14 @@ WITH input AS (
         v1_task t
     JOIN
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
-    -- only fail tasks which still have a v1_task_runtime for the current retry count.
-    -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
-    JOIN
-        v1_task_runtime tr ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
     WHERE
         t.tenant_id = @tenantId::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -298,12 +300,14 @@ WITH input AS (
         v1_task t
     JOIN
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
-    -- only fail tasks which still have a v1_task_runtime for the current retry count.
-    -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
-    JOIN
-        v1_task_runtime tr ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
     WHERE
         t.tenant_id = @tenantId::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
     -- order by the task id to get a stable lock order
     ORDER BY
         id
