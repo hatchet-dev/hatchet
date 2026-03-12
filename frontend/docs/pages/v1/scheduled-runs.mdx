@@ -24,8 +24,6 @@ Hatchet supports scheduled runs to run on a schedule defined in a few different 
   policies can affect run start times.
 </Callout>
 
-## Programmatically Creating Scheduled Runs
-
 ### Create a Scheduled Run
 
 You can create dynamic scheduled runs programmatically via the API to run tasks at a specific time in the future.
@@ -145,29 +143,6 @@ Hatchet supports bulk operations for scheduled runs. You can bulk delete schedul
     <Snippet src={snippets.ruby.scheduled.programatic_sync.bulk_reschedule} />
   </Tabs.Tab>
 </UniversalTabs>
-
-## Managing Scheduled Runs in the Hatchet Dashboard
-
-In the Hatchet Dashboard, you can view and manage scheduled runs for your tasks.
-
-Navigate to "Triggers" > "Scheduled Runs" in the left sidebar and click "Create Scheduled Run" at the top right.
-
-You can specify run parameters such as Input, Additional Metadata, and the Scheduled Time.
-
-![Create Scheduled Run](../../public/schedule-dash.gif)
-
-You can also manage existing scheduled runs:
-
-- **Single-run actions**: Use the per-row actions menu to **Reschedule** or **Delete** an individual scheduled run.
-- **Bulk actions**: Use the **Actions** menu to bulk **Delete** or **Reschedule** either:
-  - The selected rows, or
-  - All rows matching the current filters (including “all” if no filters are set).
-
-<Callout type="info">
-  In the dashboard, reschedule/delete actions may be disabled for runs that were
-  created via a code-defined schedule, and rescheduling may be disabled for runs
-  that have already triggered.
-</Callout>
 
 ## Scheduled Run Considerations
 
