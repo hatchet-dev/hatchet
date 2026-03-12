@@ -1010,6 +1010,19 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   }
 
   /**
+   * Durably sleep until a specific timestamp.
+   * Uses the memoized `now()` to compute the remaining duration, then delegates to `sleepFor`.
+   *
+   * @param wakeAt - The timestamp to sleep until.
+   * @returns A SleepResult containing the actual duration slept.
+   */
+  async sleepUntil(wakeAt: Date): Promise<SleepResult> {
+    const now = await this.now();
+    const remainingMs = wakeAt.getTime() - now.getTime();
+    return this.sleepFor(`${Math.max(0, Math.ceil(remainingMs / 1000))}s`);
+  }
+
+  /**
    * Get the current timestamp, memoized across replays. Returns the same Date on every replay of the same task run.
    * @returns The memoized current timestamp.
    */

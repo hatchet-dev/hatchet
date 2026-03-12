@@ -876,3 +876,15 @@ class DurableContext(Context):
         )
 
         return now.ts
+
+    async def aio_sleep_until(self, wake_at: datetime) -> SleepResult:
+        """
+        Durably sleep until a specific timestamp.
+
+        :param wake_at: The timestamp to sleep until.
+
+        :return: A SleepResult containing the actual duration slept, which may be different from the intended duration if the workflow was evicted and resumed.
+        """
+        now = await self.aio_now()
+
+        return await self.aio_sleep_for(wake_at - now)
