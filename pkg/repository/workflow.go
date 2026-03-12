@@ -217,6 +217,7 @@ type WorkflowRepository interface {
 		[]*sqlcv1.WorkflowTriggerEventRef,
 		[]*sqlcv1.WorkflowTriggerScheduledRef,
 		[]*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow,
+		[]*sqlcv1.ListWorkflowConcurrencyByVersionIdRow,
 		error)
 
 	GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
@@ -1140,6 +1141,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	[]*sqlcv1.WorkflowTriggerEventRef,
 	[]*sqlcv1.WorkflowTriggerScheduledRef,
 	[]*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow,
+	[]*sqlcv1.ListWorkflowConcurrencyByVersionIdRow,
 	error,
 ) {
 	row, err := r.queries.GetWorkflowVersionById(
@@ -1149,7 +1151,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	)
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow version: %w", err)
 	}
 
 	crons, err := r.queries.GetWorkflowVersionCronTriggerRefs(
@@ -1159,7 +1161,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	)
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch cron triggers: %w", err)
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch cron triggers: %w", err)
 	}
 
 	events, err := r.queries.GetWorkflowVersionEventTriggerRefs(
@@ -1169,7 +1171,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	)
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch event triggers: %w", err)
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch event triggers: %w", err)
 	}
 
 	scheduled, err := r.queries.GetWorkflowVersionScheduleTriggerRefs(
@@ -1179,7 +1181,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	)
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch scheduled triggers: %w", err)
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch scheduled triggers: %w", err)
 	}
 
 	stepConcurrency, err := r.queries.ListConcurrencyStrategiesByWorkflowVersionId(ctx, r.pool, sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdParams{
@@ -1189,10 +1191,19 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	})
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow concurrency strategies: %w", err)
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch step concurrency strategies: %w", err)
 	}
 
-	return row, crons, events, scheduled, stepConcurrency, nil
+	workflowConcurrency, err := r.queries.ListWorkflowConcurrencyByVersionId(ctx, r.pool, sqlcv1.ListWorkflowConcurrencyByVersionIdParams{
+		Workflowversionid: row.WorkflowVersion.ID,
+		Workflowid:        row.Workflow.ID,
+	})
+
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow concurrency strategies: %w", err)
+	}
+
+	return row, crons, events, scheduled, stepConcurrency, workflowConcurrency, nil
 }
 
 func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
