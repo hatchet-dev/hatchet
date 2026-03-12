@@ -347,11 +347,6 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		sharedMeta: opts.sharedMeta,
 	}
 
-	subscribe := newSubscribe(conn, shared)
-	admin := newAdmin(conn, shared, subscribe)
-	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
-	event := newEvent(conn, shared)
-
 	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil
@@ -360,6 +355,11 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create rest client: %w", err)
 	}
+
+	subscribe := newSubscribe(conn, shared)
+	admin := newAdmin(conn, shared, subscribe, rest)
+	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
+	event := newEvent(conn, shared)
 
 	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudrest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))

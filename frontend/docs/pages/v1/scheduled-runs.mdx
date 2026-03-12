@@ -5,9 +5,9 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Scheduled Runs
 
-> This example assumes we have a [task](/v1/tasks) registered on a running [worker](/v1/workers).
+Scheduled runs allow you to trigger a task at a specific time in the future.
 
-Scheduled runs allow you to trigger a task at a specific time in the future. Some example use cases of scheduling runs might include:
+Some example use cases of scheduling runs might include:
 
 - Sending a reminder email at a specific time after a user took an action.
 - Running a one-time maintenance task at a predetermined time as determined by your application. For instance, you might want to run a database vacuum during a maintenance window any time a task matches a certain criteria.
@@ -51,7 +51,7 @@ Here's an example of creating a scheduled run to trigger a task tomorrow at noon
 
 In this example you can have different scheduled times for different customers, or dynamically set the scheduled time based on some other business logic.
 
-When creating a scheduled run via the API, you will receive a scheduled run object with a metadata property containing the id of the scheduled run. This id can be used to reference the scheduled run when deleting the scheduled run and is often stored in a database or other persistence layer.
+When creating a scheduled run via the API, you will receive a scheduled run object with a metadata property containing the ID of the scheduled run. This ID can be used to reference the scheduled run when deleting the scheduled run and is often stored in a database or other persistence layer.
 
 <Callout type="info">
   Note: Be mindful of the time zone of the scheduled run. Scheduled runs are
@@ -59,8 +59,6 @@ When creating a scheduled run via the API, you will receive a scheduled run obje
 </Callout>
 
 ### Deleting a Scheduled Run
-
-You can delete a scheduled run by calling the `delete` method on the scheduled client.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -79,8 +77,6 @@ You can delete a scheduled run by calling the `delete` method on the scheduled c
 
 ### Listing Scheduled Runs
 
-You can list all scheduled runs for a task by calling the `list` method on the scheduled client.
-
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.list} />
@@ -98,9 +94,7 @@ You can list all scheduled runs for a task by calling the `list` method on the s
 
 ### Rescheduling a Scheduled Run
 
-If you need to change the trigger time for an existing scheduled run, you can reschedule it by updating its `triggerAt`.
-
-<UniversalTabs items={["Python", "Typescript", "Ruby"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.reschedule} />
 
@@ -110,6 +104,9 @@ If you need to change the trigger time for an existing scheduled run, you can re
       src={snippets.typescript.simple.schedule.reschedule_a_scheduled_run}
     />
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.scheduled.main.reschedule} />
   </Tabs.Tab>
   <Tabs.Tab title="Ruby">
     <Snippet src={snippets.ruby.scheduled.programatic_sync.reschedule} />
@@ -126,18 +123,22 @@ If you need to change the trigger time for an existing scheduled run, you can re
 
 Hatchet supports bulk operations for scheduled runs. You can bulk delete scheduled runs, and you can bulk reschedule scheduled runs by providing a list of updates.
 
-<UniversalTabs items={["Python", "Typescript", "Ruby"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
     <Snippet src={snippets.python.scheduled.programatic_sync.bulk_delete} />
     <Snippet src={snippets.python.scheduled.programatic_sync.bulk_reschedule} />
-
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
-    <Snippet src={snippets.typescript.simple.schedule.bulk_delete_scheduled_runs} />
+    <Snippet
+      src={snippets.typescript.simple.schedule.bulk_delete_scheduled_runs}
+    />
     <Snippet
       src={snippets.typescript.simple.schedule.bulk_reschedule_scheduled_runs}
     />
-
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.scheduled.main.bulk_delete} />
+    <Snippet src={snippets.go.scheduled.main.bulk_update} />
   </Tabs.Tab>
   <Tabs.Tab title="Ruby">
     <Snippet src={snippets.ruby.scheduled.programatic_sync.bulk_delete} />
