@@ -176,8 +176,8 @@ func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties analytics.Prope
 
 func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data analytics.Properties) {
 	err := (*p.client).Enqueue(posthog.GroupIdentify{
-		Type: "tenant",
-		Key:  tenantId.String(),
+		Type:       "tenant",
+		Key:        tenantId.String(),
 		Properties: posthog.Properties(data),
 	})
 	if err != nil {
