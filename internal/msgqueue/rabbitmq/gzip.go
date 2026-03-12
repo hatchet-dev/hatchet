@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	// we need to do this aliasing to avoid the load-deadlock GitHub action from
-	// failing which depends on replacing the standard "sync" package with
-	// github.com/sasha-s/go-deadlock
-	stdsync "sync"
+	"sync"
 )
 
 type CompressionResult struct {
@@ -22,7 +19,12 @@ type CompressionResult struct {
 	CompressionRatio float64
 }
 
-var gzipWriterPool = stdsync.Pool{
+// gzipWriterPool reuses gzip.Writer instances to avoid repeated allocations.
+// No explicit size cap is needed: sync.Pool is self-limiting because the Go
+// runtime evicts pooled objects during GC, so the pool cannot grow unbounded.
+// In practice the pool size is also bounded by the number of goroutines
+// concurrently compressing, which is small for a RabbitMQ publish path.
+var gzipWriterPool = sync.Pool{
 	New: func() any {
 		return gzip.NewWriter(nil)
 	},
