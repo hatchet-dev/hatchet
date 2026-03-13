@@ -190,7 +190,7 @@ func (p *PosthogAnalytics) Group(groupType string, groupKey string, data analyti
 	err := (*p.client).Enqueue(posthog.GroupIdentify{
 		Type:       groupType,
 		Key:        groupKey,
-		Properties: posthog.Properties{"$set": data},
+		Properties: posthog.Properties(data),
 	})
 	if err != nil {
 		p.l.Error().Err(err).Str("group_type", groupType).Str("group_key", groupKey).Msg("error enqueuing posthog group identify")
