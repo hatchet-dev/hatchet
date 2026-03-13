@@ -15,22 +15,40 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
+		"has_priority", req.Priority != nil,
+		"is_child", req.ParentId != nil,
+		"has_additional_meta", req.AdditionalMetadata != nil,
+		"has_desired_worker_id", req.DesiredWorkerId != nil,
+		"has_desired_worker_labels", len(req.DesiredWorkerLabels) > 0,
+	))
 	return a.triggerWorkflowV1(ctx, req)
 }
 
 func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
+	for _, w := range req.Workflows {
+		a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
+			"has_priority", w.Priority != nil,
+			"is_child", w.ParentId != nil,
+			"has_additional_meta", w.AdditionalMetadata != nil,
+			"has_desired_worker_id", w.DesiredWorkerId != nil,
+			"has_desired_worker_labels", len(w.DesiredWorkerLabels) > 0,
+		))
+	}
 	return a.bulkTriggerWorkflowV1(ctx, req)
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	a.analytics.Count(ctx, analytics.Workflow, analytics.Create, putWorkflowAnalyticsFeatureFlags(req.Opts))
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -104,6 +122,11 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
+		"has_priority", req.Priority != nil,
+		"is_child", req.ParentId != nil,
+		"has_additional_meta", req.AdditionalMetadata != nil,
+	))
 
 	workflow, err := a.repov1.Workflows().GetWorkflowByName(
 		ctx,
@@ -214,6 +237,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	a.analytics.Count(ctx, analytics.RateLimit, analytics.Create)
 
 	if req.Key == "" {
 		return nil, status.Error(
@@ -493,6 +517,48 @@ func toWorkflowVersionLegacy(workflowVersion *sqlcv1.GetWorkflowVersionForEngine
 	}
 
 	return version
+}
+
+func putWorkflowAnalyticsFeatureFlags(opts *contracts.CreateWorkflowVersionOpts) map[string]interface{} {
+	if opts == nil {
+		return nil
+	}
+
+	var hasTaskRateLimits, hasTaskWorkerLabels, hasTaskRetries, hasTaskBackoff, hasTaskTimeout, hasTaskDag bool
+
+	for _, job := range opts.Jobs {
+		if job == nil {
+			continue
+		}
+		for _, s := range job.Steps {
+			if s == nil {
+				continue
+			}
+			hasTaskRateLimits = hasTaskRateLimits || len(s.RateLimits) > 0
+			hasTaskWorkerLabels = hasTaskWorkerLabels || len(s.WorkerLabels) > 0
+			hasTaskRetries = hasTaskRetries || s.Retries > 0
+			hasTaskBackoff = hasTaskBackoff || s.BackoffFactor != nil
+			hasTaskTimeout = hasTaskTimeout || s.Timeout != ""
+			hasTaskDag = hasTaskDag || len(s.Parents) > 0
+		}
+	}
+
+	return analytics.Props(
+		"has_wf_concurrency", opts.Concurrency != nil,
+		"has_wf_sticky", opts.Sticky != nil,
+		"has_wf_default_priority", opts.DefaultPriority != nil,
+		"has_wf_on_failure", opts.OnFailureJob != nil,
+		"has_wf_cron_triggers", len(opts.CronTriggers) > 0,
+		"has_wf_event_triggers", len(opts.EventTriggers) > 0,
+		"has_wf_scheduled_triggers", len(opts.ScheduledTriggers) > 0,
+		"has_wf_cron_input", opts.CronInput != nil,
+		"has_task_rate_limits", hasTaskRateLimits,
+		"has_task_worker_labels", hasTaskWorkerLabels,
+		"has_task_retries", hasTaskRetries,
+		"has_task_backoff", hasTaskBackoff,
+		"has_task_timeout", hasTaskTimeout,
+		"has_task_dag", hasTaskDag,
+	)
 }
 
 func getActionsForTasks(createOpts *v1.CreateWorkflowVersionOpts) ([]string, error) {

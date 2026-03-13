@@ -1,6 +1,7 @@
 package populator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -113,6 +115,8 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok && tenant != nil {
 		telemetry.WithAttributes(span, servertel.TenantId(tenant.ID))
+		ctx = context.WithValue(ctx, analytics.TenantIDKey, tenant.ID)
+		c.SetRequest(c.Request().WithContext(ctx))
 	} else if tenantId := c.Param("tenant"); tenantId != "" {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 	}

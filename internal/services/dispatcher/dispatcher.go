@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -49,6 +50,7 @@ type DispatcherImpl struct {
 	dispatcherId uuid.UUID
 	workers      *workers
 	a            *hatcheterrors.Wrapped
+	analytics    analytics.Analytics
 	version      string
 }
 
@@ -123,6 +125,7 @@ type DispatcherOpts struct {
 	dispatcherId                uuid.UUID
 	alerter                     hatcheterrors.Alerter
 	cache                       cache.Cacheable
+	analytics                   analytics.Analytics
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
@@ -139,6 +142,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		dv:                          datautils.NewDataDecoderValidator(),
 		dispatcherId:                uuid.New(),
 		alerter:                     alerter,
+		analytics:                   analytics.NoOpAnalytics{},
 		payloadSizeThreshold:        3 * 1024 * 1024,
 		defaultMaxWorkerBacklogSize: 20,
 		workflowRunBufferSize:       1000,
@@ -218,6 +222,12 @@ func WithVersion(version string) DispatcherOpt {
 	}
 }
 
+func WithAnalytics(a analytics.Analytics) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.analytics = a
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -267,6 +277,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
+		analytics:                   opts.analytics,
 		streamEventBufferTimeout:    opts.streamEventBufferTimeout,
 		version:                     opts.version,
 	}, nil

@@ -161,3 +161,13 @@ func AuthContext(ctx context.Context, token string) context.Context {
 
 	return grpcMetadata.NewOutgoingContext(ctx, md)
 }
+
+func WithMetadata(ctx context.Context, key, value string) context.Context {
+	md, ok := grpcMetadata.FromOutgoingContext(ctx)
+	if !ok {
+		md = grpcMetadata.New(nil)
+	}
+	md = md.Copy()
+	md.Set(key, value)
+	return grpcMetadata.NewOutgoingContext(ctx, md)
+}
