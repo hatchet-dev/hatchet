@@ -1,172 +1,144 @@
 package docker
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	dockercontext "github.com/docker/go-sdk/context"
 )
 
-func TestResolveDockerHostFromContext(t *testing.T) {
-	t.Setenv("DOCKER_HOST", "")
-	t.Run("no docker config", func(t *testing.T) {
-		// Use a temp dir with no .docker folder
+func TestDockerContextResolution(t *testing.T) {
+	t.Run("no config returns error", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HOME", tmpDir)
+		t.Setenv("USERPROFILE", tmpDir)
+		t.Setenv("DOCKER_HOST", "")
+		t.Setenv("DOCKER_CONTEXT", "")
 
-		result := resolveDockerHostFromContext()
-		if result != "" {
-			t.Errorf("expected empty string, got %q", result)
+		_, err := dockercontext.CurrentDockerHost()
+		if err == nil {
+			t.Error("expected error when no docker config exists")
 		}
 	})
 
-	t.Run("empty currentContext", func(t *testing.T) {
+	t.Run("default context returns default host", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HOME", tmpDir)
-
-		// create .docker/config.json with no currentContext
-		dockerDir := filepath.Join(tmpDir, ".docker")
-		if err := os.MkdirAll(dockerDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		configContent := `{"auths": {}}`
-		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte(configContent), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		result := resolveDockerHostFromContext()
-		if result != "" {
-			t.Errorf("expected empty string, got %q", result)
-		}
-	})
-
-	t.Run("default context", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
-
-		// create .docker/config.json with currentContext = "default"
-		dockerDir := filepath.Join(tmpDir, ".docker")
-		if err := os.MkdirAll(dockerDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		configContent := `{"auths": {}, "currentContext": "default"}`
-		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte(configContent), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		result := resolveDockerHostFromContext()
-		if result != "" {
-			t.Errorf("expected empty string for default context, got %q", result)
-		}
-	})
-
-	t.Run("non-default context with valid metadata", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
-
-		contextName := "my-rancher"
-		expectedHost := "unix:///tmp/rancher.sock"
-
-		// create .docker/config.json
-		dockerDir := filepath.Join(tmpDir, ".docker")
-		if err := os.MkdirAll(dockerDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		configContent := `{"auths": {}, "currentContext": "` + contextName + `"}`
-		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte(configContent), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// create context metadata
-		hash := sha256.Sum256([]byte(contextName))
-		hashStr := hex.EncodeToString(hash[:])
-		metaDir := filepath.Join(dockerDir, "contexts", "meta", hashStr)
-		if err := os.MkdirAll(metaDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		metaContent := `{"Name":"` + contextName + `","Metadata":{},"Endpoints":{"docker":{"Host":"` + expectedHost + `","SkipTLSVerify":false}}}`
-		if err := os.WriteFile(filepath.Join(metaDir, "meta.json"), []byte(metaContent), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		result := resolveDockerHostFromContext()
-		if result != expectedHost {
-			t.Errorf("expected %q, got %q", expectedHost, result)
-		}
-	})
-
-	t.Run("non-default context with missing metadata", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
-
-		// create .docker/config.json with non-default context but no metadata
-		dockerDir := filepath.Join(tmpDir, ".docker")
-		if err := os.MkdirAll(dockerDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		configContent := `{"auths": {}, "currentContext": "missing-context"}`
-		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte(configContent), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		result := resolveDockerHostFromContext()
-		if result != "" {
-			t.Errorf("expected empty string for missing metadata, got %q", result)
-		}
-	})
-
-	t.Run("invalid config json", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
+		t.Setenv("USERPROFILE", tmpDir)
+		t.Setenv("DOCKER_HOST", "")
+		t.Setenv("DOCKER_CONTEXT", "")
 
 		dockerDir := filepath.Join(tmpDir, ".docker")
 		if err := os.MkdirAll(dockerDir, 0755); err != nil {
 			t.Fatal(err)
 		}
-		// Invalid JSON
+		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte(`{}`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		driver, err := NewDockerDriver(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer driver.apiClient.Close()
+
+		host := driver.apiClient.DaemonHost()
+		if host == "" {
+			t.Error("expected default Docker host, got empty string")
+		}
+	})
+
+	t.Run("non-default context resolves host", func(t *testing.T) {
+		dockercontext.SetupTestDockerContexts(t, 1, 1)
+		t.Setenv("DOCKER_HOST", "")
+		t.Setenv("DOCKER_CONTEXT", "")
+
+		driver, err := NewDockerDriver(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer driver.apiClient.Close()
+
+		host := driver.apiClient.DaemonHost()
+		if host != "tcp://127.0.0.1:1" {
+			t.Errorf("expected tcp://127.0.0.1:1, got %q", host)
+		}
+	})
+
+	t.Run("DOCKER_HOST takes precedence", func(t *testing.T) {
+		dockercontext.SetupTestDockerContexts(t, 1, 1)
+		t.Setenv("DOCKER_HOST", "tcp://192.168.1.100:2375")
+
+		driver, err := NewDockerDriver(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer driver.apiClient.Close()
+
+		host := driver.apiClient.DaemonHost()
+		if host != "tcp://192.168.1.100:2375" {
+			t.Errorf("expected tcp://192.168.1.100:2375, got %q", host)
+		}
+	})
+
+	t.Run("DOCKER_CONTEXT overrides config", func(t *testing.T) {
+		dockercontext.SetupTestDockerContexts(t, 1, 2)
+		t.Setenv("DOCKER_HOST", "")
+		t.Setenv("DOCKER_CONTEXT", "context2")
+
+		driver, err := NewDockerDriver(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer driver.apiClient.Close()
+
+		host := driver.apiClient.DaemonHost()
+		if host != "tcp://127.0.0.1:2" {
+			t.Errorf("expected tcp://127.0.0.1:2, got %q", host)
+		}
+	})
+
+	t.Run("missing context returns error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
+		t.Setenv("USERPROFILE", tmpDir)
+		t.Setenv("DOCKER_HOST", "")
+		t.Setenv("DOCKER_CONTEXT", "")
+
+		dockerDir := filepath.Join(tmpDir, ".docker")
+		if err := os.MkdirAll(dockerDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte(`{"currentContext": "nonexistent"}`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := dockercontext.CurrentDockerHost()
+		if err == nil {
+			t.Error("expected error for missing context")
+		}
+	})
+
+	t.Run("invalid config returns error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
+		t.Setenv("USERPROFILE", tmpDir)
+		t.Setenv("DOCKER_HOST", "")
+		t.Setenv("DOCKER_CONTEXT", "")
+
+		dockerDir := filepath.Join(tmpDir, ".docker")
+		if err := os.MkdirAll(dockerDir, 0755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte("{invalid}"), 0644); err != nil {
 			t.Fatal(err)
 		}
 
-		result := resolveDockerHostFromContext()
-		if result != "" {
-			t.Errorf("expected empty string for invalid JSON, got %q", result)
-		}
-	})
-
-	t.Run("tcp host endpoint", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		t.Setenv("HOME", tmpDir)
-
-		contextName := "remote-docker"
-		expectedHost := "tcp://192.168.1.100:2375"
-
-		// create .docker/config.json
-		dockerDir := filepath.Join(tmpDir, ".docker")
-		if err := os.MkdirAll(dockerDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		configContent := `{"auths": {}, "currentContext": "` + contextName + `"}`
-		if err := os.WriteFile(filepath.Join(dockerDir, "config.json"), []byte(configContent), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// create context metadata with TCP endpoint
-		hash := sha256.Sum256([]byte(contextName))
-		hashStr := hex.EncodeToString(hash[:])
-		metaDir := filepath.Join(dockerDir, "contexts", "meta", hashStr)
-		if err := os.MkdirAll(metaDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		metaContent := `{"Name":"` + contextName + `","Metadata":{},"Endpoints":{"docker":{"Host":"` + expectedHost + `","SkipTLSVerify":false}}}`
-		if err := os.WriteFile(filepath.Join(metaDir, "meta.json"), []byte(metaContent), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		result := resolveDockerHostFromContext()
-		if result != expectedHost {
-			t.Errorf("expected %q, got %q", expectedHost, result)
+		_, err := dockercontext.CurrentDockerHost()
+		if err == nil {
+			t.Error("expected error for invalid config")
 		}
 	})
 }
