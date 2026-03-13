@@ -454,6 +454,7 @@ active_scheduled_workflows AS (
     FROM
         "WorkflowTriggerScheduledRef"
     WHERE "id" IN (SELECT "id" FROM not_run_scheduled_workflows)
+    ORDER BY "triggerAt" ASC, "id" ASC
     FOR UPDATE SKIP LOCKED
 )
 
