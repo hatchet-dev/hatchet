@@ -185,7 +185,62 @@ func (e *StaleInvocationError) Error() string {
 	return fmt.Sprintf("invocation count mismatch for task %s: server has %d, worker sent %d", e.TaskExternalId.String(), e.ExpectedInvocationCount, e.ActualInvocationCount)
 }
 
-func formatCall(opts IngestDurableTaskEventOpts) string {
+func formatConditionLabel(c CreateExternalSignalConditionOpt) string {
+	switch c.Kind {
+	case CreateExternalSignalConditionKindSLEEP:
+		if c.SleepFor != nil {
+			return "sleep(" + *c.SleepFor + ")"
+		}
+		return "sleep"
+	case CreateExternalSignalConditionKindUSEREVENT:
+		if c.UserEventKey != nil {
+			return "waitForEvent(" + *c.UserEventKey + ")"
+		}
+		return "waitForEvent"
+	default:
+		return string(c.Kind)
+	}
+}
+
+const maxDisplayLabels = 5
+
+func summarizeLabels(labels []string) string {
+	if len(labels) <= maxDisplayLabels {
+		return strings.Join(labels, ", ")
+	}
+
+	counts := make(map[string]int, len(labels))
+	order := make([]string, 0)
+
+	for _, l := range labels {
+		if counts[l] == 0 {
+			order = append(order, l)
+		}
+		counts[l]++
+	}
+
+	parts := make([]string, 0, min(len(order), maxDisplayLabels))
+
+	for i, name := range order {
+		if i >= maxDisplayLabels {
+			break
+		}
+
+		if counts[name] > 1 {
+			parts = append(parts, fmt.Sprintf("%dx %s", counts[name], name))
+		} else {
+			parts = append(parts, name)
+		}
+	}
+
+	if remaining := len(order) - maxDisplayLabels; remaining > 0 {
+		parts = append(parts, fmt.Sprintf("... +%d more unique", remaining))
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+func (opts IngestDurableTaskEventOpts) formatCall() string {
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		if opts.TriggerRuns != nil {
@@ -193,30 +248,15 @@ func formatCall(opts IngestDurableTaskEventOpts) string {
 			for _, t := range opts.TriggerRuns.TriggerOpts {
 				names = append(names, t.WorkflowName)
 			}
-			return "run(" + strings.Join(names, ", ") + ")"
+			return "run(" + summarizeLabels(names) + ")"
 		}
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
 		if opts.WaitFor != nil {
 			parts := make([]string, 0, len(opts.WaitFor.WaitForConditions))
 			for _, c := range opts.WaitFor.WaitForConditions {
-				switch c.Kind {
-				case CreateExternalSignalConditionKindSLEEP:
-					if c.SleepFor != nil {
-						parts = append(parts, "sleep("+*c.SleepFor+")")
-					} else {
-						parts = append(parts, "sleep")
-					}
-				case CreateExternalSignalConditionKindUSEREVENT:
-					if c.UserEventKey != nil {
-						parts = append(parts, "waitForEvent("+*c.UserEventKey+")")
-					} else {
-						parts = append(parts, "waitForEvent")
-					}
-				default:
-					parts = append(parts, string(c.Kind))
-				}
+				parts = append(parts, formatConditionLabel(c))
 			}
-			return "waitFor(" + strings.Join(parts, ", ") + ")"
+			return "waitFor(" + summarizeLabels(parts) + ")"
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		return "memo"
@@ -233,32 +273,27 @@ func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) stri
 	switch kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		var triggerOpts WorkflowNameTriggerOpts
-		if json.Unmarshal(payload, &triggerOpts) == nil && triggerOpts.WorkflowName != "" {
+
+		if err := json.Unmarshal(payload, &triggerOpts); err != nil {
+			return string(kind)
+		}
+
+		if triggerOpts.WorkflowName != "" {
 			return "run(" + triggerOpts.WorkflowName + ")"
 		}
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
 		var conditions []CreateExternalSignalConditionOpt
-		if json.Unmarshal(payload, &conditions) == nil && len(conditions) > 0 {
+
+		if err := json.Unmarshal(payload, &conditions); err != nil {
+			return string(kind)
+		}
+
+		if len(conditions) > 0 {
 			parts := make([]string, 0, len(conditions))
 			for _, c := range conditions {
-				switch c.Kind {
-				case CreateExternalSignalConditionKindSLEEP:
-					if c.SleepFor != nil {
-						parts = append(parts, "sleep("+*c.SleepFor+")")
-					} else {
-						parts = append(parts, "sleep")
-					}
-				case CreateExternalSignalConditionKindUSEREVENT:
-					if c.UserEventKey != nil {
-						parts = append(parts, "waitForEvent("+*c.UserEventKey+")")
-					} else {
-						parts = append(parts, "waitForEvent")
-					}
-				default:
-					parts = append(parts, string(c.Kind))
-				}
+				parts = append(parts, formatConditionLabel(c))
 			}
-			return "waitFor(" + strings.Join(parts, ", ") + ")"
+			return "waitFor(" + summarizeLabels(parts) + ")"
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		return "memo"
@@ -270,7 +305,7 @@ func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) stri
 func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V1DurableEventLogKind, existingPayload []byte) *NonDeterminismDetail {
 	return &NonDeterminismDetail{
 		Expected: formatStoredPayload(expectedKind, existingPayload),
-		Received: formatCall(opts),
+		Received: opts.formatCall(),
 	}
 }
 
