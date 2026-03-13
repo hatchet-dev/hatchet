@@ -1,16 +1,26 @@
-import type { OtelSpanTree } from './span-tree-type';
-import type { OtelSpan } from '@/lib/api/generated/data-contracts';
+import type {
+  OtelSpanTree,
+  RelevantOpenTelemetrySpanProperties,
+} from './span-tree-type';
 import invariant from 'tiny-invariant';
 
 export const convertOtelSpansToOtelSpanTree = (
-  spans: [OtelSpan, ...OtelSpan[]],
+  spans: [
+    RelevantOpenTelemetrySpanProperties,
+    ...RelevantOpenTelemetrySpanProperties[],
+  ],
 ): OtelSpanTree => {
   const spanMap = new Map<string, OtelSpanTree>();
   let rootSpan: OtelSpanTree | null = null;
 
   spans.forEach((span) => {
     spanMap.set(span.spanId, {
-      ...span,
+      spanId: span.spanId,
+      parentSpanId: span.parentSpanId,
+      spanName: span.spanName,
+      statusCode: span.statusCode,
+      durationNs: span.durationNs,
+      createdAt: span.createdAt,
       children: [],
     });
   });

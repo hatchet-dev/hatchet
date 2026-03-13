@@ -1,10 +1,10 @@
 import { Waterfall } from '../../waterfall';
 import { TabOption } from '../step-run-detail';
 import { TaskRunTrace } from './task-run-trace';
+import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
 import { Loading } from '@/components/v1/ui/loading';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import api from '@/lib/api/api';
-import { OtelSpan } from '@/lib/api/generated/data-contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
@@ -14,8 +14,21 @@ function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
 
 const PAGE_SIZE = 200;
 
-async function fetchAllSpans(taskExternalId: string): Promise<OtelSpan[]> {
-  const allSpans: OtelSpan[] = [];
+const pickSpan = (
+  span: RelevantOpenTelemetrySpanProperties,
+): RelevantOpenTelemetrySpanProperties => ({
+  spanId: span.spanId,
+  parentSpanId: span.parentSpanId,
+  spanName: span.spanName,
+  statusCode: span.statusCode,
+  durationNs: span.durationNs,
+  createdAt: span.createdAt,
+});
+
+async function fetchAllSpans(
+  taskExternalId: string,
+): Promise<RelevantOpenTelemetrySpanProperties[]> {
+  const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
   let offset = 0;
 
   // eslint-disable-next-line no-constant-condition
@@ -26,7 +39,7 @@ async function fetchAllSpans(taskExternalId: string): Promise<OtelSpan[]> {
     });
 
     const rows = res.data.rows ?? [];
-    allSpans.push(...rows);
+    allSpans.push(...rows.map(pickSpan));
 
     const numPages = res.data.pagination?.num_pages ?? 1;
     const currentPage = res.data.pagination?.current_page ?? 1;

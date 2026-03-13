@@ -1,7 +1,9 @@
 import { TreeView } from '@/components/v1/agent-prism/TreeView';
 import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { OtelSpan } from '@/lib/api/generated/data-contracts';
+import type {
+  OtelSpanTree,
+  RelevantOpenTelemetrySpanProperties,
+} from '@/components/v1/agent-prism/span-tree-type';
 import { useMemo, useState } from 'react';
 
 const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
@@ -15,7 +17,14 @@ const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
   ];
 };
 
-export function TaskRunTrace({ spans }: { spans: [OtelSpan, ...OtelSpan[]] }) {
+export function TaskRunTrace({
+  spans,
+}: {
+  spans: [
+    RelevantOpenTelemetrySpanProperties,
+    ...RelevantOpenTelemetrySpanProperties[],
+  ];
+}) {
   const traceSpanTree = useMemo(
     () => convertOtelSpansToOtelSpanTree(spans),
     [spans],
