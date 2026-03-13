@@ -8,56 +8,64 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/go-echarts/go-echarts/v2/charts"
-	"github.com/go-echarts/go-echarts/v2/opts"
+	"github.com/vicanso/go-charts/v2"
 )
 
 type LatencySnapshot struct {
 	t       time.Time
 	latency time.Duration
 }
+
 type LatencyResult struct {
 	snapshots []LatencySnapshot
 }
 
-func (lr *LatencyResult) PlotLatency(outputFile string) error {
-	line := charts.NewLine()
-
-	xvals := make([]string, 0, len(lr.snapshots))
-	yvals := make([]opts.LineData, 0, len(lr.snapshots))
-	start := lr.snapshots[0].t
-
-	for _, s := range lr.snapshots {
-		elapsedMs := float64(s.t.Sub(start).Seconds())
-
-		xvals = append(xvals, fmt.Sprintf("%f", elapsedMs))
-		yvals = append(yvals, opts.LineData{
-			Value: float64(s.latency.Microseconds()) / 1000.0, // ms
-		})
+func (lr *LatencyResult) GeneratePlot(plotPath string) error {
+	bytes, err := lr.PlotLatency()
+	if err != nil {
+		return err
 	}
 
-	line.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{
-			Title: "Latency Over Time",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Name: "Latency (ms)",
-		}),
-		charts.WithXAxisOpts(opts.XAxis{
-			Name: "Time",
-		}),
-	)
-
-	line.SetXAxis(xvals).
-		AddSeries("Latency", yvals)
-
-	f, err := os.Create(outputFile)
+	// save to file
+	f, err := os.Create(plotPath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	_, err = f.Write(bytes)
+	return err
+}
 
-	return line.Render(f)
+func (lr *LatencyResult) PlotLatency() ([]byte, error) {
+	if len(lr.snapshots) == 0 {
+		return nil, fmt.Errorf("no snapshots available")
+	}
+
+	xvals := make([]string, 0, len(lr.snapshots))
+	yvals := make([]float64, 0, len(lr.snapshots))
+
+	start := lr.snapshots[0].t
+
+	for _, s := range lr.snapshots {
+		elapsed := s.t.Sub(start).Seconds()
+		xvals = append(xvals, fmt.Sprintf("%.2f", elapsed))
+
+		latencyMs := float64(s.latency.Microseconds()) / 1000.0
+		yvals = append(yvals, latencyMs)
+	}
+
+	p, err := charts.LineRender(
+		[][]float64{yvals},
+		charts.TitleTextOptionFunc("Latency Over Time"),
+		charts.XAxisDataOptionFunc(xvals),
+		charts.LegendLabelsOptionFunc([]string{"Latency"}),
+		charts.HeightOptionFunc(500),
+		charts.WidthOptionFunc(1000),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return p.Bytes()
 }
 
 type avgResult struct {
@@ -185,11 +193,11 @@ func do(config LoadTestConfig) error {
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
 	if config.PlotDir != "" {
 		log.Printf("ℹ️ exporting scheduling/duration snapshot data")
-		err := finalScheduledResult.latencyResult.PlotLatency(filepath.Join(config.PlotDir, "scheduling_latency.html"))
+		err := finalScheduledResult.latencyResult.GeneratePlot(filepath.Join(config.PlotDir, "scheduling_plot.png"))
 		if err != nil {
 			return err
 		}
-		err = finalDurationResult.latencyResult.PlotLatency(filepath.Join(config.PlotDir, "duration_latency.html"))
+		err = finalDurationResult.latencyResult.GeneratePlot(filepath.Join(config.PlotDir, "duration_plot.png"))
 		if err != nil {
 			return err
 		}
