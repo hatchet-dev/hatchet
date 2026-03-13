@@ -140,7 +140,7 @@ func (a *Aggregator) Shutdown() {
 
 func (a *Aggregator) flush() {
 	if !a.flushMu.TryLock() {
-		a.l.Warn().Dur("interval", a.interval).Msg("aggregator flush still running, skipping interval")
+		a.l.Error().Dur("interval", a.interval).Msg("aggregator flush still running, skipping interval")
 		return
 	}
 	defer a.flushMu.Unlock()
