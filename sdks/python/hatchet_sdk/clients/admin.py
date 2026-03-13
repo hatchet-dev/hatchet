@@ -45,7 +45,6 @@ MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
 class RunStatus(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
-    EVICTED = "EVICTED"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
@@ -60,8 +59,6 @@ class RunStatus(str, Enum):
             return RunStatus.FAILED
         if proto_status == workflow_protos.RunStatus.RUNNING:
             return RunStatus.RUNNING
-        if proto_status == workflow_protos.RunStatus.EVICTED:
-            return RunStatus.EVICTED
         if proto_status == workflow_protos.RunStatus.QUEUED:
             return RunStatus.QUEUED
         raise ValueError(f"Unknown proto status: {proto_status}")
@@ -78,8 +75,6 @@ class RunStatus(str, Enum):
             return RunStatus.FAILED
         if v1_task_status == V1TaskStatus.RUNNING:
             return RunStatus.RUNNING
-        if v1_task_status == V1TaskStatus.EVICTED:
-            return RunStatus.EVICTED
         if v1_task_status == V1TaskStatus.QUEUED:
             return RunStatus.QUEUED
 
@@ -94,8 +89,6 @@ class RunStatus(str, Enum):
             return V1TaskStatus.FAILED
         if self == RunStatus.RUNNING:
             return V1TaskStatus.RUNNING
-        if self == RunStatus.EVICTED:
-            return V1TaskStatus.EVICTED
         if self == RunStatus.QUEUED:
             return V1TaskStatus.QUEUED
 
@@ -132,6 +125,7 @@ class TaskRunDetail(BaseModel):
     output: JSONSerializableMapping | None = None
     error: str | None = None
     status: V1TaskStatus
+    is_evicted: bool = False
 
 
 class WorkflowRunDetail(BaseModel):
@@ -609,6 +603,7 @@ class AdminClient:
                     ),
                     error=details.error if details.error else None,
                     status=RunStatus.from_proto(details.status).to_v1_task_status(),
+                    is_evicted=getattr(details, "is_evicted", False),
                 )
                 for readable_id, details in response.task_runs.items()
             },

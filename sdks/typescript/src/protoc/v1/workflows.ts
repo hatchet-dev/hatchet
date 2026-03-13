@@ -413,6 +413,8 @@ export interface TaskRunDetail {
   output?: Uint8Array | undefined;
   /** the readable id of the task */
   readableId: string;
+  /** whether the task has been evicted from a worker (status will be RUNNING) */
+  isEvicted: boolean;
 }
 
 export interface GetRunDetailsResponse {
@@ -426,6 +428,8 @@ export interface GetRunDetailsResponse {
   done: boolean;
   /** (optional) additional metadata for the workflow run */
   additionalMetadata: Uint8Array;
+  /** whether any task in this run has been evicted */
+  isEvicted: boolean;
 }
 
 export interface GetRunDetailsResponse_TaskRunsEntry {
@@ -2676,7 +2680,14 @@ export const GetRunDetailsRequest: MessageFns<GetRunDetailsRequest> = {
 };
 
 function createBaseTaskRunDetail(): TaskRunDetail {
-  return { externalId: '', status: 0, error: undefined, output: undefined, readableId: '' };
+  return {
+    externalId: '',
+    status: 0,
+    error: undefined,
+    output: undefined,
+    readableId: '',
+    isEvicted: false,
+  };
 }
 
 export const TaskRunDetail: MessageFns<TaskRunDetail> = {
@@ -2695,6 +2706,9 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
     }
     if (message.readableId !== '') {
       writer.uint32(42).string(message.readableId);
+    }
+    if (message.isEvicted !== false) {
+      writer.uint32(48).bool(message.isEvicted);
     }
     return writer;
   },
@@ -2746,6 +2760,14 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
           message.readableId = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.isEvicted = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2762,6 +2784,7 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
       error: isSet(object.error) ? globalThis.String(object.error) : undefined,
       output: isSet(object.output) ? bytesFromBase64(object.output) : undefined,
       readableId: isSet(object.readableId) ? globalThis.String(object.readableId) : '',
+      isEvicted: isSet(object.isEvicted) ? globalThis.Boolean(object.isEvicted) : false,
     };
   },
 
@@ -2782,6 +2805,9 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
     if (message.readableId !== '') {
       obj.readableId = message.readableId;
     }
+    if (message.isEvicted !== false) {
+      obj.isEvicted = message.isEvicted;
+    }
     return obj;
   },
 
@@ -2795,6 +2821,7 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
     message.error = object.error ?? undefined;
     message.output = object.output ?? undefined;
     message.readableId = object.readableId ?? '';
+    message.isEvicted = object.isEvicted ?? false;
     return message;
   },
 };
@@ -2806,6 +2833,7 @@ function createBaseGetRunDetailsResponse(): GetRunDetailsResponse {
     taskRuns: {},
     done: false,
     additionalMetadata: new Uint8Array(0),
+    isEvicted: false,
   };
 }
 
@@ -2828,6 +2856,9 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
     }
     if (message.additionalMetadata.length !== 0) {
       writer.uint32(42).bytes(message.additionalMetadata);
+    }
+    if (message.isEvicted !== false) {
+      writer.uint32(48).bool(message.isEvicted);
     }
     return writer;
   },
@@ -2882,6 +2913,14 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
           message.additionalMetadata = reader.bytes();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.isEvicted = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2905,6 +2944,7 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
           )
         : {},
       done: isSet(object.done) ? globalThis.Boolean(object.done) : false,
+      isEvicted: isSet(object.isEvicted) ? globalThis.Boolean(object.isEvicted) : false,
       additionalMetadata: isSet(object.additionalMetadata)
         ? bytesFromBase64(object.additionalMetadata)
         : new Uint8Array(0),
@@ -2931,6 +2971,9 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
     if (message.done !== false) {
       obj.done = message.done;
     }
+    if (message.isEvicted !== false) {
+      obj.isEvicted = message.isEvicted;
+    }
     if (message.additionalMetadata.length !== 0) {
       obj.additionalMetadata = base64FromBytes(message.additionalMetadata);
     }
@@ -2953,6 +2996,7 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
       return acc;
     }, {});
     message.done = object.done ?? false;
+    message.isEvicted = object.isEvicted ?? false;
     message.additionalMetadata = object.additionalMetadata ?? new Uint8Array(0);
     return message;
   },

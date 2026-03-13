@@ -17,24 +17,24 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
 
-class V1TaskRunMetric(BaseModel):
+class V1RunningDetailCount(BaseModel):
     """
-    V1TaskRunMetric
+    V1RunningDetailCount
     """  # noqa: E501
 
-    status: V1TaskStatus
-    count: StrictInt
-    running_detail_count: Optional[V1RunningDetailCount] = Field(
-        default=None, alias="runningDetailCount"
+    evicted: StrictInt = Field(
+        description="The number of evicted tasks within the RUNNING status bucket."
     )
-    __properties: ClassVar[List[str]] = ["status", "count", "runningDetailCount"]
+    on_worker: StrictInt = Field(
+        description="The number of tasks currently on a worker within the RUNNING status bucket.",
+        alias="onWorker",
+    )
+    __properties: ClassVar[List[str]] = ["evicted", "onWorker"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -53,7 +53,7 @@ class V1TaskRunMetric(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of V1TaskRunMetric from a JSON string"""
+        """Create an instance of V1RunningDetailCount from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -73,14 +73,11 @@ class V1TaskRunMetric(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of running_detail_count
-        if self.running_detail_count:
-            _dict["runningDetailCount"] = self.running_detail_count.to_dict()
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of V1TaskRunMetric from a dict"""
+        """Create an instance of V1RunningDetailCount from a dict"""
         if obj is None:
             return None
 
@@ -88,14 +85,6 @@ class V1TaskRunMetric(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate(
-            {
-                "status": obj.get("status"),
-                "count": obj.get("count"),
-                "runningDetailCount": (
-                    V1RunningDetailCount.from_dict(obj["runningDetailCount"])
-                    if obj.get("runningDetailCount") is not None
-                    else None
-                ),
-            }
+            {"evicted": obj.get("evicted"), "onWorker": obj.get("onWorker")}
         )
         return _obj

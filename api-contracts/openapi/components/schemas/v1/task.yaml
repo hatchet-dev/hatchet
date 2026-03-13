@@ -63,6 +63,9 @@ V1TaskSummary:
       description: The output of the task run (for the latest run)
     status:
       $ref: "#/V1TaskStatus"
+    isEvicted:
+      type: boolean
+      description: Whether the task has been evicted from a worker (still counts as RUNNING).
     startedAt:
       type: string
       format: date-time
@@ -263,10 +266,16 @@ V1TaskStatus:
   enum:
     - QUEUED
     - RUNNING
-    - EVICTED
     - COMPLETED
     - CANCELLED
     - FAILED
+
+V1RunningFilter:
+  type: string
+  enum:
+    - ALL
+    - EVICTED
+    - ON_WORKER
 
 V1TaskEventType:
   type: string
@@ -308,6 +317,19 @@ V1TaskRunMetrics:
   items:
     $ref: "#/V1TaskRunMetric"
 
+V1RunningDetailCount:
+  type: object
+  properties:
+    evicted:
+      type: integer
+      description: The number of evicted tasks within the RUNNING status bucket.
+    onWorker:
+      type: integer
+      description: The number of tasks currently on a worker within the RUNNING status bucket.
+  required:
+    - evicted
+    - onWorker
+
 V1TaskRunMetric:
   type: object
   properties:
@@ -315,6 +337,8 @@ V1TaskRunMetric:
       $ref: "#/V1TaskStatus"
     count:
       type: integer
+    runningDetailCount:
+      $ref: "#/V1RunningDetailCount"
   required:
     - status
     - count
@@ -404,6 +428,9 @@ V1TaskTiming:
       description: The depth of the task in the waterfall.
     status:
       $ref: "#/V1TaskStatus"
+    isEvicted:
+      type: boolean
+      description: Whether the task has been evicted from a worker (still counts as RUNNING).
     taskDisplayName:
       type: string
       description: The display name of the task run.
