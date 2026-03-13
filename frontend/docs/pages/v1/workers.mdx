@@ -6,11 +6,11 @@ import Keywords from "@/components/Keywords";
 
 # Workers
 
-Workers are the processes that execute [tasks](/v1/tasks). Each worker is a long-running process that maintains a persistent gRPC connection to the Hatchet engine. Workers receive and execute task assignments, and report results back to the engine. They can be run locally during development, in containers, bare-metal on VMs, or any other way of running a long-running process, and can be scaled horizontally.
+Workers are the processes that execute [tasks](/v1/tasks). Each worker is a long-running process that maintains a persistent gRPC connection to the Hatchet engine. Workers receive and execute task assignments, and report results back to the engine. You can run them locally during development, in containers, on bare-metal VMs, or anywhere you can run a long-running process, and scale them horizontally.
 
 ## Declaring a worker
 
-A worker needs a name and a set of tasks or workflows to register, and is initialized like this:
+A worker needs a name and a set of tasks or workflows to register:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -43,7 +43,7 @@ hatchet worker dev
   </Tabs.Tab>
   <Tabs.Tab value="script" label="Script">
 
-Workers can also be run directly. This requires a `HATCHET_CLIENT_TOKEN` environment variable to be set, or provided via parameters when creating the Hatchet client. API tokens can be generated from the Hatchet dashboard by navigating to the **Settings** tab and clicking **API Tokens**. Click **Generate API Token** to create a new token, and do not share it publicly.
+You can also run workers directly. Set a `HATCHET_CLIENT_TOKEN` environment variable, or provide it via parameters when creating the Hatchet client. Generate API tokens from the Hatchet dashboard by navigating to the **Settings** tab and clicking **API Tokens**. Click **Generate API Token** to create a new token, and do not share it publicly.
 
 ```bash
 export HATCHET_CLIENT_TOKEN="<your-client-token>"
@@ -126,7 +126,7 @@ graph LR
 - **INACTIVE** - the engine has not received a heartbeat within the expected window of 30 seconds. Tasks assigned to this worker will be reassigned.
 - **STOPPED** - the worker shut down gracefully. In-flight tasks are allowed to complete before the process exits.
 
-Hatchet uses heartbeats to monitor worker health. Workers send a heartbeat every **4 seconds**. If the engine does not receive a heartbeat for **30 seconds**, the worker is marked INACTIVE and its in-flight tasks are re-queued for other workers to pick up.
+Hatchet uses heartbeats to monitor worker health. Workers send a heartbeat every **4 seconds**. If the engine does not receive a heartbeat for **30 seconds**, the engine marks the worker INACTIVE and re-queues its in-flight tasks for other workers to pick up.
 
 There are a number of common reasons a worker might miss heartbeats:
 
