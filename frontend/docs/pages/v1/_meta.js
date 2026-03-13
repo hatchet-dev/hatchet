@@ -108,16 +108,4 @@ export default {
     title: "V0 to V1 Upgrade Guide",
     display: "hidden",
   },
-  "advanced-tasks": {
-    display: "hidden",
-  },
-  "error-handling": {
-    display: "hidden",
-  },
-  "flow-control": {
-    display: "hidden",
-  },
-  observability: {
-    display: "hidden",
-  },
 };
