@@ -7,6 +7,13 @@ import { snippets } from "@/lib/generated/snippets";
 
 Replays let you re-run failed or canceled task runs. You can replay individual runs from the Dashboard, or replay many runs at once via the SDKs, REST API, or Dashboard.
 
+<Callout type="info">
+  Replays are distinctly different from [automatic retries](/v1/retry-policies).
+  Automatic retries are triggered by Hatchet when a task fails, and are retried
+  until the task succeeds or the retry limit is reached. Replays are triggered
+  by you, the developer, when you want to re-run a task run for some reason.
+</Callout>
+
 ## Replaying from the Dashboard
 
 {/* TODO: Add a video of the dashboard view */}

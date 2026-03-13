@@ -295,7 +295,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "bulk retries",
     query: "bulk retries",
-    expectAnyOf: ["v1/bulk-retries-and-cancellations"],
+    expectAnyOf: ["v1/replays"],
   },
 
   // -------------------------------------------------------------------------
@@ -359,7 +359,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "additional metadata",
     query: "additional metadata",
-    expectAnyOf: ["v1/additional-metadata", "v1/bulk-retries-and-cancellations"],
+    expectAnyOf: ["v1/additional-metadata", "v1/replays"],
     topN: 10,
   },
 

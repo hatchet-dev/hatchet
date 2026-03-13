@@ -31,10 +31,10 @@ export default {
     title: "Reliability",
     type: "separator",
   },
-  "retry-policies": "Retry Policies",
+  "retry-policies": "Automatic Retries",
   timeouts: "Timeouts",
   cancellation: "Cancellation",
-  "bulk-retries-and-cancellations": "Replays",
+  replays: "Replays",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",

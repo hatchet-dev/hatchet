@@ -48,6 +48,8 @@ const nextConfig = {
       { source: '/reference/typescript/feature-clients/', destination: '/reference/typescript/feature-clients/crons', permanent: false, basePath: false },
       { source: '/reference/python/feature-clients', destination: '/reference/python/feature-clients/cron', permanent: false, basePath: false },
       { source: '/reference/python/feature-clients/', destination: '/reference/python/feature-clients/cron', permanent: false, basePath: false },
+      // Renamed pages
+      { source: '/v1/bulk-retries-and-cancellations', destination: '/v1/replays', permanent: true, basePath: false },
       // --- Old main: /home/* → /v1/* (only paths that existed on main) ---
       { source: '/home/conditional-workflows', destination: '/v1/conditions', permanent: true, basePath: false },
       { source: '/home/on-failure-tasks', destination: '/v1/on-failure', permanent: true, basePath: false },
