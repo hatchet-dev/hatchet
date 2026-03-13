@@ -123,8 +123,10 @@ type V1WorkflowRunPopulator struct {
 }
 
 type TaskRunMetric struct {
-	Status string `json:"status"`
-	Count  uint64 `json:"count"`
+	Status        string `json:"status"`
+	Count         uint64 `json:"count"`
+	EvictedCount  uint64 `json:"evictedCount,omitempty"`
+	OnWorkerCount uint64 `json:"onWorkerCount,omitempty"`
 }
 type Sticky string
 
@@ -309,7 +311,7 @@ func NewOLAPRepositoryFromPool(
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, nil, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, statusUpdateBatchSizeLimits), cleanupShared
 }
@@ -400,10 +402,14 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.olapRetentionPeriod)
 	}
 
+	// Use the direct pool (bypasses pgbouncer) for DDL operations because
+	// DETACH PARTITION CONCURRENTLY cannot run inside a transaction block.
+	ddlPool := r.DDLPool()
+
 	for _, partition := range partitions {
 		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, ddlPool, r.l, 30*60*1000) // 30 minutes
 
 		if err != nil {
 			return err
@@ -1467,37 +1473,33 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		return nil, err
 	}
 
-	metrics := make([]TaskRunMetric, 0)
+	runningCount := uint64(res.TotalRunning) // nolint: gosec
+	evictedCount := uint64(res.TotalEvicted) // nolint: gosec
 
-	metrics = append(metrics, TaskRunMetric{
-		Status: "QUEUED",
-		Count:  uint64(res.TotalQueued), // nolint: gosec
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "RUNNING",
-		Count:  uint64(res.TotalRunning), // nolint: gosec
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "COMPLETED",
-		Count:  uint64(res.TotalCompleted), // nolint: gosec
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "CANCELLED",
-		Count:  uint64(res.TotalCancelled), // nolint: gosec
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "FAILED",
-		Count:  uint64(res.TotalFailed), // nolint: gosec
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "EVICTED",
-		Count:  uint64(res.TotalEvicted), // nolint: gosec
-	})
+	metrics := []TaskRunMetric{
+		{
+			Status: "QUEUED",
+			Count:  uint64(res.TotalQueued), // nolint: gosec
+		},
+		{
+			Status:        "RUNNING",
+			Count:         runningCount + evictedCount,
+			EvictedCount:  evictedCount,
+			OnWorkerCount: runningCount,
+		},
+		{
+			Status: "COMPLETED",
+			Count:  uint64(res.TotalCompleted), // nolint: gosec
+		},
+		{
+			Status: "CANCELLED",
+			Count:  uint64(res.TotalCancelled), // nolint: gosec
+		},
+		{
+			Status: "FAILED",
+			Count:  uint64(res.TotalFailed), // nolint: gosec
+		},
+	}
 
 	return metrics, nil
 }

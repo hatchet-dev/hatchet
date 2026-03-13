@@ -2,14 +2,12 @@ import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 
-import { Priority, RateLimitDuration, RunsClient } from '@hatchet/v1';
+import { Priority, RateLimitDuration, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Api } from '@hatchet/clients/rest/generated/Api';
 import {
   BulkTriggerWorkflowRequest,
-  DesiredWorkerLabels,
-  WorkerLabelComparator,
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
@@ -22,6 +20,7 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
 
 type DesiredWorkerLabelOpt = {
   value: string | number;
@@ -172,7 +171,7 @@ export class AdminClient {
         this.listenerClient,
         this.runs,
         options?.parentId,
-        // eslint-disable-next-line no-underscore-dangle
+
         options?._standaloneTaskName
       );
       await ref.getWorkflowRunId();
@@ -275,7 +274,7 @@ export class AdminClient {
             this.listenerClient,
             this.runs,
             options?.parentId,
-            // eslint-disable-next-line no-underscore-dangle
+
             options?._standaloneTaskName
           );
         });

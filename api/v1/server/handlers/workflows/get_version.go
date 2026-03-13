@@ -43,7 +43,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		workflowVersionId = *row.WorkflowVersionId
 	}
 
-	row, crons, events, scheduleT, stepConcurrency, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)
+	row, crons, events, scheduleT, stepConcurrency, workflowConcurrency, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), tenantId, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -58,11 +58,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 	resp := transformers.ToWorkflowVersion(
 		&row.WorkflowVersion,
 		&workflow.Workflow,
-		&transformers.WorkflowConcurrency{
-			MaxRuns:       row.ConcurrencyMaxRuns,
-			LimitStrategy: row.ConcurrencyLimitStrategy,
-			Expression:    row.ConcurrencyExpression.String,
-		},
+		workflowConcurrency,
 		crons,
 		events,
 		scheduleT,

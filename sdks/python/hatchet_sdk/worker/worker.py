@@ -36,6 +36,7 @@ from hatchet_sdk.worker.action_listener_process import (
     worker_action_listener_process,
 )
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
+from hatchet_sdk.worker.slot_types import SlotType
 
 T = TypeVar("T")
 
@@ -317,6 +318,8 @@ class Worker:
 
             await self.action_listener_health_check
 
+            await self.action_runner.wait_for_tasks()
+
             try:
                 await self._cleanup_lifespan()
             except LifespanSetupError:
@@ -333,6 +336,7 @@ class Worker:
                 self.name,
                 self.action_registry,
                 sum(self.slot_config.values()),
+                self.slot_config.get(SlotType.DURABLE.value, 0),
                 self.config,
                 self.action_queue,
                 self.event_queue,
@@ -367,7 +371,9 @@ class Worker:
     async def _cleanup_lifespan(self) -> None:
         try:
             if self.lifespan_stack is not None:
-                await self.lifespan_stack.aclose()
+                stack = self.lifespan_stack
+                self.lifespan_stack = None
+                await stack.aclose()
         except Exception as e:
             logger.exception("error during lifespan cleanup")
             raise LifespanSetupError("An error occurred during lifespan cleanup") from e

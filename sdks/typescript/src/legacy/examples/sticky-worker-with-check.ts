@@ -14,7 +14,7 @@ const workflow: Workflow = {
         const results: Promise<any>[] = [];
         const count = 57;
         hardChildWorkerId = undefined; // we reset this - if we run this multiple times at the same time it will break
-        // eslint-disable-next-line no-plusplus
+
         for (let i = 0; i < count; i++) {
           const result = await ctx.spawnWorkflow(childWorkflow, {}, { sticky: true });
           results.push(result.output);

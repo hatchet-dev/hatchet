@@ -91,7 +91,6 @@ export class RunsClient {
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
 
-    // eslint-disable-next-line no-underscore-dangle
     this.listener = client._listener;
   }
 
@@ -213,10 +212,43 @@ export class RunsClient {
   }
 
   /**
-   * Creates a run reference for a task or workflow run by its ID.
-   * @param id - The ID of the run to create a reference for.
-   * @returns A promise that resolves to the run reference.
+   * Restore an evicted durable task so it can resume execution.
+   * @param taskExternalId - The external ID of the evicted task.
    */
+  async restoreTask(taskExternalId: string) {
+    return this.api.v1TaskRestore(taskExternalId);
+  }
+
+  /**
+   * Fork (reset) a durable task from a specific node, triggering re-execution from that point.
+   * @param taskExternalId - The external ID of the durable task to reset.
+   * @param nodeId - The node ID to replay from.
+   */
+  async branchDurableTask(taskExternalId: string, nodeId: number, branchId: number = 0) {
+    return this.api.v1DurableTaskBranch(this.tenantId, {
+      taskExternalId,
+      nodeId,
+      branchId,
+    });
+  }
+
+  /**
+   * Resolve the task external ID for a workflow run. For runs with multiple tasks,
+   * returns the first task's external ID.
+   * @param workflowRunId - The workflow run ID to look up.
+   * @returns The task external ID.
+   */
+  async getTaskExternalId(workflowRunId: string): Promise<string> {
+    const run = await this.get(workflowRunId);
+    const tasks = run?.tasks;
+
+    if (Array.isArray(tasks) && tasks.length > 0 && tasks[0]?.taskExternalId) {
+      return tasks[0].taskExternalId;
+    }
+
+    throw new Error(`Could not find task external ID for workflow run ${workflowRunId}`);
+  }
+
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
     return new WorkflowRunRef<T>(id, this.listener, this);
   }

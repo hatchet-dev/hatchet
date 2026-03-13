@@ -15,7 +15,7 @@ service AdminService {
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
     rpc GetRunDetails(GetRunDetailsRequest) returns (GetRunDetailsResponse);
-    rpc ForkDurableTask(ForkDurableTaskRequest) returns (ForkDurableTaskResponse);
+    rpc BranchDurableTask(BranchDurableTaskRequest) returns (BranchDurableTaskResponse);
 }
 
 message CancelTasksRequest {
@@ -56,12 +56,13 @@ message TriggerWorkflowRunResponse {
     string external_id = 1;
 }
 
-message ForkDurableTaskRequest {
+message BranchDurableTaskRequest {
     string task_external_id = 1; // (required) the external id (uuid) of the durable task
-    int64 node_id = 2; // (required) the node id to fork from
+    int64 node_id = 2; // (required) the node id to branch from
+    int64 branch_id = 3; // (required) the branch id to branch from
 }
 
-message ForkDurableTaskResponse {
+message BranchDurableTaskResponse {
     string task_external_id = 1; // the external id of the durable task
     int64 node_id = 2; // the node id of the new entry
     int64 branch_id = 3; // the branch id of the new entry
@@ -178,6 +179,7 @@ message TaskRunDetail {
     optional string error = 3; // (optional) error message from the task run, if any
     optional bytes output = 4; // (optional) the output payload for the task run
     string readable_id = 5; // the readable id of the task
+    bool is_evicted = 6; // whether the task has been evicted from a worker (status will be RUNNING)
 }
 
 message GetRunDetailsResponse {
@@ -186,4 +188,5 @@ message GetRunDetailsResponse {
     map<string, TaskRunDetail> task_runs = 3; // map of task run external ids to their details
     bool done = 4; // indicates if the workflow run is done
     bytes additional_metadata = 5; // (optional) additional metadata for the workflow run
+    bool is_evicted = 6; // whether any task in this run has been evicted
 }

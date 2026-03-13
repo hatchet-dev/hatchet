@@ -1,3 +1,4 @@
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { makeE2EClient, poll, makeTestScope } from '../__e2e__/harness';
 import { V1TaskStatus } from '../../../clients/rest/generated/data-contracts';
 import { bulkReplayTest1, bulkReplayTest2, bulkReplayTest3 } from './workflow';
@@ -76,8 +77,11 @@ describe('bulk-replay-e2e', () => {
     const rows = replayedRuns.rows || [];
     expect(rows).toHaveLength(expectedTotal);
 
-    const byName = (name: string) =>
-      rows.filter((r: any) => r.workflowName === name || r.workflowName.endsWith(`_${name}`));
+    const { namespace } = hatchet.config;
+    const byName = (name: string) => {
+      const expectedName = applyNamespace(name, namespace);
+      return rows.filter((r: any) => r.workflowName === expectedName);
+    };
     expect(byName(bulkReplayTest1.name)).toHaveLength(n + 1);
     expect(byName(bulkReplayTest2.name)).toHaveLength(n / 2 - 1);
     expect(byName(bulkReplayTest3.name)).toHaveLength(n / 2 - 2);

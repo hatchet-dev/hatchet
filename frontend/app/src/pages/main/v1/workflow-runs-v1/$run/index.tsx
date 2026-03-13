@@ -62,8 +62,6 @@ function statusToBadgeVariant(status: V1TaskStatus) {
       return 'queued';
     case V1TaskStatus.RUNNING:
       return 'inProgress';
-    case V1TaskStatus.EVICTED:
-      return 'evicted';
     default: {
       const exhaustivenessCheck: never = status;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);

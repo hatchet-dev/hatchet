@@ -356,6 +356,10 @@ V1RestoreTaskResponse:
   $ref: "./v1/task.yaml#/V1RestoreTaskResponse"
 V1TaskStatus:
   $ref: "./v1/task.yaml#/V1TaskStatus"
+V1RunningFilter:
+  $ref: "./v1/task.yaml#/V1RunningFilter"
+V1RunningDetailCount:
+  $ref: "./v1/task.yaml#/V1RunningDetailCount"
 V1TaskRunMetrics:
   $ref: "./v1/task.yaml#/V1TaskRunMetrics"
 V1TaskPointMetric:
@@ -376,10 +380,10 @@ V1TaskRunStatus:
   $ref: "./workflow_run.yaml#/V1TaskRunStatus"
 V1TriggerWorkflowRunRequest:
   $ref: "./v1/workflow_run.yaml#/V1TriggerWorkflowRunRequest"
-V1ForkDurableTaskRequest:
-  $ref: "./v1/workflow_run.yaml#/V1ForkDurableTaskRequest"
-V1ForkDurableTaskResponse:
-  $ref: "./v1/workflow_run.yaml#/V1ForkDurableTaskResponse"
+V1BranchDurableTaskRequest:
+  $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskRequest"
+V1BranchDurableTaskResponse:
+  $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskResponse"
 V1LogLine:
   $ref: "./v1/logs.yaml#/V1LogLine"
 V1LogLineLevel:

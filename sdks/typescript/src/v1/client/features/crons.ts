@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration } from '@hatchet/v1';
-import type { LegacyWorkflow } from '@hatchet-dev/typescript-sdk/legacy/legacy-transformer';
+import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
@@ -83,11 +83,11 @@ export class CronClient {
       return response.data;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        throw new Error(`Invalid cron input: ${err.message}`);
+        throw new Error(`Invalid cron input: ${err.message}`, { cause: err });
       }
 
       if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors));
+        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
       }
 
       throw err;

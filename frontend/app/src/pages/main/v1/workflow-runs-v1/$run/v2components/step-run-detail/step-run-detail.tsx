@@ -20,18 +20,12 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import api, {
-  V1TaskEventType,
-  V1TaskStatus,
-  V1TaskSummary,
-  queries,
-} from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -194,7 +188,6 @@ export const TaskRunDetail = ({
                 showLabel
               />
             </RunsProvider>
-            <RestoreButton taskRunId={taskRunId} />
           </div>
           <div className="flex flex-row items-center gap-2">
             <TaskRunPermalinkOrBacklink
@@ -402,57 +395,6 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
     <div className="flex flex-row items-center gap-4">{interleavedTimings}</div>
   );
 };
-
-function useIsEvicted(taskRunId: string): boolean {
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
-  const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenant, { limit: 100, offset: 0 }, taskRunId),
-  });
-
-  if (!eventsQuery.data?.rows) {
-    return false;
-  }
-
-  let evicted = false;
-  for (const evt of eventsQuery.data.rows) {
-    if (evt.eventType === V1TaskEventType.DURABLE_EVICTED) {
-      evicted = true;
-    } else if (evt.eventType === V1TaskEventType.DURABLE_RESTORING) {
-      evicted = false;
-    }
-  }
-  return evicted;
-}
-
-function RestoreButton({ taskRunId }: { taskRunId: string }) {
-  const isEvicted = useIsEvicted(taskRunId);
-  const queryClient = useQueryClient();
-
-  const restoreMutation = useMutation({
-    mutationFn: () => api.v1TaskRestore(taskRunId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['v1:task-events'],
-      });
-    },
-  });
-
-  if (!isEvicted) {
-    return null;
-  }
-
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      leftIcon={<ArrowPathIcon className="size-4" />}
-      onClick={() => restoreMutation.mutate()}
-      disabled={restoreMutation.isPending}
-    >
-      Restore
-    </Button>
-  );
-}
 
 function TriggeringParentWorkflowRunSection({
   tenant,

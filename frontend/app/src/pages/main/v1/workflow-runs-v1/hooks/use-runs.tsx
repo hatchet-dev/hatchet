@@ -1,7 +1,12 @@
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries, V1TaskSummary, V1TaskStatus } from '@/lib/api';
+import {
+  queries,
+  V1RunningFilter,
+  V1TaskSummary,
+  V1TaskStatus,
+} from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { RowSelectionState } from '@tanstack/react-table';
 import { useCallback, useMemo, useState } from 'react';
@@ -12,6 +17,7 @@ type UseRunsProps = {
   createdAfter?: string;
   finishedBefore?: string;
   statuses?: V1TaskStatus[];
+  runningFilter?: V1RunningFilter;
   additionalMetadata?: string[];
   workerId: string | undefined;
   workflowIds?: string[];
@@ -27,6 +33,7 @@ export const useRuns = ({
   createdAfter,
   finishedBefore,
   statuses,
+  runningFilter,
   additionalMetadata,
   workerId,
   workflowIds,
@@ -68,6 +75,7 @@ export const useRuns = ({
       only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,
       include_payloads: false,
+      running_filter: runningFilter,
     }),
     placeholderData: (prev) => prev,
     refetchInterval:

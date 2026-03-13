@@ -133,15 +133,17 @@ class TriggerWorkflowRunResponse(_message.Message):
     external_id: str
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
-class ForkDurableTaskRequest(_message.Message):
-    __slots__ = ("task_external_id", "node_id")
+class BranchDurableTaskRequest(_message.Message):
+    __slots__ = ("task_external_id", "node_id", "branch_id")
     TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
     task_external_id: str
     node_id: int
-    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ...) -> None: ...
+    branch_id: int
+    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
 
-class ForkDurableTaskResponse(_message.Message):
+class BranchDurableTaskResponse(_message.Message):
     __slots__ = ("task_external_id", "node_id", "branch_id")
     TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -282,21 +284,23 @@ class GetRunDetailsRequest(_message.Message):
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
 class TaskRunDetail(_message.Message):
-    __slots__ = ("external_id", "status", "error", "output", "readable_id")
+    __slots__ = ("external_id", "status", "error", "output", "readable_id", "is_evicted")
     EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
+    IS_EVICTED_FIELD_NUMBER: _ClassVar[int]
     external_id: str
     status: RunStatus
     error: str
     output: bytes
     readable_id: str
-    def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ...) -> None: ...
+    is_evicted: bool
+    def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ..., is_evicted: bool = ...) -> None: ...
 
 class GetRunDetailsResponse(_message.Message):
-    __slots__ = ("input", "status", "task_runs", "done", "additional_metadata")
+    __slots__ = ("input", "status", "task_runs", "done", "additional_metadata", "is_evicted")
     class TaskRunsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -309,9 +313,11 @@ class GetRunDetailsResponse(_message.Message):
     TASK_RUNS_FIELD_NUMBER: _ClassVar[int]
     DONE_FIELD_NUMBER: _ClassVar[int]
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
+    IS_EVICTED_FIELD_NUMBER: _ClassVar[int]
     input: bytes
     status: RunStatus
     task_runs: _containers.MessageMap[str, TaskRunDetail]
     done: bool
     additional_metadata: bytes
-    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ..., done: bool = ..., additional_metadata: _Optional[bytes] = ...) -> None: ...
+    is_evicted: bool
+    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ..., done: bool = ..., additional_metadata: _Optional[bytes] = ..., is_evicted: bool = ...) -> None: ...

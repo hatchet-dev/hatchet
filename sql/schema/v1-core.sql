@@ -2303,8 +2303,7 @@ CREATE TABLE v1_durable_event_log_file (
     latest_node_id BIGINT NOT NULL,
     -- The latest branch id. Branches represent different execution paths on a replay.
     latest_branch_id BIGINT NOT NULL,
-    -- The parent node id which should be linked to the first node in a new branch to its parent node.
-    latest_branch_first_parent_node_id BIGINT NOT NULL,
+
     CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
@@ -2332,17 +2331,10 @@ CREATE TABLE v1_durable_event_log_entry (
     -- The node number in the durable event log. This represents a monotonically increasing
     -- sequence value generated from v1_durable_event_log_file.latest_node_id
     node_id BIGINT NOT NULL,
-    -- The parent node id for this event, if any. This can be null.
-    parent_node_id BIGINT,
     -- The branch id when this event was first seen. A durable event log can be a part of many branches.
     branch_id BIGINT NOT NULL,
-    -- The parent branch id which should be linked to a new branch to its parent branch. This can be null.
-    parent_branch_id BIGINT,
     -- An idempotency key generated from the incoming data (using the type of event + wait for conditions or the trigger event payload + options)
     -- to determine whether or not there's been a non-determinism error
-
-    invocation_count INTEGER NOT NULL,
-
     idempotency_key BYTEA NOT NULL,
     -- Access patterns:
     -- Definite: we'll query directly for the node_id when a durable task is replaying its log
@@ -2354,4 +2346,25 @@ CREATE TABLE v1_durable_event_log_entry (
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
 
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
+) PARTITION BY RANGE(durable_task_inserted_at);
+
+
+CREATE TABLE v1_durable_event_log_branch_point (
+    tenant_id UUID NOT NULL,
+
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    durable_task_id BIGINT NOT NULL,
+
+    durable_task_inserted_at TIMESTAMPTZ NOT NULL,
+
+    first_node_id_in_new_branch BIGINT NOT NULL,
+
+    parent_branch_id BIGINT NOT NULL,
+
+    next_branch_id BIGINT NOT NULL,
+
+    CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);

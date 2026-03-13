@@ -14,8 +14,14 @@ class NonDeterminismError(Exception):
         self.message = message
         self.node_id = node_id
 
+        detail = (
+            message
+            if message
+            else f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}"
+        )
+
         super().__init__(
-            f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}.\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/home/durable-best-practices"
+            f"{detail}\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/v1/patterns/mixing-patterns"
         )
 
 

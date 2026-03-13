@@ -1,0 +1,50 @@
+<a id="logsclient"></a>
+
+### Logs Client
+
+The logs client is a client for interacting with Hatchet's logs API.
+
+#### Methods
+
+<a id="list"></a>
+
+##### `list()`
+
+Lists the logs for a given task run.
+
+Parameters
+
+| Parameter   | Type                            | Description                                |
+| ----------- | ------------------------------- | ------------------------------------------ |
+| `taskRunId` | `string`                        | The ID of the task run to list logs for.   |
+| `opts?`     | [`ListLogsOpts`](#listlogsopts) | The options filter for the list operation. |
+
+Returns
+
+`Promise`\<`V1LogLineList`\>
+
+A promise that resolves to the list of logs.
+
+## Type Aliases
+
+<a id="listlogsopts"></a>
+
+### ListLogsOpts
+
+```ts
+type ListLogsOpts = object;
+```
+
+The options for the list logs operation.
+
+Properties
+
+| Property                                          | Type                        | Description                                |
+| ------------------------------------------------- | --------------------------- | ------------------------------------------ |
+| <a id="attempt"></a> `attempt?`                   | `number`                    | Filter logs by attempt number.             |
+| <a id="levels"></a> `levels?`                     | `V1LogLineLevel`[]          | Filter logs by log level.                  |
+| <a id="limit"></a> `limit?`                       | `number`                    | The maximum number of log lines to return. |
+| <a id="orderbydirection"></a> `orderByDirection?` | `V1LogLineOrderByDirection` | The direction to order the logs by.        |
+| <a id="search"></a> `search?`                     | `string`                    | Filter logs by a search string.            |
+| <a id="since"></a> `since?`                       | `Date`                      | Return only logs after this date.          |
+| <a id="until"></a> `until?`                       | `Date`                      | Return only logs before this date.         |

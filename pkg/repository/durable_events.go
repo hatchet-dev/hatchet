@@ -8,22 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
-
-type EventLogEntryWithPayloads struct {
-	Entry          *sqlcv1.V1DurableEventLogEntry
-	InputPayload   []byte
-	ResultPayload  []byte
-	AlreadyExisted bool
-}
 
 type TaskExternalIdNodeIdBranchId struct {
 	TaskExternalId uuid.UUID `validate:"required"`
@@ -39,41 +33,77 @@ type SatisfiedEventWithPayload struct {
 	Result          []byte
 }
 
-type IngestDurableTaskEventOpts struct {
+type BaseIngestEventOpts struct {
+	Kind            sqlcv1.V1DurableEventLogKind  `validate:"required"`
 	TenantId        uuid.UUID                     `validate:"required"`
 	Task            *sqlcv1.FlattenExternalIdsRow `validate:"required"`
-	Kind            sqlcv1.V1DurableEventLogKind  `validate:"required,oneof=RUN WAIT_FOR MEMO"`
-	Payload         []byte
 	InvocationCount int32
+}
 
-	// optional, used only when kind = WAIT_FOR
-	WaitForConditions []CreateExternalSignalConditionOpt
-
-	// optional, used only when kind = RUN
-	TriggerOpts *WorkflowNameTriggerOpts
-
-	// optional, used only when kind = MEMO
+type IngestMemoOpts struct {
+	Payload []byte
 	MemoKey []byte
 }
 
-type IngestDurableTaskEventResult struct {
-	BranchId        int64
-	NodeId          int64
-	InvocationCount int32
-
-	IsSatisfied    bool
-	ResultPayload  []byte
-	AlreadyExisted bool
-
-	// Populated for RUNTRIGGERED: the tasks/DAGs created by the child spawn.
-	CreatedTasks []*V1TaskWithPayload
-	CreatedDAGs  []*DAGWithData
+type IngestTriggerRunsOpts struct {
+	TriggerOpts []*WorkflowNameTriggerOpts `validate:"required,min=1"`
 }
 
-type HandleForkResult struct {
+type IngestWaitForOpts struct {
+	WaitForConditions []CreateExternalSignalConditionOpt
+}
+
+type IngestDurableTaskEventOpts struct {
+	*BaseIngestEventOpts
+	Memo        *IngestMemoOpts
+	TriggerRuns *IngestTriggerRunsOpts
+	WaitFor     *IngestWaitForOpts
+}
+
+type IngestMemoResult struct {
+	InvocationCount int32
+	IsSatisfied     bool
+	NodeId          int64
+	BranchId        int64
+	ResultPayload   []byte
+	AlreadyExisted  bool
+}
+
+type IngestTriggerRunsEntry struct {
+	NodeId         int64
+	BranchId       int64
+	IsSatisfied    bool
+	AlreadyExisted bool
+	ResultPayload  []byte
+}
+
+type IngestTriggerRunsResult struct {
+	InvocationCount int32
+	Entries         []*IngestTriggerRunsEntry
+	CreatedTasks    []*V1TaskWithPayload
+	CreatedDAGs     []*DAGWithData
+}
+
+type IngestWaitForResult struct {
+	InvocationCount int32
+	IsSatisfied     bool
+	NodeId          int64
+	BranchId        int64
+	AlreadyExisted  bool
+	ResultPayload   []byte
+}
+
+type IngestDurableTaskEventResult struct {
+	Kind              sqlcv1.V1DurableEventLogKind
+	MemoResult        *IngestMemoResult
+	TriggerRunsResult *IngestTriggerRunsResult
+	WaitForResult     *IngestWaitForResult
+}
+
+type HandleBranchResult struct {
+	EventLogFile *sqlcv1.V1DurableEventLogFile
 	NodeId       int64
 	BranchId     int64
-	EventLogFile *sqlcv1.V1DurableEventLogFile
 }
 
 type IncrementDurableTaskInvocationCountsOpts struct {
@@ -92,9 +122,14 @@ type CompleteMemoEntryOpts struct {
 	Payload         []byte
 }
 
+type NodeIdBranchIdTuple struct {
+	NodeId   int64
+	BranchId int64
+}
+
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
-	HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error)
+	HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
@@ -111,170 +146,193 @@ func newDurableEventsRepository(shared *sharedRepository) DurableEventsRepositor
 	}
 }
 
+type NonDeterminismDetail struct {
+	Expected string
+	Received string
+}
+
 type NonDeterminismError struct {
-	NodeId                 int64
-	BranchId               int64
-	TaskExternalId         uuid.UUID
-	ExpectedIdempotencyKey []byte
-	ActualIdempotencyKey   []byte
+	NodeId                  int64
+	BranchId                int64
+	TaskExternalId          uuid.UUID
+	ExpectedIdempotencyKey  []byte
+	ActualIdempotencyKey    []byte
+	ExpectedKind            sqlcv1.V1DurableEventLogKind
+	ActualKind              sqlcv1.V1DurableEventLogKind
+	ExistingEntryId         int64
+	ExistingEntryInsertedAt pgtype.Timestamptz
+	ExistingEntryTenantId   uuid.UUID
+	Detail                  *NonDeterminismDetail
 }
 
 func (m *NonDeterminismError) Error() string {
-	return fmt.Sprintf("non-determinism detected for durable event log entry in task %s at node id %d", m.TaskExternalId.String(), m.NodeId)
+	msg := fmt.Sprintf("non-determinism error in task %s at node %d:%d", m.TaskExternalId, m.NodeId, m.BranchId)
+
+	if m.Detail != nil {
+		msg += "\n  expected: " + m.Detail.Expected + "\n  received: " + m.Detail.Received
+	}
+
+	return msg
+}
+
+type StaleInvocationError struct {
+	TaskExternalId          uuid.UUID
+	ExpectedInvocationCount int32
+	ActualInvocationCount   int32
+}
+
+func (e *StaleInvocationError) Error() string {
+	return fmt.Sprintf("invocation count mismatch for task %s: server has %d, worker sent %d", e.TaskExternalId.String(), e.ExpectedInvocationCount, e.ActualInvocationCount)
+}
+
+func formatConditionLabel(c CreateExternalSignalConditionOpt) string {
+	switch c.Kind {
+	case CreateExternalSignalConditionKindSLEEP:
+		if c.SleepFor != nil {
+			return "sleep(" + *c.SleepFor + ")"
+		}
+		return "sleep"
+	case CreateExternalSignalConditionKindUSEREVENT:
+		if c.UserEventKey != nil {
+			return "waitForEvent(" + *c.UserEventKey + ")"
+		}
+		return "waitForEvent"
+	default:
+		return string(c.Kind)
+	}
+}
+
+const maxDisplayLabels = 5
+
+func summarizeLabels(labels []string) string {
+	if len(labels) <= maxDisplayLabels {
+		return strings.Join(labels, ", ")
+	}
+
+	counts := make(map[string]int, len(labels))
+	order := make([]string, 0)
+
+	for _, l := range labels {
+		if counts[l] == 0 {
+			order = append(order, l)
+		}
+		counts[l]++
+	}
+
+	parts := make([]string, 0, min(len(order), maxDisplayLabels))
+
+	for i, name := range order {
+		if i >= maxDisplayLabels {
+			break
+		}
+
+		if counts[name] > 1 {
+			parts = append(parts, fmt.Sprintf("%dx %s", counts[name], name))
+		} else {
+			parts = append(parts, name)
+		}
+	}
+
+	if remaining := len(order) - maxDisplayLabels; remaining > 0 {
+		parts = append(parts, fmt.Sprintf("... +%d more unique", remaining))
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+func (opts IngestDurableTaskEventOpts) formatCall() string {
+	switch opts.Kind {
+	case sqlcv1.V1DurableEventLogKindRUN:
+		if opts.TriggerRuns != nil {
+			names := make([]string, 0, len(opts.TriggerRuns.TriggerOpts))
+			for _, t := range opts.TriggerRuns.TriggerOpts {
+				names = append(names, t.WorkflowName)
+			}
+			return "run(" + summarizeLabels(names) + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		if opts.WaitFor != nil {
+			parts := make([]string, 0, len(opts.WaitFor.WaitForConditions))
+			for _, c := range opts.WaitFor.WaitForConditions {
+				parts = append(parts, formatConditionLabel(c))
+			}
+			return "waitFor(" + summarizeLabels(parts) + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindMEMO:
+		return "memo"
+	}
+
+	return string(opts.Kind)
+}
+
+func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) string {
+	if len(payload) == 0 {
+		return string(kind)
+	}
+
+	switch kind {
+	case sqlcv1.V1DurableEventLogKindRUN:
+		var triggerOpts WorkflowNameTriggerOpts
+
+		if err := json.Unmarshal(payload, &triggerOpts); err != nil {
+			return string(kind)
+		}
+
+		if triggerOpts.WorkflowName != "" {
+			return "run(" + triggerOpts.WorkflowName + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		var conditions []CreateExternalSignalConditionOpt
+
+		if err := json.Unmarshal(payload, &conditions); err != nil {
+			return string(kind)
+		}
+
+		if len(conditions) > 0 {
+			parts := make([]string, 0, len(conditions))
+			for _, c := range conditions {
+				parts = append(parts, formatConditionLabel(c))
+			}
+			return "waitFor(" + summarizeLabels(parts) + ")"
+		}
+	case sqlcv1.V1DurableEventLogKindMEMO:
+		return "memo"
+	}
+
+	return string(kind)
+}
+
+func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V1DurableEventLogKind, existingPayload []byte) *NonDeterminismDetail {
+	return &NonDeterminismDetail{
+		Expected: formatStoredPayload(expectedKind, existingPayload),
+		Received: opts.formatCall(),
+	}
+}
+
+type GetOrCreateLogEntryOpt struct {
+	Kind            sqlcv1.V1DurableEventLogKind
+	IdempotencyKey  []byte
+	InputPayload    []byte
+	ResultPayload   []byte
+	NodeId          int64
+	BranchId        int64
+	InvocationCount int32
+	IsSatisfied     bool
 }
 
 type GetOrCreateLogEntryOpts struct {
 	TenantId              uuid.UUID
-	DurableTaskExternalId uuid.UUID
 	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
-	Kind                  sqlcv1.V1DurableEventLogKind
-	NodeId                int64
-	ParentNodeId          *int64
-	BranchId              int64
-	ParentBranchId        *int64
-	InvocationCount       int32
-	IdempotencyKey        []byte
-	IsSatisfied           bool
-	InputPayload          []byte
-	ResultPayload         []byte
+	DurableTaskExternalId uuid.UUID
+	Entries               []GetOrCreateLogEntryOpt
 }
 
-func (r *durableEventsRepository) getOrCreateEventLogEntry(
-	ctx context.Context,
-	tx sqlcv1.DBTX,
-	opts GetOrCreateLogEntryOpts,
-) (*EventLogEntryWithPayloads, error) {
-	alreadyExisted := true
-	entry, err := r.queries.GetDurableEventLogEntry(ctx, tx, sqlcv1.GetDurableEventLogEntryParams{
-		Durabletaskid:         opts.DurableTaskId,
-		Durabletaskinsertedat: opts.DurableTaskInsertedAt,
-		Nodeid:                opts.NodeId,
-		Branchid:              opts.BranchId,
-	})
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-
-	isStaleEntry := err == nil && entry != nil && entry.InvocationCount != opts.InvocationCount
-
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		alreadyExisted = false
-		entry, err = r.queries.CreateDurableEventLogEntry(ctx, tx, sqlcv1.CreateDurableEventLogEntryParams{
-			Tenantid:              opts.TenantId,
-			Externalid:            uuid.New(),
-			Durabletaskid:         opts.DurableTaskId,
-			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
-			Kind:                  opts.Kind,
-			Nodeid:                opts.NodeId,
-			ParentNodeId:          sqlchelpers.ToBigInt(opts.ParentNodeId),
-			Branchid:              opts.BranchId,
-			ParentBranchId:        sqlchelpers.ToBigInt(opts.ParentBranchId),
-			Idempotencykey:        opts.IdempotencyKey,
-			Issatisfied:           opts.IsSatisfied,
-			Invocationcount:       opts.InvocationCount,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		storePayloadOpts := make([]StorePayloadOpts, 0)
-
-		if len(opts.InputPayload) > 0 {
-			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-				Id:         entry.ID,
-				InsertedAt: entry.InsertedAt,
-				ExternalId: entry.ExternalID,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
-				Payload:    opts.InputPayload,
-				TenantId:   opts.TenantId,
-			})
-		}
-
-		if len(opts.ResultPayload) > 0 {
-			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-				Id:         entry.ID,
-				InsertedAt: entry.InsertedAt,
-				ExternalId: entry.ExternalID,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-				Payload:    opts.ResultPayload,
-				TenantId:   opts.TenantId,
-			})
-		}
-
-		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
-		if err != nil {
-			return nil, err
-		}
-	case isStaleEntry:
-		// TODO-DURABLE: I don't think this should be required or at least should not be handled here...
-		// NOTE: entry exists but belongs to a previous invocation (e.g. after eviction+restore
-		// or cancel+replay). Check idempotency key for non-determinism; if it matches, update
-		// invocation_count so callbacks route correctly and reuse existing wait conditions.
-		incomingIdempotencyKey := opts.IdempotencyKey
-		existingIdempotencyKey := entry.IdempotencyKey
-
-		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
-			return nil, &NonDeterminismError{
-				BranchId:               opts.BranchId,
-				NodeId:                 opts.NodeId,
-				TaskExternalId:         opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey: existingIdempotencyKey,
-				ActualIdempotencyKey:   incomingIdempotencyKey,
-			}
-		}
-
-		entry, err = r.queries.UpdateDurableEventLogEntryInvocationCount(ctx, tx, sqlcv1.UpdateDurableEventLogEntryInvocationCountParams{
-			Invocationcount:       opts.InvocationCount,
-			Idempotencykey:        opts.IdempotencyKey,
-			Durabletaskid:         opts.DurableTaskId,
-			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
-			Branchid:              opts.BranchId,
-			Nodeid:                opts.NodeId,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to update invocation count on stale log entry: %w", err)
-		}
-	default:
-		incomingIdempotencyKey := opts.IdempotencyKey
-		existingIdempotencyKey := entry.IdempotencyKey
-
-		if !bytes.Equal(incomingIdempotencyKey, existingIdempotencyKey) {
-			return nil, &NonDeterminismError{
-				BranchId:               opts.BranchId,
-				NodeId:                 opts.NodeId,
-				TaskExternalId:         opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey: existingIdempotencyKey,
-				ActualIdempotencyKey:   incomingIdempotencyKey,
-			}
-		}
-	}
-
-	var resultPayload []byte
-
-	if alreadyExisted {
-		resultPayload, err = r.payloadStore.RetrieveSingle(ctx, tx, RetrievePayloadOpts{
-			Id:         entry.ID,
-			InsertedAt: entry.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-			TenantId:   opts.TenantId,
-		})
-
-		if err != nil {
-			resultPayload = nil
-		}
-	}
-
-	return &EventLogEntryWithPayloads{
-		Entry:          entry,
-		InputPayload:   opts.InputPayload,
-		ResultPayload:  resultPayload,
-		AlreadyExisted: alreadyExisted,
-	}, nil
+type EventLogEntryWithPayloads struct {
+	Entry          *sqlcv1.BulkGetDurableEventLogEntriesRow
+	InputPayload   []byte
+	ResultPayload  []byte
+	AlreadyExisted bool
 }
 
 func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error) {
@@ -353,19 +411,19 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
 }
 
-func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEventOpts) ([]byte, error) {
-	// TODO-DURABLE: be more intentional about how we construct this key (e.g. do we want to marshal all of the opts?)
-	dataToHash := []byte(opts.Kind)
+func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
+	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
+	dataToHash := []byte(kind)
 
-	if opts.TriggerOpts != nil {
-		dataToHash = append(dataToHash, opts.TriggerOpts.Data...)
-		dataToHash = append(dataToHash, []byte(opts.TriggerOpts.WorkflowName)...)
+	if triggerOpts != nil {
+		dataToHash = append(dataToHash, triggerOpts.Data...)
+		dataToHash = append(dataToHash, []byte(triggerOpts.WorkflowName)...)
 	}
 
-	if opts.WaitForConditions != nil {
-		sort.Slice(opts.WaitForConditions, func(i, j int) bool {
-			condI := opts.WaitForConditions[i]
-			condJ := opts.WaitForConditions[j]
+	if waitForConditions != nil {
+		sort.Slice(waitForConditions, func(i, j int) bool {
+			condI := waitForConditions[i]
+			condJ := waitForConditions[j]
 
 			if condI.Expression != condJ.Expression {
 				return condI.Expression < condJ.Expression
@@ -394,7 +452,7 @@ func (r *durableEventsRepository) createIdempotencyKey(opts IngestDurableTaskEve
 			return false
 		})
 
-		for _, cond := range opts.WaitForConditions {
+		for _, cond := range waitForConditions {
 			toHash := cond.Expression + cond.ReadableDataKey + string(cond.Kind)
 
 			if cond.SleepFor != nil {
@@ -455,17 +513,272 @@ func (r *sharedRepository) incrementDurableTaskInvocationCounts(ctx context.Cont
 }
 
 func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
-	logFile, err := r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+	return r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+		Durabletaskid:         durableTaskId,
+		Durabletaskinsertedat: durableTaskInsertedAt,
+		Tenantid:              tenantId,
+	})
+}
+
+func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (map[int64]*sqlcv1.V1DurableEventLogBranchPoint, error) {
+	branchPoints, err := r.queries.ListDurableEventLogBranchPoints(ctx, tx, sqlcv1.ListDurableEventLogBranchPointsParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Tenantid:              tenantId,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to lock log file: %w", err)
+		return nil, fmt.Errorf("failed to list durable event log branch points: %w", err)
 	}
 
-	return logFile, nil
+	nextBranchIdToBranchPoint := make(map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(branchPoints))
+
+	for _, bp := range branchPoints {
+		nextBranchIdToBranchPoint[bp.NextBranchID] = bp
+	}
+
+	return nextBranchIdToBranchPoint, nil
+}
+
+type BranchIdFromNodeIdTuple struct {
+	BranchId   int64
+	FromNodeId int64
+}
+
+func resolveBranchForNode(nodeId, currentBranchId int64, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
+	tree := make([]BranchIdFromNodeIdTuple, 0)
+
+	currBranchId := currentBranchId
+	for {
+		branchPoint, found := nextBranchIdToBranchPoint[currBranchId]
+
+		if !found {
+			tree = append(tree, BranchIdFromNodeIdTuple{currBranchId, 0})
+			break
+		}
+
+		tree = append(tree, BranchIdFromNodeIdTuple{currBranchId, branchPoint.FirstNodeIDInNewBranch})
+		currBranchId = branchPoint.ParentBranchID
+	}
+
+	sort.Slice(tree, func(i, j int) bool {
+		if tree[i].FromNodeId != tree[j].FromNodeId {
+			return tree[i].FromNodeId < tree[j].FromNodeId
+		}
+		return tree[i].BranchId < tree[j].BranchId
+	})
+
+	i := sort.Search(len(tree), func(i int) bool { return tree[i].FromNodeId > nodeId })
+	return tree[i-1].BranchId
+}
+
+func (r *durableEventsRepository) getOrCreateEventLogEntries(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	opts GetOrCreateLogEntryOpts,
+) ([]*EventLogEntryWithPayloads, error) {
+	if len(opts.Entries) == 0 {
+		return nil, nil
+	}
+
+	n := len(opts.Entries)
+	branchIds := make([]int64, n)
+	nodeIds := make([]int64, n)
+
+	for i, o := range opts.Entries {
+		branchIds[i] = o.BranchId
+		nodeIds[i] = o.NodeId
+	}
+
+	existingEntries, err := r.queries.BulkGetDurableEventLogEntries(ctx, tx, sqlcv1.BulkGetDurableEventLogEntriesParams{
+		Durabletaskid:         opts.DurableTaskId,
+		Durabletaskinsertedat: opts.DurableTaskInsertedAt,
+		Branchids:             branchIds,
+		Nodeids:               nodeIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to bulk-get existing entries: %w", err)
+	}
+
+	nodeIdBranchIdToExistingEntry := make(map[NodeIdBranchIdTuple]*sqlcv1.BulkGetDurableEventLogEntriesRow, len(existingEntries))
+	for _, e := range existingEntries {
+		nodeIdBranchIdToExistingEntry[NodeIdBranchIdTuple{e.NodeID, e.BranchID}] = e
+	}
+
+	existedEntries := make(map[NodeIdBranchIdTuple]*sqlcv1.BulkGetDurableEventLogEntriesRow)
+	nodeIdBranchIdToNewEntry := make(map[NodeIdBranchIdTuple]GetOrCreateLogEntryOpt, 0)
+
+	for _, o := range opts.Entries {
+		key := NodeIdBranchIdTuple{o.NodeId, o.BranchId}
+		existingEntry, found := nodeIdBranchIdToExistingEntry[key]
+
+		if !found {
+			nodeIdBranchIdToNewEntry[key] = o
+			continue
+		}
+
+		if !bytes.Equal(o.IdempotencyKey, existingEntry.IdempotencyKey) {
+			return nil, &NonDeterminismError{
+				BranchId:                o.BranchId,
+				NodeId:                  o.NodeId,
+				TaskExternalId:          opts.DurableTaskExternalId,
+				ExpectedIdempotencyKey:  existingEntry.IdempotencyKey,
+				ActualIdempotencyKey:    o.IdempotencyKey,
+				ExpectedKind:            existingEntry.Kind,
+				ActualKind:              o.Kind,
+				ExistingEntryId:         existingEntry.ID,
+				ExistingEntryInsertedAt: existingEntry.InsertedAt,
+				ExistingEntryTenantId:   existingEntry.TenantID,
+			}
+		}
+
+		existedEntries[key] = existingEntry
+	}
+
+	nodeIdBranchIdToCreatedEntry := make(map[NodeIdBranchIdTuple]*sqlcv1.BulkCreateDurableEventLogEntriesRow)
+
+	if len(nodeIdBranchIdToNewEntry) > 0 {
+		createParams := sqlcv1.BulkCreateDurableEventLogEntriesParams{
+			Tenantids:              make([]uuid.UUID, 0),
+			Externalids:            make([]uuid.UUID, 0),
+			Durabletaskids:         make([]int64, 0),
+			Durabletaskinsertedats: make([]pgtype.Timestamptz, 0),
+			Kinds:                  make([]string, 0),
+			Nodeids:                make([]int64, 0),
+			Branchids:              make([]int64, 0),
+			Idempotencykeys:        make([][]byte, 0),
+			Issatisfieds:           make([]bool, 0),
+		}
+
+		for _, entry := range nodeIdBranchIdToNewEntry {
+			createParams.Tenantids = append(createParams.Tenantids, opts.TenantId)
+			createParams.Externalids = append(createParams.Externalids, uuid.New())
+			createParams.Durabletaskids = append(createParams.Durabletaskids, opts.DurableTaskId)
+			createParams.Durabletaskinsertedats = append(createParams.Durabletaskinsertedats, opts.DurableTaskInsertedAt)
+			createParams.Kinds = append(createParams.Kinds, string(entry.Kind))
+			createParams.Nodeids = append(createParams.Nodeids, entry.NodeId)
+			createParams.Branchids = append(createParams.Branchids, entry.BranchId)
+			createParams.Idempotencykeys = append(createParams.Idempotencykeys, entry.IdempotencyKey)
+			createParams.Issatisfieds = append(createParams.Issatisfieds, entry.IsSatisfied)
+		}
+
+		createdRows, err := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
+		if err != nil {
+			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", err)
+		}
+
+		for _, createdRow := range createdRows {
+			nodeIdBranchIdToCreatedEntry[NodeIdBranchIdTuple{createdRow.NodeID, createdRow.BranchID}] = createdRow
+		}
+
+		storePayloadOpts := make([]StorePayloadOpts, 0, len(nodeIdBranchIdToNewEntry)*2)
+		for _, createdRow := range createdRows {
+			opt, ok := nodeIdBranchIdToNewEntry[NodeIdBranchIdTuple{createdRow.NodeID, createdRow.BranchID}]
+
+			if !ok {
+				continue
+			}
+
+			if len(opt.InputPayload) > 0 {
+				storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+					Id:         createdRow.ID,
+					InsertedAt: createdRow.InsertedAt,
+					ExternalId: createdRow.ExternalID,
+					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+					Payload:    opt.InputPayload,
+					TenantId:   opts.TenantId,
+				})
+			}
+
+			if len(opt.ResultPayload) > 0 {
+				storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+					Id:         createdRow.ID,
+					InsertedAt: createdRow.InsertedAt,
+					ExternalId: createdRow.ExternalID,
+					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+					Payload:    opt.ResultPayload,
+					TenantId:   opts.TenantId,
+				})
+			}
+		}
+
+		if len(storePayloadOpts) > 0 {
+			if storeErr := r.payloadStore.Store(ctx, tx, storePayloadOpts...); storeErr != nil {
+				return nil, fmt.Errorf("failed to store payloads for new entries: %w", storeErr)
+			}
+		}
+	}
+
+	var retrieveOpts []RetrievePayloadOpts
+	for _, entry := range existedEntries {
+		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
+			Id:         entry.ID,
+			InsertedAt: entry.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+			TenantId:   opts.TenantId,
+		})
+	}
+
+	var existingPayloads map[RetrievePayloadOpts][]byte
+	if len(retrieveOpts) > 0 {
+		existingPayloads, err = r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+		if err != nil {
+			existingPayloads = nil
+		}
+	}
+
+	results := make([]*EventLogEntryWithPayloads, n)
+	for i, o := range opts.Entries {
+		key := NodeIdBranchIdTuple{o.NodeId, o.BranchId}
+		if existingEntry, ok := existedEntries[key]; ok {
+			var resultPayload []byte
+			if existingPayloads != nil {
+				resultPayload = existingPayloads[RetrievePayloadOpts{
+					Id:         existingEntry.ID,
+					InsertedAt: existingEntry.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+					TenantId:   opts.TenantId,
+				}]
+			}
+			results[i] = &EventLogEntryWithPayloads{
+				Entry:          existingEntry,
+				InputPayload:   o.InputPayload,
+				ResultPayload:  resultPayload,
+				AlreadyExisted: true,
+			}
+		} else {
+			created := nodeIdBranchIdToCreatedEntry[key]
+			results[i] = &EventLogEntryWithPayloads{
+				Entry: &sqlcv1.BulkGetDurableEventLogEntriesRow{
+					TenantID:              created.TenantID,
+					ExternalID:            created.ExternalID,
+					ID:                    created.ID,
+					DurableTaskID:         created.DurableTaskID,
+					DurableTaskInsertedAt: created.DurableTaskInsertedAt,
+					Kind:                  created.Kind,
+					NodeID:                created.NodeID,
+					BranchID:              created.BranchID,
+					IdempotencyKey:        created.IdempotencyKey,
+					IsSatisfied:           created.IsSatisfied,
+					InvocationCount:       created.InvocationCount,
+				},
+				InputPayload:   o.InputPayload,
+				ResultPayload:  o.ResultPayload,
+				AlreadyExisted: false,
+			}
+		}
+	}
+
+	slices.SortFunc(results, func(i, j *EventLogEntryWithPayloads) int {
+		if i.Entry.NodeID != j.Entry.NodeID {
+			return int(i.Entry.NodeID - j.Entry.NodeID)
+		}
+
+		return int(i.Entry.BranchID - j.Entry.BranchID)
+	})
+
+	return results, nil
 }
 
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
@@ -473,6 +786,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("invalid opts: %w", err)
 	}
 
+	if opts.Kind == sqlcv1.V1DurableEventLogKindRUN && len(opts.TriggerRuns.TriggerOpts) == 0 {
+		return nil, fmt.Errorf("TriggerOptsList is required and must be non-empty for RUN kind")
+	}
+
+	tenantId := opts.TenantId
 	task := opts.Task
 
 	optTx, err := r.PrepareOptimisticTx(ctx)
@@ -483,125 +801,383 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	tx := optTx.tx
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, opts.TenantId, task.ID, task.InsertedAt)
-
+	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
 	}
 
+	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list log branch points: %w", err)
+	}
+
 	if logFile.LatestInvocationCount != opts.InvocationCount {
-		// TODO-DURABLE: should evict this invocation if this happens
-		return nil, fmt.Errorf("invocation count mismatch: expected %d, got %d. rejecting event write.", logFile.LatestInvocationCount, opts.InvocationCount)
+		return nil, &StaleInvocationError{
+			TaskExternalId:          opts.Task.ExternalID,
+			ExpectedInvocationCount: logFile.LatestInvocationCount,
+			ActualInvocationCount:   opts.InvocationCount,
+		}
 	}
 
-	nodeId := logFile.LatestNodeID + 1
+	baseNodeId := logFile.LatestNodeID + 1
 
-	var parentNodeId *int64
-	if logFile.LatestNodeID > 0 {
-		p := logFile.LatestNodeID
-		parentNodeId = &p
-	}
+	var getOrCreateOpts GetOrCreateLogEntryOpts
 
-	branchId := logFile.LatestBranchID
-	parentBranchId := logFile.LatestBranchID
-
-	if logFile.LatestBranchFirstParentNodeID > 0 && nodeId <= logFile.LatestBranchFirstParentNodeID {
-		parentBranch := logFile.LatestBranchID - 1
-		branchId = parentBranch
-		parentBranchId = parentBranch
-	}
-
-	if logFile.LatestBranchFirstParentNodeID > 0 && nodeId == logFile.LatestBranchFirstParentNodeID+1 {
-		parentBranchId = logFile.LatestBranchID - 1
-	}
-
-	var inputPayload []byte
-	var resultPayload []byte
-	var idempotencyKey []byte
-	isSatisfied := false
+	nodeIdBranchIdToTriggerOpts := make(map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts)
+	runExternalIdToNodeIdBranchId := make(map[uuid.UUID]NodeIdBranchIdTuple)
 
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
-		inputPayload, err = json.Marshal(opts.WaitForConditions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal wait for conditions: %w", err)
-		}
 	case sqlcv1.V1DurableEventLogKindRUN:
-		inputPayload, err = json.Marshal(opts.TriggerOpts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal trigger opts: %w", err)
+		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
+
+		for i, triggerOpts := range opts.TriggerRuns.TriggerOpts {
+			nodeId := baseNodeId + int64(i)
+			branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
+
+			inputPayload, marshalErr := json.Marshal(triggerOpts)
+			if marshalErr != nil {
+				return nil, fmt.Errorf("failed to marshal trigger opts: %w", marshalErr)
+			}
+
+			idempotencyKey, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+			if keyErr != nil {
+				return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
+			}
+
+			innerOpts[i] = GetOrCreateLogEntryOpt{
+				Kind:            sqlcv1.V1DurableEventLogKindRUN,
+				NodeId:          nodeId,
+				BranchId:        branchId,
+				InvocationCount: opts.InvocationCount,
+				IdempotencyKey:  idempotencyKey,
+				InputPayload:    inputPayload,
+			}
+
+			nodeBranchKey := NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}
+			nodeIdBranchIdToTriggerOpts[nodeBranchKey] = triggerOpts
+			runExternalIdToNodeIdBranchId[triggerOpts.ExternalId] = nodeBranchKey
+		}
+
+		getOrCreateOpts = GetOrCreateLogEntryOpts{
+			TenantId:              tenantId,
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
+			DurableTaskExternalId: task.ExternalID,
+			Entries:               innerOpts,
+		}
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		branchId := resolveBranchForNode(baseNodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
+
+		inputPayload, marshalErr := json.Marshal(opts.WaitFor.WaitForConditions)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("failed to marshal wait for conditions: %w", marshalErr)
+		}
+
+		idempotencyKey, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindWAITFOR, nil, opts.WaitFor.WaitForConditions)
+		if keyErr != nil {
+			return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
+		}
+
+		getOrCreateOpts = GetOrCreateLogEntryOpts{
+			TenantId:              tenantId,
+			DurableTaskExternalId: task.ExternalID,
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
+			Entries: []GetOrCreateLogEntryOpt{{
+				Kind:            sqlcv1.V1DurableEventLogKindWAITFOR,
+				NodeId:          baseNodeId,
+				BranchId:        branchId,
+				InvocationCount: opts.InvocationCount,
+				IdempotencyKey:  idempotencyKey,
+				InputPayload:    inputPayload,
+			}},
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
-		// if we get a payload here, it means we should persist it and mark the memo event as having been satisfied,
-		// since it's now replayable by retrieving that payload
-		if len(opts.Payload) > 0 {
+		branchId := resolveBranchForNode(baseNodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
+
+		var resultPayload []byte
+		isSatisfied := false
+		if len(opts.Memo.Payload) > 0 {
 			isSatisfied = true
-			resultPayload = opts.Payload
+			resultPayload = opts.Memo.Payload
 		}
-		idempotencyKey = opts.MemoKey
+
+		getOrCreateOpts = GetOrCreateLogEntryOpts{
+			TenantId:              tenantId,
+			DurableTaskExternalId: task.ExternalID,
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
+			Entries: []GetOrCreateLogEntryOpt{{
+				Kind:            sqlcv1.V1DurableEventLogKindMEMO,
+				NodeId:          baseNodeId,
+				BranchId:        branchId,
+				InvocationCount: opts.InvocationCount,
+				IdempotencyKey:  opts.Memo.MemoKey,
+				IsSatisfied:     isSatisfied,
+				ResultPayload:   resultPayload,
+			}},
+		}
 	default:
 		return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
 	}
 
-	if opts.Kind != sqlcv1.V1DurableEventLogKindMEMO {
-		idempotencyKey, err = r.createIdempotencyKey(opts)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to create idempotency key: %w", err)
-		}
-	}
-
-	logEntry, err := r.getOrCreateEventLogEntry(
-		ctx,
-		tx,
-		GetOrCreateLogEntryOpts{
-			TenantId:              opts.TenantId,
-			DurableTaskExternalId: task.ExternalID,
-			DurableTaskId:         task.ID,
-			DurableTaskInsertedAt: task.InsertedAt,
-			Kind:                  opts.Kind,
-			NodeId:                nodeId,
-			ParentNodeId:          parentNodeId,
-			ParentBranchId:        &parentBranchId,
-			BranchId:              branchId,
-			InvocationCount:       opts.InvocationCount,
-			IsSatisfied:           isSatisfied,
-			IdempotencyKey:        idempotencyKey,
-			InputPayload:          inputPayload,
-			ResultPayload:         resultPayload,
-		},
-	)
-
+	logEntries, err := r.getOrCreateEventLogEntries(ctx, tx, getOrCreateOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get or create event log entry: %w", err)
+		var nde *NonDeterminismError
+		if errors.As(err, &nde) {
+			var existingPayload []byte
+			payloads, retrieveErr := r.payloadStore.Retrieve(ctx, tx, RetrievePayloadOpts{
+				Id:         nde.ExistingEntryId,
+				InsertedAt: nde.ExistingEntryInsertedAt,
+				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+				TenantId:   nde.ExistingEntryTenantId,
+			})
+			if retrieveErr == nil {
+				existingPayload = payloads[RetrievePayloadOpts{
+					Id:         nde.ExistingEntryId,
+					InsertedAt: nde.ExistingEntryInsertedAt,
+					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+					TenantId:   nde.ExistingEntryTenantId,
+				}]
+			}
+			nde.Detail = nonDeterminismDetail(opts, nde.ExpectedKind, existingPayload)
+		}
+
+		return nil, fmt.Errorf("failed to get or create event log entries: %w", err)
 	}
 
-	var spawnedTasks []*V1TaskWithPayload
-	var spawnedDAGs []*DAGWithData
+	var memoResult *IngestMemoResult
+	var waitForResult *IngestWaitForResult
+	var triggerRunsResult *IngestTriggerRunsResult
 
-	if !logEntry.AlreadyExisted {
-		switch opts.Kind {
-		case sqlcv1.V1DurableEventLogKindWAITFOR:
-			err := r.handleWaitFor(ctx, tx, opts.TenantId, branchId, nodeId, opts.WaitForConditions, task)
+	switch opts.Kind {
+	case sqlcv1.V1DurableEventLogKindRUN:
+		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
-			if err != nil {
+		for i, entry := range logEntries {
+			entries[i] = &IngestTriggerRunsEntry{
+				NodeId:         entry.Entry.NodeID,
+				BranchId:       entry.Entry.BranchID,
+				IsSatisfied:    entry.Entry.IsSatisfied,
+				AlreadyExisted: entry.AlreadyExisted,
+				ResultPayload:  entry.ResultPayload,
+			}
+		}
+
+		triggerRunsResult = &IngestTriggerRunsResult{
+			InvocationCount: opts.InvocationCount,
+			Entries:         entries,
+		}
+
+		var newTriggerOpts []*WorkflowNameTriggerOpts
+
+		for _, le := range logEntries {
+			if le.AlreadyExisted {
+				continue
+			}
+
+			newTriggerOpts = append(newTriggerOpts, nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
+				NodeId:   le.Entry.NodeID,
+				BranchId: le.Entry.BranchID,
+			}])
+		}
+
+		if len(newTriggerOpts) > 0 {
+			createdTasks, createdDags, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
+
+			if triggerErr != nil {
+				return nil, fmt.Errorf("failed to trigger workflows: %w", triggerErr)
+			}
+
+			triggerRunsResult.CreatedTasks = createdTasks
+			triggerRunsResult.CreatedDAGs = createdDags
+
+			createMatchOpts := make([]CreateMatchOpts, 0, len(createdTasks)+len(createdDags))
+
+			dagExternalIds := make(map[uuid.UUID]struct{}, len(createdDags))
+
+			for _, dag := range createdDags {
+				dagExternalIds[dag.ExternalID] = struct{}{}
+			}
+
+			for _, ct := range createdTasks {
+				if _, isDagTask := dagExternalIds[ct.WorkflowRunID]; isDagTask {
+					continue
+				}
+
+				childHint := ct.ExternalID.String()
+				orGroupId := uuid.New()
+
+				conditions := []GroupMatchCondition{
+					{
+						GroupId:           orGroupId,
+						EventType:         sqlcv1.V1EventTypeINTERNAL,
+						EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+						ReadableDataKey:   "output",
+						EventResourceHint: &childHint,
+						Expression:        "true",
+						Action:            sqlcv1.V1MatchConditionActionCREATE,
+					},
+					{
+						GroupId:           orGroupId,
+						EventType:         sqlcv1.V1EventTypeINTERNAL,
+						EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+						ReadableDataKey:   "output",
+						EventResourceHint: &childHint,
+						Expression:        "true",
+						Action:            sqlcv1.V1MatchConditionActionCREATE,
+					},
+					{
+						GroupId:           orGroupId,
+						EventType:         sqlcv1.V1EventTypeINTERNAL,
+						EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+						ReadableDataKey:   "output",
+						EventResourceHint: &childHint,
+						Expression:        "true",
+						Action:            sqlcv1.V1MatchConditionActionCREATE,
+					},
+				}
+
+				nodeIdBranchId := runExternalIdToNodeIdBranchId[ct.ExternalID]
+
+				nodeId := nodeIdBranchId.NodeId
+				branchId := nodeIdBranchId.BranchId
+
+				runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d:%d", task.ExternalID.String(), branchId, nodeId)
+
+				taskId := task.ID
+
+				createMatchOpts = append(createMatchOpts, CreateMatchOpts{
+					Kind:                         sqlcv1.V1MatchKindSIGNAL,
+					Conditions:                   conditions,
+					SignalTaskId:                 &taskId,
+					SignalTaskInsertedAt:         task.InsertedAt,
+					SignalExternalId:             &ct.ExternalID,
+					SignalTaskExternalId:         &task.ExternalID,
+					SignalKey:                    &runEventLogEntrySignalKey,
+					DurableEventLogEntryNodeId:   &nodeId,
+					DurableEventLogEntryBranchId: &branchId,
+				})
+			}
+
+			for _, dag := range createdDags {
+				conditions := make([]GroupMatchCondition, 0, len(dag.TaskExternalIDs)*3)
+
+				for i, taskExtId := range dag.TaskExternalIDs {
+					childHint := taskExtId.String()
+					orGroupId := uuid.New()
+
+					readableDataKey := "output"
+					if i < len(dag.TaskStepReadableIDs) {
+						readableDataKey = dag.TaskStepReadableIDs[i]
+					}
+
+					conditions = append(conditions,
+						GroupMatchCondition{
+							GroupId:           orGroupId,
+							EventType:         sqlcv1.V1EventTypeINTERNAL,
+							EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+							ReadableDataKey:   readableDataKey,
+							EventResourceHint: &childHint,
+							Expression:        "true",
+							Action:            sqlcv1.V1MatchConditionActionCREATE,
+						},
+						GroupMatchCondition{
+							GroupId:           orGroupId,
+							EventType:         sqlcv1.V1EventTypeINTERNAL,
+							EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+							ReadableDataKey:   readableDataKey,
+							EventResourceHint: &childHint,
+							Expression:        "true",
+							Action:            sqlcv1.V1MatchConditionActionCREATE,
+						},
+						GroupMatchCondition{
+							GroupId:           orGroupId,
+							EventType:         sqlcv1.V1EventTypeINTERNAL,
+							EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+							ReadableDataKey:   readableDataKey,
+							EventResourceHint: &childHint,
+							Expression:        "true",
+							Action:            sqlcv1.V1MatchConditionActionCREATE,
+						},
+					)
+				}
+
+				nodeIdBranchId := runExternalIdToNodeIdBranchId[dag.ExternalID]
+
+				nodeId := nodeIdBranchId.NodeId
+				branchId := nodeIdBranchId.BranchId
+
+				runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d:%d", task.ExternalID.String(), branchId, nodeId)
+
+				taskId := task.ID
+				dagExternalId := dag.ExternalID
+
+				createMatchOpts = append(createMatchOpts, CreateMatchOpts{
+					Kind:                         sqlcv1.V1MatchKindSIGNAL,
+					Conditions:                   conditions,
+					SignalTaskId:                 &taskId,
+					SignalTaskInsertedAt:         task.InsertedAt,
+					SignalExternalId:             &dagExternalId,
+					SignalTaskExternalId:         &task.ExternalID,
+					SignalKey:                    &runEventLogEntrySignalKey,
+					DurableEventLogEntryNodeId:   &nodeId,
+					DurableEventLogEntryBranchId: &branchId,
+				})
+			}
+
+			if len(createMatchOpts) > 0 {
+				if matchErr := r.createEventMatches(ctx, tx, tenantId, createMatchOpts); matchErr != nil {
+					return nil, fmt.Errorf("failed to register run completion matches: %w", matchErr)
+				}
+			}
+		}
+	case sqlcv1.V1DurableEventLogKindWAITFOR:
+		if len(logEntries) != 1 {
+			// note: we implicitly assume that there will only be one log entry for wait for conditions
+			// if we get more than one, it's an indication something is wrong
+			return nil, fmt.Errorf("expected to get exactly one log entry for wait for condition, but got %d", len(logEntries))
+		}
+		le := logEntries[0]
+
+		if !le.AlreadyExisted {
+			if err = r.handleWaitFor(ctx, tx, tenantId, le.Entry.BranchID, le.Entry.NodeID, opts.WaitFor.WaitForConditions, task); err != nil {
 				return nil, fmt.Errorf("failed to handle wait for conditions: %w", err)
 			}
-		case sqlcv1.V1DurableEventLogKindRUN:
-			spawnedDAGs, spawnedTasks, err = r.handleTriggerRuns(ctx, optTx, opts.TenantId, branchId, nodeId, opts.TriggerOpts, task)
+		}
 
-			if err != nil {
-				return nil, fmt.Errorf("failed to handle trigger runs: %w", err)
-			}
-		case sqlcv1.V1DurableEventLogKindMEMO:
-			// do nothing - we don't need to do anything downstream since memo just writes the cache entry and returns
-		default:
-			return nil, fmt.Errorf("unsupported durable event log entry kind: %s", opts.Kind)
+		waitForResult = &IngestWaitForResult{
+			InvocationCount: opts.InvocationCount,
+			IsSatisfied:     le.Entry.IsSatisfied,
+			NodeId:          le.Entry.NodeID,
+			BranchId:        le.Entry.BranchID,
+			AlreadyExisted:  le.AlreadyExisted,
+			ResultPayload:   le.ResultPayload,
+		}
+	case sqlcv1.V1DurableEventLogKindMEMO:
+		if len(logEntries) != 1 {
+			// note: we implicitly assume that there will only be one log entry for memo
+			// if we get more than one, it's an indication something is wrong
+			return nil, fmt.Errorf("expected to get exactly one log entry for memo, but got %d", len(logEntries))
+		}
+
+		le := logEntries[0]
+
+		memoResult = &IngestMemoResult{
+			InvocationCount: opts.InvocationCount,
+			IsSatisfied:     le.Entry.IsSatisfied,
+			NodeId:          le.Entry.NodeID,
+			BranchId:        le.Entry.BranchID,
+			ResultPayload:   le.ResultPayload,
+			AlreadyExisted:  le.AlreadyExisted,
 		}
 	}
 
-	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-		NodeId:                sqlchelpers.ToBigInt(&nodeId),
+	n := len(getOrCreateOpts.Entries)
+
+	finalNodeId := baseNodeId + int64(n) - 1
+	_, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
+		NodeId:                sqlchelpers.ToBigInt(&finalNodeId),
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 	})
@@ -615,14 +1191,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	return &IngestDurableTaskEventResult{
-		NodeId:          nodeId,
-		BranchId:        branchId,
-		InvocationCount: opts.InvocationCount,
-		IsSatisfied:     logEntry.Entry.IsSatisfied,
-		AlreadyExisted:  logEntry.AlreadyExisted,
-		ResultPayload:   logEntry.ResultPayload,
-		CreatedTasks:    spawnedTasks,
-		CreatedDAGs:     spawnedDAGs,
+		Kind:              opts.Kind,
+		MemoResult:        memoResult,
+		WaitForResult:     waitForResult,
+		TriggerRunsResult: triggerRunsResult,
 	}, nil
 }
 
@@ -650,80 +1222,6 @@ func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.D
 	}}
 
 	return r.registerSignalMatchConditions(ctx, tx, tenantId, createMatchOpts)
-}
-
-func (r *durableEventsRepository) handleTriggerRuns(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, branchId, nodeId int64, triggerOpts *WorkflowNameTriggerOpts, task *sqlcv1.FlattenExternalIdsRow) ([]*DAGWithData, []*V1TaskWithPayload, error) {
-	if triggerOpts == nil {
-		return nil, nil, fmt.Errorf("trigger options cannot be nil for RUN kind durable event log entry")
-	}
-
-	createdTasks, createdDAGs, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, []*WorkflowNameTriggerOpts{triggerOpts})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
-	}
-
-	taskId := task.ID
-	taskExternalId := task.ExternalID
-
-	var conditions []GroupMatchCondition
-
-	for _, childTask := range createdTasks {
-		childHint := childTask.ExternalID.String()
-		orGroupId := uuid.New()
-
-		conditions = append(conditions,
-			GroupMatchCondition{
-				GroupId:           orGroupId,
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
-				ReadableDataKey:   "output",
-				EventResourceHint: &childHint,
-				Expression:        "true",
-				Action:            sqlcv1.V1MatchConditionActionCREATE,
-			},
-			GroupMatchCondition{
-				GroupId:           orGroupId,
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-				ReadableDataKey:   "output",
-				EventResourceHint: &childHint,
-				Expression:        "true",
-				Action:            sqlcv1.V1MatchConditionActionCREATE,
-			},
-			GroupMatchCondition{
-				GroupId:           orGroupId,
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-				ReadableDataKey:   "output",
-				EventResourceHint: &childHint,
-				Expression:        "true",
-				Action:            sqlcv1.V1MatchConditionActionCREATE,
-			},
-		)
-	}
-
-	if len(conditions) > 0 {
-		runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d", task.ExternalID.String(), nodeId)
-
-		err = r.createEventMatches(ctx, tx.tx, tenantId, []CreateMatchOpts{{
-			Kind:                         sqlcv1.V1MatchKindSIGNAL,
-			Conditions:                   conditions,
-			SignalTaskId:                 &taskId,
-			SignalTaskInsertedAt:         task.InsertedAt,
-			SignalExternalId:             &taskExternalId,
-			SignalTaskExternalId:         &taskExternalId,
-			SignalKey:                    &runEventLogEntrySignalKey,
-			DurableEventLogEntryNodeId:   &nodeId,
-			DurableEventLogEntryBranchId: &branchId,
-		}})
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to register run completion match: %w", err)
-		}
-	}
-
-	return createdDAGs, createdTasks, nil
 }
 
 func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error {
@@ -775,7 +1273,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 	return nil
 }
 
-func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.UUID, nodeId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleForkResult, error) {
+func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -791,26 +1289,37 @@ func (r *durableEventsRepository) HandleFork(ctx context.Context, tenantId uuid.
 	}
 
 	newBranchId := logFile.LatestBranchID + 1
-	lastFastForwardedNode := nodeId - 1
 	zero := int64(0)
 
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-		BranchId:                sqlchelpers.ToBigInt(&newBranchId),
-		NodeId:                  sqlchelpers.ToBigInt(&zero),
-		BranchFirstParentNodeId: sqlchelpers.ToBigInt(&lastFastForwardedNode),
-		Durabletaskid:           task.ID,
-		Durabletaskinsertedat:   task.InsertedAt,
+		BranchId:              sqlchelpers.ToBigInt(&newBranchId),
+		NodeId:                sqlchelpers.ToBigInt(&zero),
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to update log file for fork: %w", err)
+		return nil, fmt.Errorf("failed to update log file for branch: %w", err)
+	}
+
+	err = r.queries.CreateDurableEventLogBranchPoint(ctx, tx, sqlcv1.CreateDurableEventLogBranchPointParams{
+		Tenantid:               tenantId,
+		Firstnodeidinnewbranch: nodeId,
+		Parentbranchid:         branchId,
+		Nextbranchid:           newBranchId,
+		Durabletaskid:          task.ID,
+		Durabletaskinsertedat:  task.InsertedAt,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log branch point for fork: %w", err)
 	}
 
 	if err := optTx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
-	return &HandleForkResult{
+	return &HandleBranchResult{
 		NodeId:       nodeId,
 		BranchId:     newBranchId,
 		EventLogFile: logFile,

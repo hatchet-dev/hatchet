@@ -73,11 +73,13 @@ class DurableEvictionManager:
         key: ActionKey,
         *,
         step_run_id: str,
+        invocation_count: int,
         eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._cache.register_run(
             key,
             step_run_id,
+            invocation_count=invocation_count,
             now=self._now(),
             eviction_policy=eviction_policy,
         )
@@ -101,6 +103,10 @@ class DurableEvictionManager:
 
     def mark_active(self, key: ActionKey) -> None:
         self._cache.mark_active(key, now=self._now())
+
+    def _evict_run(self, key: ActionKey) -> None:
+        self._cancel_local(key)
+        self.unregister_run(key)
 
     async def _run_loop(self) -> None:
         interval = self._config.check_interval.total_seconds()
@@ -155,9 +161,25 @@ class DurableEvictionManager:
                 )
 
                 await self._request_eviction_with_ack(key, rec)
+                self._evict_run(key)
 
-                self._cancel_local(key)
-                self.unregister_run(key)
+    def handle_server_eviction(self, step_run_id: str, invocation_count: int) -> None:
+        """Handle a server-initiated eviction notification for a stale invocation."""
+        key = self._cache.find_key_by_step_run_id(step_run_id)
+        if key is None:
+            return
+
+        rec = self._cache.get(key)
+        if rec is not None and rec.invocation_count != invocation_count:
+            return
+
+        logger.info(
+            "DurableEvictionManager: server-initiated eviction for "
+            "step_run_id=%s invocation_count=%d",
+            step_run_id,
+            invocation_count,
+        )
+        self._evict_run(key)
 
     async def evict_all_waiting(self) -> int:
         """Evict every currently-waiting durable run. Used during graceful shutdown."""
@@ -167,9 +189,6 @@ class DurableEvictionManager:
         evicted = 0
 
         for rec in waiting:
-            if rec.eviction_policy is None:
-                continue
-
             rec.eviction_reason = _build_eviction_reason(
                 EvictionCause.WORKER_SHUTDOWN, rec
             )
@@ -187,10 +206,10 @@ class DurableEvictionManager:
                     f"DurableEvictionManager: failed to send eviction for "
                     f"step_run_id={rec.step_run_id}"
                 )
-                continue
 
-            self._cancel_local(rec.key)
-            self.unregister_run(rec.key)
+            # Always cancel locally even if the server ACK failed, so the
+            # future settles and exit_gracefully doesn't hang.
+            self._evict_run(rec.key)
             evicted += 1
 
         return evicted

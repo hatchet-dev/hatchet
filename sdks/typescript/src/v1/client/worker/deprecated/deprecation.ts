@@ -54,9 +54,13 @@ export interface DeprecationOpts {
 export function parseSemver(v: string): [number, number, number] {
   let s = v.startsWith('v') ? v.slice(1) : v;
   const dashIdx = s.indexOf('-');
-  if (dashIdx !== -1) s = s.slice(0, dashIdx);
+  if (dashIdx !== -1) {
+    s = s.slice(0, dashIdx);
+  }
   const parts = s.split('.');
-  if (parts.length !== 3) return [0, 0, 0];
+  if (parts.length !== 3) {
+    return [0, 0, 0];
+  }
   return [parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, parseInt(parts[2], 10) || 0];
 }
 
@@ -66,8 +70,12 @@ export function parseSemver(v: string): [number, number, number] {
 export function semverLessThan(a: string, b: string): boolean {
   const [aMaj, aMin, aPat] = parseSemver(a);
   const [bMaj, bMin, bPat] = parseSemver(b);
-  if (aMaj !== bMaj) return aMaj < bMaj;
-  if (aMin !== bMin) return aMin < bMin;
+  if (aMaj !== bMaj) {
+    return aMaj < bMaj;
+  }
+  if (aMin !== bMin) {
+    return aMin < bMin;
+  }
   return aPat < bPat;
 }
 

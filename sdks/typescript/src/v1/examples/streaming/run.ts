@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { streamingTask } from './workflow';
 import { hatchet } from '../hatchet-client';
 

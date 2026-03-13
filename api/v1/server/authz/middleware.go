@@ -3,27 +3,32 @@ package authz
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/api/v1/server/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type AuthZ struct {
 	config *server.ServerConfig
-
-	l *zerolog.Logger
+	rbac   *rbac.Authorizer
+	l      *zerolog.Logger
 }
 
-func NewAuthZ(config *server.ServerConfig) *AuthZ {
+func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
+	rbacAuthorizer, err := rbac.NewAuthorizer()
+	if err != nil {
+		return nil, err
+	}
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
-	}
+		rbac:   rbacAuthorizer,
+	}, nil
 }
 
 func (a *AuthZ) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
@@ -95,7 +100,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		c.Set("tenant-member", tenantMember)
 
 		// authorize tenant operations
-		if err := a.authorizeTenantOperations(tenant, tenantMember, r); err != nil {
+		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
 			a.l.Debug().Err(err).Msgf("error authorizing tenant operations")
 
 			return unauthorized
@@ -119,7 +124,7 @@ var restrictedWithBearerToken = []string{
 // At the moment, there's no further bearer auth because bearer tokens are admin-scoped
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if operationIn(r.OperationID, restrictedWithBearerToken) {
+	if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
@@ -146,7 +151,7 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 		return nil
 	}
 
-	if operationIn(r.OperationID, permittedWithUnverifiedEmail) {
+	if rbac.OperationIn(r.OperationID, permittedWithUnverifiedEmail) {
 		return nil
 	}
 
@@ -157,47 +162,14 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 	return nil
 }
 
-var adminAndOwnerOnly = []string{
-	"TenantInviteList",
-	"TenantInviteCreate",
-	"TenantInviteUpdate",
-	"TenantInviteDelete",
-	"TenantMemberList",
-	"TenantMemberUpdate",
-	// members cannot create API tokens for a tenant, because they have admin permissions
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-}
-
-func (a *AuthZ) authorizeTenantOperations(tenant *sqlcv1.Tenant, tenantMember *sqlcv1.PopulateTenantMembersRow, r *middleware.RouteInfo) error {
-	// if the user is an owner, they can do anything
-	if tenantMember.Role == sqlcv1.TenantMemberRoleOWNER {
-		return nil
-	}
-
-	// if the user is an admin, they can do anything at the moment. Some downstream handlers will case on
-	// admin roles, for example admins cannot mark users as owners.
-	if tenantMember.Role == sqlcv1.TenantMemberRoleADMIN {
-		return nil
-	}
+func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRole, r *middleware.RouteInfo) error {
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if operationIn(r.OperationID, adminAndOwnerOnly) {
+	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
 	// NOTE(abelanger5): this should be default-deny, but there's not a strong use-case for restricting member
 	// operations at the moment. If there is, we should modify this logic.
 	return nil
-}
-
-func operationIn(operationId string, operationIds []string) bool {
-	for _, id := range operationIds {
-		if strings.EqualFold(operationId, id) {
-			return true
-		}
-	}
-
-	return false
 }

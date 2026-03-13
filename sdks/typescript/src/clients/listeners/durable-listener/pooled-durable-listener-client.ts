@@ -1,5 +1,4 @@
-// eslint-disable-next-line max-classes-per-file
-import { EventEmitter, getMaxListeners, on, setMaxListeners } from 'events';
+import { EventEmitter, on } from 'events';
 import {
   DurableEvent,
   ListenForDurableEventRequest,
@@ -7,8 +6,9 @@ import {
   RegisterDurableEventResponse,
 } from '@hatchet/protoc/v1/dispatcher';
 import { isAbortError } from 'abort-controller-x';
+import { getErrorMessage } from '@util/errors/hatchet-error';
 import sleep from '@hatchet/util/sleep';
-import { createAbortError } from '@hatchet/util/abort-error';
+import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
 import {
   DurableEventListenerConditions,
   SleepMatchCondition,
@@ -46,7 +46,9 @@ export class DurableEventStreamable {
       let cleanedUp = false;
 
       const cleanup = () => {
-        if (cleanedUp) return;
+        if (cleanedUp) {
+          return;
+        }
         cleanedUp = true;
         this.responseEmitter.removeListener('response', onResponse);
         if (signal) {
@@ -72,20 +74,7 @@ export class DurableEventStreamable {
 
       this.responseEmitter.once('response', onResponse);
       if (signal) {
-        /**
-         * Node defaults AbortSignal max listeners to 10, which is easy to exceed with
-         * legitimate high-concurrency waits (e.g. multiple concurrent `ctx.waitFor(...)`
-         * calls in the same task).
-         *
-         * If the signal is still at the default cap, bump it to a reasonable level
-         * to avoid noisy `MaxListenersExceededWarning` while still keeping protection
-         * against true leaks in unusual cases.
-         */
-        const max = getMaxListeners(signal);
-        if (max !== 0 && max < 50) {
-          setMaxListeners(50, signal);
-        }
-        signal.addEventListener('abort', onAbort, { once: true });
+        bindAbortSignalHandler(signal, onAbort);
       }
     });
   }
@@ -143,14 +132,16 @@ export class DurableEventGrpcPooledListener {
       this.client.logger.debug('Initializing durable-event-listener');
 
       this.signal = new AbortController();
-      // eslint-disable-next-line no-plusplus
+
       this.currRequester++;
 
       this.listener = this.client.client.listenForDurableEvent(this.request(), {
         signal: this.signal.signal,
       });
 
-      if (retries > 0) setTimeout(() => this.replayRequests(), 100);
+      if (retries > 0) {
+        setTimeout(() => this.replayRequests(), 100);
+      }
 
       for await (const event of this.listener) {
         retryCount = 0;
@@ -168,12 +159,12 @@ export class DurableEventGrpcPooledListener {
       }
 
       this.client.logger.debug('Durable event listener finished');
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isAbortError(e)) {
         this.client.logger.debug('Durable event listener aborted');
         return;
       }
-      this.client.logger.error(`Error in durable-event-listener: ${e.message}`);
+      this.client.logger.error(`Error in durable-event-listener: ${getErrorMessage(e)}`);
     } finally {
       const subscriberCount = Object.keys(this.subscribers).length;
       if (subscriberCount > 0) {
@@ -211,9 +202,10 @@ export class DurableEventGrpcPooledListener {
   subscribe(request: { taskId: string; signalKey: string }): DurableEventStreamable {
     const { taskId, signalKey } = request;
 
-    if (!this.listener) throw new Error('listener not initialized');
+    if (!this.listener) {
+      throw new Error('listener not initialized');
+    }
 
-    // eslint-disable-next-line no-plusplus
     const subscriptionId = (this.subscriptionCounter++).toString();
     const subscriber = new DurableEventStreamable(
       this.listener,
@@ -290,7 +282,9 @@ export class DurableEventGrpcPooledListener {
 
     for await (const e of on(this.requestEmitter, 'subscribe')) {
       // Stop if this requester is outdated
-      if (currRequester !== this.currRequester) break;
+      if (currRequester !== this.currRequester) {
+        break;
+      }
 
       const request = e[0] as ListenForDurableEventRequest;
       const key = keyHelper(request.taskId, request.signalKey);

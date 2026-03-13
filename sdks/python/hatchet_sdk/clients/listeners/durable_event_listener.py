@@ -1,12 +1,13 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import cast
+from datetime import timedelta
+from typing import Annotated, Literal, cast
 
 import grpc.aio
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing_extensions import Never, Self
 
 from hatchet_sdk.clients.admin import (
@@ -16,16 +17,18 @@ from hatchet_sdk.clients.admin import (
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    DurableEventLogEntryRef,
     DurableTaskAwaitedCompletedEntry,
     DurableTaskCompleteMemoRequest,
     DurableTaskErrorType,
-    DurableTaskEventKind,
     DurableTaskEventLogEntryCompletedResponse,
-    DurableTaskEventRequest,
     DurableTaskEvictInvocationRequest,
+    DurableTaskMemoRequest,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
+    DurableTaskTriggerRunsRequest,
+    DurableTaskWaitForRequest,
     DurableTaskWorkerStatusRequest,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
@@ -33,6 +36,7 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerCo
 from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.cache import TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
@@ -51,12 +55,17 @@ class RunChildEvent:
 
 
 @dataclass(frozen=True)
+class RunChildrenEvent:
+    children: list[RunChildEvent]
+
+
+@dataclass(frozen=True)
 class MemoEvent:
     memo_key: bytes
     result: str | None
 
 
-DurableTaskSendEvent = WaitForEvent | RunChildEvent | MemoEvent
+DurableTaskSendEvent = WaitForEvent | RunChildrenEvent | MemoEvent
 
 
 class MaybeCachedMemoEntry(BaseModel):
@@ -64,13 +73,40 @@ class MaybeCachedMemoEntry(BaseModel):
     data: bytes | None = None
 
 
-class DurableTaskEventAck(BaseModel):
+class DurableTaskRunAckEntry(BaseModel):
+    node_id: int
+    branch_id: int
+
+
+class DurableTaskEventRunAck(BaseModel):
+    ack_type: Literal["run"] = "run"
+    invocation_count: int
+    durable_task_external_id: str
+    run_entries: list[DurableTaskRunAckEntry] = Field(default_factory=list)
+
+
+class DurableTaskEventMemoAck(BaseModel):
+    ack_type: Literal["memo"] = "memo"
     invocation_count: int
     durable_task_external_id: str
     branch_id: int
     node_id: int
     memo_already_existed: bool
     memo_result_payload: bytes | None = None
+
+
+class DurableTaskEventWaitForAck(BaseModel):
+    ack_type: Literal["wait"] = "wait"
+    invocation_count: int
+    durable_task_external_id: str
+    branch_id: int
+    node_id: int
+
+
+DurableTaskEventAck = Annotated[
+    DurableTaskEventRunAck | DurableTaskEventMemoAck | DurableTaskEventWaitForAck,
+    Field(discriminator="ack_type"),
+]
 
 
 class DurableTaskEventLogEntryResult(BaseModel):
@@ -85,8 +121,8 @@ class DurableTaskEventLogEntryResult(BaseModel):
             payload = json.loads(proto.payload.decode("utf-8"))
 
         return cls(
-            durable_task_external_id=proto.durable_task_external_id,
-            node_id=proto.node_id,
+            durable_task_external_id=proto.ref.durable_task_external_id,
+            node_id=proto.ref.node_id,
             payload=payload,
         )
 
@@ -102,7 +138,12 @@ PendingEvictionAck = tuple[TaskExternalId, InvocationCount]
 
 
 class DurableEventListener:
-    def __init__(self, config: ClientConfig, admin_client: AdminClient):
+    def __init__(
+        self,
+        config: ClientConfig,
+        admin_client: AdminClient,
+        on_server_evict: Callable[[str, int], None] | None = None,
+    ):
         self.config = config
         self.token = config.token
         self.admin_client = admin_client
@@ -124,16 +165,20 @@ class DurableEventListener:
             PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
         ] = {}
 
-        # TODO-DURABLE: This is a hack to handle the case where a task is completed before the event listener is connected.
-        # We should probably figure out WHY this is happening and fix it.
-        self._early_completions: dict[
+        # Completions that arrived before wait_for_callback() registered a
+        # future in _pending_callbacks. This happens when the server delivers
+        # an entry_completed between the event ack and the wait_for_callback
+        # call (e.g. an already-satisfied sleep delivered via polling).
+        self._buffered_completions: TTLCache[
             PendingCallback, DurableTaskEventLogEntryResult
-        ] = {}
+        ] = TTLCache(ttl=timedelta(seconds=10))
 
         self._receive_task: asyncio.Task[None] | None = None
         self._send_task: asyncio.Task[None] | None = None
         self._running = False
         self._start_lock = asyncio.Lock()
+
+        self._on_server_evict = on_server_evict
 
     @property
     def worker_id(self) -> str | None:
@@ -159,6 +204,7 @@ class DurableEventListener:
         )
 
         await self._register_worker()
+        await self._poll_worker_status()
         logger.info("durable event listener connected")
 
     async def start(self, worker_id: str) -> None:
@@ -180,6 +226,9 @@ class DurableEventListener:
 
     async def stop(self) -> None:
         self._running = False
+        self._buffered_completions.stop_eviction_job()
+
+        self._fail_all_pending(Exception("DurableListener stopped"))
 
         if self._receive_task:
             self._receive_task.cancel()
@@ -217,10 +266,11 @@ class DurableEventListener:
         waiting = [
             DurableTaskAwaitedCompletedEntry(
                 durable_task_external_id=task_ext_id,
+                invocation_count=inv_count,
                 node_id=node_id,
                 branch_id=branch_id,
             )
-            for (task_ext_id, _, branch_id, node_id) in self._pending_callbacks
+            for (task_ext_id, inv_count, branch_id, node_id) in self._pending_callbacks
         ]
 
         request = DurableTaskRequest(
@@ -236,6 +286,20 @@ class DurableEventListener:
             if not future.done():
                 future.set_exception(exc)
         self._pending_event_acks.clear()
+
+        for eviction_future in self._pending_eviction_acks.values():
+            if not eviction_future.done():
+                eviction_future.set_exception(exc)
+        self._pending_eviction_acks.clear()
+
+    def _fail_all_pending(self, exc: Exception) -> None:
+        self._fail_pending_acks(exc)
+
+        for future in self._pending_callbacks.values():
+            if not future.done():
+                future.set_exception(exc)
+        self._pending_callbacks.clear()
+        self._buffered_completions.clear()
 
     async def _receive_loop(self) -> None:
         while self._running:
@@ -291,31 +355,68 @@ class DurableEventListener:
     async def _handle_response(self, response: DurableTaskResponse) -> None:
         if response.HasField("register_worker"):
             pass
-        elif response.HasField("trigger_ack"):
-            trigger_ack = response.trigger_ack
+        elif response.HasField("trigger_runs_ack"):
+            trigger_ack = response.trigger_runs_ack
             event_key = (
                 trigger_ack.durable_task_external_id,
                 trigger_ack.invocation_count,
             )
-            if event_key in self._pending_event_acks:
-                self._pending_event_acks[event_key].set_result(
-                    DurableTaskEventAck(
+            trigger_ack_future = self._pending_event_acks.pop(event_key, None)
+            if trigger_ack_future is not None and not trigger_ack_future.done():
+                trigger_ack_future.set_result(
+                    DurableTaskEventRunAck(
                         invocation_count=trigger_ack.invocation_count,
                         durable_task_external_id=trigger_ack.durable_task_external_id,
-                        node_id=trigger_ack.node_id,
-                        branch_id=trigger_ack.branch_id,
-                        memo_already_existed=trigger_ack.memo_already_existed,
-                        memo_result_payload=trigger_ack.memo_result_payload,
+                        run_entries=[
+                            DurableTaskRunAckEntry(
+                                node_id=e.node_id,
+                                branch_id=e.branch_id,
+                            )
+                            for e in trigger_ack.run_entries
+                        ],
                     )
                 )
-                del self._pending_event_acks[event_key]
+        elif response.HasField("memo_ack"):
+            memo_ack = response.memo_ack
+            event_key = (
+                memo_ack.ref.durable_task_external_id,
+                memo_ack.ref.invocation_count,
+            )
+            memo_ack_future = self._pending_event_acks.pop(event_key, None)
+            if memo_ack_future is not None and not memo_ack_future.done():
+                memo_ack_future.set_result(
+                    DurableTaskEventMemoAck(
+                        invocation_count=memo_ack.ref.invocation_count,
+                        durable_task_external_id=memo_ack.ref.durable_task_external_id,
+                        node_id=memo_ack.ref.node_id,
+                        branch_id=memo_ack.ref.branch_id,
+                        memo_already_existed=memo_ack.memo_already_existed,
+                        memo_result_payload=memo_ack.memo_result_payload,
+                    )
+                )
+        elif response.HasField("wait_for_ack"):
+            wait_for_ack = response.wait_for_ack
+            event_key = (
+                wait_for_ack.ref.durable_task_external_id,
+                wait_for_ack.ref.invocation_count,
+            )
+            wait_for_ack_future = self._pending_event_acks.pop(event_key, None)
+            if wait_for_ack_future is not None and not wait_for_ack_future.done():
+                wait_for_ack_future.set_result(
+                    DurableTaskEventWaitForAck(
+                        invocation_count=wait_for_ack.ref.invocation_count,
+                        durable_task_external_id=wait_for_ack.ref.durable_task_external_id,
+                        node_id=wait_for_ack.ref.node_id,
+                        branch_id=wait_for_ack.ref.branch_id,
+                    )
+                )
         elif response.HasField("entry_completed"):
             completed = response.entry_completed
             completed_key = (
-                completed.durable_task_external_id,
-                completed.invocation_count,
-                completed.branch_id,
-                completed.node_id,
+                completed.ref.durable_task_external_id,
+                completed.ref.invocation_count,
+                completed.ref.branch_id,
+                completed.ref.node_id,
             )
             result = DurableTaskEventLogEntryResult.from_proto(completed)
             if completed_key in self._pending_callbacks:
@@ -324,7 +425,7 @@ class DurableEventListener:
                     completed_future.set_result(result)
                 del self._pending_callbacks[completed_key]
             else:
-                self._early_completions[completed_key] = result
+                self._buffered_completions[completed_key] = result
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -335,6 +436,19 @@ class DurableEventListener:
                 future = self._pending_eviction_acks.pop(eviction_key)
                 if not future.done():
                     future.set_result(None)
+        elif response.HasField("server_evict"):
+            evict = response.server_evict
+            logger.info(
+                f"received server eviction notification for task {evict.durable_task_external_id} "
+                f"invocation {evict.invocation_count}: {evict.reason}"
+            )
+            self.cleanup_task_state(
+                evict.durable_task_external_id, evict.invocation_count
+            )
+            if self._on_server_evict is not None:
+                self._on_server_evict(
+                    evict.durable_task_external_id, evict.invocation_count
+                )
         elif response.HasField("error"):
             error = response.error
             exc: Exception
@@ -344,10 +458,10 @@ class DurableEventListener:
                 == DurableTaskErrorType.DURABLE_TASK_ERROR_TYPE_NONDETERMINISM
             ):
                 exc = NonDeterminismError(
-                    task_external_id=error.durable_task_external_id,
-                    invocation_count=error.invocation_count,
+                    task_external_id=error.ref.durable_task_external_id,
+                    invocation_count=error.ref.invocation_count,
                     message=error.error_message,
-                    node_id=error.node_id,
+                    node_id=error.ref.node_id,
                 )
             else:
                 ## fallthrough, this shouldn't happen unless we add an error type to the engine and the SDK
@@ -358,17 +472,17 @@ class DurableEventListener:
                     + f" (type: {error.error_type})"
                 )
 
-            event_key = (error.durable_task_external_id, error.invocation_count)
+            event_key = (error.ref.durable_task_external_id, error.ref.invocation_count)
             if event_key in self._pending_event_acks:
                 error_pending_ack_future = self._pending_event_acks.pop(event_key)
                 if not error_pending_ack_future.done():
                     error_pending_ack_future.set_exception(exc)
 
             callback_key = (
-                error.durable_task_external_id,
-                error.invocation_count,
-                error.branch_id,
-                error.node_id,
+                error.ref.durable_task_external_id,
+                error.ref.invocation_count,
+                error.ref.branch_id,
+                error.ref.node_id,
             )
 
             if callback_key in self._pending_callbacks:
@@ -379,8 +493,8 @@ class DurableEventListener:
                     error_pending_callback_future.set_exception(exc)
 
             error_eviction_key: PendingEvictionAck = (
-                error.durable_task_external_id,
-                error.invocation_count,
+                error.ref.durable_task_external_id,
+                error.ref.invocation_count,
             )
             if error_eviction_key in self._pending_eviction_acks:
                 eviction_future = self._pending_eviction_acks.pop(error_eviction_key)
@@ -409,45 +523,51 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
-        if isinstance(event, RunChildEvent):
-            _trigger_opts = self.admin_client._create_workflow_run_request(
-                workflow_name=event.workflow_name,
-                input=event.input,
-                options=event.trigger_workflow_opts,
-            )
+        request: DurableTaskRequest
 
-            event_request = DurableTaskEventRequest(
+        if isinstance(event, RunChildrenEvent):
+            trigger_opts_list = [
+                self.admin_client._create_workflow_run_request(
+                    workflow_name=child.workflow_name,
+                    input=child.input,
+                    options=child.trigger_workflow_opts,
+                )
+                for child in event.children
+            ]
+
+            trigger_req = DurableTaskTriggerRunsRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
-                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_RUN,
-                trigger_opts=_trigger_opts,
+                trigger_opts=trigger_opts_list,
             )
+
+            request = DurableTaskRequest(trigger_runs=trigger_req)
 
         elif isinstance(event, WaitForEvent):
-            event_request = DurableTaskEventRequest(
+            wait_req = DurableTaskWaitForRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
-                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_WAIT_FOR,
+                wait_for_conditions=event.wait_for_conditions,
             )
 
-            event_request.wait_for_conditions.CopyFrom(event.wait_for_conditions)
-
+            request = DurableTaskRequest(wait_for=wait_req)
         elif isinstance(event, MemoEvent):
-            event_request = DurableTaskEventRequest(
+            memo_req = DurableTaskMemoRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
-                kind=DurableTaskEventKind.DURABLE_TASK_TRIGGER_KIND_MEMO,
-                memo_key=event.memo_key,
+                key=event.memo_key,
             )
 
             if event.result is not None:
-                event_request.payload = event.result.encode("utf-8")
+                memo_req.payload = event.result.encode("utf-8")
+
+            request = DurableTaskRequest(memo=memo_req)
 
         else:
             e: Never = event
             raise ValueError(f"Unknown durable task send event: {e}")
 
-        await self._request_queue.put(DurableTaskRequest(event=event_request))
+        await self._request_queue.put(request)
 
         return await future
 
@@ -460,12 +580,13 @@ class DurableEventListener:
     ) -> DurableTaskEventLogEntryResult:
         key = (durable_task_external_id, invocation_count, branch_id, node_id)
 
-        if key in self._early_completions:
-            return self._early_completions.pop(key)
+        if key in self._buffered_completions:
+            return self._buffered_completions.pop(key)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
+            await self._poll_worker_status()
 
         return await self._pending_callbacks[key]
 
@@ -495,11 +616,11 @@ class DurableEventListener:
 
         stale_early_keys = [
             ek
-            for ek in self._early_completions
+            for ek in self._buffered_completions
             if ek[0] == durable_task_external_id and ek[1] <= invocation_count
         ]
         for ek in stale_early_keys:
-            del self._early_completions[ek]
+            del self._buffered_completions[ek]
 
     _EVICTION_ACK_TIMEOUT_S = 30.0
 
@@ -554,10 +675,12 @@ class DurableEventListener:
         await self._request_queue.put(
             DurableTaskRequest(
                 complete_memo=DurableTaskCompleteMemoRequest(
-                    durable_task_external_id=durable_task_external_id,
-                    invocation_count=invocation_count,
-                    branch_id=branch_id,
-                    node_id=node_id,
+                    ref=DurableEventLogEntryRef(
+                        durable_task_external_id=durable_task_external_id,
+                        node_id=node_id,
+                        invocation_count=invocation_count,
+                        branch_id=branch_id,
+                    ),
                     memo_key=memo_key,
                     payload=memo_result_payload,
                 )

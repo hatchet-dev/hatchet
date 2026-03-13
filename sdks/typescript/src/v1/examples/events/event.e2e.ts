@@ -1,6 +1,7 @@
 import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
 import { Event } from '@hatchet/protoc/events';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { SIMPLE_EVENT, lower } from './workflow';
 import { hatchet } from '../hatchet-client';
 
@@ -37,7 +38,9 @@ describe('events-e2e', () => {
     let persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
     for (let i = 0; i < 50; i += 1) {
       const persistedIdsSoFar = new Set(persisted.map((e) => e.metadata.id));
-      if (Array.from(eventIds).every((id) => persistedIdsSoFar.has(id))) break;
+      if (Array.from(eventIds).every((id) => persistedIdsSoFar.has(id))) {
+        break;
+      }
       await sleep(100);
       persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
     }
@@ -49,7 +52,6 @@ describe('events-e2e', () => {
     const maxAttempts = 60; // 100ms × 60 ≈ 6s for runs to appear and complete
     const eventToRuns: Record<string, any[]> = {};
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       console.log('Waiting for event runs to complete...');
       if (attempts > maxAttempts) {
@@ -98,7 +100,6 @@ describe('events-e2e', () => {
       if (eventRuns.every(({ runs }) => runs.length === 0)) {
         await sleep(100);
 
-        // eslint-disable-next-line no-continue
         continue;
       }
 
@@ -115,7 +116,6 @@ describe('events-e2e', () => {
       if (anyInProgress) {
         await sleep(100);
 
-        // eslint-disable-next-line no-continue
         continue;
       }
 
@@ -206,13 +206,14 @@ describe('events-e2e', () => {
 
     expect(result.events.length).toBe(3);
 
-    // Sort and verify namespacing
+    // Sort and verify: returned keys are namespaced when client has a namespace
     const sortedEvents = [...events].sort((a, b) => a.key.localeCompare(b.key));
     const sortedResults = [...result.events].sort((a, b) => a.key.localeCompare(b.key));
+    const expectedKey = (key: string) => applyNamespace(key, hatchet.config.namespace);
 
     sortedEvents.forEach((originalEvent, index) => {
       const returnedEvent = sortedResults[index];
-      expect(returnedEvent.key.endsWith(originalEvent.key)).toBe(true);
+      expect(returnedEvent.key).toBe(expectedKey(originalEvent.key));
     });
   }, 15000);
 

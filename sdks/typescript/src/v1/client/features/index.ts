@@ -5,3 +5,8 @@ export * from './runs';
 export * from './workers';
 export * from './workflows';
 export * from './schedules';
+export * from './logs';
+export * from './filters';
+export * from './tenant';
+export * from './webhooks';
+export * from './cel';

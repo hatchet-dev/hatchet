@@ -645,7 +645,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 	}
 
 	if runOpts.DesiredWorkerLabels != nil {
-		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(desiredWorkerLabelsToProto(runOpts.DesiredWorkerLabels)))
+		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
 	}
 
 	var v0Workflow *v0Client.Workflow

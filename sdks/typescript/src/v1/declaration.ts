@@ -5,9 +5,7 @@
  * - `TaskWorkflowDeclaration`, returned by `hatchet.task(...)`, which is a single standalone task that exposes the same execution helpers as a workflow.
  * @module Runnables
  */
-/* eslint-disable max-classes-per-file */
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable no-dupe-class-members */
+
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import {
   CronWorkflows,
@@ -16,7 +14,6 @@ import {
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
-import { WorkerLabelComparator } from '@hatchet/protoc/v1/workflows';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -27,16 +24,17 @@ import {
   CreateOnSuccessTaskOpts,
   Concurrency,
   DurableTaskFn,
+  WorkerLabelComparator,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
+import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
-// eslint-disable-next-line no-shadow
 export enum Priority {
   LOW = 1,
   MEDIUM = 2,
@@ -134,7 +132,6 @@ export const StickyStrategy = {
   HARD: 'hard',
 } as const;
 
-// eslint-disable-next-line no-redeclare
 export type StickyStrategy = (typeof StickyStrategy)[keyof typeof StickyStrategy];
 
 export type StickyStrategyInput = StickyStrategy | 'SOFT' | 'HARD' | 0 | 1;
@@ -204,7 +201,10 @@ export type CreateTaskWorkflowOpts<
 export type CreateDurableTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
-> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>>;
+> = CreateBaseWorkflowOpts &
+  CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>> & {
+    evictionPolicy?: EvictionPolicy;
+  };
 
 /**
  * Options for creating a new workflow.
@@ -422,15 +422,13 @@ export class BaseWorkflowDeclaration<
       resp.forEach((ref, index) => {
         const wf = input[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = wf._standalone_task_name;
         }
         if (_standaloneTaskName) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = _standaloneTaskName;
         }
         // Ensure result subscriptions inherit cancellation if no signal is provided explicitly.
-        // eslint-disable-next-line no-param-reassign
+
         ref.defaultSignal = inheritedSignal;
         res.push(ref);
       });
@@ -486,14 +484,28 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    const durableCtx = parentRunContextManager.getContext()?.durableContext;
+    if (durableCtx) {
+      if (Array.isArray(input)) {
+        return durableCtx.spawnChildren(
+          input.map((inp) => ({ workflow: this, input: inp, options }))
+        );
+      }
+      return durableCtx.spawnChild(this, input, options);
+    }
+
     if (Array.isArray(input)) {
       const refs = await this.runNoWait(input, options, _standaloneTaskName);
       if (options?.returnExceptions) {
         const settled = await Promise.allSettled(refs.map((ref) => ref.result()));
         return settled.map((s) => {
-          if (s.status === 'fulfilled') return s.value;
+          if (s.status === 'fulfilled') {
+            return s.value;
+          }
           const { reason } = s;
-          if (reason instanceof Error) return reason;
+          if (reason instanceof Error) {
+            return reason;
+          }
           return new Error(Array.isArray(reason) ? reason.join('; ') : String(reason));
         }) as O[];
       }
@@ -904,7 +916,7 @@ export class TaskWorkflowDeclaration<
   O extends OutputType = void,
   GlobalInput extends Record<string, any> = {},
   GlobalOutput extends Record<string, any> = {},
-  MiddlewareBefore extends Record<string, any> = {},
+  _MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   _standalone_task_name: string;
@@ -1134,7 +1146,7 @@ export function CreateDurableTaskWorkflow<
 
   // Move the task from tasks to durableTasks
   if (taskWorkflow.definition._tasks.length > 0) {
-    const task = taskWorkflow.definition._tasks[0];
+    const [task] = taskWorkflow.definition._tasks;
     taskWorkflow.definition._tasks = [];
     taskWorkflow.definition._durableTasks.push(task);
   }

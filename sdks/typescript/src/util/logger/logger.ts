@@ -12,7 +12,6 @@ export abstract class Logger {
 
 export type LogLevel = 'OFF' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
-// eslint-disable-next-line no-shadow
 export enum LogLevelEnum {
   OFF = -1,
   DEBUG = 0,

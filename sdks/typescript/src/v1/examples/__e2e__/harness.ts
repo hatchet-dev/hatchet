@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { HatchetClient } from '@hatchet/v1';
 import type { BaseWorkflowDeclaration } from '@hatchet/v1';
 import { Worker } from '../../client/worker/worker';
+import { supportsEviction } from '../../client/worker/engine-version';
+import { fetchEngineVersion } from '../../client/worker/deprecated/legacy-worker';
 
 export function requireEnv(name: string): string {
   const value = process.env[name];
@@ -43,9 +45,20 @@ export async function startWorker({
 }
 
 export async function stopWorker(worker: Worker | undefined) {
-  if (!worker) return;
+  if (!worker) {
+    return;
+  }
   await worker.stop();
   await sleep(300);
+}
+
+/**
+ * Checks whether the connected engine supports durable eviction.
+ * Call from beforeAll / beforeEach and skip tests when false.
+ */
+export async function checkDurableEvictionSupport(client: HatchetClient): Promise<boolean> {
+  const version = await fetchEngineVersion(client).catch(() => undefined);
+  return supportsEviction(version);
 }
 
 export async function poll<T>(
@@ -63,10 +76,12 @@ export async function poll<T>(
   }
 ): Promise<T> {
   const start = Date.now();
-  // eslint-disable-next-line no-constant-condition
+
   while (true) {
     const value = await fn();
-    if (shouldStop(value)) return value;
+    if (shouldStop(value)) {
+      return value;
+    }
     if (Date.now() - start > timeoutMs) {
       throw new Error(`Timed out waiting for ${label} after ${timeoutMs}ms`);
     }

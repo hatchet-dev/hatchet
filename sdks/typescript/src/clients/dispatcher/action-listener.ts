@@ -1,14 +1,11 @@
-import {
-  DispatcherClient as PbDispatcherClient,
-  AssignedAction,
-  ActionType,
-} from '@hatchet/protoc/dispatcher';
+import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { isAbortError } from 'abort-controller-x';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import sleep from '@util/sleep';
-import HatchetError from '@util/errors/hatchet-error';
+import HatchetError, { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { Logger } from '@hatchet/util/logger';
 
 import { DispatcherClient } from './dispatcher-client';
@@ -17,34 +14,25 @@ import { Heartbeat } from './heartbeat/heartbeat-controller';
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5000; // milliseconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 20;
 
-// eslint-disable-next-line no-shadow
 enum ListenStrategy {
   LISTEN_STRATEGY_V1 = 1,
   LISTEN_STRATEGY_V2 = 2,
 }
 
-export type Action = AssignedAction & {
-  /** @deprecated use taskRunId */
-  stepRunId?: string;
-  /** @deprecated use taskId */
-  stepId?: string;
-};
+export type ActionKey = `${string}/${number}`;
 
-export type ActionKey = string;
+export type Action = AssignedAction & { readonly key: ActionKey };
 
-export function createActionKey(action: Action): ActionKey {
-  switch (action.actionType) {
-    case ActionType.START_GET_GROUP_KEY:
-      return `${action.getGroupKeyRunId}/${action.retryCount}`;
-    case ActionType.CANCEL_STEP_RUN:
-    case ActionType.START_STEP_RUN:
-    case ActionType.UNRECOGNIZED:
-      return `${action.taskRunExternalId}/${action.retryCount}`;
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const exhaustivenessCheck: never = action.actionType;
-      throw new Error(`Unhandled action type: ${exhaustivenessCheck}`);
-  }
+export function createAction(assignedAction: AssignedAction): Action {
+  const action = assignedAction as Action;
+  Object.defineProperty(action, 'key', {
+    get(): ActionKey {
+      return `${this.taskRunExternalId}/${this.retryCount}`;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  return action;
 }
 
 export class ActionListener {
@@ -87,15 +75,9 @@ export class ActionListener {
           const listenClient = await client.getListenClient();
 
           for await (const assignedAction of listenClient) {
-            const action: Action = {
-              ...assignedAction,
-              stepRunId: assignedAction.taskRunExternalId,
-              stepId: assignedAction.taskId,
-            };
-
-            yield action;
+            yield createAction(assignedAction);
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           // If the stream was aborted (e.g., during worker shutdown), exit gracefully
           if (isAbortError(e)) {
             client.logger.info('Listener aborted, exiting generator');
@@ -111,13 +93,13 @@ export class ActionListener {
 
           if (
             (await client.getListenStrategy()) === ListenStrategy.LISTEN_STRATEGY_V2 &&
-            e.code === Status.UNIMPLEMENTED
+            getGrpcErrorCode(e) === Status.UNIMPLEMENTED
           ) {
             client.setListenStrategy(ListenStrategy.LISTEN_STRATEGY_V1);
           }
 
           client.incrementRetries();
-          client.logger.error(`Listener encountered an error: ${e.message}`);
+          client.logger.error(`Listener encountered an error: ${getErrorMessage(e)}`);
           if (client.retries > 1) {
             client.logger.info(`Retrying in ${client.retryInterval}ms...`);
             await sleep(client.retryInterval);
@@ -192,11 +174,11 @@ export class ActionListener {
       await this.heartbeat.start();
       this.logger.green('Connection established using LISTEN_STRATEGY_V2');
       return res;
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.retries += 1;
       this.logger.error(`Attempt ${this.retries}: Failed to connect, retrying...`);
 
-      if (e.code === Status.UNAVAILABLE) {
+      if (getGrpcErrorCode(e) === Status.UNAVAILABLE) {
         // Connection lost, reset heartbeat interval and retry connection
         this.heartbeat.stop();
         return this.getListenClient();
@@ -219,8 +201,11 @@ export class ActionListener {
       return await this.client.unsubscribe({
         workerId: this.workerId,
       });
-    } catch (e: any) {
-      throw new HatchetError(`Failed to unsubscribe: ${e.message}`);
+    } catch (e: unknown) {
+      throw toHatchetError(e, {
+        defaultMessage: 'Failed to unsubscribe',
+        prefix: 'Failed to unsubscribe: ',
+      });
     }
   }
 }

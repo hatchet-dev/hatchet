@@ -9,7 +9,8 @@ SELECT
     create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
     create_v1_range_partition('v1_event_to_run', @date::date),
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
-    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80)
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
+    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -32,6 +33,8 @@ WITH tomorrow_date AS (
     SELECT 'v1_durable_event_log_file_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_durable_event_log_entry_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_branch_point_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -67,6 +70,8 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', @date::date) AS p
 ), durable_event_log_entry_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
+), durable_event_log_branch_point_partitions AS (
+    SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
 )
 
 SELECT
@@ -136,6 +141,13 @@ SELECT
     *
 FROM
     durable_event_log_entry_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    durable_event_log_branch_point_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -264,6 +276,12 @@ WITH input AS (
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = @tenantId::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -301,7 +319,7 @@ RETURNING
     v1_task.retry_max_backoff;
 
 -- name: FailTaskInternalFailure :many
--- Fails a task due to an application-level error
+-- Fails a task due to an internal error
 WITH input AS (
     SELECT
         *
@@ -317,13 +335,16 @@ WITH input AS (
         t.id
     FROM
         v1_task t
-    -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
-    -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
-    -- a retry.
     JOIN
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = @tenantId::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
     -- order by the task id to get a stable lock order
     ORDER BY
         id

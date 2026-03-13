@@ -45,6 +45,7 @@ type DispatcherImpl struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	streamEventBufferTimeout    time.Duration
 
 	dispatcherId uuid.UUID
 	workers      *workers
@@ -128,6 +129,7 @@ type DispatcherOpts struct {
 	payloadSizeThreshold        int
 	defaultMaxWorkerBacklogSize int64
 	workflowRunBufferSize       int
+	streamEventBufferTimeout    time.Duration
 	version                     string
 }
 
@@ -143,6 +145,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		payloadSizeThreshold:        3 * 1024 * 1024,
 		defaultMaxWorkerBacklogSize: 20,
 		workflowRunBufferSize:       1000,
+		streamEventBufferTimeout:    5 * time.Second,
 	}
 }
 
@@ -206,6 +209,12 @@ func WithWorkflowRunBufferSize(size int) DispatcherOpt {
 	}
 }
 
+func WithStreamEventBufferTimeout(timeout time.Duration) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.streamEventBufferTimeout = timeout
+	}
+}
+
 func WithVersion(version string) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.version = version
@@ -261,6 +270,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		payloadSizeThreshold:        opts.payloadSizeThreshold,
 		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
 		workflowRunBufferSize:       opts.workflowRunBufferSize,
+		streamEventBufferTimeout:    opts.streamEventBufferTimeout,
 		version:                     opts.version,
 	}, nil
 }
@@ -418,7 +428,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		)
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
+			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s (worker may still be reconnecting; polling path will catch up)", payload.TaskExternalId)
 		}
 	}
 

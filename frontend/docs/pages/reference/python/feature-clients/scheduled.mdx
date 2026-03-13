@@ -1,0 +1,296 @@
+# Scheduled Client
+
+Bases: `BaseRestClient`
+
+The scheduled client is a client for managing scheduled workflows within Hatchet.
+
+Methods:
+
+| Name              | Description                                                          |
+| ----------------- | -------------------------------------------------------------------- |
+| `aio_bulk_delete` | Bulk delete scheduled workflow runs.                                 |
+| `aio_bulk_update` | Bulk reschedule scheduled workflow runs.                             |
+| `aio_create`      | Creates a new scheduled workflow run.                                |
+| `aio_delete`      | Deletes a scheduled workflow run by its ID.                          |
+| `aio_get`         | Retrieves a specific scheduled workflow by scheduled run trigger ID. |
+| `aio_list`        | Retrieves a list of scheduled workflows based on provided filters.   |
+| `aio_update`      | Reschedule a scheduled workflow run by its ID.                       |
+| `bulk_delete`     | Bulk delete scheduled workflow runs.                                 |
+| `bulk_update`     | Bulk reschedule scheduled workflow runs.                             |
+| `create`          | Creates a new scheduled workflow run.                                |
+| `delete`          | Deletes a scheduled workflow run by its ID.                          |
+| `get`             | Retrieves a specific scheduled workflow by scheduled run trigger ID. |
+| `list`            | Retrieves a list of scheduled workflows based on provided filters.   |
+| `update`          | Reschedule a scheduled workflow run by its ID.                       |
+
+### Functions
+
+#### `aio_bulk_delete`
+
+Bulk delete scheduled workflow runs.
+
+Parameters:
+
+| Name                     | Type                               | Description                                            | Default |
+| ------------------------ | ---------------------------------- | ------------------------------------------------------ | ------- |
+| `scheduled_ids`          | `list[str] \| None`                | Explicit list of scheduled workflow run IDs to delete. | `None`  |
+| `workflow_id`            | `str \| None`                      | Filter by workflow ID.                                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                      | Filter by parent workflow run ID.                      | `None`  |
+| `parent_step_run_id`     | `str \| None`                      | Filter by parent step run ID.                          | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None` | Filter by scheduled run statuses.                      | `None`  |
+| `additional_metadata`    | `JSONSerializableMapping \| None`  | Filter by additional metadata key/value pairs.         | `None`  |
+
+Returns:
+
+| Type                                   | Description                                                          |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `ScheduledWorkflowsBulkDeleteResponse` | The bulk delete response containing deleted IDs and per-item errors. |
+
+Raises:
+
+| Type         | Description                                                  |
+| ------------ | ------------------------------------------------------------ |
+| `ValueError` | If neither `scheduled_ids` nor any filter field is provided. |
+
+#### `aio_bulk_update`
+
+Bulk reschedule scheduled workflow runs.
+
+See `bulk_update` for parameter details.
+
+#### `aio_create`
+
+Creates a new scheduled workflow run.
+
+IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](../../../sdk/python/runnables#workflow).
+
+Parameters:
+
+| Name                  | Type                      | Description                                                             | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to schedule.                                   | _required_ |
+| `trigger_at`          | `datetime`                | The datetime when the run should be triggered.                          | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the scheduled workflow.                              | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the future run as a key-value pair. | _required_ |
+
+Returns:
+
+| Type                 | Description                              |
+| -------------------- | ---------------------------------------- |
+| `ScheduledWorkflows` | The created scheduled workflow instance. |
+
+#### `aio_delete`
+
+Deletes a scheduled workflow run by its ID.
+
+Parameters:
+
+| Name           | Type  | Description                                     | Default    |
+| -------------- | ----- | ----------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The ID of the scheduled workflow run to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `aio_get`
+
+Retrieves a specific scheduled workflow by scheduled run trigger ID.
+
+Parameters:
+
+| Name           | Type  | Description                                    | Default    |
+| -------------- | ----- | ---------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The scheduled workflow trigger ID to retrieve. | _required_ |
+
+Returns:
+
+| Type                 | Description                                |
+| -------------------- | ------------------------------------------ |
+| `ScheduledWorkflows` | The requested scheduled workflow instance. |
+
+#### `aio_list`
+
+Retrieves a list of scheduled workflows based on provided filters.
+
+Parameters:
+
+| Name                     | Type                                     | Description                                          | Default |
+| ------------------------ | ---------------------------------------- | ---------------------------------------------------- | ------- |
+| `offset`                 | `int \| None`                            | The offset to use in pagination.                     | `None`  |
+| `limit`                  | `int \| None`                            | The maximum number of scheduled workflows to return. | `None`  |
+| `workflow_id`            | `str \| None`                            | The ID of the workflow to filter by.                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                            | The ID of the parent workflow run to filter by.      | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None`       | A list of statuses to filter by.                     | `None`  |
+| `additional_metadata`    | `JSONSerializableMapping \| None`        | Additional metadata to filter by.                    | `None`  |
+| `order_by_field`         | `ScheduledWorkflowsOrderByField \| None` | The field to order the results by.                   | `None`  |
+| `order_by_direction`     | `WorkflowRunOrderByDirection \| None`    | The direction to order the results by.               | `None`  |
+
+Returns:
+
+| Type                     | Description                                                  |
+| ------------------------ | ------------------------------------------------------------ |
+| `ScheduledWorkflowsList` | A list of scheduled workflows matching the provided filters. |
+
+#### `aio_update`
+
+Reschedule a scheduled workflow run by its ID.
+
+Parameters:
+
+| Name           | Type       | Description                                         | Default    |
+| -------------- | ---------- | --------------------------------------------------- | ---------- |
+| `scheduled_id` | `str`      | The ID of the scheduled workflow run to reschedule. | _required_ |
+| `trigger_at`   | `datetime` | The datetime when the run should be triggered.      | _required_ |
+
+Returns:
+
+| Type                 | Description                              |
+| -------------------- | ---------------------------------------- |
+| `ScheduledWorkflows` | The updated scheduled workflow instance. |
+
+#### `bulk_delete`
+
+Bulk delete scheduled workflow runs.
+
+Provide either:
+
+- `scheduled_ids` (explicit list of scheduled run IDs), or
+- one or more filter fields (`workflow_id`, `parent_workflow_run_id`, `parent_step_run_id`, `statuses`, `additional_metadata`)
+
+Parameters:
+
+| Name                     | Type                               | Description                                            | Default |
+| ------------------------ | ---------------------------------- | ------------------------------------------------------ | ------- |
+| `scheduled_ids`          | `list[str] \| None`                | Explicit list of scheduled workflow run IDs to delete. | `None`  |
+| `workflow_id`            | `str \| None`                      | Filter by workflow ID.                                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                      | Filter by parent workflow run ID.                      | `None`  |
+| `parent_step_run_id`     | `str \| None`                      | Filter by parent step run ID.                          | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None` | Filter by scheduled run statuses.                      | `None`  |
+| `additional_metadata`    | `JSONSerializableMapping \| None`  | Filter by additional metadata key/value pairs.         | `None`  |
+
+Returns:
+
+| Type                                   | Description                                                          |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `ScheduledWorkflowsBulkDeleteResponse` | The bulk delete response containing deleted IDs and per-item errors. |
+
+Raises:
+
+| Type         | Description                                                  |
+| ------------ | ------------------------------------------------------------ |
+| `ValueError` | If neither `scheduled_ids` nor any filter field is provided. |
+
+#### `bulk_update`
+
+Bulk reschedule scheduled workflow runs.
+
+Parameters:
+
+| Name      | Type                                                                   | Description                                                                                                        | Default    |
+| --------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `updates` | `list[ScheduledWorkflowsBulkUpdateItem] \| list[tuple[str, datetime]]` | Either: - a list of `(scheduled_id, trigger_at)` tuples, or - a list of `ScheduledWorkflowsBulkUpdateItem` objects | _required_ |
+
+Returns:
+
+| Type                                   | Description                                                          |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `ScheduledWorkflowsBulkUpdateResponse` | The bulk update response containing updated IDs and per-item errors. |
+
+#### `create`
+
+Creates a new scheduled workflow run.
+
+IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](../../../sdk/python/runnables#workflow).
+
+Parameters:
+
+| Name                  | Type                      | Description                                                             | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to schedule.                                   | _required_ |
+| `trigger_at`          | `datetime`                | The datetime when the run should be triggered.                          | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the scheduled workflow.                              | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the future run as a key-value pair. | _required_ |
+
+Returns:
+
+| Type                 | Description                              |
+| -------------------- | ---------------------------------------- |
+| `ScheduledWorkflows` | The created scheduled workflow instance. |
+
+#### `delete`
+
+Deletes a scheduled workflow run by its ID.
+
+Parameters:
+
+| Name           | Type  | Description                                     | Default    |
+| -------------- | ----- | ----------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The ID of the scheduled workflow run to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `get`
+
+Retrieves a specific scheduled workflow by scheduled run trigger ID.
+
+Parameters:
+
+| Name           | Type  | Description                                    | Default    |
+| -------------- | ----- | ---------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The scheduled workflow trigger ID to retrieve. | _required_ |
+
+Returns:
+
+| Type                 | Description                                |
+| -------------------- | ------------------------------------------ |
+| `ScheduledWorkflows` | The requested scheduled workflow instance. |
+
+#### `list`
+
+Retrieves a list of scheduled workflows based on provided filters.
+
+Parameters:
+
+| Name                     | Type                                     | Description                                          | Default |
+| ------------------------ | ---------------------------------------- | ---------------------------------------------------- | ------- |
+| `offset`                 | `int \| None`                            | The offset to use in pagination.                     | `None`  |
+| `limit`                  | `int \| None`                            | The maximum number of scheduled workflows to return. | `None`  |
+| `workflow_id`            | `str \| None`                            | The ID of the workflow to filter by.                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                            | The ID of the parent workflow run to filter by.      | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None`       | A list of statuses to filter by.                     | `None`  |
+| `additional_metadata`    | `JSONSerializableMapping \| None`        | Additional metadata to filter by.                    | `None`  |
+| `order_by_field`         | `ScheduledWorkflowsOrderByField \| None` | The field to order the results by.                   | `None`  |
+| `order_by_direction`     | `WorkflowRunOrderByDirection \| None`    | The direction to order the results by.               | `None`  |
+
+Returns:
+
+| Type                     | Description                                                  |
+| ------------------------ | ------------------------------------------------------------ |
+| `ScheduledWorkflowsList` | A list of scheduled workflows matching the provided filters. |
+
+#### `update`
+
+Reschedule a scheduled workflow run by its ID.
+
+Note: the server may reject rescheduling if the scheduled run has already
+triggered, or if it was created via code definition (not via API).
+
+Parameters:
+
+| Name           | Type       | Description                                         | Default    |
+| -------------- | ---------- | --------------------------------------------------- | ---------- |
+| `scheduled_id` | `str`      | The ID of the scheduled workflow run to reschedule. | _required_ |
+| `trigger_at`   | `datetime` | The datetime when the run should be triggered.      | _required_ |
+
+Returns:
+
+| Type                 | Description                              |
+| -------------------- | ---------------------------------------- |
+| `ScheduledWorkflows` | The updated scheduled workflow instance. |

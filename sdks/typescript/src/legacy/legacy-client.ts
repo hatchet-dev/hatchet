@@ -71,7 +71,7 @@ export class LegacyHatchetClient {
       };
     } catch (e) {
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid client config: ${e.message}`);
+        throw new Error(`Invalid client config: ${e.message}`, { cause: e });
       }
       throw e;
     }
@@ -122,8 +122,7 @@ export class LegacyHatchetClient {
       new DurableListenerClient(
         this.config,
         channelFactory(this.config, this.credentials),
-        clientFactory,
-        this.api
+        clientFactory
       );
 
     this.logger = logger || this.config.logger('HatchetClient', this.config.log_level);

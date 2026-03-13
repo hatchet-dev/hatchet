@@ -43,7 +43,9 @@ export const imageProcessor = hatchet.task({
     // Do some image processing
     const result = await processImage(imageUrl, filters);
 
-    if (!result.url) throw new Error('Processing failed to generate URL');
+    if (!result.url) {
+      throw new Error('Processing failed to generate URL');
+    }
 
     return {
       processedUrl: result.url,

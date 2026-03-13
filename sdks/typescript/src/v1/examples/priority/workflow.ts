@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Priority } from '@hatchet/v1';
 import { hatchet } from '../hatchet-client';
 

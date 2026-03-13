@@ -4,13 +4,16 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 from warnings import warn
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
-from hatchet_sdk.clients.admin import AdminClient, TriggerWorkflowOptions
+from hatchet_sdk.clients.admin import (
+    AdminClient,
+    WorkflowRunTriggerConfig,
+)
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
@@ -18,8 +21,12 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
+    DurableTaskEventMemoAck,
+    DurableTaskEventRunAck,
+    DurableTaskEventWaitForAck,
     MemoEvent,
     RunChildEvent,
+    RunChildrenEvent,
     WaitForEvent,
 )
 from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
@@ -40,14 +47,21 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import (
-    EmptyModel,
     R,
     TWorkflowInput,
     ValidTaskReturnType,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.utils.timedelta_to_expression import (
+    Duration,
+    expr_to_timedelta,
+    timedelta_to_expr,
+)
+from hatchet_sdk.utils.typing import (
+    DataclassInstance,
+    JSONSerializableMapping,
+    LogLevel,
+)
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
     aio_durable_eviction_wait,
 )
@@ -59,9 +73,17 @@ TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
-    from hatchet_sdk.runnables.workflow import (
-        BaseWorkflow,
-    )
+
+
+TPayload = TypeVar("TPayload", bound=BaseModel | DataclassInstance | dict[str, Any])
+
+
+class SleepResult(BaseModel):
+    duration: timedelta
+
+
+class MemoNowResult(BaseModel):
+    ts: datetime
 
 
 def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
@@ -545,7 +567,8 @@ class DurableContext(Context):
 
         return index
 
-    # todo: instrumentor for this
+    ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_wait_for.
+    ## Keep the signature in sync with the instrumentor wrapper.
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -558,7 +581,9 @@ class DurableContext(Context):
         :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
+
         :raises ValueError: If the durable task client is not available.
+        :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if self.durable_event_listener is None:
             raise ValueError("Durable task client is not available")
@@ -579,6 +604,10 @@ class DurableContext(Context):
             invocation_count=self.invocation_count,
             event=WaitForEvent(wait_for_conditions=conditions_proto),
         )
+
+        if not isinstance(ack, DurableTaskEventWaitForAck):
+            raise TypeError(f"Expected wait-for ack, got {type(ack).__name__}")
+
         node_id = ack.node_id
         branch_id = ack.branch_id
 
@@ -597,7 +626,7 @@ class DurableContext(Context):
 
         return result.payload or {}
 
-    async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
+    async def aio_sleep_for(self, duration: Duration) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
@@ -606,18 +635,91 @@ class DurableContext(Context):
 
         wait_index = self._increment_wait_index()
 
-        return await self.aio_wait_for(
+        res = await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
 
-    # todo: instrumentor for this
-    async def _spawn_child(
+        ## lots of implicit use of engine semantics / internal logic here.
+        ## the engine returns an object like this:
+        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
+        ## since we have a single match we're looking for, we know that
+        ## the list of matches will only have one item, so we can extract and parse it
+        matches: dict[str, list[dict[str, Any]]] = res.get("CREATE", {})
+        _, raw_matches = next(iter(matches.items()))
+        sleep = raw_matches[0]
+
+        return SleepResult(
+            duration=expr_to_timedelta(
+                sleep.get("sleep_duration", timedelta_to_expr(duration))
+            )
+        )
+
+    @overload
+    async def aio_wait_for_event(
         self,
-        workflow: BaseWorkflow[TWorkflowInput],
-        input: TWorkflowInput = cast(Any, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
-    ) -> dict[str, Any]:
+        key: str,
+        expression: str | None = None,
+        *,
+        payload_validator: type[TPayload],
+    ) -> TPayload: ...
+
+    @overload
+    async def aio_wait_for_event(
+        self,
+        key: str,
+        expression: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    async def aio_wait_for_event(
+        self,
+        key: str,
+        expression: str | None = None,
+        *,
+        payload_validator: type[Any] | None = None,
+    ) -> Any:
+        """
+        Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
+
+        For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+        :param key: The event key to wait for.
+        :param expression: An optional CEL expression to filter events.
+        :param payload_validator: An optional type (e.g. a Pydantic model, dataclass, or TypedDict) to validate the event payload against. If provided, the payload will be validated and returned as an instance of this type.
+
+        :return: The payload of the event, validated against the provided payload_validator if it was given, or as a raw dictionary if no payload_validator was provided.
+        """
+
+        wait_index = self._increment_wait_index()
+
+        result = await self.aio_wait_for(
+            f"event:{key}-{wait_index}",
+            UserEventCondition(event_key=key, expression=expression),
+        )
+
+        ## lots of implicit use of engine semantics / internal logic here.
+        ## the engine returns an object like this:
+        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
+        ## since we have a single match we're looking for, we know that
+        ## the list of matches will only have one item, so we can extract and parse it
+        matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
+        _, raw_matches = next(iter(matches.items()))
+        raw_payload = raw_matches[0]
+
+        if payload_validator is not None:
+            adapter = TypeAdapter(payload_validator)
+            return adapter.validate_python(
+                raw_payload, context=HATCHET_PYDANTIC_SENTINEL
+            )
+
+        return raw_payload
+
+    ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
+    ## Keep the signature in sync with the instrumentor wrapper.
+    async def _spawn_children_no_wait(
+        self,
+        configs: list[WorkflowRunTriggerConfig],
+    ) -> list[tuple[int, int, str]]:
         listener = self._durable_listener
 
         await self._ensure_stream_started()
@@ -625,23 +727,44 @@ class DurableContext(Context):
         ack = await listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
-            event=RunChildEvent(
-                workflow_name=workflow.config.name,
-                input=workflow._serialize_input(input, target="string"),
-                trigger_workflow_opts=options or TriggerWorkflowOptions(),
+            event=RunChildrenEvent(
+                children=[
+                    RunChildEvent(
+                        workflow_name=c.workflow_name,
+                        input=c.input,
+                        trigger_workflow_opts=c.options,
+                    )
+                    for c in configs
+                ]
             ),
         )
 
+        if not isinstance(ack, DurableTaskEventRunAck):
+            raise TypeError(f"Expected run ack, got {type(ack).__name__}")
+
+        return [
+            (entry.node_id, entry.branch_id, configs[i].workflow_name)
+            for i, entry in enumerate(ack.run_entries)
+        ]
+
+    async def _aio_result_for_spawned_child(
+        self,
+        node_id: int,
+        branch_id: int,
+        workflow_name: str,
+    ) -> dict[str, Any]:
+        listener = self._durable_listener
+
         async with aio_durable_eviction_wait(
             wait_kind="spawn_child",
-            resource_id=workflow.config.name,
+            resource_id=workflow_name,
             action_key=self.action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
                 durable_task_external_id=self.step_run_id,
-                node_id=ack.node_id,
-                branch_id=ack.branch_id,
+                node_id=node_id,
+                branch_id=branch_id,
                 invocation_count=self.invocation_count,
             )
 
@@ -657,7 +780,9 @@ class DurableContext(Context):
     def invocation_count(self) -> int:
         return self.action.durable_task_invocation_count or 1
 
-    async def aio_memo(
+    ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
+    ## Keep the signature in sync with the instrumentor wrapper.
+    async def _aio_memo(
         self,
         fn: Callable[PMemo, Awaitable[TMemo]],
         result_validator: type[TMemo],
@@ -676,6 +801,8 @@ class DurableContext(Context):
         :param **kwargs: The keyword arguments to pass to the function when computing the value to be memoized. These are used for computing the memoization key, so that different keyword arguments will result in different cached values.
 
         :return: The memoized value, either retrieved from durable storage or computed by calling the function.
+
+        :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if not self._supports_durable_eviction:
             logger.warning(
@@ -698,6 +825,9 @@ class DurableContext(Context):
             invocation_count=self.invocation_count,
             event=MemoEvent(memo_key=key, result=None),
         )
+
+        if not isinstance(ack, DurableTaskEventMemoAck):
+            raise TypeError(f"Expected memo ack, got {type(ack).__name__}")
 
         if ack.memo_already_existed and ack.memo_result_payload is None:
             logger.warning(
@@ -727,3 +857,32 @@ class DurableContext(Context):
             )
 
         return result
+
+    async def _now(self) -> MemoNowResult:
+        ts = await asyncio.to_thread(datetime.now, UTC)
+        return MemoNowResult(ts=ts)
+
+    async def aio_now(self) -> datetime:
+        """
+        Get the current timestamp. This is a wrapper around `datetime.now()` that is memoized using durable storage, so that it will return the same timestamp across replays of the same task run.
+
+        :return: The current timestamp, memoized across replays of the same task run.
+        """
+        now = await self._aio_memo(
+            self._now,
+            MemoNowResult,
+        )
+
+        return now.ts
+
+    async def aio_sleep_until(self, wake_at: datetime) -> SleepResult:
+        """
+        Durably sleep until a specific timestamp.
+
+        :param wake_at: The timestamp to sleep until.
+
+        :return: A SleepResult containing the actual duration slept, which may be different from the intended duration if the workflow was evicted and resumed.
+        """
+        now = await self.aio_now()
+
+        return await self.aio_sleep_for(wake_at - now)

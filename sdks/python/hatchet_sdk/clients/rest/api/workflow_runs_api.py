@@ -20,12 +20,13 @@ from datetime import datetime
 from pydantic import Field, StrictBool, StrictInt, StrictStr
 from typing import List, Optional
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.v1_fork_durable_task_request import (
-    V1ForkDurableTaskRequest,
+from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
+    V1BranchDurableTaskRequest,
 )
-from hatchet_sdk.clients.rest.models.v1_fork_durable_task_response import (
-    V1ForkDurableTaskResponse,
+from hatchet_sdk.clients.rest.models.v1_branch_durable_task_response import (
+    V1BranchDurableTaskResponse,
 )
+from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
@@ -56,7 +57,7 @@ class WorkflowRunsApi:
         self.api_client = api_client
 
     @validate_call
-    def v1_durable_task_fork(
+    def v1_durable_task_branch(
         self,
         tenant: Annotated[
             str,
@@ -64,8 +65,8 @@ class WorkflowRunsApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        v1_fork_durable_task_request: Annotated[
-            V1ForkDurableTaskRequest, Field(description="The fork request")
+        v1_branch_durable_task_request: Annotated[
+            V1BranchDurableTaskRequest, Field(description="The branch request")
         ],
         _request_timeout: Union[
             None,
@@ -78,15 +79,15 @@ class WorkflowRunsApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> V1ForkDurableTaskResponse:
-        """Fork durable task
+    ) -> V1BranchDurableTaskResponse:
+        """Branch durable task
 
-        Fork a durable task from a specific node, creating a new branch and re-processing its matches.
+        Branch a durable task from a specific node, creating a new branch and re-processing its matches.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param v1_fork_durable_task_request: The fork request (required)
-        :type v1_fork_durable_task_request: V1ForkDurableTaskRequest
+        :param v1_branch_durable_task_request: The branch request (required)
+        :type v1_branch_durable_task_request: V1BranchDurableTaskRequest
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -109,9 +110,9 @@ class WorkflowRunsApi:
         :return: Returns the result object.
         """  # noqa: E501
 
-        _param = self._v1_durable_task_fork_serialize(
+        _param = self._v1_durable_task_branch_serialize(
             tenant=tenant,
-            v1_fork_durable_task_request=v1_fork_durable_task_request,
+            v1_branch_durable_task_request=v1_branch_durable_task_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -119,7 +120,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1ForkDurableTaskResponse",
+            "200": "V1BranchDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -133,7 +134,7 @@ class WorkflowRunsApi:
         ).data
 
     @validate_call
-    def v1_durable_task_fork_with_http_info(
+    def v1_durable_task_branch_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -141,8 +142,8 @@ class WorkflowRunsApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        v1_fork_durable_task_request: Annotated[
-            V1ForkDurableTaskRequest, Field(description="The fork request")
+        v1_branch_durable_task_request: Annotated[
+            V1BranchDurableTaskRequest, Field(description="The branch request")
         ],
         _request_timeout: Union[
             None,
@@ -155,15 +156,15 @@ class WorkflowRunsApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[V1ForkDurableTaskResponse]:
-        """Fork durable task
+    ) -> ApiResponse[V1BranchDurableTaskResponse]:
+        """Branch durable task
 
-        Fork a durable task from a specific node, creating a new branch and re-processing its matches.
+        Branch a durable task from a specific node, creating a new branch and re-processing its matches.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param v1_fork_durable_task_request: The fork request (required)
-        :type v1_fork_durable_task_request: V1ForkDurableTaskRequest
+        :param v1_branch_durable_task_request: The branch request (required)
+        :type v1_branch_durable_task_request: V1BranchDurableTaskRequest
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -186,9 +187,9 @@ class WorkflowRunsApi:
         :return: Returns the result object.
         """  # noqa: E501
 
-        _param = self._v1_durable_task_fork_serialize(
+        _param = self._v1_durable_task_branch_serialize(
             tenant=tenant,
-            v1_fork_durable_task_request=v1_fork_durable_task_request,
+            v1_branch_durable_task_request=v1_branch_durable_task_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -196,7 +197,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1ForkDurableTaskResponse",
+            "200": "V1BranchDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -210,7 +211,7 @@ class WorkflowRunsApi:
         )
 
     @validate_call
-    def v1_durable_task_fork_without_preload_content(
+    def v1_durable_task_branch_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -218,8 +219,8 @@ class WorkflowRunsApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        v1_fork_durable_task_request: Annotated[
-            V1ForkDurableTaskRequest, Field(description="The fork request")
+        v1_branch_durable_task_request: Annotated[
+            V1BranchDurableTaskRequest, Field(description="The branch request")
         ],
         _request_timeout: Union[
             None,
@@ -233,14 +234,14 @@ class WorkflowRunsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Fork durable task
+        """Branch durable task
 
-        Fork a durable task from a specific node, creating a new branch and re-processing its matches.
+        Branch a durable task from a specific node, creating a new branch and re-processing its matches.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param v1_fork_durable_task_request: The fork request (required)
-        :type v1_fork_durable_task_request: V1ForkDurableTaskRequest
+        :param v1_branch_durable_task_request: The branch request (required)
+        :type v1_branch_durable_task_request: V1BranchDurableTaskRequest
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -263,9 +264,9 @@ class WorkflowRunsApi:
         :return: Returns the result object.
         """  # noqa: E501
 
-        _param = self._v1_durable_task_fork_serialize(
+        _param = self._v1_durable_task_branch_serialize(
             tenant=tenant,
-            v1_fork_durable_task_request=v1_fork_durable_task_request,
+            v1_branch_durable_task_request=v1_branch_durable_task_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -273,7 +274,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1ForkDurableTaskResponse",
+            "200": "V1BranchDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
         }
@@ -282,10 +283,10 @@ class WorkflowRunsApi:
         )
         return response_data.response
 
-    def _v1_durable_task_fork_serialize(
+    def _v1_durable_task_branch_serialize(
         self,
         tenant,
-        v1_fork_durable_task_request,
+        v1_branch_durable_task_request,
         _request_auth,
         _content_type,
         _headers,
@@ -312,8 +313,8 @@ class WorkflowRunsApi:
         # process the header parameters
         # process the form parameters
         # process the body parameter
-        if v1_fork_durable_task_request is not None:
-            _body_params = v1_fork_durable_task_request
+        if v1_branch_durable_task_request is not None:
+            _body_params = v1_branch_durable_task_request
 
         # set the HTTP header `Accept`
         if "Accept" not in _header_params:
@@ -336,7 +337,7 @@ class WorkflowRunsApi:
 
         return self.api_client.param_serialize(
             method="POST",
-            resource_path="/api/v1/stable/tenants/{tenant}/durable-tasks/fork",
+            resource_path="/api/v1/stable/tenants/{tenant}/durable-tasks/branch",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -970,6 +971,12 @@ class WorkflowRunsApi:
             ],
             Field(description="The workflow ids to find runs for"),
         ] = None,
+        running_filter: Annotated[
+            Optional[V1RunningFilter],
+            Field(
+                description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -998,6 +1005,8 @@ class WorkflowRunsApi:
         :type additional_metadata: List[str]
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
+        :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        :type running_filter: V1RunningFilter
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1027,6 +1036,7 @@ class WorkflowRunsApi:
             until=until,
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
+            running_filter=running_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1075,6 +1085,12 @@ class WorkflowRunsApi:
             ],
             Field(description="The workflow ids to find runs for"),
         ] = None,
+        running_filter: Annotated[
+            Optional[V1RunningFilter],
+            Field(
+                description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1103,6 +1119,8 @@ class WorkflowRunsApi:
         :type additional_metadata: List[str]
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
+        :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        :type running_filter: V1RunningFilter
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1132,6 +1150,7 @@ class WorkflowRunsApi:
             until=until,
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
+            running_filter=running_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1180,6 +1199,12 @@ class WorkflowRunsApi:
             ],
             Field(description="The workflow ids to find runs for"),
         ] = None,
+        running_filter: Annotated[
+            Optional[V1RunningFilter],
+            Field(
+                description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1208,6 +1233,8 @@ class WorkflowRunsApi:
         :type additional_metadata: List[str]
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
+        :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        :type running_filter: V1RunningFilter
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1237,6 +1264,7 @@ class WorkflowRunsApi:
             until=until,
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
+            running_filter=running_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1262,6 +1290,7 @@ class WorkflowRunsApi:
         until,
         additional_metadata,
         workflow_ids,
+        running_filter,
         _request_auth,
         _content_type,
         _headers,
@@ -1322,6 +1351,10 @@ class WorkflowRunsApi:
         if workflow_ids is not None:
 
             _query_params.append(("workflow_ids", workflow_ids))
+
+        if running_filter is not None:
+
+            _query_params.append(("running_filter", running_filter.value))
 
         # process the header parameters
         # process the form parameters
@@ -2259,6 +2292,12 @@ class WorkflowRunsApi:
                 description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
             ),
         ] = None,
+        running_filter: Annotated[
+            Optional[V1RunningFilter],
+            Field(
+                description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2301,6 +2340,8 @@ class WorkflowRunsApi:
         :type triggering_event_external_id: str
         :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
         :type include_payloads: bool
+        :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        :type running_filter: V1RunningFilter
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2337,6 +2378,7 @@ class WorkflowRunsApi:
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
+            running_filter=running_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2415,6 +2457,12 @@ class WorkflowRunsApi:
                 description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
             ),
         ] = None,
+        running_filter: Annotated[
+            Optional[V1RunningFilter],
+            Field(
+                description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2457,6 +2505,8 @@ class WorkflowRunsApi:
         :type triggering_event_external_id: str
         :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
         :type include_payloads: bool
+        :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        :type running_filter: V1RunningFilter
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2493,6 +2543,7 @@ class WorkflowRunsApi:
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
+            running_filter=running_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2571,6 +2622,12 @@ class WorkflowRunsApi:
                 description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
             ),
         ] = None,
+        running_filter: Annotated[
+            Optional[V1RunningFilter],
+            Field(
+                description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2613,6 +2670,8 @@ class WorkflowRunsApi:
         :type triggering_event_external_id: str
         :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
         :type include_payloads: bool
+        :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        :type running_filter: V1RunningFilter
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2649,6 +2708,7 @@ class WorkflowRunsApi:
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
+            running_filter=running_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2681,6 +2741,7 @@ class WorkflowRunsApi:
         parent_task_external_id,
         triggering_event_external_id,
         include_payloads,
+        running_filter,
         _request_auth,
         _content_type,
         _headers,
@@ -2771,6 +2832,10 @@ class WorkflowRunsApi:
         if include_payloads is not None:
 
             _query_params.append(("include_payloads", include_payloads))
+
+        if running_filter is not None:
+
+            _query_params.append(("running_filter", running_filter.value))
 
         # process the header parameters
         # process the form parameters

@@ -369,10 +369,14 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
+	// Use the direct pool (bypasses pgbouncer) for DDL operations because
+	// DETACH PARTITION CONCURRENTLY cannot run inside a transaction block.
+	ddlPool := r.DDLPool()
+
 	for _, partition := range partitions {
 		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.pool, r.l, 30*60*1000) // 30 minutes
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, ddlPool, r.l, 30*60*1000) // 30 minutes
 
 		if err != nil {
 			return err
@@ -2185,8 +2189,6 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
 
-		// TODO-DURABLE: Add `is_durable` to the `v1_task` and wire up the writes from the step into there
-		// then, on the dispatcher check if the task is durable, and if it is then lock and increment its invocation count on send
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
 			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])

@@ -1,12 +1,26 @@
-export function createAbortError(message = 'Operation aborted'): Error {
-  const err: any = new Error(message);
-  err.name = 'AbortError';
-  err.code = 'ABORT_ERR';
-  return err as Error;
+import { setMaxListeners } from 'events';
+
+export class AbortError extends Error {
+  readonly code = 'ABORT_ERR';
+
+  constructor(message = 'Operation aborted') {
+    super(message);
+    this.name = 'AbortError';
+  }
+}
+
+export function createAbortError(message = 'Operation aborted'): AbortError {
+  return new AbortError(message);
 }
 
 export function isAbortError(err: unknown): err is Error {
-  return err instanceof Error && (err.name === 'AbortError' || (err as any).code === 'ABORT_ERR');
+  if (err instanceof AbortError) {
+    return true;
+  }
+  return (
+    err instanceof Error &&
+    (err.name === 'AbortError' || (err as { code?: string }).code === 'ABORT_ERR')
+  );
 }
 
 /**
@@ -21,6 +35,20 @@ export function rethrowIfAborted(err: unknown): void {
   if (isAbortError(err)) {
     throw err;
   }
+}
+
+/**
+ * Attach an `abort` listener to a signal, disabling the Node.js
+ * `MaxListenersExceededWarning` first.
+ *
+ * A single durable task can attach many concurrent listeners to the same signal
+ * (fan-out children, parallel waitFor calls, etc.), easily exceeding the default
+ * cap of 10. Setting max to 0 (unlimited) is safe here because every listener is
+ * removed on settlement.
+ */
+export function bindAbortSignalHandler(signal: AbortSignal, handler: () => void): void {
+  setMaxListeners(0, signal);
+  signal.addEventListener('abort', handler, { once: true });
 }
 
 export type ThrowIfAbortedOpts = {
@@ -75,7 +103,7 @@ export function throwIfAborted(
     );
   }
 
-  const { reason } = signal as any;
+  const { reason } = signal as AbortSignal & { reason?: unknown };
 
   if (reason instanceof Error) {
     throw reason;

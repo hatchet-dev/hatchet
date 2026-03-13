@@ -4,8 +4,7 @@
  *
  * @module Hatchet TypeScript SDK Reference
  */
-/* eslint-disable no-dupe-class-members */
-/* eslint-disable no-underscore-dangle */
+
 import {
   ClientConfig,
   ClientConfigSchema,
@@ -44,10 +43,20 @@ import type { LegacyWorkflow } from '../../legacy/legacy-transformer';
 import { getWorkflowName } from '../../legacy/legacy-transformer';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker/worker';
-import { MetricsClient } from './features/metrics';
-import { WorkersClient } from './features/workers';
-import { WorkflowsClient } from './features/workflows';
-import { RunsClient } from './features/runs';
+import {
+  CELClient,
+  CronClient,
+  FiltersClient,
+  LogsClient,
+  MetricsClient,
+  RatelimitsClient,
+  RunsClient,
+  ScheduleClient,
+  TenantClient,
+  WebhooksClient,
+  WorkersClient,
+  WorkflowsClient,
+} from './features';
 import {
   InputType,
   OutputType,
@@ -55,14 +64,7 @@ import {
   StrictWorkflowOutputType,
   Resolved,
 } from '../types';
-import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
-import { FiltersClient } from './features/filters';
-import { ScheduleClient } from './features/schedules';
-import { CronClient } from './features/crons';
-import { CELClient } from './features/cel';
-import { TenantClient } from './features/tenant';
-import { WebhooksClient } from './features/webhooks';
 import { DurableContext } from './worker/context';
 
 type MergeIfNonEmpty<Base, Extra extends Record<string, any>> = keyof Extra extends never
@@ -82,8 +84,7 @@ export class HatchetClient<
   GlobalOutput extends Record<string, any> = {},
   MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
-> implements IHatchetClient
-{
+> implements IHatchetClient {
   private _v0: LegacyHatchetClient | undefined;
   _api: Api;
   _listener: RunListenerClient;
@@ -175,7 +176,7 @@ export class HatchetClient<
       this._axiosConfig = axiosConfig;
     } catch (e) {
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid client config: ${e.message}`);
+        throw new Error(`Invalid client config: ${e.message}`, { cause: e });
       }
       throw e;
     }
@@ -195,7 +196,7 @@ export class HatchetClient<
         .catch(() => {
           // Do nothing here
         });
-    } catch (e) {
+    } catch {
       // Do nothing here
     }
   }
@@ -241,8 +242,12 @@ export class HatchetClient<
   > {
     const existing: TaskMiddleware = (this._config as any).middleware || {};
     const toArray = <T>(v: T | readonly T[] | undefined): T[] => {
-      if (v == null) return [];
-      if (Array.isArray(v)) return [...v];
+      if (v == null) {
+        return [];
+      }
+      if (Array.isArray(v)) {
+        return [...v];
+      }
       return [v as T];
     };
 
@@ -540,8 +545,7 @@ export class HatchetClient<
       this._durableListener = new DurableListenerClient(
         this._config,
         channelFactory(this._config, this._credentials),
-        this._clientFactory,
-        this.api
+        this._clientFactory
       );
     }
     return this._durableListener;
@@ -613,6 +617,19 @@ export class HatchetClient<
       this._webhooks = new WebhooksClient(this);
     }
     return this._webhooks;
+  }
+
+  private _logs: LogsClient | undefined;
+
+  /**
+   * Get the logs client for creating and managing logs
+   * @returns A logs client instance
+   */
+  get logs() {
+    if (!this._logs) {
+      this._logs = new LogsClient(this);
+    }
+    return this._logs;
   }
 
   private _ratelimits: RatelimitsClient | undefined;
@@ -704,12 +721,8 @@ export class HatchetClient<
    * @returns A promise that resolves with a new HatchetWorker instance
    */
   worker(name: string, options?: CreateWorkerOpts | number): Promise<Worker> {
-    let opts: CreateWorkerOpts = {};
-    if (typeof options === 'number') {
-      opts = { slots: options };
-    } else {
-      opts = options || {};
-    }
+    const opts: CreateWorkerOpts =
+      typeof options === 'number' ? { slots: options } : (options ?? {});
 
     return Worker.create(this, name, opts);
   }
