@@ -182,11 +182,8 @@ WITH latest_workflow_versions AS (
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
         latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id"
-    LEFT JOIN
-        "WorkflowRunTriggeredBy" AS runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
-        AND runTriggeredBy IS NULL
         AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
         AND (
@@ -195,6 +192,11 @@ WITH latest_workflow_versions AS (
                 SELECT 1 FROM "Ticker" WHERE "id" = scheduledWorkflow."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
             OR "tickerId" = @tickerId::uuid
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM "WorkflowRunTriggeredBy" AS runTriggeredBy
+            WHERE runTriggeredBy."scheduledId" = scheduledWorkflow."id"
         )
 ),
 active_scheduled_workflows AS (
