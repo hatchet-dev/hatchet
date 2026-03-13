@@ -172,6 +172,10 @@ func (p *PosthogAnalytics) Start() {
 }
 
 func (p *PosthogAnalytics) Identify(userId uuid.UUID, properties analytics.Properties) {
+	if p.serverURL != "" {
+		properties["server_url"] = p.serverURL
+	}
+
 	err := (*p.client).Enqueue(posthog.Identify{
 		DistinctId: analytics.DistinctID(&userId, nil, nil),
 		Properties: posthog.Properties(properties),
@@ -187,6 +191,10 @@ func (p *PosthogAnalytics) Tenant(tenantId uuid.UUID, data analytics.Properties)
 }
 
 func (p *PosthogAnalytics) Group(groupType string, groupKey string, data analytics.Properties) {
+	if p.serverURL != "" {
+		data["server_url"] = p.serverURL
+	}
+
 	err := (*p.client).Enqueue(posthog.GroupIdentify{
 		Type:       groupType,
 		Key:        groupKey,
