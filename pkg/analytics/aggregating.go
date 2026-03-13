@@ -96,7 +96,7 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 	}
 
 	if a.keyCount.Load() >= a.maxKeys {
-		a.l.Warn().Int64("max_keys", a.maxKeys).Str("resource", string(resource)).Str("action", string(action)).Str("tenant_id", tenantID.String()).Msg("aggregator at max keys, dropping event")
+		a.l.Error().Int64("max_keys", a.maxKeys).Str("resource", string(resource)).Str("action", string(action)).Str("tenant_id", tenantID.String()).Msg("aggregator at max keys, dropping event")
 		return
 	}
 
@@ -140,7 +140,7 @@ func (a *Aggregator) Shutdown() {
 
 func (a *Aggregator) flush() {
 	if !a.flushMu.TryLock() {
-		a.l.Warn().Dur("interval", a.interval).Msg("aggregator flush still running, skipping interval")
+		a.l.Error().Dur("interval", a.interval).Msg("aggregator flush still running, skipping interval")
 		return
 	}
 	defer a.flushMu.Unlock()
