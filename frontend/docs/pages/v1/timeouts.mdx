@@ -61,18 +61,18 @@ In these tasks, both timeouts are specified, meaning:
 2. If the task does not complete before the `execution_timeout` is reached (after starting), it will be cancelled.
 
 <Callout type="warning">
-  A timed out step does not guarantee that the step will be stopped immediately.
-  The step will be stopped as soon as the worker is able to stop the step. See
+  A timed out task does not guarantee that the task will be stopped immediately.
+  The task will be stopped as soon as the worker is able to stop the task. See
   [cancellation](./cancellation.mdx) for more information.
 </Callout>
 
 ## Refreshing Timeouts
 
-In some cases, you may need to extend the timeout for a step while it is running. This can be done using the `refreshTimeout` method provided by the step context (`ctx`).
+In some cases, you may need to extend the timeout for a task while it is running. This can be done by using the task context.
 
 For example:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]} variant="hidden">
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
   <Snippet src={snippets.python.timeout.worker.refresh_timeout} />
 
@@ -88,19 +88,19 @@ For example:
   </Tabs.Tab>
 </UniversalTabs>
 
-In this example, the step initially would exceed its execution timeout. But before it does, we call the `refreshTimeout` method, which extends the timeout and allows it to complete. Importantly, refreshing a timeout is an additive operation - the new timeout is added to the existing timeout. So for instance, if the task originally had a timeout of `30s` and we call `refreshTimeout("15s")`, the new timeout will be `45s`.
+In this example, the task initially would exceed its execution timeout. But before it does, we call the `refreshTimeout` method, which extends the timeout and allows it to complete. Importantly, refreshing a timeout is an additive operation - the new timeout is added to the existing timeout. So for instance, if the task originally had a timeout of `30s` and we call `refreshTimeout("15s")`, the new timeout will be `45s`.
 
-The `refreshTimeout` function can be called multiple times within a step to further extend the timeout as needed.
+The task timeout can be refreshed multiple times within a task to further extend the timeout as needed.
 
 ## Use Cases
 
 Timeouts are useful in a variety of scenarios:
 
 - Ensuring tasks don't run indefinitely and consume unnecessary resources
-- Failing tasks early if a critical step takes too long
-- Keeping tasks responsive by ensuring individual steps complete in a timely manner
+- Failing tasks early if a critical task takes too long
+- Keeping tasks responsive by ensuring individual tasks complete in a timely manner
 - Preventing infinite loops or hung processes from blocking the entire system
 
 For example, if you have a task that makes an external API call, you may want to set a timeout to ensure the task fails quickly if the API is unresponsive, rather than waiting indefinitely.
 
-By carefully considering timeouts for your tasks and steps, you can build more resilient and responsive systems with Hatchet.
+By carefully considering timeouts for your tasks, you can build more resilient and responsive systems with Hatchet.
