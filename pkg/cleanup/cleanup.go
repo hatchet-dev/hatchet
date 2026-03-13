@@ -15,12 +15,14 @@ type CleanupFn struct {
 type Cleanup struct {
 	Fns       []CleanupFn
 	TimeLimit time.Duration
+	logger    *zerolog.Logger
 }
 
-func New() Cleanup {
+func New(logger *zerolog.Logger) Cleanup {
 	return Cleanup{
 		Fns:       []CleanupFn{},
 		TimeLimit: time.Second * 30,
+		logger:    logger,
 	}
 }
 
@@ -31,7 +33,7 @@ func (c *Cleanup) Add(fn func() error, name string) {
 	})
 }
 
-func (c *Cleanup) Run(l *zerolog.Logger) error {
+func (c *Cleanup) Run() error {
 	lines := []string{}
 	start := time.Now()
 	lines = append(lines, "waiting for all other services to gracefully exit...")
@@ -46,7 +48,7 @@ func (c *Cleanup) Run(l *zerolog.Logger) error {
 	lines = append(lines, "all services have successfully gracefully exited")
 	if time.Since(start) > c.TimeLimit {
 		for _, line := range lines {
-			l.Warn().Msg(line)
+			c.logger.Warn().Msg(line)
 		}
 		return fmt.Errorf("cleanup exceeded time limit of %d seconds", c.TimeLimit)
 	}

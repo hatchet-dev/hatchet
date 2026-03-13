@@ -85,7 +85,6 @@ func init() {
 }
 
 func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
-	cleanup := cleanup.New()
 
 	serverCleanup, server, err := cf.CreateServerFromConfig(version)
 	if err != nil {
@@ -93,6 +92,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	}
 
 	var l = server.Logger
+	cleanup := cleanup.New(l)
 
 	err = RunWithConfig(ctx, server, &cleanup)
 	cleanup.Add(serverCleanup, "server")
@@ -106,7 +106,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 
 	l.Debug().Msgf("interrupt received, shutting down")
 
-	err = cleanup.Run(l)
+	err = cleanup.Run()
 	if err != nil {
 		return err
 	}
