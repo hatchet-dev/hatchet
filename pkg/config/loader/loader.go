@@ -178,9 +178,9 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			Logger:   pgxzero.NewLogger(l),
 			LogLevel: tracelog.LogLevelDebug,
 		}
+	} else {
+		config.ConnConfig.Tracer = newOTelPgxTracer()
 	}
-
-	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	if cf.MaxConns != 0 {
 		config.MaxConns = int32(cf.MaxConns) // nolint: gosec
@@ -245,7 +245,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		readReplicaConfig.MaxConnLifetime = cf.MaxConnLifetime
 		readReplicaConfig.MaxConnIdleTime = cf.MaxConnIdleTime
-		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+		readReplicaConfig.ConnConfig.Tracer = newOTelPgxTracer()
 
 		// Check read replica database instance timezone if enforcement is enabled
 		if cf.EnforceUTCTimezone {
@@ -289,7 +289,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		directConfig.MaxConnLifetime = cf.MaxConnLifetime
 		directConfig.MaxConnIdleTime = cf.MaxConnIdleTime
 		directConfig.AfterConnect = pgxpoolConnAfterConnect
-		directConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+		directConfig.ConnConfig.Tracer = newOTelPgxTracer()
 
 		directPool, err = pgxpool.NewWithConfig(context.Background(), directConfig)
 		if err != nil {
@@ -949,4 +949,26 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 
 	l.Info().Msgf("%s instance timezone verified: %s", dbLabel, dbTimezone)
 	return nil
+}
+
+func newOTelPgxTracer() *otelpgx.Tracer {
+	return otelpgx.NewTracer(
+		otelpgx.WithDisableSQLStatementInAttributes(),
+		otelpgx.WithSpanNameFunc(sqlcSpanName),
+	)
+}
+
+// sqlcSpanName extracts the query name from sqlc's "-- name: QueryName :verb"
+// comment that prefixes every generated SQL constant. For ad-hoc queries without
+// the comment, it returns UNKNOWN.
+func sqlcSpanName(stmt string) string {
+	if after, ok := strings.CutPrefix(stmt, "-- name: "); ok {
+		if end := strings.IndexAny(after, " \n"); end > 0 {
+			return after[:end]
+		}
+		if t := strings.TrimSpace(after); t != "" {
+			return t
+		}
+	}
+	return "UNKNOWN"
 }
