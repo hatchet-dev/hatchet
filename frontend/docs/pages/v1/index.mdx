@@ -8,9 +8,9 @@ import Keywords from "@/components/Keywords";
 
 # What is Hatchet?
 
-Hatchet is a developer platform that helps engineering teams build and deploy mission-critical AI agents, durable workflows, and background tasks.
+Hatchet is a developer platform that helps engineering teams build and deploy mission-critical AI agents, durable workflows, and background tasks. It supports Python, Typescript, Go and Ruby, and can be used as a service through [Hatchet Cloud](https://cloud.onhatchet.run) or [self-hosted](/self-hosting) (we're [open-source and 100% MIT-licensed](https://github.com/hatchet-dev/hatchet)). Hatchet provides a full platform for queuing, automatic retries, real-time monitoring, alerting, and logging.
 
-You write functions in Python, Typescript, Go, or Ruby and let Hatchet handle scheduling, retries, fault tolerance, and observability.
+Unlike a traditional queuing system, Hatchet is built around the concept of durability. Every task and agent invocation is durably persisted in Hatchet, allowing for debugging, retries and replays, and more complex features like [durable workflows](/durable-workflows-overview).
 
 ## Using our docs
 
