@@ -61,7 +61,7 @@ When a task is cancelled, Hatchet sends a signal to the worker, which attempts t
       src={snippets.python.cancellation.worker.checking_exit_flag}
     />
 
-    A task can also cancel itself by calling `ctx.aio_cancel()`. Any work after the cancel call will not execute.
+    A task can also cancel itself by calling `ctx.aio_cancel()` (or `ctx.cancel()` for synchronous tasks). Any work after the cancel call will not execute.
 
     <Snippet
       src={snippets.python.cancellation.worker.self_cancelling_task}
