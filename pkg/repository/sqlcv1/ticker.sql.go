@@ -444,8 +444,15 @@ WITH latest_workflow_versions AS (
             )
             OR "tickerId" = $1::uuid
         )
-    FOR UPDATE OF scheduledWorkflow SKIP LOCKED
+), active_scheduled_workflows AS (
+    SELECT
+        id, "workflowVersionId", "tenantId", "additionalMetadata"
+    FROM
+        not_run_scheduled_workflows
+    ORDER BY "triggerAt" ASC, "id" ASC
+    FOR UPDATE SKIP LOCKED
 )
+
 UPDATE
     "WorkflowTriggerScheduledRef" as scheduledWorkflows
 SET
