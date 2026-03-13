@@ -446,13 +446,7 @@ WITH latest_workflow_versions AS (
             FROM "WorkflowRunTriggeredBy" AS runTriggeredBy
             WHERE runTriggeredBy."scheduledId" = scheduledWorkflow."id"
         )
-),
-active_scheduled_workflows AS (
-    SELECT
-        id, "workflowVersionId", "tenantId", "additionalMetadata"
-    FROM
-        not_run_scheduled_workflows
-    ORDER BY "triggerAt" ASC, "id" ASC
+    ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
     FOR UPDATE SKIP LOCKED
 )
 
@@ -461,10 +455,10 @@ UPDATE
 SET
     "tickerId" = $1::uuid
 FROM
-    active_scheduled_workflows
+    not_run_scheduled_workflows
 WHERE
-    scheduledWorkflows."id" = active_scheduled_workflows."id"
-RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
+    scheduledWorkflows."id" = not_run_scheduled_workflows."id"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, not_run_scheduled_workflows."workflowVersionId", not_run_scheduled_workflows."tenantId"
 `
 
 type PollScheduledWorkflowsRow struct {
