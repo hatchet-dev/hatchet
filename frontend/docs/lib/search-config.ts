@@ -392,6 +392,12 @@ export function rerankResults<T extends { id: string; score: number; [k: string]
         boost *= 1 + (routeTermHits / queryTerms.length) * 0.5;
       }
 
+      // Downrank API reference pages — they're useful but shouldn't crowd
+      // out conceptual docs for general queries.
+      if (route.startsWith("reference/")) {
+        boost *= 0.3;
+      }
+
       return { ...r, score: r.score * boost };
     })
     .sort((a, b) => b.score - a.score);
