@@ -79,7 +79,7 @@ func do(config LoadTestConfig) error {
 	defer cancel()
 
 	ch := make(chan int64, 2)
-	durations := make(chan time.Duration, config.Events)
+	durations := make(chan executionEvent, config.Events)
 
 	// Compute running average for executed durations using a rolling average.
 	durationsResult := make(chan avgResult)
@@ -91,13 +91,13 @@ func do(config LoadTestConfig) error {
 		for d := range durations {
 			count++
 			if count == 1 {
-				avg = d
+				avg = d.duration
 			} else {
-				avg += (d - avg) / time.Duration(count)
+				avg += (d.duration - avg) / time.Duration(count)
 			}
 			snapshots = append(snapshots, LatencySnapshot{
-				t:       time.Now(),
-				latency: d,
+				t:       d.startedAt,
+				latency: d.duration,
 			})
 		}
 		durationsResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
