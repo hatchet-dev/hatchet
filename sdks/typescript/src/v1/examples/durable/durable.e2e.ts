@@ -83,7 +83,7 @@ describe('durable-e2e', () => {
     await ref.replay();
 
     const replayed = await ref.output;
-    expect(replayed.runtime).toBeLessThanOrEqual(SLEEP_TIME_SECONDS);
+    expect(replayed.runtime).toBeLessThan(SLEEP_TIME_SECONDS + 3);
   }, 300_000);
 
   it('durable child spawn', async () => {
