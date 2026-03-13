@@ -82,27 +82,20 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 	const slotTypeDurable = "durable"
 
 	var slotConfigInt *map[string]gen.WorkerSlotConfig
-	var availableRunsPtr *int
+	var availableRuns int
 	var maxRuns int
 	if len(slotConfig) > 0 {
 		tmp := make(map[string]gen.WorkerSlotConfig, len(slotConfig))
-		allNonDurableAvailableKnown := true
-		var availableRuns int
 		for k, v := range slotConfig {
 			tmp[k] = v
 			if k != slotTypeDurable {
 				maxRuns += v.Limit
 				if v.Available != nil {
 					availableRuns += *v.Available
-				} else {
-					allNonDurableAvailableKnown = false
 				}
 			}
 		}
 		slotConfigInt = &tmp
-		if allNonDurableAvailableKnown {
-			availableRunsPtr = &availableRuns
-		}
 	} else {
 		maxRuns = int(worker.MaxRuns)
 	}
@@ -120,7 +113,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 		Status:        &status,
 		DispatcherId:  dispatcherId,
 		MaxRuns:       maxRunsPtr,
-		AvailableRuns: availableRunsPtr,
+		AvailableRuns: &availableRuns,
 		SlotConfig:    slotConfigInt,
 		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
 		WebhookId:     worker.WebhookId,
