@@ -57,6 +57,9 @@ class TTLCache(Generic[K, V]):
     def pop(self, key: K) -> V:
         return self.cache.pop(key).value
 
+    def clear(self) -> None:
+        self.cache.clear()
+
     def stop_eviction_job(self) -> None:
         self.eviction_job.cancel()
 

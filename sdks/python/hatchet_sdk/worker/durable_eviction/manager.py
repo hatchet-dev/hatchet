@@ -189,9 +189,6 @@ class DurableEvictionManager:
         evicted = 0
 
         for rec in waiting:
-            if rec.eviction_policy is None:
-                continue
-
             rec.eviction_reason = _build_eviction_reason(
                 EvictionCause.WORKER_SHUTDOWN, rec
             )
@@ -209,8 +206,9 @@ class DurableEvictionManager:
                     f"DurableEvictionManager: failed to send eviction for "
                     f"step_run_id={rec.step_run_id}"
                 )
-                continue
 
+            # Always cancel locally even if the server ACK failed, so the
+            # future settles and exit_gracefully doesn't hang.
             self._evict_run(rec.key)
             evicted += 1
 

@@ -3,6 +3,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -276,4 +277,209 @@ func TestCreateIdempotencyKey_AdditionalMetadataIgnored(t *testing.T) {
 	}, nil)
 
 	assert.Equal(t, base, withMeta)
+}
+
+func TestNonDeterminismError_SameKind(t *testing.T) {
+	id := uuid.New()
+	err := &NonDeterminismError{
+		NodeId:         3,
+		BranchId:       1,
+		TaskExternalId: id,
+		Detail: &NonDeterminismDetail{
+			Expected: "waitFor(sleep(2s))",
+			Received: "waitFor(sleep(4s))",
+		},
+	}
+
+	assert.Contains(t, err.Error(), id.String())
+	assert.Contains(t, err.Error(), "node 3:1")
+	assert.Contains(t, err.Error(), "expected: waitFor(sleep(2s))")
+	assert.Contains(t, err.Error(), "received: waitFor(sleep(4s))")
+}
+
+func TestNonDeterminismError_DifferentKinds(t *testing.T) {
+	id := uuid.New()
+	err := &NonDeterminismError{
+		NodeId:         5,
+		BranchId:       2,
+		TaskExternalId: id,
+		Detail: &NonDeterminismDetail{
+			Expected: "MEMO",
+			Received: "run(my-workflow)",
+		},
+	}
+
+	assert.Contains(t, err.Error(), "expected: MEMO")
+	assert.Contains(t, err.Error(), "received: run(my-workflow)")
+}
+
+func TestNonDeterminismError_NoDetail(t *testing.T) {
+	id := uuid.New()
+	err := &NonDeterminismError{
+		NodeId:         1,
+		BranchId:       1,
+		TaskExternalId: id,
+	}
+
+	msg := err.Error()
+	assert.Contains(t, msg, "non-determinism error")
+	assert.NotContains(t, msg, "expected:")
+	assert.NotContains(t, msg, "received:")
+}
+
+func TestNonDeterminismError_ImplementsError(t *testing.T) {
+	err := &NonDeterminismError{TaskExternalId: uuid.New()}
+	var target *NonDeterminismError
+	assert.True(t, errors.As(err, &target))
+}
+
+func TestFormatCall_Run(t *testing.T) {
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		TriggerRuns: &IngestTriggerRunsOpts{
+			TriggerOpts: []*WorkflowNameTriggerOpts{
+				{TriggerTaskData: &TriggerTaskData{WorkflowName: "wf-a"}},
+				{TriggerTaskData: &TriggerTaskData{WorkflowName: "wf-b"}},
+			},
+		},
+	}
+	assert.Equal(t, "run(wf-a, wf-b)", opts.formatCall())
+}
+
+func TestFormatCall_WaitFor(t *testing.T) {
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindWAITFOR},
+		WaitFor: &IngestWaitForOpts{
+			WaitForConditions: []CreateExternalSignalConditionOpt{
+				{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("10s")},
+				{Kind: CreateExternalSignalConditionKindUSEREVENT, UserEventKey: strPtr("user:signup")},
+			},
+		},
+	}
+	assert.Equal(t, "waitFor(sleep(10s), waitForEvent(user:signup))", opts.formatCall())
+}
+
+func TestFormatCall_Memo(t *testing.T) {
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindMEMO},
+	}
+	assert.Equal(t, "memo", opts.formatCall())
+}
+
+func TestFormatCall_RunBulkWithDuplicates(t *testing.T) {
+	triggers := make([]*WorkflowNameTriggerOpts, 0, 8)
+	for i := 0; i < 6; i++ {
+		triggers = append(triggers, &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{WorkflowName: "wf-a"},
+		})
+	}
+	triggers = append(triggers,
+		&WorkflowNameTriggerOpts{TriggerTaskData: &TriggerTaskData{WorkflowName: "wf-b"}},
+		&WorkflowNameTriggerOpts{TriggerTaskData: &TriggerTaskData{WorkflowName: "wf-c"}},
+	)
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
+	}
+	assert.Equal(t, "run(6x wf-a, wf-b, wf-c)", opts.formatCall())
+}
+
+func TestFormatCall_RunBulkExceedsMaxLabels(t *testing.T) {
+	names := []string{"a", "b", "c", "d", "e", "f", "g"}
+	triggers := make([]*WorkflowNameTriggerOpts, len(names))
+	for i, n := range names {
+		triggers[i] = &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{WorkflowName: n},
+		}
+	}
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
+	}
+	assert.Equal(t, "run(a, b, c, d, e, ... +2 more unique)", opts.formatCall())
+}
+
+func TestFormatCall_WaitForBulkMixed(t *testing.T) {
+	conditions := make([]CreateExternalSignalConditionOpt, 0, 8)
+	for i := 0; i < 4; i++ {
+		conditions = append(conditions, CreateExternalSignalConditionOpt{
+			Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("5s"),
+		})
+	}
+	conditions = append(conditions,
+		CreateExternalSignalConditionOpt{Kind: CreateExternalSignalConditionKindUSEREVENT, UserEventKey: strPtr("ev1")},
+		CreateExternalSignalConditionOpt{Kind: CreateExternalSignalConditionKindUSEREVENT, UserEventKey: strPtr("ev2")},
+		CreateExternalSignalConditionOpt{Kind: CreateExternalSignalConditionKindUSEREVENT, UserEventKey: strPtr("ev3")},
+		CreateExternalSignalConditionOpt{Kind: CreateExternalSignalConditionKindUSEREVENT, UserEventKey: strPtr("ev4")},
+	)
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindWAITFOR},
+		WaitFor:             &IngestWaitForOpts{WaitForConditions: conditions},
+	}
+	assert.Equal(t, "waitFor(4x sleep(5s), waitForEvent(ev1), waitForEvent(ev2), waitForEvent(ev3), waitForEvent(ev4))", opts.formatCall())
+}
+
+func TestFormatCall_RunExactlyAtMaxLabels(t *testing.T) {
+	names := []string{"a", "b", "c", "d", "e"}
+	triggers := make([]*WorkflowNameTriggerOpts, len(names))
+	for i, n := range names {
+		triggers[i] = &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{WorkflowName: n},
+		}
+	}
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
+	}
+	assert.Equal(t, "run(a, b, c, d, e)", opts.formatCall())
+}
+
+func TestFormatStoredPayload_Run(t *testing.T) {
+	payload, _ := json.Marshal(WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow"},
+	})
+	assert.Equal(t, "run(my-workflow)", formatStoredPayload(sqlcv1.V1DurableEventLogKindRUN, payload))
+}
+
+func TestFormatStoredPayload_WaitFor(t *testing.T) {
+	payload, _ := json.Marshal([]CreateExternalSignalConditionOpt{
+		{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("2s")},
+	})
+	assert.Equal(t, "waitFor(sleep(2s))", formatStoredPayload(sqlcv1.V1DurableEventLogKindWAITFOR, payload))
+}
+
+func TestFormatStoredPayload_NoPayload(t *testing.T) {
+	assert.Equal(t, "MEMO", formatStoredPayload(sqlcv1.V1DurableEventLogKindMEMO, nil))
+	assert.Equal(t, "RUN", formatStoredPayload(sqlcv1.V1DurableEventLogKindRUN, nil))
+}
+
+func TestNonDeterminismDetail_WithPayload(t *testing.T) {
+	existingPayload, _ := json.Marshal([]CreateExternalSignalConditionOpt{
+		{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("2s")},
+	})
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindWAITFOR},
+		WaitFor: &IngestWaitForOpts{
+			WaitForConditions: []CreateExternalSignalConditionOpt{
+				{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("4s")},
+			},
+		},
+	}
+	detail := nonDeterminismDetail(opts, sqlcv1.V1DurableEventLogKindWAITFOR, existingPayload)
+	assert.Equal(t, "waitFor(sleep(2s))", detail.Expected)
+	assert.Equal(t, "waitFor(sleep(4s))", detail.Received)
+}
+
+func TestNonDeterminismDetail_KindMismatch(t *testing.T) {
+	opts := IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		TriggerRuns: &IngestTriggerRunsOpts{
+			TriggerOpts: []*WorkflowNameTriggerOpts{
+				{TriggerTaskData: &TriggerTaskData{WorkflowName: "my-wf"}},
+			},
+		},
+	}
+	detail := nonDeterminismDetail(opts, sqlcv1.V1DurableEventLogKindMEMO, nil)
+	assert.Equal(t, "MEMO", detail.Expected)
+	assert.Equal(t, "run(my-wf)", detail.Received)
 }

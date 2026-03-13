@@ -282,6 +282,8 @@ describe('DurableListenerClient reconnection', () => {
     it('preserves pending callbacks (server-side state survives reconnection)', () => {
       const l = listener as any;
       const d = makeDeferred();
+      // Swallow the rejection that stop() will produce in afterEach
+      d.promise.catch(() => {});
       l._pendingCallbacks.set('task:1:0:1', d);
 
       l._failPendingAcks(new Error('disconnected'));
@@ -317,6 +319,57 @@ describe('DurableListenerClient reconnection', () => {
     });
   });
 
+  // ── _failAllPending correctness (used on stop) ──
+
+  describe('_failAllPending', () => {
+    beforeEach(async () => {
+      const h = tracked(hangingStream());
+      grpcClient.durableTask.mockReturnValue(h.stream);
+      await listener.start('w1');
+    });
+
+    it('rejects pending callbacks and clears the map', () => {
+      const l = listener as any;
+      const d = makeDeferred();
+      l._pendingCallbacks.set('task:1:0:1', d);
+
+      l._failAllPending(new Error('stopped'));
+
+      expect(l._pendingCallbacks.size).toBe(0);
+      return expect(d.promise).rejects.toThrow('stopped');
+    });
+
+    it('clears buffered completions', () => {
+      const l = listener as any;
+      l._bufferedCompletions.set('task:1:0:1', {
+        durableTaskExternalId: 'task',
+        nodeId: 1,
+        payload: {},
+      });
+
+      l._failAllPending(new Error('stopped'));
+
+      expect(l._bufferedCompletions.size).toBe(0);
+    });
+
+    it('also rejects pending event acks and eviction acks', () => {
+      const l = listener as any;
+      const ackD = makeDeferred();
+      const evD = makeDeferred();
+      l._pendingEventAcks.set('task:1', ackD);
+      l._pendingEvictionAcks.set('task:1', evD);
+
+      l._failAllPending(new Error('stopped'));
+
+      expect(l._pendingEventAcks.size).toBe(0);
+      expect(l._pendingEvictionAcks.size).toBe(0);
+      return Promise.all([
+        expect(ackD.promise).rejects.toThrow('stopped'),
+        expect(evD.promise).rejects.toThrow('stopped'),
+      ]);
+    });
+  });
+
   // ── pending state rejected on stream disconnect ──
 
   describe('pending state is rejected on stream disconnect', () => {
@@ -348,6 +401,8 @@ describe('DurableListenerClient reconnection', () => {
       await settle();
 
       const d = makeDeferred();
+      // Swallow the rejection that stop() will produce in afterEach
+      d.promise.catch(() => {});
       (listener as any)._pendingCallbacks.set('task:1:0:1', d);
 
       ctrl.end();

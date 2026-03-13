@@ -153,8 +153,6 @@ export class DurableEvictionManager {
     let evicted = 0;
 
     for (const rec of waiting) {
-      if (!rec.evictionPolicy) continue;
-
       rec.evictionReason = buildEvictionReason(EvictionCause.WORKER_SHUTDOWN, rec);
 
       this._logger.debug(
@@ -169,9 +167,11 @@ export class DurableEvictionManager {
           `DurableEvictionManager: failed to send eviction for ` +
             `task_run_external_id=${rec.taskRunExternalId}: ${getErrorMessage(err)}`
         );
-        continue;
       }
 
+      // Always cancel locally even if the server ACK failed, so the
+      // future settles and exitGracefully doesn't hang.
+      // This will get resolved by the reassignment of the task.
       this._evictRun(rec.key);
       evicted++;
     }

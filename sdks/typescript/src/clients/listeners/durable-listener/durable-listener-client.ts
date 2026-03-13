@@ -76,6 +76,10 @@ class TTLMap<K, V> {
     return undefined;
   }
 
+  clear(): void {
+    this.cache.clear();
+  }
+
   destroy(): void {
     clearInterval(this.timer);
     this.cache.clear();
@@ -400,6 +404,16 @@ export class DurableListenerClient {
       d.reject(exc);
     }
     this._pendingEvictionAcks.clear();
+  }
+
+  private _failAllPending(exc: Error): void {
+    this._failPendingAcks(exc);
+
+    for (const d of this._pendingCallbacks.values()) {
+      d.reject(exc);
+    }
+    this._pendingCallbacks.clear();
+    this._bufferedCompletions.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
