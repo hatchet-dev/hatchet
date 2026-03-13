@@ -5,7 +5,7 @@ async function main() {
   // > Setup
   const workflows = await hatchet.workflows.list();
 
-  const workflow = workflows.rows![0];
+  const [workflow] = workflows.rows!;
 
   // > List runs
   const runs = await hatchet.runs.list({

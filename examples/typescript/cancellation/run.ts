@@ -12,7 +12,8 @@ async function main() {
   await run.cancel();
 
   // Or cancel by run ID via the runs client
-  await hatchet.runs.cancel({ ids: [run.workflowRunId] });
+  const id = await run.runId;
+  await hatchet.runs.cancel({ ids: [id] });
 
   const run1 = await cancellationWorkflow.runNoWait({});
   const res = await run.output;
