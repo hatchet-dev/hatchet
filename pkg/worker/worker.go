@@ -433,7 +433,7 @@ func (w *Worker) RegisterWorkflowV1(workflow *contracts.CreateWorkflowVersionReq
 
 	w.registered_workflows[namespaced] = true
 
-	return w.client.Admin().PutWorkflowV1(workflow)
+	return w.client.Admin().PutWorkflowV1(context.TODO(), workflow)
 }
 
 // Deprecated: On is part of the legacy v0 workflow definition system.

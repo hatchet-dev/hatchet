@@ -542,7 +542,7 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 		}
 	}
 
-	run, err := w.v0.Admin().BulkRunWorkflow(toRun)
+	run, err := w.v0.Admin().BulkRunWorkflow(ctx, toRun)
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +556,7 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 // RunNoWait executes the workflow with the provided input without waiting for it to complete.
 // Instead it returns a run ID that can be used to check the status of the workflow.
 func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error) {
-	run, err := w.v0.Admin().RunWorkflow(w.Name, input, opts...)
+	run, err := w.v0.Admin().RunWorkflow(ctx, w.Name, input, opts...)
 	if err != nil {
 		return nil, err
 	}

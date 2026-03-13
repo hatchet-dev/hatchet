@@ -640,7 +640,7 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 			AdditionalMetadata: additionalMetadata,
 		})
 	} else {
-		v0Workflow, err = c.legacyClient.Admin().RunWorkflow(workflowName, input, v0Opts...)
+		v0Workflow, err = c.legacyClient.Admin().RunWorkflow(ctx, workflowName, input, v0Opts...)
 	}
 
 	if err != nil {
