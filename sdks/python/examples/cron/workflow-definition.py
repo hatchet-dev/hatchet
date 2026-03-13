@@ -1,3 +1,5 @@
+from pydantic import BaseModel
+
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
@@ -11,11 +13,15 @@ hatchet = Hatchet(debug=True)
 cron_workflow = hatchet.workflow(name="CronWorkflow", on_crons=["* * * * *"])
 
 
+class TaskOutput(BaseModel):
+    message: str
+
+
 @cron_workflow.task()
-def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    return {
-        "time": "step1",
-    }
+def step1(input: EmptyModel, ctx: Context) -> TaskOutput:
+    return TaskOutput(
+        message="Hello, world!",
+    )
 
 
 # !!
