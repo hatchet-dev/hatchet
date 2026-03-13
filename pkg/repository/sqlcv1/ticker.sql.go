@@ -447,7 +447,6 @@ WITH latest_workflow_versions AS (
             WHERE runTriggeredBy."scheduledId" = scheduledWorkflow."id"
         )
     ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
-    FOR UPDATE SKIP LOCKED
 ),
 active_scheduled_workflows AS (
     SELECT
