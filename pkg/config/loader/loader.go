@@ -960,16 +960,15 @@ func newOTelPgxTracer() *otelpgx.Tracer {
 
 // sqlcSpanName extracts the query name from sqlc's "-- name: QueryName :verb"
 // comment that prefixes every generated SQL constant. For ad-hoc queries without
-// the comment, it falls back to the first SQL keyword (SELECT, INSERT, etc.).
+// the comment, it returns UNKNOWN.
 func sqlcSpanName(stmt string) string {
 	if after, ok := strings.CutPrefix(stmt, "-- name: "); ok {
 		if end := strings.IndexAny(after, " \n"); end > 0 {
 			return after[:end]
 		}
-	}
-	stmt = strings.TrimSpace(stmt)
-	if end := strings.IndexByte(stmt, ' '); end > 0 {
-		return strings.ToUpper(stmt[:end])
+		if t := strings.TrimSpace(after); t != "" {
+			return t
+		}
 	}
 	return "UNKNOWN"
 }
