@@ -76,6 +76,10 @@ class TTLMap<K, V> {
     return undefined;
   }
 
+  clear(): void {
+    this.cache.clear();
+  }
+
   destroy(): void {
     clearInterval(this.timer);
     this.cache.clear();
