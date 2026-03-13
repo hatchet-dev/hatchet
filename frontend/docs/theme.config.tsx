@@ -132,6 +132,13 @@ const config = {
       />
     </svg>
   ),
+  navbar: {
+    extraContent: (
+      <div className="nextra-lang-selector-nav" style={{ order: 1, display: "flex", alignItems: "center" }}>
+        <LanguageSelectorButton />
+      </div>
+    ),
+  },
   head: () => {
     const { title } = useConfig();
     const router = useRouter();
@@ -195,7 +202,6 @@ const config = {
             <MarkdownIcon />
             <span className="page-action-label">View as MD</span>
           </a>
-          <LanguageSelectorButton />
         </div>
         {children}
       </>

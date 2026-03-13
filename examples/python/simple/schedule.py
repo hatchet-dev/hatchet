@@ -1,10 +1,12 @@
-# > Schedule a Task
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from examples.simple.worker import simple
 
-schedule = simple.schedule(datetime(2025, 3, 14, 15, 9, 26))
+# > Schedule a Task
 
-## 👀 do something with the id
-print(schedule.id)
+tomorrow_noon = datetime.now(tz=timezone.utc).replace(
+    hour=12, minute=0, second=0, microsecond=0
+) + timedelta(days=1)
+
+scheduled_run = simple.schedule(tomorrow_noon)
 

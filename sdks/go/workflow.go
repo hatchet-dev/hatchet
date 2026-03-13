@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -670,4 +671,10 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 	wg.Wait()
 
 	return workflowRefs, errors.Join(errs...)
+}
+
+// Schedule creates a scheduled run for this workflow.
+// The workflow will be triggered at the specified time with the given input.
+func (w *Workflow) Schedule(ctx context.Context, triggerAt time.Time, input any) (*admincontracts.WorkflowVersion, error) {
+	return w.v0Client.Admin().ScheduleWorkflowV1(ctx, w.declaration.Name(), triggerAt, input)
 }
