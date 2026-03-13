@@ -200,6 +200,14 @@ WITH latest_workflow_versions AS (
         )
     ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
     FOR UPDATE SKIP LOCKED
+),
+active_scheduled_workflows AS (
+    SELECT
+        *
+    FROM
+        "WorkflowTriggerScheduledRef"
+    WHERE "id" IN (SELECT "id" FROM not_run_scheduled_workflows)
+    FOR UPDATE SKIP LOCKED
 )
 
 UPDATE
@@ -207,10 +215,12 @@ UPDATE
 SET
     "tickerId" = @tickerId::uuid
 FROM
-    not_run_scheduled_workflows
+    active_scheduled_workflows
+JOIN "WorkflowVersion" as versions ON versions."id" = active_scheduled_workflows."parentId"
+JOIN "Workflow" as workflow ON workflow."id" = versions."workflowId"
 WHERE
-    scheduledWorkflows."id" = not_run_scheduled_workflows."id"
-RETURNING scheduledWorkflows.*, not_run_scheduled_workflows."workflowVersionId", not_run_scheduled_workflows."tenantId";
+    scheduledWorkflows."id" = active_scheduled_workflows."id"
+RETURNING scheduledWorkflows.*, versions."id" AS "workflowVersionId", workflow."tenantId";
 
 -- name: PollTenantAlerts :many
 -- Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker

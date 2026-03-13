@@ -448,6 +448,14 @@ WITH latest_workflow_versions AS (
         )
     ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
     FOR UPDATE SKIP LOCKED
+),
+active_scheduled_workflows AS (
+    SELECT
+        id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt", method, priority
+    FROM
+        "WorkflowTriggerScheduledRef"
+    WHERE "id" IN (SELECT "id" FROM not_run_scheduled_workflows)
+    FOR UPDATE SKIP LOCKED
 )
 
 UPDATE
@@ -455,10 +463,12 @@ UPDATE
 SET
     "tickerId" = $1::uuid
 FROM
-    not_run_scheduled_workflows
+    active_scheduled_workflows
+JOIN "WorkflowVersion" as versions ON versions."id" = active_scheduled_workflows."parentId"
+JOIN "Workflow" as workflow ON workflow."id" = versions."workflowId"
 WHERE
-    scheduledWorkflows."id" = not_run_scheduled_workflows."id"
-RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, not_run_scheduled_workflows."workflowVersionId", not_run_scheduled_workflows."tenantId"
+    scheduledWorkflows."id" = active_scheduled_workflows."id"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, versions."id" AS "workflowVersionId", workflow."tenantId"
 `
 
 type PollScheduledWorkflowsRow struct {
