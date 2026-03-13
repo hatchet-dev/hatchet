@@ -438,6 +438,8 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 		return status.Errorf(codes.InvalidArgument, "invalid worker id: %v", err)
 	}
 
+	d.analytics.Count(ctx, analytics.DurableTask, analytics.Register)
+
 	invocation.workerId = workerId
 	d.workerInvocations.Store(workerId, invocation)
 
@@ -552,6 +554,8 @@ func (d *DispatcherServiceImpl) handleMemo(
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
 	}
 
+	d.analytics.Count(ctx, analytics.DurableTask, analytics.Memo)
+
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
@@ -607,6 +611,17 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+	}
+
+	for _, w := range req.TriggerOpts {
+		d.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
+			"parent_is_durable_task", w.ParentTaskRunExternalId != nil,
+			"has_priority", w.Priority != nil,
+			"is_child", w.ParentId != nil,
+			"has_additional_meta", w.AdditionalMetadata != nil,
+			"has_desired_worker_id", w.DesiredWorkerId != nil,
+			"has_desired_worker_labels", len(w.DesiredWorkerLabels) > 0,
+		))
 	}
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
@@ -693,6 +708,16 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
 	}
+
+	var hasSleep, hasUserEvent bool
+	if req.WaitForConditions != nil {
+		hasSleep = len(req.WaitForConditions.SleepConditions) > 0
+		hasUserEvent = len(req.WaitForConditions.UserEventConditions) > 0
+	}
+	d.analytics.Count(ctx, analytics.DurableTask, analytics.WaitFor, analytics.Props(
+		"has_sleep", hasSleep,
+		"has_user_event", hasUserEvent,
+	))
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
@@ -783,6 +808,8 @@ func (d *DispatcherServiceImpl) handleCompleteMemo(
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
 	}
 
+	d.analytics.Count(ctx, analytics.DurableTask, analytics.Memo)
+
 	err = d.repo.DurableEvents().CompleteMemoEntry(ctx, v1.CompleteMemoEntryOpts{
 		TenantId:        invocation.tenantId,
 		TaskExternalId:  taskExternalId,
@@ -826,6 +853,8 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	if err != nil {
 		return d.sendEvictionError(invocation, req, fmt.Sprintf("invalid durable_task_external_id: %v", err))
 	}
+
+	d.analytics.Count(ctx, analytics.DurableTask, analytics.Evict)
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {

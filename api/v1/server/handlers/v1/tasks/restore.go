@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -21,6 +22,8 @@ func (t *TasksService) V1TaskRestore(ctx echo.Context, request gen.V1TaskRestore
 	if err != nil {
 		return nil, err
 	}
+
+	t.config.Analytics.Count(ctx.Request().Context(), analytics.DurableTask, analytics.Restore)
 
 	return gen.V1TaskRestore200JSONResponse{Requeued: true}, nil
 }
