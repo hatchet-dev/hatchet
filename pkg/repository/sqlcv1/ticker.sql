@@ -210,10 +210,10 @@ UPDATE
 SET
     "tickerId" = @tickerId::uuid
 FROM
-    not_run_scheduled_workflows
+    active_scheduled_workflows
 WHERE
-    scheduledWorkflows."id" = not_run_scheduled_workflows."id"
-RETURNING scheduledWorkflows.*, not_run_scheduled_workflows."workflowVersionId", not_run_scheduled_workflows."tenantId";
+    scheduledWorkflows."id" = active_scheduled_workflows."id"
+RETURNING scheduledWorkflows.*, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId";
 
 -- name: PollTenantAlerts :many
 -- Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker

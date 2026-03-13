@@ -458,10 +458,10 @@ UPDATE
 SET
     "tickerId" = $1::uuid
 FROM
-    not_run_scheduled_workflows
+    active_scheduled_workflows
 WHERE
-    scheduledWorkflows."id" = not_run_scheduled_workflows."id"
-RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, not_run_scheduled_workflows."workflowVersionId", not_run_scheduled_workflows."tenantId"
+    scheduledWorkflows."id" = active_scheduled_workflows."id"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
 `
 
 type PollScheduledWorkflowsRow struct {
