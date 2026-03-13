@@ -447,6 +447,8 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 		return nil, status.Error(codes.InvalidArgument, "invalid task_external_id")
 	}
 
+	a.analytics.Count(ctx, analytics.DurableTask, analytics.Branch)
+
 	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)

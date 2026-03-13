@@ -482,6 +482,7 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 
 func (s *DispatcherImpl) RestoreEvictedTask(ctx context.Context, req *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	s.analytics.Count(ctx, analytics.DurableTask, analytics.Restore)
 
 	return s.restoreEvictedTask(ctx, tenant, req)
 }
