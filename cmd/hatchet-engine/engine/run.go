@@ -96,9 +96,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 
 	err = RunWithConfig(ctx, server, &cleanup)
 	cleanup.Add(serverCleanup, "server")
-	cleanup.Add(func() error {
-		return server.Disconnect()
-	}, "database")
+	cleanup.Add(server.Disconnect, "database")
 
 	if err != nil {
 		return fmt.Errorf("could not run with config: %w", err)
@@ -108,7 +106,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 
 	l.Debug().Msgf("interrupt received, shutting down")
 
-	err = cleanup.Run()
+	err = cleanup.Run(l)
 	if err != nil {
 		return err
 	}
