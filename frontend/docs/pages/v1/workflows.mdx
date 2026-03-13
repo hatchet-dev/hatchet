@@ -11,16 +11,16 @@ import Keywords from "@/components/Keywords";
 
 # Workflows
 
-In Hatchet, [tasks](/v1/tasks) can be composed into **workflows** in two ways: [declaratively as a DAG](#directed-acyclic-graphs-dags) (or as a non-DAG workflow) by registering tasks with explicit dependencies, or dynamically at runtime via [child spawning](#child-spawning). You can [mix both patterns](/v1/patterns/mixing-patterns) in the same application.
+In Hatchet, [tasks](/v1/tasks) can be composed into **workflows** in two ways: [declaratively as a DAG](#directed-acyclic-graphs-dags) (or as a non-DAG workflow) by registering tasks with explicit dependencies, or dynamically at runtime via [child spawning](#child-spawning). These options can be combined to build complicated workflows that fit the application's needs.
 
 <Callout type="info">
-All workflows in Hatchet are **durable** — the workflow itself persists state between tasks and can be rerun from specific checkpoints, even if a worker crashes.
+All workflows in Hatchet, whether or not they're comprised of durable tasks, are **durable** — the workflow itself persists state between tasks and can be rerun from specific checkpoints, even if a worker crashes.
 
 {/* TODO-DOCS: Link to durable execution docs here */}
 
 </Callout>
 
-It's sometimes helpful to think of a workflow as an abstraction on top of DAGs and tasks. In broad strokes, a workflow is the declarative thing that can represent any composition of tasks, whether into a DAG or otherwise. A workflow can have a single task (a "standalone" task), or it can be a complicated DAG, can model a fanout pattern, or otherwise.
+It's sometimes helpful to think of a workflow as an abstraction on top of DAGs and individual tasks. In broad strokes, a workflow is the abstraction that can represent any composition of tasks, whether into a DAG or otherwise. A workflow can have a single task (a "standalone" task), or it can be a complicated DAG. It can model a fanout pattern, an agent loop, or any other shape or feature that the application needs.
 
 ## Directed Acyclic Graphs (DAGs)
 
@@ -63,8 +63,9 @@ Start by declaring a workflow with a name. The workflow object can declare addit
 </UniversalTabs>
 
 <Callout variant="info">
-  The workflow return object works the same as a [task](/v1/tasks), but only
-  accepts a subset of options that apply at the workflow level.
+  The workflow constructor accepts a number of configuration options, similarly
+  to that of the [task](/v1/tasks). However, it only accepts the subset of
+  options that apply at the workflow level.
 </Callout>
 
 ### Adding a task to a workflow
@@ -154,13 +155,11 @@ if err != nil {
 
 ### Learn More
 
-To learn more about defining workflows declaratively, check out the [DAG Documentation](/v1/patterns/directed-acyclic-graphs).
+To learn more about building DAGs declaratively, check out the [DAG Documentation](/v1/patterns/directed-acyclic-graphs).
 
 ## Child Spawning
 
-A task can spawn child tasks and workflows at runtime. Children run independently on any available worker, and the parent can optionally wait for their results.
-
-All tasks in Hatchet support child spawning with the same core API.
+Workflows can also be constructed dynamically at runtime, via child spawning. Any task can spawn child tasks and workflows at runtime. Children run independently on any available worker, and the parent can optionally wait for their results.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
@@ -189,6 +188,8 @@ Declare parent and child tasks:
     <Snippet src={snippets.ruby.fanout.worker.fanout_child} />
   </Tabs.Tab>
 </UniversalTabs>
+
+Child spawning is especially useful if the shape of the workflow is unknown until runtime, such as in agentic applications.
 
 ### Learn More
 
