@@ -96,7 +96,7 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 	}
 
 	if a.keyCount.Load() >= a.maxKeys {
-		a.l.Warn().Int64("max_keys", a.maxKeys).Str("resource", string(resource)).Str("action", string(action)).Str("tenant_id", tenantID.String()).Msg("aggregator at max keys, dropping event")
+		a.l.Error().Int64("max_keys", a.maxKeys).Str("resource", string(resource)).Str("action", string(action)).Str("tenant_id", tenantID.String()).Msg("aggregator at max keys, dropping event")
 		return
 	}
 
