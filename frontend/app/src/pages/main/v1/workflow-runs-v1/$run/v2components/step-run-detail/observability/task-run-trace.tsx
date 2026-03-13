@@ -2,7 +2,7 @@ import { TreeView } from '@/components/v1/agent-prism/TreeView';
 import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { OtelSpan } from '@/lib/api/generated/data-contracts';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
   if (!spanTree.spanName.startsWith('hatchet.')) {
@@ -21,11 +21,9 @@ export function TaskRunTrace({ spans }: { spans: [OtelSpan, ...OtelSpan[]] }) {
     [spans],
   );
 
-  const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    setExpandedSpansIds(getSpanIdsOfAllHatchetSpans(traceSpanTree));
-  }, [traceSpanTree]);
+  const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>(
+    getSpanIdsOfAllHatchetSpans(traceSpanTree),
+  );
 
   if (!traceSpanTree) {
     return (
