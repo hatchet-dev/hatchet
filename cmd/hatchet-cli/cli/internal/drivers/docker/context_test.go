@@ -9,25 +9,11 @@ import (
 )
 
 func TestResolveDockerHostFromContext(t *testing.T) {
-	// save original HOME and DOCKER_HOST, restore after test
-	origHome := os.Getenv("HOME")
-	origDockerHost := os.Getenv("DOCKER_HOST")
-	defer func() {
-		os.Setenv("HOME", origHome)
-		if origDockerHost != "" {
-			os.Setenv("DOCKER_HOST", origDockerHost)
-		} else {
-			os.Unsetenv("DOCKER_HOST")
-		}
-	}()
-
-	// ensure DOCKER_HOST is not set for these tests
-	os.Unsetenv("DOCKER_HOST")
-
+	t.SetEnv("DOCKER_HOST", "")
 	t.Run("no docker config", func(t *testing.T) {
 		// Use a temp dir with no .docker folder
 		tmpDir := t.TempDir()
-		os.Setenv("HOME", tmpDir)
+		t.SetEnv("HOME", tmpDir)
 
 		result := resolveDockerHostFromContext()
 		if result != "" {
@@ -37,7 +23,7 @@ func TestResolveDockerHostFromContext(t *testing.T) {
 
 	t.Run("empty currentContext", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.Setenv("HOME", tmpDir)
+		t.SetEnv("HOME", tmpDir)
 
 		// create .docker/config.json with no currentContext
 		dockerDir := filepath.Join(tmpDir, ".docker")
@@ -57,7 +43,7 @@ func TestResolveDockerHostFromContext(t *testing.T) {
 
 	t.Run("default context", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.Setenv("HOME", tmpDir)
+		t.SetEnv("HOME", tmpDir)
 
 		// create .docker/config.json with currentContext = "default"
 		dockerDir := filepath.Join(tmpDir, ".docker")
@@ -77,7 +63,7 @@ func TestResolveDockerHostFromContext(t *testing.T) {
 
 	t.Run("non-default context with valid metadata", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.Setenv("HOME", tmpDir)
+		t.SetEnv("HOME", tmpDir)
 
 		contextName := "my-rancher"
 		expectedHost := "unix:///tmp/rancher.sock"
@@ -112,7 +98,7 @@ func TestResolveDockerHostFromContext(t *testing.T) {
 
 	t.Run("non-default context with missing metadata", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.Setenv("HOME", tmpDir)
+		t.SetEnv("HOME", tmpDir)
 
 		// create .docker/config.json with non-default context but no metadata
 		dockerDir := filepath.Join(tmpDir, ".docker")
@@ -132,7 +118,7 @@ func TestResolveDockerHostFromContext(t *testing.T) {
 
 	t.Run("invalid config json", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.Setenv("HOME", tmpDir)
+		t.SetEnv("HOME", tmpDir)
 
 		dockerDir := filepath.Join(tmpDir, ".docker")
 		if err := os.MkdirAll(dockerDir, 0755); err != nil {
@@ -151,7 +137,7 @@ func TestResolveDockerHostFromContext(t *testing.T) {
 
 	t.Run("tcp host endpoint", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.Setenv("HOME", tmpDir)
+		t.SetEnv("HOME", tmpDir)
 
 		contextName := "remote-docker"
 		expectedHost := "tcp://192.168.1.100:2375"
