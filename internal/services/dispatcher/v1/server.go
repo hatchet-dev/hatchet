@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -24,6 +25,7 @@ import (
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	d.analytics.Count(ctx, analytics.Worker, analytics.Register)
 	taskId, err := uuid.Parse(req.TaskId)
 
 	if err != nil {
@@ -156,6 +158,7 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatcher_ListenForDurableEventServer) error {
 	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	d.analytics.Count(server.Context(), analytics.Worker, analytics.Listen)
 
 	acks := &durableEventAcks{
 		acks: make(map[v1.TaskIdInsertedAtSignalKey]uuid.UUID),

@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -90,13 +91,11 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		}
 	}()
 
-	t.config.Analytics.Enqueue("user-invite:create",
-		user.ID.String(),
-		&tenantId,
-		nil,
+	t.config.Analytics.Enqueue(ctx.Request().Context(),
+		analytics.Invite, analytics.Create,
+		invite.ID.String(),
 		map[string]interface{}{
-			"invite_id": invite.ID.String(),
-			"role":      request.Body.Role,
+			"role": string(request.Body.Role),
 		},
 	)
 

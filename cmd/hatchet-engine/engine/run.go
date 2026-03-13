@@ -364,6 +364,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
+			dispatcher.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
@@ -380,6 +381,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
 			dispatcherv1.WithDispatcherId(d.DispatcherId()),
+			dispatcherv1.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
@@ -398,6 +400,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			ingestor.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
@@ -412,6 +415,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			admin.WithAnalytics(sc.Analytics),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
@@ -806,6 +810,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
+			dispatcher.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
@@ -823,6 +828,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
 			dispatcherv1.WithDispatcherId(d.DispatcherId()),
+			dispatcherv1.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
@@ -841,6 +847,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			ingestor.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
@@ -855,6 +862,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			admin.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {

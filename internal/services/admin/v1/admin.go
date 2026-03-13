@@ -59,8 +59,9 @@ func defaultAdminServiceOpts() *AdminServiceOpts {
 	logger := logger.NewDefaultLogger("v1_admin_service")
 
 	return &AdminServiceOpts{
-		v: v,
-		l: &logger,
+		v:         v,
+		analytics: analytics.NoOpAnalytics{},
+		l:         &logger,
 	}
 }
 

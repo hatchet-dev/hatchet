@@ -11,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -24,9 +25,10 @@ type AdminService interface {
 type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
-	repov1 v1.Repository
-	mqv1   msgqueue.MessageQueue
-	v      validator.Validator
+	repov1    v1.Repository
+	mqv1      msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
 
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
@@ -42,6 +44,7 @@ type AdminServiceOpts struct {
 	repov1                      v1.Repository
 	mqv1                        msgqueue.MessageQueue
 	v                           validator.Validator
+	analytics                   analytics.Analytics
 	localScheduler              *scheduler.Scheduler
 	localDispatcher             *dispatcher.DispatcherImpl
 	l                           *zerolog.Logger
@@ -55,8 +58,9 @@ func defaultAdminServiceOpts() *AdminServiceOpts {
 	logger := logger.NewDefaultLogger("admin_service")
 
 	return &AdminServiceOpts{
-		v: v,
-		l: &logger,
+		v:         v,
+		l:         &logger,
+		analytics: analytics.NoOpAnalytics{},
 	}
 }
 
@@ -114,6 +118,12 @@ func WithGrpcTriggerSlots(slots int) AdminServiceOpt {
 	}
 }
 
+func WithAnalytics(a analytics.Analytics) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.analytics = a
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -148,6 +158,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		repov1:          opts.repov1,
 		mqv1:            opts.mqv1,
 		v:               opts.v,
+		analytics:       opts.analytics,
 		localScheduler:  localScheduler,
 		localDispatcher: opts.localDispatcher,
 		l:               opts.l,

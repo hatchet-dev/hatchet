@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -17,31 +18,34 @@ import (
 
 type DispatcherService interface {
 	contracts.V1DispatcherServer
+	DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error
 }
 
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
 
-	repo          v1.Repository
-	mq            msgqueue.MessageQueue
-	v             validator.Validator
-	l             *zerolog.Logger
 	triggerWriter *trigger.TriggerWriter
 	pubBuffer     *msgqueue.MQPubBuffer
 	dispatcherId  uuid.UUID
 
 	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
+	repo               v1.Repository
+	mq                 msgqueue.MessageQueue
+	v                  validator.Validator
+	analytics          analytics.Analytics
+	l                  *zerolog.Logger
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)
 
 type DispatcherServiceOpts struct {
+	dispatcherId uuid.UUID
 	repo         v1.Repository
 	mq           msgqueue.MessageQueue
 	v            validator.Validator
+	analytics    analytics.Analytics
 	l            *zerolog.Logger
-	dispatcherId uuid.UUID
 }
 
 func defaultDispatcherServiceOpts() *DispatcherServiceOpts {
@@ -49,8 +53,9 @@ func defaultDispatcherServiceOpts() *DispatcherServiceOpts {
 	logger := logger.NewDefaultLogger("dispatcher")
 
 	return &DispatcherServiceOpts{
-		v: v,
-		l: &logger,
+		v:         v,
+		analytics: analytics.NoOpAnalytics{},
+		l:         &logger,
 	}
 }
 
@@ -84,7 +89,13 @@ func WithDispatcherId(id uuid.UUID) DispatcherServiceOpt {
 	}
 }
 
-func NewDispatcherService(fs ...DispatcherServiceOpt) (*DispatcherServiceImpl, error) {
+func WithAnalytics(a analytics.Analytics) DispatcherServiceOpt {
+	return func(opts *DispatcherServiceOpts) {
+		opts.analytics = a
+	}
+}
+
+func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error) {
 	opts := defaultDispatcherServiceOpts()
 
 	for _, f := range fs {
@@ -110,5 +121,6 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (*DispatcherServiceImpl, e
 		triggerWriter: tw,
 		pubBuffer:     pubBuffer,
 		dispatcherId:  opts.dispatcherId,
+		analytics:     opts.analytics,
 	}, nil
 }
