@@ -29,6 +29,8 @@ Methods:
 | `get_run_ref`                                | Get a reference to a workflow run.                                   |
 | `get_task_run`                               | Get task run details for a given task run ID.                        |
 | `aio_get_task_run`                           | Get task run details for a given task run ID.                        |
+| `reset_durable_task`                         | Reset a durable task from a specific checkpoint.                     |
+| `aio_reset_durable_task`                     | Reset a durable task from a specific checkpoint.                     |
 | `bulk_cancel_by_filters_with_pagination`     | Cancel runs matching the specified filters in chunks.                |
 | `bulk_replay_by_filters_with_pagination`     | Replay runs matching the specified filters in chunks.                |
 | `aio_bulk_cancel_by_filters_with_pagination` | Cancel runs matching the specified filters in chunks.                |
@@ -404,6 +406,44 @@ Returns:
 | Type            | Description                                     |
 | --------------- | ----------------------------------------------- |
 | `V1TaskSummary` | Task run details for the specified task run ID. |
+
+#### `reset_durable_task`
+
+Reset a durable task from a specific checkpoint, creating a new execution branch from that point.
+
+This method forks a durable task from a specific node in its event log. The task will re-execute from the specified checkpoint, creating a new branch in the durable event log. Use `node_id=1` to restart the entire task from the beginning ("replay as new").
+
+Parameters:
+
+| Name               | Type  | Description                                                                                     | Default    |
+| ------------------ | ----- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `task_external_id` | `str` | The external ID (UUID) of the durable task to reset. This is the workflow run ID for the task. | _required_ |
+| `node_id`          | `int` | The checkpoint node ID to replay from. Use `1` to replay from the beginning.                   | _required_ |
+
+Returns:
+
+| Type                        | Description                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `V1ForkDurableTaskResponse` | The response containing the `node_id` and `branch_id` of the new execution. |
+
+#### `aio_reset_durable_task`
+
+Reset a durable task from a specific checkpoint, creating a new execution branch from that point.
+
+This is the async version of `reset_durable_task`. It forks a durable task from a specific node in its event log. The task will re-execute from the specified checkpoint, creating a new branch in the durable event log. Use `node_id=1` to restart the entire task from the beginning ("replay as new").
+
+Parameters:
+
+| Name               | Type  | Description                                                                                     | Default    |
+| ------------------ | ----- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `task_external_id` | `str` | The external ID (UUID) of the durable task to reset. This is the workflow run ID for the task. | _required_ |
+| `node_id`          | `int` | The checkpoint node ID to replay from. Use `1` to replay from the beginning.                   | _required_ |
+
+Returns:
+
+| Type                        | Description                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `V1ForkDurableTaskResponse` | The response containing the `node_id` and `branch_id` of the new execution. |
 
 #### `bulk_cancel_by_filters_with_pagination`
 

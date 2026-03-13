@@ -149,6 +149,7 @@ Parameters:
 | `wait_for`              | `list[Condition \| OrGroup] \| None`         | A list of conditions that must be met before the task can run.                                                                                                                                                                          | `None`                  |
 | `skip_if`               | `list[Condition \| OrGroup] \| None`         | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                   | `None`                  |
 | `cancel_if`             | `list[Condition \| OrGroup] \| None`         | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                  | `None`                  |
+| `eviction_policy`       | `EvictionPolicy \| None`                     | Controls when this durable task can be evicted from a worker slot while waiting. Set to `None` to disable eviction entirely. See [Configuring Eviction Policies](/v1/task-eviction#configuring-eviction-policies) for details.          | `EvictionPolicy(ttl=timedelta(minutes=5), priority=0, allow_capacity_eviction=True)` |
 
 Returns:
 

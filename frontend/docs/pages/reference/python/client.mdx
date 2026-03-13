@@ -174,9 +174,24 @@ Parameters:
 | `backoff_max_seconds`         | `int \| None`                                                         | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                                                                                                             | `None`                  |
 | `default_filters`             | `list[DefaultFilter] \| None`                                         | A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.                                             | `None`                  |
 | `default_additional_metadata` | `JSONSerializableMapping \| None`                                     | A dictionary of additional metadata to attach to each run of this task by default.                                                                                                                                                                               | `None`                  |
+| `eviction_policy`             | `EvictionPolicy \| None`                                              | Controls when this durable task can be evicted from a worker slot while waiting. Set to `None` to disable eviction entirely.                                                                                                                                     | `EvictionPolicy(ttl=timedelta(minutes=5), priority=0, allow_capacity_eviction=True)` |
 
 Returns:
 
 | Type                                                                                                                                                                                                                                               | Description                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `Callable[[Callable[Concatenate[EmptyModel, DurableContext, P], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[Concatenate[TWorkflowInput, DurableContext, P], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
+
+#### `EvictionPolicy`
+
+Controls when a durable task can be evicted from a worker slot while waiting. Import from `hatchet_sdk.runnables.eviction`.
+
+Parameters:
+
+| Name                      | Type                  | Description                                                                                                | Default       |
+| ------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------- | ------------- |
+| `ttl`                     | `timedelta \| None`   | Maximum wait duration before the task becomes eligible for TTL-based eviction. Set to `None` to disable.    | `5 minutes`   |
+| `priority`                | `int`                 | Eviction priority. Lower values are evicted first when capacity pressure requires evicting tasks.           | `0`           |
+| `allow_capacity_eviction` | `bool`                | Whether this task can be evicted under slot pressure. Set to `False` to prevent capacity-based eviction.    | `True`        |
+
+See [Configuring Eviction Policies](/v1/task-eviction#configuring-eviction-policies) for usage details.

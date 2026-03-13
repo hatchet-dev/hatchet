@@ -88,3 +88,22 @@ Durable tasks must be **deterministic** between checkpoints. The task should alw
 1. **Only call methods available on the `DurableContext`**: a common way to introduce non-determinism is to call methods that produce side effects. If you need to fetch data from a database, call an API, or otherwise interact with external systems, spawn those operations as a **child task** using `RunChild`. Durable tasks are [evicted](/v1/task-eviction) at every wait point and replayed from checkpoint on resume. Any side effect not behind a checkpoint will re-execute.
 
 2. **When updating durable tasks, always guarantee backwards compatibility**: if you change the order of checkpoint operations in a durable task, you may break determinism. For example, if you call `SleepFor` followed by `WaitFor`, and then change the order of those calls, Hatchet will not be able to replay the task correctly. The task may have already been checkpointed at the first call to `SleepFor`, and changing the order makes that checkpoint meaningless.
+
+### Understanding Non-determinism Errors
+
+When a durable task violates determinism rules, Hatchet raises a `NonDeterminismError`. The error shows what operation was expected from checkpoint history versus what your code tried to perform.
+
+Example error:
+```
+non-determinism error in task abc123 at node 3:1
+  expected: waitFor(sleep(2s))
+  received: waitFor(sleep(4s))
+```
+
+This means the task called `sleepFor("2s")` at this checkpoint on a previous run, but on replay it's now calling `sleepFor("4s")`. Common causes:
+
+- **Changed sleep durations**: Changing a sleep from `"2s"` to `"4s"` while a task is in progress breaks replay because the checkpoint expects the original duration.
+- **Reordered operations**: Swapping the order of `sleepFor` and `waitForEvent` calls causes the checkpoint sequence to mismatch.
+- **Conditional logic changes**: Adding or removing branches that affect which checkpoint operations run can break in-flight tasks.
+
+To fix these errors, make sure code changes to durable tasks are backwards-compatible with in-flight runs, or wait for existing runs to complete before deploying.

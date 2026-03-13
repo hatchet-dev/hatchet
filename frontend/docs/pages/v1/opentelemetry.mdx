@@ -42,6 +42,19 @@ By default, Hatchet creates spans at the following points in the lifecycle of a 
 
 In addition, you'll get a handful of attributes set (prefixed by `hatchet.`) on the task run events, such as the task name and the worker ID, as well as success/failure states, and so on.
 
+### Durable Execution Spans
+
+[Durable tasks](/v1/durable-task-execution) create additional spans for durable context operations:
+
+| Span Name | When Created |
+| --------- | ------------ |
+| `hatchet.durable.wait_for` | When calling `aio_wait_for` to wait for external signals |
+| `hatchet.run_workflow` | When spawning a single child workflow from a durable task |
+| `hatchet.run_workflows` | When spawning multiple child workflows from a durable task |
+| `hatchet.durable.memo.{fn_name}` | When calling `aio_memo` to memoize a function result |
+
+These spans include attributes like `signal_key`, `num_conditions`, and `memo_fn_name` to help trace what your durable tasks are doing.
+
 Some other important notes:
 
 1. The instrumentor will automatically propagate the trace context between task runs, so if you spawn a task from another task, the child will correctly show up as a child of its parent in the trace waterfall.

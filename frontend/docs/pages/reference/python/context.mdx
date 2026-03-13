@@ -295,10 +295,13 @@ Bases: `Context`
 
 Methods:
 
-| Name            | Description                                                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `aio_wait_for`  | Durably wait for either a sleep or an event.                                                                               |
-| `aio_sleep_for` | Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition. |
+| Name                 | Description                                                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `aio_wait_for`       | Durably wait for either a sleep or an event.                                                                               |
+| `aio_sleep_for`      | Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition. |
+| `aio_wait_for_event` | Lightweight wrapper for waiting on user events. Pauses until an event arrives, then returns a structured `Event` object.   |
+| `memo`               | Memoize the result of a synchronous function based on dependencies.                                                        |
+| `aio_memo`           | Memoize the result of an async function based on dependencies.                                                             |
 
 ### Functions
 
@@ -321,12 +324,120 @@ Returns:
 
 Raises:
 
-| Type         | Description                                     |
-| ------------ | ----------------------------------------------- |
-| `ValueError` | If the durable event listener is not available. |
+| Type                   | Description                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ValueError`           | If the durable event listener is not available.                                                                                                                |
+| `NonDeterminismError`  | If the task is being replayed and the wait conditions don't match the original execution. See [Determinism Requirements](/v1/patterns/durable-task-execution#determinism-requirements). |
 
 #### `aio_sleep_for`
 
 Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
 For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+Parameters:
+
+| Name       | Type       | Description                                                                                   | Default    |
+| ---------- | ---------- | --------------------------------------------------------------------------------------------- | ---------- |
+| `duration` | `Duration` | The duration to sleep for. Can be a string (e.g. "5m"), a `timedelta`, or milliseconds as an int. | _required_ |
+
+Returns:
+
+| Type          | Description                                          |
+| ------------- | ---------------------------------------------------- |
+| `SleepResult` | A model containing the duration that was slept for.  |
+
+Raises:
+
+| Type                   | Description                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NonDeterminismError`  | If the task is being replayed and the sleep duration doesn't match the original execution. See [Determinism Requirements](/v1/patterns/durable-task-execution#determinism-requirements). |
+
+#### `aio_wait_for_event`
+
+Lightweight wrapper for waiting on user events. Pauses the durable task until an event with the specified key arrives (optionally filtered by a CEL expression), then returns a structured `Event` object containing the full event details.
+
+For more complex waiting conditions (like combining events with sleeps, or waiting for multiple events), use `ctx.aio_wait_for` directly.
+
+Parameters:
+
+| Name         | Type           | Description                                                                                             | Default    |
+| ------------ | -------------- | ------------------------------------------------------------------------------------------------------- | ---------- |
+| `key`        | `str`          | The event key to wait for.                                                                              | _required_ |
+| `expression` | `str \| None`  | Optional [CEL](https://github.com/google/cel-spec) expression to filter events based on their payload.  | `None`     |
+
+Returns:
+
+| Type    | Description                                           |
+| ------- | ----------------------------------------------------- |
+| `Event` | A model containing the full event details.            |
+
+#### `memo`
+
+Memoize the result of a synchronous function based on dependencies. If the function has been called before with the same dependencies, the cached result is returned without re-executing the function. This is useful for expensive operations that should only run once, even if the task is replayed after eviction.
+
+Parameters:
+
+| Name   | Type                 | Description                                                                                      | Default    |
+| ------ | -------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| `fn`   | `Callable[[], T]`    | A zero-argument callable that returns the value to memoize.                                      | _required_ |
+| `deps` | `list[Any]`          | A list of dependencies used to compute the cache key. If deps change, the function re-executes. | _required_ |
+
+Returns:
+
+| Type | Description                                                                   |
+| ---- | ----------------------------------------------------------------------------- |
+| `T`  | The result of the function, either freshly computed or retrieved from cache.  |
+
+Raises:
+
+| Type         | Description                                     |
+| ------------ | ----------------------------------------------- |
+| `ValueError` | If the durable event listener is not available. |
+
+#### `aio_memo`
+
+Memoize the result of an async function based on dependencies. This is the async version of `memo` for use with async functions.
+
+Parameters:
+
+| Name   | Type                        | Description                                                                                      | Default    |
+| ------ | --------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| `fn`   | `Callable[[], Awaitable[T]]`| A zero-argument async callable that returns the value to memoize.                                | _required_ |
+| `deps` | `list[Any]`                 | A list of dependencies used to compute the cache key. If deps change, the function re-executes. | _required_ |
+
+Returns:
+
+| Type | Description                                                                   |
+| ---- | ----------------------------------------------------------------------------- |
+| `T`  | The result of the function, either freshly computed or retrieved from cache.  |
+
+Raises:
+
+| Type         | Description                                     |
+| ------------ | ----------------------------------------------- |
+| `ValueError` | If the durable event listener is not available. |
+
+## Return Types
+
+### `Event`
+
+A Pydantic model representing an event received from `aio_wait_for_event`.
+
+| Field                 | Type                             | Description                                      |
+| --------------------- | -------------------------------- | ------------------------------------------------ |
+| `id`                  | `str`                            | The unique identifier for the event.             |
+| `tenant_id`           | `str`                            | The tenant ID.                                   |
+| `key`                 | `str`                            | The event key.                                   |
+| `payload`             | `JSONSerializableMapping`        | The event payload data.                          |
+| `seen_at`             | `datetime`                       | When the event was received by Hatchet.          |
+| `additional_metadata` | `JSONSerializableMapping \| None`| Optional additional metadata sent with the event.|
+| `scope`               | `str \| None`                    | Optional event scope.                            |
+
+### `SleepResult`
+
+A Pydantic model representing the result of `aio_sleep_for`.
+
+| Field      | Type        | Description                      |
+| ---------- | ----------- | -------------------------------- |
+| `duration` | `timedelta` | The duration that was slept for. |

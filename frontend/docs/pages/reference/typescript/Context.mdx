@@ -179,7 +179,7 @@ Parameters
 
 | Parameter     | Type       | Description                                                                                                                                                   |
 | ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `incrementBy` | `Duration` | The interval by which to increment the timeout. The interval should be specified in the format of '10s' for 10 seconds, '1m' for 1 minute, or '1d' for 1 day. |
+| `incrementBy` | `Duration` | The interval by which to increment the timeout. Accepts a string (`"10s"`, `"1m"`, `"1d"`), a DurationObject, or milliseconds as a number. |
 
 Returns
 
@@ -479,11 +479,20 @@ Parameters
 | `duration`         | `Duration` | The duration to sleep for. |
 | `readableDataKey?` | `string`   | -                          |
 
+The `Duration` type accepts:
+- A **string** in Go duration format: `"1h30m5s"`, `"10m"`, `"30s"`
+- A **DurationObject**: `{ hours: 1, minutes: 30, seconds: 5 }`
+- A **number** representing milliseconds: `5000` (for 5 seconds)
+
 Returns
 
 `Promise`\<`Record`\<`string`, `any`\>\>
 
 A promise that resolves when the sleep duration has elapsed.
+
+Throws
+
+[`NonDeterminismError`](#nondeterminismerror) if the sleep duration differs from the original execution during replay.
 
 <a id="waitfor"></a>
 
@@ -503,3 +512,71 @@ Returns
 `Promise`\<`Record`\<`string`, `any`\>\>
 
 A promise that resolves with the event that satisfied the conditions.
+
+Throws
+
+[`NonDeterminismError`](#nondeterminismerror) if the wait conditions differ from the original execution during replay.
+
+<a id="memo"></a>
+
+##### `memo()`
+
+Memoize the result of an async function based on dependencies. If the function has been called before with the same dependencies, the cached result is returned without re-executing the function. This is useful for expensive operations that should only run once, even if the task is replayed after eviction.
+
+Parameters
+
+| Parameter | Type            | Description                                                                                      |
+| --------- | --------------- | ------------------------------------------------------------------------------------------------ |
+| `fn`      | `() => Promise<R>` | A zero-argument async function that returns the value to memoize.                             |
+| `deps`    | `any[]`         | An array of dependencies used to compute the cache key. If deps change, the function re-executes. |
+
+Returns
+
+`Promise`\<`R`\>
+
+A promise that resolves with the result of the function, either freshly computed or retrieved from cache.
+
+---
+
+<a id="nondeterminismerror"></a>
+
+### NonDeterminismError
+
+Thrown when a durable task's execution path during replay differs from the original execution. Import from `@hatchet-dev/typescript-sdk/util/errors/non-determinism-error`.
+
+This error occurs when Hatchet detects that checkpoint operations (like `sleepFor`, `waitFor`, or `spawnChild`) are being called with different arguments or in a different order than they were during the original task execution.
+
+#### Properties
+
+| Property          | Type     | Description                                            |
+| ----------------- | -------- | ------------------------------------------------------ |
+| `taskExternalId`  | `string` | The ID of the affected task run.                       |
+| `invocationCount` | `number` | Which invocation of the task detected the error.       |
+| `nodeId`          | `number` | The checkpoint position where the mismatch was found.  |
+
+#### Handling NonDeterminismError
+
+You can catch this error to implement custom recovery logic:
+
+```typescript
+import { NonDeterminismError } from '@hatchet-dev/typescript-sdk/util/errors/non-determinism-error';
+
+const myDurableTask = hatchet.durableTask({
+  name: 'my-durable-task',
+  fn: async (input, ctx) => {
+    try {
+      await ctx.sleepFor('10s');
+    } catch (e) {
+      if (e instanceof NonDeterminismError) {
+        // Handle non-determinism, e.g., log and return early
+        console.error(`Non-determinism at node ${e.nodeId}`);
+        return { error: 'non-determinism detected' };
+      }
+      throw e;
+    }
+    return { success: true };
+  },
+});
+```
+
+See [Determinism Requirements](/v1/durable-task-execution#determinism-requirements) for best practices on writing deterministic durable tasks.
