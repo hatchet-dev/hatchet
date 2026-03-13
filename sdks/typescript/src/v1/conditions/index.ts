@@ -1,7 +1,3 @@
-/* eslint-disable no-param-reassign */
-/* eslint-disable no-shadow */
-/* eslint-disable max-classes-per-file */
-
 import { Condition, Action } from './base';
 import { Parent, ParentCondition } from './parent-condition';
 import { Sleep, SleepCondition } from './sleep-condition';
@@ -35,7 +31,9 @@ export class OrCondition {
  * );
  */
 export function Render(action?: Action, conditions?: Conditions | Conditions[]): Condition[] {
-  if (!conditions) return [];
+  if (!conditions) {
+    return [];
+  }
 
   if (!Array.isArray(conditions)) {
     return Render(action, [conditions]);

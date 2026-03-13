@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -53,16 +52,10 @@ func ToWorkflowVersionMeta(version *sqlcv1.WorkflowVersion, workflow *sqlcv1.Wor
 	return res
 }
 
-type WorkflowConcurrency struct {
-	MaxRuns       pgtype.Int4
-	LimitStrategy sqlcv1.NullV1ConcurrencyStrategy
-	Expression    string
-}
-
 func ToWorkflowVersion(
 	version *sqlcv1.WorkflowVersion,
 	workflow *sqlcv1.Workflow,
-	concurrency *WorkflowConcurrency,
+	workflowConcurrency []*sqlcv1.ListWorkflowConcurrencyByVersionIdRow,
 	crons []*sqlcv1.WorkflowTriggerCronRef,
 	events []*sqlcv1.WorkflowTriggerEventRef,
 	schedules []*sqlcv1.WorkflowTriggerScheduledRef,
@@ -154,13 +147,13 @@ func ToWorkflowVersion(
 	}
 
 	res.Triggers = &triggersResp
-	res.V1Concurrency = ToV1Concurrency(concurrency, stepConcurrency)
+	res.V1Concurrency = ToV1Concurrency(workflowConcurrency, stepConcurrency)
 
 	return res
 }
 
-func ToV1Concurrency(workflowConcurrency *WorkflowConcurrency, taskConcurrencies []*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow) *[]gen.ConcurrencySetting {
-	res := make([]gen.ConcurrencySetting, 0, len(taskConcurrencies)+1)
+func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVersionIdRow, taskConcurrencies []*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow) *[]gen.ConcurrencySetting {
+	res := make([]gen.ConcurrencySetting, 0, len(taskConcurrencies)+len(workflowConcurrencies))
 
 	for _, c := range taskConcurrencies {
 		res = append(res, gen.ConcurrencySetting{
@@ -172,11 +165,11 @@ func ToV1Concurrency(workflowConcurrency *WorkflowConcurrency, taskConcurrencies
 		})
 	}
 
-	if workflowConcurrency != nil && workflowConcurrency.LimitStrategy.Valid {
+	for _, wc := range workflowConcurrencies {
 		res = append(res, gen.ConcurrencySetting{
-			Expression:    workflowConcurrency.Expression,
-			LimitStrategy: gen.ConcurrencyLimitStrategy(workflowConcurrency.LimitStrategy.V1ConcurrencyStrategy),
-			MaxRuns:       workflowConcurrency.MaxRuns.Int32,
+			Expression:    wc.Expression,
+			LimitStrategy: gen.ConcurrencyLimitStrategy(wc.LimitStrategy),
+			MaxRuns:       wc.MaxRuns,
 			Scope:         gen.ConcurrencyScopeWORKFLOW,
 		})
 	}

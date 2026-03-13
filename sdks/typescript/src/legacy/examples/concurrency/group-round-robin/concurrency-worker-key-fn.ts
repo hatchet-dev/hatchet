@@ -28,12 +28,16 @@ const workflow: Workflow = {
         const { data } = ctx.workflowInput();
         const { signal } = ctx.controller;
 
-        if (signal.aborted) throw new Error('step1 was aborted');
+        if (signal.aborted) {
+          throw new Error('step1 was aborted');
+        }
 
         console.log('starting step1 and waiting 5 seconds...', data);
         await sleep(2000);
 
-        if (signal.aborted) throw new Error('step1 was aborted');
+        if (signal.aborted) {
+          throw new Error('step1 was aborted');
+        }
 
         // NOTE: the AbortController signal can be passed to many http libraries to cancel active requests
         // fetch(url, { signal })

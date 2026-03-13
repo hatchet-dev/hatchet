@@ -1,5 +1,3 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable no-nested-ternary */
 import HatchetError from '@util/errors/hatchet-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import {
@@ -10,7 +8,7 @@ import {
   GroupKeyActionEventType,
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
-import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
+import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
 import {
   CreateStepRateLimit,
   DesiredWorkerLabels,
@@ -38,6 +36,7 @@ import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
 import { SlotConfig } from '../../slot-types';
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
 export interface WorkerOpts {
@@ -327,7 +326,6 @@ export class InternalWorker {
       // Convert Zod schema to JSON Schema if provided
       let inputJsonSchema: Uint8Array | undefined;
       if (workflow.inputValidator) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const jsonSchema = zodToJsonSchema(workflow.inputValidator as any);
         inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
       }
@@ -386,7 +384,7 @@ export class InternalWorker {
           ),
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
-          conditions: taskConditionsToPb(task),
+          conditions: taskConditionsToPb(task, this.client.config.namespace),
           isDurable: durableTaskSet.has(task),
           slotRequests:
             task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
@@ -778,7 +776,7 @@ export class InternalWorker {
         future.promise.catch(() => undefined);
 
         // Cancel the future (rejects the wrapper); user code must still cooperate with AbortSignal.
-        future.cancel('Cancelled by worker'); // TODO this reason is nonsensical
+        future.cancel(CancellationReason.CANCELLED_BY_WORKER);
 
         // Track completion of the underlying work (not the cancelable wrapper).
         // Ensure this promise never throws into our supervision flow.
@@ -1028,18 +1026,19 @@ function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
 export function mapRateLimitPb(
   limits: CreateWorkflowTaskOpts<any, any>['rateLimits']
 ): CreateStepRateLimit[] {
-  if (!limits) return [];
+  if (!limits) {
+    return [];
+  }
 
   return limits.map((l) => {
     let key = l.staticKey;
     const keyExpression = l.dynamicKey;
 
     if (l.key !== undefined) {
-      // eslint-disable-next-line no-console
       console.warn(
         'key is deprecated and will be removed in a future release, please use staticKey instead'
       );
-      key = l.key;
+      ({ key } = l);
     }
 
     if (keyExpression !== undefined) {
@@ -1059,7 +1058,7 @@ export function mapRateLimitPb(
     let units: number | undefined;
     let unitsExpression: string | undefined;
     if (typeof l.units === 'number') {
-      units = l.units;
+      ({ units } = l);
     } else {
       if (!validateCelExpression(l.units)) {
         throw new Error(`Invalid CEL expression: ${l.units}`);
@@ -1100,7 +1099,7 @@ export function mapRateLimitPb(
 }
 
 // Helper function to validate CEL expressions
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 function validateCelExpression(_expr: string): boolean {
   // FIXME: this is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
   // For now, we'll just return true to mimic the behavior.

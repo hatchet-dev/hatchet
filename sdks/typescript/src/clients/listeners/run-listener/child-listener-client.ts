@@ -1,5 +1,5 @@
-// eslint-disable-next-line max-classes-per-file
 import { Channel, ClientFactory, Status } from 'nice-grpc';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { EventEmitter, on } from 'events';
 import {
   DispatcherClient as PbDispatcherClient,
@@ -19,7 +19,6 @@ import { RunGrpcPooledListener } from './pooled-child-listener-client';
 const DEFAULT_EVENT_LISTENER_RETRY_INTERVAL = 5; // seconds
 const DEFAULT_EVENT_LISTENER_RETRY_COUNT = 5;
 
-// eslint-disable-next-line no-shadow
 export enum RunEventType {
   STEP_RUN_EVENT_TYPE_STARTED = 'STEP_RUN_EVENT_TYPE_STARTED',
   STEP_RUN_EVENT_TYPE_COMPLETED = 'STEP_RUN_EVENT_TYPE_COMPLETED',
@@ -79,7 +78,7 @@ export class RunEventListener {
   q: Array<StepRunEvent> = [];
   eventEmitter = new EventEmitter();
 
-  pollInterval: any;
+  pollInterval: ReturnType<typeof setInterval> | undefined;
 
   constructor(client: DispatcherClient) {
     this.client = client;
@@ -124,27 +123,32 @@ export class RunEventListener {
   async listenLoop(listenerFactory: () => AsyncIterable<WorkflowEvent>) {
     let listener = listenerFactory();
 
-    try {
-      for await (const workflowEvent of listener) {
-        const eventType = resourceTypeMap[workflowEvent.resourceType]?.[workflowEvent.eventType];
-        if (eventType) {
-          this.emit({
-            type: eventType,
-            payload: workflowEvent.eventPayload,
-            resourceId: workflowEvent.resourceId,
-            workflowRunId: workflowEvent.workflowRunId,
-          });
+    while (true) {
+      try {
+        for await (const workflowEvent of listener) {
+          const eventType = resourceTypeMap[workflowEvent.resourceType]?.[workflowEvent.eventType];
+          if (eventType) {
+            this.emit({
+              type: eventType,
+              payload: workflowEvent.eventPayload,
+              resourceId: workflowEvent.resourceId,
+              workflowRunId: workflowEvent.workflowRunId,
+            });
+          }
         }
-      }
 
-      this.eventEmitter.emit('complete');
-    } catch (e: any) {
-      if (e.code === Status.CANCELLED) {
         this.eventEmitter.emit('complete');
         return;
-      }
-      if (e.code === Status.UNAVAILABLE) {
-        listener = await this.retrySubscribe(listenerFactory);
+      } catch (e: unknown) {
+        if (getGrpcErrorCode(e) === Status.CANCELLED) {
+          this.eventEmitter.emit('complete');
+          return;
+        }
+        if (getGrpcErrorCode(e) === Status.UNAVAILABLE) {
+          listener = await this.retrySubscribe(listenerFactory);
+        } else {
+          throw e;
+        }
       }
     }
   }
@@ -156,7 +160,7 @@ export class RunEventListener {
       try {
         await sleep(DEFAULT_EVENT_LISTENER_RETRY_INTERVAL);
         return listenerFactory();
-      } catch (e: any) {
+      } catch {
         retries += 1;
       }
     }
@@ -174,7 +178,6 @@ export class RunEventListener {
       this.eventEmitter.emit('event');
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _ of on(this.eventEmitter, 'event')) {
       while (this.q.length > 0) {
         const r = this.q.shift();

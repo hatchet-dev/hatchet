@@ -1,5 +1,3 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable max-classes-per-file */
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
 import { JsonObject } from '@bufbuild/protobuf';
@@ -480,7 +478,6 @@ export class V0Context<T, K = {}> {
       resp.forEach((ref, index) => {
         const wf = workflows[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = wf._standalone_task_name;
         }
         res.push(ref);
@@ -541,13 +538,7 @@ export class V0Context<T, K = {}> {
   ): Promise<WorkflowRunRef<P>> {
     const { workflowRunId, taskRunExternalId } = this.action;
 
-    let workflowName: string = '';
-
-    if (typeof workflow === 'string') {
-      workflowName = workflow;
-    } else {
-      workflowName = workflow.id;
-    }
+    const workflowName = typeof workflow === 'string' ? workflow : workflow.id;
 
     const name = applyNamespace(workflowName, this.v0.config.namespace);
 
@@ -653,9 +644,11 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
-    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+    const pbConditions = conditionsToPb(
+      Render(ConditionAction.CREATE, conditions),
+      this.v0.config.namespace
+    );
 
-    // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
     await this.v0.durableListener.registerDurableEvent({
       taskId: this.action.taskRunExternalId,
@@ -694,18 +687,19 @@ export interface CreateStep<T, K> extends z.infer<typeof CreateStepSchema> {
 }
 
 export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): CreateStepRateLimit[] {
-  if (!limits) return [];
+  if (!limits) {
+    return [];
+  }
 
   return limits.map((l) => {
     let key = l.staticKey;
     const keyExpression = l.dynamicKey;
 
     if (l.key !== undefined) {
-      // eslint-disable-next-line no-console
       console.warn(
         'key is deprecated and will be removed in a future release, please use staticKey instead'
       );
-      key = l.key;
+      ({ key } = l);
     }
 
     if (keyExpression !== undefined) {
@@ -725,7 +719,7 @@ export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): Creat
     let units: number | undefined;
     let unitsExpression: string | undefined;
     if (typeof l.units === 'number') {
-      units = l.units;
+      ({ units } = l);
     } else {
       if (!validateCelExpression(l.units)) {
         throw new Error(`Invalid CEL expression: ${l.units}`);

@@ -7,12 +7,6 @@ import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import {
   Tabs,
@@ -22,9 +16,8 @@ import {
 } from '@/components/v1/ui/tabs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
+import api, { queries } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
-import { useApiError } from '@/lib/hooks';
 import { relativeDate } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
@@ -33,12 +26,10 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useState } from 'react';
-import invariant from 'tiny-invariant';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
-  const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
@@ -59,22 +50,6 @@ export default function ExpandedWorkflow() {
   });
 
   const navigate = useNavigate();
-
-  const updateWorkflowMutation = useMutation({
-    mutationKey: ['workflow:update', workflowQuery?.data?.metadata.id],
-    mutationFn: async (data: WorkflowUpdateRequest) => {
-      invariant(workflowQuery.data);
-      const res = await api.workflowUpdate(workflowQuery?.data?.metadata.id, {
-        ...data,
-      });
-
-      return res.data;
-    },
-    onError: handleApiError,
-    onSuccess: () => {
-      workflowQuery.refetch();
-    },
-  });
 
   const deleteWorkflowMutation = useMutation({
     mutationKey: ['workflow:delete', workflowQuery?.data?.metadata.id],
@@ -143,56 +118,9 @@ export default function ExpandedWorkflow() {
                 {currVersion}
               </Badge>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger>
-                {workflow.isPaused ? (
-                  <Badge
-                    variant="inProgress"
-                    className="px-2"
-                    onClick={() => {
-                      updateWorkflowMutation.mutate({ isPaused: false });
-                    }}
-                  >
-                    Paused
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant="successful"
-                    className="px-2"
-                    onClick={() => {
-                      updateWorkflowMutation.mutate({ isPaused: true });
-                    }}
-                  >
-                    Active
-                  </Badge>
-                )}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem>
-                  {workflow.isPaused ? (
-                    <div
-                      onClick={() => {
-                        updateWorkflowMutation.mutate({
-                          isPaused: false,
-                        });
-                      }}
-                    >
-                      Unpause runs
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => {
-                        updateWorkflowMutation.mutate({
-                          isPaused: true,
-                        });
-                      }}
-                    >
-                      Pause runs
-                    </div>
-                  )}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Badge variant="successful" className="px-2">
+              Active
+            </Badge>
           </div>
           <WorkflowTags tags={workflow.tags || []} />
           <div className="flex flex-row gap-2">

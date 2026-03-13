@@ -34,6 +34,7 @@ func setupRepositoryWithTTL(t *testing.T, pool *pgxpool.Pool, ttl time.Duration,
 
 	repo, cleanup := NewRepository(
 		pool,
+		nil,
 		&logger,
 		0,
 		24*time.Hour,

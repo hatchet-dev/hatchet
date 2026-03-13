@@ -61,7 +61,6 @@ export function resolveWorkerOptions<T extends WorkerSlotOptions>(
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const testingExports = {
   resolveWorkerOptions,
 };
@@ -88,12 +87,11 @@ function getRequiredSlotTypes(
 
   for (const wf of workflows) {
     if (wf instanceof BaseWorkflowDeclaration) {
-      // eslint-disable-next-line dot-notation
       const tasks = wf.definition['_tasks'] as Array<{ slotRequests?: Record<string, number> }>;
       for (const task of tasks) {
         addFromRequests(task.slotRequests, SlotType.Default);
       }
-      // eslint-disable-next-line dot-notation
+
       const durableTasks = wf.definition['_durableTasks'] as Array<unknown>;
       if (durableTasks.length > 0) {
         required.add(SlotType.Durable);

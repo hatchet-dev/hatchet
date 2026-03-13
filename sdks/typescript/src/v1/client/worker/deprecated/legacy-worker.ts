@@ -6,8 +6,8 @@
  * non-durable workers, each registered with the legacy `slots` proto field.
  */
 
-/* eslint-disable no-underscore-dangle */
 import { Status } from 'nice-grpc';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { BaseWorkflowDeclaration } from '../../../declaration';
 import { HatchetClient } from '../../..';
 import { CreateWorkerOpts } from '../worker';
@@ -49,8 +49,8 @@ export async function isLegacyEngine(v1: HatchetClient): Promise<boolean> {
     }
 
     return false;
-  } catch (e: any) {
-    if (e?.code === Status.UNIMPLEMENTED) {
+  } catch (e: unknown) {
+    if (getGrpcErrorCode(e) === Status.UNIMPLEMENTED) {
       const logger = v1.config.logger('Worker', v1.config.log_level);
       emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
         errorDays: 180,

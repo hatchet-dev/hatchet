@@ -5,14 +5,13 @@ import {
   EventsServiceDefinition,
   PushEventRequest,
 } from '@hatchet/protoc/events/events';
-import HatchetError from '@util/errors/hatchet-error';
+import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
 
-// eslint-disable-next-line no-shadow
 export enum LogLevel {
   INFO = 'INFO',
   WARN = 'WARN',
@@ -28,7 +27,7 @@ export interface PushEventOptions {
 
 export interface EventWithMetadata<T> {
   payload: T;
-  additionalMetadata?: Record<string, any>;
+  additionalMetadata?: Record<string, unknown>;
   priority?: number;
   scope?: string;
 }
@@ -74,8 +73,8 @@ export class EventClient {
       const e = this.retrier(async () => this.client.push(req), this.logger);
       this.logger.info(`Event pushed: ${namespacedType}`);
       return e;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -109,8 +108,8 @@ export class EventClient {
       const res = this.retrier(async () => this.client.bulkPush(req), this.logger);
       this.logger.info(`Bulk events pushed for type: ${namespacedType}`);
       return res;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -119,7 +118,7 @@ export class EventClient {
     log: string,
     level?: LogLevel,
     taskRetryCount?: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ) {
     const createdAt = new Date();
 
@@ -138,9 +137,8 @@ export class EventClient {
         taskRetryCount,
         metadata: metadata ? JSON.stringify(metadata) : undefined,
       })
-      .catch((e: any) => {
-        // log a warning, but this is not a fatal error
-        this.logger.warn(`Could not put log: ${e.message}`);
+      .catch((e: unknown) => {
+        this.logger.warn(`Could not put log: ${getErrorMessage(e)}`);
       });
   }
 
@@ -165,9 +163,8 @@ export class EventClient {
           eventIndex: index,
         }),
       this.logger
-    ).catch((e: any) => {
-      // log a warning, but this is not a fatal error
-      this.logger.warn(`Could not put log: ${e.message}`);
+    ).catch((e: unknown) => {
+      this.logger.warn(`Could not put log: ${getErrorMessage(e)}`);
     });
   }
 

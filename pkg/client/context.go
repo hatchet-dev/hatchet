@@ -9,20 +9,24 @@ import (
 )
 
 type contextLoader struct {
-	// The token
-	Token string
+	Token   string
+	extraMD map[string]string
 }
 
-func newContextLoader(token string) *contextLoader {
+func newContextLoader(token string, extraMD map[string]string) *contextLoader {
 	return &contextLoader{
-		Token: token,
+		Token:   token,
+		extraMD: extraMD,
 	}
 }
 
 func (c *contextLoader) newContext(ctx context.Context) context.Context {
-	md := grpcMetadata.New(map[string]string{
+	pairs := map[string]string{
 		"authorization": "Bearer " + c.Token,
-	})
-
+	}
+	for k, v := range c.extraMD {
+		pairs[k] = v
+	}
+	md := grpcMetadata.New(pairs)
 	return grpcMetadata.NewOutgoingContext(ctx, md)
 }

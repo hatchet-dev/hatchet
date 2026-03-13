@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck
 	profileconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -30,7 +31,13 @@ func NewClientFromProfile(profile *profileconfig.Profile, logger *zerolog.Logger
 	}
 
 	// Create client with the config file and logger
-	return client.NewFromConfigFile(configFile, client.WithLogger(logger)) //nolint:staticcheck
+	return client.NewFromConfigFile( //nolint:staticcheck
+		configFile,
+		client.WithLogger(logger), //nolint:staticcheck
+		client.WithGRPCHeaders(map[string]string{
+			analytics.SourceMetadataKey: string(analytics.SourceCLI),
+		}),
+	)
 }
 
 // clientCmdConfig holds CLI flag values used to create a Hatchet client.

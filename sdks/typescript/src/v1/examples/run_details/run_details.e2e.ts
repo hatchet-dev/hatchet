@@ -64,7 +64,9 @@ describe('run-details-e2e', () => {
     const taskIdToName =
       (details.shape || []).reduce(
         (acc: Record<string, string>, s: { taskExternalId?: string; taskName?: string }) => {
-          if (s.taskExternalId && s.taskName) acc[s.taskExternalId] = s.taskName;
+          if (s.taskExternalId && s.taskName) {
+            acc[s.taskExternalId] = s.taskName;
+          }
           return acc;
         },
         {}

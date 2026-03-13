@@ -48,6 +48,13 @@ export default {
     },
   },
 
+  webhooks: {
+    title: "Webhooks",
+    theme: {
+      toc: true,
+    },
+  },
+
   workers: {
     title: "Workers",
     theme: {

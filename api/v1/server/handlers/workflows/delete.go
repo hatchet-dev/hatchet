@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -17,6 +18,13 @@ func (t *WorkflowService) WorkflowDelete(ctx echo.Context, request gen.WorkflowD
 	if err != nil {
 		return nil, err
 	}
+
+	t.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.Workflow, analytics.Delete,
+		workflow.Workflow.ID.String(),
+		nil,
+	)
 
 	return gen.WorkflowDelete204Response{}, nil
 }

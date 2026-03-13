@@ -23,7 +23,7 @@ const workflow: Workflow = {
       name: 'logger-step1',
       run: async (ctx) => {
         // log in a for loop
-        // eslint-disable-next-line no-plusplus
+
         for (let i = 0; i < 10; i++) {
           ctx.logger.info(`log message ${i}`);
           await sleep(200);

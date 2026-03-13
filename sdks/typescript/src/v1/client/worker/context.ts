@@ -7,8 +7,7 @@
  * - DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
  * @module Context
  */
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable max-classes-per-file */
+
 import {
   Priority,
   RunOpts,
@@ -30,7 +29,7 @@ import { HatchetClient } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
+import { NextStep } from '@hatchet/legacy/step';
 import { InternalWorker } from './worker-internal';
 import { Duration } from '../duration';
 // TODO remove this once we have a proper next step type
@@ -524,7 +523,6 @@ export class Context<T, K = {}> {
   ): Promise<WorkflowRunRef<P>[]> {
     const refs = await this.spawnBulk<Q, P>(children);
     refs.forEach((ref) => {
-      // eslint-disable-next-line no-param-reassign
       ref.defaultSignal = this.abortController.signal;
     });
     return refs;
@@ -561,7 +559,7 @@ export class Context<T, K = {}> {
   ): Promise<P> {
     const run = await this.spawn(workflow, input, options);
     // Ensure waiting for the child result aborts when this task is cancelled.
-    // eslint-disable-next-line no-param-reassign
+
     run.defaultSignal = this.abortController.signal;
     return run.output;
   }
@@ -714,7 +712,7 @@ export class Context<T, K = {}> {
 
       // `signal` must never be sent over the wire.
       const optsWithoutSignal: Omit<ChildRunOpts, 'signal'> & { signal?: never } = { ...opts };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       delete (optsWithoutSignal as any).signal;
 
       const resp = {
@@ -746,7 +744,6 @@ export class Context<T, K = {}> {
       resp.forEach((ref, index) => {
         const wf = workflows[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = wf._standalone_task_name;
         }
         res.push(ref);
@@ -776,13 +773,7 @@ export class Context<T, K = {}> {
     this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
-    let workflowName: string = '';
-
-    if (typeof workflow === 'string') {
-      workflowName = workflow;
-    } else {
-      workflowName = workflow.name;
-    }
+    const workflowName = typeof workflow === 'string' ? workflow : workflow.name;
 
     const name = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
 
@@ -849,9 +840,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     this.throwIfCancelled();
-    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+    const pbConditions = conditionsToPb(
+      Render(ConditionAction.CREATE, conditions),
+      this.v1.config.namespace
+    );
 
-    // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
     await this.v1.durableListener.registerDurableEvent({
       taskId: this.action.taskRunExternalId,

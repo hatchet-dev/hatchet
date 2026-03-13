@@ -5,9 +5,7 @@
  * - `TaskWorkflowDeclaration`, returned by `hatchet.task(...)`, which is a single standalone task that exposes the same execution helpers as a workflow.
  * @module Runnables
  */
-/* eslint-disable max-classes-per-file */
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable no-dupe-class-members */
+
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import {
   CronWorkflows,
@@ -36,7 +34,6 @@ import { parentRunContextManager } from './parent-run-context-vars';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
-// eslint-disable-next-line no-shadow
 export enum Priority {
   LOW = 1,
   MEDIUM = 2,
@@ -139,7 +136,6 @@ export const StickyStrategy = {
   HARD: 'hard',
 } as const;
 
-// eslint-disable-next-line no-redeclare
 export type StickyStrategy = (typeof StickyStrategy)[keyof typeof StickyStrategy];
 
 export type StickyStrategyInput = StickyStrategy | 'SOFT' | 'HARD' | 0 | 1;
@@ -427,15 +423,13 @@ export class BaseWorkflowDeclaration<
       resp.forEach((ref, index) => {
         const wf = input[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = wf._standalone_task_name;
         }
         if (_standaloneTaskName) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = _standaloneTaskName;
         }
         // Ensure result subscriptions inherit cancellation if no signal is provided explicitly.
-        // eslint-disable-next-line no-param-reassign
+
         ref.defaultSignal = inheritedSignal;
         res.push(ref);
       });
@@ -496,9 +490,13 @@ export class BaseWorkflowDeclaration<
       if (options?.returnExceptions) {
         const settled = await Promise.allSettled(refs.map((ref) => ref.result()));
         return settled.map((s) => {
-          if (s.status === 'fulfilled') return s.value;
+          if (s.status === 'fulfilled') {
+            return s.value;
+          }
           const { reason } = s;
-          if (reason instanceof Error) return reason;
+          if (reason instanceof Error) {
+            return reason;
+          }
           return new Error(Array.isArray(reason) ? reason.join('; ') : String(reason));
         }) as O[];
       }
@@ -909,7 +907,7 @@ export class TaskWorkflowDeclaration<
   O extends OutputType = void,
   GlobalInput extends Record<string, any> = {},
   GlobalOutput extends Record<string, any> = {},
-  MiddlewareBefore extends Record<string, any> = {},
+  _MiddlewareBefore extends Record<string, any> = {},
   MiddlewareAfter extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   _standalone_task_name: string;
@@ -1139,7 +1137,7 @@ export function CreateDurableTaskWorkflow<
 
   // Move the task from tasks to durableTasks
   if (taskWorkflow.definition._tasks.length > 0) {
-    const task = taskWorkflow.definition._tasks[0];
+    const [task] = taskWorkflow.definition._tasks;
     taskWorkflow.definition._tasks = [];
     taskWorkflow.definition._durableTasks.push(task);
   }

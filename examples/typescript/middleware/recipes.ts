@@ -37,7 +37,9 @@ type EncryptedInput = { encrypted?: EncryptedEnvelope };
 
 const e2eEncryption: HatchetMiddleware<EncryptedInput> = {
   before: (input) => {
-    if (!input.encrypted) return input;
+    if (!input.encrypted) {
+      return input;
+    }
     const { ciphertext, iv, tag } = input.encrypted;
     const decrypted = JSON.parse(decrypt(ciphertext, iv, tag));
     return { ...input, ...decrypted, encrypted: undefined };

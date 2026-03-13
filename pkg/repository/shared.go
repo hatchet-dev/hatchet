@@ -26,10 +26,11 @@ type taskExternalIdTenantIdTuple struct {
 }
 
 type sharedRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *sqlcv1.Queries
+	pool       *pgxpool.Pool
+	directPool *pgxpool.Pool // bypasses pgbouncer for DDL operations; may be nil
+	v          validator.Validator
+	l          *zerolog.Logger
+	queries    *sqlcv1.Queries
 
 	queueCache               *cache.Cache
 	stepExpressionCache      *cache.Cache
@@ -53,6 +54,7 @@ type sharedRepository struct {
 
 func newSharedRepository(
 	pool *pgxpool.Pool,
+	directPool *pgxpool.Pool,
 	v validator.Validator,
 	l *zerolog.Logger,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
@@ -94,6 +96,7 @@ func newSharedRepository(
 
 	s := &sharedRepository{
 		pool:                              pool,
+		directPool:                        directPool,
 		v:                                 v,
 		l:                                 l,
 		queries:                           queries,
@@ -117,11 +120,22 @@ func newSharedRepository(
 
 	s.m = tenantLimitRepository
 
-	return s, func() error {
-		queueCache.Stop()
-		stepExpressionCache.Stop()
-		concurrencyStrategyCache.Stop()
-		s.m.Stop()
-		return nil
+	return s, s.cleanup
+}
+
+// DDLPool returns the direct pool for DDL operations that cannot go through pgbouncer
+// (e.g. DETACH PARTITION CONCURRENTLY). Falls back to the main pool if no direct pool is configured.
+func (s *sharedRepository) DDLPool() *pgxpool.Pool {
+	if s.directPool != nil {
+		return s.directPool
 	}
+	return s.pool
+}
+
+func (s *sharedRepository) cleanup() error {
+	s.queueCache.Stop()
+	s.stepExpressionCache.Stop()
+	s.concurrencyStrategyCache.Stop()
+	s.m.Stop()
+	return nil
 }

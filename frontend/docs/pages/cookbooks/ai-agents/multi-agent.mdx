@@ -40,7 +40,7 @@ sequenceDiagram
 
 ## How it maps to Hatchet
 
-The orchestrator is a **[durable task](/v1/patterns/durable-task-execution)** running a reasoning loop via [child spawning](/v1/durable-workflows/child-spawning). Each specialist is a standalone durable task spawned as a child run. The orchestrator's LLM returns structured tool calls, and each tool name maps to a specialist task.
+The orchestrator is a **[durable task](/v1/patterns/durable-task-execution)** running a reasoning loop via [child spawning](/v1/child-spawning). Each specialist is a standalone durable task spawned as a child run. The orchestrator's LLM returns structured tool calls, and each tool name maps to a specialist task.
 
 Because each specialist call is a child run, the orchestrator's slot is freed while specialists execute. If the orchestrator dies mid-loop, it resumes from the last checkpoint without re-running completed specialist calls.
 
@@ -80,7 +80,7 @@ Each specialist is a standalone durable task with its own prompt and timeout. Th
 
 ### Orchestrator loop
 
-The orchestrator runs a [reasoning loop](/guides/ai-agents/reasoning-loop): call LLM, parse tool choice, [spawn specialist](/v1/durable-workflows/child-spawning), observe result, repeat. Context accumulates across iterations so later specialist calls have full history.
+The orchestrator runs a [reasoning loop](/guides/ai-agents/reasoning-loop): call LLM, parse tool choice, [spawn specialist](/v1/child-spawning), observe result, repeat. Context accumulates across iterations so later specialist calls have full history.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -163,10 +163,7 @@ Register all specialists and the orchestrator, then start the worker.
     When multiple specialists can work independently, spawn them in parallel
     within a single iteration.
   </Cards.Card>
-  <Cards.Card
-    title="Child Spawning"
-    href="/v1/durable-workflows/child-spawning"
-  >
+  <Cards.Card title="Child Spawning" href="/v1/child-spawning">
     The Hatchet primitive used to spawn specialist tasks from the orchestrator.
   </Cards.Card>
 </Cards>
@@ -174,6 +171,6 @@ Register all specialists and the orchestrator, then start the worker.
 ## Next Steps
 
 - [Durable Task Execution](/v1/patterns/durable-task-execution): understand checkpointing and replay for the orchestrator
-- [Child Spawning](/v1/durable-workflows/child-spawning): spawn specialist tasks from the orchestrator loop
+- [Child Spawning](/v1/child-spawning): spawn specialist tasks from the orchestrator loop
 - [Timeouts](/v1/timeouts): set execution timeouts on the orchestrator and each specialist
 - [Concurrency Control](/v1/concurrency): limit how many orchestrator runs execute in parallel

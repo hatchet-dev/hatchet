@@ -306,6 +306,10 @@ type ConfigFileRuntime struct {
 
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
+
+	// StreamEventBufferTimeout is the timeout duration for the stream event buffer in the dispatcher.
+	// This controls how long the buffer waits for out-of-order events before flushing them.
+	StreamEventBufferTimeout time.Duration `mapstructure:"streamEventBufferTimeout" json:"streamEventBufferTimeout,omitempty" default:"5s"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -351,7 +355,10 @@ type SentryConfigFile struct {
 }
 
 type AnalyticsConfigFile struct {
-	Posthog PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+	Posthog                PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+	AggregateEnabled       bool              `mapstructure:"aggregateEnabled" json:"aggregateEnabled,omitempty" default:"false"`
+	AggregateFlushInterval string            `mapstructure:"aggregateFlushInterval" json:"aggregateFlushInterval,omitempty" default:"60m"`
+	AggregateMaxKeys       int               `mapstructure:"aggregateMaxKeys" json:"aggregateMaxKeys,omitempty" default:"500"`
 }
 
 type PosthogConfigFile struct {
@@ -756,6 +763,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
 	_ = v.BindEnv("analytics.posthog.feApiHost", "SERVER_ANALYTICS_POSTHOG_FE_API_HOST")
 	_ = v.BindEnv("analytics.posthog.feApiKey", "SERVER_ANALYTICS_POSTHOG_FE_API_KEY")
+	_ = v.BindEnv("analytics.aggregateEnabled", "SERVER_ANALYTICS_AGGREGATE_ENABLED")
+	_ = v.BindEnv("analytics.aggregateFlushInterval", "SERVER_ANALYTICS_AGGREGATE_FLUSH_INTERVAL")
+	_ = v.BindEnv("analytics.aggregateMaxKeys", "SERVER_ANALYTICS_AGGREGATE_MAX_KEYS")
 
 	// pylon options
 	_ = v.BindEnv("pylon.enabled", "SERVER_PYLON_ENABLED")
@@ -917,6 +927,7 @@ func BindAllEnv(v *viper.Viper) {
 
 	// dispatcher options
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
+	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")

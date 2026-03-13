@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -52,6 +53,13 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 	if err != nil {
 		return nil, fmt.Errorf("failed to create webhook: %w", err)
 	}
+
+	w.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.Webhook, analytics.Create,
+		webhook.Name,
+		nil,
+	)
 
 	transformed := transformers.ToV1Webhook(webhook)
 

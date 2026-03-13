@@ -263,6 +263,40 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
+	// A small direct pool for DDL operations that cannot go through pgbouncer
+	// (e.g. DETACH PARTITION CONCURRENTLY which cannot run inside a transaction block).
+	var directPool *pgxpool.Pool
+
+	if cf.PgBouncerEnabled && cf.DirectDatabaseURL == "" {
+		return nil, fmt.Errorf("DATABASE_PGBOUNCER_ENABLED is set but DATABASE_DIRECT_URL is not; " +
+			"a direct PostgreSQL connection is required for DDL operations like DETACH PARTITION CONCURRENTLY")
+	}
+
+	if cf.DirectDatabaseURL != "" {
+		directConfig, err := pgxpool.ParseConfig(cf.DirectDatabaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse direct database url: %w", err)
+		}
+
+		if cf.DirectDatabaseMaxConns != 0 {
+			directConfig.MaxConns = int32(cf.DirectDatabaseMaxConns) // nolint: gosec
+		}
+
+		if cf.DirectDatabaseMinConns != 0 {
+			directConfig.MinConns = int32(cf.DirectDatabaseMinConns) // nolint: gosec
+		}
+
+		directConfig.MaxConnLifetime = cf.MaxConnLifetime
+		directConfig.MaxConnIdleTime = cf.MaxConnIdleTime
+		directConfig.AfterConnect = pgxpoolConnAfterConnect
+		directConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+
+		directPool, err = pgxpool.NewWithConfig(context.Background(), directConfig)
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to direct database: %w", err)
+		}
+	}
+
 	ch := cache.New(cf.CacheDuration)
 
 	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
@@ -305,6 +339,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	v1, cleanupV1 := repov1.NewRepository(
 		pool,
+		directPool,
 		&l,
 		cf.CacheDuration,
 		retentionPeriod,
@@ -330,10 +365,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			return cleanupV1()
 		},
-		Pool:      pool,
-		QueuePool: pool,
-		V1:        v1,
-		Seed:      cf.Seed,
+		Pool:       pool,
+		QueuePool:  pool,
+		DirectPool: directPool,
+		V1:         v1,
+		Seed:       cf.Seed,
 	}, nil
 
 }
@@ -485,47 +521,41 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	var feAnalyticsConfig *server.FePosthogConfig
 
 	if cf.Analytics.Posthog.Enabled {
-		analyticsEmitter, err = posthog.NewPosthogAnalytics(&posthog.PosthogAnalyticsOpts{
-			ApiKey:   cf.Analytics.Posthog.ApiKey,
-			Endpoint: cf.Analytics.Posthog.Endpoint,
+		flushInterval, _ := time.ParseDuration(cf.Analytics.AggregateFlushInterval)
+
+		phAnalytics, phErr := posthog.NewPosthogAnalytics(&posthog.PosthogAnalyticsOpts{
+			ApiKey:           cf.Analytics.Posthog.ApiKey,
+			Endpoint:         cf.Analytics.Posthog.Endpoint,
+			Logger:           &l,
+			AggregateEnabled: cf.Analytics.AggregateEnabled,
+			FlushInterval:    flushInterval,
+			MaxKeys:          int64(cf.Analytics.AggregateMaxKeys),
+			ServerURL:        cf.Runtime.ServerURL,
 		})
 
-		if cf.Analytics.Posthog.FeApiKey != "" && cf.Analytics.Posthog.FeApiHost != "" {
+		if phErr != nil {
+			return nil, nil, fmt.Errorf("could not create posthog analytics: %w", phErr)
+		}
 
+		phAnalytics.Start()
+		defer func() {
+			if err != nil {
+				if closeErr := phAnalytics.Close(); closeErr != nil {
+					l.Error().Err(closeErr).Msg("error closing analytics emitter during cleanup")
+				}
+			}
+		}()
+		analyticsEmitter = phAnalytics
+
+		if cf.Analytics.Posthog.FeApiKey != "" && cf.Analytics.Posthog.FeApiHost != "" {
 			feAnalyticsConfig = &server.FePosthogConfig{
 				ApiKey:  cf.Analytics.Posthog.FeApiKey,
 				ApiHost: cf.Analytics.Posthog.FeApiHost,
 			}
 		}
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create posthog analytics: %w", err)
-		}
 	} else {
 		analyticsEmitter = analytics.NoOpAnalytics{}
 	}
-
-	// Register analytics callbacks for user and tenant creation
-	dc.V1.User().RegisterCreateCallback(func(opts *repov1.UserCreateCallbackOpts) error {
-		// Determine provider from opts
-		provider := "basic"
-		if opts.CreateOpts.OAuth != nil {
-			provider = opts.CreateOpts.OAuth.Provider
-		}
-
-		analyticsEmitter.Enqueue(
-			"user:create",
-			opts.User.ID.String(),
-			nil,
-			map[string]interface{}{
-				"email":    opts.Email,
-				"name":     opts.Name.String,
-				"provider": provider,
-			},
-			nil,
-		)
-		return nil
-	})
 
 	dc.V1.Tenant().RegisterCreateCallback(func(tenant *sqlcv1.Tenant) error {
 		tenantId := tenant.ID
@@ -535,18 +565,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			"slug": tenant.Slug,
 		})
 
-		analyticsEmitter.Enqueue(
-			"tenant:create",
-			"system",
-			&tenantId,
-			map[string]interface{}{
-				"tenant_created": true,
-			},
-			map[string]interface{}{
-				"name": tenant.Name,
-				"slug": tenant.Slug,
-			},
-		)
 		return nil
 	})
 
@@ -689,10 +707,14 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
-
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
+
+		if closeErr := analyticsEmitter.Close(); closeErr != nil {
+			l.Error().Err(closeErr).Msg("error closing analytics emitter")
+		}
+
 		return nil
 	}
 

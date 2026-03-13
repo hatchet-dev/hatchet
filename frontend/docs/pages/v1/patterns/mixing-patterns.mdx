@@ -85,6 +85,6 @@ Durable tasks must be **deterministic** between checkpoints. The task should alw
 
 ### Rules for determinism
 
-1. **Only call methods available on the `DurableContext`**: a common way to introduce non-determinism is to call methods that produce side effects. If you need to fetch data from a database, call an API, or otherwise interact with external systems, spawn those operations as a **child task** using `RunChild`. Durable tasks are [evicted](/v1/durable-workflows/task-eviction) at every wait point and replayed from checkpoint on resume. Any side effect not behind a checkpoint will re-execute.
+1. **Only call methods available on the `DurableContext`**: a common way to introduce non-determinism is to call methods that produce side effects. If you need to fetch data from a database, call an API, or otherwise interact with external systems, spawn those operations as a **child task** using `RunChild`. Durable tasks are [evicted](/v1/task-eviction) at every wait point and replayed from checkpoint on resume. Any side effect not behind a checkpoint will re-execute.
 
 2. **When updating durable tasks, always guarantee backwards compatibility**: if you change the order of checkpoint operations in a durable task, you may break determinism. For example, if you call `SleepFor` followed by `WaitFor`, and then change the order of those calls, Hatchet will not be able to replay the task correctly. The task may have already been checkpointed at the first call to `SleepFor`, and changing the order makes that checkpoint meaningless.
