@@ -91,16 +91,3 @@ For example:
 In this example, the task initially would exceed its execution timeout. But before it does, we call the `refreshTimeout` method, which extends the timeout and allows it to complete. Importantly, refreshing a timeout is an additive operation - the new timeout is added to the existing timeout. So for instance, if the task originally had a timeout of `30s` and we call `refreshTimeout("15s")`, the new timeout will be `45s`.
 
 The task timeout can be refreshed multiple times within a task to further extend the timeout as needed.
-
-## Use Cases
-
-Timeouts are useful in a variety of scenarios:
-
-- Ensuring tasks don't run indefinitely and consume unnecessary resources
-- Failing tasks early if a critical task takes too long
-- Keeping tasks responsive by ensuring individual tasks complete in a timely manner
-- Preventing infinite loops or hung processes from blocking the entire system
-
-For example, if you have a task that makes an external API call, you may want to set a timeout to ensure the task fails quickly if the API is unresponsive, rather than waiting indefinitely.
-
-By carefully considering timeouts for your tasks, you can build more resilient and responsive systems with Hatchet.
