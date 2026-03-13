@@ -566,31 +566,50 @@ jobs:
       - name: Add go-deadlock dependency
         run: go get github.com/sasha-s/go-deadlock@v0.3.6
 
-      - name: Patch sync imports to use go-deadlock (sed)
+      - name: Patch sync.Mutex/RWMutex to use go-deadlock
         shell: bash
         run: |
           set -euo pipefail
 
-          # Replace ONLY the stdlib "sync" import with an alias that preserves `sync.X` call sites.
-          # - `import "sync"` -> `import sync "github.com/sasha-s/go-deadlock"`
-          # - within import blocks: `"sync"` -> `sync "github.com/sasha-s/go-deadlock"`
-          # NOTE: use `-i''` (no backup) for portability across GNU/BSD sed.
-          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 sed -i'' -E \
-            -e 's/^([[:space:]]*)import[[:space:]]+"sync"[[:space:]]*$/\1import sync "github.com\/sasha-s\/go-deadlock"/' \
-            -e 's/^([[:space:]]*)"sync"[[:space:]]*$/\1sync "github.com\/sasha-s\/go-deadlock"/'
+          # Find only files that actually use sync.Mutex or sync.RWMutex.
+          grep -rl --include='*.go' -E 'sync\.(RW)?Mutex' . | grep -v '/vendor/' > /tmp/mutex_files.txt || true
 
-          # Keep formatting/import grouping consistent after rewriting.
-          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 gofmt -w
+          if [ ! -s /tmp/mutex_files.txt ]; then
+            echo "No files with sync.Mutex or sync.RWMutex found"
+            exit 0
+          fi
 
-          # Evidence in CI logs that rewriting happened (or not).
+          echo "Patching $(wc -l < /tmp/mutex_files.txt) file(s):"
+          cat /tmp/mutex_files.txt
+
+          while IFS= read -r f; do
+            # Rewrite type references. RWMutex first so its 'Mutex' suffix isn't clobbered.
+            sed -i'' -E \
+              -e 's/sync\.RWMutex/deadlocksync.RWMutex/g' \
+              -e 's/sync\.Mutex/deadlocksync.Mutex/g' \
+              "$f"
+
+            # \bsync\. won't match inside "deadlocksync.", so this correctly detects
+            # remaining usages of other sync primitives (WaitGroup, Once, Map, etc.).
+            if grep -qE '\bsync\.' "$f"; then
+              # File still needs the sync package; insert deadlocksync import alongside it.
+              awk '
+                /^\t"sync"$/ { print; print "\tdeadlocksync \"github.com/sasha-s/go-deadlock\""; next }
+                { print }
+              ' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+            else
+              # sync package no longer needed; replace its import with the deadlocksync alias.
+              sed -i'' \
+                -e 's|^\t"sync"$|\tdeadlocksync "github.com/sasha-s/go-deadlock"|' \
+                -e 's|^import "sync"$|import deadlocksync "github.com/sasha-s/go-deadlock"|' \
+                "$f"
+            fi
+          done < /tmp/mutex_files.txt
+
+          xargs gofmt -w < /tmp/mutex_files.txt
+
           echo "Changed Go files (after patch):"
           git diff --name-only -- '*.go' || true
-
-          echo ""
-          echo "Contents of pkg/scheduling/v1/scheduler.go after patch:"
-          echo "----"
-          cat pkg/scheduling/v1/scheduler.go
-          echo "----"
 
       - name: Test (deadlock-instrumented)
         run: |

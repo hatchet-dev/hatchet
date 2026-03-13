@@ -27,7 +27,6 @@ class V1TaskRunStatus(str, Enum):
     """
     PENDING = "PENDING"
     RUNNING = "RUNNING"
-    EVICTED = "EVICTED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"

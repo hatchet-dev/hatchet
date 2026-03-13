@@ -135,15 +135,6 @@ const V1RunSummary = () => {
     );
   }
 
-  if (workflowRun.status === V1TaskStatus.EVICTED && workflowRun.finishedAt) {
-    timings.push(
-      <div key="finished" className="text-sm text-muted-foreground">
-        {'Evicted '}
-        <RelativeDate date={workflowRun.finishedAt} />
-      </div>,
-    );
-  }
-
   if (workflowRun.duration) {
     timings.push(
       <div key="duration" className="text-sm text-muted-foreground">

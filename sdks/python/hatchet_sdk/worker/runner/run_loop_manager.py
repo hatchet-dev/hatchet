@@ -22,6 +22,7 @@ class WorkerActionRunLoopManager:
         name: str,
         action_registry: dict[str, Task[Any, Any]],
         slots: int,
+        durable_slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
         event_queue: "Queue[ActionEvent]",
@@ -35,6 +36,7 @@ class WorkerActionRunLoopManager:
         self.name = name
         self.action_registry = action_registry
         self.slots = slots
+        self.durable_slots = durable_slots
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
@@ -97,6 +99,7 @@ class WorkerActionRunLoopManager:
             self.event_queue,
             self.config,
             self.slots,
+            self.durable_slots,
             self.handle_kill,
             self.action_registry,
             self.labels,

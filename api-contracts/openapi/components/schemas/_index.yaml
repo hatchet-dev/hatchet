@@ -356,6 +356,10 @@ V1RestoreTaskResponse:
   $ref: "./v1/task.yaml#/V1RestoreTaskResponse"
 V1TaskStatus:
   $ref: "./v1/task.yaml#/V1TaskStatus"
+V1RunningFilter:
+  $ref: "./v1/task.yaml#/V1RunningFilter"
+V1RunningDetailCount:
+  $ref: "./v1/task.yaml#/V1RunningDetailCount"
 V1TaskRunMetrics:
   $ref: "./v1/task.yaml#/V1TaskRunMetrics"
 V1TaskPointMetric:

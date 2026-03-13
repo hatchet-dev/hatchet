@@ -31,8 +31,9 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
+import { z } from 'zod';
 import { InternalWorker } from './worker-internal';
-import { Duration, durationToString } from '../duration';
+import { Duration, durationToMs, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { ActionKey } from './eviction/eviction-cache';
 import { supportsEviction } from './engine-version';
@@ -42,6 +43,11 @@ import { waitForPreEviction } from './deprecated/pre-eviction';
 type TriggerData = Record<string, Record<string, any>>;
 
 type ChildRunOpts = RunOpts & { key?: string; sticky?: boolean };
+
+export interface SleepResult {
+  /** The sleep duration in milliseconds. */
+  durationMs: number;
+}
 
 type LogExtra = {
   extra?: any;
@@ -880,10 +886,34 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * Pauses execution for the specified duration.
    * Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
    * @param duration - The duration to sleep for.
-   * @returns A promise that resolves when the sleep duration has elapsed.
+   * @returns A promise that resolves with a SleepResult when the sleep duration has elapsed.
    */
-  async sleepFor(duration: Duration, readableDataKey?: string) {
-    return this.waitFor({ sleepFor: duration, readableDataKey });
+  async sleepFor(duration: Duration, readableDataKey?: string): Promise<SleepResult> {
+    const res = await this.waitFor({ sleepFor: duration, readableDataKey });
+
+    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const [firstMatch] = Object.values(matches);
+
+    if (!firstMatch || firstMatch.length === 0) {
+      return { durationMs: durationToMs(duration) };
+    }
+
+    const [sleep] = firstMatch;
+    const sleepDuration: string | undefined = sleep?.sleep_duration;
+
+    if (sleepDuration) {
+      const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
+      const match = sleepDuration.match(DURATION_RE);
+      if (match) {
+        const [, h, m, s] = match;
+        const ms =
+          (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) *
+          1000;
+        return { durationMs: ms };
+      }
+    }
+
+    return { durationMs: durationToMs(duration) };
   }
 
   /**
@@ -930,6 +960,76 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       );
       return result.payload || {};
     });
+  }
+
+  /**
+   * Lightweight wrapper for waiting for a user event. Allows for shorthand usage of
+   * `ctx.waitFor` when specifying a user event condition.
+   *
+   * For more complicated conditions, use `ctx.waitFor` directly.
+   *
+   * @param key - The event key to wait for.
+   * @param expression - An optional CEL expression to filter events.
+   * @param payloadSchema - An optional Zod schema to validate and parse the event payload.
+   * @returns The event payload, validated against the schema if provided.
+   */
+  async waitForEvent<T extends z.ZodTypeAny>(
+    key: string,
+    expression?: string,
+    payloadSchema?: T
+  ): Promise<z.infer<T>>;
+  async waitForEvent(key: string, expression?: string): Promise<Record<string, any>>;
+  async waitForEvent(
+    key: string,
+    expression?: string,
+    payloadSchema?: z.ZodTypeAny
+  ): Promise<unknown> {
+    const res = await this.waitFor({ eventKey: key, expression });
+
+    // The engine returns an object like:
+    // {"CREATE": {"signal_key_1": [{"id": ..., "data": {...}}]}}
+    // Since we have a single match, the list will only have one item.
+    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const [firstMatch] = Object.values(matches);
+
+    if (!firstMatch || firstMatch.length === 0) {
+      if (payloadSchema) {
+        return payloadSchema.parse({});
+      }
+      return {};
+    }
+
+    const [rawPayload] = firstMatch;
+
+    if (payloadSchema) {
+      return payloadSchema.parse(rawPayload);
+    }
+
+    return rawPayload;
+  }
+
+  /**
+   * Durably sleep until a specific timestamp.
+   * Uses the memoized `now()` to compute the remaining duration, then delegates to `sleepFor`.
+   *
+   * @param wakeAt - The timestamp to sleep until.
+   * @returns A SleepResult containing the actual duration slept.
+   */
+  async sleepUntil(wakeAt: Date): Promise<SleepResult> {
+    const now = await this.now();
+    const remainingMs = wakeAt.getTime() - now.getTime();
+    return this.sleepFor(`${Math.max(0, Math.ceil(remainingMs / 1000))}s`);
+  }
+
+  /**
+   * Get the current timestamp, memoized across replays. Returns the same Date on every replay of the same task run.
+   * @returns The memoized current timestamp.
+   */
+  async now(): Promise<Date> {
+    const result = await this.memo(async () => {
+      return { ts: new Date().toISOString() };
+    }, ['now']);
+    return new Date(result.ts);
   }
 
   private async _waitForPreEviction(
@@ -1071,7 +1171,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param deps - Dependency values that form the memoization key.
    * @returns The memoized value, either from durable storage or freshly computed.
    */
-  async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
+  private async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
     this.throwIfCancelled();
 
     if (!this.supportsEviction) {

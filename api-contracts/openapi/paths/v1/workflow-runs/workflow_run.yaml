@@ -107,6 +107,12 @@ listWorkflowRuns:
         required: false
         schema:
           type: boolean
+      - description: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        in: query
+        name: running_filter
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
     responses:
       "200":
         content:
@@ -247,6 +253,12 @@ listWorkflowRunExternalIds:
             format: uuid
             minLength: 36
             maxLength: 36
+      - description: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        in: query
+        name: running_filter
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
     responses:
       "200":
         content:

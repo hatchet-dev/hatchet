@@ -87,6 +87,7 @@ class Runner:
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int,
+        durable_slots: int,
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
         labels: dict[str, str | int] | None,
@@ -98,6 +99,7 @@ class Runner:
         self.engine_version = engine_version
 
         self.slots = slots
+        self.durable_slots = durable_slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
         self.cancellations = BoundedDict[str, bool](maxsize=1000)
@@ -176,7 +178,7 @@ class Runner:
                     self.durable_event_listener.ensure_started(action.worker_id)
                 )
                 self.durable_eviction_manager = DurableEvictionManager(
-                    durable_slots=self.slots,
+                    durable_slots=self.durable_slots,
                     cancel_local=self._eviction_cancel_callback,
                     request_eviction_with_ack=self._eviction_request,
                 )

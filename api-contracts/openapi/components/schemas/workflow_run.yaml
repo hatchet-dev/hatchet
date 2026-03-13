@@ -488,7 +488,6 @@ V1TaskRunStatus:
   enum:
     - PENDING
     - RUNNING
-    - EVICTED
     - COMPLETED
     - FAILED
     - CANCELLED

@@ -3,6 +3,7 @@ import json
 from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Annotated, Literal, cast
 
 import grpc.aio
@@ -35,6 +36,7 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerCo
 from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.cache import TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
@@ -167,9 +169,9 @@ class DurableEventListener:
         # future in _pending_callbacks. This happens when the server delivers
         # an entry_completed between the event ack and the wait_for_callback
         # call (e.g. an already-satisfied sleep delivered via polling).
-        self._buffered_completions: dict[
+        self._buffered_completions: TTLCache[
             PendingCallback, DurableTaskEventLogEntryResult
-        ] = {}
+        ] = TTLCache(ttl=timedelta(seconds=10))
 
         self._receive_task: asyncio.Task[None] | None = None
         self._send_task: asyncio.Task[None] | None = None
@@ -224,6 +226,7 @@ class DurableEventListener:
 
     async def stop(self) -> None:
         self._running = False
+        self._buffered_completions.stop_eviction_job()
 
         self._fail_all_pending(Exception("DurableListener stopped"))
 

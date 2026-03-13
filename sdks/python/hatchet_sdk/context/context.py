@@ -4,11 +4,11 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 from warnings import warn
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
@@ -52,8 +52,16 @@ from hatchet_sdk.runnables.types import (
     ValidTaskReturnType,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+from hatchet_sdk.utils.timedelta_to_expression import (
+    Duration,
+    expr_to_timedelta,
+    timedelta_to_expr,
+)
+from hatchet_sdk.utils.typing import (
+    DataclassInstance,
+    JSONSerializableMapping,
+    LogLevel,
+)
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
     aio_durable_eviction_wait,
 )
@@ -65,6 +73,17 @@ TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
+
+
+TPayload = TypeVar("TPayload", bound=BaseModel | DataclassInstance | dict[str, Any])
+
+
+class SleepResult(BaseModel):
+    duration: timedelta
+
+
+class MemoNowResult(BaseModel):
+    ts: datetime
 
 
 def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
@@ -607,7 +626,7 @@ class DurableContext(Context):
 
         return result.payload or {}
 
-    async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
+    async def aio_sleep_for(self, duration: Duration) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
@@ -616,10 +635,84 @@ class DurableContext(Context):
 
         wait_index = self._increment_wait_index()
 
-        return await self.aio_wait_for(
+        res = await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
+
+        ## lots of implicit use of engine semantics / internal logic here.
+        ## the engine returns an object like this:
+        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
+        ## since we have a single match we're looking for, we know that
+        ## the list of matches will only have one item, so we can extract and parse it
+        matches: dict[str, list[dict[str, Any]]] = res.get("CREATE", {})
+        _, raw_matches = next(iter(matches.items()))
+        sleep = raw_matches[0]
+
+        return SleepResult(
+            duration=expr_to_timedelta(
+                sleep.get("sleep_duration", timedelta_to_expr(duration))
+            )
+        )
+
+    @overload
+    async def aio_wait_for_event(
+        self,
+        key: str,
+        expression: str | None = None,
+        *,
+        payload_validator: type[TPayload],
+    ) -> TPayload: ...
+
+    @overload
+    async def aio_wait_for_event(
+        self,
+        key: str,
+        expression: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    async def aio_wait_for_event(
+        self,
+        key: str,
+        expression: str | None = None,
+        *,
+        payload_validator: type[Any] | None = None,
+    ) -> Any:
+        """
+        Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
+
+        For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+        :param key: The event key to wait for.
+        :param expression: An optional CEL expression to filter events.
+        :param payload_validator: An optional type (e.g. a Pydantic model, dataclass, or TypedDict) to validate the event payload against. If provided, the payload will be validated and returned as an instance of this type.
+
+        :return: The payload of the event, validated against the provided payload_validator if it was given, or as a raw dictionary if no payload_validator was provided.
+        """
+
+        wait_index = self._increment_wait_index()
+
+        result = await self.aio_wait_for(
+            f"event:{key}-{wait_index}",
+            UserEventCondition(event_key=key, expression=expression),
+        )
+
+        ## lots of implicit use of engine semantics / internal logic here.
+        ## the engine returns an object like this:
+        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
+        ## since we have a single match we're looking for, we know that
+        ## the list of matches will only have one item, so we can extract and parse it
+        matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
+        _, raw_matches = next(iter(matches.items()))
+        raw_payload = raw_matches[0]
+
+        if payload_validator is not None:
+            adapter = TypeAdapter(payload_validator)
+            return adapter.validate_python(
+                raw_payload, context=HATCHET_PYDANTIC_SENTINEL
+            )
+
+        return raw_payload
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
     ## Keep the signature in sync with the instrumentor wrapper.
@@ -689,7 +782,7 @@ class DurableContext(Context):
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
     ## Keep the signature in sync with the instrumentor wrapper.
-    async def aio_memo(
+    async def _aio_memo(
         self,
         fn: Callable[PMemo, Awaitable[TMemo]],
         result_validator: type[TMemo],
@@ -764,3 +857,32 @@ class DurableContext(Context):
             )
 
         return result
+
+    async def _now(self) -> MemoNowResult:
+        ts = await asyncio.to_thread(datetime.now, UTC)
+        return MemoNowResult(ts=ts)
+
+    async def aio_now(self) -> datetime:
+        """
+        Get the current timestamp. This is a wrapper around `datetime.now()` that is memoized using durable storage, so that it will return the same timestamp across replays of the same task run.
+
+        :return: The current timestamp, memoized across replays of the same task run.
+        """
+        now = await self._aio_memo(
+            self._now,
+            MemoNowResult,
+        )
+
+        return now.ts
+
+    async def aio_sleep_until(self, wake_at: datetime) -> SleepResult:
+        """
+        Durably sleep until a specific timestamp.
+
+        :param wake_at: The timestamp to sleep until.
+
+        :return: A SleepResult containing the actual duration slept, which may be different from the intended duration if the workflow was evicted and resumed.
+        """
+        now = await self.aio_now()
+
+        return await self.aio_sleep_for(wake_at - now)

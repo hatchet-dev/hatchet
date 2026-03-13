@@ -43,6 +43,7 @@ from examples.durable.worker import (
     durable_non_determinism,
     durable_replay_reset,
     memo_task,
+    memo_now_caching,
 )
 from examples.durable_event.worker import (
     durable_event_task,
@@ -155,6 +156,7 @@ def main() -> None:
             non_evictable_sleep,
             eviction_child_task,
             eviction_bulk_child_task,
+            memo_now_caching,
         ],
         lifespan=lifespan,
     )

@@ -11,12 +11,15 @@ from __future__ import annotations
 import asyncio
 import signal
 import time
+from subprocess import Popen
+from typing import Any
 
 import psutil
 import pytest
 
 from examples.durable_eviction.worker import (
     EVENT_KEY,
+    capacity_evictable_sleep,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
     evictable_sleep,
@@ -28,7 +31,6 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from tests.worker_fixture import hatchet_worker
 
 POLL_INTERVAL = 0.2
 MAX_POLLS = 150
@@ -49,6 +51,24 @@ async def _poll_until_status(
         await asyncio.sleep(POLL_INTERVAL)
 
     return await hatchet.runs.aio_get_details(workflow_run_id)
+
+
+async def _poll_until_evicted(
+    hatchet: Hatchet,
+    workflow_run_id: str,
+) -> WorkflowRunDetail:
+    """Poll gRPC run details until any task has is_evicted=True (or timeout)."""
+    for _ in range(MAX_POLLS):
+        details = await hatchet.runs.aio_get_details(workflow_run_id)
+        if any(t.is_evicted for t in details.task_runs.values()):
+            return details
+        await asyncio.sleep(POLL_INTERVAL)
+
+    return await hatchet.runs.aio_get_details(workflow_run_id)
+
+
+def _has_evicted_task(details: WorkflowRunDetail) -> bool:
+    return any(t.is_evicted for t in details.task_runs.values())
 
 
 def _get_task_id(details: WorkflowRunDetail) -> str:
@@ -76,10 +96,9 @@ async def test_non_evictable_task_not_evicted(hatchet: Hatchet) -> None:
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
     await asyncio.sleep(7)  # Past EVICTION_TTL (5s), task still sleeping (10s total)
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-    statuses = {t.status for t in details.task_runs.values()}
-    assert (
-        V1TaskStatus.EVICTED not in statuses
-    ), f"Non-evictable task should never be EVICTED, got: {statuses}"
+    assert not _has_evicted_task(
+        details
+    ), f"Non-evictable task should never be evicted, got is_evicted=True"
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
@@ -92,14 +111,9 @@ async def test_evictable_task_is_evicted(hatchet: Hatchet) -> None:
     ref = evictable_sleep.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
 
-    assert (
-        V1TaskStatus.EVICTED in statuses
-    ), f"Expected EVICTED after eviction, got: {statuses}"
+    assert _has_evicted_task(details), f"Expected is_evicted=True after eviction"
 
 
 @requires_durable_eviction
@@ -109,9 +123,7 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
     ref = evictable_sleep.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
     with hatchet.runs.client() as client:
@@ -135,9 +147,7 @@ async def test_evictable_task_restore_completes(hatchet: Hatchet) -> None:
     ref = evictable_sleep.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
     with hatchet.runs.client() as client:
@@ -156,14 +166,9 @@ async def test_evictable_wait_for_event_is_evicted(hatchet: Hatchet) -> None:
     ref = evictable_wait_for_event.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
 
-    assert (
-        V1TaskStatus.EVICTED in statuses
-    ), f"Expected EVICTED for wait_for_event, got: {statuses}"
+    assert _has_evicted_task(details), f"Expected is_evicted=True for wait_for_event"
 
 
 @requires_durable_eviction
@@ -173,9 +178,7 @@ async def test_evictable_wait_for_event_restore(hatchet: Hatchet) -> None:
     ref = evictable_wait_for_event.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
     with hatchet.runs.client() as client:
@@ -196,14 +199,9 @@ async def test_evictable_child_spawn_is_evicted(hatchet: Hatchet) -> None:
     ref = evictable_child_spawn.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
 
-    assert (
-        V1TaskStatus.EVICTED in statuses
-    ), f"Expected EVICTED for child_spawn, got: {statuses}"
+    assert _has_evicted_task(details), f"Expected is_evicted=True for child_spawn"
 
 
 @requires_durable_eviction
@@ -213,9 +211,7 @@ async def test_evictable_child_spawn_restore(hatchet: Hatchet) -> None:
     ref = evictable_child_spawn.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
     with hatchet.runs.client() as client:
@@ -238,9 +234,7 @@ async def test_evictable_child_spawn_restore_completes(hatchet: Hatchet) -> None
     ref = evictable_child_spawn.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
     with hatchet.runs.client() as client:
@@ -259,9 +253,7 @@ async def test_evictable_child_bulk_spawn_restore_completes(hatchet: Hatchet) ->
     eviction_count = 0
     for _ in range(3):
         await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-        details = await _poll_until_status(
-            hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-        )
+        details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
         eviction_count += 1
         task_id = _get_task_id(details)
         with hatchet.runs.client() as client:
@@ -285,11 +277,8 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
 
     # --- first eviction cycle ---
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
-    assert V1TaskStatus.EVICTED in statuses, f"First eviction failed: {statuses}"
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
+    assert _has_evicted_task(details), f"First eviction failed"
 
     task_id = _get_task_id(details)
     with hatchet.runs.client() as client:
@@ -297,11 +286,8 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
 
     # --- second eviction cycle ---
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
-    assert V1TaskStatus.EVICTED in statuses, f"Second eviction failed: {statuses}"
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
+    assert _has_evicted_task(details), f"Second eviction failed"
 
     task_id = _get_task_id(details)
     with hatchet.runs.client() as client:
@@ -315,28 +301,33 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
 
 
 @requires_durable_eviction
-@pytest.mark.asyncio(loop_scope="session")
-async def test_graceful_termination_evicts_waiting_runs(hatchet: Hatchet) -> None:
-    """When a worker receives SIGTERM, all waiting durable runs should be evicted."""
-    command = ["poetry", "run", "python", "-m", "examples.durable_eviction.worker"]
-    with hatchet_worker(command, healthcheck_port=8004) as proc:
-        ref = evictable_sleep.run_no_wait()
-
-        await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-
-        parent = psutil.Process(proc.pid)
-        for child in parent.children(recursive=True):
-            child.send_signal(signal.SIGTERM)
-        parent.send_signal(signal.SIGTERM)
-
-        details = await _poll_until_status(
-            hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
+@pytest.mark.parametrize(
+    "on_demand_worker",
+    [
+        (
+            ["poetry", "run", "python", "-m", "examples.durable_eviction.worker"],
+            8004,
         )
-        statuses = {t.status for t in details.task_runs.values()}
+    ],
+    indirect=True,
+)
+@pytest.mark.asyncio(loop_scope="session")
+async def test_graceful_termination_evicts_waiting_runs(
+    hatchet: Hatchet, on_demand_worker: Popen[Any]
+) -> None:
+    """When a worker receives SIGTERM, all waiting durable runs should be evicted."""
+    ref = evictable_sleep.run_no_wait()
 
-        assert (
-            V1TaskStatus.EVICTED in statuses
-        ), f"Expected EVICTED after SIGTERM, got: {statuses}"
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+
+    parent = psutil.Process(on_demand_worker.pid)
+    for child in parent.children(recursive=True):
+        child.send_signal(signal.SIGTERM)
+    parent.send_signal(signal.SIGTERM)
+
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
+
+    assert _has_evicted_task(details), f"Expected is_evicted=True after SIGTERM"
 
 
 @requires_durable_eviction
@@ -346,7 +337,7 @@ async def test_eviction_plus_replay(hatchet: Hatchet) -> None:
     ref = evictable_sleep.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED)
+    await _poll_until_evicted(hatchet, ref.workflow_run_id)
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
 
@@ -361,11 +352,8 @@ async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
     ref = evictable_sleep.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
-    statuses = {t.status for t in details.task_runs.values()}
-    assert V1TaskStatus.EVICTED in statuses, f"Expected EVICTED, got: {statuses}"
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
+    assert _has_evicted_task(details), f"Expected is_evicted=True"
 
     await hatchet.runs.aio_cancel(ref.workflow_run_id)
 
@@ -382,15 +370,81 @@ async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
 
 
 @requires_durable_eviction
+@pytest.mark.parametrize(
+    "on_demand_worker",
+    [
+        (
+            [
+                "poetry",
+                "run",
+                "python",
+                "-m",
+                "examples.durable_eviction.capacity_worker",
+            ],
+            8005,
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.asyncio(loop_scope="session")
+async def test_capacity_eviction_fires(
+    hatchet: Hatchet, on_demand_worker: Popen[Any]
+) -> None:
+    """A task with ttl=None but allow_capacity_eviction=True should be evicted
+    under durable-slot pressure (durable_slots=1)."""
+    ref = capacity_evictable_sleep.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
+
+    assert _has_evicted_task(
+        details
+    ), f"Expected capacity eviction (ttl=None), got no evicted tasks"
+
+
+@requires_durable_eviction
+@pytest.mark.parametrize(
+    "on_demand_worker",
+    [
+        (
+            [
+                "poetry",
+                "run",
+                "python",
+                "-m",
+                "examples.durable_eviction.capacity_worker",
+            ],
+            8005,
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.asyncio(loop_scope="session")
+async def test_capacity_eviction_restore_completes(
+    hatchet: Hatchet, on_demand_worker: Popen[Any]
+) -> None:
+    """After capacity eviction, restore should let the task resume and complete."""
+    ref = capacity_evictable_sleep.run_no_wait()
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
+    task_id = _get_task_id(details)
+
+    with hatchet.runs.client() as client:
+        TaskApi(client).v1_task_restore(task=task_id)
+
+    result = await ref.aio_result()
+    assert result["status"] == "completed"
+
+
+@requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_restore_idempotency(hatchet: Hatchet) -> None:
     """Restoring twice on the same evicted task should not cause duplicate execution."""
     ref = evictable_sleep.run_no_wait()
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    details = await _poll_until_status(
-        hatchet, ref.workflow_run_id, V1TaskStatus.EVICTED
-    )
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
     with hatchet.runs.client() as client:
