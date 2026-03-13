@@ -38,7 +38,7 @@ Scheduled runs can be created programmatically. This gives an option for the tri
   </Tabs.Tab>
 </UniversalTabs>
 
-The API returns a scheduled run object whose ID should be persisted — it is required for subsequent delete or reschedule operations.
+The API returns a scheduled run object whose ID should be persisted. It is required for subsequent delete or reschedule operations.
 
 <Callout type="info">
   Scheduled runs are always stored and returned in UTC.
@@ -100,7 +100,7 @@ The API returns a scheduled run object whose ID should be persisted — it is re
 </UniversalTabs>
 
 <Callout type="warning">
-  Only scheduled runs created via the API can be rescheduled — not runs defined
+  Only scheduled runs created via the API can be rescheduled, not runs defined
   in code. Hatchet will reject a reschedule request if the run has already
   triggered.
 </Callout>

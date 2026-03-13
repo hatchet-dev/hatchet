@@ -80,7 +80,7 @@ A cron schedule can be defined as part of the task definition:
 
 ### Create a Cron Trigger
 
-Cron triggers can be created via the API at runtime — useful when the schedule is not known at task definition time or differs per customer.
+Cron triggers can be created via the API at runtime, useful when the schedule is not known at task definition time or differs per customer.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -97,7 +97,7 @@ Cron triggers can be created via the API at runtime — useful when the schedule
   </Tabs.Tab>
 </UniversalTabs>
 
-The API returns a cron trigger object whose ID should be persisted — it is required for subsequent delete operations.
+The API returns a cron trigger object whose ID should be persisted. It is required for subsequent delete operations.
 
 <Callout>
   Cron name and expression are both required and must be unique together.
