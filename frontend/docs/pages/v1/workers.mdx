@@ -2,6 +2,7 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import Keywords from "@/components/Keywords";
 
 # Workers
 
@@ -182,4 +183,4 @@ In development, the fastest way to run a worker is `hatchet worker dev`, which h
 
 Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means workers can be organized by resource requirements, deployment boundary, or any other criterion, and Hatchet handles routing tasks to the right place.
 
-**Keywords**: Worker, slots, registration, concurrency, horizontal scaling, autoscaling
+<Keywords keywords="worker, slots, registration, concurrency, horizontal scaling, autoscaling" />

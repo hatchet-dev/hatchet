@@ -2,6 +2,7 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import Keywords from "@/components/Keywords";
 
 # Tasks
 
@@ -94,4 +95,4 @@ Each worker has a fixed number of **slots** that determine how many tasks it can
 
 If tasks need to run on specific workers - for example, because a worker has a GPU or a particular model loaded in memory - [worker affinity](/v1/advanced-assignment/worker-affinity) or [sticky assignment](/v1/advanced-assignment/sticky-assignment) allow tasks to be routed to workers matching those criteria.
 
-**Keywords**: Task, workflow, context
+<Keywords keywords="task, workflow, context" />
