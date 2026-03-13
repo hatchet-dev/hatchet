@@ -444,7 +444,8 @@ WITH latest_workflow_versions AS (
             )
             OR "tickerId" = $1::uuid
         )
-), active_scheduled_workflows AS (
+),
+active_scheduled_workflows AS (
     SELECT
         id, "workflowVersionId", "tenantId", "additionalMetadata"
     FROM

@@ -196,7 +196,8 @@ WITH latest_workflow_versions AS (
             )
             OR "tickerId" = @tickerId::uuid
         )
-), active_scheduled_workflows AS (
+),
+active_scheduled_workflows AS (
     SELECT
         *
     FROM
