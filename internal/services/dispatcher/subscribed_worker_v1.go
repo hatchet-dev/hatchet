@@ -58,32 +58,6 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	return nil
 }
 
-func (worker *subscribedWorker) incBacklogSize(delta int64) bool {
-	worker.backlogSizeMu.Lock()
-	defer worker.backlogSizeMu.Unlock()
-
-	if worker.backlogSize+delta > worker.maxBacklogSize {
-		return false
-	}
-
-	worker.backlogSize += delta
-
-	return true
-}
-
-func (worker *subscribedWorker) decBacklogSize(delta int64) int64 {
-	worker.backlogSizeMu.Lock()
-	defer worker.backlogSizeMu.Unlock()
-
-	worker.backlogSize -= delta
-
-	if worker.backlogSize < 0 {
-		worker.backlogSize = 0
-	}
-
-	return worker.backlogSize
-}
-
 func (worker *subscribedWorker) sendToWorker(
 	ctx context.Context,
 	action *contracts.AssignedAction,
@@ -120,22 +94,17 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	incSuccess := worker.incBacklogSize(1)
-
-	if !incSuccess {
-		err := fmt.Errorf("worker backlog size exceeded max of %d", worker.maxBacklogSize)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "worker backlog size exceeded max")
-		return err
-	}
-
 	lockBegin := time.Now()
 
 	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
 
-	worker.sendMu.Lock()
+	if acquiredLock := worker.sendMu.TryLock(); !acquiredLock {
+		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "flow control is active")
+		return err
+	}
 	defer worker.sendMu.Unlock()
-
 	lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
@@ -152,8 +121,6 @@ func (worker *subscribedWorker) sendToWorker(
 
 	go func() {
 		defer close(sentCh)
-		defer worker.decBacklogSize(1)
-
 		err = worker.stream.SendMsg(msg)
 
 		if err != nil {
@@ -194,9 +161,8 @@ func (worker *subscribedWorker) CancelTask(
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
 	sentCh := make(chan error, 1)
-	incSuccess := worker.incBacklogSize(1)
-
-	if !incSuccess {
+	acquiredLock := worker.sendMu.TryLock()
+	if !acquiredLock {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 			task.TenantID,
 			tasktypesv1.CreateMonitoringEventPayload{
@@ -219,13 +185,9 @@ func (worker *subscribedWorker) CancelTask(
 
 		return nil
 	}
-
+	defer worker.sendMu.Unlock()
 	go func() {
 		defer close(sentCh)
-		defer worker.decBacklogSize(1)
-
-		worker.sendMu.Lock()
-		defer worker.sendMu.Unlock()
 
 		sentCh <- worker.stream.Send(action)
 	}()

@@ -20,11 +20,6 @@ type subscribedWorker struct {
 
 	workerId uuid.UUID
 
-	backlogSize   int64
-	backlogSizeMu sync.Mutex
-
-	maxBacklogSize int64
-
 	pubBuffer *msgqueue.MQPubBuffer
 }
 
@@ -40,10 +35,9 @@ func newSubscribedWorker(
 	}
 
 	return &subscribedWorker{
-		stream:         stream,
-		finished:       fin,
-		workerId:       workerId,
-		maxBacklogSize: maxBacklogSize,
-		pubBuffer:      pubBuffer,
+		stream:    stream,
+		finished:  fin,
+		workerId:  workerId,
+		pubBuffer: pubBuffer,
 	}
 }
