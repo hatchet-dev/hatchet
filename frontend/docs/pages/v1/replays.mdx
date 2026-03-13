@@ -138,3 +138,5 @@ Instead of listing specific run IDs, you can replay all runs matching a set of f
 In messaging systems like Kafka or SQS, a dead letter queue (DLQ) captures messages that fail processing so they can be handled manually.
 
 Hatchet does not have a separate DLQ. Instead, failed runs are persisted in the Dashboard where you can inspect them, identify root causes, and replay them once the underlying issue is resolved. We often see developers creating scripts and tooling around the bulk operations API to automate these recovery workflows.
+
+Keywords: replays, bulk replays, replay by run ids, replay by filters, dead letter queues, DLQ, replaying failures
