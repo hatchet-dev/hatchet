@@ -34,7 +34,7 @@ export default {
   "retry-policies": "Retry Policies",
   timeouts: "Timeouts",
   cancellation: "Cancellation",
-  "bulk-retries-and-cancellations": "Bulk Retries & Cancellations",
+  "bulk-retries-and-cancellations": "Replays",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",

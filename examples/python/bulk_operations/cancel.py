@@ -6,7 +6,7 @@ from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter, V1TaskStatus
 
 hatchet = Hatchet()
 
-workflows = hatchet.workflows.list()
+workflows = await hatchet.workflows.aio_list()
 
 assert workflows.rows
 
@@ -14,14 +14,14 @@ workflow = workflows.rows[0]
 
 
 # > List runs
-workflow_runs = hatchet.runs.list(workflow_ids=[workflow.metadata.id])
+workflow_runs = await hatchet.runs.aio_list(workflow_ids=[workflow.metadata.id])
 
 # > Cancel by run ids
 workflow_run_ids = [workflow_run.metadata.id for workflow_run in workflow_runs.rows]
 
 bulk_cancel_by_ids = BulkCancelReplayOpts(ids=workflow_run_ids)
 
-hatchet.runs.bulk_cancel(bulk_cancel_by_ids)
+await hatchet.runs.aio_bulk_cancel(bulk_cancel_by_ids)
 
 # > Cancel by filters
 
@@ -35,4 +35,4 @@ bulk_cancel_by_filters = BulkCancelReplayOpts(
     )
 )
 
-hatchet.runs.bulk_cancel(bulk_cancel_by_filters)
+await hatchet.runs.aio_bulk_cancel(bulk_cancel_by_filters)

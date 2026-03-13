@@ -1,16 +1,21 @@
-// > Running a Task with Results
+// > Cancelling a run
 import sleep from '@hatchet/util/sleep';
 import { cancellationWorkflow } from './cancellation-workflow';
 import { hatchet } from '../hatchet-client';
 // ...
 async function main() {
   const run = await cancellationWorkflow.runNoWait({});
-  const run1 = await cancellationWorkflow.runNoWait({});
 
   await sleep(1000);
 
+  // Cancel from the run reference
   await run.cancel();
 
+  // Or cancel by run ID via the runs client
+  await hatchet.runs.cancel({ ids: [run.workflowRunId] });
+  // !!
+
+  const run1 = await cancellationWorkflow.runNoWait({});
   const res = await run.output;
   const res1 = await run1.output;
 
@@ -39,7 +44,6 @@ async function main() {
 
   const res3 = await Promise.all([run2.output, run4.output]);
   console.log(res3);
-  // !!
 }
 
 if (require.main === module) {
