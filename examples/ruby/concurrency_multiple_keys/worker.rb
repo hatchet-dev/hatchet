@@ -10,7 +10,7 @@ NAME_MAX_RUNS = 3
 
 # > Concurrency Strategy With Key
 CONCURRENCY_MULTIPLE_KEYS_WORKFLOW = HATCHET.workflow(
-  name: "ConcurrencyWorkflowManyKeys"
+  name: "ConcurrencyWorkflowManyKeys",
 )
 
 CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.task(
@@ -19,15 +19,15 @@ CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.task(
     Hatchet::ConcurrencyExpression.new(
       expression: "input.digit",
       max_runs: DIGIT_MAX_RUNS,
-      limit_strategy: :group_round_robin
+      limit_strategy: :group_round_robin,
     ),
     Hatchet::ConcurrencyExpression.new(
       expression: "input.name",
       max_runs: NAME_MAX_RUNS,
-      limit_strategy: :group_round_robin
-    )
-  ]
-) do |input, ctx|
+      limit_strategy: :group_round_robin,
+    ),
+  ],
+) do |_input, _ctx|
   sleep SLEEP_TIME_MK
 end
 
@@ -36,7 +36,7 @@ def main
   worker = HATCHET.worker(
     "concurrency-worker-multiple-keys",
     slots: 10,
-    workflows: [CONCURRENCY_MULTIPLE_KEYS_WORKFLOW]
+    workflows: [CONCURRENCY_MULTIPLE_KEYS_WORKFLOW],
   )
   worker.start
 end

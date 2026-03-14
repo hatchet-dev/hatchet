@@ -10,13 +10,13 @@ dynamic_cron_workflow = hatchet.workflow(name: "DynamicCronWorkflow")
 cron_trigger = dynamic_cron_workflow.create_cron(
   "customer-a-daily-report",
   "0 12 * * *",
-  input: { "name" => "John Doe" }
+  input: { "name" => "John Doe" },
 )
 
-id = cron_trigger.metadata.id
+cron_trigger.metadata.id
 
 # > List
-cron_triggers = hatchet.cron.list
+hatchet.cron.list
 
 # > Delete
 hatchet.cron.delete(cron_trigger.metadata.id)

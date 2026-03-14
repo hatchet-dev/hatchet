@@ -1,20 +1,20 @@
 # frozen_string_literal: true
 
-require 'hatchet-sdk'
-require_relative 'mock_llm'
+require "hatchet-sdk"
+require_relative "mock_llm"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Step 01 Define Pipeline
-LLM_WF = HATCHET.workflow(name: 'LLMPipeline')
+LLM_WF = HATCHET.workflow(name: "LLMPipeline")
 
 PROMPT_TASK = LLM_WF.task(:prompt_task) do |input, _ctx|
-  { 'prompt' => input['prompt'] }
+  { "prompt" => input["prompt"] }
 end
 
 
 # > Step 02 Prompt Task
-def build_prompt(user_input, context = '')
+def build_prompt(user_input, context = "")
   base = "Process the following: #{user_input}"
   context.empty? ? base : "#{base}\nContext: #{context}"
 end
@@ -22,8 +22,8 @@ end
 # > Step 03 Validate Task
 LLM_WF.task(:generate_task, parents: [PROMPT_TASK]) do |_input, ctx|
   prev = ctx.task_output(PROMPT_TASK)
-  output = generate(prev['prompt'])
-  raise 'Validation failed' unless output['valid']
+  output = generate(prev["prompt"])
+  raise "Validation failed" unless output["valid"]
 
   output
 end
@@ -31,7 +31,7 @@ end
 
 def main
   # > Step 04 Run Worker
-  worker = HATCHET.worker('llm-pipeline-worker', workflows: [LLM_WF])
+  worker = HATCHET.worker("llm-pipeline-worker", workflows: [LLM_WF])
   worker.start
 end
 

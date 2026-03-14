@@ -1,27 +1,34 @@
-from hatchet_sdk import DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import DurableContext, Hatchet
+from pydantic import BaseModel
 
-try:
-    from .mock_llm import mock_orchestrator_llm, mock_specialist_llm
-except ImportError:
-    from mock_llm import mock_orchestrator_llm, mock_specialist_llm
+from .mock_llm import mock_orchestrator_llm, mock_specialist_llm
 
 hatchet = Hatchet(debug=True)
 
 
+class TaskInput(BaseModel):
+    task: str
+    context: str = ""
+
+
+class GoalInput(BaseModel):
+    goal: str
+
+
 # > Step 01 Specialist Agents
-@hatchet.durable_task(name="ResearchSpecialist", execution_timeout="3m")
-async def research(input: EmptyModel, ctx: DurableContext) -> dict:
-    return {"result": mock_specialist_llm(input["task"], "research")}
+@hatchet.durable_task(name="ResearchSpecialist", execution_timeout="3m", input_validator=TaskInput)
+async def research(input: TaskInput, ctx: DurableContext) -> dict:
+    return {"result": mock_specialist_llm(input.task, "research")}
 
 
-@hatchet.durable_task(name="WritingSpecialist", execution_timeout="2m")
-async def write(input: EmptyModel, ctx: DurableContext) -> dict:
-    return {"result": mock_specialist_llm(input["task"], "writing")}
+@hatchet.durable_task(name="WritingSpecialist", execution_timeout="2m", input_validator=TaskInput)
+async def write(input: TaskInput, ctx: DurableContext) -> dict:
+    return {"result": mock_specialist_llm(input.task, "writing")}
 
 
-@hatchet.durable_task(name="CodeSpecialist", execution_timeout="2m")
-async def code(input: EmptyModel, ctx: DurableContext) -> dict:
-    return {"result": mock_specialist_llm(input["task"], "code")}
+@hatchet.durable_task(name="CodeSpecialist", execution_timeout="2m", input_validator=TaskInput)
+async def code(input: TaskInput, ctx: DurableContext) -> dict:
+    return {"result": mock_specialist_llm(input.task, "code")}
 # !!
 
 
@@ -33,9 +40,9 @@ specialists = {
 
 
 # > Step 02 Orchestrator Loop
-@hatchet.durable_task(name="MultiAgentOrchestrator", execution_timeout="15m")
-async def orchestrator(input: EmptyModel, ctx: DurableContext) -> dict:
-    messages = [{"role": "user", "content": input["goal"]}]
+@hatchet.durable_task(name="MultiAgentOrchestrator", execution_timeout="15m", input_validator=GoalInput)
+async def orchestrator(input: GoalInput, ctx: DurableContext) -> dict:
+    messages: list[dict[str, str]] = [{"role": "user", "content": input.goal}]
 
     for _ in range(10):
         response = mock_orchestrator_llm(messages)
@@ -47,10 +54,10 @@ async def orchestrator(input: EmptyModel, ctx: DurableContext) -> dict:
         if not specialist:
             raise ValueError(f"Unknown specialist: {response['tool_call']['name']}")
 
-        result = await specialist.aio_run(input={
-            "task": response["tool_call"]["args"]["task"],
-            "context": "\n".join(m["content"] for m in messages),
-        })
+        result = await specialist.aio_run(input=TaskInput(
+            task=response["tool_call"]["args"]["task"],
+            context="\n".join(m["content"] for m in messages),
+        ))
 
         messages.append({"role": "assistant", "content": f"Called {response['tool_call']['name']}"})
         messages.append({"role": "tool", "content": result["result"]})

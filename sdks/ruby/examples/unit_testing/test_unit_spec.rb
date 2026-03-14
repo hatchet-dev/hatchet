@@ -13,20 +13,20 @@ RSpec.describe "UnitTesting" do
       "key" => input["key"],
       "number" => input["number"],
       "additional_metadata" => additional_metadata,
-      "retry_count" => retry_count
+      "retry_count" => retry_count,
     }
   end
 
-  [
-    :SYNC_STANDALONE,
-    :DURABLE_SYNC_STANDALONE
+  %i[
+    SYNC_STANDALONE
+    DURABLE_SYNC_STANDALONE
   ].each do |const|
     it "unit tests #{const}" do
       task = Object.const_get(const)
       result = task.mock_run(
         input: input,
         additional_metadata: additional_metadata,
-        retry_count: retry_count
+        retry_count: retry_count,
       )
 
       expect(result).to eq(expected_output)
@@ -41,7 +41,7 @@ RSpec.describe "UnitTesting" do
       input: input,
       additional_metadata: additional_metadata,
       retry_count: retry_count,
-      parent_outputs: { "start" => parent_output }
+      parent_outputs: { "start" => parent_output },
     )
 
     expect(result).to eq(parent_output)

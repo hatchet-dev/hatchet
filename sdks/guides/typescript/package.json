@@ -5,7 +5,7 @@
   "description": "Hatchet guide examples (TypeScript) - docs snippets with integration deps",
   "scripts": {
     "lint:check": "eslint \"**/*.ts\"",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint \"**/*.ts\" --fix"
   },
   "dependencies": {
     "@hatchet-dev/typescript-sdk": "file:../../typescript",

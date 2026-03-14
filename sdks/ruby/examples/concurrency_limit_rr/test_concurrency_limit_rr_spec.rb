@@ -22,12 +22,10 @@ RSpec.describe "ConcurrencyDemoWorkflowRR" do
     runs.each_with_index do |run, i|
       result = run.result
       successful_runs << [i + 1, result]
-    rescue => e
-      if e.message.include?("CANCELLED_BY_CONCURRENCY_LIMIT")
-        cancelled_runs << [i + 1, e.message]
-      else
-        raise
-      end
+    rescue StandardError => e
+      raise unless e.message.include?("CANCELLED_BY_CONCURRENCY_LIMIT")
+
+      cancelled_runs << [i + 1, e.message]
     end
 
     total_time = Time.now - start_time

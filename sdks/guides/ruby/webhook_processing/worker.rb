@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require 'hatchet-sdk'
+require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Step 01 Define Webhook Task
 PROCESS_WEBHOOK = HATCHET.task(
-  name: 'process-webhook',
-  on_events: ['webhook:stripe', 'webhook:github']
+  name: "process-webhook",
+  on_events: ["webhook:stripe", "webhook:github"],
 ) do |input, _ctx|
-  { 'processed' => input['event_id'], 'type' => input['type'] }
+  { "processed" => input["event_id"], "type" => input["type"] }
 end
 
 # !!
@@ -23,15 +23,15 @@ end
 
 # > Step 03 Process Payload
 def validate_and_process(input)
-  raise 'event_id required for deduplication' if input['event_id'].to_s.empty?
+  raise "event_id required for deduplication" if input["event_id"].to_s.empty?
 
-  { 'processed' => input['event_id'], 'type' => input['type'] }
+  { "processed" => input["event_id"], "type" => input["type"] }
 end
 # !!
 
 def main
   # > Step 04 Run Worker
-  worker = HATCHET.worker('webhook-worker', workflows: [PROCESS_WEBHOOK])
+  worker = HATCHET.worker("webhook-worker", workflows: [PROCESS_WEBHOOK])
   worker.start
   # !!
 end

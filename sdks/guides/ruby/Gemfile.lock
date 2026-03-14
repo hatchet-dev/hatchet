@@ -1,7 +1,7 @@
 PATH
   remote: ../../ruby/src
   specs:
-    hatchet-sdk (0.1.1)
+    hatchet-sdk (0.2.0)
       concurrent-ruby (>= 1.1)
       faraday (~> 2.0)
       faraday-multipart
@@ -32,9 +32,15 @@ GEM
     google-protobuf (4.34.0-arm64-darwin)
       bigdecimal
       rake (~> 13.3)
+    google-protobuf (4.34.0-x86_64-linux-gnu)
+      bigdecimal
+      rake (~> 13.3)
     googleapis-common-protos-types (1.22.0)
       google-protobuf (~> 4.26)
     grpc (1.78.1-arm64-darwin)
+      google-protobuf (>= 3.25, < 5.0)
+      googleapis-common-protos-types (~> 1.0)
+    grpc (1.78.1-x86_64-linux-gnu)
       google-protobuf (>= 3.25, < 5.0)
       googleapis-common-protos-types (~> 1.0)
     json (2.18.1)
@@ -63,6 +69,9 @@ GEM
     racc (1.8.1)
     rainbow (3.1.1)
     rake (13.3.1)
+    rbs (3.10.3)
+      logger
+      tsort
     regexp_parser (2.11.3)
     rtesseract (3.1.4)
     rubocop (1.85.0)
@@ -80,7 +89,12 @@ GEM
     rubocop-ast (1.49.0)
       parser (>= 3.3.7.2)
       prism (~> 1.7)
+    ruby-lsp (0.26.7)
+      language_server-protocol (~> 3.17.0)
+      prism (>= 1.2, < 2.0)
+      rbs (>= 3, < 5)
     ruby-progressbar (1.13.0)
+    tsort (0.2.0)
     unicode-display_width (3.2.0)
       unicode-emoji (~> 4.1)
     unicode-emoji (4.2.0)
@@ -88,12 +102,14 @@ GEM
 
 PLATFORMS
   arm64-darwin-24
+  x86_64-linux
 
 DEPENDENCIES
   hatchet-sdk!
   openai
   rtesseract
   rubocop (~> 1.21)
+  ruby-lsp
 
 BUNDLED WITH
    2.6.9

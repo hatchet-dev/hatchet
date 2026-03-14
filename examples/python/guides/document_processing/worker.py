@@ -3,12 +3,8 @@ from typing import Any
 from hatchet_sdk import Context, Hatchet
 from pydantic import BaseModel
 
-try:
-    from .llm_extract_service import get_extract_service
-    from .ocr_service import get_ocr_service
-except ImportError:
-    from llm_extract_service import get_extract_service
-    from ocr_service import get_ocr_service
+from .llm_extract_service import get_extract_service
+from .ocr_service import get_ocr_service
 
 hatchet = Hatchet(debug=True)
 

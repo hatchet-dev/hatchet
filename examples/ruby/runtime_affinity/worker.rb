@@ -20,7 +20,7 @@ if __FILE__ == $PROGRAM_NAME
   worker = HATCHET.worker(
     "runtime-affinity-worker",
     labels: { "affinity" => options[:label] },
-    workflows: [AFFINITY_EXAMPLE_TASK]
+    workflows: [AFFINITY_EXAMPLE_TASK],
   )
 
   worker.start

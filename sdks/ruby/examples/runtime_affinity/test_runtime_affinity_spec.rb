@@ -10,11 +10,11 @@ RSpec.describe "RuntimeAffinity" do
   around(:all) do |example|
     HatchetWorkerFixture.with_worker(
       ["bundle", "exec", "ruby", File.expand_path("worker.rb", __dir__), "--label", LABELS[0]],
-      healthcheck_port: 8003
+      healthcheck_port: 8003,
     ) do |_pid_a|
       HatchetWorkerFixture.with_worker(
         ["bundle", "exec", "ruby", File.expand_path("worker.rb", __dir__), "--label", LABELS[1]],
-        healthcheck_port: 8004
+        healthcheck_port: 8004,
       ) do |_pid_b|
         example.run
       end
@@ -33,9 +33,7 @@ RSpec.describe "RuntimeAffinity" do
     worker_label_to_id = {}
     active_workers.each do |w|
       (w.labels || []).each do |label|
-        if label.key == "affinity" && LABELS.include?(label.value)
-          worker_label_to_id[label.value] = w.metadata.id
-        end
+        worker_label_to_id[label.value] = w.metadata.id if label.key == "affinity" && LABELS.include?(label.value)
       end
     end
 
@@ -50,10 +48,10 @@ RSpec.describe "RuntimeAffinity" do
           desired_worker_labels: {
             "affinity" => Hatchet::DesiredWorkerLabel.new(
               value: target_worker,
-              required: true
-            )
-          }
-        )
+              required: true,
+            ),
+          },
+        ),
       )
 
       expect(result["worker_id"]).to eq(worker_label_to_id[target_worker])

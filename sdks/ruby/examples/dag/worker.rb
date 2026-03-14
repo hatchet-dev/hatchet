@@ -10,18 +10,18 @@ DAG_WORKFLOW = HATCHET.workflow(name: "DAGWorkflow")
 # !!
 
 # > First task
-STEP1 = DAG_WORKFLOW.task(:step1, execution_timeout: 5) do |input, ctx|
+STEP1 = DAG_WORKFLOW.task(:step1, execution_timeout: 5) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
-STEP2 = DAG_WORKFLOW.task(:step2, execution_timeout: 5) do |input, ctx|
+STEP2 = DAG_WORKFLOW.task(:step2, execution_timeout: 5) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
 # !!
 
 # > Task with parents
-DAG_WORKFLOW.task(:step3, parents: [STEP1, STEP2]) do |input, ctx|
+DAG_WORKFLOW.task(:step3, parents: [STEP1, STEP2]) do |_input, ctx|
   one = ctx.task_output(STEP1)["random_number"]
   two = ctx.task_output(STEP2)["random_number"]
 
@@ -34,7 +34,7 @@ DAG_WORKFLOW.task(:step4, parents: [STEP1, :step3]) do |input, ctx|
     Time.now.strftime("%H:%M:%S"),
     input.inspect,
     ctx.task_output(STEP1).inspect,
-    ctx.task_output(:step3).inspect
+    ctx.task_output(:step3).inspect,
   )
 
   { "step4" => "step4" }

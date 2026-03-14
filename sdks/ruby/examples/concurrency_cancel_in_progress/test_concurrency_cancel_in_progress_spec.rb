@@ -14,16 +14,17 @@ RSpec.describe "ConcurrencyCancelInProgress" do
       ref = CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW.run_no_wait(
         { "group" => "A" },
         options: Hatchet::TriggerWorkflowOptions.new(
-          additional_metadata: { "test_run_id" => test_run_id, "i" => i.to_s }
-        )
+          additional_metadata: { "test_run_id" => test_run_id, "i" => i.to_s },
+        ),
       )
       refs << ref
       sleep 1
     end
 
     refs.each do |ref|
-      puts "Waiting for run #{ref.workflow_run_id} to complete"
-      ref.result rescue nil
+      ref.result
+    rescue StandardError
+      nil
     end
 
     # Poll until the OLAP repo has caught up (replaces fixed sleep 5)

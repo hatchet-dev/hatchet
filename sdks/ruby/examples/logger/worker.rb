@@ -12,7 +12,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 LOGGING_WORKFLOW = HATCHET.workflow(name: "LoggingWorkflow")
 
-LOGGING_WORKFLOW.task(:root_logger) do |input, ctx|
+LOGGING_WORKFLOW.task(:root_logger) do |_input, _ctx|
   12.times do |i|
     logger.info("executed step1 - #{i}")
     logger.info({ "step1" => "step1" }.inspect)
@@ -26,7 +26,7 @@ end
 # !!
 
 # > ContextLogger
-LOGGING_WORKFLOW.task(:context_logger) do |input, ctx|
+LOGGING_WORKFLOW.task(:context_logger) do |_input, ctx|
   12.times do |i|
     ctx.log("executed step1 - #{i}")
     ctx.log({ "step1" => "step1" }.inspect)

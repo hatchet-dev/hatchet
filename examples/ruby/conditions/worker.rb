@@ -10,7 +10,7 @@ TASK_CONDITION_WORKFLOW = HATCHET.workflow(name: "TaskConditionWorkflow")
 
 
 # > Add base task
-COND_START = TASK_CONDITION_WORKFLOW.task(:start) do |input, ctx|
+COND_START = TASK_CONDITION_WORKFLOW.task(:start) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
@@ -19,8 +19,8 @@ end
 WAIT_FOR_SLEEP = TASK_CONDITION_WORKFLOW.task(
   :wait_for_sleep,
   parents: [COND_START],
-  wait_for: [Hatchet::SleepCondition.new(10)]
-) do |input, ctx|
+  wait_for: [Hatchet::SleepCondition.new(10)],
+) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
@@ -29,8 +29,8 @@ end
 TASK_CONDITION_WORKFLOW.task(
   :skip_with_multiple_parents,
   parents: [COND_START, WAIT_FOR_SLEEP],
-  skip_if: [Hatchet::ParentCondition.new(parent: COND_START, expression: "output.random_number > 0")]
-) do |input, ctx|
+  skip_if: [Hatchet::ParentCondition.new(parent: COND_START, expression: "output.random_number > 0")],
+) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
@@ -40,8 +40,8 @@ SKIP_ON_EVENT = TASK_CONDITION_WORKFLOW.task(
   :skip_on_event,
   parents: [COND_START],
   wait_for: [Hatchet::SleepCondition.new(30)],
-  skip_if: [Hatchet::UserEventCondition.new(event_key: "skip_on_event:skip")]
-) do |input, ctx|
+  skip_if: [Hatchet::UserEventCondition.new(event_key: "skip_on_event:skip")],
+) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
@@ -53,10 +53,10 @@ LEFT_BRANCH = TASK_CONDITION_WORKFLOW.task(
   skip_if: [
     Hatchet::ParentCondition.new(
       parent: WAIT_FOR_SLEEP,
-      expression: "output.random_number > 50"
-    )
-  ]
-) do |input, ctx|
+      expression: "output.random_number > 50",
+    ),
+  ],
+) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
@@ -66,10 +66,10 @@ RIGHT_BRANCH = TASK_CONDITION_WORKFLOW.task(
   skip_if: [
     Hatchet::ParentCondition.new(
       parent: WAIT_FOR_SLEEP,
-      expression: "output.random_number <= 50"
-    )
-  ]
-) do |input, ctx|
+      expression: "output.random_number <= 50",
+    ),
+  ],
+) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
@@ -81,10 +81,10 @@ WAIT_FOR_EVENT = TASK_CONDITION_WORKFLOW.task(
   wait_for: [
     Hatchet.or_(
       Hatchet::SleepCondition.new(60),
-      Hatchet::UserEventCondition.new(event_key: "wait_for_event:start")
-    )
-  ]
-) do |input, ctx|
+      Hatchet::UserEventCondition.new(event_key: "wait_for_event:start"),
+    ),
+  ],
+) do |_input, _ctx|
   { "random_number" => rand(1..100) }
 end
 
@@ -92,8 +92,8 @@ end
 # > Add sum
 TASK_CONDITION_WORKFLOW.task(
   :sum,
-  parents: [COND_START, WAIT_FOR_SLEEP, WAIT_FOR_EVENT, SKIP_ON_EVENT, LEFT_BRANCH, RIGHT_BRANCH]
-) do |input, ctx|
+  parents: [COND_START, WAIT_FOR_SLEEP, WAIT_FOR_EVENT, SKIP_ON_EVENT, LEFT_BRANCH, RIGHT_BRANCH],
+) do |_input, ctx|
   one = ctx.task_output(COND_START)["random_number"]
   two = ctx.task_output(WAIT_FOR_EVENT)["random_number"]
   three = ctx.task_output(WAIT_FOR_SLEEP)["random_number"]

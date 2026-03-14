@@ -7,7 +7,7 @@ HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 # > SlotRelease
 SLOT_RELEASE_WORKFLOW = HATCHET.workflow(name: "SlotReleaseWorkflow")
 
-SLOT_RELEASE_WORKFLOW.task(:step1) do |input, ctx|
+SLOT_RELEASE_WORKFLOW.task(:step1) do |_input, ctx|
   puts "RESOURCE INTENSIVE PROCESS"
   sleep 10
 

@@ -13,7 +13,7 @@ TEXT
 
 STREAM_CHUNKS = ANNA_KARENINA.scan(/.{1,10}/)
 
-STREAM_TASK = HATCHET.task(name: "stream_task") do |input, ctx|
+STREAM_TASK = HATCHET.task(name: "stream_task") do |_input, ctx|
   # Sleeping to avoid race conditions
   sleep 2
 

@@ -12,5 +12,6 @@ hatchet.scheduled.create(
     workflow_name="ScheduledWorkflow",
     trigger_at=run_at,
     input={},
+    additional_metadata={},
 )
 # !!

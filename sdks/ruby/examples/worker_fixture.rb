@@ -18,9 +18,7 @@ module HatchetWorkerFixture
     attempts = 0
 
     loop do
-      if attempts > max_attempts
-        raise "Worker failed to start within #{max_attempts} seconds"
-      end
+      raise "Worker failed to start within #{max_attempts} seconds" if attempts > max_attempts
 
       begin
         uri = URI("http://localhost:#{port}/health")
@@ -42,7 +40,7 @@ module HatchetWorkerFixture
   # @yield [pid] Yields the process PID
   # @return [void]
   def self.with_worker(command, healthcheck_port: 8001)
-    LOGGER.info("Starting background worker: #{command.join(' ')}")
+    LOGGER.info("Starting background worker: #{command.join(" ")}")
 
     ENV["HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT"] = healthcheck_port.to_s
     ENV["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED"] = "true"
@@ -58,7 +56,7 @@ module HatchetWorkerFixture
     end
 
     Thread.new do
-      stderr.each_line { |line| $stderr.puts line.chomp }
+      stderr.each_line { |line| warn line.chomp }
     rescue IOError
       # Stream closed
     end
@@ -92,7 +90,9 @@ module HatchetWorkerFixture
     end
 
     [stdin, stdout, stderr].each do |io|
-      io&.close rescue nil
+      io&.close
+    rescue StandardError
+      nil
     end
   end
 end

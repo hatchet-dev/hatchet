@@ -12,6 +12,6 @@ HATCHET.event.push("user:create", { "should_skip" => false })
 HATCHET.event.push(
   "user:create",
   { "userId" => "1234", "should_skip" => false },
-  additional_metadata: { "source" => "api" }
+  additional_metadata: { "source" => "api" },
 )
 # !!

@@ -6,7 +6,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 SCHEDULED_WORKFLOW = HATCHET.workflow(name: "ScheduledWorkflow")
 
-SCHEDULED_WORKFLOW.task(:scheduled_task) do |input, ctx|
+SCHEDULED_WORKFLOW.task(:scheduled_task) do |_input, _ctx|
   puts "Scheduled task executed at #{Time.now}"
   { "status" => "success" }
 end

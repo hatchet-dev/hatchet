@@ -8,11 +8,13 @@ on:
       - "internal/**"
       - "pkg/**"
       - "sdks/typescript/**"
+      - "sdks/guides/typescript/**"
   push:
     branches:
       - main
     paths:
       - "sdks/typescript/**"
+      - "sdks/guides/typescript/**"
 defaults:
   run:
     working-directory: ./sdks/typescript
@@ -50,6 +52,14 @@ jobs:
 
       - name: Type check
         run: npx tsc
+
+      - name: Install guides dependencies
+        working-directory: ./sdks/guides/typescript
+        run: pnpm install
+
+      - name: Lint guides
+        working-directory: ./sdks/guides/typescript
+        run: pnpm lint:check
 
   test-unit:
     runs-on: ubicloud-standard-4
@@ -221,10 +231,10 @@ jobs:
 
       - name: Build and Publish SDK
         run: |
-          VERSION=$(jq '.version' package.json)
-          CURRENT_NPM_VERSION=$(pnpm view @hatchet-dev/typescript-sdk version)
+          VERSION=$(jq -r '.version' package.json)
+          CURRENT_NPM_VERSION=$(pnpm view @hatchet-dev/typescript-sdk version 2>/dev/null || echo "")
 
-          if [[ "$VERSION" == "$CURRENT_NPM_VERSION" ]]; then
+          if [[ -n "$CURRENT_NPM_VERSION" && "$VERSION" == "$CURRENT_NPM_VERSION" ]]; then
             echo "Version has not changed. Skipping publish."
             exit 0
           fi

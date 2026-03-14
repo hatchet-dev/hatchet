@@ -9,5 +9,7 @@ client = cohere.Client()
 # > Cohere embedding usage
 def embed(text: str) -> list[float]:
     r = client.embed(texts=[text], model="embed-english-v3.0", input_type="search_document")
-    return list(r.embeddings[0])
+    if isinstance(r, cohere.EmbeddingsFloatsEmbedResponse):
+        return list(r.embeddings[0])
+    raise TypeError(f"Expected float embeddings, got {type(r).__name__}")
 # !!

@@ -17,10 +17,10 @@ AFFINITY_WORKER_WORKFLOW.task(
     "memory" => Hatchet::DesiredWorkerLabel.new(
       value: 256,
       required: true,
-      comparator: :less_than
-    )
-  }
-) do |input, ctx|
+      comparator: :less_than,
+    ),
+  },
+) do |_input, ctx|
   if ctx.worker.labels["model"] != "fancy-ai-model-v2"
     ctx.worker.upsert_labels("model" => "unset")
     # DO WORK TO EVICT OLD MODEL / LOAD NEW MODEL
@@ -39,9 +39,9 @@ def main
     slots: 10,
     labels: {
       "model" => "fancy-ai-model-v2",
-      "memory" => 512
+      "memory" => 512,
     },
-    workflows: [AFFINITY_WORKER_WORKFLOW]
+    workflows: [AFFINITY_WORKER_WORKFLOW],
   )
   worker.start
 end

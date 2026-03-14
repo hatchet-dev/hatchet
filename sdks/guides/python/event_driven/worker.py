@@ -26,9 +26,11 @@ async def process_event(input: EventInput, ctx: Context) -> dict:
 
 
 # > Step 02 Register Event Trigger
-def push_order_event():
+def push_order_event() -> None:
     """Push an event to trigger the workflow. Use the same key as on_events."""
     hatchet.event.push("order:created", {"message": "Order #1234", "source": "webhook"})
+
+
 # !!
 
 

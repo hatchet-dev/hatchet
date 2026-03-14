@@ -1,5 +1,10 @@
 version: "3"
 
+vars:
+  NODE_VERSION: "24"
+  RUBY_VERSION: "3.2.2"
+  PYTHON_VERSION: "3.14.3"
+
 tasks:
   setup:
     cmds:
@@ -209,35 +214,112 @@ tasks:
   generate-sqlc:
     cmds:
       - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/sqlcv1/sqlc.yaml
+
+  setup-sdks:
+    cmds:
+      - task: check-install-ruby
+      - task: check-install-typescript
+      - task: check-install-python
+      - task: setup-ruby
+      - task: setup-typescript
+      - task: setup-python
+
+  check-install-ruby:
+    cmds:
+      - |
+        command -v ruby >/dev/null 2>&1 || { echo "Ruby not found. Install Ruby >= {{.RUBY_VERSION}} (e.g. rbenv install {{.RUBY_VERSION}})"; exit 1; }
+        command -v bundle >/dev/null 2>&1 || gem install bundler
+
+  check-install-typescript:
+    cmds:
+      - |
+        command -v node >/dev/null 2>&1 || { echo "Node.js not found. Install Node >= {{.NODE_VERSION}} (e.g. nvm install {{.NODE_VERSION}})"; exit 1; }
+        command -v pnpm >/dev/null 2>&1 || { echo "pnpm not found. Install pnpm (e.g. corepack enable pnpm or npm install -g pnpm)"; exit 1; }
+
+  check-install-python:
+    cmds:
+      - |
+        command -v python3 >/dev/null 2>&1 || { echo "Python not found. Install Python {{.PYTHON_VERSION}} (e.g. pyenv install {{.PYTHON_VERSION}})"; exit 1; }
+        command -v poetry >/dev/null 2>&1 || { echo "Poetry not found. Install poetry (https://python-poetry.org/docs/#installation)"; exit 1; }
+
+  setup-ruby:
+    cmds:
+      - task: check-install-ruby
+      - cd sdks/ruby/src && bundle install
+      - cd sdks/ruby/examples && bundle install
+      - cd sdks/guides/ruby && bundle install
+
+  setup-typescript:
+    cmds:
+      - task: check-install-typescript
+      - cd sdks/typescript && pnpm install
+      - cd sdks/guides/typescript && pnpm install
+
+  setup-python:
+    cmds:
+      - task: check-install-python
+      - cd sdks/python && poetry env use {{.PYTHON_VERSION}} && poetry install --all-extras
+      - cd sdks/guides/python && poetry env use {{.PYTHON_VERSION}} && poetry install --all-extras
+
   lint:
     cmds:
       - task: lint-go
       - task: lint-go-guides
-      - task: lint-python-guides
-      - task: lint-typescript-guides
-      - task: lint-ruby-guides
+      - task: lint-python
+      - task: lint-typescript
+      - task: lint-ruby
       - task: lint-app
       - task: lint-docs
+
   lint-go:
-    cmd: golangci-lint run ./... --config .golangci.yml
+    cmd: golangci-lint run ./... --config .golangci.yml --fix
+
   lint-go-guides:
     dir: sdks/guides/go
-    cmd: golangci-lint run ./... --config .golangci.yml
+    cmd: golangci-lint run ./... --config .golangci.yml --fix
+
+  lint-python:
+    cmds:
+      - task: lint-python-sdk
+      - task: lint-python-guides
+  lint-typescript:
+    cmds:
+      - task: lint-typescript-sdk
+      - task: lint-typescript-guides
+  lint-ruby:
+    cmds:
+      - task: lint-ruby-sdk
+      - task: lint-ruby-examples
+      - task: lint-ruby-guides
+  lint-python-sdk:
+    dir: sdks/python
+    cmd: bash lint.sh
   lint-python-guides:
     dir: sdks/guides/python
-    cmd: poetry run ruff check .
+    cmds:
+      - poetry run ruff check . --fix
+      - poetry run mypy .
+  lint-typescript-sdk:
+    dir: sdks/typescript
+    cmd: pnpm run lint:fix
   lint-typescript-guides:
     dir: sdks/guides/typescript
-    cmd: pnpm install && pnpm run lint:check
+    cmd: pnpm install && pnpm run lint:fix
+  lint-ruby-sdk:
+    dir: sdks/ruby/src
+    cmd: bundle exec rubocop -A
+  lint-ruby-examples:
+    dir: sdks/ruby/examples
+    cmd: bundle install && bundle exec rubocop -A
   lint-ruby-guides:
     dir: sdks/guides/ruby
-    cmd: bundle install && bundle exec rubocop
+    cmd: bundle install && bundle exec rubocop -A
   lint-app:
     dir: frontend/app
-    cmd: pnpm run lint:check
+    cmd: pnpm run lint:fix
   lint-docs:
     dir: frontend/docs
-    cmd: npm run lint:check
+    cmd: npm run lint:fix
   kill-apis:
     cmds:
       - ps -A | grep 'cmd/hatchet-api' | grep -v grep | awk '{print $1}' | xargs kill -9 $1

@@ -8,7 +8,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 BULK_PARENT_WF = HATCHET.workflow(name: "BulkFanoutParent")
 BULK_CHILD_WF = HATCHET.workflow(name: "BulkFanoutChild")
 
-BULK_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
+BULK_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, _ctx|
   n = input["n"] || 100
 
   # Create each workflow run to spawn
@@ -17,8 +17,8 @@ BULK_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
       input: { "a" => i.to_s },
       key: "child#{i}",
       options: Hatchet::TriggerWorkflowOptions.new(
-        additional_metadata: { "hello" => "earth" }
-      )
+        additional_metadata: { "hello" => "earth" },
+      ),
     )
   end
 
@@ -28,12 +28,12 @@ BULK_PARENT_WF.task(:spawn, execution_timeout: 300) do |input, ctx|
   { "results" => spawn_results }
 end
 
-BULK_CHILD_WF.task(:process) do |input, ctx|
-  puts "child process #{input['a']}"
-  { "status" => "success #{input['a']}" }
+BULK_CHILD_WF.task(:process) do |input, _ctx|
+  puts "child process #{input["a"]}"
+  { "status" => "success #{input["a"]}" }
 end
 
-BULK_CHILD_WF.task(:process2) do |input, ctx|
+BULK_CHILD_WF.task(:process2) do |_input, _ctx|
   puts "child process2"
   { "status2" => "success" }
 end
@@ -41,7 +41,7 @@ end
 
 def main
   worker = HATCHET.worker(
-    "fanout-worker", slots: 40, workflows: [BULK_PARENT_WF, BULK_CHILD_WF]
+    "fanout-worker", slots: 40, workflows: [BULK_PARENT_WF, BULK_CHILD_WF],
   )
   worker.start
 end

@@ -8,9 +8,9 @@ greetings = ["Hello, World!", "Hello, Moon!", "Hello, Mars!"]
 results = CHILD_TASK_WF.run_many(
   greetings.map do |greeting|
     CHILD_TASK_WF.create_bulk_run_item(
-      input: { "message" => greeting }
+      input: { "message" => greeting },
     )
-  end
+  end,
 )
 
 puts results

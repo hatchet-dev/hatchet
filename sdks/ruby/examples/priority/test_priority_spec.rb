@@ -29,11 +29,11 @@ RSpec.describe "PriorityWorkflow" do
             additional_metadata: {
               "priority" => priority,
               "key" => ix,
-              "test_run_id" => test_run_id
-            }
-          )
+              "test_run_id" => test_run_id,
+            },
+          ),
         )
-      end
+      end,
     )
 
     # Wait for all runs to complete
@@ -48,7 +48,7 @@ RSpec.describe "PriorityWorkflow" do
     runs = HATCHET.runs.list(
       workflow_ids: [workflow.metadata.id],
       additional_metadata: { "test_run_id" => test_run_id },
-      limit: 1000
+      limit: 1000,
     )
 
     sorted_runs = runs.rows.select(&:started_at).sort_by(&:started_at)

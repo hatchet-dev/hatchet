@@ -29,7 +29,7 @@ jobs:
           bundler-cache: true
           working-directory: ./sdks/ruby/src
 
-      - name: Run RuboCop
+      - name: Run RuboCop (SDK)
         run: bundle exec rubocop
 
       - name: Run RBS validate
@@ -37,6 +37,28 @@ jobs:
 
       - name: Test gem build
         run: gem build hatchet-sdk.gemspec
+
+      - name: Set up Ruby for examples
+        uses: ruby/setup-ruby@19a43a6a2428d455dbd1b85344698725179c9d8c # v1.289.0
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ./sdks/ruby/examples
+
+      - name: Run RuboCop (examples)
+        working-directory: ./sdks/ruby/examples
+        run: bundle exec rubocop
+
+      - name: Set up Ruby for guides
+        uses: ruby/setup-ruby@19a43a6a2428d455dbd1b85344698725179c9d8c # v1.289.0
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ./sdks/guides/ruby
+
+      - name: Run RuboCop (guides)
+        working-directory: ./sdks/guides/ruby
+        run: bundle exec rubocop
 
   test:
     runs-on: ubicloud-standard-4

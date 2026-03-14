@@ -6,8 +6,8 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Task using Struct-based input
 # Ruby equivalent of Python dataclass -- use plain hashes
-SAY_HELLO = HATCHET.task(name: "say_hello") do |input, ctx|
-  { "message" => "Hello, #{input['name']}!" }
+SAY_HELLO = HATCHET.task(name: "say_hello") do |input, _ctx|
+  { "message" => "Hello, #{input["name"]}!" }
 end
 
 

@@ -12,11 +12,11 @@ RSpec.describe "EventWorkflow" do
   it "bulk pushes events" do
     events = [
       { key: "event1", payload: { "message" => "Event 1", "should_skip" => false },
-        additional_metadata: { "source" => "test", "user_id" => "user123" } },
+        additional_metadata: { "source" => "test", "user_id" => "user123" }, },
       { key: "event2", payload: { "message" => "Event 2", "should_skip" => false },
-        additional_metadata: { "source" => "test", "user_id" => "user456" } },
+        additional_metadata: { "source" => "test", "user_id" => "user456" }, },
       { key: "event3", payload: { "message" => "Event 3", "should_skip" => false },
-        additional_metadata: { "source" => "test", "user_id" => "user789" } }
+        additional_metadata: { "source" => "test", "user_id" => "user789" }, },
     ]
 
     result = HATCHET.events.bulk_push(events)

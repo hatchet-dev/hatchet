@@ -25,8 +25,8 @@ RSpec.describe "WebhookWithScope" do
   it "routes webhooks based on scope expression from payload" do
     skip "Requires webhook infrastructure to be running"
 
-    test_run_id = SecureRandom.uuid
-    test_start = Time.now.utc
+    SecureRandom.uuid
+    Time.now.utc
 
     # Create webhook with scope expression, send scoped request, verify routing
     # Full implementation depends on the webhook API being available
@@ -35,8 +35,8 @@ RSpec.describe "WebhookWithScope" do
   it "applies static payload to webhook events" do
     skip "Requires webhook infrastructure to be running"
 
-    test_run_id = SecureRandom.uuid
-    test_start = Time.now.utc
+    SecureRandom.uuid
+    Time.now.utc
 
     # Create webhook with static payload, send request, verify merged payload
   end

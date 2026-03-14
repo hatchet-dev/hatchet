@@ -9,7 +9,7 @@ client = Reducto()
 
 # > Reducto usage
 def parse_document(content: bytes) -> str:
-    upload = client.upload.upload(file=content, extension=".pdf")
-    result = client.parse.parse(input=upload.url)
-    return str(result)  # or access result.blocks, result.tables, etc.
+    upload = client.upload(file=content, extension=".pdf")
+    result = client.parse.run(input=upload.file_id)
+    return str(result)
 # !!

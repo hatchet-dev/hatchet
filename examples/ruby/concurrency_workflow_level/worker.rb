@@ -15,21 +15,21 @@ CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW = HATCHET.workflow(
     Hatchet::ConcurrencyExpression.new(
       expression: "input.digit",
       max_runs: DIGIT_MAX_RUNS_WL,
-      limit_strategy: :group_round_robin
+      limit_strategy: :group_round_robin,
     ),
     Hatchet::ConcurrencyExpression.new(
       expression: "input.name",
       max_runs: NAME_MAX_RUNS_WL,
-      limit_strategy: :group_round_robin
-    )
-  ]
+      limit_strategy: :group_round_robin,
+    ),
+  ],
 )
 
-CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.task(:task_1) do |input, ctx|
+CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.task(:task_1) do |_input, _ctx|
   sleep SLEEP_TIME_WL
 end
 
-CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.task(:task_2) do |input, ctx|
+CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.task(:task_2) do |_input, _ctx|
   sleep SLEEP_TIME_WL
 end
 
@@ -38,7 +38,7 @@ def main
   worker = HATCHET.worker(
     "concurrency-worker-workflow-level",
     slots: 10,
-    workflows: [CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW]
+    workflows: [CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW],
   )
   worker.start
 end
