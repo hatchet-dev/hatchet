@@ -3094,6 +3094,7 @@ type V1IdempotencyKey struct {
 	Key                 string             `json:"key"`
 	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
 	ClaimedByExternalID *uuid.UUID         `json:"claimed_by_external_id"`
+	LastDeniedAt        pgtype.Timestamptz `json:"last_denied_at"`
 	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }

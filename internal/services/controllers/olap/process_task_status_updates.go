@@ -64,6 +64,12 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 			continue
 		}
 
+		if !row.IsDAGTask {
+			if err := o.repo.Idempotency().DeleteIdempotencyKeysByExternalId(ctx, row.TenantId, row.ExternalId); err != nil {
+				o.l.Error().Err(err).Str("taskExternalId", row.ExternalId.String()).Msg("failed to delete idempotency key for task")
+			}
+		}
+
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
 			ExternalId: row.ExternalId,
 			Status:     row.ReadableStatus,
