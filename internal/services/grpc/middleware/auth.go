@@ -5,12 +5,14 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type GRPCAuthN struct {
@@ -45,6 +47,11 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
+
+	span := trace.SpanFromContext(ctx)
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+	)
 
 	source := analytics.SourceGRPC
 	if md, ok := metadata.FromIncomingContext(ctx); ok {

@@ -12,11 +12,14 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type AuthN struct {
@@ -198,6 +201,10 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 
 	ctx = context.WithValue(ctx, analytics.UserIDKey, userIdUUID)
 	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceUI)
+
+	span := trace.SpanFromContext(ctx)
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "user.id", Value: userIdUUID})
+
 	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
@@ -247,6 +254,12 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
+
+	span := trace.SpanFromContext(ctx)
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+	)
+
 	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil

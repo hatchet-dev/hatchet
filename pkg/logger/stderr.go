@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
 
@@ -15,11 +16,21 @@ type traceHook struct{}
 
 func (h traceHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	ctx := e.GetCtx()
-	span := trace.SpanFromContext(ctx)
 
+	span := trace.SpanFromContext(ctx)
 	if span.SpanContext().IsValid() {
 		e.Str("trace_id", span.SpanContext().TraceID().String())
 		e.Str("span_id", span.SpanContext().SpanID().String())
+	}
+
+	if id := analytics.TenantIDFromContext(ctx); id != nil {
+		e.Str("tenant_id", id.String())
+	}
+	if id := analytics.OrganizationIDFromContext(ctx); id != nil {
+		e.Str("organization_id", id.String())
+	}
+	if id := analytics.UserIDFromContext(ctx); id != nil {
+		e.Str("user_id", id.String())
 	}
 }
 
