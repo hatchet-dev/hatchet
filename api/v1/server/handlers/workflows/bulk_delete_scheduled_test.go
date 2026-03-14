@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/config/database"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -82,6 +84,27 @@ func (f *fakeWorkflowScheduleRepository) DeleteInvalidCron(ctx context.Context, 
 	panic("unexpected call to DeleteInvalidCron")
 }
 
+type repositoryWithWorkflowSchedules struct {
+	v1.Repository
+	workflowSchedules v1.WorkflowScheduleRepository
+}
+
+func (r repositoryWithWorkflowSchedules) WorkflowSchedules() v1.WorkflowScheduleRepository {
+	return r.workflowSchedules
+}
+
+func newTestWorkflowService(repo v1.WorkflowScheduleRepository) *WorkflowService {
+	return &WorkflowService{
+		config: &server.ServerConfig{
+			Layer: &database.Layer{
+				V1: repositoryWithWorkflowSchedules{
+					workflowSchedules: repo,
+				},
+			},
+		},
+	}
+}
+
 func newBulkDeleteContext(t *testing.T) echo.Context {
 	t.Helper()
 
@@ -96,7 +119,7 @@ func newBulkDeleteContext(t *testing.T) echo.Context {
 
 func TestWorkflowScheduledBulkDeleteReturns200WhenFilterMatchesNothing(t *testing.T) {
 	repo := &fakeWorkflowScheduleRepository{}
-	svc := &WorkflowService{workflowSchedules: repo}
+	svc := newTestWorkflowService(repo)
 
 	filter := gen.ScheduledWorkflowsBulkDeleteFilter{
 		AdditionalMetadata: &[]string{"userId:123"},
@@ -128,7 +151,7 @@ func TestWorkflowScheduledBulkDeleteReturns200WithErrorsWhenFilterFindsOnlyCodeD
 		},
 		listCount: 1,
 	}
-	svc := &WorkflowService{workflowSchedules: repo}
+	svc := newTestWorkflowService(repo)
 
 	filter := gen.ScheduledWorkflowsBulkDeleteFilter{}
 
@@ -150,7 +173,7 @@ func TestWorkflowScheduledBulkDeleteReturns200WithErrorsWhenFilterFindsOnlyCodeD
 }
 
 func TestWorkflowScheduledBulkDeleteStillValidatesMissingIdsAndFilter(t *testing.T) {
-	svc := &WorkflowService{workflowSchedules: &fakeWorkflowScheduleRepository{}}
+	svc := newTestWorkflowService(&fakeWorkflowScheduleRepository{})
 
 	resp, err := svc.WorkflowScheduledBulkDelete(newBulkDeleteContext(t), gen.WorkflowScheduledBulkDeleteRequestObject{
 		Body: &gen.WorkflowScheduledBulkDeleteJSONRequestBody{},
