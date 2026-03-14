@@ -477,19 +477,19 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 			err = t.RegisterTenant(ctx, msg.TenantID)
 
 			if err != nil {
-				t.l.Error().Msgf("error registering tenant exchange: %v", err)
+				t.l.Error().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("error registering tenant exchange: %v", err)
 				return err
 			}
 		}
 
-		t.l.Debug().Msgf("publishing tenant msg to exchange %s", msg.TenantID)
+		t.l.Debug().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("publishing tenant msg to exchange %s", msg.TenantID)
 
 		err = pub.PublishWithContext(ctx, msgqueue.GetTenantExchangeName(msg.TenantID), "", false, false, amqp.Publishing{
 			Body: body,
 		})
 
 		if err != nil {
-			t.l.Error().Msgf("error publishing tenant msg: %v", err)
+			t.l.Error().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("error publishing tenant msg: %v", err)
 			return err
 		}
 	}
@@ -558,7 +558,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUI
 	poolCh, err := t.pubChannels.Acquire(ctx)
 
 	if err != nil {
-		t.l.Error().Msgf("[RegisterTenant] cannot acquire channel: %v", err)
+		t.l.Error().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("[RegisterTenant] cannot acquire channel: %v", err)
 		return err
 	}
 
@@ -571,7 +571,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUI
 
 	defer poolCh.Release()
 
-	t.l.Debug().Msgf("registering tenant exchange: %s", tenantId)
+	t.l.Debug().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("registering tenant exchange: %s", tenantId)
 
 	// create a fanout exchange for the tenant. each consumer of the fanout exchange will get notified
 	// with the tenant events.
@@ -586,7 +586,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUI
 	)
 
 	if err != nil {
-		t.l.Error().Msgf("cannot declare exchange: %q, %v", tenantId, err)
+		t.l.Error().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("cannot declare exchange: %q, %v", tenantId, err)
 		return err
 	}
 

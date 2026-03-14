@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -435,21 +436,23 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId strin
 		}
 	}()
 
+	ctx := context.WithValue(context.Background(), analytics.TenantIDKey, tenantId)
+
 	switch msgId {
 	case "created-task":
-		return tc.handleCreatedTask(context.Background(), tenantId, payloads)
+		return tc.handleCreatedTask(ctx, tenantId, payloads)
 	case "created-dag":
-		return tc.handleCreatedDAG(context.Background(), tenantId, payloads)
+		return tc.handleCreatedDAG(ctx, tenantId, payloads)
 	case "create-monitoring-event":
-		return tc.handleCreateMonitoringEvent(context.Background(), tenantId, payloads)
+		return tc.handleCreateMonitoringEvent(ctx, tenantId, payloads)
 	case "created-event-trigger":
-		return tc.handleCreateEventTriggers(context.Background(), tenantId, payloads)
+		return tc.handleCreateEventTriggers(ctx, tenantId, payloads)
 	case "failed-webhook-validation":
-		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
+		return tc.handleFailedWebhookValidation(ctx, tenantId, payloads)
 	case "cel-evaluation-failure":
-		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
+		return tc.handleCelEvaluationFailure(ctx, tenantId, payloads)
 	case "offload-payload":
-		return tc.handlePayloadOffload(context.Background(), tenantId, payloads)
+		return tc.handlePayloadOffload(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)

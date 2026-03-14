@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -420,23 +421,25 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		}
 	}()
 
+	ctx := context.WithValue(context.Background(), analytics.TenantIDKey, tenantId)
+
 	switch msgId {
 	case msgqueue.MsgIDTaskCompleted:
-		return tc.handleTaskCompleted(context.Background(), tenantId, payloads)
+		return tc.handleTaskCompleted(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskFailed:
-		return tc.handleTaskFailed(context.Background(), tenantId, payloads)
+		return tc.handleTaskFailed(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskCancelled:
-		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
+		return tc.handleTaskCancelled(ctx, tenantId, payloads)
 	case msgqueue.MsgIDCancelTasks:
-		return tc.handleCancelTasks(context.Background(), tenantId, payloads)
+		return tc.handleCancelTasks(ctx, tenantId, payloads)
 	case msgqueue.MsgIDReplayTasks:
-		return tc.handleReplayTasks(context.Background(), tenantId, payloads)
+		return tc.handleReplayTasks(ctx, tenantId, payloads)
 	case msgqueue.MsgIDUserEvent:
-		return tc.handleProcessUserEvents(context.Background(), tenantId, payloads)
+		return tc.handleProcessUserEvents(ctx, tenantId, payloads)
 	case msgqueue.MsgIDInternalEvent:
-		return tc.handleProcessInternalEvents(context.Background(), tenantId, payloads)
+		return tc.handleProcessInternalEvents(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskTrigger:
-		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
+		return tc.handleProcessTaskTrigger(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
