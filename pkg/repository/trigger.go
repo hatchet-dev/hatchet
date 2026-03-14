@@ -632,7 +632,13 @@ func (r *sharedRepository) triggerWorkflows(
 			} else {
 				externalId := uuid.New()
 				stepsToExternalIds[i][step.ID] = externalId
-				dagToTaskIds[tuple.externalId] = append(dagToTaskIds[tuple.externalId], externalId)
+
+				// on_failure steps are conditionally triggered, so they should not count
+				// toward total_tasks. They get their own task created via event matches
+				// only when another step in the DAG fails.
+				if step.JobKind != sqlcv1.JobKindONFAILURE {
+					dagToTaskIds[tuple.externalId] = append(dagToTaskIds[tuple.externalId], externalId)
+				}
 			}
 		}
 	}

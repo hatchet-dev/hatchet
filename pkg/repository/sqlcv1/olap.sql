@@ -1086,8 +1086,9 @@ WITH tenants AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
-            -- If the task count is not equal to the total tasks, we should set the status to running
-            WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
+            -- If fewer tasks exist than expected, not all tasks have been created yet
+            -- (using < instead of != because on_failure tasks may add tasks beyond total_tasks)
+            WHEN dtc.task_count < dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
             WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
             WHEN dtc.failed_count > 0 THEN 'FAILED'
