@@ -938,24 +938,19 @@ WHERE
 RETURNING
     v1_task_runtime.*;
 
--- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
--- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
--- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
-WITH input AS (
-    SELECT
-        UNNEST(@concurrencyParentStrategyIds::bigint[]) AS parent_strategy_id,
-        UNNEST(@workflowVersionIds::uuid[]) AS workflow_version_id,
-        UNNEST(@workflowRunIds::uuid[]) AS workflow_run_id
-    ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id
-)
+-- name: CleanupWorkflowConcurrencySlotsBeforePartitionDrop :exec
+-- Cleans up workflow concurrency slots for workflow runs older than the retention period,
+-- before their v1_task partitions are dropped. This ensures cleanup_workflow_concurrency_slots
+-- can still access task data for its cleanup logic.
 SELECT
     cleanup_workflow_concurrency_slots(
-            rec.parent_strategy_id,
-            rec.workflow_version_id,
-            rec.workflow_run_id
-        )
-FROM
-    input rec;
+        wcs.strategy_id,
+        wcs.workflow_version_id,
+        wcs.workflow_run_id
+    )
+FROM v1_workflow_concurrency_slot wcs
+JOIN v1_lookup_table lt ON lt.external_id = wcs.workflow_run_id
+WHERE lt.inserted_at < @removeBefore::timestamptz;
 
 -- name: RegisterBatch :batchexec
 -- DO NOT USE: dummy query to satisfy sqlc and register Batch calls on DBTX
@@ -1014,6 +1009,25 @@ DELETE FROM v1_concurrency_slot
 WHERE (task_id, task_inserted_at, task_retry_count) IN (
     SELECT task_id, task_inserted_at, task_retry_count
     FROM locked_cs
+);
+
+-- name: CleanupV1WorkflowConcurrencySlot :execresult
+WITH orphaned_slots AS (
+    SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+    FROM v1_workflow_concurrency_slot wcs
+    WHERE NOT EXISTS (
+        SELECT 1 FROM v1_concurrency_slot cs
+        WHERE cs.tenant_id = wcs.tenant_id
+          AND cs.strategy_id = ANY(wcs.child_strategy_ids)
+    )
+    ORDER BY wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_workflow_concurrency_slot
+WHERE (strategy_id, workflow_version_id, workflow_run_id) IN (
+    SELECT strategy_id, workflow_version_id, workflow_run_id
+    FROM orphaned_slots
 );
 
 -- name: GetTenantTaskStats :many
