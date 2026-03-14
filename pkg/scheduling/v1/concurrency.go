@@ -127,7 +127,7 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 
 		if !c.rateLimiter.Allow() {
 			span.End()
-			c.l.Debug().Msgf("rate limit exceeded for strategy %d", c.strategy.ID)
+			c.l.Debug().Ctx(ctx).Msgf("rate limit exceeded for strategy %d", c.strategy.ID)
 			continue
 		}
 
@@ -137,12 +137,12 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 
 		if err != nil {
 			span.End()
-			c.l.Error().Err(err).Msg("error running concurrency strategy")
+			c.l.Error().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
 			continue
 		}
 
 		if time.Since(start) > 100*time.Millisecond {
-			c.l.Warn().
+			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
 		}
 
@@ -178,12 +178,12 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 
 		if err != nil {
 			span.End()
-			c.l.Error().Err(err).Msg("error updating concurrency strategy is_active")
+			c.l.Error().Ctx(ctx).Err(err).Msg("error updating concurrency strategy is_active")
 			continue
 		}
 
 		if time.Since(start) > 100*time.Millisecond {
-			c.l.Warn().
+			c.l.Warn().Ctx(ctx).
 				Msgf("checking is_active on concurrency strategy %d took longer than 100ms (%s)", c.strategy.ID, time.Since(start))
 		}
 

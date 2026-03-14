@@ -175,10 +175,10 @@ func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId st
 	go func() {
 		defer func() {
 			close(ch)
-			r.l.Debug().Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
+			r.l.Debug().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
 		}()
 
-		r.l.Debug().Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
+		r.l.Debug().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
 
 		err := r.v0Client.Subscribe().Stream(ctx, workflowRunId, func(event client.StreamEvent) error {
 			select {
@@ -189,7 +189,7 @@ func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId st
 			return nil
 		})
 		if err != nil {
-			r.l.Error().Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
+			r.l.Error().Ctx(ctx).Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
 			return
 		}
 	}()

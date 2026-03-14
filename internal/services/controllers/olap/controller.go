@@ -463,7 +463,7 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if !tc.sample(payload.ExternalId.String()) {
-				tc.l.Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
+				tc.l.Debug().Ctx(ctx).Msgf("skipping payload offload external id %s", payload.ExternalId)
 				continue
 			}
 
@@ -482,7 +482,7 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 	for _, msg := range msgs {
 		for _, failure := range msg.Failures {
 			if !tc.sample(failure.ErrorMessage) {
-				tc.l.Debug().Msgf("skipping CEL evaluation failure %s for source %s", failure.ErrorMessage, failure.Source)
+				tc.l.Debug().Ctx(ctx).Msgf("skipping CEL evaluation failure %s for source %s", failure.ErrorMessage, failure.Source)
 				continue
 			}
 
@@ -501,7 +501,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 
 	for _, msg := range msgs {
 		if !tc.sample(msg.WorkflowRunID.String()) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
+			tc.l.Debug().Ctx(ctx).Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
 			continue
 		}
 
@@ -518,7 +518,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 	for _, msg := range msgs {
 		if !tc.sample(msg.ExternalID.String()) {
-			tc.l.Debug().Msgf("skipping dag %s", msg.ExternalID.String())
+			tc.l.Debug().Ctx(ctx).Msgf("skipping dag %s", msg.ExternalID.String())
 			continue
 		}
 
@@ -648,12 +648,12 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
 		if taskMeta == nil {
-			tc.l.Error().Msgf("could not find task meta for task id %d", msg.TaskId)
+			tc.l.Error().Ctx(ctx).Msgf("could not find task meta for task id %d", msg.TaskId)
 			continue
 		}
 
 		if !tc.sample(taskMeta.WorkflowRunID.String()) {
-			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, taskMeta.WorkflowRunID.String())
+			tc.l.Debug().Ctx(ctx).Msgf("skipping task %d for workflow run %s", msg.TaskId, taskMeta.WorkflowRunID.String())
 			continue
 		}
 
@@ -832,7 +832,7 @@ func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context,
 
 	for _, msg := range msgs {
 		if !tc.sample(msg.ErrorText) {
-			tc.l.Debug().Msgf("skipping failure logging for webhook %s", msg.WebhookName)
+			tc.l.Debug().Ctx(ctx).Msgf("skipping failure logging for webhook %s", msg.WebhookName)
 			continue
 		}
 
@@ -867,7 +867,7 @@ func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context
 		ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.processPayloadExternalCutovers")
 		defer span.End()
 
-		oc.l.Debug().Msgf("payload external cutover: processing external cutover payloads")
+		oc.l.Debug().Ctx(ctx).Msgf("payload external cutover: processing external cutover payloads")
 
 		p := oc.repo.Payloads()
 		err := oc.repo.OLAP().ProcessOLAPPayloadCutovers(ctx, p.ExternalStoreEnabled(), p.InlineStoreTTL(), p.ExternalCutoverBatchSize(), p.ExternalCutoverNumConcurrentOffloads())
@@ -875,7 +875,7 @@ func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not process external cutover payloads")
-			oc.l.Error().Err(err).Msg("could not process external cutover payloads")
+			oc.l.Error().Ctx(ctx).Err(err).Msg("could not process external cutover payloads")
 		}
 	}
 }

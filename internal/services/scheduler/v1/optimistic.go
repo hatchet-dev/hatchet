@@ -35,7 +35,7 @@ func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.U
 		innerErr := eg.Wait()
 
 		if innerErr != nil {
-			s.l.Error().Err(innerErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
+			s.l.Error().Ctx(ctx).Err(innerErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
 		}
 	}()
 
@@ -80,7 +80,7 @@ func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenan
 		innerErr := eg.Wait()
 
 		if innerErr != nil {
-			s.l.Error().Err(innerErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
+			s.l.Error().Ctx(ctx).Err(innerErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
 		}
 	}()
 

@@ -416,7 +416,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			event, ok := idsToEvents[eventId]
 
 			if !ok {
-				m.l.Error().Msgf("event with id %s not found", eventId)
+				m.l.Error().Ctx(ctx).Msgf("event with id %s not found", eventId)
 				continue
 			}
 
@@ -697,7 +697,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	end := time.Now()
 
 	if end.Sub(start) > 100*time.Millisecond {
-		m.l.Warn().Msgf("processing internal event matches took %s", end.Sub(start))
+		m.l.Warn().Ctx(ctx).Msgf("processing internal event matches took %s", end.Sub(start))
 	}
 
 	return res, nil
@@ -731,14 +731,14 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		ast, issues := m.env.Compile(expr)
 
 		if issues != nil {
-			m.l.Error().Msgf("failed to compile CEL expression: %s", issues.String())
+			m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
 			continue
 		}
 
 		program, err := m.env.Program(ast)
 
 		if err != nil {
-			m.l.Error().Err(err).Msgf("failed to create CEL program: %s", expr)
+			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
 			continue
 		}
 
@@ -762,7 +762,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				err := json.Unmarshal(event.Data, &outputEventData)
 
 				if err != nil {
-					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
+					m.l.Warn().Ctx(ctx).Err(err).Msgf("[0] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 					continue
 				}
 
@@ -770,14 +770,14 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 					err = json.Unmarshal(outputEventData.Output, &outputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield for task %d", outputEventData.TaskId)
+						m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal output event data, output subfield for task %d", outputEventData.TaskId)
 						continue
 					}
 				} else {
 					err = json.Unmarshal(event.Data, &inputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
+						m.l.Warn().Ctx(ctx).Err(err).Msgf("[1] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 						continue
 					}
 				}
@@ -785,7 +785,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				err := json.Unmarshal(event.Data, &inputData)
 
 				if err != nil {
-					m.l.Warn().Err(err).Msgf("failed to unmarshal user event data %s", string(event.Data))
+					m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal user event data %s", string(event.Data))
 					continue
 				}
 			}
@@ -816,7 +816,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				// satisfied and write an error to it. If the relevant conditions have errors, the task
 				// should be created in a failed state.
 				// How should we handle signals?
-				m.l.Warn().Err(err).Msgf("failed to eval CEL program")
+				m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to eval CEL program")
 			}
 
 			if b, ok := out.Value().(bool); ok && b {

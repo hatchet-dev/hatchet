@@ -526,7 +526,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
@@ -536,7 +536,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
@@ -704,7 +704,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
@@ -720,7 +720,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
@@ -780,7 +780,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 
 func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	if !tc.replayEnabled {
-		tc.l.Debug().Msg("replay is disabled, skipping handleReplayTasks")
+		tc.l.Debug().Ctx(ctx).Msg("replay is disabled, skipping handleReplayTasks")
 		return nil
 	}
 
@@ -941,7 +941,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not get tenant")
+		tc.l.Err(err).Ctx(ctx).Msg("could not get tenant")
 		return
 	}
 
@@ -949,7 +949,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		msg, err := tasktypes.NotifyTaskReleased(tenantId, releasedTasks)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for scheduler partition queue")
+			tc.l.Err(err).Ctx(ctx).Msg("could not create message for scheduler partition queue")
 		} else {
 			err = tc.mq.SendMessage(
 				ctx,
@@ -958,7 +958,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 			)
 
 			if err != nil {
-				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
+				tc.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
 			}
 		}
 	}
@@ -980,7 +980,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not create message for workflow run finished candidate")
+		tc.l.Err(err).Ctx(ctx).Msg("could not create message for workflow run finished candidate")
 		return
 	}
 
@@ -991,7 +991,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not send workflow-run-finished-candidate message")
+		tc.l.Err(err).Ctx(ctx).Msg("could not send workflow-run-finished-candidate message")
 		return
 	}
 }

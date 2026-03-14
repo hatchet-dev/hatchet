@@ -190,7 +190,7 @@ func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context, majorVers
 func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.controllerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on controller partition")
+			p.l.Warn().Ctx(ctx).Msg("could not acquire lock on controller partition")
 			return
 		}
 
@@ -202,12 +202,12 @@ func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() 
 		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
 		defer span.End()
 
-		p.l.Debug().Msg("running controller partition heartbeat")
+		p.l.Debug().Ctx(ctx).Msg("running controller partition heartbeat")
 
 		partitionId, err := p.repo.UpdateControllerPartitionHeartbeat(ctx, p.GetControllerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Msg("could not heartbeat partition")
 			return
 		}
 
@@ -288,7 +288,7 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.schedulerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on scheduler partition")
+			p.l.Warn().Ctx(ctx).Msg("could not acquire lock on scheduler partition")
 			return
 		}
 
@@ -300,12 +300,12 @@ func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
 		defer span.End()
 
-		p.l.Debug().Msg("running scheduler partition heartbeat")
+		p.l.Debug().Ctx(ctx).Msg("running scheduler partition heartbeat")
 
 		partitionId, err := p.repo.UpdateSchedulerPartitionHeartbeat(ctx, p.GetSchedulerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Msg("could not heartbeat partition")
 			return
 		}
 
@@ -386,7 +386,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.workerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on worker partition")
+			p.l.Warn().Ctx(ctx).Msg("could not acquire lock on worker partition")
 			return
 		}
 
@@ -398,12 +398,12 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
 		defer span.End()
 
-		p.l.Debug().Msg("running worker partition heartbeat")
+		p.l.Debug().Ctx(ctx).Msg("running worker partition heartbeat")
 
 		partitionId, err := p.repo.UpdateWorkerPartitionHeartbeat(ctx, p.GetWorkerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Msg("could not heartbeat partition")
 			return
 		}
 
