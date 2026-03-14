@@ -44,15 +44,17 @@ To enable retries for a task, simply add the `retries` property to the task obje
 
 You can add the `retries` property to any task, and Hatchet will handle the retry logic automatically.
 
-It's important to note that task-level retries are not suitable for all types of failures. For example, if a task fails due to a programming error or an invalid configuration, retrying the task will likely not resolve the issue. In these cases, you should fix the underlying problem in your code or configuration rather than relying on retries.
+It's important to note that task-level retries are not suitable for all types of failures.
+For example, if a task fails due to a programming error or an invalid configuration, retrying the task will likely not resolve the issue.
+In these cases, you should fix the underlying problem in your code or configuration rather than relying on retries. See [Bypassing retry logic](#bypassing-retry-logic).
 
 Additionally, if a task interacts with external services or databases, you should ensure that the operation is idempotent (i.e. can be safely repeated without changing the result) before enabling retries. Otherwise, retrying the task could lead to unintended side effects or inconsistencies in your data.
 
 ## Accessing the Retry Count in a Running Task
 
-If you need to access the current retry count within a task, you can use the `retryCount` method available in the task context:
+You can access the current retry count on the task's context object:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
     <Snippet src={snippets.python.retries.worker.retries_with_count} />
   </Tabs.Tab>
@@ -117,4 +119,4 @@ In these cases, even though `retries` is set to a non-zero number (meaning the t
 
 Hatchet's task-level retry feature is a simple and effective way to handle transient failures in your tasks, improving the reliability and resilience of your tasks. By specifying the number of retries for each task, you can ensure that your tasks can recover from temporary issues without requiring complex error handling logic.
 
-Remember to use retries judiciously and only for tasks that are idempotent and can safely be repeated. For more advanced retry strategies, such as exponential backoff or circuit breaking, stay tuned for future updates to Hatchet's retry capabilities.
+Remember to use retries judiciously and only for tasks that are idempotent. For more advanced retry strategies, such as exponential backoff or circuit breaking, stay tuned for future updates to Hatchet's retry capabilities.
