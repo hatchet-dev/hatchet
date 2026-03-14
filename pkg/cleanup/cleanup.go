@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -21,7 +22,7 @@ type Cleanup struct {
 func New(logger *zerolog.Logger) Cleanup {
 	return Cleanup{
 		Fns:       []CleanupFn{},
-		TimeLimit: time.Second * 30,
+		TimeLimit: time.Second * 10,
 		logger:    logger,
 	}
 }
@@ -35,8 +36,15 @@ func (c *Cleanup) Add(fn func() error, name string) {
 
 func (c *Cleanup) Run() error {
 	lines := []string{}
-	start := time.Now()
 	lines = append(lines, "waiting for all other services to gracefully exit...")
+	go func() {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), c.TimeLimit)
+		<-timeoutCtx.Done()
+		for _, line := range lines {
+			c.logger.Error().Msg(line)
+		}
+		cancel()
+	}()
 	for i, fn := range c.Fns {
 		lines = append(lines, fmt.Sprintf("shutting down %s (%d/%d)", fn.Name, i+1, len(c.Fns)))
 		before := time.Now()
@@ -46,11 +54,5 @@ func (c *Cleanup) Run() error {
 		lines = append(lines, fmt.Sprintf("successfully shutdown %s in %s (%d/%d)\n", fn.Name, time.Since(before), i+1, len(c.Fns)))
 	}
 	lines = append(lines, "all services have successfully gracefully exited")
-	if time.Since(start) > c.TimeLimit {
-		for _, line := range lines {
-			c.logger.Warn().Msg(line)
-		}
-		return fmt.Errorf("cleanup exceeded time limit of %d seconds", c.TimeLimit)
-	}
 	return nil
 }
