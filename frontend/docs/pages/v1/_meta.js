@@ -11,9 +11,9 @@ export default {
     type: "separator",
   },
   tasks: "Tasks",
+  workflows: "Workflows",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "durable-workflows-overview": "Intro to Durable Workflows",
   "--triggers": {
     title: "Triggers",
     type: "separator",
