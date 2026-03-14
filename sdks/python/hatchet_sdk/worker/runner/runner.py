@@ -1,6 +1,7 @@
 import asyncio
 import ctypes
 import functools
+import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import is_dataclass
@@ -537,7 +538,10 @@ class Runner:
         if not serialized_output:
             return None
 
-        if "\\u0000" in serialized_output:
+        # Checks whether a JSON-encoded null character (\u0000) is present in serialized output.
+        # This matches the literal "\u0000" preceded by an odd number of backslashes, rejecting payloads
+        # that will decode to the null char.
+        if re.search(r"(?<!\\)(\\\\)*\\u0000", serialized_output):
             raise IllegalTaskOutputError(dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 

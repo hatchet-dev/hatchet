@@ -7,6 +7,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -19,19 +20,21 @@ type DispatcherService interface {
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
 
-	repo v1.Repository
-	mq   msgqueue.MessageQueue
-	v    validator.Validator
-	l    *zerolog.Logger
+	repo      v1.Repository
+	mq        msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
+	l         *zerolog.Logger
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)
 
 type DispatcherServiceOpts struct {
-	repo v1.Repository
-	mq   msgqueue.MessageQueue
-	v    validator.Validator
-	l    *zerolog.Logger
+	repo      v1.Repository
+	mq        msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
+	l         *zerolog.Logger
 }
 
 func defaultDispatcherServiceOpts() *DispatcherServiceOpts {
@@ -39,8 +42,9 @@ func defaultDispatcherServiceOpts() *DispatcherServiceOpts {
 	logger := logger.NewDefaultLogger("dispatcher")
 
 	return &DispatcherServiceOpts{
-		v: v,
-		l: &logger,
+		v:         v,
+		analytics: analytics.NoOpAnalytics{},
+		l:         &logger,
 	}
 }
 
@@ -68,6 +72,12 @@ func WithLogger(l *zerolog.Logger) DispatcherServiceOpt {
 	}
 }
 
+func WithAnalytics(a analytics.Analytics) DispatcherServiceOpt {
+	return func(opts *DispatcherServiceOpts) {
+		opts.analytics = a
+	}
+}
+
 func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error) {
 	opts := defaultDispatcherServiceOpts()
 
@@ -84,9 +94,10 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error)
 	}
 
 	return &DispatcherServiceImpl{
-		repo: opts.repo,
-		mq:   opts.mq,
-		v:    opts.v,
-		l:    opts.l,
+		repo:      opts.repo,
+		mq:        opts.mq,
+		v:         opts.v,
+		analytics: opts.analytics,
+		l:         opts.l,
 	}, nil
 }

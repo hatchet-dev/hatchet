@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -95,6 +96,16 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	ctx.Set("tenant", tenant)
+
+	t.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.Tenant, analytics.Create,
+		tenantId.String(),
+		map[string]interface{}{
+			"name": tenant.Name,
+			"slug": tenant.Slug,
+		},
+	)
 
 	return gen.TenantCreate200JSONResponse(
 		*transformers.ToTenant(tenant),
