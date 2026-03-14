@@ -1,4 +1,4 @@
-# This is a worker script that will introduce chaos to test 
+# This is a worker script that will introduce chaos to test
 # complex deployments and migrations.
 import argparse
 import asyncio
@@ -48,7 +48,7 @@ def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 @hatchet.durable_task()
-def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("Executing durable task!")
     return {"result": "Hello from durable!"}
 
@@ -147,7 +147,6 @@ def main() -> None:
         if _current_worker and _current_thread:
             _force_stop_worker(_current_worker, _current_thread)
         print("Bye!")
-
 
 
 if __name__ == "__main__":

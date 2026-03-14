@@ -441,6 +441,8 @@ export interface AssignedAction {
   workflowId?: string | undefined;
   /** (optional) the workflow version id */
   workflowVersionId?: string | undefined;
+  /** (optional) the invocation count for durable task events (required for durable events, otherwise null) */
+  durableTaskInvocationCount?: number | undefined;
 }
 
 export interface WorkerListenRequest {
@@ -595,6 +597,14 @@ export interface ReleaseSlotRequest {
 }
 
 export interface ReleaseSlotResponse {}
+
+export interface RestoreEvictedTaskRequest {
+  taskRunExternalId: string;
+}
+
+export interface RestoreEvictedTaskResponse {
+  requeued: boolean;
+}
 
 export interface GetVersionRequest {}
 
@@ -1615,6 +1625,7 @@ function createBaseAssignedAction(): AssignedAction {
     priority: 0,
     workflowId: undefined,
     workflowVersionId: undefined,
+    durableTaskInvocationCount: undefined,
   };
 }
 
@@ -1679,6 +1690,9 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     }
     if (message.workflowVersionId !== undefined) {
       writer.uint32(162).string(message.workflowVersionId);
+    }
+    if (message.durableTaskInvocationCount !== undefined) {
+      writer.uint32(168).int32(message.durableTaskInvocationCount);
     }
     return writer;
   },
@@ -1850,6 +1864,14 @@ export const AssignedAction: MessageFns<AssignedAction> = {
           message.workflowVersionId = reader.string();
           continue;
         }
+        case 21: {
+          if (tag !== 168) {
+            break;
+          }
+
+          message.durableTaskInvocationCount = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1894,6 +1916,9 @@ export const AssignedAction: MessageFns<AssignedAction> = {
       workflowId: isSet(object.workflowId) ? globalThis.String(object.workflowId) : undefined,
       workflowVersionId: isSet(object.workflowVersionId)
         ? globalThis.String(object.workflowVersionId)
+        : undefined,
+      durableTaskInvocationCount: isSet(object.durableTaskInvocationCount)
+        ? globalThis.Number(object.durableTaskInvocationCount)
         : undefined,
     };
   },
@@ -1960,6 +1985,9 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.workflowVersionId !== undefined) {
       obj.workflowVersionId = message.workflowVersionId;
     }
+    if (message.durableTaskInvocationCount !== undefined) {
+      obj.durableTaskInvocationCount = Math.round(message.durableTaskInvocationCount);
+    }
     return obj;
   },
 
@@ -1988,6 +2016,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.priority = object.priority ?? 0;
     message.workflowId = object.workflowId ?? undefined;
     message.workflowVersionId = object.workflowVersionId ?? undefined;
+    message.durableTaskInvocationCount = object.durableTaskInvocationCount ?? undefined;
     return message;
   },
 };
@@ -3808,6 +3837,132 @@ export const ReleaseSlotResponse: MessageFns<ReleaseSlotResponse> = {
   },
 };
 
+function createBaseRestoreEvictedTaskRequest(): RestoreEvictedTaskRequest {
+  return { taskRunExternalId: '' };
+}
+
+export const RestoreEvictedTaskRequest: MessageFns<RestoreEvictedTaskRequest> = {
+  encode(
+    message: RestoreEvictedTaskRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.taskRunExternalId !== '') {
+      writer.uint32(10).string(message.taskRunExternalId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RestoreEvictedTaskRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRestoreEvictedTaskRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.taskRunExternalId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RestoreEvictedTaskRequest {
+    return {
+      taskRunExternalId: isSet(object.taskRunExternalId)
+        ? globalThis.String(object.taskRunExternalId)
+        : '',
+    };
+  },
+
+  toJSON(message: RestoreEvictedTaskRequest): unknown {
+    const obj: any = {};
+    if (message.taskRunExternalId !== '') {
+      obj.taskRunExternalId = message.taskRunExternalId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<RestoreEvictedTaskRequest>): RestoreEvictedTaskRequest {
+    return RestoreEvictedTaskRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RestoreEvictedTaskRequest>): RestoreEvictedTaskRequest {
+    const message = createBaseRestoreEvictedTaskRequest();
+    message.taskRunExternalId = object.taskRunExternalId ?? '';
+    return message;
+  },
+};
+
+function createBaseRestoreEvictedTaskResponse(): RestoreEvictedTaskResponse {
+  return { requeued: false };
+}
+
+export const RestoreEvictedTaskResponse: MessageFns<RestoreEvictedTaskResponse> = {
+  encode(
+    message: RestoreEvictedTaskResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.requeued !== false) {
+      writer.uint32(8).bool(message.requeued);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RestoreEvictedTaskResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRestoreEvictedTaskResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.requeued = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RestoreEvictedTaskResponse {
+    return { requeued: isSet(object.requeued) ? globalThis.Boolean(object.requeued) : false };
+  },
+
+  toJSON(message: RestoreEvictedTaskResponse): unknown {
+    const obj: any = {};
+    if (message.requeued !== false) {
+      obj.requeued = message.requeued;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<RestoreEvictedTaskResponse>): RestoreEvictedTaskResponse {
+    return RestoreEvictedTaskResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RestoreEvictedTaskResponse>): RestoreEvictedTaskResponse {
+    const message = createBaseRestoreEvictedTaskResponse();
+    message.requeued = object.requeued ?? false;
+    return message;
+  },
+};
+
 function createBaseGetVersionRequest(): GetVersionRequest {
   return {};
 }
@@ -4015,6 +4170,14 @@ export const DispatcherDefinition = {
       responseStream: false,
       options: {},
     },
+    restoreEvictedTask: {
+      name: 'RestoreEvictedTask',
+      requestType: RestoreEvictedTaskRequest,
+      requestStream: false,
+      responseType: RestoreEvictedTaskResponse,
+      responseStream: false,
+      options: {},
+    },
     upsertWorkerLabels: {
       name: 'UpsertWorkerLabels',
       requestType: UpsertWorkerLabelsRequest,
@@ -4093,6 +4256,10 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
     request: ReleaseSlotRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<ReleaseSlotResponse>>;
+  restoreEvictedTask(
+    request: RestoreEvictedTaskRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<RestoreEvictedTaskResponse>>;
   upsertWorkerLabels(
     request: UpsertWorkerLabelsRequest,
     context: CallContext & CallContextExt
@@ -4162,6 +4329,10 @@ export interface DispatcherClient<CallOptionsExt = {}> {
     request: DeepPartial<ReleaseSlotRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<ReleaseSlotResponse>;
+  restoreEvictedTask(
+    request: DeepPartial<RestoreEvictedTaskRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<RestoreEvictedTaskResponse>;
   upsertWorkerLabels(
     request: DeepPartial<UpsertWorkerLabelsRequest>,
     options?: CallOptions & CallOptionsExt

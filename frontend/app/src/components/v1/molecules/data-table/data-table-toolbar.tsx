@@ -13,6 +13,8 @@ export interface FilterOption {
   label: string;
   value: string;
   icon?: React.ComponentType<{ className?: string }>;
+  subFilterColumnId?: string;
+  subOptions?: FilterOption[];
 }
 
 export enum ToolbarType {

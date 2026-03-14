@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from hatchet_sdk.contracts.v1.workflows_pb2 import DesiredWorkerLabels
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels
 
 
 class DesiredWorkerLabel(BaseModel):

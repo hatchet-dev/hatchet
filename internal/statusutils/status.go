@@ -14,6 +14,7 @@ type V1RunStatus string
 const (
 	V1RunStatusQueued    V1RunStatus = "QUEUED"
 	V1RunStatusRunning   V1RunStatus = "RUNNING"
+	V1RunStatusEvicted   V1RunStatus = "EVICTED"
 	V1RunStatusCancelled V1RunStatus = "CANCELLED"
 	V1RunStatusFailed    V1RunStatus = "FAILED"
 	V1RunStatusCompleted V1RunStatus = "COMPLETED"
@@ -27,6 +28,9 @@ func V1RunStatusFromProto(status contracts.RunStatus) (*V1RunStatus, error) {
 	case contracts.RunStatus_RUNNING:
 		r := V1RunStatusRunning
 		return &r, nil
+	case contracts.RunStatus_EVICTED:
+		e := V1RunStatusEvicted
+		return &e, nil
 	case contracts.RunStatus_CANCELLED:
 		c := V1RunStatusCancelled
 		return &c, nil
@@ -42,11 +46,18 @@ func V1RunStatusFromProto(status contracts.RunStatus) (*V1RunStatus, error) {
 }
 
 func (s *V1RunStatus) ToProto() (*contracts.RunStatus, error) {
+	if s == nil {
+		return nil, fmt.Errorf("nil run status")
+	}
+
 	switch *s {
 	case V1RunStatusQueued:
 		r := contracts.RunStatus_QUEUED
 		return &r, nil
 	case V1RunStatusRunning:
+		r := contracts.RunStatus_RUNNING
+		return &r, nil
+	case V1RunStatusEvicted:
 		r := contracts.RunStatus_RUNNING
 		return &r, nil
 	case V1RunStatusCancelled:
@@ -61,6 +72,10 @@ func (s *V1RunStatus) ToProto() (*contracts.RunStatus, error) {
 	default:
 		return nil, fmt.Errorf("unknown run status: %v", *s)
 	}
+}
+
+func (s *V1RunStatus) IsEvicted() bool {
+	return s != nil && *s == V1RunStatusEvicted
 }
 
 func V1RunStatusFromEventType(eventType sqlcv1.V1TaskEventType) (*V1RunStatus, error) {
@@ -91,7 +106,7 @@ func DeriveWorkflowRunStatus(ctx context.Context, statuses []V1RunStatus) (*V1Ru
 		return &f, nil
 	}
 
-	if listutils.Any(uniqueStatuses, "RUNNING") || listutils.Any(uniqueStatuses, "QUEUED") {
+	if listutils.Any(uniqueStatuses, "RUNNING") || listutils.Any(uniqueStatuses, "QUEUED") || listutils.Any(uniqueStatuses, "EVICTED") {
 		r := V1RunStatusRunning
 		return &r, nil
 	}

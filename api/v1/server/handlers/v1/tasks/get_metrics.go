@@ -59,7 +59,7 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 		return nil, err
 	}
 
-	result := transformers.ToTaskRunMetrics(&metrics)
+	result := transformers.StatusToTaskRunMetrics(&metrics)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1TaskListStatusMetrics200JSONResponse(
