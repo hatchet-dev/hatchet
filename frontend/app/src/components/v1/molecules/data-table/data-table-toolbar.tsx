@@ -104,7 +104,7 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between">
       <div className="flex w-full flex-shrink-0 flex-row items-center justify-between overflow-x-auto">
         <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
-          {isLoading && <Spinner />}
+          {!leftActions && isLoading && <Spinner />}
           {leftActions}
         </div>
         <div className="flex flex-shrink-0 flex-row items-center gap-2">

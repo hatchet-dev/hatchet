@@ -69,7 +69,6 @@ export const useRuns = ({
       triggering_event_external_id: triggeringEventExternalId,
       include_payloads: false,
     }),
-    placeholderData: (prev) => prev,
     refetchInterval:
       Object.keys(rowSelection).length > 0 ? false : refetchInterval,
   });
