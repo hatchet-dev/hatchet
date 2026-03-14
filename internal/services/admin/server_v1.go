@@ -296,7 +296,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
-				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+				i.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
 			}
 		}
 
@@ -318,7 +318,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			dispatcherErr := eg.Wait()
 
 			if dispatcherErr != nil {
-				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+				i.l.Error().Ctx(ctx).Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 
 			// we return nil because the failed assignments would have been requeued by the local dispatcher,
@@ -335,7 +335,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			i.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+			i.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
 		} else if triggerErr == nil {
 			return nil
 		}

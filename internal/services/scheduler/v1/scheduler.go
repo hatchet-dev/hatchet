@@ -214,7 +214,7 @@ func (s *Scheduler) Start() (func() error, error) {
 
 		err := s.handleTask(context.Background(), task)
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not handle job task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not handle job task")
 			return s.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
 		}
 
@@ -240,7 +240,7 @@ func (s *Scheduler) Start() (func() error, error) {
 			case <-ctx.Done():
 				return
 			case res := <-queueResults:
-				s.l.Debug().Msgf("partition: received queue results")
+				s.l.Debug().Ctx(ctx).Msgf("partition: received queue results")
 
 				if res == nil {
 					continue
@@ -250,7 +250,7 @@ func (s *Scheduler) Start() (func() error, error) {
 					err := s.scheduleStepRuns(ctx, results.TenantId, results)
 
 					if err != nil {
-						s.l.Error().Err(err).Msg("could not schedule step runs")
+						s.l.Error().Ctx(ctx).Err(err).Msg("could not schedule step runs")
 					}
 				}(res)
 			}
@@ -265,7 +265,7 @@ func (s *Scheduler) Start() (func() error, error) {
 			case <-ctx.Done():
 				return
 			case res := <-concurrencyResults:
-				s.l.Debug().Msgf("partition: received concurrency results")
+				s.l.Debug().Ctx(ctx).Msgf("partition: received concurrency results")
 
 				if res == nil {
 					continue
@@ -390,13 +390,13 @@ func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqu
 
 func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	return func() {
-		s.l.Debug().Msgf("partition: checking step run requeue")
+		s.l.Debug().Ctx(ctx).Msgf("partition: checking step run requeue")
 
 		// list all tenants
 		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), sqlcv1.TenantMajorEngineVersionV1)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not list tenants")
+			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")
 			return
 		}
 
@@ -435,7 +435,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
 			if hasNoDispatcher || !ok {
-				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
+				s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
 
 				s.internalRetry(ctx, tenantId, bulkAssigned)
 
@@ -586,7 +586,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 			// if we have seen this task recently, don't send it again
 			if _, ok := s.tasksWithNoWorkerCache.Get(taskExternalId); ok {
-				s.l.Debug().Msgf("skipping unassigned task %s as it was recently unassigned", taskExternalId)
+				s.l.Debug().Ctx(ctx).Msgf("skipping unassigned task %s as it was recently unassigned", taskExternalId)
 				continue
 			}
 
@@ -640,7 +640,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not create failed task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not create failed task")
 			continue
 		}
 
@@ -651,7 +651,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not send failed task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not send failed task")
 			continue
 		}
 	}
@@ -712,7 +712,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not create cancelled task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not create cancelled task")
 			continue
 		}
 
@@ -723,7 +723,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not send cancelled task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not send cancelled task")
 			continue
 		}
 	}
@@ -774,7 +774,7 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 
 	for _, innerMsg := range msgs {
 		for _, tasks := range innerMsg.WorkerIdToTaskIds {
-			s.l.Error().Msgf("handling dead-lettered task assignments for tenant %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, tasks)
+			s.l.Error().Ctx(ctx).Msgf("handling dead-lettered task assignments for tenant %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, tasks)
 			taskIds = append(taskIds, tasks...)
 		}
 	}
@@ -825,7 +825,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	workerIds := make([]uuid.UUID, 0)
 
 	for _, p := range payloads {
-		s.l.Error().Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
+		s.l.Error().Ctx(ctx).Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
 		workerIds = append(workerIds, p.WorkerId)
 	}
 

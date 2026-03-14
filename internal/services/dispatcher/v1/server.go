@@ -27,7 +27,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 	taskId, err := uuid.Parse(req.TaskId)
 
 	if err != nil {
-		d.l.Error().Msgf("task id %s is not a valid uuid", req.TaskId)
+		d.l.Error().Ctx(ctx).Msgf("task id %s is not a valid uuid", req.TaskId)
 		return nil, status.Error(codes.InvalidArgument, "task id is not a valid uuid")
 	}
 
@@ -43,7 +43,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
 
 		if err != nil {
-			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			d.l.Error().Ctx(ctx).Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
 			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
 		}
 
@@ -59,7 +59,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
 
 		if err != nil {
-			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			d.l.Error().Ctx(ctx).Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
 			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
 		}
 
@@ -173,14 +173,14 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		// results := cleanResults(e.Results)
 
 		// if results == nil {
-		// 	s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
+		// 	s.l.Warn().Ctx(ctx).Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
 		// 	e.Results = nil
 		// }
 
 		externalId := acks.getExternalId(e.TaskID, e.TaskInsertedAt, e.EventKey.String)
 
 		if externalId == uuid.Nil {
-			d.l.Warn().Msgf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
+			d.l.Warn().Ctx(ctx).Msgf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 			return fmt.Errorf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 		}
 
@@ -194,7 +194,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		sendMu.Unlock()
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not send durable event for task %s, key %s", externalId, e.EventKey.String)
+			d.l.Error().Ctx(ctx).Err(err).Msgf("could not send durable event for task %s, key %s", externalId, e.EventKey.String)
 			return err
 		}
 
@@ -209,7 +209,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		}
 
 		if !iterMu.TryLock() {
-			d.l.Warn().Msg("could not acquire lock")
+			d.l.Warn().Ctx(ctx).Msg("could not acquire lock")
 			return nil
 		}
 
@@ -221,7 +221,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		dbEvents, err := d.repo.Tasks().ListSignalCompletedEvents(ctx, tenantId, signalEvents)
 
 		if err != nil {
-			d.l.Error().Err(err).Msg("could not list signal completed events")
+			d.l.Error().Ctx(ctx).Err(err).Msg("could not list signal completed events")
 			return err
 		}
 
@@ -234,7 +234,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		}
 
 		if time.Since(start) > 100*time.Millisecond {
-			d.l.Warn().Msgf("list durable events for %d signals took %s", len(signalEvents), time.Since(start))
+			d.l.Warn().Ctx(ctx).Msgf("list durable events for %d signals took %s", len(signalEvents), time.Since(start))
 		}
 
 		return nil
@@ -251,14 +251,14 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 					return
 				}
 
-				d.l.Error().Err(err).Msg("could not receive message from client")
+				d.l.Error().Ctx(ctx).Err(err).Msg("could not receive message from client")
 				return
 			}
 
 			taskId, err := uuid.Parse(req.TaskId)
 
 			if err != nil {
-				d.l.Warn().Msgf("task id %s is not a valid uuid", req.TaskId)
+				d.l.Warn().Ctx(ctx).Msgf("task id %s is not a valid uuid", req.TaskId)
 				continue
 			}
 
@@ -266,7 +266,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 			task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskId, false)
 
 			if err != nil {
-				d.l.Error().Err(err).Msg("could not get task by external id")
+				d.l.Error().Ctx(ctx).Err(err).Msg("could not get task by external id")
 				continue
 			}
 
@@ -290,7 +290,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				}
 
 				if err := iter(signalEvents); err != nil {
-					d.l.Error().Err(err).Msg("could not iterate over workflow runs")
+					d.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 				}
 			}
 		}

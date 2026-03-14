@@ -25,7 +25,7 @@ func (a *healthRepository) IsHealthy(ctx context.Context) bool {
 	_, err := a.queries.Health(ctx, a.pool)
 
 	if err != nil { //nolint:gosimple
-		a.l.Err(err).Msg("health check failed")
+		a.l.Err(err).Ctx(ctx).Msg("health check failed")
 		return false
 	}
 

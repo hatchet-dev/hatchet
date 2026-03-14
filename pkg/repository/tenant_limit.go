@@ -163,7 +163,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 	})
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
-		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
+		t.l.Warn().Ctx(ctx).Msgf("no %s tenant limit found, creating default limit", string(resource))
 
 		err = t.UpdateLimits(ctx, tenantId, t.DefaultLimits())
 
@@ -268,7 +268,7 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.Limit
 			_, percent, err := t.cachedCanCreate(ctx, resource, tenantId, numberOfResources)
 
 			if err != nil {
-				t.l.Error().Err(err).Msg("could not check tenant limit")
+				t.l.Error().Ctx(ctx).Err(err).Msg("could not check tenant limit")
 				return
 			}
 
@@ -280,7 +280,7 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.Limit
 			}
 
 			if err != nil {
-				t.l.Error().Err(err).Msg("could not meter resource")
+				t.l.Error().Ctx(ctx).Err(err).Msg("could not meter resource")
 			}
 		}
 }

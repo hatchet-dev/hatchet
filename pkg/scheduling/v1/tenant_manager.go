@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -26,6 +27,7 @@ type notifierCh[T any] chan notifierMsg[T]
 // messages to the relevant queuer.
 type tenantManager struct {
 	cf       *sharedConfig
+	l        zerolog.Logger
 	tenantId uuid.UUID
 
 	scheduler *Scheduler
@@ -70,6 +72,7 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 		scheduler:              s,
 		leaseManager:           leaseManager,
 		cf:                     cf,
+		l:                      cf.l.With().Str("tenant_id", tenantIdUUID.String()).Logger(),
 		tenantId:               tenantIdUUID,
 		workersCh:              workersCh,
 		queuesCh:               queuesCh,
@@ -197,7 +200,7 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 			delete(queueNamesSet, q.queueName)
 		} else {
 			// if not in new set, cleanup
-			t.cf.l.Debug().Msgf("cleaning up queuer for queue %s for tenant %s", q.queueName, t.tenantId)
+			t.l.Debug().Msgf("cleaning up queuer for queue %s for tenant %s", q.queueName, t.tenantId)
 
 			go q.Cleanup()
 		}
@@ -277,7 +280,7 @@ func (t *tenantManager) replenish(ctx context.Context) {
 	err := t.scheduler.replenish(ctx, false)
 
 	if err != nil {
-		t.cf.l.Error().Err(err).Msg("error replenishing scheduler")
+		t.l.Error().Err(err).Msg("error replenishing scheduler")
 	}
 }
 
@@ -351,18 +354,18 @@ func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID)
 	err := t.leaseManager.notifyNewWorker(ctx, workerId)
 
 	if err != nil {
-		t.cf.l.Error().Err(err).Msg("error notifying new worker")
+		t.l.Error().Err(err).Msg("error notifying new worker")
 		return
 	}
 }
 
 func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {
-	t.cf.l.Debug().Msgf("notifying new queue %s for tenant %s", queueName, t.tenantId)
+	t.l.Debug().Msgf("notifying new queue %s for tenant %s", queueName, t.tenantId)
 
 	err := t.leaseManager.notifyNewQueue(ctx, queueName)
 
 	if err != nil {
-		t.cf.l.Error().Err(err).Msg("error notifying new queue")
+		t.l.Error().Err(err).Msg("error notifying new queue")
 		return
 	}
 }
@@ -371,7 +374,7 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 	err := t.leaseManager.notifyNewConcurrencyStrategy(ctx, strategyId)
 
 	if err != nil {
-		t.cf.l.Error().Err(err).Msg("error notifying new concurrency strategy")
+		t.l.Error().Err(err).Msg("error notifying new concurrency strategy")
 		return
 	}
 }

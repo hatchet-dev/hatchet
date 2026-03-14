@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -420,23 +421,25 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		}
 	}()
 
+	ctx := context.WithValue(context.Background(), analytics.TenantIDKey, tenantId)
+
 	switch msgId {
 	case msgqueue.MsgIDTaskCompleted:
-		return tc.handleTaskCompleted(context.Background(), tenantId, payloads)
+		return tc.handleTaskCompleted(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskFailed:
-		return tc.handleTaskFailed(context.Background(), tenantId, payloads)
+		return tc.handleTaskFailed(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskCancelled:
-		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
+		return tc.handleTaskCancelled(ctx, tenantId, payloads)
 	case msgqueue.MsgIDCancelTasks:
-		return tc.handleCancelTasks(context.Background(), tenantId, payloads)
+		return tc.handleCancelTasks(ctx, tenantId, payloads)
 	case msgqueue.MsgIDReplayTasks:
-		return tc.handleReplayTasks(context.Background(), tenantId, payloads)
+		return tc.handleReplayTasks(ctx, tenantId, payloads)
 	case msgqueue.MsgIDUserEvent:
-		return tc.handleProcessUserEvents(context.Background(), tenantId, payloads)
+		return tc.handleProcessUserEvents(ctx, tenantId, payloads)
 	case msgqueue.MsgIDInternalEvent:
-		return tc.handleProcessInternalEvents(context.Background(), tenantId, payloads)
+		return tc.handleProcessInternalEvents(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskTrigger:
-		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
+		return tc.handleProcessTaskTrigger(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -526,7 +529,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
@@ -536,7 +539,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
@@ -704,7 +707,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
@@ -720,7 +723,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
@@ -780,7 +783,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 
 func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	if !tc.replayEnabled {
-		tc.l.Debug().Msg("replay is disabled, skipping handleReplayTasks")
+		tc.l.Debug().Ctx(ctx).Msg("replay is disabled, skipping handleReplayTasks")
 		return nil
 	}
 
@@ -941,7 +944,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not get tenant")
+		tc.l.Err(err).Ctx(ctx).Msg("could not get tenant")
 		return
 	}
 
@@ -949,7 +952,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		msg, err := tasktypes.NotifyTaskReleased(tenantId, releasedTasks)
 
 		if err != nil {
-			tc.l.Err(err).Msg("could not create message for scheduler partition queue")
+			tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for scheduler partition queue")
 		} else {
 			err = tc.mq.SendMessage(
 				ctx,
@@ -958,7 +961,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 			)
 
 			if err != nil {
-				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
+				tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
 			}
 		}
 	}
@@ -980,7 +983,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not create message for workflow run finished candidate")
+		tc.l.Err(err).Ctx(ctx).Msg("could not create message for workflow run finished candidate")
 		return
 	}
 
@@ -991,7 +994,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	)
 
 	if err != nil {
-		tc.l.Err(err).Msg("could not send workflow-run-finished-candidate message")
+		tc.l.Err(err).Ctx(ctx).Msg("could not send workflow-run-finished-candidate message")
 		return
 	}
 }

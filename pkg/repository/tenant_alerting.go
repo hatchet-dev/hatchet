@@ -223,7 +223,7 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				r.l.Warn().Err(err).Msg("No valid member email group found for tenant")
+				r.l.Warn().Ctx(ctx).Err(err).Msg("No valid member email group found for tenant")
 			} else {
 				return nil, err
 			}

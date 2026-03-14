@@ -48,7 +48,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		repositoryReady := h.repository.IsHealthy(ctx)
 
 		if !queueReady || !repositoryReady {
-			h.l.Error().Msgf("liveness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
+			h.l.Error().Ctx(ctx).Msgf("liveness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -65,7 +65,7 @@ func (h *Health) Start(port int) (func() error, error) {
 
 		if h.shuttingDown || !queueReady || !repositoryReady {
 			if !h.shuttingDown {
-				h.l.Error().Msgf("readiness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
+				h.l.Error().Ctx(ctx).Msgf("readiness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
 			}
 
 			w.WriteHeader(http.StatusServiceUnavailable)

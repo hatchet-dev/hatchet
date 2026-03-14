@@ -66,8 +66,10 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
 	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 
+	ctx := c.Request().Context()
+
 	if err := a.ensureVerifiedEmail(c, r); err != nil {
-		a.l.Debug().Err(err).Msgf("error ensuring verified email")
+		a.l.Debug().Ctx(ctx).Err(err).Msgf("error ensuring verified email")
 		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
 	}
 
@@ -76,7 +78,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		user, ok := c.Get("user").(*sqlcv1.User)
 
 		if !ok {
-			a.l.Debug().Msgf("user not found in context")
+			a.l.Debug().Ctx(ctx).Msgf("user not found in context")
 
 			return unauthorized
 		}
@@ -85,13 +87,13 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
 
 		if err != nil {
-			a.l.Debug().Err(err).Msgf("error getting tenant member")
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
 
 			return unauthorized
 		}
 
 		if tenantMember == nil {
-			a.l.Debug().Msgf("user is not a member of the tenant")
+			a.l.Debug().Ctx(ctx).Msgf("user is not a member of the tenant")
 
 			return unauthorized
 		}
@@ -101,7 +103,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 
 		// authorize tenant operations
 		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
-			a.l.Debug().Err(err).Msgf("error authorizing tenant operations")
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error authorizing tenant operations")
 
 			return unauthorized
 		}

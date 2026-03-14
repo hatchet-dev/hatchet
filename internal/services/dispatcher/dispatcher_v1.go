@@ -79,7 +79,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		}
 
 		if outerErr != nil {
-			d.l.Error().Err(outerErr).Msg("failed to handle task assigned bulk message")
+			d.l.Error().Ctx(ctx).Err(outerErr).Msg("failed to handle task assigned bulk message")
 		}
 	}()
 
@@ -152,7 +152,7 @@ func (d *DispatcherImpl) populateTaskData(
 			requeue(task)
 		}
 
-		d.l.Error().Err(err).Msgf("could not bulk list step run data:")
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
 		return nil, err
 	}
 
@@ -163,7 +163,7 @@ func (d *DispatcherImpl) populateTaskData(
 			requeue(task)
 		}
 
-		d.l.Error().Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
 		return nil, err
 	}
 
@@ -189,7 +189,7 @@ func (d *DispatcherImpl) populateTaskData(
 			requeue(task)
 		}
 
-		d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
 		return nil, err
 	}
 
@@ -219,7 +219,7 @@ func (d *DispatcherImpl) populateTaskData(
 				err := json.Unmarshal(input, currInput)
 
 				if err != nil {
-					d.l.Warn().Err(err).Msg("failed to unmarshal input")
+					d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
 					continue
 				}
 			}
@@ -233,7 +233,7 @@ func (d *DispatcherImpl) populateTaskData(
 					err := json.Unmarshal(outputEvent.Output, &outputMap)
 
 					if err != nil {
-						d.l.Warn().Err(err).Msg("failed to unmarshal output")
+						d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
 						continue
 					}
 				}
@@ -297,7 +297,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 		task, ok := tasks[taskId]
 
 		if !ok {
-			d.l.Error().Msgf("task %d not found in task data map", taskId)
+			d.l.Error().Ctx(ctx).Msgf("task %d not found in task data map", taskId)
 			continue
 		}
 
@@ -339,11 +339,11 @@ func (d *DispatcherImpl) sendTasksToWorker(
 				)
 
 				if err != nil {
-					d.l.Error().Err(err).Int64("task_id", task.ID).Msg("could not create monitoring event")
+					d.l.Error().Ctx(ctx).Err(err).Int64("task_id", task.ID).Msg("could not create monitoring event")
 				} else {
 					defer func() {
 						if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-							d.l.Error().Err(err).Msg("could not publish monitoring event")
+							d.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event")
 						}
 					}()
 				}
@@ -455,12 +455,12 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 		task, ok := taskIdsToTasks[msg.TaskId]
 
 		if !ok {
-			d.l.Warn().Msgf("task %d not found", msg.TaskId)
+			d.l.Warn().Ctx(ctx).Msgf("task %d not found", msg.TaskId)
 			continue
 		}
 
 		if !ok {
-			d.l.Warn().Msgf("task %d not found in retry counts", msg.TaskId)
+			d.l.Warn().Ctx(ctx).Msgf("task %d not found in retry counts", msg.TaskId)
 			continue
 		}
 
@@ -477,7 +477,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 			return fmt.Errorf("could not get worker: %w", err)
 		} else if errors.Is(err, ErrWorkerNotFound) {
 			// if the worker is not found, we can ignore this task
-			d.l.Debug().Msgf("worker %s not found, ignoring task", workerId)
+			d.l.Debug().Ctx(ctx).Msgf("worker %s not found, ignoring task", workerId)
 			continue
 		}
 
@@ -486,7 +486,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 				retryCounts, ok := taskIdsToRetryCounts[task.ID]
 
 				if !ok {
-					d.l.Warn().Msgf("task %d not found in retry counts", task.ID)
+					d.l.Warn().Ctx(ctx).Msgf("task %d not found in retry counts", task.ID)
 					continue
 				}
 

@@ -14,13 +14,13 @@ import (
 
 func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() {
 	return func() {
-		o.l.Debug().Msgf("partition: processing tenant alerts")
+		o.l.Debug().Ctx(ctx).Msgf("partition: processing tenant alerts")
 
 		// list all tenants
 		tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
 
 		if err != nil {
-			o.l.Error().Err(err).Msg("could not list tenants")
+			o.l.Error().Ctx(ctx).Err(err).Msg("could not list tenants")
 			return
 		}
 
