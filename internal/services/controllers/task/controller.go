@@ -952,7 +952,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		msg, err := tasktypes.NotifyTaskReleased(tenantId, releasedTasks)
 
 		if err != nil {
-			tc.l.Err(err).Ctx(ctx).Msg("could not create message for scheduler partition queue")
+			tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for scheduler partition queue")
 		} else {
 			err = tc.mq.SendMessage(
 				ctx,
@@ -961,7 +961,7 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 			)
 
 			if err != nil {
-				tc.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
+				tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
 			}
 		}
 	}

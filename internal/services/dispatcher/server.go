@@ -453,7 +453,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 				msg, err := tasktypes.NotifyNewWorker(tenantId, worker.ID)
 
 				if err != nil {
-					s.l.Err(err).Ctx(ctx).Msg("could not create message for notifying new worker")
+					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
 				} else {
 					err = s.mqv1.SendMessage(
 						notifyCtx,
@@ -462,7 +462,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 					)
 
 					if err != nil {
-						s.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
+						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
 					}
 				}
 			}()

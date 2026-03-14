@@ -245,7 +245,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 		msg, err := tasktypes.NotifyTaskCreated(tenantId, tasks)
 
 		if err != nil {
-			s.l.Err(err).Ctx(ctx).Msg("could not create message for scheduler partition queue")
+			s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for scheduler partition queue")
 		} else {
 			err = s.mq.SendMessage(
 				ctx,
@@ -254,7 +254,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 			)
 
 			if err != nil {
-				s.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
+				s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
 			}
 		}
 	}
