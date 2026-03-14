@@ -69,10 +69,14 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 
 	defer rollback()
 
-	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return err
+	}
+
+	if !acquired {
+		return nil
 	}
 
 	isActive, err := c.queries.CheckStrategyActive(ctx, tx, sqlcv1.CheckStrategyActiveParams{

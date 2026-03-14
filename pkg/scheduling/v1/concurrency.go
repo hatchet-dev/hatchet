@@ -44,6 +44,8 @@ type ConcurrencyManager struct {
 	minPollingInterval time.Duration
 
 	maxPollingInterval time.Duration
+
+	isActiveSemaphore chan struct{}
 }
 
 func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {
@@ -62,6 +64,7 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 		rateLimiter:         newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
 		minPollingInterval:  conf.schedulerConcurrencyPollingMinInterval,
 		maxPollingInterval:  conf.schedulerConcurrencyPollingMaxInterval,
+		isActiveSemaphore:   conf.isActiveSemaphore,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -156,13 +159,21 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 }
 
 func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := randomticker.NewRandomTicker(5*time.Second, 10*time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		}
+
+		// Limit the number of concurrent is-active checks to avoid saturating the connection pool.
+		select {
+		case <-ctx.Done():
+			return
+		case c.isActiveSemaphore <- struct{}{}:
 		}
 
 		ctx, span := telemetry.NewSpan(ctx, "concurrency-check-active")
@@ -175,6 +186,8 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 		start := time.Now()
 
 		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
+
+		<-c.isActiveSemaphore
 
 		if err != nil {
 			span.End()

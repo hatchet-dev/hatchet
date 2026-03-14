@@ -26,6 +26,10 @@ type sharedConfig struct {
 	schedulerConcurrencyPollingMinInterval time.Duration
 
 	schedulerConcurrencyPollingMaxInterval time.Duration
+
+	// Limits concurrent is-active checks across all ConcurrencyManagers to avoid
+	// saturating the database connection pool.
+	isActiveSemaphore chan struct{}
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -68,6 +72,7 @@ func NewSchedulingPool(
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
 			schedulerConcurrencyPollingMaxInterval: schedulerConcurrencyPollingMaxInterval,
+			isActiveSemaphore:                      make(chan struct{}, 10),
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,
