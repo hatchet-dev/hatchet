@@ -2,13 +2,15 @@
  * MCP (Model Context Protocol) server for Hatchet runtime monitoring.
  *
  * Exposes live system data (runs, workers, workflows, queues) to AI agents.
- * Requires Bearer token authentication; proxies requests to the Hatchet REST API.
+ * Requires Bearer token authentication; uses Hatchet TypeScript SDK.
  *
  * Endpoint: POST /api/mcp-runtime   (JSON-RPC 2.0)
  *           GET  /api/mcp-runtime   (returns server metadata)
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 import { PostHog } from "posthog-node";
+import Hatchet from "@hatchet-dev/typescript-sdk";
+import { V1TaskStatus } from "@hatchet-dev/typescript-sdk/clients/rest/generated/data-contracts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,7 +97,7 @@ function trackMcpEvent(
 }
 
 // ---------------------------------------------------------------------------
-// Auth and API client
+// Auth and Hatchet client
 // ---------------------------------------------------------------------------
 function getApiBaseUrl(): string | null {
   const url = process.env.HATCHET_CLIENT_API_URL;
@@ -113,50 +115,55 @@ function resolveTenantId(token: string): string | null {
   return getTenantIdFromToken(token);
 }
 
-async function apiFetch(
-  url: string,
-  token: string,
-  init?: RequestInit,
-): Promise<Response> {
-  return fetch(url, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
+function getHostPortFromApiUrl(apiUrl: string): string {
+  const u = new URL(apiUrl);
+  const port = u.port || (u.protocol === "https:" ? "443" : "80");
+  return `${u.hostname}:${port}`;
+}
+
+/**
+ * Creates a HatchetClient for per-request use with token and tenant from the request.
+ */
+function createHatchetClient(apiUrl: string, token: string, tenantId: string) {
+  const hostPort = getHostPortFromApiUrl(apiUrl);
+  return Hatchet.init({
+    token,
+    tenant_id: tenantId,
+    api_url: apiUrl,
+    host_port: hostPort,
+    tls_config: { tls_strategy: "tls" },
   });
 }
 
+function mapStatusToV1TaskStatus(status: string): V1TaskStatus | undefined {
+  const s = status.toUpperCase();
+  const v: Record<string, V1TaskStatus> = {
+    QUEUED: V1TaskStatus.QUEUED,
+    RUNNING: V1TaskStatus.RUNNING,
+    COMPLETED: V1TaskStatus.COMPLETED,
+    SUCCEEDED: V1TaskStatus.COMPLETED,
+    FAILED: V1TaskStatus.FAILED,
+    CANCELLED: V1TaskStatus.CANCELLED,
+  };
+  return v[s];
+}
+
 // ---------------------------------------------------------------------------
-// Tool handlers
+// Tool handlers (using SDK)
 // ---------------------------------------------------------------------------
-async function handleListWorkflows(
-  baseUrl: string,
-  tenantId: string,
-  token: string,
-): Promise<unknown> {
-  const res = await apiFetch(
-    `${baseUrl}/api/v1/tenants/${tenantId}/workflows`,
-    token,
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
-  }
-  const data = (await res.json()) as { rows?: Array<{ metadata: { id: string }; name: string; description?: string; version?: string }> };
-  return (data.rows ?? []).map((w) => ({
+async function handleListWorkflows(hatchet: ReturnType<typeof Hatchet.init>): Promise<unknown> {
+  const data = await hatchet.workflows.list();
+  const rows = data?.rows ?? [];
+  return rows.map((w) => ({
     id: w.metadata?.id,
     name: w.name,
     description: w.description ?? "",
-    version: w.version ?? "",
+    version: w.versions?.[0]?.version ?? "",
   }));
 }
 
 async function handleListRuns(
-  baseUrl: string,
-  tenantId: string,
-  token: string,
+  hatchet: ReturnType<typeof Hatchet.init>,
   args: Record<string, unknown>,
 ): Promise<unknown> {
   const workflowName = args.workflow_name as string | undefined;
@@ -166,61 +173,35 @@ async function handleListRuns(
 
   const since = new Date();
   since.setHours(since.getHours() - sinceHours);
-  const params = new URLSearchParams();
-  params.set("since", since.toISOString());
-  params.set("limit", String(limit));
-  params.set("only_tasks", "false");
-  if (status) params.set("statuses", status);
 
+  const listOpts: Parameters<typeof hatchet.runs.list>[0] = {
+    since,
+    limit,
+    onlyTasks: false,
+  };
   if (workflowName) {
-    const workflowsRes = await apiFetch(
-      `${baseUrl}/api/v1/tenants/${tenantId}/workflows`,
-      token,
-    );
-    if (workflowsRes.ok) {
-      const workflowsData = (await workflowsRes.json()) as {
-        rows?: Array<{ metadata: { id: string }; name: string }>;
-      };
-      const wf = workflowsData.rows?.find(
-        (w) => w.name?.toLowerCase() === workflowName.toLowerCase(),
-      );
-      if (wf) params.set("workflow_ids", wf.metadata.id);
-    }
+    listOpts.workflowNames = [workflowName];
+  }
+  if (status) {
+    const v1Status = mapStatusToV1TaskStatus(status);
+    if (v1Status) listOpts.statuses = [v1Status];
   }
 
-  const url = `${baseUrl}/api/v1/stable/tenants/${tenantId}/workflow-runs?${params}`;
-  const res = await apiFetch(url, token);
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
-  }
-  const data = (await res.json()) as { rows?: unknown[] };
-  return data.rows ?? [];
+  const data = await hatchet.runs.list(listOpts);
+  return data?.rows ?? [];
 }
 
 async function handleGetRun(
-  baseUrl: string,
-  token: string,
+  hatchet: ReturnType<typeof Hatchet.init>,
   args: Record<string, unknown>,
 ): Promise<unknown> {
   const runId = args.run_id as string | undefined;
   if (!runId) throw new Error("Missing required argument: run_id");
-
-  const res = await apiFetch(
-    `${baseUrl}/api/v1/stable/workflow-runs/${runId}`,
-    token,
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
-  }
-  return res.json();
+  return hatchet.runs.get(runId);
 }
 
 async function handleSearchRuns(
-  baseUrl: string,
-  tenantId: string,
-  token: string,
+  hatchet: ReturnType<typeof Hatchet.init>,
   args: Record<string, unknown>,
 ): Promise<unknown> {
   const metadataKey = args.metadata_key as string | undefined;
@@ -234,63 +215,41 @@ async function handleSearchRuns(
 
   const since = new Date();
   since.setHours(since.getHours() - sinceHours);
-  const params = new URLSearchParams();
-  params.set("since", since.toISOString());
-  params.set("only_tasks", "false");
-  params.set("additional_metadata", `${metadataKey}:${metadataValue}`);
-  if (status) params.set("statuses", status);
 
-  const url = `${baseUrl}/api/v1/stable/tenants/${tenantId}/workflow-runs?${params}`;
-  const res = await apiFetch(url, token);
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
+  const listOpts: Parameters<typeof hatchet.runs.list>[0] = {
+    since,
+    onlyTasks: false,
+    additionalMetadata: { [metadataKey]: metadataValue },
+  };
+  if (status) {
+    const v1Status = mapStatusToV1TaskStatus(status);
+    if (v1Status) listOpts.statuses = [v1Status];
   }
-  const data = (await res.json()) as { rows?: unknown[] };
-  return data.rows ?? [];
+
+  const data = await hatchet.runs.list(listOpts);
+  return data?.rows ?? [];
 }
 
 async function handleGetQueueMetrics(
-  baseUrl: string,
-  tenantId: string,
-  token: string,
+  hatchet: ReturnType<typeof Hatchet.init>,
   args: Record<string, unknown>,
 ): Promise<unknown> {
   const workflowName = args.workflow_name as string | undefined;
 
   const since = new Date();
   since.setHours(since.getHours() - 24);
-  const params = new URLSearchParams();
-  params.set("since", since.toISOString());
-  params.set("limit", "1000");
-  params.set("only_tasks", "false");
 
-  if (workflowName) {
-    const workflowsRes = await apiFetch(
-      `${baseUrl}/api/v1/tenants/${tenantId}/workflows`,
-      token,
-    );
-    if (workflowsRes.ok) {
-      const workflowsData = (await workflowsRes.json()) as {
-        rows?: Array<{ metadata: { id: string }; name: string }>;
-      };
-      const wf = workflowsData.rows?.find(
-        (w) => w.name?.toLowerCase() === workflowName.toLowerCase(),
-      );
-      if (wf) params.set("workflow_ids", wf.metadata.id);
-    }
-  }
-
-  const url = `${baseUrl}/api/v1/stable/tenants/${tenantId}/workflow-runs?${params}`;
-  const res = await apiFetch(url, token);
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
-  }
-  const data = (await res.json()) as {
-    rows?: Array<{ status?: string }>;
+  const listOpts: Parameters<typeof hatchet.runs.list>[0] = {
+    since,
+    limit: 1000,
+    onlyTasks: false,
   };
-  const rows = data.rows ?? [];
+  if (workflowName) {
+    listOpts.workflowNames = [workflowName];
+  }
+
+  const data = await hatchet.runs.list(listOpts);
+  const rows = data?.rows ?? [];
   const counts = {
     queued: 0,
     running: 0,
@@ -310,88 +269,43 @@ async function handleGetQueueMetrics(
   return counts;
 }
 
-async function handleListWorkers(
-  baseUrl: string,
-  tenantId: string,
-  token: string,
-): Promise<unknown> {
-  const res = await apiFetch(
-    `${baseUrl}/api/v1/tenants/${tenantId}/worker`,
-    token,
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
-  }
-  const data = (await res.json()) as {
-    rows?: Array<{
-      metadata: { id: string };
-      name?: string;
-      status?: string;
-      lastHeartbeatAt?: string;
-      slots?: number;
-      workflows?: Array<{ name?: string }>;
-    }>;
-  };
-  return (data.rows ?? []).map((w) => ({
+async function handleListWorkers(hatchet: ReturnType<typeof Hatchet.init>): Promise<unknown> {
+  const data = await hatchet.workers.list();
+  const rows = data?.rows ?? [];
+  return rows.map((w) => ({
     id: w.metadata?.id,
     name: w.name ?? "",
     status: w.status ?? "",
     lastHeartbeatAt: w.lastHeartbeatAt ?? null,
-    slots: w.slots ?? 0,
-    workflows: (w.workflows ?? []).map((wf) => wf.name ?? ""),
+    slots: Array.isArray(w.slots) ? w.slots.length : 0,
+    workflows: (w.registeredWorkflows ?? []).map((wf) => wf.name ?? ""),
   }));
 }
 
 async function handleCancelRun(
-  baseUrl: string,
-  tenantId: string,
-  token: string,
+  hatchet: ReturnType<typeof Hatchet.init>,
   args: Record<string, unknown>,
 ): Promise<unknown> {
   const runId = args.run_id as string | undefined;
   if (!runId) throw new Error("Missing required argument: run_id");
 
-  const res = await apiFetch(
-    `${baseUrl}/api/v1/stable/tenants/${tenantId}/tasks/cancel`,
-    token,
-    {
-      method: "POST",
-      body: JSON.stringify({ externalIds: [runId] }),
-    },
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
-  }
-  const data = (await res.json()) as { cancelled?: unknown[] };
-  return { success: (data.cancelled?.length ?? 0) > 0 };
+  const res = await hatchet.runs.cancel({ ids: [runId] });
+  const data = res?.data ?? res;
+  const ids = (data as { ids?: string[] })?.ids ?? [];
+  return { success: ids.length > 0 };
 }
 
 async function handleReplayRun(
-  baseUrl: string,
-  tenantId: string,
-  token: string,
+  hatchet: ReturnType<typeof Hatchet.init>,
   args: Record<string, unknown>,
 ): Promise<unknown> {
   const runId = args.run_id as string | undefined;
   if (!runId) throw new Error("Missing required argument: run_id");
 
-  const res = await apiFetch(
-    `${baseUrl}/api/v1/stable/tenants/${tenantId}/tasks/replay`,
-    token,
-    {
-      method: "POST",
-      body: JSON.stringify({ externalIds: [runId] }),
-    },
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`API error ${res.status}: ${err}`);
-  }
-  const data = (await res.json()) as { replayed?: Array<{ metadata?: { id: string } }> };
-  const first = data.replayed?.[0];
-  return { new_run_id: first?.metadata?.id ?? null };
+  const res = await hatchet.runs.replay({ ids: [runId] });
+  const data = res?.data ?? res;
+  const ids = (data as { ids?: string[] })?.ids ?? [];
+  return { new_run_id: ids[0] ?? null };
 }
 
 // ---------------------------------------------------------------------------
@@ -521,9 +435,7 @@ function handleToolsList(id: string | number | null): JsonRpcResponse {
 async function handleToolsCall(
   id: string | number | null,
   params: Record<string, unknown>,
-  baseUrl: string,
-  tenantId: string,
-  token: string,
+  hatchet: ReturnType<typeof Hatchet.init>,
 ): Promise<JsonRpcResponse> {
   const toolName = params.name as string | undefined;
   const args = (params.arguments || {}) as Record<string, unknown>;
@@ -532,22 +444,22 @@ async function handleToolsCall(
     let result: unknown;
     switch (toolName) {
       case "list_workflows":
-        result = await handleListWorkflows(baseUrl, tenantId, token);
+        result = await handleListWorkflows(hatchet);
         break;
       case "list_runs":
-        result = await handleListRuns(baseUrl, tenantId, token, args);
+        result = await handleListRuns(hatchet, args);
         break;
       case "get_run":
-        result = await handleGetRun(baseUrl, token, args);
+        result = await handleGetRun(hatchet, args);
         break;
       case "search_runs":
-        result = await handleSearchRuns(baseUrl, tenantId, token, args);
+        result = await handleSearchRuns(hatchet, args);
         break;
       case "get_queue_metrics":
-        result = await handleGetQueueMetrics(baseUrl, tenantId, token, args);
+        result = await handleGetQueueMetrics(hatchet, args);
         break;
       case "list_workers":
-        result = await handleListWorkers(baseUrl, tenantId, token);
+        result = await handleListWorkers(hatchet);
         break;
       case "cancel_run":
         if (!ALLOW_WRITES) {
@@ -561,7 +473,7 @@ async function handleToolsCall(
             },
           };
         }
-        result = await handleCancelRun(baseUrl, tenantId, token, args);
+        result = await handleCancelRun(hatchet, args);
         break;
       case "replay_run":
         if (!ALLOW_WRITES) {
@@ -575,7 +487,7 @@ async function handleToolsCall(
             },
           };
         }
-        result = await handleReplayRun(baseUrl, tenantId, token, args);
+        result = await handleReplayRun(hatchet, args);
         break;
       default:
         return {
@@ -674,13 +586,8 @@ async function routeRequest(
       tool: params?.name,
     });
 
-    return handleToolsCall(
-      id,
-      params || {},
-      baseUrl,
-      tenantId,
-      token!,
-    );
+    const hatchet = createHatchetClient(baseUrl, token!, tenantId);
+    return handleToolsCall(id, params || {}, hatchet);
   }
 
   if (method === "ping") {
