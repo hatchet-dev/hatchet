@@ -122,6 +122,11 @@ enum ActionType {
     START_STEP_RUN = 0;
     CANCEL_STEP_RUN = 1;
     START_GET_GROUP_KEY = 2;
+    // STREAM_KEEPALIVE is a no-op message sent periodically on the ListenV2
+    // stream to prevent L7 proxies (e.g., Envoy) from killing the stream due
+    // to idle timeout. Clients should ignore this action type. Worker liveness
+    // is still determined by the separate Heartbeat RPC.
+    STREAM_KEEPALIVE = 3;
 }
 
 message AssignedAction {
