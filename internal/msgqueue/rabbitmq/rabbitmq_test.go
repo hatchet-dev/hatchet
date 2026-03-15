@@ -343,7 +343,8 @@ func TestDeadLetteringSuccess(t *testing.T) {
 
 // deleteQueue is a helper function for removing durable queues which are used for tests.
 func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
-	poolCh, err := t.subChannels.Acquire(context.Background())
+	ctx := context.Background()
+	poolCh, err := t.subChannels.Acquire(ctx)
 
 	if err != nil {
 		t.l.Error().Ctx(ctx).Msgf("[deleteQueue] cannot acquire channel for deleting queue: %v", err)
