@@ -345,6 +345,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithDefaultMaxWorkerLockAcquisitionTime(sc.Runtime.GRPCMaxWorkerLockAcquisitionTime),
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
+			dispatcher.WithListenV2StreamKeepaliveInterval(sc.Runtime.ListenV2StreamKeepaliveInterval),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 		)
@@ -772,6 +773,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithDefaultMaxWorkerLockAcquisitionTime(sc.Runtime.GRPCMaxWorkerLockAcquisitionTime),
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
+			dispatcher.WithListenV2StreamKeepaliveInterval(sc.Runtime.ListenV2StreamKeepaliveInterval),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 		)
