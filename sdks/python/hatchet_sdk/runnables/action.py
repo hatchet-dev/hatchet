@@ -49,6 +49,7 @@ class ActionPayload(BaseModel):
 class ActionType(str, Enum):
     START_STEP_RUN = "START_STEP_RUN"
     CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
+    STREAM_KEEPALIVE = "STREAM_KEEPALIVE"
 
 
 class Action(BaseModel):
