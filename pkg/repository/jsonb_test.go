@@ -16,6 +16,8 @@ func TestValidateJSONB_ValidJSON(t *testing.T) {
 		[]byte(`true`),
 		[]byte(`null`),
 		[]byte(`[]`),
+		[]byte(`{"a":"\\u0000"}`),
+		[]byte(`{"a":"\\\\u0000"}`),
 	}
 
 	for _, c := range cases {
@@ -27,9 +29,17 @@ func TestValidateJSONB_ValidJSON(t *testing.T) {
 
 func TestValidateJSONB_RejectsEncodedNull(t *testing.T) {
 	// This byte slice contains the literal substring `\u0000`.
-	b := []byte("{\"a\":\"\\u0000\"}")
-
-	if err := ValidateJSONB(b, "field"); err == nil {
-		t.Fatalf("expected error for encoded null, got nil")
+	cases := [][]byte{
+		[]byte(`{"a":"\u0000"}`),
+		[]byte(`{"a":"\\\u0000"}`),
+		[]byte(`{"foo\u0000":"bar"}`),
+		[]byte(`{"f\u0000oo":"bar"}`),
+		[]byte(`[{"f\u0000oo":"bar"}]`),
+		[]byte(`[{"a":"A","b":"B","c":"C\u0000"}]`),
+	}
+	for _, c := range cases {
+		if isValid := isUnicodeValid(c); isValid {
+			t.Fatalf("expected invalid unicode for json %q, got valid", string(c))
+		}
 	}
 }

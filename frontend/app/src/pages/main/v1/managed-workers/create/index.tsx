@@ -47,13 +47,7 @@ export default function CreateWorker() {
   const createManagedWorkerMutation = useMutation({
     mutationKey: ['managed-worker:create', tenantId],
     mutationFn: async (data: CreateManagedWorkerRequest) => {
-      const dataCopy = { ...data };
-
-      if (dataCopy.isIac) {
-        delete dataCopy.runtimeConfig;
-      }
-
-      const res = await cloudApi.managedWorkerCreate(tenantId, dataCopy);
+      const res = await cloudApi.managedWorkerCreate(tenantId, data);
       return res.data;
     },
     onSuccess: (data) => {

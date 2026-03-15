@@ -12,7 +12,7 @@ workflow.task({
   name: 'step1',
   fn: async (_, ctx) => {
     const results = [];
-    // eslint-disable-next-line no-plusplus
+
     for (let i = 0; i < 50; i++) {
       const result = await childWorkflow.run({});
       results.push(result);

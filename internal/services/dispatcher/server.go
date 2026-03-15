@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -97,7 +99,21 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	// return the worker id to the worker
+	s.analytics.Count(ctx, analytics.Worker, analytics.Register, analytics.Props(
+		"worker_name", request.WorkerName,
+		"runtime_language", strings.ToLower(request.GetRuntimeInfo().GetLanguage().String()),
+		"runtime_sdk_version", request.GetRuntimeInfo().GetSdkVersion(),
+		"runtime_language_version", request.GetRuntimeInfo().GetLanguageVersion(),
+		"runtime_os", request.GetRuntimeInfo().GetOs(),
+		"runtime_extra", request.GetRuntimeInfo().GetExtra(),
+		"has_labels", len(request.Labels) > 0,
+		"has_webhook_id", request.WebhookId != nil,
+		"has_runtime_info", request.RuntimeInfo != nil,
+		"has_slot_config", len(request.SlotConfig) > 0,
+		"has_custom_slots", request.Slots != nil,
+		"has_services", len(request.Services) > 0,
+	))
+
 	return &contracts.WorkerRegisterResponse{
 		TenantId:   tenantId.String(),
 		WorkerId:   workerId,
@@ -107,6 +123,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contracts.UpsertWorkerLabelsRequest) (*contracts.UpsertWorkerLabelsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	s.analytics.Count(ctx, analytics.Worker, analytics.Create)
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
@@ -157,6 +174,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	s.analytics.Count(stream.Context(), analytics.Worker, analytics.Listen)
 	sessionId := uuid.New().String()
 	workerId, err := uuid.Parse(request.WorkerId)
 
@@ -266,6 +284,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
 	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	s.analytics.Count(stream.Context(), analytics.Worker, analytics.Listen)
 	sessionId := uuid.New().String()
 	workerId, err := uuid.Parse(request.WorkerId)
 
@@ -457,11 +476,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-
+	s.analytics.Count(ctx, analytics.Worker, analytics.Release)
 	return s.releaseSlotV1(ctx, tenant, req)
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
+	if _, ok := stream.Context().Value("tenant").(*sqlcv1.Tenant); ok {
+		s.analytics.Count(stream.Context(), analytics.WorkflowRun, analytics.Subscribe)
+	}
 	return s.subscribeToWorkflowEventsV1(request, stream)
 }
 
@@ -580,6 +602,7 @@ func calculateResultsSize(results []*contracts.StepRunResult) (totalSize int, si
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
+	s.analytics.Count(server.Context(), analytics.WorkflowRun, analytics.Subscribe)
 	return s.subscribeToWorkflowRunsV1(server)
 }
 
@@ -613,6 +636,7 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	s.analytics.Count(ctx, analytics.Worker, analytics.Delete)
 
 	workerId, err := uuid.Parse(request.WorkerId)
 	if err != nil {
@@ -630,7 +654,6 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 
 func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-
 	return d.refreshTimeoutV1(ctx, tenant, request)
 }
 

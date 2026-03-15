@@ -80,7 +80,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	workflowVersion, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx, tenantId, workflowRun.WorkflowVersionId)
+	workflowVersion, _, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx, tenantId, workflowRun.WorkflowVersionId)
 
 	if err != nil {
 		return nil, err

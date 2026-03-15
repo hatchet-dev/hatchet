@@ -12,7 +12,7 @@ importers:
   .:
     dependencies:
       '@hatchet-dev/typescript-sdk':
-        specifier: ^1.10.3
+        specifier: 1.10.3
         version: 1.10.3
     devDependencies:
       '@types/node':

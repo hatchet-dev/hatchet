@@ -17,13 +17,17 @@ import {
 } from "@/lib/search-config";
 
 // ---------------------------------------------------------------------------
-// Lazy singleton for the search index
+// Lazy singleton for the search index (keyed by basePath so basePath changes don't reuse wrong index)
 // ---------------------------------------------------------------------------
 let indexPromise: Promise<MiniSearch> | null = null;
+let indexPromiseBasePath: string | undefined = undefined;
 
-function loadIndex(): Promise<MiniSearch> {
-  if (!indexPromise) {
-    indexPromise = fetch("/llms-search-index.json")
+function loadIndex(basePath: string = ""): Promise<MiniSearch> {
+  const prefix = basePath ? basePath.replace(/\/$/, "") : "";
+  const url = `${prefix}/llms-search-index.json`;
+  if (indexPromise === null || indexPromiseBasePath !== basePath) {
+    indexPromiseBasePath = basePath;
+    indexPromise = fetch(url)
       .then((res) => {
         if (!res.ok)
           throw new Error(`Failed to load search index: ${res.status}`);
@@ -228,6 +232,8 @@ export default function Search({ className }: { className?: string }) {
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
+  const basePath = router.basePath ?? "";
+
   // Lazy-load the search index on first interaction (focus / open) rather
   // than on every page load.  The search-query effect below already handles
   // the case where the index isn't ready yet, so this is purely a preload
@@ -236,9 +242,9 @@ export default function Search({ className }: { className?: string }) {
   const preloadIndex = useCallback(() => {
     if (!preloadTriggered.current) {
       preloadTriggered.current = true;
-      loadIndex().then(() => setIndexReady(true));
+      loadIndex(basePath).then(() => setIndexReady(true));
     }
-  }, []);
+  }, [basePath]);
 
   // Run the search when the query changes
   useEffect(() => {
@@ -264,7 +270,7 @@ export default function Search({ className }: { className?: string }) {
 
     if (!indexReady) {
       setLoading(true);
-      loadIndex()
+      loadIndex(basePath)
         .then((idx) => {
           setIndexReady(true);
           setLoading(false);
@@ -274,10 +280,10 @@ export default function Search({ className }: { className?: string }) {
       return;
     }
 
-    loadIndex()
+    loadIndex(basePath)
       .then(runSearch)
       .catch(() => {});
-  }, [query, indexReady]);
+  }, [query, indexReady, basePath]);
 
   // Global keyboard shortcut: / or Cmd/Ctrl+K
   useEffect(() => {
@@ -372,10 +378,10 @@ export default function Search({ className }: { className?: string }) {
       }
     };
     updatePos();
-    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("scroll", updatePos);
     window.addEventListener("resize", updatePos);
     return () => {
-      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("scroll", updatePos);
       window.removeEventListener("resize", updatePos);
     };
   }, [showDropdown]);
@@ -491,14 +497,14 @@ export default function Search({ className }: { className?: string }) {
               right: dropdownPos.right,
               width: dropdownPos.width,
               zIndex: 50,
+              overflowY: "auto",
+              maxHeight: "min(calc(100vh - 5rem), 400px)",
             }}
             className={[
               "nextra-search-results nextra-scrollbar",
               "_rounded-xl _py-2.5 _shadow-xl",
               "_border _border-gray-200 dark:_border-neutral-800",
               "_backdrop-blur-lg _bg-[rgb(var(--nextra-bg),.8)]",
-              "_max-h-[min(calc(100vh-5rem),400px)]",
-              "_overflow-y-auto",
               "contrast-more:_border contrast-more:_border-gray-900 contrast-more:dark:_border-gray-50",
               "_transition-opacity _opacity-100",
             ].join(" ")}

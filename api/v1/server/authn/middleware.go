@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -188,9 +190,12 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return fmt.Errorf("error getting user by id: %w", err)
 	}
 
-	// set the user and session in context
 	c.Set("user", user)
 	c.Set("session", session)
+
+	ctx := context.WithValue(c.Request().Context(), analytics.UserIDKey, userIdUUID)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceUI)
+	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
 }
@@ -217,7 +222,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	}
 
 	// Validate the token.
-	tenantId, _, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
+	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
 
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error validating tenant token")
@@ -232,6 +237,13 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 		return forbidden
 	}
+
+	c.Set(string(analytics.APITokenIDKey), tokenUUID)
+
+	ctx := context.WithValue(c.Request().Context(), analytics.APITokenIDKey, tokenUUID)
+	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
+	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
 }

@@ -459,6 +459,7 @@ function UpdateInvite({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
+  const { isCloudEnabled } = useOrganizations();
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
@@ -481,6 +482,7 @@ function UpdateInvite({
         isLoading={updateMutation.isPending}
         onSubmit={updateMutation.mutate}
         fieldErrors={fieldErrors}
+        isCloudEnabled={isCloudEnabled}
       />
     </Dialog>
   );

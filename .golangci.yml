@@ -55,7 +55,7 @@ linters:
     paths:
       - third_party$
       - builtin$
-      - examples$
+      - ^examples/
       - '(.+)_test\.go'
       - "cmd/hatchet-loadtest/rampup/(.+).go"
 formatters:
@@ -71,4 +71,4 @@ formatters:
     paths:
       - third_party$
       - builtin$
-      - examples$
+      - ^examples/

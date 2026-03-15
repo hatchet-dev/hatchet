@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 // > Running a Task with Results
 import { cancellation } from './workflow';
 // ...

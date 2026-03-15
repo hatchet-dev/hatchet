@@ -4,6 +4,8 @@ import { ClientConfig, HatchetLogger } from '@hatchet/clients/hatchet-client';
 import { DispatcherClient as PbDispatcherClient } from '@hatchet/protoc/dispatcher';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { Status, createClientFactory } from 'nice-grpc';
+import { getErrorMessage } from '@util/errors/hatchet-error';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { DispatcherClient } from '../dispatcher-client';
 import { HeartbeatMessage, STOP_HEARTBEAT } from './heartbeat-controller';
@@ -15,7 +17,7 @@ const postMessage = (message: HeartbeatMessage) => {
 };
 
 class HeartbeatWorker {
-  heartbeatInterval: any;
+  heartbeatInterval: ReturnType<typeof setInterval> | undefined;
   logger: Logger;
   client: PbDispatcherClient;
   workerId: string;
@@ -79,8 +81,8 @@ class HeartbeatWorker {
           message: `Heartbeat sent ${actualInterval}ms ago`,
         });
         this.timeLastHeartbeat = now;
-      } catch (e: any) {
-        if (e.code === Status.UNIMPLEMENTED) {
+      } catch (e: unknown) {
+        if (getGrpcErrorCode(e) === Status.UNIMPLEMENTED) {
           // break out of interval
           const message = 'Heartbeat not implemented, closing heartbeat';
           this.logger.debug(message);
@@ -92,7 +94,7 @@ class HeartbeatWorker {
           return;
         }
 
-        const message = `Failed to send heartbeat: ${e.message}`;
+        const message = `Failed to send heartbeat: ${getErrorMessage(e)}`;
         this.logger.debug(message);
         postMessage({
           type: 'error',
@@ -109,7 +111,7 @@ class HeartbeatWorker {
   stop() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
+      this.heartbeatInterval = undefined;
     }
   }
 }
@@ -118,5 +120,7 @@ const heartbeat = new HeartbeatWorker(workerData.config, workerData.workerId);
 heartbeat.start();
 
 parentPort?.on('message', (msg) => {
-  if (msg === STOP_HEARTBEAT) heartbeat.stop();
+  if (msg === STOP_HEARTBEAT) {
+    heartbeat.stop();
+  }
 });

@@ -1,7 +1,6 @@
 import { Priority } from '@hatchet/v1';
 import { priority } from './workflow';
 
-/* eslint-disable no-console */
 async function main() {
   try {
     console.log('running priority workflow');

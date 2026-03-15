@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "hatchet-guides-python"
+version = "0.0.0"
+description = "Hatchet guide examples (Python) - docs snippets with integration deps"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+hatchet-sdk = "^1.28.2"
+# LLM integrations
+openai = "^1.0.0"
+anthropic = "^0.39.0"
+groq = "^0.9.0"
+ollama = "^0.3.0"
+# Embedding integrations
+cohere = "^5.0.0"
+# OCR integrations
+pytesseract = "^0.3.10"
+Pillow = "^10.0.0"
+reductoai = "^0.16.0"
+# Unstructured excluded - heavy deps (onnx) may not install on all platforms
+# Scraper integrations
+playwright = "^1.49.0"
+firecrawl-py = "^0.0.16"
+browserbase = "^1.4.0"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.15.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py310"
+exclude = ["integrations/ocr_unstructured.py"]  # needs unstructured (heavy deps)
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]  # line length - doc examples can be long
