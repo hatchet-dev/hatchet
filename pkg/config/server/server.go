@@ -347,7 +347,10 @@ type SentryConfigFile struct {
 }
 
 type AnalyticsConfigFile struct {
-	Posthog PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+	Posthog                PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+	AggregateEnabled       bool              `mapstructure:"aggregateEnabled" json:"aggregateEnabled,omitempty" default:"false"`
+	AggregateFlushInterval string            `mapstructure:"aggregateFlushInterval" json:"aggregateFlushInterval,omitempty" default:"60m"`
+	AggregateMaxKeys       int               `mapstructure:"aggregateMaxKeys" json:"aggregateMaxKeys,omitempty" default:"500"`
 }
 
 type PosthogConfigFile struct {
@@ -752,6 +755,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
 	_ = v.BindEnv("analytics.posthog.feApiHost", "SERVER_ANALYTICS_POSTHOG_FE_API_HOST")
 	_ = v.BindEnv("analytics.posthog.feApiKey", "SERVER_ANALYTICS_POSTHOG_FE_API_KEY")
+	_ = v.BindEnv("analytics.aggregateEnabled", "SERVER_ANALYTICS_AGGREGATE_ENABLED")
+	_ = v.BindEnv("analytics.aggregateFlushInterval", "SERVER_ANALYTICS_AGGREGATE_FLUSH_INTERVAL")
+	_ = v.BindEnv("analytics.aggregateMaxKeys", "SERVER_ANALYTICS_AGGREGATE_MAX_KEYS")
 
 	// pylon options
 	_ = v.BindEnv("pylon.enabled", "SERVER_PYLON_ENABLED")

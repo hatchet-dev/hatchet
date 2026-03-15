@@ -652,8 +652,18 @@ interface SearchDoc {
   title: string;
   content: string;
   codeIdentifiers: string;
+  keywords: string;
   pageTitle: string;
   pageRoute: string;
+}
+
+/**
+ * Extract the keywords string from a <Keywords keywords="..." /> component
+ * in raw MDX source.  Returns an empty string if none is found.
+ */
+function extractKeywords(rawMdx: string): string {
+  const match = rawMdx.match(/<Keywords\s+keywords=["']([^"']*)["']\s*\/>/);
+  return match ? match[1] : "";
 }
 
 /**
@@ -789,6 +799,7 @@ function buildSearchIndex(
     const urlPath = page.href.replace(DOCS_BASE_URL + "/", "");
     const pageRoute = `hatchet://docs/${urlPath}`;
 
+    const keywords = extractKeywords(raw);
     const sections = splitByH2(md);
 
     for (const section of sections) {
@@ -812,6 +823,7 @@ function buildSearchIndex(
         title,
         content: section.content,
         codeIdentifiers: extractCodeIdentifiers(section.content),
+        keywords,
         pageTitle: page.title,
         pageRoute,
       });

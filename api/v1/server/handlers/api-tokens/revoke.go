@@ -5,13 +5,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.ApiTokenUpdateRevokeRequestObject) (gen.ApiTokenUpdateRevokeResponseObject, error) {
 	apiToken := ctx.Get("api-token").(*sqlcv1.APIToken)
-	user := ctx.Get("user").(*sqlcv1.User)
 
 	if apiToken.Internal {
 		return gen.ApiTokenUpdateRevoke403JSONResponse(
@@ -29,13 +29,10 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
 	a.config.Analytics.Enqueue(
-		"api-token:revoke",
-		user.ID.String(),
-		apiToken.TenantId,
+		ctx.Request().Context(),
+		analytics.Token, analytics.Revoke,
+		apiToken.ID.String(),
 		nil,
-		map[string]interface{}{
-			"token_id": apiToken.ID.String(),
-		},
 	)
 	return gen.ApiTokenUpdateRevoke204Response{}, nil
 }

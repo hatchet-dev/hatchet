@@ -511,6 +511,7 @@ WITH selected_retry_count AS (
 )
 SELECT
     t.*,
+    (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
@@ -567,7 +568,8 @@ WITH input AS (
         t.readable_status,
         t.parent_task_external_id,
         t.workflow_run_id,
-        t.latest_retry_count
+        t.latest_retry_count,
+        t.dag_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -689,6 +691,7 @@ SELECT
     END::JSONB AS input,
     t.readable_status::v1_readable_status_olap as status,
     t.workflow_run_id,
+    (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,

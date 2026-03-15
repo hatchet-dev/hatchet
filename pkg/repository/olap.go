@@ -648,6 +648,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 			ErrorMessage:          taskRun.ErrorMessage,
 			RetryCount:            taskRun.RetryCount,
 			OutputEventExternalID: taskRun.OutputEventExternalID,
+			IsStandalone:          taskRun.IsStandalone,
 		},
 		input,
 		output,
