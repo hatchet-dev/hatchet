@@ -2,7 +2,7 @@
 
 The Hatchet CLI provides the `hatchet server` commands to run a local instance of Hatchet for development and testing purposes. This local instance relies on Docker to run the necessary services.
 
-When `DOCKER_HOST` is not set, Hatchet uses the active Docker context from your local Docker configuration. If `DOCKER_HOST` is set explicitly, it takes precedence.
+When `DOCKER_HOST` is not set, Hatchet resolves the Docker host from the current Docker context. This respects `DOCKER_CONTEXT` when it is set, and otherwise uses the active context from your local Docker configuration. If `DOCKER_HOST` is set explicitly, it takes precedence.
 
 ## Prerequisites
 

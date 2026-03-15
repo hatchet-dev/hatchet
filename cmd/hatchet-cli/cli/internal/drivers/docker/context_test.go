@@ -10,16 +10,22 @@ import (
 )
 
 func TestDockerContextResolution(t *testing.T) {
-	t.Run("no config returns error", func(t *testing.T) {
+	t.Run("no config falls back to default host", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HOME", tmpDir)
 		t.Setenv("USERPROFILE", tmpDir)
 		t.Setenv("DOCKER_HOST", "")
 		t.Setenv("DOCKER_CONTEXT", "")
 
-		_, err := dockercontext.CurrentDockerHost()
-		if err == nil {
-			t.Error("expected error when no docker config exists")
+		driver, err := NewDockerDriver(context.Background())
+		if err != nil {
+			t.Fatalf("expected driver to initialize, got error: %v", err)
+		}
+		defer driver.apiClient.Close()
+
+		host := driver.apiClient.DaemonHost()
+		if host == "" {
+			t.Error("expected default Docker host, got empty string")
 		}
 	})
 
@@ -100,7 +106,7 @@ func TestDockerContextResolution(t *testing.T) {
 		}
 	})
 
-	t.Run("missing context returns error", func(t *testing.T) {
+	t.Run("missing context falls back to default host", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HOME", tmpDir)
 		t.Setenv("USERPROFILE", tmpDir)
@@ -115,13 +121,19 @@ func TestDockerContextResolution(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err := dockercontext.CurrentDockerHost()
-		if err == nil {
-			t.Error("expected error for missing context")
+		driver, err := NewDockerDriver(context.Background())
+		if err != nil {
+			t.Fatalf("expected driver to initialize, got error: %v", err)
+		}
+		defer driver.apiClient.Close()
+
+		host := driver.apiClient.DaemonHost()
+		if host == "" {
+			t.Error("expected default Docker host, got empty string")
 		}
 	})
 
-	t.Run("invalid config returns error", func(t *testing.T) {
+	t.Run("invalid config falls back to default host", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("HOME", tmpDir)
 		t.Setenv("USERPROFILE", tmpDir)
@@ -136,9 +148,15 @@ func TestDockerContextResolution(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err := dockercontext.CurrentDockerHost()
-		if err == nil {
-			t.Error("expected error for invalid config")
+		driver, err := NewDockerDriver(context.Background())
+		if err != nil {
+			t.Fatalf("expected driver to initialize, got error: %v", err)
+		}
+		defer driver.apiClient.Close()
+
+		host := driver.apiClient.DaemonHost()
+		if host == "" {
+			t.Error("expected default Docker host, got empty string")
 		}
 	})
 }
