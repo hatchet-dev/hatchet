@@ -363,6 +363,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
+			dispatcher.WithListenV2StreamKeepaliveInterval(sc.Runtime.ListenV2StreamKeepaliveInterval),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 		)
@@ -806,6 +807,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
+			dispatcher.WithListenV2StreamKeepaliveInterval(sc.Runtime.ListenV2StreamKeepaliveInterval),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 		)
