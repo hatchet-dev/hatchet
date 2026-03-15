@@ -24,6 +24,15 @@ func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if len(config.Auth.AdditionalRBACYAML) > 0 {
+		additional, err := rbac.LoadYamlFrom(config.Auth.AdditionalRBACYAML)
+		if err != nil {
+			return nil, fmt.Errorf("error loading additional RBAC YAML: %w", err)
+		}
+		rbacAuthorizer.MergePermissions(additional)
+	}
+
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,

@@ -561,6 +561,10 @@ type AuthConfig struct {
 	JWTManager token.JWTManager
 
 	CustomAuthenticator CustomAuthenticator
+
+	// Raw YAML bytes defining additional RBAC permissions for extension
+	// operations. Loaded and merged into the Authorizer at startup.
+	AdditionalRBACYAML []byte
 }
 
 type PylonConfig struct {

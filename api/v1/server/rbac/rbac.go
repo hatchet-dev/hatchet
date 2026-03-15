@@ -160,3 +160,33 @@ func LoadYaml() (*PermissionMap, error) {
 	}
 	return &yamlContents, nil
 }
+
+func LoadYamlFrom(data []byte) (*PermissionMap, error) {
+	var yamlContents PermissionMap
+	err := yaml.Unmarshal(data, &yamlContents)
+	if err != nil {
+		return nil, err
+	}
+	if err := yamlContents.Validate(); err != nil {
+		return nil, err
+	}
+	return &yamlContents, nil
+}
+
+func (a *Authorizer) MergePermissions(additional *PermissionMap) {
+	for roleName, role := range additional.Roles {
+		existing, ok := a.permissionMap.Roles[roleName]
+		if !ok {
+			a.permissionMap.Roles[roleName] = role
+			continue
+		}
+		if role.Permissions != nil {
+			if existing.Permissions == nil {
+				existing.Permissions = role.Permissions
+			} else {
+				merged := append(*existing.Permissions, *role.Permissions...)
+				existing.Permissions = &merged
+			}
+		}
+	}
+}
