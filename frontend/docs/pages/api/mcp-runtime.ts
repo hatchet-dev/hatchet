@@ -151,7 +151,9 @@ function mapStatusToV1TaskStatus(status: string): V1TaskStatus | undefined {
 // ---------------------------------------------------------------------------
 // Tool handlers (using SDK)
 // ---------------------------------------------------------------------------
-async function handleListWorkflows(hatchet: ReturnType<typeof Hatchet.init>): Promise<unknown> {
+async function handleListWorkflows(
+  hatchet: ReturnType<typeof Hatchet.init>,
+): Promise<unknown> {
   const data = await hatchet.workflows.list();
   const rows = data?.rows ?? [];
   return rows.map((w) => ({
@@ -269,7 +271,9 @@ async function handleGetQueueMetrics(
   return counts;
 }
 
-async function handleListWorkers(hatchet: ReturnType<typeof Hatchet.init>): Promise<unknown> {
+async function handleListWorkers(
+  hatchet: ReturnType<typeof Hatchet.init>,
+): Promise<unknown> {
   const data = await hatchet.workers.list();
   const rows = data?.rows ?? [];
   return rows.map((w) => ({
@@ -331,12 +335,20 @@ function handleInitialize(id: string | number | null): JsonRpcResponse {
 function getRuntimeTools(): Array<{
   name: string;
   description: string;
-  inputSchema: { type: string; properties: Record<string, unknown>; required?: string[] };
+  inputSchema: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
 }> {
   const tools: Array<{
     name: string;
     description: string;
-    inputSchema: { type: string; properties: Record<string, unknown>; required?: string[] };
+    inputSchema: {
+      type: string;
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
   }> = [
     {
       name: "list_workflows",
@@ -350,12 +362,19 @@ function getRuntimeTools(): Array<{
       inputSchema: {
         type: "object",
         properties: {
-          workflow_name: { type: "string", description: "Filter by workflow name" },
+          workflow_name: {
+            type: "string",
+            description: "Filter by workflow name",
+          },
           status: {
             type: "string",
-            description: "Filter by status: queued, running, completed, failed, cancelled",
+            description:
+              "Filter by status: queued, running, completed, failed, cancelled",
           },
-          since_hours: { type: "number", description: "Hours to look back (default: 24)" },
+          since_hours: {
+            type: "number",
+            description: "Hours to look back (default: 24)",
+          },
           limit: { type: "number", description: "Max results (default: 50)" },
         },
       },
@@ -365,7 +384,9 @@ function getRuntimeTools(): Array<{
       description: "Get full details of a specific run by ID.",
       inputSchema: {
         type: "object",
-        properties: { run_id: { type: "string", description: "Workflow run ID (UUID)" } },
+        properties: {
+          run_id: { type: "string", description: "Workflow run ID (UUID)" },
+        },
         required: ["run_id"],
       },
     },
@@ -376,10 +397,16 @@ function getRuntimeTools(): Array<{
       inputSchema: {
         type: "object",
         properties: {
-          metadata_key: { type: "string", description: "Metadata key (e.g. audit_id)" },
+          metadata_key: {
+            type: "string",
+            description: "Metadata key (e.g. audit_id)",
+          },
           metadata_value: { type: "string", description: "Metadata value" },
           status: { type: "string", description: "Optional status filter" },
-          since_hours: { type: "number", description: "Hours to look back (default: 24)" },
+          since_hours: {
+            type: "number",
+            description: "Hours to look back (default: 24)",
+          },
         },
         required: ["metadata_key", "metadata_value"],
       },
@@ -391,14 +418,16 @@ function getRuntimeTools(): Array<{
       inputSchema: {
         type: "object",
         properties: {
-          workflow_name: { type: "string", description: "Optional filter by workflow name" },
+          workflow_name: {
+            type: "string",
+            description: "Optional filter by workflow name",
+          },
         },
       },
     },
     {
       name: "list_workers",
-      description:
-        "List all active workers and their registered workflows.",
+      description: "List all active workers and their registered workflows.",
       inputSchema: { type: "object", properties: {} },
     },
     {
@@ -406,7 +435,9 @@ function getRuntimeTools(): Array<{
       description: `Cancel a specific run by ID. (Write operation${ALLOW_WRITES ? "" : " — disabled, set HATCHET_MCP_ALLOW_WRITES=true to enable"})`,
       inputSchema: {
         type: "object",
-        properties: { run_id: { type: "string", description: "Workflow run ID (UUID)" } },
+        properties: {
+          run_id: { type: "string", description: "Workflow run ID (UUID)" },
+        },
         required: ["run_id"],
       },
     },
@@ -415,7 +446,9 @@ function getRuntimeTools(): Array<{
       description: `Replay a failed or cancelled run. (Write operation${ALLOW_WRITES ? "" : " — disabled, set HATCHET_MCP_ALLOW_WRITES=true to enable"})`,
       inputSchema: {
         type: "object",
-        properties: { run_id: { type: "string", description: "Workflow run ID (UUID)" } },
+        properties: {
+          run_id: { type: "string", description: "Workflow run ID (UUID)" },
+        },
         required: ["run_id"],
       },
     },
@@ -501,7 +534,9 @@ async function handleToolsCall(
       jsonrpc: "2.0",
       id,
       result: {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        content: [
+          { type: "text" as const, text: JSON.stringify(result, null, 2) },
+        ],
       },
     };
   } catch (err) {
