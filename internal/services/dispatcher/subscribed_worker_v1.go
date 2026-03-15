@@ -19,6 +19,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
+func (worker *subscribedWorker) tryAcquireSendLockWithTimeout(timeout time.Duration) bool {
+	stopTime := time.Now().Add(timeout)
+	for time.Now().Before(stopTime) {
+		if worker.sendMu.TryLock() {
+			return true
+		}
+		time.Sleep(1 * time.Millisecond) // small backoff to avoid busy spinning
+	}
+	return false
+}
+
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -97,15 +108,14 @@ func (worker *subscribedWorker) sendToWorker(
 	lockBegin := time.Now()
 
 	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
-
-	if acquiredLock := worker.sendMu.TryLock(); !acquiredLock {
+	if !worker.tryAcquireSendLockWithTimeout(50 * time.Millisecond) {
 		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "flow control is active")
 		return err
 	}
 	defer worker.sendMu.Unlock()
-	lockSpan.End()
+	defer lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
 		Key:   "lock.duration_ms",
@@ -122,7 +132,6 @@ func (worker *subscribedWorker) sendToWorker(
 	go func() {
 		defer close(sentCh)
 		err = worker.stream.SendMsg(msg)
-
 		if err != nil {
 			span.RecordError(err)
 		}
