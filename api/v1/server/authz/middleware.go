@@ -25,14 +25,6 @@ func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 		return nil, err
 	}
 
-	if len(config.Auth.AdditionalRBACYAML) > 0 {
-		additional, err := rbac.LoadYamlFrom(config.Auth.AdditionalRBACYAML)
-		if err != nil {
-			return nil, fmt.Errorf("error loading additional RBAC YAML: %w", err)
-		}
-		rbacAuthorizer.MergePermissions(additional)
-	}
-
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
@@ -172,6 +164,10 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 }
 
 func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRole, r *middleware.RouteInfo) error {
+	// if the operation is in the allowed operations, skip the RBAC check this is needed for extensions
+	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) {
+		return nil
+	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
 	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {

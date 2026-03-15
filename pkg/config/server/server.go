@@ -562,9 +562,10 @@ type AuthConfig struct {
 
 	CustomAuthenticator CustomAuthenticator
 
-	// Raw YAML bytes defining additional RBAC permissions for extension
-	// operations. Loaded and merged into the Authorizer at startup.
-	AdditionalRBACYAML []byte
+	// Operations listed here bypass the tenant RBAC check. Use this for
+	// extension operations (e.g. cloud) that handle their own authorization
+	// in handlers. OSS operations in rbac.yaml are still fully checked.
+	AllowedOperations []string
 }
 
 type PylonConfig struct {
