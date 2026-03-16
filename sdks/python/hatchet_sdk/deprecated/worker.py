@@ -24,7 +24,6 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
@@ -202,12 +201,6 @@ def _legacy_run_action_runner(
     lifespan_context: Any | None,
 ) -> WorkerActionRunLoopManager:
     if worker._loop:
-        labels = (
-            [WorkerLabel(key=k, value=v) for k, v in worker._labels.items()]
-            if isinstance(worker._labels, dict)
-            else worker._labels
-        )
-
         return WorkerActionRunLoopManager(
             worker.name + name_suffix,
             action_registry,
@@ -218,7 +211,7 @@ def _legacy_run_action_runner(
             worker._loop,
             worker._handle_kill,
             worker._client.debug,
-            labels,
+            worker._labels,
             lifespan_context,
         )
 

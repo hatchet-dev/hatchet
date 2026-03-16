@@ -3,6 +3,7 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hatchet_sdk.contracts.dispatcher_pb2 import WorkerLabels
+from hatchet_sdk.types.labels import WorkerLabel
 
 
 class LegacyGetActionListenerRequest(BaseModel):
@@ -12,7 +13,7 @@ class LegacyGetActionListenerRequest(BaseModel):
     services: list[str]
     actions: list[str]
     slots: int
-    raw_labels: dict[str, str | int] = Field(default_factory=dict)
+    raw_labels: list[WorkerLabel] = Field(default_factory=list)
 
     labels: dict[str, WorkerLabels] = Field(default_factory=dict)
 
@@ -20,10 +21,8 @@ class LegacyGetActionListenerRequest(BaseModel):
     def validate_labels(self) -> "LegacyGetActionListenerRequest":
         self.labels = {}
 
-        for key, value in self.raw_labels.items():
-            if isinstance(value, int):
-                self.labels[key] = WorkerLabels(int_value=value)
-            else:
-                self.labels[key] = WorkerLabels(str_value=str(value))
+        for label in self.raw_labels:
+            if label.key is not None:
+                self.labels[label.key] = label.to_proto()
 
         return self

@@ -51,7 +51,10 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
-from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.labels import (
+    DesiredWorkerLabel,
+    _warn_if_dict_desired_worker_labels,
+)
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.utils.aio import gather_max_concurrency
@@ -1051,10 +1054,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            labels = (
-                {d.key: d for d in desired_worker_labels if d.key is not None}
+            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
+            labels: list[DesiredWorkerLabel] = (
+                desired_worker_labels
                 if isinstance(desired_worker_labels, list)
-                else (desired_worker_labels or {})
+                else [
+                    DesiredWorkerLabel(key=k, **d.model_dump(exclude={"key"}))
+                    for k, d in (desired_worker_labels or {}).items()
+                ]
             )
 
             task = Task(
@@ -1068,7 +1075,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 parents=parents,
                 retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
-                desired_worker_labels={key: d.to_proto() for key, d in labels.items()},
+                desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
@@ -1160,10 +1167,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            labels = (
-                {d.key: d for d in desired_worker_labels if d.key is not None}
+            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
+            labels: list[DesiredWorkerLabel] = (
+                desired_worker_labels
                 if isinstance(desired_worker_labels, list)
-                else (desired_worker_labels or {})
+                else [
+                    DesiredWorkerLabel(key=k, **d.model_dump(exclude={"key"}))
+                    for k, d in (desired_worker_labels or {}).items()
+                ]
             )
 
             task = Task(
@@ -1177,7 +1188,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 parents=parents,
                 retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
-                desired_worker_labels={key: d.to_proto() for key, d in labels.items()},
+                desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,

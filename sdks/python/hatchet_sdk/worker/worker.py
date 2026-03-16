@@ -27,7 +27,7 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.types.labels import WorkerLabel
+from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
 from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -84,7 +84,13 @@ class Worker:
         self._slots = slot_config.get("default", 0)
         self._durable_slots = slot_config.get("durable", 0)
         self._debug = debug
-        self._labels = labels or {}
+        _warn_if_dict_worker_labels(labels, stacklevel=3)
+        if isinstance(labels, dict):
+            self._labels: list[WorkerLabel] = [
+                WorkerLabel(key=k, value=v) for k, v in labels.items()
+            ]
+        else:
+            self._labels = labels or []
         self._handle_kill = handle_kill
         self._owned_loop = owned_loop
 
@@ -154,15 +160,9 @@ class Worker:
             DeprecationWarning,
             stacklevel=2,
         )
-        return (
-            self._labels
-            if isinstance(self._labels, dict)
-            else {
-                label.key: label.value
-                for label in self._labels
-                if label.key is not None
-            }
-        )
+        return {
+            label.key: label.value for label in self._labels if label.key is not None
+        }
 
     @property
     def handle_kill(self) -> bool:
@@ -511,12 +511,6 @@ class Worker:
     ) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         if self._loop:
-            labels = (
-                [WorkerLabel(key=k, value=v) for k, v in self._labels.items()]
-                if isinstance(self._labels, dict)
-                else self._labels
-            )
-
             return WorkerActionRunLoopManager(
                 self.name,
                 self._action_registry,
@@ -527,7 +521,7 @@ class Worker:
                 self._loop,
                 self._handle_kill,
                 self._client.debug,
-                labels,
+                self._labels,
                 lifespan_context,
             )
 

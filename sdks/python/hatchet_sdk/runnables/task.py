@@ -43,7 +43,6 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
-    DesiredWorkerLabels,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.runnables.types import (
@@ -156,9 +155,7 @@ class Task(Generic[TWorkflowInput, R]):
         parents: "list[Task[TWorkflowInput, Any]] | None",
         retries: int,
         rate_limits: list[CreateTaskRateLimit] | None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabels] | list[DesiredWorkerLabel] | None
-        ),
+        desired_worker_labels: list[DesiredWorkerLabel] | None,
         backoff_factor: float | None,
         backoff_max_seconds: int | None,
         concurrency: int | list[ConcurrencyExpression] | None,
@@ -192,7 +189,9 @@ class Task(Generic[TWorkflowInput, R]):
         self.parents = parents or []
         self.retries = retries
         self.rate_limits = rate_limits or []
-        self.desired_worker_labels = desired_worker_labels or {}
+        self.desired_worker_labels: list[DesiredWorkerLabel] = (
+            desired_worker_labels or []
+        )
         self.backoff_factor = backoff_factor
         self.backoff_max_seconds = backoff_max_seconds
         self.concurrency = concurrency or []
@@ -461,15 +460,9 @@ class Task(Generic[TWorkflowInput, R]):
         else:
             concurrency = self.concurrency
 
-        labels = (
-            {
-                d.key: d.to_proto()
-                for d in self.desired_worker_labels
-                if d.key is not None
-            }
-            if isinstance(self.desired_worker_labels, list)
-            else self.desired_worker_labels
-        )
+        labels = {
+            d.key: d.to_proto() for d in self.desired_worker_labels if d.key is not None
+        }
 
         return CreateTaskOpts(
             readable_id=self.name,

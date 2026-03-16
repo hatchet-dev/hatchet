@@ -39,6 +39,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
 )
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
@@ -74,7 +75,7 @@ class WorkerActionListenerProcess:
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         handle_kill: bool,
         debug: bool,
-        labels: dict[str, str | int],
+        labels: list[WorkerLabel],
     ) -> None:
         self.name = name
         self.actions = actions
@@ -541,7 +542,7 @@ def worker_action_listener_process(
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
     handle_kill: bool,
     debug: bool,
-    labels: dict[str, str | int],
+    labels: list[WorkerLabel],
 ) -> None:
     async def run() -> None:
         process = WorkerActionListenerProcess(
