@@ -58,6 +58,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
@@ -557,7 +558,7 @@ class Task(Generic[TWorkflowInput, R]):
             child_workflow_index=None,
             child_workflow_key=None,
             parent_workflow_run_id=None,
-            priority=1,
+            priority=Priority.LOW,
             workflow_version_id="mock-workflow-version-id",
             workflow_id="mock-workflow-id",
         )

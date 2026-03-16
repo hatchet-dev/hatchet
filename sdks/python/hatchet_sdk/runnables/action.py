@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
+from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
@@ -74,7 +75,7 @@ class Action(BaseModel):
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
-    priority: int | None = None
+    priority: int | Priority | None = None
 
     def get_otel_attributes(self, config: "ClientConfig") -> dict[str, str | int]:
         try:

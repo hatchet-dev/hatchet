@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
 from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
+from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
@@ -79,7 +80,7 @@ TWorkflowInput_contra = TypeVar(
 class TaskDefaults(BaseModel):
     schedule_timeout: Duration | None = None
     execution_timeout: Duration | None = None
-    priority: int | None = Field(gt=0, lt=4, default=None)
+    priority: int | Priority | None = Field(gt=0, lt=4, default=None)
     retries: int | None = None
     backoff_factor: float | None = None
     backoff_max_seconds: int | None = None
@@ -126,7 +127,7 @@ class WorkflowConfig(BaseModel):
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
-    default_priority: int | None = None
+    default_priority: int | Priority | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)

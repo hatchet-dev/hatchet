@@ -33,6 +33,7 @@ from hatchet_sdk.runnables.contextvars import (
     workflow_spawn_indices,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
+from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -102,7 +103,7 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
     child_key: str | None = None
     namespace: str | None = None
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | None = None
+    priority: int | Priority | None = None
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
@@ -169,7 +170,7 @@ class AdminClient:
         child_key: str | None = None
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
-        priority: int | None = None
+        priority: int | Priority | None = None
         desired_worker_label: dict[str, DesiredWorkerLabel] | None = None
 
         @field_validator("additional_metadata", mode="before")

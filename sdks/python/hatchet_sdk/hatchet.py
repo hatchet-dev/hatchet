@@ -41,6 +41,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
+from hatchet_sdk.utils.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
@@ -262,7 +263,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -282,7 +283,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -301,7 +302,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -339,6 +340,8 @@ class Hatchet:
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
+        _warn_if_int_priority(default_priority)
+
         return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
@@ -368,7 +371,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -397,7 +400,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -425,7 +428,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -489,6 +492,8 @@ class Hatchet:
 
         :returns: A decorator which creates a `Standalone` task object.
         """
+
+        _warn_if_int_priority(default_priority)
 
         def inner(
             func: Callable[
@@ -555,7 +560,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -584,7 +589,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -616,7 +621,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,

@@ -11,7 +11,12 @@ import pytest_asyncio
 from pydantic import BaseModel
 
 from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
-from hatchet_sdk import Hatchet, ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
+from hatchet_sdk import (
+    Hatchet,
+    ScheduleTriggerWorkflowOptions,
+    TriggerWorkflowOptions,
+    Priority as PriorityEnum,
+)
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 Priority = Literal["low", "medium", "high", "default"]
@@ -23,14 +28,14 @@ class RunPriorityStartedAt(BaseModel):
     finished_at: datetime
 
 
-def priority_to_int(priority: Priority) -> int:
+def priority_to_enum(priority: Priority) -> PriorityEnum:
     match priority:
         case "high":
-            return 3
+            return PriorityEnum.HIGH
         case "medium":
-            return 2
+            return PriorityEnum.MEDIUM
         case "low":
-            return 1
+            return PriorityEnum.LOW
         case "default":
             return DEFAULT_PRIORITY
         case _:
@@ -39,13 +44,13 @@ def priority_to_int(priority: Priority) -> int:
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def dummy_runs() -> None:
-    priority: Priority = "high"
+    priority = PriorityEnum.HIGH
 
     await priority_workflow.aio_run_many_no_wait(
         [
             priority_workflow.create_bulk_run_item(
                 options=TriggerWorkflowOptions(
-                    priority=(priority_to_int(priority)),
+                    priority=priority,
                     additional_metadata={
                         "priority": priority,
                         "key": ix,
@@ -84,7 +89,7 @@ async def test_priority(
         [
             priority_workflow.create_bulk_run_item(
                 options=TriggerWorkflowOptions(
-                    priority=(priority_to_int(priority := choice(choices))),
+                    priority=(priority_to_enum(priority := choice(choices))),
                     additional_metadata={
                         "priority": priority,
                         "key": ix,
@@ -138,7 +143,7 @@ async def test_priority(
         nxt = runs_ids_started_ats[i + 1]
 
         """Run start times should be in order of priority"""
-        assert priority_to_int(curr.priority) >= priority_to_int(nxt.priority)
+        assert priority_to_enum(curr.priority) >= priority_to_enum(nxt.priority)
 
         """Runs should proceed one at a time"""
         assert curr.finished_at <= nxt.finished_at
@@ -173,7 +178,7 @@ async def test_priority_via_scheduling(
             priority_workflow.aio_schedule(
                 run_at=run_at,
                 options=ScheduleTriggerWorkflowOptions(
-                    priority=(priority_to_int(priority := choice(choices))),
+                    priority=(priority_to_enum(priority := choice(choices))),
                     additional_metadata={
                         "priority": priority,
                         "key": ix,
@@ -235,7 +240,7 @@ async def test_priority_via_scheduling(
         nxt = runs_ids_started_ats[i + 1]
 
         """Run start times should be in order of priority"""
-        assert priority_to_int(curr.priority) >= priority_to_int(nxt.priority)
+        assert priority_to_enum(curr.priority) >= priority_to_enum(nxt.priority)
 
         """Runs should proceed one at a time"""
         assert curr.finished_at <= nxt.finished_at
@@ -266,7 +271,7 @@ async def crons(
                     "priority": (priority := choice(choices)),
                     "key": str(i),
                 },
-                priority=(priority_to_int(priority)),
+                priority=(priority_to_enum(priority)),
             )
             for i in range(n)
         ]
@@ -351,7 +356,7 @@ async def test_priority_via_cron(
         nxt = runs_ids_started_ats[i + 1]
 
         """Run start times should be in order of priority"""
-        assert priority_to_int(curr.priority) >= priority_to_int(nxt.priority)
+        assert priority_to_enum(curr.priority) >= priority_to_enum(nxt.priority)
 
         """Runs should proceed one at a time"""
         assert curr.finished_at <= nxt.finished_at

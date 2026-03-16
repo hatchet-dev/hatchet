@@ -54,6 +54,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.aio import gather_max_concurrency
+from hatchet_sdk.utils.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration, _warn_if_str_duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
@@ -561,7 +562,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a cron job for the workflow.
@@ -574,6 +575,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
+        _warn_if_int_priority(priority)
+
         return self._client.cron.create(
             workflow_name=self._config.name,
             cron_name=cron_name,
@@ -589,7 +592,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a cron job for the workflow.
@@ -602,6 +605,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
+        _warn_if_int_priority(priority)
+
         return await self._client.cron.aio_create(
             workflow_name=self._config.name,
             cron_name=cron_name,

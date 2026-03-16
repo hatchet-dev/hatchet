@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import AsyncIterator
@@ -35,9 +37,11 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
+from hatchet_sdk.utils.priority import _warn_if_int_priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
+    from hatchet_sdk.utils.priority import Priority
     from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -54,7 +58,7 @@ class BulkCancelReplayOpts(BaseModel):
     filters: RunFilter | None = None
 
     @model_validator(mode="after")
-    def validate_model(self) -> "BulkCancelReplayOpts":
+    def validate_model(self) -> BulkCancelReplayOpts:
         if not self.ids and not self.filters:
             raise ValueError("ids or filters must be set")
 
@@ -707,7 +711,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.
@@ -721,6 +725,8 @@ class RunsClient(BaseRestClient):
 
         :return: The details of the triggered workflow run.
         """
+        _warn_if_int_priority(priority)
+
         with self.client() as client:
             return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,
@@ -737,7 +743,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.
@@ -857,7 +863,7 @@ class RunsClient(BaseRestClient):
 
         return details.run.output
 
-    def get_run_ref(self, workflow_run_id: str) -> "WorkflowRunRef":
+    def get_run_ref(self, workflow_run_id: str) -> WorkflowRunRef:
         """
         Get a reference to a workflow run.
 

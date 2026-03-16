@@ -30,6 +30,7 @@ from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.api_auth import create_authorization_header
+from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
@@ -44,7 +45,7 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
 class PushEventOptions(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     namespace: str | None = None
-    priority: int | None = None
+    priority: int | Priority | None = None
     scope: str | None = None
 
 
@@ -56,7 +57,7 @@ class BulkPushEventWithMetadata(BaseModel):
     key: str
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | None = None
+    priority: int | Priority | None = None
     scope: str | None = None
 
 
