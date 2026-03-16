@@ -33,20 +33,20 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s                                     gocron.Scheduler
-	mqv1                                  msgqueue.MessageQueue
-	pubBuffer                             *msgqueue.MQPubBuffer
-	sharedNonBufferedReaderv1             *msgqueue.SharedTenantReader
-	sharedBufferedReaderv1                *msgqueue.SharedBufferedTenantReader
-	l                                     *zerolog.Logger
-	dv                                    datautils.DataDecoderValidator
-	v                                     validator.Validator
-	repov1                                v1.Repository
-	cache                                 cache.Cacheable
-	payloadSizeThreshold                  int
-	defaultMaxWorkerLockAcquisitionTimeMS int
-	workflowRunBufferSize                 int
-	streamEventBufferTimeout              time.Duration
+	s                                   gocron.Scheduler
+	mqv1                                msgqueue.MessageQueue
+	pubBuffer                           *msgqueue.MQPubBuffer
+	sharedNonBufferedReaderv1           *msgqueue.SharedTenantReader
+	sharedBufferedReaderv1              *msgqueue.SharedBufferedTenantReader
+	l                                   *zerolog.Logger
+	dv                                  datautils.DataDecoderValidator
+	v                                   validator.Validator
+	repov1                              v1.Repository
+	cache                               cache.Cacheable
+	payloadSizeThreshold                int
+	defaultMaxWorkerLockAcquisitionTime time.Duration
+	workflowRunBufferSize               int
+	streamEventBufferTimeout            time.Duration
 
 	dispatcherId uuid.UUID
 	workers      *workers
@@ -121,19 +121,19 @@ func (w *workers) Delete(workerId uuid.UUID) {
 type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
-	mqv1                                  msgqueue.MessageQueue
-	l                                     *zerolog.Logger
-	dv                                    datautils.DataDecoderValidator
-	repov1                                v1.Repository
-	dispatcherId                          uuid.UUID
-	alerter                               hatcheterrors.Alerter
-	cache                                 cache.Cacheable
-	analytics                             analytics.Analytics
-	payloadSizeThreshold                  int
-	defaultMaxWorkerLockAcquisitionTimeMS int
-	workflowRunBufferSize                 int
-	streamEventBufferTimeout              time.Duration
-	version                               string
+	mqv1                                msgqueue.MessageQueue
+	l                                   *zerolog.Logger
+	dv                                  datautils.DataDecoderValidator
+	repov1                              v1.Repository
+	dispatcherId                        uuid.UUID
+	alerter                             hatcheterrors.Alerter
+	cache                               cache.Cacheable
+	analytics                           analytics.Analytics
+	payloadSizeThreshold                int
+	defaultMaxWorkerLockAcquisitionTime time.Duration
+	workflowRunBufferSize               int
+	streamEventBufferTimeout            time.Duration
+	version                             string
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -141,15 +141,15 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &DispatcherOpts{
-		l:                                     &logger,
-		dv:                                    datautils.NewDataDecoderValidator(),
-		dispatcherId:                          uuid.New(),
-		alerter:                               alerter,
-		analytics:                             analytics.NoOpAnalytics{},
-		payloadSizeThreshold:                  3 * 1024 * 1024,
-		defaultMaxWorkerLockAcquisitionTimeMS: 250,
-		workflowRunBufferSize:                 1000,
-		streamEventBufferTimeout:              5 * time.Second,
+		l:                                   &logger,
+		dv:                                  datautils.NewDataDecoderValidator(),
+		dispatcherId:                        uuid.New(),
+		alerter:                             alerter,
+		analytics:                           analytics.NoOpAnalytics{},
+		payloadSizeThreshold:                3 * 1024 * 1024,
+		defaultMaxWorkerLockAcquisitionTime: 250 * time.Millisecond,
+		workflowRunBufferSize:               1000,
+		streamEventBufferTimeout:            5 * time.Second,
 	}
 }
 
@@ -201,9 +201,9 @@ func WithPayloadSizeThreshold(threshold int) DispatcherOpt {
 	}
 }
 
-func WithDefaultMaxWorkerLockAcquisitionTimeMS(millis int) DispatcherOpt {
+func WithDefaultMaxWorkerLockAcquisitionTimeMS(t time.Duration) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
-		opts.defaultMaxWorkerLockAcquisitionTimeMS = millis
+		opts.defaultMaxWorkerLockAcquisitionTime = t
 	}
 }
 
@@ -266,23 +266,23 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
 	return &DispatcherImpl{
-		mqv1:                                  opts.mqv1,
-		pubBuffer:                             pubBuffer,
-		l:                                     opts.l,
-		dv:                                    opts.dv,
-		v:                                     validator.NewDefaultValidator(),
-		repov1:                                opts.repov1,
-		dispatcherId:                          opts.dispatcherId,
-		workers:                               &workers{},
-		s:                                     s,
-		a:                                     a,
-		cache:                                 opts.cache,
-		payloadSizeThreshold:                  opts.payloadSizeThreshold,
-		defaultMaxWorkerLockAcquisitionTimeMS: opts.defaultMaxWorkerLockAcquisitionTimeMS,
-		workflowRunBufferSize:                 opts.workflowRunBufferSize,
-		analytics:                             opts.analytics,
-		streamEventBufferTimeout:              opts.streamEventBufferTimeout,
-		version:                               opts.version,
+		mqv1:                                opts.mqv1,
+		pubBuffer:                           pubBuffer,
+		l:                                   opts.l,
+		dv:                                  opts.dv,
+		v:                                   validator.NewDefaultValidator(),
+		repov1:                              opts.repov1,
+		dispatcherId:                        opts.dispatcherId,
+		workers:                             &workers{},
+		s:                                   s,
+		a:                                   a,
+		cache:                               opts.cache,
+		payloadSizeThreshold:                opts.payloadSizeThreshold,
+		defaultMaxWorkerLockAcquisitionTime: opts.defaultMaxWorkerLockAcquisitionTime,
+		workflowRunBufferSize:               opts.workflowRunBufferSize,
+		analytics:                           opts.analytics,
+		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
+		version:                             opts.version,
 	}, nil
 }
 

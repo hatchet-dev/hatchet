@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,7 +18,7 @@ type subscribedWorker struct {
 	finished chan<- bool
 
 	sendMu                   sync.Mutex
-	sendMuAcquisitionTimeout int
+	sendMuAcquisitionTimeout time.Duration
 
 	workerId uuid.UUID
 
@@ -28,7 +29,7 @@ func newSubscribedWorker(
 	stream contracts.Dispatcher_ListenServer,
 	fin chan<- bool,
 	workerId uuid.UUID,
-	maxLockAcquisitionTimeMS int,
+	maxLockAcquisitionTime time.Duration,
 	pubBuffer *msgqueue.MQPubBuffer,
 ) *subscribedWorker {
 
@@ -37,6 +38,6 @@ func newSubscribedWorker(
 		finished:                 fin,
 		workerId:                 workerId,
 		pubBuffer:                pubBuffer,
-		sendMuAcquisitionTimeout: maxLockAcquisitionTimeMS,
+		sendMuAcquisitionTimeout: maxLockAcquisitionTime,
 	}
 }
