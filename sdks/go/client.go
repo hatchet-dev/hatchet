@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -465,6 +467,12 @@ func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]W
 	}
 
 	return workflowRefs, nil
+}
+
+// Schedule creates a scheduled run for this standalone task.
+// The task will be triggered at the specified time with the given input.
+func (st *StandaloneTask) Schedule(ctx context.Context, triggerAt time.Time, input any) (*admincontracts.WorkflowVersion, error) {
+	return st.workflow.Schedule(ctx, triggerAt, input)
 }
 
 // OnFailure sets a failure handler for the standalone task.

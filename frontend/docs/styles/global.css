@@ -366,3 +366,13 @@ nav:not(.nextra-toc) {
   margin-bottom: 0.5rem;
   justify-content: flex-start;
 }
+
+/* Place language selector before nav links in the navbar.
+   Nextra navbar flex order: logo(0) → navItems(0,src2) → search(0,src3) → github(0,src4) → discord(0,src5) → extraContent(0,src6) → hamburger(0,src7)
+   We assign explicit orders so the language selector (order:1) sits before nav items (order:2). */
+.nextra-nav-container nav > .nextra-scrollbar { order: 2; }
+.nextra-nav-container nav > :nth-child(3) { order: 3; } /* search */
+.nextra-nav-container nav > :nth-child(4) { order: 4; } /* github */
+.nextra-nav-container nav > :nth-child(5) { order: 5; } /* discord */
+.nextra-nav-container nav > .nextra-hamburger { order: 6; }
+.nextra-lang-selector-nav > div { margin-left: 0; }

@@ -85,6 +85,8 @@ type AdminClient interface {
 
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
+	ScheduleWorkflowV1(ctx context.Context, workflowName string, triggerAt time.Time, input any) (*admincontracts.WorkflowVersion, error)
+
 	// RunWorkflow triggers a workflow run and returns the run id
 	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (*Workflow, error)
 
@@ -116,7 +118,9 @@ type adminClientImpl struct {
 
 	ctx *contextLoader
 
-	namespace string
+	namespace  string
+	tenantId   string
+	restClient *rest.ClientWithResponses
 
 	subscriber SubscribeClient
 
@@ -126,7 +130,7 @@ type adminClientImpl struct {
 	listener   *WorkflowRunsListener
 }
 
-func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
+func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient, restClient *rest.ClientWithResponses) AdminClient {
 	return &adminClientImpl{
 		client:     admincontracts.NewWorkflowServiceClient(conn),
 		v1Client:   v1contracts.NewAdminServiceClient(conn),
@@ -134,8 +138,10 @@ func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber Subscrib
 		v:          opts.v,
 		ctx:        opts.ctxLoader,
 		namespace:  opts.namespace,
+		tenantId:   opts.tenantId,
 		subscriber: subscriber,
 		sharedMeta: opts.sharedMeta,
+		restClient: restClient,
 	}
 }
 
@@ -251,6 +257,26 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	}
 
 	return nil
+}
+
+func (a *adminClientImpl) ScheduleWorkflowV1(ctx context.Context, workflowName string, triggerAt time.Time, input any) (*admincontracts.WorkflowVersion, error) {
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal input: %w", err)
+	}
+
+	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
+
+	resp, err := a.client.ScheduleWorkflow(a.ctx.newContext(ctx), &admincontracts.ScheduleWorkflowRequest{
+		Name:      workflowName,
+		Schedules: []*timestamppb.Timestamp{timestamppb.New(triggerAt)},
+		Input:     string(inputBytes),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not schedule workflow: %w", err)
+	}
+
+	return resp, nil
 }
 
 type RunOptFunc func(*admincontracts.TriggerWorkflowRequest) error
