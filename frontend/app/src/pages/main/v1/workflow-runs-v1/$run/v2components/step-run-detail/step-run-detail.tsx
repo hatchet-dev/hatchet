@@ -129,10 +129,6 @@ export const TaskRunDetail = ({
     return <div>No events found</div>;
   }
 
-  const isStandaloneTaskRun =
-    taskRun.workflowRunExternalId === emptyGolangUUID ||
-    taskRun.workflowRunExternalId === taskRun.metadata.id;
-
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex flex-row items-center justify-between">
@@ -192,11 +188,9 @@ export const TaskRunDetail = ({
           <TabsTrigger variant="underlined" value="overview">
             Overview
           </TabsTrigger>
-          {isStandaloneTaskRun && (
-            <TabsTrigger variant="underlined" value="observability">
-              Observability
-            </TabsTrigger>
-          )}
+          <TabsTrigger variant="underlined" value="observability">
+            Observability
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="min-h-0 flex-1">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
@@ -300,14 +294,12 @@ export const TaskRunDetail = ({
             </TabsContent>
           </Tabs>
         </TabsContent>
-        {isStandaloneTaskRun && (
-          <TabsContent value="observability" className="min-h-0 flex-1">
-            <Observability
-              taskRunId={taskRunId}
-              isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-            />
-          </TabsContent>
-        )}
+        <TabsContent value="observability" className="min-h-0 flex-1">
+          <Observability
+            taskRunId={taskRunId}
+            isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );

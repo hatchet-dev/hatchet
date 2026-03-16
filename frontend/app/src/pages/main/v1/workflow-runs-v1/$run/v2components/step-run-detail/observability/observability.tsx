@@ -1,12 +1,8 @@
-import { Waterfall } from '../../waterfall';
-import { TabOption } from '../step-run-detail';
 import { TaskRunTrace } from './task-run-trace';
 import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
 import { Loading } from '@/components/v1/ui/loading';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import api from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
@@ -23,9 +19,10 @@ const pickSpan = (
   statusCode: span.statusCode,
   durationNs: span.durationNs,
   createdAt: span.createdAt,
+  spanAttributes: span.spanAttributes,
 });
 
-async function fetchAllSpans(
+async function fetchAllSpansByTask(
   taskExternalId: string,
 ): Promise<RelevantOpenTelemetrySpanProperties[]> {
   const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
@@ -54,32 +51,55 @@ async function fetchAllSpans(
   return allSpans;
 }
 
-export const Observability = ({
-  taskRunId,
-  isRunning,
-}: {
-  taskRunId: string;
-  isRunning: boolean;
-}) => {
-  const { open } = useSidePanel();
+async function fetchAllSpansByWorkflowRun(
+  workflowRunExternalId: string,
+): Promise<RelevantOpenTelemetrySpanProperties[]> {
+  const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
+  let offset = 0;
 
-  const handleTaskRunExpand = useCallback(
-    (taskRunId: string) => {
-      open({
-        type: 'task-run-details',
-        content: {
-          taskRunId,
-          defaultOpenTab: TabOption.Output,
-          showViewTaskRunButton: true,
-        },
-      });
-    },
-    [open],
-  );
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const res = await api.v1WorkflowRunGetTrace(workflowRunExternalId, {
+      offset,
+      limit: PAGE_SIZE,
+    });
+
+    const rows = res.data.rows ?? [];
+    allSpans.push(...rows.map(pickSpan));
+
+    const numPages = res.data.pagination?.num_pages ?? 1;
+    const currentPage = res.data.pagination?.current_page ?? 1;
+
+    if (currentPage >= numPages || rows.length === 0) {
+      break;
+    }
+
+    offset += PAGE_SIZE;
+  }
+
+  return allSpans;
+}
+
+type ObservabilityProps = {
+  isRunning: boolean;
+  onTaskRunClick?: (taskRunId: string) => void;
+} & (
+  | { taskRunId: string; workflowRunExternalId?: never }
+  | { taskRunId?: never; workflowRunExternalId: string }
+);
+
+export const Observability = (props: ObservabilityProps) => {
+  const { isRunning } = props;
+
+  const queryId = props.taskRunId ?? props.workflowRunExternalId;
+  const queryType = props.taskRunId ? 'task' : 'workflow-run';
 
   const tracesQuery = useQuery({
-    queryKey: ['task:trace', taskRunId],
-    queryFn: () => fetchAllSpans(taskRunId),
+    queryKey: [queryType + ':trace', queryId],
+    queryFn: () =>
+      queryType === 'task'
+        ? fetchAllSpansByTask(queryId)
+        : fetchAllSpansByWorkflowRun(queryId),
     refetchInterval: isRunning ? 5000 : false,
   });
 
@@ -91,13 +111,15 @@ export const Observability = ({
 
   if (!traces || !hasAtLeastOneElement(traces)) {
     return (
-      <Waterfall
-        workflowRunId={taskRunId}
-        selectedTaskId={undefined}
-        handleTaskSelect={handleTaskRunExpand}
-      />
+      <div className="py-4 text-sm text-muted-foreground">
+        No traces found. To collect traces, use the{' '}
+        <code className="rounded bg-muted px-1 py-0.5 text-xs">
+          HatchetInstrumentor
+        </code>{' '}
+        in your SDK.
+      </div>
     );
   }
 
-  return <TaskRunTrace spans={traces} />;
+  return <TaskRunTrace spans={traces} onTaskRunClick={props.onTaskRunClick} />;
 };

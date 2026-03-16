@@ -7,10 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-func ToV1OtelSpanList(spans []*sqlcv1.ListSpansByTaskExternalIDRow, limit, offset, total int64) gen.OtelSpanList {
+func ToV1OtelSpanList(spans []*repository.OtelSpanRow, limit, offset, total int64) gen.OtelSpanList {
 	apiSpans := ToV1OtelSpan(spans)
 
 	if limit < 1 {
@@ -37,7 +37,7 @@ func ToV1OtelSpanList(spans []*sqlcv1.ListSpansByTaskExternalIDRow, limit, offse
 	}
 }
 
-func ToV1OtelSpan(spans []*sqlcv1.ListSpansByTaskExternalIDRow) []gen.OtelSpan {
+func ToV1OtelSpan(spans []*repository.OtelSpanRow) []gen.OtelSpan {
 	result := make([]gen.OtelSpan, len(spans))
 
 	for i, s := range spans {

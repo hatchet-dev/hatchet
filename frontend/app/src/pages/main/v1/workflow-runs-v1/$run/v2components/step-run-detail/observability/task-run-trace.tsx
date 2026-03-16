@@ -4,7 +4,7 @@ import type {
   OtelSpanTree,
   RelevantOpenTelemetrySpanProperties,
 } from '@/components/v1/agent-prism/span-tree-type';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
   if (!spanTree.spanName.startsWith('hatchet.')) {
@@ -19,11 +19,13 @@ const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
 
 export function TaskRunTrace({
   spans,
+  onTaskRunClick,
 }: {
   spans: [
     RelevantOpenTelemetrySpanProperties,
     ...RelevantOpenTelemetrySpanProperties[],
   ];
+  onTaskRunClick?: (taskRunId: string) => void;
 }) {
   const traceSpanTree = useMemo(
     () => convertOtelSpansToOtelSpanTree(spans),
@@ -32,6 +34,19 @@ export function TaskRunTrace({
 
   const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>(
     getSpanIdsOfAllHatchetSpans(traceSpanTree),
+  );
+
+  const [selectedSpan, setSelectedSpan] = useState<OtelSpanTree | undefined>();
+
+  const handleSpanSelect = useCallback(
+    (span: OtelSpanTree) => {
+      setSelectedSpan(span);
+      const stepRunId = span.spanAttributes?.['hatchet.step_run_id'];
+      if (stepRunId && onTaskRunClick) {
+        onTaskRunClick(stepRunId);
+      }
+    },
+    [onTaskRunClick],
   );
 
   if (!traceSpanTree) {
@@ -60,6 +75,8 @@ export function TaskRunTrace({
           spanTree={traceSpanTree}
           expandedSpansIds={expandedSpansIds}
           onExpandSpansIdsChange={setExpandedSpansIds}
+          selectedSpan={selectedSpan}
+          onSpanSelect={onTaskRunClick ? handleSpanSelect : undefined}
         />
       </div>
     </div>

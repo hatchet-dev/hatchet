@@ -14,9 +14,11 @@ import (
 
 const countSpansByTaskExternalID = `-- name: CountSpansByTaskExternalID :one
 SELECT COUNT(*) FROM v1_otel_trace
-WHERE tenant_id = $1::UUID AND trace_id IN (
-    SELECT DISTINCT trace_id FROM v1_otel_trace
+WHERE tenant_id = $1::UUID AND trace_id = (
+    SELECT trace_id FROM v1_otel_trace
     WHERE tenant_id = $1::UUID AND task_run_external_id = $2::UUID
+    ORDER BY start_time DESC
+    LIMIT 1
 )
 `
 
@@ -27,6 +29,23 @@ type CountSpansByTaskExternalIDParams struct {
 
 func (q *Queries) CountSpansByTaskExternalID(ctx context.Context, db DBTX, arg CountSpansByTaskExternalIDParams) (int64, error) {
 	row := db.QueryRow(ctx, countSpansByTaskExternalID, arg.Tenantid, arg.Taskexternalid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countSpansByWorkflowRunExternalID = `-- name: CountSpansByWorkflowRunExternalID :one
+SELECT COUNT(*) FROM v1_otel_trace
+WHERE tenant_id = $1::UUID AND workflow_run_external_id = $2::UUID
+`
+
+type CountSpansByWorkflowRunExternalIDParams struct {
+	Tenantid              uuid.UUID `json:"tenantid"`
+	Workflowrunexternalid uuid.UUID `json:"workflowrunexternalid"`
+}
+
+func (q *Queries) CountSpansByWorkflowRunExternalID(ctx context.Context, db DBTX, arg CountSpansByWorkflowRunExternalIDParams) (int64, error) {
+	row := db.QueryRow(ctx, countSpansByWorkflowRunExternalID, arg.Tenantid, arg.Workflowrunexternalid)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -58,9 +77,11 @@ SELECT
     service_name, status_code, status_message, duration_ns, start_time,
     resource_attributes, span_attributes, scope_name, scope_version
 FROM v1_otel_trace
-WHERE tenant_id = $1::UUID AND trace_id IN (
-    SELECT DISTINCT trace_id FROM v1_otel_trace
+WHERE tenant_id = $1::UUID AND trace_id = (
+    SELECT trace_id FROM v1_otel_trace
     WHERE tenant_id = $1::UUID AND task_run_external_id = $2::UUID
+    ORDER BY start_time DESC
+    LIMIT 1
 )
 ORDER BY start_time ASC
 OFFSET COALESCE($3::BIGINT, 0)
@@ -105,6 +126,82 @@ func (q *Queries) ListSpansByTaskExternalID(ctx context.Context, db DBTX, arg Li
 	var items []*ListSpansByTaskExternalIDRow
 	for rows.Next() {
 		var i ListSpansByTaskExternalIDRow
+		if err := rows.Scan(
+			&i.TraceID,
+			&i.SpanID,
+			&i.ParentSpanID,
+			&i.SpanName,
+			&i.SpanKind,
+			&i.ServiceName,
+			&i.StatusCode,
+			&i.StatusMessage,
+			&i.DurationNs,
+			&i.StartTime,
+			&i.ResourceAttributes,
+			&i.SpanAttributes,
+			&i.ScopeName,
+			&i.ScopeVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpansByWorkflowRunExternalID = `-- name: ListSpansByWorkflowRunExternalID :many
+SELECT
+    trace_id, span_id, parent_span_id, span_name, span_kind,
+    service_name, status_code, status_message, duration_ns, start_time,
+    resource_attributes, span_attributes, scope_name, scope_version
+FROM v1_otel_trace
+WHERE tenant_id = $1::UUID AND workflow_run_external_id = $2::UUID
+ORDER BY start_time ASC
+OFFSET COALESCE($3::BIGINT, 0)
+LIMIT COALESCE($4::BIGINT, 1000)
+`
+
+type ListSpansByWorkflowRunExternalIDParams struct {
+	Tenantid              uuid.UUID `json:"tenantid"`
+	Workflowrunexternalid uuid.UUID `json:"workflowrunexternalid"`
+	Spanoffset            int64     `json:"spanoffset"`
+	Spanlimit             int64     `json:"spanlimit"`
+}
+
+type ListSpansByWorkflowRunExternalIDRow struct {
+	TraceID            string             `json:"trace_id"`
+	SpanID             string             `json:"span_id"`
+	ParentSpanID       pgtype.Text        `json:"parent_span_id"`
+	SpanName           string             `json:"span_name"`
+	SpanKind           V1OtelSpanKind     `json:"span_kind"`
+	ServiceName        string             `json:"service_name"`
+	StatusCode         V1OtelStatusCode   `json:"status_code"`
+	StatusMessage      pgtype.Text        `json:"status_message"`
+	DurationNs         int64              `json:"duration_ns"`
+	StartTime          pgtype.Timestamptz `json:"start_time"`
+	ResourceAttributes []byte             `json:"resource_attributes"`
+	SpanAttributes     []byte             `json:"span_attributes"`
+	ScopeName          pgtype.Text        `json:"scope_name"`
+	ScopeVersion       pgtype.Text        `json:"scope_version"`
+}
+
+func (q *Queries) ListSpansByWorkflowRunExternalID(ctx context.Context, db DBTX, arg ListSpansByWorkflowRunExternalIDParams) ([]*ListSpansByWorkflowRunExternalIDRow, error) {
+	rows, err := db.Query(ctx, listSpansByWorkflowRunExternalID,
+		arg.Tenantid,
+		arg.Workflowrunexternalid,
+		arg.Spanoffset,
+		arg.Spanlimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListSpansByWorkflowRunExternalIDRow
+	for rows.Next() {
+		var i ListSpansByWorkflowRunExternalIDRow
 		if err := rows.Scan(
 			&i.TraceID,
 			&i.SpanID,

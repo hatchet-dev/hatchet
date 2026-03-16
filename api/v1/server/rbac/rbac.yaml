@@ -141,3 +141,4 @@ roles:
       - WorkflowCronGet
       - WorkflowCronUpdate
       - V1TaskGetTrace
+      - V1WorkflowRunGetTrace

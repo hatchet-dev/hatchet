@@ -9,7 +9,7 @@ import (
 )
 
 func (t *TasksService) V1TaskGetTrace(ctx echo.Context, request gen.V1TaskGetTraceRequestObject) (gen.V1TaskGetTraceResponseObject, error) {
-	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
+	task := ctx.Get("task").(*sqlcv1.V1TasksOlap) //nolint:errcheck
 
 	limit := int64(1000)
 	offset := int64(0)

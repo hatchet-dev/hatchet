@@ -601,6 +601,39 @@ export class Api<
       ...params,
     });
   /**
+   * @description Get OTel trace for a workflow run
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetTrace
+   * @summary Get OTel trace
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/trace
+   * @secure
+   */
+  v1WorkflowRunGetTrace = (
+    v1WorkflowRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<OtelSpanList, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/trace`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get the timings for a workflow run
    *
    * @tags Workflow Runs

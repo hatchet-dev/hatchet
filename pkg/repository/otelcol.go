@@ -40,14 +40,32 @@ type CreateSpansOpts struct {
 	Spans    []*SpanData
 }
 
+type OtelSpanRow struct {
+	StartTime          pgtype.Timestamptz
+	SpanName           string
+	TraceID            string
+	SpanKind           sqlcv1.V1OtelSpanKind
+	ServiceName        string
+	StatusCode         sqlcv1.V1OtelStatusCode
+	SpanID             string
+	ParentSpanID       pgtype.Text
+	StatusMessage      pgtype.Text
+	ResourceAttributes []byte
+	SpanAttributes     []byte
+	ScopeName          pgtype.Text
+	ScopeVersion       pgtype.Text
+	DurationNs         int64
+}
+
 type ListSpansResult struct {
-	Rows  []*sqlcv1.ListSpansByTaskExternalIDRow
+	Rows  []*OtelSpanRow
 	Total int64
 }
 
 type OTelCollectorRepository interface {
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 	ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error)
+	ListSpansByWorkflowRunExternalID(ctx context.Context, tenantId, workflowRunExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error)
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -161,7 +179,61 @@ func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Cont
 		return nil, fmt.Errorf("error committing transaction: %w", err)
 	}
 
-	return &ListSpansResult{Rows: rows, Total: total}, nil
+	result := make([]*OtelSpanRow, len(rows))
+	for i, r := range rows {
+		result[i] = &OtelSpanRow{
+			TraceID: r.TraceID, SpanID: r.SpanID, ParentSpanID: r.ParentSpanID,
+			SpanName: r.SpanName, SpanKind: r.SpanKind, ServiceName: r.ServiceName,
+			StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
+			StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
+			SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
+		}
+	}
+
+	return &ListSpansResult{Rows: result, Total: total}, nil
+}
+
+func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRunExternalID(ctx context.Context, tenantId, workflowRunExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+	if err != nil {
+		return nil, fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer rollback()
+
+	total, err := o.queries.CountSpansByWorkflowRunExternalID(ctx, tx, sqlcv1.CountSpansByWorkflowRunExternalIDParams{
+		Tenantid:              tenantId,
+		Workflowrunexternalid: workflowRunExternalID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error counting otel spans: %w", err)
+	}
+
+	rows, err := o.queries.ListSpansByWorkflowRunExternalID(ctx, tx, sqlcv1.ListSpansByWorkflowRunExternalIDParams{
+		Tenantid:              tenantId,
+		Workflowrunexternalid: workflowRunExternalID,
+		Spanoffset:            offset,
+		Spanlimit:             limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error listing otel spans: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	result := make([]*OtelSpanRow, len(rows))
+	for i, r := range rows {
+		result[i] = &OtelSpanRow{
+			TraceID: r.TraceID, SpanID: r.SpanID, ParentSpanID: r.ParentSpanID,
+			SpanName: r.SpanName, SpanKind: r.SpanKind, ServiceName: r.ServiceName,
+			StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
+			StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
+			SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
+		}
+	}
+
+	return &ListSpansResult{Rows: result, Total: total}, nil
 }
 
 func extractServiceName(resourceAttrsJSON json.RawMessage) string {

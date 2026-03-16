@@ -8,6 +8,7 @@ export type RelevantOpenTelemetrySpanProperties = Pick<
   | 'statusCode'
   | 'durationNs'
   | 'createdAt'
+  | 'spanAttributes'
 >;
 
 export type OtelSpanTree = RelevantOpenTelemetrySpanProperties & {

@@ -291,6 +291,15 @@ export const SpanCard: FC<SpanCardProps> = ({
 
   const eventHandlers = useSpanCardEventHandlers(data, onSpanSelect);
 
+  const isStepRunSpan = data.spanName === 'hatchet.start_step_run';
+  const stepName = isStepRunSpan
+    ? data.spanAttributes?.['hatchet.step_name']
+    : undefined;
+  const hasStepLink =
+    isStepRunSpan &&
+    Boolean(onSpanSelect) &&
+    Boolean(data.spanAttributes?.['hatchet.step_run_id']);
+
   const { durationMs } = getTimelineData({
     spanCard: data,
     minStart,
@@ -404,6 +413,19 @@ export const SpanCard: FC<SpanCardProps> = ({
                 >
                   {data.spanName}
                 </h3>
+                {hasStepLink && stepName && (
+                  <span
+                    className="cursor-pointer truncate text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+                    title={`View task run: ${stepName}`}
+                    onClick={(e: MouseEvent) => {
+                      e.stopPropagation();
+                      onSpanSelect?.(data);
+                    }}
+                    role="link"
+                  >
+                    {stepName}
+                  </span>
+                )}
               </div>
             </Collapsible.Trigger>
 

@@ -1,4 +1,3 @@
-import './components/v1/agent-prism/theme/theme.css';
 import './index.css';
 import queryClient from './query-client.tsx';
 import Router from './router.tsx';
