@@ -38,7 +38,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
-from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.labels import DesiredWorkerLabel, WorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.sticky import StickyStrategy
@@ -207,7 +207,7 @@ class Hatchet:
         name: str,
         slots: int | None = None,
         durable_slots: int | None = None,
-        labels: dict[str, str | int] | None = None,
+        labels: dict[str, str | int] | list[WorkerLabel] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
     ) -> Worker:
