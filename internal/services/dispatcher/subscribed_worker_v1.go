@@ -105,15 +105,17 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	lockBegin := time.Now()
-
-	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
 	if !worker.tryAcquireSendLockWithTimeout(50 * time.Millisecond) {
 		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "flow control is active")
 		return err
 	}
+
+	lockBegin := time.Now()
+
+	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
+
 	defer worker.sendMu.Unlock()
 	defer lockSpan.End()
 
@@ -132,6 +134,7 @@ func (worker *subscribedWorker) sendToWorker(
 	go func() {
 		defer close(sentCh)
 		err = worker.stream.SendMsg(msg)
+
 		if err != nil {
 			span.RecordError(err)
 		}
@@ -170,7 +173,7 @@ func (worker *subscribedWorker) CancelTask(
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
 	sentCh := make(chan error, 1)
-	acquiredLock := worker.sendMu.TryLock()
+	acquiredLock := worker.tryAcquireSendLockWithTimeout(250 * time.Millisecond)
 	if !acquiredLock {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 			task.TenantID,
@@ -194,9 +197,10 @@ func (worker *subscribedWorker) CancelTask(
 
 		return nil
 	}
-	defer worker.sendMu.Unlock()
+
 	go func() {
 		defer close(sentCh)
+		defer worker.sendMu.Unlock()
 
 		sentCh <- worker.stream.Send(action)
 	}()
