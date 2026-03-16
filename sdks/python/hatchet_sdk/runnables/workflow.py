@@ -18,7 +18,6 @@ from typing import (
 )
 from warnings import warn
 
-from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
@@ -522,7 +521,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         run_at: datetime,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> WorkflowVersion:
         """
         Schedule a workflow to run at a specific time.
@@ -534,7 +533,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         return self._client._client.admin.schedule_workflow(
             name=self._config.name,
-            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
+            schedules=[run_at],
             input=self._serialize_input(input, target="string"),
             options=options,
         )
@@ -543,7 +542,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         run_at: datetime,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> WorkflowVersion:
         """
         Schedule a workflow to run at a specific time.
@@ -555,7 +554,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         return await self._client._client.admin.aio_schedule_workflow(
             name=self._config.name,
-            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
+            schedules=[run_at],
             input=self._serialize_input(input, target="string"),
             options=options,
         )

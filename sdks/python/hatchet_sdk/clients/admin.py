@@ -222,9 +222,7 @@ class AdminClient:
             desired_worker_labels=desired_worker_labels,
         )
 
-    def _parse_schedule(
-        self, schedule: datetime | timestamp_pb2.Timestamp
-    ) -> timestamp_pb2.Timestamp:
+    def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
         if isinstance(schedule, datetime):
             if not schedule.tzinfo:
                 logger.warning(
@@ -247,7 +245,7 @@ class AdminClient:
     def _prepare_schedule_workflow_request(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        schedules: list[datetime],
         input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
@@ -280,9 +278,9 @@ class AdminClient:
     async def aio_schedule_workflow(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        schedules: list[datetime],
         input: str | None = None,
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> v0_workflow_protos.WorkflowVersion:
         return await asyncio.to_thread(
             self.schedule_workflow, name, schedules, input, options
@@ -330,11 +328,12 @@ class AdminClient:
     def schedule_workflow(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        schedules: list[datetime],
         input: str | None = None,
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
+            options = options or ScheduleTriggerWorkflowOptions()
             namespace = options.namespace or self.namespace
 
             name = self.config.apply_namespace(name, namespace)

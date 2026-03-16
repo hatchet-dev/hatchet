@@ -570,7 +570,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         wrapped: Callable[
             [
                 str,
-                list[datetime | timestamp_pb2.Timestamp],
+                list[datetime],
                 str | None,
                 ScheduleTriggerWorkflowOptions,
             ],
@@ -579,22 +579,19 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         instance: AdminClient,
         args: tuple[
             str,
-            list[datetime | timestamp_pb2.Timestamp],
+            list[datetime],
             str | None,
             ScheduleTriggerWorkflowOptions,
         ],
         kwargs: dict[
             str,
-            str
-            | None
-            | list[datetime | timestamp_pb2.Timestamp]
-            | ScheduleTriggerWorkflowOptions,
+            str | None | list[datetime] | ScheduleTriggerWorkflowOptions,
         ],
     ) -> v0_workflow_protos.WorkflowVersion:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
-        schedules = cast(list[datetime | timestamp_pb2.Timestamp], params[1])
+        schedules = cast(list[datetime], params[1])
         input = cast(str | None, params[2])
         options = cast(
             ScheduleTriggerWorkflowOptions,
