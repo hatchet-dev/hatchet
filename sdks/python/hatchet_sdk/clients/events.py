@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import warnings
+from datetime import UTC
 from typing import cast
 
 from google.protobuf import timestamp_pb2
@@ -59,6 +60,7 @@ class Event(BaseModel):
     event_timestamp: timestamp_pb2.Timestamp
     additional_metadata: str | None = None
     scope: str | None = None
+    seen_at: datetime.datetime
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -85,6 +87,7 @@ class Event(BaseModel):
             event_timestamp=proto.event_timestamp,
             additional_metadata=additional_metadata,
             scope=scope,
+            seen_at=proto.event_timestamp.ToDatetime(tzinfo=UTC),
         )
 
 
