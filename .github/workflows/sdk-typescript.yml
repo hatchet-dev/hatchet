@@ -173,14 +173,14 @@ jobs:
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: sdk-typescript-engine-logs
           path: engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: sdk-typescript-api-logs
           path: api.log
@@ -278,7 +278,7 @@ jobs:
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
           path: /tmp/engine.log
@@ -290,7 +290,7 @@ jobs:
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
           path: /tmp/api.log
@@ -370,14 +370,14 @@ jobs:
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
           path: engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
           path: api.log
