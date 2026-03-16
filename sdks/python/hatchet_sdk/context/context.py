@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 from warnings import warn
 
@@ -859,7 +859,7 @@ class DurableContext(Context):
         return result
 
     async def _now(self) -> MemoNowResult:
-        ts = await asyncio.to_thread(datetime.now, UTC)
+        ts = await asyncio.to_thread(datetime.now, timezone.utc)
         return MemoNowResult(ts=ts)
 
     async def aio_now(self) -> datetime:
