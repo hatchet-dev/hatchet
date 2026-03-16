@@ -21,6 +21,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
 from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
@@ -222,6 +223,14 @@ class AdminClient:
         self, schedule: datetime | timestamp_pb2.Timestamp
     ) -> timestamp_pb2.Timestamp:
         if isinstance(schedule, datetime):
+            if not schedule.tzinfo:
+                logger.warning(
+                    "Timezone-naive datetime provided for schedule. Assuming UTC timezone."
+                )
+            elif schedule.tzinfo.fromutc(schedule) != schedule:
+                logger.warning(
+                    "Non-UTC datetime provided for schedule. Assuming UTC timezone. Note: This is a bug which will be fixed in v2.0.0 of the SDK to support non-UTC datetimes. For now, convert your datetime to UTC to avoid this warning and ensure correct scheduling."
+                )
             t = schedule.timestamp()
             seconds = int(t)
             nanos = int(t % 1 * 1e9)
