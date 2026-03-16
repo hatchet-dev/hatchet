@@ -54,8 +54,8 @@ def test_resolve_slot_config_no_durable() -> None:
 
 def test_resolve_slot_config_only_durable() -> None:
     class DummyTask:
-        is_durable = True
-        slot_requests: dict[str, int] = {"durable": 1}
+        _is_durable = True
+        _slot_requests: dict[str, int] = {"durable": 1}
 
     class DummyWorkflow:
         tasks = [DummyTask()]
@@ -72,12 +72,12 @@ def test_resolve_slot_config_only_durable() -> None:
 
 def test_resolve_slot_config_mixed() -> None:
     class DefaultTask:
-        is_durable = False
-        slot_requests: dict[str, int] = {"default": 1}
+        _is_durable = False
+        _slot_requests: dict[str, int] = {"default": 1}
 
     class DurableTask:
-        is_durable = True
-        slot_requests: dict[str, int] = {"durable": 1}
+        _is_durable = True
+        _slot_requests: dict[str, int] = {"durable": 1}
 
     class DummyWorkflow:
         tasks = [DefaultTask(), DurableTask()]
@@ -94,8 +94,8 @@ def test_resolve_slot_config_mixed() -> None:
 
 def test_resolve_slot_config_custom_type_raises_when_missing() -> None:
     class GpuTask:
-        is_durable = False
-        slot_requests: dict[str, int] = {"gpu": 1}
+        _is_durable = False
+        _slot_requests: dict[str, int] = {"gpu": 1}
 
     class DummyWorkflow:
         tasks = [GpuTask()]
@@ -111,8 +111,8 @@ def test_resolve_slot_config_custom_type_raises_when_missing() -> None:
 
 def test_resolve_slot_config_custom_type_passes_when_configured() -> None:
     class GpuTask:
-        is_durable = False
-        slot_requests: dict[str, int] = {"gpu": 1}
+        _is_durable = False
+        _slot_requests: dict[str, int] = {"gpu": 1}
 
     class DummyWorkflow:
         tasks = [GpuTask()]

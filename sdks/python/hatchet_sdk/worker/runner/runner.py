@@ -196,7 +196,7 @@ class Runner:
                 return
 
             try:
-                output = self.serialize_output(t.validators.step_output, output)
+                output = self.serialize_output(t._validators.step_output, output)
 
                 self.event_queue.put(
                     ActionEvent(
@@ -255,7 +255,7 @@ class Runner:
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
-                if task.is_async_function:
+                if task._is_async_function:
                     return await task.aio_call(ctx, dependencies)
 
                 pfunc = functools.partial(
@@ -402,7 +402,7 @@ class Runner:
             log_sender=self.log_sender,
             max_attempts=task.retries + 1,
             task_name=task.name,
-            workflow_name=task.workflow.name,
+            workflow_name=task._workflow.name,
         )
 
         ctx_hatchet_context.set(ctx)
@@ -420,7 +420,7 @@ class Runner:
             context = self.create_context(
                 action=action,
                 task=action_func,
-                is_durable=True if action_func.is_durable else False,  # noqa: SIM210
+                is_durable=True if action_func._is_durable else False,  # noqa: SIM210
             )
 
             self.contexts[action.key] = context

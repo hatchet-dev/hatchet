@@ -225,7 +225,7 @@ class Context:
 
         return cast(
             R,
-            task.validators.step_output.validate_python(
+            task._validators.step_output.validate_python(
                 parent_step_data, context=HATCHET_PYDANTIC_SENTINEL
             ),
         )
@@ -237,7 +237,7 @@ class Context:
             stacklevel=2,
         )
 
-        if task.is_async_function:
+        if task._is_async_function:
             return self.task_output(task)
 
         raise ValueError(

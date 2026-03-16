@@ -49,7 +49,7 @@ async def legacy_aio_start(worker: Worker) -> None:
 
     worker._status = WorkerStatus.STARTING
 
-    if len(worker.action_registry.keys()) == 0:
+    if len(worker._action_registry.keys()) == 0:
         raise ValueError(
             "no actions registered, register workflows or actions before starting worker"
         )
@@ -58,8 +58,8 @@ async def legacy_aio_start(worker: Worker) -> None:
     durable_action_registry: dict[str, Task[Any, Any]] = {}
     non_durable_action_registry: dict[str, Task[Any, Any]] = {}
 
-    for action_name, task in worker.action_registry.items():
-        if task.is_durable:
+    for action_name, task in worker._action_registry.items():
+        if task._is_durable:
             durable_action_registry[action_name] = task
         else:
             non_durable_action_registry[action_name] = task
@@ -68,42 +68,42 @@ async def legacy_aio_start(worker: Worker) -> None:
     has_any_durable = len(durable_action_registry) > 0
 
     # Create separate queues for durable workers
-    durable_action_queue: Queue[Action | STOP_LOOP_TYPE] = worker.ctx.Queue()
-    durable_event_queue: Queue[ActionEvent] = worker.ctx.Queue()
+    durable_action_queue: Queue[Action | STOP_LOOP_TYPE] = worker._ctx.Queue()
+    durable_event_queue: Queue[ActionEvent] = worker._ctx.Queue()
 
     lifespan_context = None
-    if worker.lifespan:
+    if worker._lifespan:
         try:
             lifespan_context = await worker._setup_lifespan()
         except LifespanSetupError as e:
             logger.exception("lifespan setup failed")
-            if worker.loop:
-                worker.loop.stop()
+            if worker._loop:
+                worker._loop.stop()
             raise e
 
     # Slot conversion: use default and durable from slot_config
-    default_slots = worker.slot_config.get("default", 100)
-    durable_slots = worker.slot_config.get("durable", 1000)
+    default_slots = worker._slot_config.get("default", 100)
+    durable_slots = worker._slot_config.get("durable", 1000)
 
     durable_action_listener_process = None
     durable_action_runner = None
 
     if has_any_non_durable:
-        worker.action_listener_process = _legacy_start_action_listener(
+        worker._action_listener_process = _legacy_start_action_listener(
             worker,
             is_durable=False,
             actions=list(non_durable_action_registry.keys()),
             slots=default_slots,
-            action_queue=worker.action_queue,
-            event_queue=worker.event_queue,
+            action_queue=worker._action_queue,
+            event_queue=worker._event_queue,
         )
-        worker.action_runner = _legacy_run_action_runner(
+        worker._action_runner = _legacy_run_action_runner(
             worker,
             name_suffix="",
             action_registry=non_durable_action_registry,
             max_runs=default_slots,
-            action_queue=worker.action_queue,
-            event_queue=worker.event_queue,
+            action_queue=worker._action_queue,
+            event_queue=worker._event_queue,
             lifespan_context=lifespan_context,
         )
 
@@ -126,26 +126,26 @@ async def legacy_aio_start(worker: Worker) -> None:
             lifespan_context=lifespan_context,
         )
 
-    if worker.loop:
+    if worker._loop:
         # Store references for cleanup BEFORE the health check blocks,
         # so they are available when exit_gracefully() runs.
-        worker.durable_action_listener_process = durable_action_listener_process
-        worker.durable_action_queue = durable_action_queue
-        worker.durable_event_queue = durable_event_queue
+        worker._durable_action_listener_process = durable_action_listener_process
+        worker._durable_action_queue = durable_action_queue
+        worker._durable_event_queue = durable_event_queue
         worker._legacy_durable_action_runner = durable_action_runner
 
         worker._lifespan_cleanup_complete = asyncio.Event()
-        worker.action_listener_health_check = worker.loop.create_task(
+        worker._action_listener_health_check = worker._loop.create_task(
             _legacy_check_listener_health(
                 worker,
                 durable_action_listener_process,
             )
         )
 
-        await worker.action_listener_health_check
+        await worker._action_listener_health_check
 
-        if worker.action_runner:
-            await worker.action_runner.wait_for_tasks()
+        if worker._action_runner:
+            await worker._action_runner.wait_for_tasks()
 
         if durable_action_runner:
             await durable_action_runner.wait_for_tasks()
@@ -167,18 +167,18 @@ def _legacy_start_action_listener(
     event_queue: Queue[Any],
 ) -> multiprocessing.context.SpawnProcess:
     try:
-        process = worker.ctx.Process(
+        process = worker._ctx.Process(
             target=legacy_worker_action_listener_process,
             args=(
                 worker.name + ("_durable" if is_durable else ""),
                 actions,
                 slots,
-                worker.config,
+                worker._config,
                 action_queue,
                 event_queue,
-                worker.handle_kill,
-                worker.client.debug,
-                worker.labels,
+                worker._handle_kill,
+                worker._client.debug,
+                worker._labels,
             ),
         )
         process.start()
@@ -200,18 +200,18 @@ def _legacy_run_action_runner(
     event_queue: Queue[Any],
     lifespan_context: Any | None,
 ) -> WorkerActionRunLoopManager:
-    if worker.loop:
+    if worker._loop:
         return WorkerActionRunLoopManager(
             worker.name + name_suffix,
             action_registry,
             max_runs,
-            worker.config,
+            worker._config,
             action_queue,
             event_queue,
-            worker.loop,
-            worker.handle_kill,
-            worker.client.debug,
-            worker.labels,
+            worker._loop,
+            worker._handle_kill,
+            worker._client.debug,
+            worker._labels,
             lifespan_context,
         )
 
@@ -226,28 +226,28 @@ async def _legacy_check_listener_health(
 
     logger.debug("starting legacy action listener health check...")
     try:
-        while not worker.killing:
+        while not worker._killing:
             if (
-                not worker.action_listener_process
+                not worker._action_listener_process
                 and not durable_action_listener_process
             ) or (
-                worker.action_listener_process
+                worker._action_listener_process
                 and durable_action_listener_process
-                and not worker.action_listener_process.is_alive()
+                and not worker._action_listener_process.is_alive()
                 and not durable_action_listener_process.is_alive()
             ):
                 logger.debug("child action listener process killed...")
                 worker._status = WorkerStatus.UNHEALTHY
-                if worker.loop:
-                    worker.loop.create_task(worker.exit_gracefully())
+                if worker._loop:
+                    worker._loop.create_task(worker.exit_gracefully())
                 break
 
             if (
-                worker.config.terminate_worker_after_num_tasks
-                and task_count.value >= worker.config.terminate_worker_after_num_tasks
+                worker._config.terminate_worker_after_num_tasks
+                and task_count.value >= worker._config.terminate_worker_after_num_tasks
             ):
-                if worker.loop:
-                    worker.loop.create_task(worker.exit_gracefully())
+                if worker._loop:
+                    worker._loop.create_task(worker.exit_gracefully())
                 break
 
             worker._status = WorkerStatus.HEALTHY

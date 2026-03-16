@@ -36,9 +36,9 @@ def required_slot_types_from_workflows(
 
     for workflow in workflows:
         for task in workflow.tasks:
-            if task.is_durable:
+            if task._is_durable:
                 required.add(SlotType.DURABLE.value)
-            for key in task.slot_requests:
+            for key in task._slot_requests:
                 required.add(key.value if isinstance(key, SlotType) else key)
 
     return required

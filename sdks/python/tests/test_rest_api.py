@@ -29,7 +29,7 @@ async def test_get_run(hatchet: Hatchet) -> None:
 
     run = await hatchet.runs.aio_get(dag_ref.workflow_run_id)
 
-    assert dag_workflow.config.name in run.run.display_name
+    assert dag_workflow.name in run.run.display_name
     assert run.run.status.value == "COMPLETED"
     assert len(run.shape) == 4
     assert {t.name for t in dag_workflow.tasks} == {t.task_name for t in run.shape}
@@ -37,7 +37,9 @@ async def test_get_run(hatchet: Hatchet) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_list_workflows(hatchet: Hatchet) -> None:
-    workflows = await hatchet.workflows.aio_list(workflow_name=dag_workflow.config.name)
+    workflows = await hatchet.workflows.aio_list(
+        workflow_name=dag_workflow._config.name
+    )
 
     assert workflows.rows
     assert len(workflows.rows) >= 1
@@ -47,7 +49,7 @@ async def test_list_workflows(hatchet: Hatchet) -> None:
             [
                 wf
                 for wf in workflows.rows
-                if wf.name == hatchet.config.apply_namespace(dag_workflow.config.name)
+                if wf.name == hatchet.config.apply_namespace(dag_workflow._config.name)
             ]
         ),
         None,
@@ -57,7 +59,5 @@ async def test_list_workflows(hatchet: Hatchet) -> None:
 
     fetched_workflow = await hatchet.workflows.aio_get(relevant_wf.metadata.id)
 
-    assert fetched_workflow.name == hatchet.config.apply_namespace(
-        dag_workflow.config.name
-    )
+    assert fetched_workflow.name == hatchet.config.apply_namespace(dag_workflow.name)
     assert fetched_workflow.metadata.id == relevant_wf.metadata.id

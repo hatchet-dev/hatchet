@@ -455,7 +455,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return await self.client.runs.aio_list_with_pagination(
+        return await self._client.runs.aio_list_with_pagination(
             workflow_ids=[self.id],
             since=since,
             only_tasks=only_tasks,
@@ -484,7 +484,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :return: The created filter.
         """
-        return self.client.filters.create(
+        return self._client.filters.create(
             workflow_id=self.id,
             expression=expression,
             scope=scope,
@@ -506,7 +506,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :return: The created filter.
         """
-        return await self.client.filters.aio_create(
+        return await self._client.filters.aio_create(
             workflow_id=self.id,
             expression=expression,
             scope=scope,
@@ -527,8 +527,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param options: Additional options for workflow execution.
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
-        return self.client._client.admin.schedule_workflow(
-            name=self.config.name,
+        return self._client._client.admin.schedule_workflow(
+            name=self._config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
             input=self._serialize_input(input, target="string"),
             options=options,
@@ -548,8 +548,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param options: Additional options for workflow execution.
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
-        return await self.client._client.admin.aio_schedule_workflow(
-            name=self.config.name,
+        return await self._client._client.admin.aio_schedule_workflow(
+            name=self._config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
             input=self._serialize_input(input, target="string"),
             options=options,
@@ -574,8 +574,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
-        return self.client.cron.create(
-            workflow_name=self.config.name,
+        return self._client.cron.create(
+            workflow_name=self._config.name,
             cron_name=cron_name,
             expression=expression,
             input=self._serialize_input(input, target="dict"),
@@ -602,8 +602,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
-        return await self.client.cron.aio_create(
-            workflow_name=self.config.name,
+        return await self._client.cron.aio_create(
+            workflow_name=self._config.name,
             cron_name=cron_name,
             expression=expression,
             input=self._serialize_input(input, target="dict"),
@@ -617,7 +617,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         **DANGEROUS: This will delete a workflow and all of its data**
         """
-        self.client.workflows.delete(self.id)
+        self._client.workflows.delete(self.id)
 
     async def aio_delete(self) -> None:
         """
@@ -625,7 +625,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         **DANGEROUS: This will delete a workflow and all of its data**
         """
-        await self.client.workflows.aio_delete(self.id)
+        await self._client.workflows.aio_delete(self.id)
 
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
@@ -723,8 +723,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
 
-        ref = self.client._client.admin.run_workflow(
-            workflow_name=self.config.name,
+        ref = self._client._client.admin.run_workflow(
+            workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
@@ -791,8 +791,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
-        ref = await self.client._client.admin.aio_run_workflow(
-            workflow_name=self.config.name,
+        ref = await self._client._client.admin.aio_run_workflow(
+            workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
@@ -854,7 +854,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param wait_for_result: If True, block until all runs complete and return results. If False, return a list of WorkflowRunRef immediately.
         :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
-        refs = self.client._client.admin.run_workflows(
+        refs = self._client._client.admin.run_workflows(
             workflows=workflows,
         )
 
@@ -905,7 +905,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param wait_for_result: If True, await completion and return results. If False, return a list of WorkflowRunRef immediately.
         :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
-        refs = await self.client._client.admin.aio_run_workflows(
+        refs = await self._client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
@@ -1036,7 +1036,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             retries=retries,
             backoff_factor=backoff_factor,
             backoff_max_seconds=backoff_max_seconds,
-            task_defaults=self.config.task_defaults,
+            task_defaults=self._config.task_defaults,
         )
 
         def inner(
@@ -1140,7 +1140,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             retries=retries,
             backoff_factor=backoff_factor,
             backoff_max_seconds=backoff_max_seconds,
-            task_defaults=self.config.task_defaults,
+            task_defaults=self._config.task_defaults,
         )
 
         def inner(
@@ -1388,7 +1388,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def __init__(
         self, workflow: Workflow[TWorkflowInput], task: Task[TWorkflowInput, R]
     ) -> None:
-        super().__init__(config=workflow.config, client=workflow.client)
+        super().__init__(config=workflow._config, client=workflow._client)
 
         ## NOTE: This is a hack to assign the task back to the base workflow,
         ## since the decorator to mutate the tasks is not being called.
@@ -1397,7 +1397,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self._workflow = workflow
         self._task = task
 
-        return_type = get_type_hints(self._task.fn).get("return")
+        return_type = get_type_hints(self._task._fn).get("return")
 
         self._output_validator: TypeAdapter[TaskPayloadForInternalUse] = TypeAdapter(
             normalize_validator(return_type)
@@ -1774,7 +1774,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :returns: True if the task is an async function, False otherwise.
         """
-        return self._task.is_async_function
+        return self._task._is_async_function
 
     def get_run_ref(self, run_id: str) -> TaskRunRef[TWorkflowInput, R]:
         """

@@ -2,8 +2,13 @@ from hatchet_sdk.clients.admin import (
     RunStatus,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
 )
-from hatchet_sdk.clients.events import PushEventOptions
+from hatchet_sdk.clients.events import (
+    BulkPushEventOptions,
+    BulkPushEventWithMetadata,
+    PushEventOptions,
+)
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     RegisterDurableEventRequest,
 )
@@ -151,7 +156,6 @@ from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import (
     CreateWorkflowVersionOpts,
-    RateLimitDuration,
     WorkerLabelComparator,
 )
 from hatchet_sdk.exceptions import (
@@ -163,6 +167,8 @@ from hatchet_sdk.exceptions import (
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
+from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk.rate_limit import RateLimit, RateLimitDuration
 from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -191,6 +197,8 @@ __all__ = [
     "APIToken",
     "AcceptInviteRequest",
     "BulkCancelReplayOpts",
+    "BulkPushEventOptions",
+    "BulkPushEventWithMetadata",
     "CELEvaluationResult",
     "CELFailure",
     "CELSuccess",
@@ -209,6 +217,7 @@ __all__ = [
     "DedupeViolationError",
     "DefaultFilter",
     "Depends",
+    "DesiredWorkerLabel",
     "DurableContext",
     "EmptyModel",
     "Event",
@@ -245,6 +254,7 @@ __all__ = [
     "PullRequest",
     "PullRequestState",
     "PushEventOptions",
+    "RateLimit",
     "RateLimitDuration",
     "RegisterDurableEventRequest",
     "RejectInviteRequest",
@@ -302,6 +312,7 @@ __all__ = [
     "WorkflowRunList",
     "WorkflowRunRef",
     "WorkflowRunStatus",
+    "WorkflowRunTriggerConfig",
     "WorkflowRunTriggeredBy",
     "WorkflowTag",
     "WorkflowTriggerCronRef",

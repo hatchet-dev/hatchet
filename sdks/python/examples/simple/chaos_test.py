@@ -72,7 +72,7 @@ def start_worker(suffix: str = "") -> tuple[Any, threading.Thread]:
         workflows=[simple, simple_durable],
         slots=10,
     )
-    worker.handle_kill = False  # Prevent sys.exit on shutdown
+    worker._handle_kill = False  # Prevent sys.exit on shutdown
 
     # Restore default signal handlers so Ctrl+C raises KeyboardInterrupt
     signal.signal(signal.SIGINT, signal.default_int_handler)
