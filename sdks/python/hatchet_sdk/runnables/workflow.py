@@ -55,11 +55,9 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import (
-    DesiredWorkerLabel,
     _warn_if_dict_desired_worker_labels,
 )
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
-from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.trigger import (
     RunWorkflowOptions,
     ScheduleTriggerWorkflowOptions,
@@ -805,6 +803,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param wait_for_result: If True, await completion and return the result. If False, return a WorkflowRunRef immediately.
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
+
+        :raises RuntimeError: If the workflow is triggered within a durable context that supports durable eviction but fails to spawn a durable child workflow.
         """
 
         durable_ctx = ctx_durable_context.get()

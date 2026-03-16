@@ -4,7 +4,7 @@ from enum import Enum
 from pydantic import BaseModel, field_validator
 
 from hatchet_sdk.contracts.dispatcher_pb2 import WorkerLabels
-from hatchet_sdk.contracts.v1.workflows_pb2 import DesiredWorkerLabels
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels
 
 
 class WorkerLabelComparator(int, Enum):

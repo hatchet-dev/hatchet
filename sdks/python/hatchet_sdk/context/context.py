@@ -47,21 +47,16 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import ActionPayload
-from hatchet_sdk.types.labels import WorkerLabel
-from hatchet_sdk.utils.timedelta_to_expression import (
-    Duration,
-    _warn_if_str_duration,
-    timedelta_to_expr,
-)
-from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.runnables.types import (
     R,
     TWorkflowInput,
     ValidTaskReturnType,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.timedelta_to_expression import (
     Duration,
+    _warn_if_str_duration,
     expr_to_timedelta,
     timedelta_to_expr,
 )
@@ -259,7 +254,9 @@ class Context:
         return self._runs_client
 
     @property
-    def durable_event_listener(self) -> DurableEventListener | None:
+    def durable_event_listener(
+        self,
+    ) -> DurableEventListener | PreEvictionDurableEventListener | None:
         warn(
             "The durable_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,
@@ -962,7 +959,7 @@ class DurableContext(Context):
                     RunChildEvent(
                         workflow_name=c.workflow_name,
                         input=c.input,
-                        trigger_workflow_opts=c.options,
+                        run_workflow_opts=c.options,
                     )
                     for c in configs
                 ]

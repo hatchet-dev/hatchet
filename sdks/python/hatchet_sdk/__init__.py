@@ -1,7 +1,6 @@
 from hatchet_sdk.clients.admin import (
     RunStatus,
 )
-from hatchet_sdk.clients.events import PushEventOptions
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     StepRunEventType,

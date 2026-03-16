@@ -185,7 +185,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: TriggerWorkflowOptions,
+        options: RunWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
@@ -366,7 +366,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: TriggerWorkflowOptions,
+        options: RunWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()

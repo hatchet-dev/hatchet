@@ -9,8 +9,8 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.rest.tenacity_utils import (
-    tenacity_retry,
     tenacity_alert_retry,
+    tenacity_retry,
     tenacity_should_retry,
 )
 from hatchet_sdk.config import ClientConfig

@@ -670,16 +670,14 @@ class Runner:
         # This matches the literal "\u0000" preceded by an odd number of backslashes, rejecting payloads
         # that will decode to the null char.
         if re.search(r"(?<!\\)(\\\\)*\\u0000", serialized_output):
-            raise IllegalTaskOutputError(
-                dedent(f"""
+            raise IllegalTaskOutputError(dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """)
-            )
+                """))
 
         return serialized_output
 
