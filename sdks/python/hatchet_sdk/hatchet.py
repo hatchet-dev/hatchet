@@ -756,4 +756,19 @@ class Hatchet:
 
         :returns: The current `Context` object, or `None` if there is no current context (i.e. if this is called outside of the execution of a task or workflow).
         """
+        warnings.warn(
+            "The `get_current_context` method is deprecated and will be removed in v2.0.0. Please use the `current_context` property instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return ctx_hatchet_context.get()
+
+    @property
+    def current_context(self) -> Context | None:
+        """
+        Get the current Hatchet context, if it exists. This is only available within the execution of a task or workflow.
+
+        :returns: The current `Context` object, or `None` if there is no current context (i.e. if this is called outside of the execution of a task or workflow).
+        """
         return ctx_hatchet_context.get()
