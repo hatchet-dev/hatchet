@@ -15,3 +15,4 @@ func pushApproval(client *hatchet.Client, runID string, approved bool, reason st
 		"reason":   reason,
 	})
 }
+
