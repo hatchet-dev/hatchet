@@ -1,3 +1,4 @@
+import asyncio
 from warnings import warn
 
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -25,12 +26,14 @@ class WorkerContext:
         return self._labels
 
     def upsert_labels(self, labels: dict[str, str | int]) -> None:
-        self._client.upsert_worker_labels(self._worker_id, labels)
+        self._client.upsert_worker_labels(
+            self._worker_id,
+            [WorkerLabel(key=key, value=value) for key, value in labels.items()],
+        )
         self._labels.update(labels)
 
     async def async_upsert_labels(self, labels: dict[str, str | int]) -> None:
-        await self._client.async_upsert_worker_labels(self._worker_id, labels)
-        self._labels.update(labels)
+        await asyncio.to_thread(self.upsert_labels, labels)
 
     def id(self) -> str | None:
         return self._worker_id

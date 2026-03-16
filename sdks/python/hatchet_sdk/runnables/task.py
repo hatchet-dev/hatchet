@@ -586,6 +586,7 @@ class Task(Generic[TWorkflowInput, R]):
             max_attempts=self.retries + 1,
             task_name=self.name,
             workflow_name=self._workflow.name,
+            worker_labels=[],
         )
 
     def mock_run(

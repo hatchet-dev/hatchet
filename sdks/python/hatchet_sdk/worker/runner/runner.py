@@ -125,6 +125,7 @@ class Runner:
         self.worker_context = WorkerContext(
             labels=labels, client=Client(config=config).dispatcher
         )
+        self.worker_labels = labels
 
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
@@ -404,6 +405,7 @@ class Runner:
             max_attempts=task.retries + 1,
             task_name=task.name,
             workflow_name=task._workflow.name,
+            worker_labels=self.worker_labels,
         )
 
         ctx_hatchet_context.set(ctx)

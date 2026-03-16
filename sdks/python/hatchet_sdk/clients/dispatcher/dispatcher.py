@@ -212,20 +212,19 @@ class DispatcherClient:
         )
 
     def upsert_worker_labels(
-        self, worker_id: str | None, labels: dict[str, str | int]
+        self, worker_id: str | None, labels: list[WorkerLabel]
     ) -> None:
-        worker_labels = {}
-
-        for key, value in labels.items():
-            if isinstance(value, int):
-                worker_labels[key] = WorkerLabels(int_value=value)
-            else:
-                worker_labels[key] = WorkerLabels(str_value=str(value))
-
         client = self._get_or_create_client()
 
         client.UpsertWorkerLabels(
-            UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
+            UpsertWorkerLabelsRequest(
+                worker_id=worker_id,
+                labels={
+                    label.key: label.to_proto()
+                    for label in labels
+                    if label.key is not None
+                },
+            ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )

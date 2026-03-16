@@ -25,6 +25,7 @@ from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import ActionPayload
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.timedelta_to_expression import (
     Duration,
     _warn_if_str_duration,
@@ -53,8 +54,9 @@ class Context:
         max_attempts: int,
         task_name: str,
         workflow_name: str,
+        worker_labels: list[WorkerLabel],
     ):
-        self.worker = worker
+        self._worker = worker
 
         self._data = action.action_payload
 
@@ -78,6 +80,45 @@ class Context:
         self._max_attempts = max_attempts
         self._workflow_name = workflow_name
         self._task_name = task_name
+        self._worker_labels = worker_labels
+
+    @property
+    def worker(self) -> WorkerContext:
+        warn(
+            "The worker property is internal and should not be used directly. It will be removed in v2.0.0. Use corresponding properties such as `ctx.worker_id` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._worker
+
+    @property
+    def worker_id(self) -> str:
+        return self._action.worker_id
+
+    @property
+    def worker_labels(self) -> list[WorkerLabel]:
+        return self._worker_labels
+
+    def upsert_labels(self, labels: list[WorkerLabel]) -> None:
+        self._dispatcher_client.upsert_worker_labels(self.worker_id, labels)
+
+        prior_label_dict = {
+            label.key: label.value
+            for label in self._worker_labels
+            if label.key is not None
+        }
+        new_label_dict = {
+            label.key: label.value for label in labels if label.key is not None
+        }
+
+        prior_label_dict.update(new_label_dict)
+
+        self._worker_labels = [
+            WorkerLabel(key=key, value=value) for key, value in prior_label_dict.items()
+        ]
+
+    async def aio_upsert_labels(self, labels: list[WorkerLabel]) -> None:
+        await asyncio.to_thread(self.upsert_labels, labels)
 
     @property
     def data(self) -> ActionPayload:
@@ -568,10 +609,6 @@ class Context:
     def task_name(self) -> str:
         return self._task_name
 
-    @property
-    def worker_id(self) -> str:
-        return self._action.worker_id
-
     def fetch_task_run_error(
         self,
         task: "Task[TWorkflowInput, R]",
@@ -628,6 +665,7 @@ class DurableContext(Context):
         max_attempts: int,
         task_name: str,
         workflow_name: str,
+        worker_labels: list[WorkerLabel],
     ):
         super().__init__(
             action,
@@ -642,6 +680,7 @@ class DurableContext(Context):
             max_attempts,
             task_name,
             workflow_name,
+            worker_labels,
         )
 
         self._wait_index = 0
