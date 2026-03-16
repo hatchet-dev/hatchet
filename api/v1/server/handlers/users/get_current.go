@@ -42,15 +42,12 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 
 	transformedUser := transformers.ToUser(user, hasPass, hashedEmail)
 
-	u.config.Analytics.Enqueue(
-		"user:current",
-		userId.String(),
-		nil,
+	u.config.Analytics.Identify(
+		userId,
 		map[string]interface{}{
 			"email": user.Email,
 			"name":  transformedUser.Name,
 		},
-		nil,
 	)
 
 	return gen.UserGetCurrent200JSONResponse(

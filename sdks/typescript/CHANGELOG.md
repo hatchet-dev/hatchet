@@ -4,12 +4,18 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.16.0] - 2026-03-09
+## [1.17.0] - 2026-03-16
 
 ### Added
 
 - OpenTelemetry instrumentation via `HatchetInstrumentor` with automatic tracing for workflow runs, event pushes, and step executions
 - OpenTelemetry example demonstrating automatic and custom span instrumentation (`examples/opentelemetry_instrumentation`)
+
+## [1.16.0] - 2026-03-11
+
+### Added
+
+- Added logs client for retrieving task run logs.
 
 ## [1.15.2] - 2026-03-06
 
