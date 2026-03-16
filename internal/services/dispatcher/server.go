@@ -214,7 +214,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, 20, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, 250, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -343,7 +343,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerBacklogSize, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTimeMS, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send

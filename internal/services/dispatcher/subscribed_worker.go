@@ -16,7 +16,8 @@ type subscribedWorker struct {
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
 
-	sendMu sync.Mutex
+	sendMu                   sync.Mutex
+	sendMuAcquisitionTimeout int64
 
 	workerId uuid.UUID
 
@@ -27,17 +28,15 @@ func newSubscribedWorker(
 	stream contracts.Dispatcher_ListenServer,
 	fin chan<- bool,
 	workerId uuid.UUID,
-	maxBacklogSize int64,
+	maxLockAcquisitionTimeMS int64,
 	pubBuffer *msgqueue.MQPubBuffer,
 ) *subscribedWorker {
-	if maxBacklogSize <= 0 {
-		maxBacklogSize = 20
-	}
 
 	return &subscribedWorker{
-		stream:    stream,
-		finished:  fin,
-		workerId:  workerId,
-		pubBuffer: pubBuffer,
+		stream:                   stream,
+		finished:                 fin,
+		workerId:                 workerId,
+		pubBuffer:                pubBuffer,
+		sendMuAcquisitionTimeout: maxLockAcquisitionTimeMS,
 	}
 }
