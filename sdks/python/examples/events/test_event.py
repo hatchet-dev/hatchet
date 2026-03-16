@@ -266,22 +266,20 @@ async def test_async_event_bulk_push(hatchet: Hatchet) -> None:
             additional_metadata={"source": "test", "user_id": "user789"},
         ),
     ]
-    opts = BulkPushEventOptions(namespace="bulk-test")
 
-    e = await hatchet.event.aio_bulk_push(events, opts)
+    e = await hatchet.event.aio_bulk_push(events)
 
     assert len(e) == 3
 
     # Sort both lists of events by their key to ensure comparison order
     sorted_events = sorted(events, key=lambda x: x.key)
     sorted_returned_events = sorted(e, key=lambda x: x.key)
-    namespace = "bulk-test"
 
     # Check that the returned events match the original events
     for original_event, returned_event in zip(
         sorted_events, sorted_returned_events, strict=False
     ):
-        assert returned_event.key == namespace + original_event.key
+        assert returned_event.key == original_event.key
 
 
 @pytest.fixture(scope="function")

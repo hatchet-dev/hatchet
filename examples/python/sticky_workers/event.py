@@ -1,6 +1,6 @@
 from examples.sticky_workers.worker import sticky_workflow
-from hatchet_sdk import TriggerWorkflowOptions
+from hatchet_sdk import RunWorkflowOptions
 
 sticky_workflow.run(
-    options=TriggerWorkflowOptions(additional_metadata={"hello": "moon"}),
+    options=RunWorkflowOptions(additional_metadata={"hello": "moon"}),
 )

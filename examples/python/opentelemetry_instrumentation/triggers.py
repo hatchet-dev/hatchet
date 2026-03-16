@@ -3,8 +3,7 @@ import asyncio
 from examples.opentelemetry_instrumentation.client import hatchet
 from examples.opentelemetry_instrumentation.tracer import trace_provider
 from examples.opentelemetry_instrumentation.worker import otel_workflow
-from hatchet_sdk.clients.admin import TriggerWorkflowOptions
-from hatchet_sdk.clients.events import BulkPushEventWithMetadata, PushEventOptions
+from hatchet_sdk import RunWorkflowOptions, BulkPushEventWithMetadata, PushEventOptions
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 instrumentor = HatchetInstrumentor(tracer_provider=trace_provider)
@@ -78,7 +77,7 @@ def run_workflow() -> None:
     print("\nrun_workflow")
     with tracer.start_as_current_span("run_workflow"):
         otel_workflow.run(
-            options=TriggerWorkflowOptions(additional_metadata=ADDITIONAL_METADATA),
+            options=RunWorkflowOptions(additional_metadata=ADDITIONAL_METADATA),
         )
 
 
@@ -86,7 +85,7 @@ async def async_run_workflow() -> None:
     print("\nasync_run_workflow")
     with tracer.start_as_current_span("async_run_workflow"):
         await otel_workflow.aio_run(
-            options=TriggerWorkflowOptions(additional_metadata=ADDITIONAL_METADATA),
+            options=RunWorkflowOptions(additional_metadata=ADDITIONAL_METADATA),
         )
 
 
@@ -96,14 +95,10 @@ def run_workflows() -> None:
         otel_workflow.run_many(
             [
                 otel_workflow.create_bulk_run_item(
-                    options=TriggerWorkflowOptions(
-                        additional_metadata=ADDITIONAL_METADATA
-                    )
+                    options=RunWorkflowOptions(additional_metadata=ADDITIONAL_METADATA)
                 ),
                 otel_workflow.create_bulk_run_item(
-                    options=TriggerWorkflowOptions(
-                        additional_metadata=ADDITIONAL_METADATA
-                    )
+                    options=RunWorkflowOptions(additional_metadata=ADDITIONAL_METADATA)
                 ),
             ],
         )
@@ -115,14 +110,10 @@ async def async_run_workflows() -> None:
         await otel_workflow.aio_run_many(
             [
                 otel_workflow.create_bulk_run_item(
-                    options=TriggerWorkflowOptions(
-                        additional_metadata=ADDITIONAL_METADATA
-                    )
+                    options=RunWorkflowOptions(additional_metadata=ADDITIONAL_METADATA)
                 ),
                 otel_workflow.create_bulk_run_item(
-                    options=TriggerWorkflowOptions(
-                        additional_metadata=ADDITIONAL_METADATA
-                    )
+                    options=RunWorkflowOptions(additional_metadata=ADDITIONAL_METADATA)
                 ),
             ],
         )
