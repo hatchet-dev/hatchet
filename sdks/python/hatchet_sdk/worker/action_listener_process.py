@@ -18,10 +18,7 @@ from grpc.aio import UnaryUnaryCall
 from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.client import Client
-from hatchet_sdk.clients.dispatcher.action_listener import (
-    ActionListener,
-    GetActionListenerRequest,
-)
+from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
@@ -334,13 +331,11 @@ class WorkerActionListenerProcess:
             self.dispatcher_client = DispatcherClient(self.config)
 
             self.listener = await self.dispatcher_client.get_action_listener(
-                GetActionListenerRequest(
-                    worker_name=self.name,
-                    services=["default"],
-                    actions=self.actions,
-                    slot_config=self.slot_config,
-                    raw_labels=self.labels,
-                )
+                worker_name=self.name,
+                services=["default"],
+                actions=self.actions,
+                slot_config=self.slot_config,
+                labels=self.labels,
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")

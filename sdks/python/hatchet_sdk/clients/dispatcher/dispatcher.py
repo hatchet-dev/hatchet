@@ -6,10 +6,7 @@ from typing import cast
 import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from hatchet_sdk.clients.dispatcher.action_listener import (
-    ActionListener,
-    GetActionListenerRequest,
-)
+from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -33,6 +30,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_REGISTER_TIMEOUT = 30
@@ -56,28 +54,33 @@ class DispatcherClient:
         return self.client
 
     async def get_action_listener(
-        self, req: GetActionListenerRequest
+        self,
+        worker_name: str,
+        services: list[str],
+        actions: list[str],
+        slot_config: dict[str, int],
+        labels: list[WorkerLabel],
     ) -> ActionListener:
         if not self.aio_client:
             aio_conn = new_conn(self.config, True)
             self.aio_client = DispatcherStub(aio_conn)
 
-        # Override labels with the preset labels
-        preset_labels = self.config.worker_preset_labels
-
-        for key, value in preset_labels.items():
-            req.labels[key] = WorkerLabels(str_value=str(value))
+        proto_labels: dict[str, WorkerLabels] = {
+            label.key: label.to_proto() for label in labels if label.key is not None
+        }
+        for key, value in self.config.worker_preset_labels.items():
+            proto_labels[key] = WorkerLabels(str_value=str(value))
 
         response = cast(
             WorkerRegisterResponse,
             # fixme: figure out how to get typing right here
             await self.aio_client.Register(  # type: ignore[misc]
                 WorkerRegisterRequest(
-                    worker_name=req.worker_name,
-                    actions=req.actions,
-                    services=req.services,
-                    labels=req.labels,
-                    slot_config=req.slot_config,
+                    worker_name=worker_name,
+                    actions=actions,
+                    services=services,
+                    labels=proto_labels,
+                    slot_config=slot_config,
                     runtime_info=RuntimeInfo(
                         sdk_version=version("hatchet_sdk"),
                         language=SDKS.PYTHON,

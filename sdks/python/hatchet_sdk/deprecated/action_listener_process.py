@@ -24,7 +24,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     ActionEventResponse,
     StepActionEvent,
 )
-from hatchet_sdk.deprecated.action_listener import LegacyGetActionListenerRequest
 from hatchet_sdk.deprecated.dispatcher import legacy_get_action_listener
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType
@@ -283,14 +282,12 @@ class LegacyWorkerActionListenerProcess:
             self.dispatcher_client = DispatcherClient(self.config)
 
             self.listener = await legacy_get_action_listener(
-                self.config,
-                LegacyGetActionListenerRequest(
-                    worker_name=self.name,
-                    services=["default"],
-                    actions=self.actions,
-                    slots=self.slots,
-                    raw_labels=self.labels,
-                ),
+                config=self.config,
+                worker_name=self.name,
+                services=["default"],
+                actions=self.actions,
+                slots=self.slots,
+                labels=self.labels,
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")

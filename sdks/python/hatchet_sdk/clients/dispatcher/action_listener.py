@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, cast
 
 import grpc
 import grpc.aio
-from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hatchet_sdk.clients.event_ts import (
     ThreadSafeEvent,
@@ -22,14 +21,12 @@ from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     AssignedAction,
     HeartbeatRequest,
-    WorkerLabels,
     WorkerListenRequest,
     WorkerUnsubscribeRequest,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
-from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
@@ -41,28 +38,6 @@ if TYPE_CHECKING:
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
-
-
-class GetActionListenerRequest(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    worker_name: str
-    services: list[str]
-    actions: list[str]
-    slot_config: dict[str, int]
-    raw_labels: list[WorkerLabel] = Field(default_factory=list)
-
-    labels: dict[str, WorkerLabels] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def validate_labels(self) -> "GetActionListenerRequest":
-        self.labels = {}
-
-        for label in self.raw_labels:
-            if label.key is not None:
-                self.labels[label.key] = label.to_proto()
-
-        return self
 
 
 def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:

@@ -16,7 +16,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.deprecated.action_listener import LegacyGetActionListenerRequest
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_REGISTER_TIMEOUT = 30
@@ -24,27 +24,31 @@ DEFAULT_REGISTER_TIMEOUT = 30
 
 async def legacy_get_action_listener(
     config: ClientConfig,
-    req: LegacyGetActionListenerRequest,
+    worker_name: str,
+    services: list[str],
+    actions: list[str],
+    slots: int,
+    labels: list[WorkerLabel],
 ) -> ActionListener:
     """Register a worker using the legacy slots field (for pre-slot-config engines)."""
     aio_conn = new_conn(config, True)
     aio_client = DispatcherStub(aio_conn)
 
-    # Override labels with the preset labels
-    preset_labels = config.worker_preset_labels
-
-    for key, value in preset_labels.items():
-        req.labels[key] = WorkerLabels(str_value=str(value))
+    proto_labels: dict[str, WorkerLabels] = {
+        label.key: label.to_proto() for label in labels if label.key is not None
+    }
+    for key, value in config.worker_preset_labels.items():
+        proto_labels[key] = WorkerLabels(str_value=str(value))
 
     response = cast(
         WorkerRegisterResponse,
         await aio_client.Register(  # type: ignore[misc]
             WorkerRegisterRequest(
-                worker_name=req.worker_name,
-                actions=req.actions,
-                services=req.services,
-                slots=req.slots,
-                labels=req.labels,
+                worker_name=worker_name,
+                actions=actions,
+                services=services,
+                slots=slots,
+                labels=proto_labels,
                 runtime_info=RuntimeInfo(
                     sdk_version=version("hatchet_sdk"),
                     language=SDKS.PYTHON,
