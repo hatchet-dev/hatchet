@@ -778,6 +778,7 @@ type OtelSpan struct {
 	DurationNs         int64              `json:"durationNs"`
 	ParentSpanId       *string            `json:"parentSpanId,omitempty"`
 	ResourceAttributes *map[string]string `json:"resourceAttributes,omitempty"`
+	RetryCount         int32              `json:"retryCount"`
 	ScopeName          *string            `json:"scopeName,omitempty"`
 	ScopeVersion       *string            `json:"scopeVersion,omitempty"`
 	ServiceName        string             `json:"serviceName"`
@@ -795,8 +796,9 @@ type OtelSpanKind string
 
 // OtelSpanList defines model for OtelSpanList.
 type OtelSpanList struct {
-	Pagination *PaginationResponse `json:"pagination,omitempty"`
-	Rows       *[]OtelSpan         `json:"rows,omitempty"`
+	Pagination  *PaginationResponse `json:"pagination,omitempty"`
+	RetryCounts *[]int32            `json:"retryCounts,omitempty"`
+	Rows        *[]OtelSpan         `json:"rows,omitempty"`
 }
 
 // OtelStatusCode defines model for OtelStatusCode.

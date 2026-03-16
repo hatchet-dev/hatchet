@@ -32,16 +32,12 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request 
 		offset = 0
 	}
 
-	result, err := t.config.V1.OTelCollector().ListSpansByWorkflowRunExternalID(
-		ctx.Request().Context(),
-		tenant.ID,
-		rawWorkflowRun.WorkflowRun.ExternalID,
-		offset,
-		limit,
-	)
+	workflowRunExternalID := rawWorkflowRun.WorkflowRun.ExternalID
+
+	result, err := t.config.V1.OTelCollector().ListSpansByWorkflowRunExternalID(ctx.Request().Context(), tenant.ID, workflowRunExternalID, offset, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	return gen.V1WorkflowRunGetTrace200JSONResponse(transformers.ToV1OtelSpanList(result.Rows, limit, offset, result.Total)), nil
+	return gen.V1WorkflowRunGetTrace200JSONResponse(transformers.ToV1OtelSpanList(result.Rows, nil, limit, offset, result.Total)), nil
 }

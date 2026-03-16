@@ -27,13 +27,13 @@ export function TaskRunTrace({
   ];
   onTaskRunClick?: (taskRunId: string) => void;
 }) {
-  const traceSpanTree = useMemo(
+  const spanTrees = useMemo(
     () => convertOtelSpansToOtelSpanTree(spans),
     [spans],
   );
 
   const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>(
-    getSpanIdsOfAllHatchetSpans(traceSpanTree),
+    spanTrees.flatMap(getSpanIdsOfAllHatchetSpans),
   );
 
   const [selectedSpan, setSelectedSpan] = useState<OtelSpanTree | undefined>();
@@ -49,7 +49,7 @@ export function TaskRunTrace({
     [onTaskRunClick],
   );
 
-  if (!traceSpanTree) {
+  if (spanTrees.length === 0) {
     return (
       <div className="py-4 text-sm text-muted-foreground">
         No trace found for this task run. To collect traces, use the{' '}
@@ -63,16 +63,9 @@ export function TaskRunTrace({
 
   return (
     <div className="my-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h4 className="text-sm font-medium text-foreground">
-            OpenTelemetry Traces
-          </h4>
-        </div>
-      </div>
       <div className="overflow-y-auto">
         <TreeView
-          spanTree={traceSpanTree}
+          spanTrees={spanTrees}
           expandedSpansIds={expandedSpansIds}
           onExpandSpansIdsChange={setExpandedSpansIds}
           selectedSpan={selectedSpan}

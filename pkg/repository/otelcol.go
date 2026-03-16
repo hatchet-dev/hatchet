@@ -31,6 +31,7 @@ type SpanData struct {
 	SpanID               []byte
 	EndTimeUnixNano      uint64
 	StartTimeUnixNano    uint64
+	RetryCount           int32
 	StatusCode           tracev1.Status_StatusCode
 	Kind                 tracev1.Span_SpanKind
 }
@@ -55,6 +56,7 @@ type OtelSpanRow struct {
 	ScopeName          pgtype.Text
 	ScopeVersion       pgtype.Text
 	DurationNs         int64
+	RetryCount         int32
 }
 
 type ListSpansResult struct {
@@ -138,6 +140,7 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 			ScopeName:             pgtype.Text{String: sd.InstrumentationScope, Valid: sd.InstrumentationScope != ""},
 			TaskRunExternalID:     taskRunExternalID,
 			WorkflowRunExternalID: workflowRunExternalID,
+			RetryCount:            sd.RetryCount,
 			StartTime:             pgtype.Timestamptz{Time: startTime, Valid: true},
 		}
 	}
@@ -187,6 +190,7 @@ func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Cont
 			StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
 			StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
 			SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
+			RetryCount: r.RetryCount,
 		}
 	}
 
@@ -230,6 +234,7 @@ func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRunExternalID(ctx conte
 			StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
 			StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
 			SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
+			RetryCount: r.RetryCount,
 		}
 	}
 

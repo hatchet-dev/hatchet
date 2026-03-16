@@ -18,6 +18,7 @@ const (
 	// keep these in sync with attributes sent from the sdks
 	AttrHatchetTaskRunID     = "hatchet.step_run_id"     // Task run external ID from SDK
 	AttrHatchetWorkflowRunID = "hatchet.workflow_run_id" // Workflow run ID from SDK
+	AttrHatchetRetryCount    = "hatchet.retry_count"     // Retry count from SDK
 )
 
 type otelCollectorImpl struct {
@@ -118,6 +119,10 @@ func (oc *otelCollectorImpl) extractHatchetCorrelation(attrs []*commonv1.KeyValu
 			if strVal := attr.GetValue().GetStringValue(); strVal != "" {
 				uuid := uuid.MustParse(strVal)
 				spanData.WorkflowRunID = &uuid
+			}
+		case AttrHatchetRetryCount:
+			if intVal := attr.GetValue().GetIntValue(); intVal > 0 {
+				spanData.RetryCount = int32(intVal) //nolint:gosec
 			}
 		}
 	}

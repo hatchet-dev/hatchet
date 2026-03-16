@@ -3310,6 +3310,7 @@ type V1OtelTrace struct {
 	ScopeVersion          pgtype.Text        `json:"scope_version"`
 	TaskRunExternalID     *uuid.UUID         `json:"task_run_external_id"`
 	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
+	RetryCount            int32              `json:"retry_count"`
 	StartTime             pgtype.Timestamptz `json:"start_time"`
 }
 

@@ -1,7 +1,7 @@
 import type { OtelSpanTree } from './span-tree-type';
 
 export const findTimeRange = (
-  spanTree: OtelSpanTree,
+  spanTrees: OtelSpanTree[],
 ): { minStart: number; maxEnd: number } => {
   let minStart = Infinity;
   let maxEnd = -Infinity;
@@ -14,7 +14,7 @@ export const findTimeRange = (
     node.children?.forEach(traverse);
   };
 
-  traverse(spanTree);
+  spanTrees.forEach(traverse);
 
   return { minStart, maxEnd };
 };

@@ -35,6 +35,9 @@ OtelSpan:
       type: string
     scopeVersion:
       type: string
+    retryCount:
+      type: integer
+      format: int32
   required:
     - traceId
     - spanId
@@ -44,6 +47,7 @@ OtelSpan:
     - statusCode
     - durationNs
     - createdAt
+    - retryCount
 
 OtelSpanKind:
   type: string
@@ -67,6 +71,11 @@ OtelSpanList:
   properties:
     pagination:
       $ref: "../metadata.yaml#/PaginationResponse"
+    retryCounts:
+      type: array
+      items:
+        type: integer
+        format: int32
     rows:
       type: array
       items:

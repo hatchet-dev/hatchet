@@ -408,6 +408,7 @@ func (r iteratorForInsertOtelSpans) Values() ([]interface{}, error) {
 		r.rows[0].ScopeVersion,
 		r.rows[0].TaskRunExternalID,
 		r.rows[0].WorkflowRunExternalID,
+		r.rows[0].RetryCount,
 		r.rows[0].StartTime,
 	}, nil
 }
@@ -417,5 +418,5 @@ func (r iteratorForInsertOtelSpans) Err() error {
 }
 
 func (q *Queries) InsertOtelSpans(ctx context.Context, db DBTX, arg []InsertOtelSpansParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_otel_trace"}, []string{"tenant_id", "trace_id", "span_id", "parent_span_id", "span_name", "span_kind", "service_name", "status_code", "status_message", "duration_ns", "resource_attributes", "span_attributes", "scope_name", "scope_version", "task_run_external_id", "workflow_run_external_id", "start_time"}, &iteratorForInsertOtelSpans{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_otel_trace"}, []string{"tenant_id", "trace_id", "span_id", "parent_span_id", "span_name", "span_kind", "service_name", "status_code", "status_message", "duration_ns", "resource_attributes", "span_attributes", "scope_name", "scope_version", "task_run_external_id", "workflow_run_external_id", "retry_count", "start_time"}, &iteratorForInsertOtelSpans{rows: arg})
 }

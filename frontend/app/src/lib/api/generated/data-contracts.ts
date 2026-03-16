@@ -548,10 +548,13 @@ export interface OtelSpan {
   spanAttributes?: Record<string, string>;
   scopeName?: string;
   scopeVersion?: string;
+  /** @format int32 */
+  retryCount: number;
 }
 
 export interface OtelSpanList {
   pagination?: PaginationResponse;
+  retryCounts?: number[];
   rows?: OtelSpan[];
 }
 

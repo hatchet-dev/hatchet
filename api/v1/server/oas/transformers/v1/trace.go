@@ -8,7 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
-func ToV1OtelSpanList(spans []*repository.OtelSpanRow, limit, offset, total int64) gen.OtelSpanList {
+func ToV1OtelSpanList(spans []*repository.OtelSpanRow, retryCounts []int32, limit, offset, total int64) gen.OtelSpanList {
 	apiSpans := ToV1OtelSpan(spans)
 
 	if limit < 1 {
@@ -25,7 +25,7 @@ func ToV1OtelSpanList(spans []*repository.OtelSpanRow, limit, offset, total int6
 		nextPage = currentPage + 1
 	}
 
-	return gen.OtelSpanList{
+	result := gen.OtelSpanList{
 		Rows: &apiSpans,
 		Pagination: &gen.PaginationResponse{
 			CurrentPage: &currentPage,
@@ -33,6 +33,12 @@ func ToV1OtelSpanList(spans []*repository.OtelSpanRow, limit, offset, total int6
 			NumPages:    &numPages,
 		},
 	}
+
+	if len(retryCounts) > 0 {
+		result.RetryCounts = &retryCounts
+	}
+
+	return result
 }
 
 func ToV1OtelSpan(spans []*repository.OtelSpanRow) []gen.OtelSpan {
@@ -57,6 +63,7 @@ func ToV1OtelSpan(spans []*repository.OtelSpanRow) []gen.OtelSpan {
 			SpanAttributes:     &spanAttrs,
 			ScopeName:          sqlchelpers.TextToPtr(s.ScopeName),
 			ScopeVersion:       sqlchelpers.TextToPtr(s.ScopeVersion),
+			RetryCount:         s.RetryCount,
 		}
 	}
 

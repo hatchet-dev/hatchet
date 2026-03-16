@@ -21,6 +21,7 @@ CREATE TABLE v1_otel_trace (
     scope_version   TEXT,
     task_run_external_id    UUID,
     workflow_run_external_id UUID,
+    retry_count     INT NOT NULL DEFAULT 0,
     start_time      TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (id, start_time)
 ) PARTITION BY RANGE (start_time);

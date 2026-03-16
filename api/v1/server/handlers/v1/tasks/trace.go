@@ -35,5 +35,5 @@ func (t *TasksService) V1TaskGetTrace(ctx echo.Context, request gen.V1TaskGetTra
 		return nil, err
 	}
 
-	return gen.V1TaskGetTrace200JSONResponse(transformers.ToV1OtelSpanList(result.Rows, limit, offset, result.Total)), nil
+	return gen.V1TaskGetTrace200JSONResponse(transformers.ToV1OtelSpanList(result.Rows, nil, limit, offset, result.Total)), nil
 }
