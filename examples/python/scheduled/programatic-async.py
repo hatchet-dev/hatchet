@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
 
 hatchet = Hatchet()
 
@@ -20,6 +21,12 @@ async def create_scheduled() -> None:
 
     scheduled_run.metadata.id  # the id of the scheduled run trigger
 
+    # > Reschedule
+    await hatchet.scheduled.aio_update(
+        scheduled_id=scheduled_run.metadata.id,
+        trigger_at=datetime.now(tz=timezone.utc) + timedelta(hours=1),
+    )
+
     # > Delete
     await hatchet.scheduled.aio_delete(scheduled_id=scheduled_run.metadata.id)
 
@@ -29,4 +36,22 @@ async def create_scheduled() -> None:
     # > Get
     scheduled_run = await hatchet.scheduled.aio_get(
         scheduled_id=scheduled_run.metadata.id
+    )
+
+    id = scheduled_run.metadata.id
+
+    # > Bulk Delete
+    await hatchet.scheduled.aio_bulk_delete(scheduled_ids=[id])
+
+    await hatchet.scheduled.aio_bulk_delete(
+        workflow_id="workflow_id",
+        statuses=[ScheduledRunStatus.SCHEDULED],
+        additional_metadata={"customer_id": "customer-a"},
+    )
+
+    # > Bulk Reschedule
+    await hatchet.scheduled.aio_bulk_update(
+        [
+            (id, datetime.now(tz=timezone.utc) + timedelta(hours=2)),
+        ]
     )
