@@ -14,7 +14,6 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
