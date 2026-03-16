@@ -73,17 +73,17 @@ class Worker:
         slot_config: dict[str, int],
         labels: dict[str, str | int] | list[WorkerLabel] | None = None,
         debug: bool = False,
-        owned_loop: bool = True,
         handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
     ) -> None:
         self._config = config
-        self.name = self._config.apply_namespace(name)
+        self._name = self._config.apply_namespace(name)
         self._slot_config = slot_config
         self._slots = slot_config.get("default", 0)
         self._durable_slots = slot_config.get("durable", 0)
         self._debug = debug
+
         _warn_if_dict_worker_labels(labels, stacklevel=3)
         if isinstance(labels, dict):
             self._labels: list[WorkerLabel] = [
@@ -91,8 +91,8 @@ class Worker:
             ]
         else:
             self._labels = labels or []
+
         self._handle_kill = handle_kill
-        self._owned_loop = owned_loop
 
         self._action_registry: dict[str, Task[Any, Any]] = {}
 
@@ -123,8 +123,11 @@ class Worker:
         self._lifespan = lifespan
         self._lifespan_stack: AsyncExitStack | None = None
         self._lifespan_cleanup_complete: asyncio.Event | None = None
+        self._workflows = workflows or []
 
-        self.register_workflows(workflows or [])
+    @property
+    def name(self) -> str:
+        return self._name
 
     @property
     def config(self) -> ClientConfig:
@@ -180,7 +183,7 @@ class Worker:
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._owned_loop
+        return True
 
     @property
     def action_registry(self) -> "dict[str, Task[Any, Any]]":
@@ -381,6 +384,8 @@ class Worker:
         asyncio.set_event_loop(self._loop)
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
+        self.register_workflows(self._workflows)
+
         if not self._action_registry:
             raise ValueError(
                 "no actions registered, register workflows before starting worker"
@@ -388,7 +393,7 @@ class Worker:
 
         if options.loop is not None:
             warn(
-                "Passing a custom event loop is deprecated and will be removed in the future. This option no longer has any effect",
+                "Passing a custom event loop is deprecated and will be removed in version 2.0.0. This option no longer has any effect",
                 DeprecationWarning,
                 stacklevel=1,
             )
@@ -728,7 +733,7 @@ class Worker:
 
         if self._lifespan_cleanup_complete is not None:
             await self._lifespan_cleanup_complete.wait()
-        if self._loop and self._owned_loop:
+        if self._loop:
             self._loop.stop()
 
         logger.info("👋")

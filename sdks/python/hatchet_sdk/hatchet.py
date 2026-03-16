@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import warnings
 from collections.abc import Callable
@@ -229,11 +228,6 @@ class Hatchet:
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
         """
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
         resolved_config = resolve_worker_slot_config(
             None,
             slots,
@@ -247,7 +241,6 @@ class Hatchet:
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,
-            owned_loop=loop is None,
             workflows=workflows,
             lifespan=lifespan,
         )
