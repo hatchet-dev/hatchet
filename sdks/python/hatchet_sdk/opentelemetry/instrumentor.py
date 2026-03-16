@@ -33,8 +33,6 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
 import inspect
 from datetime import datetime
 
-from google.protobuf import timestamp_pb2
-
 import hatchet_sdk
 from hatchet_sdk import ClientConfig
 from hatchet_sdk.clients.admin import (
@@ -557,13 +555,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(workflow_name, payload, options)
 
-    def _ts_to_iso(self, ts: datetime | timestamp_pb2.Timestamp) -> str:
-        if isinstance(ts, datetime):
-            return ts.isoformat()
-        if isinstance(ts, timestamp_pb2.Timestamp):
-            return ts.ToJsonString()
-        raise TypeError(f"Unsupported type for timestamp conversion: {type(ts)}")
-
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_schedule_workflow(
         self,
@@ -601,7 +592,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.RUN_AT_TIMESTAMPS: json.dumps(
-                [self._ts_to_iso(ts) for ts in schedules]
+                [ts.isoformat() for ts in schedules]
             ),
             OTelAttribute.ACTION_PAYLOAD: input,
             OTelAttribute.PARENT_ID: options.parent_id,
