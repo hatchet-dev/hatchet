@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Hatchet Python SDK Reference
 
 This is the Python SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](../../home) for an introduction for getting your first tasks running.
@@ -180,3 +182,99 @@ Returns:
 | Type                                                                                                                                                                                                                                               | Description                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `Callable[[Callable[Concatenate[EmptyModel, DurableContext, P], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[Concatenate[TWorkflowInput, DurableContext, P], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
+
+## SDK Client Retry Behavior
+
+The Python SDK applies retry logic to certain REST and gRPC client calls. This section documents the current SDK retry behavior, which is separate from [task-level retries](/v1/retry-policies) that control how Hatchet retries your application code.
+
+### Default Behavior
+
+By default, the SDK retries client calls with exponential backoff (up to 5 attempts) for the following error types:
+
+**REST API calls:**
+
+| Error Type                                            | Retried by Default |
+| ----------------------------------------------------- | ------------------ |
+| HTTP 5xx (server errors)                              | Yes                |
+| HTTP 404 (not found)                                  | Yes                |
+| HTTP 429 (too many requests)                          | No                 |
+| HTTP 400, 401, 403 (client errors)                    | No                 |
+| Transport errors (timeout, connection, TLS, protocol) | No                 |
+
+**gRPC calls:**
+
+| Status Code                                              | Retried |
+| -------------------------------------------------------- | ------- |
+| `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`           | Yes     |
+| `RESOURCE_EXHAUSTED`, `ABORTED`, `UNKNOWN`               | Yes     |
+| `UNIMPLEMENTED`, `NOT_FOUND`, `INVALID_ARGUMENT`         | No      |
+| `ALREADY_EXISTS`, `UNAUTHENTICATED`, `PERMISSION_DENIED` | No      |
+
+<Callout type="info">
+  REST 404 responses are retried by default because some REST reads can observe
+  replication lag between the core database and the OLAP database.
+</Callout>
+
+### Configuring Retry Behavior
+
+You can configure retry behavior with `TenacityConfig` when initializing the Hatchet client:
+
+```python
+from hatchet_sdk import Hatchet
+from hatchet_sdk.config import TenacityConfig, HTTPMethod
+
+hatchet = Hatchet(
+    tenacity=TenacityConfig(
+        max_attempts=5,
+        retry_429=False,
+        retry_transport_errors=False,
+        retry_transport_methods=[HTTPMethod.GET, HTTPMethod.DELETE],
+    )
+)
+```
+
+#### TenacityConfig Parameters
+
+| Name                      | Type               | Description                                                                         | Default         |
+| ------------------------- | ------------------ | ----------------------------------------------------------------------------------- | --------------- |
+| `max_attempts`            | `int`              | Maximum number of retry attempts. Set to 0 to disable retries.                      | `5`             |
+| `retry_429`               | `bool`             | Enable retries for HTTP 429 Too Many Requests responses.                            | `False`         |
+| `retry_transport_errors`  | `bool`             | Enable retries for REST transport-level errors (timeout, connection, TLS).          | `False`         |
+| `retry_transport_methods` | `list[HTTPMethod]` | HTTP methods to retry on transport errors when `retry_transport_errors` is enabled. | `[GET, DELETE]` |
+
+You can also configure these via environment variables:
+
+| Environment Variable                             | Description                                     |
+| ------------------------------------------------ | ----------------------------------------------- |
+| `HATCHET_CLIENT_TENACITY_MAX_ATTEMPTS`           | Maximum retry attempts                          |
+| `HATCHET_CLIENT_TENACITY_RETRY_429`              | Enable 429 retries (`true`/`false`)             |
+| `HATCHET_CLIENT_TENACITY_RETRY_TRANSPORT_ERRORS` | Enable transport error retries (`true`/`false`) |
+
+### Idempotency Considerations
+
+<Callout type="warning">
+  When `retry_transport_errors` is enabled, only idempotent HTTP methods (`GET`,
+  `DELETE`) are retried by default. Non-idempotent methods (`POST`, `PUT`,
+  `PATCH`) are excluded because retrying them after a transport error could
+  result in duplicate operations if the original request succeeded but the
+  response was lost.
+</Callout>
+
+You can add non-idempotent methods to `retry_transport_methods`, but only do so if:
+
+1. Your operations are idempotent (e.g., using idempotency keys), or
+2. You understand and accept the risk of duplicate operations
+
+```python
+# Only do this if your operations are idempotent or you accept the risk of duplicates
+hatchet = Hatchet(
+    tenacity=TenacityConfig(
+        retry_transport_errors=True,
+        retry_transport_methods=[HTTPMethod.GET, HTTPMethod.DELETE, HTTPMethod.POST],
+    )
+)
+```
+
+### Retry Timing
+
+Retries use exponential backoff with jitter. Fine-grained backoff timing is not currently configurable through `TenacityConfig`.
