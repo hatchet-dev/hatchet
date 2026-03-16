@@ -585,7 +585,7 @@ class Task(Generic[TWorkflowInput, R]):
             event_client=self._workflow._client._client.event,
             durable_event_listener=None,
             worker=WorkerContext(
-                labels={}, client=self._workflow._client._client.dispatcher
+                labels=[], client=self._workflow._client._client.dispatcher
             ),
             runs_client=self._workflow._client._client.runs,
             lifespan_context=lifespan_context,

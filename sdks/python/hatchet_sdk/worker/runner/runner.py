@@ -51,6 +51,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TaskPayloadForInternalUse, TWorkflowInput
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.action_listener_process import ActionEvent
@@ -80,7 +81,7 @@ class Runner:
         slots: int,
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
-        labels: dict[str, str | int] | None,
+        labels: list[WorkerLabel],
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
     ):
@@ -122,7 +123,7 @@ class Runner:
         self.durable_event_listener = DurableEventListener(self.config)
 
         self.worker_context = WorkerContext(
-            labels=labels or {}, client=Client(config=config).dispatcher
+            labels=labels, client=Client(config=config).dispatcher
         )
 
         self.lifespan_context = lifespan_context

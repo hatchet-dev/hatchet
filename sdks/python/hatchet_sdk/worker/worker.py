@@ -27,6 +27,7 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -70,7 +71,7 @@ class Worker:
         name: str,
         config: ClientConfig,
         slot_config: dict[str, int],
-        labels: dict[str, str | int] | None = None,
+        labels: dict[str, str | int] | list[WorkerLabel] | None = None,
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
@@ -153,7 +154,15 @@ class Worker:
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._labels
+        return (
+            self._labels
+            if isinstance(self._labels, dict)
+            else {
+                label.key: label.value
+                for label in self._labels
+                if label.key is not None
+            }
+        )
 
     @property
     def handle_kill(self) -> bool:
@@ -502,6 +511,12 @@ class Worker:
     ) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         if self._loop:
+            labels = (
+                [WorkerLabel(key=k, value=v) for k, v in self._labels.items()]
+                if isinstance(self._labels, dict)
+                else self._labels
+            )
+
             return WorkerActionRunLoopManager(
                 self.name,
                 self._action_registry,
@@ -512,7 +527,7 @@ class Worker:
                 self._loop,
                 self._handle_kill,
                 self._client.debug,
-                self._labels,
+                labels,
                 lifespan_context,
             )
 

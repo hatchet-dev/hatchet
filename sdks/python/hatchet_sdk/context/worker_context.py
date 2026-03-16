@@ -1,15 +1,15 @@
 from warnings import warn
 
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.types.labels import WorkerLabel
 
 
 class WorkerContext:
-    def __init__(self, labels: dict[str, str | int], client: DispatcherClient):
+    def __init__(self, labels: list[WorkerLabel], client: DispatcherClient):
         self._worker_id: str | None = None
-        self._registered_workflow_names: list[str] = []
-        self._labels: dict[str, str | int] = {}
-
-        self._labels = labels
+        self._labels = {
+            label.key: label.value for label in labels if label.key is not None
+        }
         self._client = client
 
     @property
