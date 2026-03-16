@@ -2,6 +2,7 @@ import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from io import StringIO
 from typing import Any, Literal, ParamSpec, TypeVar
 
@@ -90,7 +91,8 @@ def copy_context_vars(
     return func(*args, **kwargs)
 
 
-class LogRecord(BaseModel):
+@dataclass
+class LogRecord:
     message: str
     step_run_id: str
     level: LogLevel

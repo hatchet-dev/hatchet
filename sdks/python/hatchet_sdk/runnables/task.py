@@ -6,7 +6,7 @@ from contextlib import (
     AbstractContextManager,
     asynccontextmanager,
 )
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -25,7 +25,7 @@ from typing import (
 )
 from warnings import warn
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
 
 from hatchet_sdk.conditions import (
@@ -124,9 +124,8 @@ class Depends(Generic[T, TWorkflowInput]):
         return self._fn
 
 
-class DependencyToInject(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+@dataclass
+class DependencyToInject:
     name: str
     value: Any
 

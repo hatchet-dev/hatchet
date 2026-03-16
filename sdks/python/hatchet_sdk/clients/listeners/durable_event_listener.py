@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 import grpc
@@ -54,7 +55,8 @@ class RegisterDurableEventRequest(BaseModel):
         )
 
 
-class ParsedKey(BaseModel):
+@dataclass
+class ParsedKey:
     task_id: str
     signal_key: str
 
