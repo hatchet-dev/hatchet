@@ -40,18 +40,18 @@ from hatchet_sdk import ClientConfig
 from hatchet_sdk.clients.admin import (
     AdminClient,
     ScheduleTriggerWorkflowOptions,
-    TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.events import (
     BulkPushEventOptions,
     BulkPushEventWithMetadata,
+    Event,
     EventClient,
     PushEventOptions,
 )
-from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.types.trigger import RunWorkflowOptions
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -326,11 +326,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_cancel_action(
         self,
-        wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
+        wrapped: Callable[[Action], Coroutine[None, None, None]],
         instance: Runner,
         args: tuple[Action],
         kwargs: Any,
-    ) -> Exception | None:
+    ) -> None:
         action = args[0]
 
         with self._tracer.start_as_current_span(
@@ -345,14 +345,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_push_event(
         self,
-        wrapped: Callable[[str, dict[str, Any], PushEventOptions], Event],
+        wrapped: Callable[[str, JSONSerializableMapping, PushEventOptions], Event],
         instance: EventClient,
         args: tuple[
             str,
-            dict[str, Any],
+            JSONSerializableMapping,
             PushEventOptions,
         ],
-        kwargs: dict[str, str | dict[str, Any] | PushEventOptions],
+        kwargs: dict[str, str | JSONSerializableMapping | PushEventOptions],
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
@@ -445,20 +445,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_run_workflow(
         self,
         wrapped: Callable[
-            [str, str | None, TriggerWorkflowOptions],
+            [str, str | None, RunWorkflowOptions],
             WorkflowRunRef,
         ],
         instance: AdminClient,
-        args: tuple[str, str | None, TriggerWorkflowOptions],
-        kwargs: dict[str, str | None | TriggerWorkflowOptions],
+        args: tuple[str, str | None, RunWorkflowOptions],
+        kwargs: dict[str, str | None | RunWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
         payload = cast(str | None, params[1])
         options = cast(
-            TriggerWorkflowOptions,
-            params[2] if len(params) > 2 else TriggerWorkflowOptions(),
+            RunWorkflowOptions,
+            params[2] if len(params) > 2 else RunWorkflowOptions(),
         )
 
         attributes = {
@@ -490,7 +490,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            options = TriggerWorkflowOptions(
+            options = RunWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
                     options.additional_metadata,
@@ -503,20 +503,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_async_run_workflow(
         self,
         wrapped: Callable[
-            [str, str | None, TriggerWorkflowOptions],
+            [str, str | None, RunWorkflowOptions],
             Coroutine[None, None, WorkflowRunRef],
         ],
         instance: AdminClient,
-        args: tuple[str, str | None, TriggerWorkflowOptions],
-        kwargs: dict[str, str | None | TriggerWorkflowOptions],
+        args: tuple[str, str | None, RunWorkflowOptions],
+        kwargs: dict[str, str | None | RunWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
         payload = cast(str | None, params[1])
         options = cast(
-            TriggerWorkflowOptions,
-            params[2] if len(params) > 2 else TriggerWorkflowOptions(),
+            RunWorkflowOptions,
+            params[2] if len(params) > 2 else RunWorkflowOptions(),
         )
 
         attributes = {
@@ -548,7 +548,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            options = TriggerWorkflowOptions(
+            options = RunWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
                     options.additional_metadata,
@@ -671,7 +671,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             workflow_run_configs_with_meta = [
                 WorkflowRunTriggerConfig(
                     **config.model_dump(exclude={"options"}),
-                    options=TriggerWorkflowOptions(
+                    options=RunWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
                         additional_metadata=_inject_traceparent_into_metadata(
                             config.options.additional_metadata,
@@ -714,7 +714,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             workflow_run_configs_with_meta = [
                 WorkflowRunTriggerConfig(
                     **config.model_dump(exclude={"options"}),
-                    options=TriggerWorkflowOptions(
+                    options=RunWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
                         additional_metadata=_inject_traceparent_into_metadata(
                             config.options.additional_metadata,
