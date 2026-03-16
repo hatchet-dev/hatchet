@@ -1,6 +1,9 @@
 import api, { cloudApi } from '@/lib/api/api';
-import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
-import { TenantMember } from '@/lib/api/generated/data-contracts';
+import {
+  OrganizationForUser,
+  OrganizationForUserList,
+} from '@/lib/api/generated/cloud/data-contracts';
+import { Tenant, TenantMember } from '@/lib/api/generated/data-contracts';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo } from 'react';
@@ -26,11 +29,15 @@ type UserUniverse = {
           isLoaded: true;
           organizations: OrganizationForUserList['rows'];
           tenantMemberships: TenantMember[];
+          getOrganizationForTenant: (tenantId: string) => OrganizationForUser;
+          getTenantWithTenantId: (tenantId: string) => Tenant;
         }
       | {
           isLoaded: false;
           organizations: null;
           tenantMemberships: null;
+          getOrganizationForTenant: null;
+          getTenantWithTenantId: null;
         }
     ))
   | ({
@@ -40,14 +47,17 @@ type UserUniverse = {
         organizations: null;
         tenantMemberships: TenantMember[];
       }>;
+      getOrganizationForTenant: null;
     } & (
       | {
           isLoaded: true;
           tenantMemberships: TenantMember[];
+          getTenantWithTenantId: (tenantId: string) => Tenant;
         }
       | {
           isLoaded: false;
           tenantMemberships: null;
+          getTenantWithTenantId: null;
         }
     ))
 );
@@ -132,6 +142,25 @@ export function UserUniverseProvider({
   const value = useMemo<UserUniverse>(() => {
     const tenantMembershipAndOrganizationsAreLoaded =
       tenantMembershipAndOrganizationsQuery.isSuccess;
+
+    let getTenantWithTenantId: ((tenantId: string) => Tenant) | null = null;
+
+    if (tenantMembershipAndOrganizationsAreLoaded) {
+      const tenantIdToTenant = new Map<string, Tenant>(
+        tenantMembershipAndOrganizationsQuery.data.tenantMemberships.map(
+          (membership) => {
+            invariant(membership.tenant);
+            return [membership.tenant.metadata.id, membership.tenant];
+          },
+        ),
+      );
+      getTenantWithTenantId = (tenantId: string) => {
+        const tenant = tenantIdToTenant.get(tenantId);
+        invariant(tenant);
+        return tenant;
+      };
+    }
+
     if (isCloudEnabled) {
       const getWithOrganizations = get as () => Promise<{
         organizations: OrganizationForUserList['rows'];
@@ -139,17 +168,33 @@ export function UserUniverseProvider({
       }>;
 
       if (tenantMembershipAndOrganizationsAreLoaded) {
-        invariant(tenantMembershipAndOrganizationsQuery.data.organizations);
+        const organizations =
+          tenantMembershipAndOrganizationsQuery.data.organizations;
+        invariant(organizations);
+
+        const tenantIdToOrganization = new Map<string, OrganizationForUser>(
+          organizations.flatMap((organization) =>
+            organization.tenants.map((tenant) => [tenant.id, organization]),
+          ),
+        );
+        const getOrganizationForTenant = (tenantId: string) => {
+          const organization = tenantIdToOrganization.get(tenantId);
+          invariant(organization);
+          return organization;
+        };
+
+        invariant(getTenantWithTenantId);
 
         return {
           isCloudEnabled,
           isLoaded: tenantMembershipAndOrganizationsAreLoaded,
-          organizations:
-            tenantMembershipAndOrganizationsQuery.data.organizations,
+          organizations: organizations,
           tenantMemberships:
             tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
           get: getWithOrganizations,
           invalidate,
+          getOrganizationForTenant,
+          getTenantWithTenantId,
         };
       }
 
@@ -160,6 +205,8 @@ export function UserUniverseProvider({
         tenantMemberships: null,
         get: getWithOrganizations,
         invalidate,
+        getOrganizationForTenant: null,
+        getTenantWithTenantId: null,
       };
     } else {
       const getWithoutOrganizations = get as () => Promise<{
@@ -175,6 +222,8 @@ export function UserUniverseProvider({
               tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
             get: getWithoutOrganizations,
             invalidate,
+            getOrganizationForTenant: null,
+            getTenantWithTenantId: getTenantWithTenantId!, // wtf typescript come on
           }
         : {
             isCloudEnabled,
@@ -183,6 +232,8 @@ export function UserUniverseProvider({
             tenantMemberships: null,
             get: getWithoutOrganizations,
             invalidate,
+            getOrganizationForTenant: null,
+            getTenantWithTenantId: null,
           };
     }
   }, [tenantMembershipAndOrganizationsQuery, isCloudEnabled, get, invalidate]);

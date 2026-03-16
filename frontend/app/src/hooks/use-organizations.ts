@@ -22,6 +22,7 @@ export function useOrganizations() {
     organizations: organizationData,
     isLoaded: isUserUniverseLoaded,
     isCloudEnabled,
+    getOrganizationForTenant: getOrganizationForTenantAfterUniverseLoaded,
   } = useUserUniverse();
   const { handleApiError } = useApiError({});
 
@@ -45,11 +46,16 @@ export function useOrganizations() {
 
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {
-      return organizations.find((org) =>
-        (org.tenants || []).some((tenant) => tenant.id === tenantId),
-      );
+      if (isCloudEnabled && isUserUniverseLoaded) {
+        return getOrganizationForTenantAfterUniverseLoaded(tenantId);
+      }
+      return undefined;
     },
-    [organizations],
+    [
+      getOrganizationForTenantAfterUniverseLoaded,
+      isUserUniverseLoaded,
+      isCloudEnabled,
+    ],
   );
 
   const getOrganizationIdForTenant = useCallback(
