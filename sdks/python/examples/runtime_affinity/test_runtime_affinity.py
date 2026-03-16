@@ -86,12 +86,13 @@ async def test_runtime_affinity(
         target_worker = choice(labels)
         res = await affinity_example_task.aio_run(
             options=TriggerWorkflowOptions(
-                desired_worker_label={
-                    "affinity": DesiredWorkerLabel(
+                desired_worker_label=[
+                    DesiredWorkerLabel(
+                        key="affinity",
                         value=target_worker,
                         required=True,
                     ),
-                }
+                ]
             )
         )
         assert res.worker_id == worker_label_to_id[target_worker]

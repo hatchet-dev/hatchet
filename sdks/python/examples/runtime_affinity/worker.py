@@ -1,6 +1,6 @@
 import argparse
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, EmptyModel, Hatchet, WorkerLabel
 from pydantic import BaseModel
 
 hatchet = Hatchet()
@@ -22,7 +22,7 @@ def main() -> None:
 
     worker = hatchet.worker(
         "runtime-affinity-worker",
-        labels={"affinity": args.label},
+        labels=[WorkerLabel(key="affinity", value=args.label)],
         workflows=[affinity_example_task],
     )
 

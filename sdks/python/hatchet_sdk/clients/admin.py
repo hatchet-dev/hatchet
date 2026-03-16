@@ -30,7 +30,10 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
-from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.labels import (
+    DesiredWorkerLabel,
+    _warn_if_dict_desired_worker_labels,
+)
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.api_auth import create_authorization_header
@@ -110,7 +113,9 @@ class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     desired_worker_id: str | None = None
     sticky: bool = False
     key: str | None = None
-    desired_worker_label: dict[str, DesiredWorkerLabel] | None = None
+    desired_worker_label: (
+        dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+    ) = None
 
 
 class WorkflowRunTriggerConfig(BaseModel):
@@ -171,7 +176,9 @@ class AdminClient:
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
         priority: int | Priority | None = None
-        desired_worker_label: dict[str, DesiredWorkerLabel] | None = None
+        desired_worker_label: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -196,6 +203,15 @@ class AdminClient:
 
         desired_worker_labels = None
         if _options.desired_worker_label:
+            _warn_if_dict_desired_worker_labels(
+                _options.desired_worker_label, stacklevel=6
+            )
+            if isinstance(_options.desired_worker_label, list):
+                labels_dict = {
+                    d.key: d for d in _options.desired_worker_label if d.key is not None
+                }
+            else:
+                labels_dict = _options.desired_worker_label
             desired_worker_labels = {
                 key: v0_workflow_protos.DesiredWorkerLabels(
                     str_value=d.value if not isinstance(d.value, int) else None,
@@ -204,7 +220,7 @@ class AdminClient:
                     weight=d.weight,
                     comparator=d.comparator,  # type: ignore[arg-type]
                 )
-                for key, d in _options.desired_worker_label.items()
+                for key, d in labels_dict.items()
             }
 
         return v0_workflow_protos.TriggerWorkflowRequest(
