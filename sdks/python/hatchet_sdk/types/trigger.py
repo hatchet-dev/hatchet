@@ -22,12 +22,6 @@ class ScheduleTriggerWorkflowOptions(ScheduleWorkflowOptions):
 
     @model_validator(mode="after")
     def validate_options(self) -> "ScheduleTriggerWorkflowOptions":
-        warn(
-            "`ScheduleTriggerWorkflowOptions` is deprecated. It will be removed in v2.0.0. Use `ScheduleWorkflowOptions` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
         if self.parent_id is not None:
             warn(
                 "The `parent_id` property is internal and should not be used directly. It will be removed in v2.0.0.",
@@ -45,13 +39,6 @@ class ScheduleTriggerWorkflowOptions(ScheduleWorkflowOptions):
         if self.namespace:
             warnings.warn(
                 "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        if self.child_index is not None:
-            warn(
-                "The `child_index` property is internal and should not be used directly. It will be removed in v2.0.0.",
                 DeprecationWarning,
                 stacklevel=2,
             )
