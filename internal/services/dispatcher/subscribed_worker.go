@@ -1,7 +1,6 @@
 package dispatcher
 
 import (
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,8 +16,8 @@ type subscribedWorker struct {
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
 
-	sendMu                   sync.Mutex
-	sendMuAcquisitionTimeout time.Duration
+	sendSemaphore              chan struct{}
+	sendLockAcquisitionTimeout time.Duration
 
 	workerId uuid.UUID
 
@@ -34,10 +33,11 @@ func newSubscribedWorker(
 ) *subscribedWorker {
 
 	return &subscribedWorker{
-		stream:                   stream,
-		finished:                 fin,
-		workerId:                 workerId,
-		pubBuffer:                pubBuffer,
-		sendMuAcquisitionTimeout: maxLockAcquisitionTime,
+		stream:                     stream,
+		finished:                   fin,
+		workerId:                   workerId,
+		pubBuffer:                  pubBuffer,
+		sendLockAcquisitionTimeout: maxLockAcquisitionTime,
+		sendSemaphore:              make(chan struct{}, 1),
 	}
 }

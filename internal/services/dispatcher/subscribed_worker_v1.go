@@ -20,14 +20,18 @@ import (
 )
 
 func (worker *subscribedWorker) tryAcquireSendLockWithTimeout(timeout time.Duration) bool {
-	stopTime := time.Now().Add(timeout)
-	for time.Now().Before(stopTime) {
-		if worker.sendMu.TryLock() {
-			return true
-		}
-		time.Sleep(5 * time.Millisecond) // small backoff to avoid busy spinning
+	select {
+	// attempt to send to the semaphore, blocks on contention because it has a buffer of 1
+	case <-worker.sendSemaphore:
+		return true
+	// timing out dequeues the semaphore send
+	case <-time.After(timeout):
+		return false
 	}
-	return false
+}
+
+func (worker *subscribedWorker) releaseSendLock() {
+	<-worker.sendSemaphore
 }
 
 func (worker *subscribedWorker) StartTaskFromBulk(
@@ -106,7 +110,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	if !worker.tryAcquireSendLockWithTimeout(worker.sendMuAcquisitionTimeout) {
+	if !worker.tryAcquireSendLockWithTimeout(worker.sendLockAcquisitionTimeout) {
 		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "flow control is active")
@@ -117,7 +121,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
 
-	defer worker.sendMu.Unlock()
+	defer worker.releaseSendLock()
 	defer lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
@@ -174,7 +178,7 @@ func (worker *subscribedWorker) CancelTask(
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
 	sentCh := make(chan error, 1)
-	acquiredLock := worker.tryAcquireSendLockWithTimeout(worker.sendMuAcquisitionTimeout)
+	acquiredLock := worker.tryAcquireSendLockWithTimeout(worker.sendLockAcquisitionTimeout)
 	if !acquiredLock {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 			task.TenantID,
@@ -201,7 +205,7 @@ func (worker *subscribedWorker) CancelTask(
 
 	go func() {
 		defer close(sentCh)
-		defer worker.sendMu.Unlock()
+		defer worker.releaseSendLock()
 
 		sentCh <- worker.stream.Send(action)
 	}()
