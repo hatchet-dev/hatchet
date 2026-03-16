@@ -1,6 +1,5 @@
 import asyncio
 import json
-import warnings
 from collections.abc import Generator
 from datetime import datetime
 from enum import Enum
@@ -8,7 +7,7 @@ from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
@@ -37,6 +36,18 @@ from hatchet_sdk.types.labels import (
 )
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimitDuration
+from hatchet_sdk.types.trigger import (
+    RunWorkflowOptions,
+)
+from hatchet_sdk.types.trigger import (
+    ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
+)
+from hatchet_sdk.types.trigger import (
+    TriggerWorkflowOptions as TriggerWorkflowOptions,
+)
+from hatchet_sdk.types.trigger import (
+    WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
+)
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -98,43 +109,6 @@ class RunStatus(str, Enum):
             return V1TaskStatus.QUEUED
 
         raise ValueError(f"Unknown RunStatus: {self}")
-
-
-class ScheduleTriggerWorkflowOptions(BaseModel):
-    parent_id: str | None = None
-    parent_step_run_id: str | None = None
-    child_index: int | None = None
-    child_key: str | None = None
-    namespace: str | None = None
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | Priority | None = None
-
-    @field_validator("namespace", mode="before")
-    @classmethod
-    def validate_namespace(cls, v: str | None) -> str | None:
-        if v:
-            warnings.warn(
-                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return v
-
-
-class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    desired_worker_id: str | None = None
-    sticky: bool = False
-    key: str | None = None
-    desired_worker_label: (
-        dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-    ) = None
-
-
-class WorkflowRunTriggerConfig(BaseModel):
-    workflow_name: str
-    input: str | None
-    options: TriggerWorkflowOptions
-    key: str | None = None
 
 
 class TaskRunDetail(BaseModel):
@@ -209,7 +183,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: TriggerWorkflowOptions,
+        options: RunWorkflowOptions,
     ) -> v0_workflow_protos.TriggerWorkflowRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
@@ -391,7 +365,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: TriggerWorkflowOptions,
+        options: RunWorkflowOptions,
     ) -> v0_workflow_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
@@ -411,7 +385,7 @@ class AdminClient:
             options.child_index if options.child_index is not None else spawn_index
         )
 
-        trigger_options = TriggerWorkflowOptions(
+        trigger_options = RunWorkflowOptions(
             parent_id=options.parent_id or workflow_run_id,
             parent_step_run_id=options.parent_step_run_id or step_run_id,
             child_key=options.child_key,
@@ -436,7 +410,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
         client = self._get_or_create_v0_client()
@@ -467,7 +441,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
     ) -> WorkflowRunRef:
         client = self._get_or_create_v0_client()
         trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)

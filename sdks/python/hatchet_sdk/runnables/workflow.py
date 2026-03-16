@@ -21,11 +21,6 @@ from warnings import warn
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
-from hatchet_sdk.clients.admin import (
-    ScheduleTriggerWorkflowOptions,
-    TriggerWorkflowOptions,
-    WorkflowRunTriggerConfig,
-)
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
@@ -57,6 +52,11 @@ from hatchet_sdk.types.labels import (
 )
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
+from hatchet_sdk.types.trigger import (
+    RunWorkflowOptions,
+    ScheduleTriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
+)
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration, _warn_if_str_duration
@@ -127,7 +127,7 @@ class ComputedTaskParameters(BaseModel):
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     input: SkipValidation[TWorkflowInput]
-    options: TriggerWorkflowOptions
+    options: RunWorkflowOptions
 
 
 class BaseWorkflow(Generic[TWorkflowInput]):
@@ -266,8 +266,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         }
 
     def _create_options_with_combined_additional_meta(
-        self, options: TriggerWorkflowOptions
-    ) -> TriggerWorkflowOptions:
+        self, options: RunWorkflowOptions
+    ) -> RunWorkflowOptions:
         options_copy = options.model_copy()
         options_copy.additional_metadata = self._combine_additional_metadata(
             options.additional_metadata
@@ -306,7 +306,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         key: str | None = None,
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
     ) -> WorkflowRunTriggerConfig:
         """
         Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.
@@ -676,7 +676,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
     ) -> WorkflowRunRef:
         """
         Synchronously trigger a workflow run without waiting for it to complete.
@@ -701,7 +701,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[True] = True,
     ) -> dict[str, Any]: ...
 
@@ -709,14 +709,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[False] = False,
     ) -> WorkflowRunRef: ...
 
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: bool = True,
     ) -> WorkflowRunRef | dict[str, Any]:
         """
@@ -745,7 +745,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
     ) -> WorkflowRunRef:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
@@ -770,7 +770,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[True] = True,
     ) -> dict[str, Any]: ...
 
@@ -778,14 +778,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[False] = False,
     ) -> WorkflowRunRef: ...
 
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: bool = True,
     ) -> WorkflowRunRef | dict[str, Any]:
         """
@@ -1458,7 +1458,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[True] = True,
     ) -> R: ...
 
@@ -1466,14 +1466,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[False] = False,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: bool = True,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
@@ -1499,7 +1499,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[True] = True,
     ) -> R: ...
 
@@ -1507,14 +1507,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: Literal[False] = False,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
         wait_for_result: bool = True,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
@@ -1539,7 +1539,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Trigger a workflow run without waiting for it to complete.
@@ -1564,7 +1564,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        options: RunWorkflowOptions = RunWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.

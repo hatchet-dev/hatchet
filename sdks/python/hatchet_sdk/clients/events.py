@@ -5,7 +5,7 @@ import warnings
 from typing import cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -30,7 +30,15 @@ from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.trigger import (
+    BulkPushEventOptions as BulkPushEventOptions,
+)
+from hatchet_sdk.types.trigger import (
+    BulkPushEventWithMetadata as BulkPushEventWithMetadata,
+)
+from hatchet_sdk.types.trigger import (
+    PushEventOptions as PushEventOptions,
+)
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
@@ -41,47 +49,6 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
     nanos = int(t % 1 * 1e9)
 
     return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
-
-
-class PushEventOptions(BaseModel):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    namespace: str | None = None
-    priority: int | Priority | None = None
-    scope: str | None = None
-
-    @field_validator("namespace", mode="before")
-    @classmethod
-    def validate_namespace(cls, v: str | None) -> str | None:
-        if v:
-            warnings.warn(
-                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return v
-
-
-class BulkPushEventOptions(BaseModel):
-    namespace: str | None = None
-
-    @field_validator("namespace", mode="before")
-    @classmethod
-    def validate_namespace(cls, v: str | None) -> str | None:
-        if v:
-            warnings.warn(
-                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return v
-
-
-class BulkPushEventWithMetadata(BaseModel):
-    key: str
-    payload: JSONSerializableMapping = Field(default_factory=dict)
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | Priority | None = None
-    scope: str | None = None
 
 
 class Event(BaseModel):

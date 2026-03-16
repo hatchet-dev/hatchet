@@ -1,13 +1,5 @@
 from hatchet_sdk.clients.admin import (
     RunStatus,
-    ScheduleTriggerWorkflowOptions,
-    TriggerWorkflowOptions,
-    WorkflowRunTriggerConfig,
-)
-from hatchet_sdk.clients.events import (
-    BulkPushEventOptions,
-    BulkPushEventWithMetadata,
-    PushEventOptions,
 )
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     RegisterDurableEventRequest,
@@ -186,6 +178,16 @@ from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit, RateLimitDuration
 from hatchet_sdk.types.slot_types import SlotType
 from hatchet_sdk.types.sticky import StickyStrategy
+from hatchet_sdk.types.trigger import (
+    BulkPushEventOptions,
+    BulkPushEventWithMetadata,
+    PushEventOptions,
+    RunWorkflowOptions,
+    ScheduleTriggerWorkflowOptions,
+    ScheduleWorkflowOptions,
+    TriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
+)
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
@@ -268,7 +270,9 @@ __all__ = [
     "RunEventListener",
     "RunFilter",
     "RunStatus",
+    "RunWorkflowOptions",
     "ScheduleTriggerWorkflowOptions",
+    "ScheduleWorkflowOptions",
     "SleepCondition",
     "SlotType",
     "StepRun",
