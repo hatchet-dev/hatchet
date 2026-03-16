@@ -36,7 +36,8 @@ func (c *Cleanup) Add(fn func() error, name string) {
 
 func (c *Cleanup) Run() error {
 	// 1st and last line + 2 lines for each fn. Makes sure we don't block on the chan send
-	lines := make(chan string, (len(c.Fns)*2)+2)
+	lines := make(chan string)
+	defer close(lines)
 	ctx, cancel := context.WithTimeout(context.Background(), c.TimeLimit)
 	defer cancel()
 	go func() {
@@ -63,6 +64,5 @@ func (c *Cleanup) Run() error {
 		lines <- fmt.Sprintf("successfully shutdown %s in %s (%d/%d)\n", fn.Name, time.Since(before), i+1, len(c.Fns))
 	}
 	lines <- "all services have successfully gracefully exited"
-	close(lines)
 	return nil
 }
