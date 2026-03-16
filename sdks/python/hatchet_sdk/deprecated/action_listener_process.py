@@ -175,17 +175,14 @@ class LegacyWorkerActionListenerProcess:
                 return HealthStatus.UNHEALTHY
             return HealthStatus.STARTING
 
-        if listener.listen_strategy == "v2":
-            now = time.time()
-            time_last_hb = listener.time_last_hb_succeeded or 0.0
-            has_hb_success = 0.0 < time_last_hb <= now
-            ok = bool(
-                listener.heartbeat_task is not None
-                and listener.last_heartbeat_succeeded
-                and has_hb_success
-            )
-        else:
-            ok = bool(listener.retries == 0)
+        now = time.time()
+        time_last_hb = listener.time_last_hb_succeeded or 0.0
+        has_hb_success = 0.0 < time_last_hb <= now
+        ok = bool(
+            listener.heartbeat_task is not None
+            and listener.last_heartbeat_succeeded
+            and has_hb_success
+        )
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 

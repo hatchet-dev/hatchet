@@ -29,7 +29,7 @@ from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
@@ -164,7 +164,7 @@ class EventClient(BaseRestClient):
 
         response = cast(
             EventProto,
-            push_event(request, metadata=get_metadata(self.token)),
+            push_event(request, metadata=create_authorization_header(self.token)),
         )
         return Event.from_proto(response)
 
@@ -216,7 +216,7 @@ class EventClient(BaseRestClient):
 
         response = cast(
             EventsProto,
-            bulk_push(bulk_request, metadata=get_metadata(self.token)),
+            bulk_push(bulk_request, metadata=create_authorization_header(self.token)),
         )
         return [Event.from_proto(event) for event in response.events]
 
@@ -242,7 +242,7 @@ class EventClient(BaseRestClient):
             task_retry_count=task_retry_count,
         )
 
-        put_log(request, metadata=get_metadata(self.token))
+        put_log(request, metadata=create_authorization_header(self.token))
 
     def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         put_stream_event = tenacity_retry(
@@ -263,7 +263,7 @@ class EventClient(BaseRestClient):
         )
 
         try:
-            put_stream_event(request, metadata=get_metadata(self.token))
+            put_stream_event(request, metadata=create_authorization_header(self.token))
         except Exception:
             raise
 

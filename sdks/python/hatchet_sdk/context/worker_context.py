@@ -1,3 +1,5 @@
+from warnings import warn
+
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 
 
@@ -8,17 +10,26 @@ class WorkerContext:
         self._labels: dict[str, str | int] = {}
 
         self._labels = labels
-        self.client = client
+        self._client = client
+
+    @property
+    def client(self) -> DispatcherClient:
+        warn(
+            "The client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._client
 
     def labels(self) -> dict[str, str | int]:
         return self._labels
 
     def upsert_labels(self, labels: dict[str, str | int]) -> None:
-        self.client.upsert_worker_labels(self._worker_id, labels)
+        self._client.upsert_worker_labels(self._worker_id, labels)
         self._labels.update(labels)
 
     async def async_upsert_labels(self, labels: dict[str, str | int]) -> None:
-        await self.client.async_upsert_worker_labels(self._worker_id, labels)
+        await self._client.async_upsert_worker_labels(self._worker_id, labels)
         self._labels.update(labels)
 
     def id(self) -> str | None:

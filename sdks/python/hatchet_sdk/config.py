@@ -57,7 +57,6 @@ class HealthcheckConfig(BaseSettings):
             return timedelta(seconds=float(value))
 
         v = value.strip()
-        # Allow a small convenience suffix, but keep "seconds" as the contract.
         if v.endswith("s"):
             v = v[:-1].strip()
 
@@ -197,17 +196,6 @@ class ClientConfig(BaseSettings):
             self.tls_config.server_name = "localhost"
 
         return self
-
-    @field_validator("listener_v2_timeout")
-    @classmethod
-    def validate_listener_timeout(cls, value: int | None | str) -> int | None:
-        if value is None:
-            return None
-
-        if isinstance(value, int):
-            return value
-
-        return int(value)
 
     @field_validator("namespace")
     @classmethod

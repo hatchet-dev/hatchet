@@ -23,6 +23,7 @@ from typing import (
     get_origin,
     get_type_hints,
 )
+from warnings import warn
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
@@ -110,7 +111,16 @@ class Depends(Generic[T, TWorkflowInput]):
                 f"Additional parameters can be dependencies."
             )
 
-        self.fn = fn
+        self._fn = fn
+
+    @property
+    def fn(self) -> "DependencyFunc[T, TWorkflowInput]":
+        warn(
+            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._fn
 
 
 class DependencyToInject(BaseModel):
@@ -153,15 +163,15 @@ class Task(Generic[TWorkflowInput, R]):
         cancel_if: list[Condition | OrGroup] | None,
         slot_requests: dict[str, int] | None = None,
     ) -> None:
-        self.is_durable = is_durable
+        self._is_durable = is_durable
         if slot_requests is None:
             slot_requests = {"durable": 1} if is_durable else {"default": 1}
-        self.slot_requests = slot_requests
+        self._slot_requests = slot_requests
 
-        self.fn = _fn
-        self.is_async_function = is_async_fn(self.fn)  # type: ignore
+        self._fn = _fn
+        self._is_async_function = is_async_fn(self._fn)  # type: ignore
 
-        if is_durable and not self.is_async_function:
+        if is_durable and not self._is_async_function:
             warnings.warn(
                 "Non-async durable tasks are deprecated and will be removed in v2.0.0. "
                 "Please convert your durable task to an async function.",
@@ -169,7 +179,7 @@ class Task(Generic[TWorkflowInput, R]):
                 stacklevel=4,
             )
 
-        self.workflow = workflow
+        self._workflow = workflow
 
         self.type = type
         self.execution_timeout = execution_timeout
@@ -189,10 +199,64 @@ class Task(Generic[TWorkflowInput, R]):
 
         return_type = get_type_hints(_fn).get("return")
 
-        self.validators: TaskIOValidator = TaskIOValidator(
-            workflow_input=workflow.config.input_validator,
+        self._validators: TaskIOValidator = TaskIOValidator(
+            workflow_input=workflow._config.input_validator,
             step_output=TypeAdapter(normalize_validator(return_type)),
         )
+
+    @property
+    def fn(self):  # type: ignore[no-untyped-def]
+        warnings.warn(
+            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._fn
+
+    @property
+    def is_async_function(self) -> bool:
+        warnings.warn(
+            "The is_async_function property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._is_async_function
+
+    @property
+    def is_durable(self) -> bool:
+        warnings.warn(
+            "The is_durable property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._is_durable
+
+    @property
+    def slot_requests(self) -> dict[str, int]:
+        warnings.warn(
+            "The slot_requests property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._slot_requests
+
+    @property
+    def workflow(self) -> "Workflow[TWorkflowInput]":
+        warnings.warn(
+            "The workflow property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow
+
+    @property
+    def validators(self) -> TaskIOValidator:
+        warnings.warn(
+            "The validators property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._validators
 
     async def _parse_maybe_cm_param(
         self,
@@ -297,17 +361,17 @@ class Task(Generic[TWorkflowInput, R]):
             for item in metadata:
                 if isinstance(item, Depends):
                     deps = await self._resolve_function_dependencies(
-                        item.fn, input, ctx, resolution_stack, cms_to_exit
+                        item._fn, input, ctx, resolution_stack, cms_to_exit
                     )
 
-                    if iscoroutinefunction(item.fn):
+                    if iscoroutinefunction(item._fn):
                         return DependencyToInject(
-                            name=name, value=await item.fn(input, ctx, **deps)
+                            name=name, value=await item._fn(input, ctx, **deps)
                         )
 
                     return DependencyToInject(
                         name=name,
-                        value=await asyncio.to_thread(item.fn, input, ctx, **deps),
+                        value=await asyncio.to_thread(item._fn, input, ctx, **deps),
                     )
 
         return None
@@ -315,8 +379,8 @@ class Task(Generic[TWorkflowInput, R]):
     async def _unpack_dependencies(
         self, ctx: Context | DurableContext
     ) -> dict[str, Any]:
-        sig = signature(self.fn)
-        input = self.workflow._get_workflow_input(ctx)
+        sig = signature(self._fn)
+        input = self._workflow._get_workflow_input(ctx)
         return {
             parsed.name: parsed.value
             for n, p in sig.parameters.items()
@@ -327,8 +391,8 @@ class Task(Generic[TWorkflowInput, R]):
     async def _unpack_dependencies_with_cleanup(
         self, ctx: Context | DurableContext
     ) -> AsyncIterator[dict[str, Any]]:
-        sig = signature(self.fn)
-        input = self.workflow._get_workflow_input(ctx)
+        sig = signature(self._fn)
+        input = self._workflow._get_workflow_input(ctx)
 
         dependencies: dict[str, Any] = {}
         cms_to_exit: list[
@@ -360,30 +424,30 @@ class Task(Generic[TWorkflowInput, R]):
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
     ) -> R:
-        if self.is_async_function:
+        if self._is_async_function:
             raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
-        workflow_input = self.workflow._get_workflow_input(ctx)
+        workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_sync_fn(self.fn):  # type: ignore
-            return self.fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
+        if is_sync_fn(self._fn):  # type: ignore
+            return self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
 
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
     async def aio_call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
     ) -> R:
-        if not self.is_async_function:
+        if not self._is_async_function:
             raise TypeError(
                 f"{self.name} is not an async function. Use `call` instead."
             )
 
-        workflow_input = self.workflow._get_workflow_input(ctx)
+        workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_async_fn(self.fn):  # type: ignore
-            return await self.fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
+        if is_async_fn(self._fn):  # type: ignore
+            return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
@@ -407,8 +471,8 @@ class Task(Generic[TWorkflowInput, R]):
             concurrency=[t.to_proto() for t in concurrency],
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
-            is_durable=self.is_durable,
-            slot_requests=self.slot_requests,
+            is_durable=self._is_durable,
+            slot_requests=self._slot_requests,
         )
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
@@ -434,17 +498,17 @@ class Task(Generic[TWorkflowInput, R]):
             raise ValueError("Conditions must have unique readable data keys.")
 
         user_events = [
-            c.to_proto(self.workflow.client.config)
+            c.to_proto(self._workflow._client.config)
             for c in conditions
             if isinstance(c, UserEventCondition)
         ]
         parent_overrides = [
-            c.to_proto(self.workflow.client.config)
+            c.to_proto(self._workflow._client.config)
             for c in conditions
             if isinstance(c, ParentCondition)
         ]
         sleep_conditions = [
-            c.to_proto(self.workflow.client.config)
+            c.to_proto(self._workflow._client.config)
             for c in conditions
             if isinstance(c, SleepCondition)
         ]
@@ -477,7 +541,7 @@ class Task(Generic[TWorkflowInput, R]):
         action_payload = ActionPayload(input=serialized_input, parents=parent_outputs)
 
         action = Action(
-            tenant_id=self.workflow.client.config.tenant_id,
+            tenant_id=self._workflow._client.config.tenant_id,
             worker_id="mock-worker-id",
             workflow_run_id="mock-workflow-run-id",
             job_id="mock-job-id",
@@ -498,23 +562,23 @@ class Task(Generic[TWorkflowInput, R]):
             workflow_id="mock-workflow-id",
         )
 
-        constructor = DurableContext if self.is_durable else Context
+        constructor = DurableContext if self._is_durable else Context
 
         return constructor(
             action=action,
-            dispatcher_client=self.workflow.client._client.dispatcher,
-            admin_client=self.workflow.client._client.admin,
-            event_client=self.workflow.client._client.event,
+            dispatcher_client=self._workflow._client._client.dispatcher,
+            admin_client=self._workflow._client._client.admin,
+            event_client=self._workflow._client._client.event,
             durable_event_listener=None,
             worker=WorkerContext(
-                labels={}, client=self.workflow.client._client.dispatcher
+                labels={}, client=self._workflow._client._client.dispatcher
             ),
-            runs_client=self.workflow.client._client.runs,
+            runs_client=self._workflow._client._client.runs,
             lifespan_context=lifespan_context,
-            log_sender=AsyncLogSender(self.workflow.client._client.event),
+            log_sender=AsyncLogSender(self._workflow._client._client.event),
             max_attempts=self.retries + 1,
             task_name=self.name,
-            workflow_name=self.workflow.name,
+            workflow_name=self._workflow.name,
         )
 
     def mock_run(
@@ -542,7 +606,7 @@ class Task(Generic[TWorkflowInput, R]):
         :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
         """
 
-        if self.is_async_function:
+        if self._is_async_function:
             raise TypeError(
                 f"{self.name} is not a sync function. Use `aio_mock_run` instead."
             )
@@ -578,7 +642,7 @@ class Task(Generic[TWorkflowInput, R]):
         :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
         """
 
-        if not self.is_async_function:
+        if not self._is_async_function:
             raise TypeError(
                 f"{self.name} is not an async function. Use `mock_run` instead."
             )
@@ -595,8 +659,8 @@ class Task(Generic[TWorkflowInput, R]):
 
     @property
     def output_validator(self) -> TypeAdapter[R]:
-        return cast(TypeAdapter[R], self.validators.step_output)
+        return cast(TypeAdapter[R], self._validators.step_output)
 
     @property
     def output_validator_type(self) -> type[R]:
-        return cast(type[R], self.validators.step_output._type)
+        return cast(type[R], self._validators.step_output._type)

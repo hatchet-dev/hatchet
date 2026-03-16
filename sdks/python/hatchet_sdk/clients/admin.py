@@ -22,7 +22,6 @@ from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
-from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
@@ -33,6 +32,7 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -298,7 +298,7 @@ class AdminClient:
             workflow_protos.CreateWorkflowVersionResponse,
             put_workflow(
                 workflow,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -321,7 +321,7 @@ class AdminClient:
                 limit=limit,
                 duration=duration_proto,  # type: ignore[arg-type]
             ),
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     def schedule_workflow(
@@ -349,7 +349,7 @@ class AdminClient:
                 v0_workflow_protos.WorkflowVersion,
                 schedule_workflow(
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -418,7 +418,7 @@ class AdminClient:
                 v0_workflow_protos.TriggerWorkflowResponse,
                 trigger_workflow(
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -451,7 +451,7 @@ class AdminClient:
                 await asyncio.to_thread(
                     trigger_workflow,
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -498,7 +498,7 @@ class AdminClient:
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
                 bulk_trigger_workflow(
                     bulk_request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
 
@@ -545,7 +545,7 @@ class AdminClient:
                 await asyncio.to_thread(
                     bulk_trigger_workflow,
                     bulk_request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
 
@@ -584,7 +584,7 @@ class AdminClient:
             workflow_protos.GetRunDetailsResponse,
             get_run_payloads(
                 workflow_protos.GetRunDetailsRequest(external_id=external_id),
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 

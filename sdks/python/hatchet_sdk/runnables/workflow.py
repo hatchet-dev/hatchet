@@ -16,6 +16,7 @@ from typing import (
     get_type_hints,
     overload,
 )
+from warnings import warn
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
@@ -127,16 +128,34 @@ class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
 
 class BaseWorkflow(Generic[TWorkflowInput]):
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
-        self.config = config
+        self._config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
         self._durable_tasks: list[Task[TWorkflowInput, Any]] = []
         self._on_failure_task: Task[TWorkflowInput, Any] | None = None
         self._on_success_task: Task[TWorkflowInput, Any] | None = None
-        self.client = client
+        self._client = client
+
+    @property
+    def config(self) -> WorkflowConfig:
+        warn(
+            "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._config
+
+    @property
+    def client(self) -> "Hatchet":
+        warn(
+            "The client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._client
 
     @property
     def service_name(self) -> str:
-        return self.client.config.apply_namespace(self.config.name.lower())
+        return self._client.config.apply_namespace(self._config.name.lower())
 
     def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
         return self.service_name + ":" + step.name
@@ -145,13 +164,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return not any(task in t.parents for t in self.tasks if task != t)
 
     def to_proto(self) -> CreateWorkflowVersionRequest:
-        namespace = self.client.config.namespace
+        namespace = self._client.config.namespace
         service_name = self.service_name
 
         name = self.name
         event_triggers = [
-            self.client.config.apply_namespace(event, namespace)
-            for event in self.config.on_events
+            self._client.config.apply_namespace(event, namespace)
+            for event in self._config.on_events
         ]
 
         if self._on_success_task:
@@ -178,58 +197,58 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             t.to_proto(service_name) if (t := self._on_failure_task) else None
         )
 
-        if isinstance(self.config.concurrency, list):
-            _concurrency_arr = [c.to_proto() for c in self.config.concurrency]
+        if isinstance(self._config.concurrency, list):
+            _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
-        elif isinstance(self.config.concurrency, ConcurrencyExpression):
+        elif isinstance(self._config.concurrency, ConcurrencyExpression):
             _concurrency_arr = []
-            _concurrency = self.config.concurrency.to_proto()
-        elif isinstance(self.config.concurrency, int):
+            _concurrency = self._config.concurrency.to_proto()
+        elif isinstance(self._config.concurrency, int):
             _concurrency_arr = []
             _concurrency = ConcurrencyExpression.from_int(
-                self.config.concurrency
+                self._config.concurrency
             ).to_proto()
         else:
             _concurrency = None
             _concurrency_arr = []
 
         # Hack to not send a JSON schema if the input type is None/EmptyModel
-        input_type = self.config.input_validator.core_schema.get("cls")
+        input_type = self._config.input_validator.core_schema.get("cls")
 
         if input_type is None or input_type is EmptyModel:
             json_schema = None
         else:
             try:
                 json_schema = json.dumps(
-                    self.config.input_validator.json_schema()
+                    self._config.input_validator.json_schema()
                 ).encode("utf-8")
             except Exception:
                 json_schema = None
 
         return CreateWorkflowVersionRequest(
             name=name,
-            description=self.config.description,
-            version=self.config.version,
+            description=self._config.description,
+            version=self._config.version,
             event_triggers=event_triggers,
-            cron_triggers=self.config.on_crons,
+            cron_triggers=self._config.on_crons,
             tasks=tasks,
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(
-                self.config.sticky, StickyStrategyProto
+                self._config.sticky, StickyStrategyProto
             ),  # type: ignore[arg-type]
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
-            default_priority=self.config.default_priority,
-            default_filters=[f.to_proto() for f in self.config.default_filters],
+            default_priority=self._config.default_priority,
+            default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
         return cast(
             TWorkflowInput,
-            self.config.input_validator.validate_python(
+            self._config.input_validator.validate_python(
                 ctx.workflow_input, context=HATCHET_PYDANTIC_SENTINEL
             ),
         )
@@ -238,7 +257,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self, additional_metadata_from_trigger: JSONSerializableMapping
     ) -> JSONSerializableMapping:
         return {
-            **self.config.default_additional_metadata,
+            **self._config.default_additional_metadata,
             **additional_metadata_from_trigger,
         }
 
@@ -254,11 +273,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @property
     def input_validator(self) -> TypeAdapter[TWorkflowInput]:
-        return cast(TypeAdapter[TWorkflowInput], self.config.input_validator)
+        return cast(TypeAdapter[TWorkflowInput], self._config.input_validator)
 
     @property
     def input_validator_type(self) -> type[TWorkflowInput]:
-        return cast(type[TWorkflowInput], self.config.input_validator._type)
+        return cast(type[TWorkflowInput], self._config.input_validator._type)
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
@@ -277,7 +296,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         The (namespaced) name of the workflow.
         """
-        return self.client.config.namespace + self.config.name
+        return self._client.config.namespace + self._config.name
 
     def create_bulk_run_item(
         self,
@@ -295,14 +314,14 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :returns: A `WorkflowRunTriggerConfig` object that can be used to trigger the workflow run, which you then pass into the `run_many` methods.
         """
         return WorkflowRunTriggerConfig(
-            workflow_name=self.config.name,
+            workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
             key=key,
         )
 
     def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:
-        return self.config.input_validator.dump_json(
+        return self._config.input_validator.dump_json(
             input,  # type: ignore[arg-type]
             context=HATCHET_PYDANTIC_SENTINEL,
         ).decode("utf-8")
@@ -312,7 +331,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     ) -> JSONSerializableMapping:
         return cast(
             JSONSerializableMapping,
-            self.config.input_validator.dump_python(
+            self._config.input_validator.dump_python(
                 input,  # type: ignore[arg-type]
                 mode="json",
                 context=HATCHET_PYDANTIC_SENTINEL,
@@ -353,7 +372,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :raises ValueError: If no workflow ID is found for the workflow name.
         :returns: The ID of the workflow.
         """
-        workflows = self.client.workflows.list(workflow_name=self.name)
+        workflows = self._client.workflows.list(workflow_name=self.name)
 
         if not workflows.rows:
             raise ValueError(f"No id found for {self.name}")
@@ -393,7 +412,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return self.client.runs.list_with_pagination(
+        return self._client.runs.list_with_pagination(
             workflow_ids=[self.id],
             since=since,
             only_tasks=only_tasks,
@@ -1383,8 +1402,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self._output_validator: TypeAdapter[TaskPayloadForInternalUse] = TypeAdapter(
             normalize_validator(return_type)
         )
-
-        self.config = self._workflow.config
 
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...

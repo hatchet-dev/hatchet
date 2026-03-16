@@ -20,7 +20,7 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_DURABLE_EVENT_LISTENER_RETRY_COUNT = 5
@@ -116,7 +116,7 @@ class DurableEventListener(
         register_durable_event(
             request.to_proto(),
             timeout=5,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
         return True

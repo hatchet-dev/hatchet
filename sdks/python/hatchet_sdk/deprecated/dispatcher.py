@@ -17,7 +17,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.deprecated.action_listener import LegacyGetActionListenerRequest
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_REGISTER_TIMEOUT = 30
 
@@ -53,7 +53,7 @@ async def legacy_get_action_listener(
                 ),
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(config.token),
+            metadata=create_authorization_header(config.token),
         ),
     )
 

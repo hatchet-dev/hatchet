@@ -219,23 +219,19 @@ class WorkerActionListenerProcess:
                 return HealthStatus.UNHEALTHY
             return HealthStatus.STARTING
 
-        if listener.listen_strategy == "v2":
-            # Require at least one successful heartbeat.
-            #
-            # Note: the listener initializes `time_last_hb_succeeded` to a sentinel
-            # value; only treat it as "real" after it's been updated to a timestamp
-            # <= now.
-            now = time.time()
-            time_last_hb = listener.time_last_hb_succeeded or 0.0
-            has_hb_success = 0.0 < time_last_hb <= now
-            ok = bool(
-                listener.heartbeat_task is not None
-                and listener.last_heartbeat_succeeded
-                and has_hb_success
-            )
-        else:
-            # For v1 listen strategy (no heartbeater), treat "no retries" as healthy.
-            ok = bool(listener.retries == 0)
+        # Require at least one successful heartbeat.
+        #
+        # Note: the listener initializes `time_last_hb_succeeded` to a sentinel
+        # value; only treat it as "real" after it's been updated to a timestamp
+        # <= now.
+        now = time.time()
+        time_last_hb = listener.time_last_hb_succeeded or 0.0
+        has_hb_success = 0.0 < time_last_hb <= now
+        ok = bool(
+            listener.heartbeat_task is not None
+            and listener.last_heartbeat_succeeded
+            and has_hb_success
+        )
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 

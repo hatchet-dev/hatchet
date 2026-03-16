@@ -18,7 +18,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkflowEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5
@@ -213,7 +213,7 @@ class RunEventListener:
                             SubscribeToWorkflowEventsRequest(
                                 workflow_run_id=self.workflow_run_id,
                             ),
-                            metadata=get_metadata(self.config.token),
+                            metadata=create_authorization_header(self.config.token),
                         ),
                     )
                 if self.additional_meta_kv is not None:
@@ -224,7 +224,7 @@ class RunEventListener:
                                 additional_meta_key=self.additional_meta_kv[0],
                                 additional_meta_value=self.additional_meta_kv[1],
                             ),
-                            metadata=get_metadata(self.config.token),
+                            metadata=create_authorization_header(self.config.token),
                         ),
                     )
                 raise Exception("no listener method provided")

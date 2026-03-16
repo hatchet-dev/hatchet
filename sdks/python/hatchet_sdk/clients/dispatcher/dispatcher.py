@@ -32,8 +32,8 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_REGISTER_TIMEOUT = 30
 
@@ -86,7 +86,7 @@ class DispatcherClient:
                     ),
                 ),
                 timeout=DEFAULT_REGISTER_TIMEOUT,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -106,7 +106,7 @@ class DispatcherClient:
             await self.aio_client.GetVersion(  # type: ignore[misc]
                 GetVersionRequest(),
                 timeout=DEFAULT_REGISTER_TIMEOUT,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -172,7 +172,7 @@ class DispatcherClient:
             # fixme: figure out how to get typing right here
             await send_step_action_event(  # type: ignore[misc]
                 event,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -183,7 +183,7 @@ class DispatcherClient:
             ActionEventResponse,
             client.PutOverridesData(
                 data,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -193,7 +193,7 @@ class DispatcherClient:
         client.ReleaseSlot(
             ReleaseSlotRequest(task_run_external_id=step_run_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     def refresh_timeout(self, step_run_id: str, increment_by: str) -> None:
@@ -205,7 +205,7 @@ class DispatcherClient:
                 increment_timeout_by=increment_by,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     def upsert_worker_labels(
@@ -224,7 +224,7 @@ class DispatcherClient:
         client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     async def async_upsert_worker_labels(
@@ -248,5 +248,5 @@ class DispatcherClient:
         await self.aio_client.UpsertWorkerLabels(  # type: ignore[misc]
             UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
