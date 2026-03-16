@@ -1,8 +1,10 @@
 import { hatchet } from '../hatchet-client';
-import { getTracer } from '../opentelemetry/tracer';
+import { initOtel, getTracer } from './setup';
 import { SpanStatusCode } from '@opentelemetry/api';
 
-const tracer = getTracer('otel-dag-worker');
+initOtel();
+
+const tracer = getTracer('otel-instrumentation-worker');
 
 type OrderInput = {
   orderId: string;
@@ -120,7 +122,7 @@ orderWorkflow.task({
 });
 
 async function main() {
-  const worker = await hatchet.worker('otel-dag-worker-ts', {
+  const worker = await hatchet.worker('otel-instrumentation-worker-ts', {
     workflows: [orderWorkflow],
   });
 

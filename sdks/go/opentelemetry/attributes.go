@@ -15,6 +15,7 @@ var hatchetAttrsKey = hatchetAttrsKeyType{}
 // hatchetAttributes builds the set of hatchet.* span attributes from a HatchetContext.
 func hatchetAttributes(ctx worker.HatchetContext) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
+		attribute.String("instrumentor", "hatchet"),
 		attribute.String("hatchet.tenant_id", ctx.TenantId()),
 		attribute.String("hatchet.worker_id", ctx.WorkerId()),
 		attribute.String("hatchet.workflow_run_id", ctx.WorkflowRunId()),

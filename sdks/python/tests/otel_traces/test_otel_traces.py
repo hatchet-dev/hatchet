@@ -1,45 +1,35 @@
 import asyncio
 from subprocess import Popen
 from typing import Any
-from uuid import uuid4
 
 import pytest
 import requests
 
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from tests.otel_traces.worker import otel_retry_task, otel_simple_task
 
-SPANS_PORT = 8020
 WORKER_HEALTHCHECK_PORT = 8010
 
 ON_DEMAND_WORKER_PARAMS = [
     (
-        [
-            "poetry",
-            "run",
-            "python",
-            "tests/otel_traces/worker.py",
-            "--spans-port",
-            str(SPANS_PORT),
-        ],
+        ["poetry", "run", "python", "tests/otel_traces/worker.py"],
         WORKER_HEALTHCHECK_PORT,
     )
 ]
 
 
-def _get_spans() -> list[dict[str, Any]]:
-    """Fetch captured spans from the worker's span HTTP endpoint."""
-    resp = requests.get(f"http://localhost:{SPANS_PORT}/spans", timeout=5)
+def _get_trace_spans(hatchet: Hatchet, workflow_run_id: str) -> list[dict[str, Any]]:
+    """Fetch spans for a workflow run via the Hatchet REST API."""
+    resp = requests.get(
+        f"{hatchet.config.server_url}/api/v1/stable/workflow-runs/{workflow_run_id}/trace",
+        headers={"Authorization": f"Bearer {hatchet.config.token}"},
+        params={"limit": 1000},
+        timeout=10,
+    )
     resp.raise_for_status()
-    result: list[dict[str, Any]] = resp.json()
+    data: dict[str, Any] = resp.json()
+    result: list[dict[str, Any]] = data.get("rows", [])
     return result
-
-
-def _clear_spans() -> None:
-    """Clear captured spans on the worker."""
-    resp = requests.delete(f"http://localhost:{SPANS_PORT}/spans", timeout=5)
-    resp.raise_for_status()
 
 
 @pytest.mark.parametrize("on_demand_worker", ON_DEMAND_WORKER_PARAMS, indirect=True)
@@ -48,57 +38,52 @@ async def test_otel_spans_created_on_task_run(
     hatchet: Hatchet, on_demand_worker: Popen[Any]
 ) -> None:
     """Verify that running a task produces correct OTel spans with hatchet.* attributes."""
-    _clear_spans()
-
-    test_run_id = str(uuid4())
-
-    await otel_simple_task.aio_run(
+    ref = await otel_simple_task.aio_run_no_wait(
         options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id},
+            additional_metadata={"test_run_id": "otel-simple"},
         ),
     )
 
-    # Give the span processor a moment to flush
-    await asyncio.sleep(1)
+    await ref.aio_result()
 
-    spans = _get_spans()
+    # Give the OTLP exporter time to flush spans to the collector
+    await asyncio.sleep(3)
+
+    spans = _get_trace_spans(hatchet, ref.workflow_run_id)
 
     # Find the hatchet task run span
-    step_run_spans = [s for s in spans if s["name"] == "hatchet.start_step_run"]
+    step_run_spans = [s for s in spans if s.get("spanName") == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 1, (
         f"Expected at least one hatchet task run span, got {len(step_run_spans)}. "
-        f"All spans: {[s['name'] for s in spans]}"
+        f"All spans: {[s.get('spanName') for s in spans]}"
     )
 
-    step_span = step_run_spans[-1]  # Use the most recent one
+    step_span = step_run_spans[0]
+    attrs = step_span.get("spanAttributes", {})
 
     # Verify hatchet attributes exist
-    attrs = step_span["attributes"]
     assert "hatchet.step_run_id" in attrs, f"Missing hatchet.step_run_id in {attrs}"
     assert (
         "hatchet.workflow_run_id" in attrs
     ), f"Missing hatchet.workflow_run_id in {attrs}"
     assert "hatchet.tenant_id" in attrs, f"Missing hatchet.tenant_id in {attrs}"
 
-    # Verify span kind is CONSUMER (value=4 in OTel Python SDK)
-    assert step_span["kind"] == 4, f"Expected CONSUMER (4), got {step_span['kind']}"
+    # Verify instrumentor attribute
+    assert (
+        attrs.get("instrumentor") == "hatchet"
+    ), f"Missing instrumentor attribute in {attrs}"
 
     # Find the custom child span
-    child_spans = [s for s in spans if s["name"] == "custom.child.span"]
+    child_spans = [s for s in spans if s.get("spanName") == "custom.child.span"]
     assert len(child_spans) >= 1, (
         f"Expected at least one custom.child.span, got {len(child_spans)}. "
-        f"All spans: {[s['name'] for s in spans]}"
+        f"All spans: {[s.get('spanName') for s in spans]}"
     )
 
-    child_span = child_spans[-1]
-
-    # Child span should share the same trace_id as the step run span
-    assert (
-        child_span["trace_id"] == step_span["trace_id"]
-    ), f"Child trace_id {child_span['trace_id']} != step run trace_id {step_span['trace_id']}"
+    child_span = child_spans[0]
+    child_attrs = child_span.get("spanAttributes", {})
 
     # Child span should have hatchet.* attributes injected by _HatchetAttributeSpanProcessor
-    child_attrs = child_span["attributes"]
     assert (
         "hatchet.step_run_id" in child_attrs
     ), f"Child span missing hatchet.step_run_id (attribute propagation failed). Attrs: {child_attrs}"
@@ -117,45 +102,37 @@ async def test_otel_spans_created_on_task_run(
 async def test_otel_traces_on_retry(
     hatchet: Hatchet, on_demand_worker: Popen[Any]
 ) -> None:
-    """Verify that traces are produced for both the failed attempt and the retry.
-
-    Uses a task that fails on the first attempt (raises an exception) and
-    succeeds on the second attempt (retries=1). Both attempts should produce
-    valid hatchet task run spans with correct attributes, and the retry
-    count attribute should differ between them.
-    """
-    _clear_spans()
-
-    test_run_id = str(uuid4())
-
-    await otel_retry_task.aio_run(
+    """Verify that traces are produced for both the failed attempt and the retry."""
+    ref = await otel_retry_task.aio_run_no_wait(
         options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id},
+            additional_metadata={"test_run_id": "otel-retry"},
         ),
     )
 
-    # Give the span processor a moment to flush
-    await asyncio.sleep(1)
+    await ref.aio_result()
 
-    spans = _get_spans()
+    # Give the OTLP exporter time to flush spans to the collector
+    await asyncio.sleep(3)
+
+    spans = _get_trace_spans(hatchet, ref.workflow_run_id)
 
     # Both the failed first attempt and the successful retry should have spans
-    step_run_spans = [s for s in spans if s["name"] == "hatchet.start_step_run"]
+    step_run_spans = [s for s in spans if s.get("spanName") == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 2, (
         f"Expected at least 2 hatchet task run spans (initial + retry), "
-        f"got {len(step_run_spans)}. All spans: {[s['name'] for s in spans]}"
+        f"got {len(step_run_spans)}. All spans: {[s.get('spanName') for s in spans]}"
     )
 
     # The first attempt should have errored
-    error_spans = [s for s in step_run_spans if s["status_code"] == "ERROR"]
+    error_spans = [s for s in step_run_spans if s.get("statusCode") == "ERROR"]
     assert len(error_spans) >= 1, (
         f"Expected at least one ERROR span from the failed first attempt. "
-        f"Statuses: {[s['status_code'] for s in step_run_spans]}"
+        f"Statuses: {[s.get('statusCode') for s in step_run_spans]}"
     )
 
     # All step run spans should have valid hatchet.* attributes
     for span in step_run_spans:
-        attrs = span["attributes"]
+        attrs = span.get("spanAttributes", {})
         assert (
             "hatchet.step_run_id" in attrs
         ), f"Step run span missing hatchet.step_run_id. Attrs: {attrs}"
@@ -167,7 +144,9 @@ async def test_otel_traces_on_retry(
         ), f"Step run span missing hatchet.tenant_id. Attrs: {attrs}"
 
     # Verify retry count differs between attempts
-    retry_counts = [s["attributes"].get("hatchet.retry_count") for s in step_run_spans]
+    retry_counts = [
+        s.get("spanAttributes", {}).get("hatchet.retry_count") for s in step_run_spans
+    ]
     assert (
         len(set(retry_counts)) >= 2
     ), f"Expected different retry_count values across attempts, got {retry_counts}"

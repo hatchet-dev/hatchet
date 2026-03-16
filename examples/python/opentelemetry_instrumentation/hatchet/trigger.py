@@ -14,7 +14,7 @@ from examples.opentelemetry_instrumentation.hatchet.worker import otel_workflow
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
-HatchetInstrumentor(enable_hatchet_otel_collector=True).instrument()
+HatchetInstrumentor().instrument()
 
 tracer = get_tracer(__name__)
 

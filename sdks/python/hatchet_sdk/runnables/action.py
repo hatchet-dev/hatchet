@@ -99,11 +99,13 @@ class Action(BaseModel):
             OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
         }
 
-        return {
+        result = {
             f"hatchet.{k.value}": v
             for k, v in attrs.items()
             if v and k not in config.otel.excluded_attributes
         }
+        result["instrumentor"] = "hatchet"
+        return result
 
     @property
     def key(self) -> ActionKey:

@@ -1,9 +1,11 @@
-import { getTracer } from '../opentelemetry/tracer';
 import { SpanStatusCode, type Span } from '@opentelemetry/api';
 import { hatchet } from '../hatchet-client';
+import { initOtel, getTracer } from './setup';
 import { orderWorkflow } from './worker';
 
-const tracer = getTracer('otel-dag-triggers');
+initOtel();
+
+const tracer = getTracer('otel-instrumentation-triggers');
 
 async function runWorkflow() {
   return tracer.startActiveSpan('trigger_order_processing', async (span: Span) => {

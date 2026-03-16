@@ -56,10 +56,11 @@ const {
 type HatchetInstrumentationConfig = OpenTelemetryConfig &
   InstrumentationConfig & {
     /**
-     * Enable sending traces to the Hatchet engine's OTLP collector.
+     * Enable sending traces to the Hatchet engine's OTLP collector (default: true).
      * Requires @opentelemetry/exporter-trace-otlp-grpc and @opentelemetry/sdk-trace-base.
      * Connection settings (endpoint, token, TLS) are read from the provided clientConfig
      * or from the same environment variables used by the Hatchet client.
+     * Set to false to disable.
      */
     enableHatchetCollector?: boolean;
 
@@ -106,7 +107,7 @@ function getActionOtelAttributes(
     [OTelAttribute.WORKFLOW_VERSION_ID]: action.workflowVersionId,
   } satisfies Record<ActionOTelAttributeValue, Attributes[string] | undefined>;
 
-  const filtered: Attributes = {};
+  const filtered: Attributes = { instrumentor: 'hatchet' };
   for (const [key, value] of Object.entries(attributes)) {
     if (!excludedAttributes.includes(key) && value !== undefined && value !== '') {
       filtered[key] = value;
@@ -120,7 +121,7 @@ function filterAttributes(
   attributes: Record<string, unknown>,
   excludedAttributes: string[] = []
 ): Attributes {
-  const filtered: Attributes = {};
+  const filtered: Attributes = { instrumentor: 'hatchet' };
   for (const [key, value] of Object.entries(attributes)) {
     if (
       !excludedAttributes.includes(key) &&
@@ -153,9 +154,10 @@ function filterAttributes(
  */
 export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentationConfig> {
   constructor(config: Partial<HatchetInstrumentationConfig> = {}) {
-    super(INSTRUMENTOR_NAME, HATCHET_VERSION, { ...DEFAULT_CONFIG, ...config });
+    const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+    super(INSTRUMENTOR_NAME, HATCHET_VERSION, mergedConfig);
 
-    if (config.enableHatchetCollector) {
+    if (mergedConfig.enableHatchetCollector) {
       this._setupHatchetCollector(config.clientConfig);
     }
   }

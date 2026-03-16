@@ -44,25 +44,23 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
-	instrumentor, err := hatchetotel.NewInstrumentor(
-		hatchetotel.EnableHatchetCollector(),
-	)
+	instrumentor, err := hatchetotel.NewInstrumentor()
 	if err != nil {
 		log.Fatalf("failed to create instrumentor: %v", err)
 	}
 
-	tracer := otel.Tracer("otel-dag-example")
+	tracer := otel.Tracer("otel-instrumentation-example")
 
 	workflow := client.NewWorkflow("otel-order-processing")
 
 	validateOrder := workflow.NewTask(
 		"validate-order",
 		func(ctx hatchet.Context, input OrderInput) (ValidateOrderOutput, error) {
-			_, span := tracer.Start(ctx.GetContext(), "order.validate.schema")
+			_, span := tracer.Start(ctx, "order.validate.schema")
 			time.Sleep(10 * time.Millisecond)
 			span.End()
 
-			_, span = tracer.Start(ctx.GetContext(), "order.validate.fraud-check")
+			_, span = tracer.Start(ctx, "order.validate.fraud-check")
 			time.Sleep(20 * time.Millisecond)
 			span.End()
 
@@ -81,7 +79,7 @@ func main() {
 				return ChargePaymentOutput{}, err
 			}
 
-			payCtx, paySpan := tracer.Start(ctx.GetContext(), "payment.process")
+			payCtx, paySpan := tracer.Start(ctx, "payment.process")
 
 			_, tokenSpan := tracer.Start(payCtx, "payment.tokenize-card")
 			time.Sleep(15 * time.Millisecond)
@@ -104,11 +102,11 @@ func main() {
 	reserveInventory := workflow.NewTask(
 		"reserve-inventory",
 		func(ctx hatchet.Context, input OrderInput) (ReserveInventoryOutput, error) {
-			_, span := tracer.Start(ctx.GetContext(), "inventory.check-availability")
+			_, span := tracer.Start(ctx, "inventory.check-availability")
 			time.Sleep(10 * time.Millisecond)
 			span.End()
 
-			_, span = tracer.Start(ctx.GetContext(), "inventory.reserve")
+			_, span = tracer.Start(ctx, "inventory.reserve")
 			time.Sleep(15 * time.Millisecond)
 			span.End()
 
@@ -133,11 +131,11 @@ func main() {
 				return SendConfirmationOutput{}, err
 			}
 
-			_, span := tracer.Start(ctx.GetContext(), "notification.render-template")
+			_, span := tracer.Start(ctx, "notification.render-template")
 			time.Sleep(5 * time.Millisecond)
 			span.End()
 
-			_, span = tracer.Start(ctx.GetContext(), "notification.send-email")
+			_, span = tracer.Start(ctx, "notification.send-email")
 			time.Sleep(20 * time.Millisecond)
 			span.End()
 
@@ -147,7 +145,7 @@ func main() {
 	)
 
 	worker, err := client.NewWorker(
-		"otel-dag-worker",
+		"otel-instrumentation-worker",
 		hatchet.WithWorkflows(workflow),
 	)
 	if err != nil {

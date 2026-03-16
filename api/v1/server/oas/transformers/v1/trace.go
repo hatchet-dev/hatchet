@@ -1,13 +1,11 @@
 package transformers
 
 import (
-	"encoding/json"
 	"math"
-
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 func ToV1OtelSpanList(spans []*repository.OtelSpanRow, limit, offset, total int64) gen.OtelSpanList {
@@ -41,57 +39,24 @@ func ToV1OtelSpan(spans []*repository.OtelSpanRow) []gen.OtelSpan {
 	result := make([]gen.OtelSpan, len(spans))
 
 	for i, s := range spans {
-		resourceAttrs := jsonbToStringMap(s.ResourceAttributes)
-		spanAttrs := jsonbToStringMap(s.SpanAttributes)
+		resourceAttrs := sqlchelpers.JSONBToStringMap(s.ResourceAttributes)
+		spanAttrs := sqlchelpers.JSONBToStringMap(s.SpanAttributes)
 
 		result[i] = gen.OtelSpan{
 			TraceId:            s.TraceID,
 			SpanId:             s.SpanID,
-			ParentSpanId:       pgTextPtr(s.ParentSpanID),
+			ParentSpanId:       sqlchelpers.TextToPtr(s.ParentSpanID),
 			SpanName:           s.SpanName,
 			SpanKind:           gen.OtelSpanKind(s.SpanKind),
 			ServiceName:        s.ServiceName,
 			StatusCode:         gen.OtelStatusCode(s.StatusCode),
-			StatusMessage:      pgTextPtr(s.StatusMessage),
+			StatusMessage:      sqlchelpers.TextToPtr(s.StatusMessage),
 			DurationNs:         s.DurationNs,
 			CreatedAt:          s.StartTime.Time,
 			ResourceAttributes: &resourceAttrs,
 			SpanAttributes:     &spanAttrs,
-			ScopeName:          pgTextPtr(s.ScopeName),
-			ScopeVersion:       pgTextPtr(s.ScopeVersion),
-		}
-	}
-
-	return result
-}
-
-func pgTextPtr(t pgtype.Text) *string {
-	if !t.Valid {
-		return nil
-	}
-	return &t.String
-}
-
-func jsonbToStringMap(data []byte) map[string]string {
-	if len(data) == 0 {
-		return nil
-	}
-
-	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil
-	}
-
-	result := make(map[string]string, len(raw))
-	for k, v := range raw {
-		switch val := v.(type) {
-		case string:
-			result[k] = val
-		default:
-			b, err := json.Marshal(val)
-			if err == nil {
-				result[k] = string(b)
-			}
+			ScopeName:          sqlchelpers.TextToPtr(s.ScopeName),
+			ScopeVersion:       sqlchelpers.TextToPtr(s.ScopeVersion),
 		}
 	}
 

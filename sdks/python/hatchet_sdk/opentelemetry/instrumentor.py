@@ -39,6 +39,7 @@ import inspect
 from datetime import datetime
 
 from google.protobuf import timestamp_pb2
+from opentelemetry.trace import set_tracer_provider
 
 import hatchet_sdk
 from hatchet_sdk import ClientConfig
@@ -219,17 +220,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             If not provided, a no-op meter provider will be used.
     :param config: ClientConfig | None: The configuration for the Hatchet client. If not provided,
             a default configuration will be used.
-    :param enable_hatchet_otel_collector: bool: If True, adds an OTLP exporter to send traces to the
-            Hatchet engine. Uses the same connection settings (host, TLS, token) as the Hatchet
-            client. This can be combined with your own tracer_provider to send traces to multiple
-            destinations (e.g., both Hatchet and Jaeger/Datadog). Default is False.
+    :param enable_hatchet_otel_collector: bool: If True (the default), adds an OTLP exporter
+            to send traces to the Hatchet engine. Uses the same connection settings (host, TLS,
+            token) as the Hatchet client. This can be combined with your own tracer_provider to
+            send traces to multiple destinations (e.g., both Hatchet and Jaeger/Datadog).
 
     Example usage::
 
-        # Send traces only to Hatchet
-        instrumentor = HatchetInstrumentor(
-            enable_hatchet_otel_collector=True,
-        )
+        # Send traces to Hatchet (default)
+        instrumentor = HatchetInstrumentor()
 
         # Send traces to both Hatchet and your own collector
         from opentelemetry.sdk.trace import TracerProvider
@@ -240,8 +239,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint="your-collector:4317")))
 
         instrumentor = HatchetInstrumentor(
-            tracer_provider=provider,
-            enable_hatchet_otel_collector=True,  # Also sends to Hatchet
+            tracer_provider=provider,  # Also sends to your collector
         )
     """
 
@@ -250,14 +248,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
         config: ClientConfig | None = None,
-        enable_hatchet_otel_collector: bool = False,
+        enable_hatchet_otel_collector: bool = True,
     ):
         self.config = config or ClientConfig()
 
         if tracer_provider is not None:
             self.tracer_provider = tracer_provider
-        elif enable_hatchet_otel_collector:
-            from opentelemetry.trace import set_tracer_provider
 
             self.tracer_provider = SDKTracerProvider()
             set_tracer_provider(self.tracer_provider)
@@ -431,6 +427,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.cancel_step_run",
             attributes={
+                "instrumentor": "hatchet",
                 "hatchet.step_run_id": action.step_run_id,
             },
             kind=SpanKind.CONSUMER,
@@ -472,12 +469,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.push_event",
             attributes={
-                f"hatchet.{k.value}": v
-                for k, v in attributes.items()
-                if v
-                and k not in self.config.otel.excluded_attributes
-                and v != "{}"
-                and v != "[]"
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in attributes.items()
+                    if v
+                    and k not in self.config.otel.excluded_attributes
+                    and v != "{}"
+                    and v != "[]"
+                },
             },
             kind=SpanKind.PRODUCER,
         ):
@@ -514,6 +514,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.bulk_push_event",
             attributes={
+                "instrumentor": "hatchet",
                 "hatchet.num_events": num_bulk_events,
                 "hatchet.unique_event_keys": json.dumps(unique_event_keys, default=str),
             },
@@ -574,12 +575,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.run_workflow",
             attributes={
-                f"hatchet.{k.value}": v
-                for k, v in attributes.items()
-                if v
-                and k not in self.config.otel.excluded_attributes
-                and v != "{}"
-                and v != "[]"
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in attributes.items()
+                    if v
+                    and k not in self.config.otel.excluded_attributes
+                    and v != "{}"
+                    and v != "[]"
+                },
             },
             kind=SpanKind.PRODUCER,
         ):
@@ -632,12 +636,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.run_workflow",
             attributes={
-                f"hatchet.{k.value}": v
-                for k, v in attributes.items()
-                if v
-                and k not in self.config.otel.excluded_attributes
-                and v != "{}"
-                and v != "[]"
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in attributes.items()
+                    if v
+                    and k not in self.config.otel.excluded_attributes
+                    and v != "{}"
+                    and v != "[]"
+                },
             },
             kind=SpanKind.PRODUCER,
         ):
@@ -714,12 +721,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.schedule_workflow",
             attributes={
-                f"hatchet.{k.value}": v
-                for k, v in attributes.items()
-                if v
-                and k not in self.config.otel.excluded_attributes
-                and v != "{}"
-                and v != "[]"
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in attributes.items()
+                    if v
+                    and k not in self.config.otel.excluded_attributes
+                    and v != "{}"
+                    and v != "[]"
+                },
             },
             kind=SpanKind.PRODUCER,
         ):
@@ -754,6 +764,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.run_workflows",
             attributes={
+                "instrumentor": "hatchet",
                 "hatchet.num_workflows": num_workflows,
                 "hatchet.unique_workflow_names": json.dumps(
                     unique_workflow_names, default=str
@@ -797,6 +808,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.run_workflows",
             attributes={
+                "instrumentor": "hatchet",
                 "hatchet.num_workflows": num_workflows,
                 "hatchet.unique_workflow_names": json.dumps(
                     unique_workflow_names, default=str

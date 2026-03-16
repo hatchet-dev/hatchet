@@ -4,16 +4,9 @@
 // to all child spans, supports W3C traceparent propagation, and optionally sends
 // traces to the Hatchet engine's OTLP collector.
 //
-// Basic usage:
+// Basic usage (sends traces to Hatchet by default):
 //
-//	instrumentor := opentelemetry.NewInstrumentor()
-//	worker.Use(instrumentor.Middleware())
-//
-// Sending traces to Hatchet (auto-configured from environment):
-//
-//	instrumentor := opentelemetry.NewInstrumentor(
-//		opentelemetry.EnableHatchetCollector(),
-//	)
+//	instrumentor, err := opentelemetry.NewInstrumentor()
 //	worker.Use(instrumentor.Middleware())
 package opentelemetry
 
@@ -55,10 +48,20 @@ func WithTracerProvider(tp *sdktrace.TracerProvider) InstrumentorOption {
 	}
 }
 
+// DisableHatchetCollector disables sending traces to the Hatchet engine's OTLP collector.
+// By default, the collector is enabled and connection settings (endpoint, token, TLS)
+// are automatically loaded from the same environment variables used by the Hatchet client
+// (HATCHET_CLIENT_HOST_PORT, HATCHET_CLIENT_TOKEN, HATCHET_CLIENT_TLS_STRATEGY).
+func DisableHatchetCollector() InstrumentorOption {
+	return func(o *instrumentorOptions) {
+		o.enableCollector = false
+	}
+}
+
 // EnableHatchetCollector enables sending traces to the Hatchet engine's OTLP collector.
-// Connection settings (endpoint, token, TLS) are automatically loaded from the same
-// environment variables used by the Hatchet client (HATCHET_CLIENT_HOST_PORT,
-// HATCHET_CLIENT_TOKEN, HATCHET_CLIENT_TLS_STRATEGY).
+// This is the default behavior; this option exists for explicitness.
+//
+// Deprecated: The collector is enabled by default. Use DisableHatchetCollector() to opt out.
 func EnableHatchetCollector() InstrumentorOption {
 	return func(o *instrumentorOptions) {
 		o.enableCollector = true
@@ -67,7 +70,9 @@ func EnableHatchetCollector() InstrumentorOption {
 
 // NewInstrumentor creates a new HatchetInstrumentor.
 func NewInstrumentor(opts ...InstrumentorOption) (*Instrumentor, error) {
-	o := &instrumentorOptions{}
+	o := &instrumentorOptions{
+		enableCollector: true,
+	}
 	for _, opt := range opts {
 		opt(o)
 	}

@@ -26,27 +26,21 @@ async function fetchAllSpansByTask(
   taskExternalId: string,
 ): Promise<RelevantOpenTelemetrySpanProperties[]> {
   const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
-  let offset = 0;
+  let currentPage = 0;
+  let numPages = 1;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  do {
     const res = await api.v1TaskGetTrace(taskExternalId, {
-      offset,
+      offset: currentPage * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
 
     const rows = res.data.rows ?? [];
     allSpans.push(...rows.map(pickSpan));
 
-    const numPages = res.data.pagination?.num_pages ?? 1;
-    const currentPage = res.data.pagination?.current_page ?? 1;
-
-    if (currentPage >= numPages || rows.length === 0) {
-      break;
-    }
-
-    offset += PAGE_SIZE;
-  }
+    numPages = res.data.pagination?.num_pages ?? 1;
+    currentPage = res.data.pagination?.current_page ?? 1;
+  } while (currentPage < numPages);
 
   return allSpans;
 }
@@ -55,27 +49,21 @@ async function fetchAllSpansByWorkflowRun(
   workflowRunExternalId: string,
 ): Promise<RelevantOpenTelemetrySpanProperties[]> {
   const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
-  let offset = 0;
+  let currentPage = 0;
+  let numPages = 1;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  do {
     const res = await api.v1WorkflowRunGetTrace(workflowRunExternalId, {
-      offset,
+      offset: currentPage * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
 
     const rows = res.data.rows ?? [];
     allSpans.push(...rows.map(pickSpan));
 
-    const numPages = res.data.pagination?.num_pages ?? 1;
-    const currentPage = res.data.pagination?.current_page ?? 1;
-
-    if (currentPage >= numPages || rows.length === 0) {
-      break;
-    }
-
-    offset += PAGE_SIZE;
-  }
+    numPages = res.data.pagination?.num_pages ?? 1;
+    currentPage = res.data.pagination?.current_page ?? 1;
+  } while (currentPage < numPages);
 
   return allSpans;
 }

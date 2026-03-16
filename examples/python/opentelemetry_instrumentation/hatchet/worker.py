@@ -17,7 +17,10 @@ from opentelemetry.trace import StatusCode, get_tracer
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
+HatchetInstrumentor().instrument()
+
 hatchet = Hatchet()
+
 
 otel_workflow = hatchet.workflow(name="OTelDataPipeline")
 
@@ -123,8 +126,6 @@ def save_results(input: EmptyModel, ctx: Context) -> SaveResultsOutput:
 
 
 def main() -> None:
-    HatchetInstrumentor(enable_hatchet_otel_collector=True).instrument()
-
     worker = hatchet.worker(
         "otel-pipeline-worker",
         workflows=[otel_workflow],
