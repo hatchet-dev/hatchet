@@ -279,7 +279,7 @@ async def test_async_event_bulk_push(hatchet: Hatchet) -> None:
     for original_event, returned_event in zip(
         sorted_events, sorted_returned_events, strict=False
     ):
-        assert returned_event.key == original_event.key
+        assert returned_event.key == hatchet.config.apply_namespace(original_event.key)
 
 
 @pytest.fixture(scope="function")

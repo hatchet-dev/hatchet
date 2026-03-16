@@ -37,9 +37,7 @@ async def test_get_run(hatchet: Hatchet) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_list_workflows(hatchet: Hatchet) -> None:
-    workflows = await hatchet.workflows.aio_list(
-        workflow_name=dag_workflow._config.name
-    )
+    workflows = await hatchet.workflows.aio_list(workflow_name=dag_workflow.name)
 
     assert workflows.rows
     assert len(workflows.rows) >= 1
@@ -49,7 +47,7 @@ async def test_list_workflows(hatchet: Hatchet) -> None:
             [
                 wf
                 for wf in workflows.rows
-                if wf.name == hatchet.config.apply_namespace(dag_workflow._config.name)
+                if wf.name == hatchet.config.apply_namespace(dag_workflow.name)
             ]
         ),
         None,
