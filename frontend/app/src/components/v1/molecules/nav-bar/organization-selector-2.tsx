@@ -7,10 +7,7 @@ import {
   CommandList,
 } from '@/components/v1/ui/command';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import {
-  OrganizationForUser,
-  TenantStatusType,
-} from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { cn } from '@/lib/utils';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -26,7 +23,8 @@ import {
   PopoverTrigger,
 } from '@radix-ui/react-popover';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import invariant from 'tiny-invariant';
 
 type OrganizationSelector2Props = {
   className?: string;
@@ -44,7 +42,6 @@ export function OrganizationSelector2({
   } = useTenantDetails();
   const {
     organizations,
-    tenantMemberships,
     isLoaded: isUniverseLoaded,
     getOrganizationForTenant,
     getTenantWithTenantId,
@@ -70,39 +67,32 @@ export function OrganizationSelector2({
     });
   }, [organizations]);
 
-  const handleOrgSelect = (org: OrganizationForUser) => {
-    if (!tenantMemberships) {
-      return;
-    }
+  const handleOrgSelect = useCallback(
+    (org: OrganizationForUser) => {
+      invariant(isUniverseLoaded);
+      const firstTenant = org.tenants.at(0);
+      invariant(firstTenant);
 
-    const firstActiveTenant = org.tenants.find(
-      (t) => t.status !== TenantStatusType.ARCHIVED,
-    );
+      setTenant(getTenantWithTenantId(firstTenant.id));
 
-    if (!firstActiveTenant) {
-      return;
-    }
+      setOpen(false);
+    },
+    [isUniverseLoaded, getTenantWithTenantId, setTenant],
+  );
 
-    if (getTenantWithTenantId) {
-      setTenant(getTenantWithTenantId(firstActiveTenant.id));
-    }
+  const handleSettingsClick = useCallback(
+    (e: React.MouseEvent, org: OrganizationForUser) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-    setOpen(false);
-  };
-
-  const handleSettingsClick = (
-    e: React.MouseEvent,
-    org: OrganizationForUser,
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setOpen(false);
-    sessionStorage.setItem('orgSettingsPreviousPath', location.pathname);
-    navigate({
-      to: appRoutes.organizationsRoute.to,
-      params: { organization: org.metadata.id },
-    });
-  };
+      setOpen(false);
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: org.metadata.id },
+      });
+    },
+    [navigate],
+  );
 
   const triggerDisabled =
     !isTenantLoaded || !isUniverseLoaded || !organizations?.length;

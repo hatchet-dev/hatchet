@@ -2,6 +2,7 @@ import api, { cloudApi } from '@/lib/api/api';
 import {
   OrganizationForUser,
   OrganizationForUserList,
+  TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { Tenant, TenantMember } from '@/lib/api/generated/data-contracts';
 import useCloud from '@/pages/auth/hooks/use-cloud';
@@ -85,21 +86,42 @@ export const userUniverseQuery = ({
 }) => ({
   queryKey: ['user-universe', isCloudEnabled],
   queryFn: async (): Promise<PossibleQueryResponses> => {
-    const [organizations, tenantMemberships] = await Promise.all([
-      isCloudEnabled ? cloudApi.organizationList() : null,
-      api.tenantMembershipsList(),
-    ]);
+    const [organizationsResponse, tenantMembershipsResponse] =
+      await Promise.all([
+        isCloudEnabled ? cloudApi.organizationList() : null,
+        api.tenantMembershipsList(),
+      ]);
+
+    const tenantMembershipRows = tenantMembershipsResponse.data.rows || [];
+    const organizations = organizationsResponse?.data.rows || [];
+
+    const archivedTenantIds =
+      organizations &&
+      new Set(
+        organizations.flatMap((organization) =>
+          organization.tenants
+            .filter((tenant) => tenant.status === TenantStatusType.ARCHIVED)
+            .map((tenant) => tenant.id),
+        ),
+      );
+    const tenantMemberships = archivedTenantIds
+      ? tenantMembershipRows.filter(
+          (membership) =>
+            membership.tenant &&
+            !archivedTenantIds.has(membership.tenant.metadata.id),
+        )
+      : tenantMembershipRows;
 
     return isCloudEnabled
       ? {
           isCloudEnabled,
-          organizations: organizations?.data.rows || [],
-          tenantMemberships: tenantMemberships.data.rows || [],
+          organizations,
+          tenantMemberships,
         }
       : {
           isCloudEnabled,
           organizations: null,
-          tenantMemberships: tenantMemberships.data.rows || [],
+          tenantMemberships,
         };
   },
   enabled: isCloudLoaded,
