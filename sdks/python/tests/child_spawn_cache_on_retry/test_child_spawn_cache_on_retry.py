@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Hatchet, RunWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from tests.child_spawn_cache_on_retry.worker import (
     spawn_cache_on_retry_child,
@@ -24,9 +24,7 @@ async def test_spawn_caching_on_retry(
     test_run_id = str(uuid4())
     try:
         await spawn_cache_on_retry_parent.aio_run(
-            options=TriggerWorkflowOptions(
-                additional_metadata={"test_run_id": test_run_id}
-            )
+            options=RunWorkflowOptions(additional_metadata={"test_run_id": test_run_id})
         )
     except Exception as e:
         assert "Task exceeded timeout of" in str(e)

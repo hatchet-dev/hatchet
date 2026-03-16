@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Hatchet, RunWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     TIMEOUT_SECONDS,
@@ -30,7 +30,7 @@ async def test_failure_on_timeout(
                 input=InputModel(
                     concurrency_key=test_run_id,
                 ),
-                options=TriggerWorkflowOptions(
+                options=RunWorkflowOptions(
                     additional_metadata={
                         "test_run_id": test_run_id,
                     }

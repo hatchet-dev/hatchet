@@ -9,7 +9,7 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_2,
     bulk_replay_test_3,
 )
-from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter, TriggerWorkflowOptions
+from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter, RunWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
@@ -22,7 +22,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
         await bulk_replay_test_1.aio_run_many(
             [
                 bulk_replay_test_1.create_bulk_run_item(
-                    options=TriggerWorkflowOptions(
+                    options=RunWorkflowOptions(
                         additional_metadata={
                             "test_run_id": test_run_id,
                         }
@@ -36,7 +36,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
         await bulk_replay_test_2.aio_run_many(
             [
                 bulk_replay_test_2.create_bulk_run_item(
-                    options=TriggerWorkflowOptions(
+                    options=RunWorkflowOptions(
                         additional_metadata={
                             "test_run_id": test_run_id,
                         }
@@ -50,7 +50,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
         await bulk_replay_test_3.aio_run_many(
             [
                 bulk_replay_test_3.create_bulk_run_item(
-                    options=TriggerWorkflowOptions(
+                    options=RunWorkflowOptions(
                         additional_metadata={
                             "test_run_id": test_run_id,
                         }

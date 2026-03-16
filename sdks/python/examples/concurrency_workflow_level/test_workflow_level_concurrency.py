@@ -14,7 +14,7 @@ from examples.concurrency_workflow_level.worker import (
     WorkflowInput,
     concurrency_workflow_level_workflow,
 )
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Hatchet, RunWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
@@ -62,7 +62,7 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
                     name=(name := choice(characters)),
                     digit=(digit := choice([str(i) for i in range(6)])),
                 ),
-                options=TriggerWorkflowOptions(
+                options=RunWorkflowOptions(
                     additional_metadata={
                         "test_run_id": test_run_id,
                         "key": f"{name}-{digit}",

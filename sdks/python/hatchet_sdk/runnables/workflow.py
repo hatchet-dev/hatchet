@@ -510,8 +510,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :return: The created filter.
         """
-        return await self._client.filters.aio_create(
-            workflow_id=self.id,
+        return await asyncio.to_thread(
+            self.create_filter,
             expression=expression,
             scope=scope,
             payload=payload,
@@ -552,10 +552,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param options: Additional options for workflow execution.
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
-        return await self._client._client.admin.aio_schedule_workflow(
-            name=self._config.name,
-            schedules=[run_at],
-            input=self._serialize_input(input, target="string"),
+        return await asyncio.to_thread(
+            self.schedule,
+            run_at=run_at,
+            input=input,
             options=options,
         )
 
@@ -608,14 +608,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
-        _warn_if_int_priority(priority)
-
-        return await self._client.cron.aio_create(
-            workflow_name=self._config.name,
+        return await asyncio.to_thread(
+            self.create_cron,
             cron_name=cron_name,
             expression=expression,
-            input=self._serialize_input(input, target="dict"),
-            additional_metadata=additional_metadata or {},
+            input=input,
+            additional_metadata=additional_metadata,
             priority=priority,
         )
 

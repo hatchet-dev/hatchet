@@ -16,6 +16,7 @@ from hatchet_sdk import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
     Priority as PriorityEnum,
+    ScheduleWorkflowOptions,
 )
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
@@ -177,7 +178,7 @@ async def test_priority_via_scheduling(
         *[
             priority_workflow.aio_schedule(
                 run_at=run_at,
-                options=ScheduleTriggerWorkflowOptions(
+                options=ScheduleWorkflowOptions(
                     priority=(priority_to_enum(priority := choice(choices))),
                     additional_metadata={
                         "priority": priority,

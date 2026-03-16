@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Context, Hatchet, RunWorkflowOptions
 
 hatchet = Hatchet()
 
@@ -29,7 +29,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
         [
             child_wf.create_bulk_run_item(
                 input=ChildInput(a=str(i)),
-                options=TriggerWorkflowOptions(
+                options=RunWorkflowOptions(
                     additional_metadata={"hello": "earth"}, key=f"child{i}"
                 ),
             )

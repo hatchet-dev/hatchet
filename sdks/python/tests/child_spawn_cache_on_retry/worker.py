@@ -1,7 +1,7 @@
 import asyncio
 from datetime import timedelta
 
-from hatchet_sdk import Context, EmptyModel, Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Context, EmptyModel, Hatchet, RunWorkflowOptions
 
 PARENT_EXECUTION_TIMEOUT_SECONDS = 5
 PARENT_RETRIES = 2
@@ -16,9 +16,7 @@ hatchet = Hatchet()
 )
 async def spawn_cache_on_retry_parent(input: EmptyModel, ctx: Context) -> None:
     await spawn_cache_on_retry_child.aio_run(
-        options=TriggerWorkflowOptions(
-            additional_metadata=ctx.additional_metadata or {}
-        ),
+        options=RunWorkflowOptions(additional_metadata=ctx.additional_metadata or {}),
         wait_for_result=False,
     )
 
