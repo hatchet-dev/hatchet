@@ -379,7 +379,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -408,7 +410,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -436,7 +440,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -568,7 +574,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -597,7 +605,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -629,7 +639,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,

@@ -58,6 +58,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
@@ -155,7 +156,9 @@ class Task(Generic[TWorkflowInput, R]):
         parents: "list[Task[TWorkflowInput, Any]] | None",
         retries: int,
         rate_limits: list[CreateTaskRateLimit] | None,
-        desired_worker_labels: dict[str, DesiredWorkerLabels] | None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabels] | list[DesiredWorkerLabel] | None
+        ),
         backoff_factor: float | None,
         backoff_max_seconds: int | None,
         concurrency: int | list[ConcurrencyExpression] | None,

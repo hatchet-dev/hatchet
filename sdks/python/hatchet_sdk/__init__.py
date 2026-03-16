@@ -154,10 +154,7 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.workflows_pb2 import (
-    CreateWorkflowVersionOpts,
-    WorkerLabelComparator,
-)
+from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
@@ -180,7 +177,7 @@ from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
 )
-from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.labels import DesiredWorkerLabel, WorkerLabelComparator
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit, RateLimitDuration
 from hatchet_sdk.types.slot_types import SlotType
