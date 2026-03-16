@@ -106,7 +106,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	if !worker.tryAcquireSendLockWithTimeout(250 * time.Millisecond) {
+	if !worker.tryAcquireSendLockWithTimeout(time.Duration(worker.sendMuAcquisitionTimeout) * time.Millisecond) {
 		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "flow control is active")
@@ -174,7 +174,7 @@ func (worker *subscribedWorker) CancelTask(
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
 	sentCh := make(chan error, 1)
-	acquiredLock := worker.tryAcquireSendLockWithTimeout(250 * time.Millisecond)
+	acquiredLock := worker.tryAcquireSendLockWithTimeout(time.Duration(worker.sendMuAcquisitionTimeout) * time.Millisecond)
 	if !acquiredLock {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 			task.TenantID,

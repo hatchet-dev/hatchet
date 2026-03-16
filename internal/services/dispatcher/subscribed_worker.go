@@ -17,7 +17,7 @@ type subscribedWorker struct {
 	finished chan<- bool
 
 	sendMu                   sync.Mutex
-	sendMuAcquisitionTimeout int64
+	sendMuAcquisitionTimeout int
 
 	workerId uuid.UUID
 
@@ -28,7 +28,7 @@ func newSubscribedWorker(
 	stream contracts.Dispatcher_ListenServer,
 	fin chan<- bool,
 	workerId uuid.UUID,
-	maxLockAcquisitionTimeMS int64,
+	maxLockAcquisitionTimeMS int,
 	pubBuffer *msgqueue.MQPubBuffer,
 ) *subscribedWorker {
 

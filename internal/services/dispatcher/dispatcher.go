@@ -44,7 +44,7 @@ type DispatcherImpl struct {
 	repov1                                v1.Repository
 	cache                                 cache.Cacheable
 	payloadSizeThreshold                  int
-	defaultMaxWorkerLockAcquisitionTimeMS int64
+	defaultMaxWorkerLockAcquisitionTimeMS int
 	workflowRunBufferSize                 int
 	streamEventBufferTimeout              time.Duration
 
@@ -130,7 +130,7 @@ type DispatcherOpts struct {
 	cache                                 cache.Cacheable
 	analytics                             analytics.Analytics
 	payloadSizeThreshold                  int
-	defaultMaxWorkerLockAcquisitionTimeMS int64
+	defaultMaxWorkerLockAcquisitionTimeMS int
 	workflowRunBufferSize                 int
 	streamEventBufferTimeout              time.Duration
 	version                               string
@@ -201,7 +201,7 @@ func WithPayloadSizeThreshold(threshold int) DispatcherOpt {
 	}
 }
 
-func WithDefaultMaxWorkerLockAcquisitionTimeMS(millis int64) DispatcherOpt {
+func WithDefaultMaxWorkerLockAcquisitionTimeMS(millis int) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.defaultMaxWorkerLockAcquisitionTimeMS = millis
 	}
