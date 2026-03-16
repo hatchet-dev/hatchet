@@ -1,5 +1,6 @@
 import asyncio
 import json
+import warnings
 from collections.abc import Generator
 from datetime import datetime
 from enum import Enum
@@ -107,6 +108,17 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
     namespace: str | None = None
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | Priority | None = None
+
+    @field_validator("namespace", mode="before")
+    @classmethod
+    def validate_namespace(cls, v: str | None) -> str | None:
+        if v:
+            warnings.warn(
+                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return v
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):

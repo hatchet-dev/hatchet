@@ -399,19 +399,21 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_bulk_push_event(
         self,
         wrapped: Callable[
-            [list[BulkPushEventWithMetadata], BulkPushEventOptions], list[Event]
+            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None], list[Event]
         ],
         instance: EventClient,
         args: tuple[
             list[BulkPushEventWithMetadata],
-            BulkPushEventOptions,
+            BulkPushEventOptions | None,
         ],
-        kwargs: dict[str, list[BulkPushEventWithMetadata] | BulkPushEventOptions],
+        kwargs: dict[
+            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
+        ],
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
-        options = cast(BulkPushEventOptions, params[1])
+        options = cast(BulkPushEventOptions | None, params[1])
 
         num_bulk_events = len(bulk_events)
         unique_event_keys = {event.key for event in bulk_events}

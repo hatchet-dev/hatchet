@@ -1,10 +1,11 @@
 import asyncio
 import datetime
 import json
+import warnings
 from typing import cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -48,9 +49,31 @@ class PushEventOptions(BaseModel):
     priority: int | Priority | None = None
     scope: str | None = None
 
+    @field_validator("namespace", mode="before")
+    @classmethod
+    def validate_namespace(cls, v: str | None) -> str | None:
+        if v:
+            warnings.warn(
+                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return v
+
 
 class BulkPushEventOptions(BaseModel):
     namespace: str | None = None
+
+    @field_validator("namespace", mode="before")
+    @classmethod
+    def validate_namespace(cls, v: str | None) -> str | None:
+        if v:
+            warnings.warn(
+                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return v
 
 
 class BulkPushEventWithMetadata(BaseModel):
@@ -127,7 +150,7 @@ class EventClient(BaseRestClient):
     async def aio_bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions = BulkPushEventOptions(),
+        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
         return await asyncio.to_thread(self.bulk_push, events=events, options=options)
 
@@ -202,8 +225,17 @@ class EventClient(BaseRestClient):
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions = BulkPushEventOptions(),
+        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
+        if options:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = BulkPushEventOptions()
+
         namespace = options.namespace or self.namespace
         bulk_push = tenacity_retry(
             self.events_service_client.BulkPush, self.client_config.tenacity
