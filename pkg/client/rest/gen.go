@@ -2126,6 +2126,10 @@ type Worker struct {
 	// Actions The actions this worker can perform.
 	Actions *[]string `json:"actions,omitempty"`
 
+	// AvailableRuns The number of runs currently available for this worker. Deprecated - use slotConfig for per-slot-type availability (sum non-durable for equivalent).
+	// Deprecated:
+	AvailableRuns *int `json:"availableRuns,omitempty"`
+
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
 
@@ -2136,8 +2140,12 @@ type Worker struct {
 	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
 
 	// LastListenerEstablished The time this worker last sent a heartbeat.
-	LastListenerEstablished *time.Time      `json:"lastListenerEstablished,omitempty"`
-	Metadata                APIResourceMeta `json:"metadata"`
+	LastListenerEstablished *time.Time `json:"lastListenerEstablished,omitempty"`
+
+	// MaxRuns The maximum number of runs this worker can execute concurrently. Deprecated - use slotConfig for per-slot-type limits (sum non-durable for equivalent).
+	// Deprecated:
+	MaxRuns  *int            `json:"maxRuns,omitempty"`
+	Metadata APIResourceMeta `json:"metadata"`
 
 	// Name The name of the worker.
 	Name string `json:"name"`

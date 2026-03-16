@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -69,6 +69,16 @@ class Worker(BaseModel):
     status: Optional[StrictStr] = Field(
         default=None, description="The status of the worker."
     )
+    max_runs: Optional[StrictInt] = Field(
+        default=None,
+        description="The maximum number of runs this worker can execute concurrently. Deprecated - use slotConfig for per-slot-type limits (sum non-durable for equivalent).",
+        alias="maxRuns",
+    )
+    available_runs: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of runs currently available for this worker. Deprecated - use slotConfig for per-slot-type availability (sum non-durable for equivalent).",
+        alias="availableRuns",
+    )
     slot_config: Optional[Dict[str, WorkerSlotConfig]] = Field(
         default=None,
         description="Slot availability and limits for this worker (slot_type -> { available, limit }).",
@@ -102,6 +112,8 @@ class Worker(BaseModel):
         "slots",
         "recentStepRuns",
         "status",
+        "maxRuns",
+        "availableRuns",
         "slotConfig",
         "dispatcherId",
         "labels",
@@ -244,6 +256,8 @@ class Worker(BaseModel):
                     else None
                 ),
                 "status": obj.get("status"),
+                "maxRuns": obj.get("maxRuns"),
+                "availableRuns": obj.get("availableRuns"),
                 "slotConfig": (
                     dict(
                         (_k, WorkerSlotConfig.from_dict(_v))

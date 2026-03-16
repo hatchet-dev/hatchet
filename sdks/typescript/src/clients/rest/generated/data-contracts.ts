@@ -2257,6 +2257,16 @@ export interface Worker {
   recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
   status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
+  /**
+   * The maximum number of runs this worker can execute concurrently. Deprecated - use slotConfig for per-slot-type limits (sum non-durable for equivalent).
+   * @deprecated
+   */
+  maxRuns?: number;
+  /**
+   * The number of runs currently available for this worker. Deprecated - use slotConfig for per-slot-type availability (sum non-durable for equivalent).
+   * @deprecated
+   */
+  availableRuns?: number;
   /** Slot availability and limits for this worker (slot_type -> { available, limit }). */
   slotConfig?: Record<string, WorkerSlotConfig>;
   /**
