@@ -51,7 +51,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
-from hatchet_sdk.types.labels import DesiredWorkerLabel, transform_desired_worker_label
+from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.utils.aio import gather_max_concurrency
@@ -1068,9 +1068,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 parents=parents,
                 retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
-                desired_worker_labels={
-                    key: transform_desired_worker_label(d) for key, d in labels.items()
-                },
+                desired_worker_labels={key: d.to_proto() for key, d in labels.items()},
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
@@ -1179,9 +1177,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 parents=parents,
                 retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
-                desired_worker_labels={
-                    key: transform_desired_worker_label(d) for key, d in labels.items()
-                },
+                desired_worker_labels={key: d.to_proto() for key, d in labels.items()},
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,

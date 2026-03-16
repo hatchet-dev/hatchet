@@ -6,7 +6,6 @@ from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
     WorkerLabelComparator,
     _warn_if_int_comparator,
-    transform_desired_worker_label,
 )
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit, RateLimitDuration
@@ -25,5 +24,4 @@ __all__ = [
     "WorkerLabelComparator",
     "_warn_if_int_comparator",
     "_warn_if_int_priority",
-    "transform_desired_worker_label",
 ]
