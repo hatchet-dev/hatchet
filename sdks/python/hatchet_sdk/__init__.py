@@ -167,24 +167,26 @@ from hatchet_sdk.exceptions import (
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.rate_limit import RateLimit, RateLimitDuration
 from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
     DefaultFilter,
     EmptyModel,
-    StickyStrategy,
     TaskDefaults,
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
+from hatchet_sdk.types.concurrency import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+)
+from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.rate_limit import RateLimit, RateLimitDuration
+from hatchet_sdk.types.slot_types import SlotType
+from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
-from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.serde import remove_null_unicode_character
-from hatchet_sdk.worker.slot_types import SlotType
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 

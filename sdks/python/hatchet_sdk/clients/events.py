@@ -29,8 +29,8 @@ from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 

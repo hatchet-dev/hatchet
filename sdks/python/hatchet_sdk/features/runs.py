@@ -34,14 +34,14 @@ from hatchet_sdk.clients.v1.api_client import (
     maybe_additional_metadata_to_kv,
 )
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.types.priority import _warn_if_int_priority
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
-from hatchet_sdk.utils.priority import _warn_if_int_priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
-    from hatchet_sdk.utils.priority import Priority
+    from hatchet_sdk.types.priority import Priority
     from hatchet_sdk.workflow_run import WorkflowRunRef
 
 

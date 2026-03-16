@@ -47,7 +47,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.runnables.types import (
-    ConcurrencyExpression,
     R,
     StepType,
     TaskIOValidator,
@@ -58,7 +57,8 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.utils.priority import Priority
+from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,

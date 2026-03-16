@@ -1,7 +1,7 @@
 from typing import Any
 
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.worker.slot_types import SlotType
+from hatchet_sdk.types.slot_types import SlotType
 
 
 def normalize_slot_config(

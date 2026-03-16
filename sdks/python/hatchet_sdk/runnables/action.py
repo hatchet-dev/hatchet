@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
-from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:

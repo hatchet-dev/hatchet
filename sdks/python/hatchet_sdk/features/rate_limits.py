@@ -6,7 +6,7 @@ from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
-from hatchet_sdk.rate_limit import RateLimitDuration
+from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 

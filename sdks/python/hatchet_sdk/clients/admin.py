@@ -20,9 +20,7 @@ from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
-from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
-from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
@@ -32,8 +30,10 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.priority import Priority
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
