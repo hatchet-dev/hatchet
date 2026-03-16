@@ -1351,7 +1351,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self.workflow_run_id
 
     async def aio_result(self) -> R:
-        result = await self._wrr.workflow_run_listener.aio_result(
+        result = await self._wrr._workflow_run_listener.aio_result(
             self._wrr.workflow_run_id
         )
         return self._s._extract_result(result)
