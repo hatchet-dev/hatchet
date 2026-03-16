@@ -25,7 +25,7 @@ func (worker *subscribedWorker) tryAcquireSendLockWithTimeout(timeout time.Durat
 		if worker.sendMu.TryLock() {
 			return true
 		}
-		time.Sleep(1 * time.Millisecond) // small backoff to avoid busy spinning
+		time.Sleep(5 * time.Millisecond) // small backoff to avoid busy spinning
 	}
 	return false
 }
@@ -106,7 +106,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	if !worker.tryAcquireSendLockWithTimeout(50 * time.Millisecond) {
+	if !worker.tryAcquireSendLockWithTimeout(250 * time.Millisecond) {
 		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "flow control is active")
