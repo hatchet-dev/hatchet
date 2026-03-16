@@ -33,6 +33,8 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/cancelTasks"
   /api/v1/stable/tenants/{tenant}/tasks/replay:
     $ref: "./paths/v1/tasks/tasks.yaml#/replayTasks"
+  /api/v1/stable/tasks/{task}/restore:
+    $ref: "./paths/v1/tasks/tasks.yaml#/restoreTask"
   /api/v1/stable/dags/tasks:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTasksByDAGIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs:
@@ -43,6 +45,8 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRunExternalIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs/trigger:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/trigger"
+  /api/v1/stable/tenants/{tenant}/durable-tasks/branch:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/branchDurableTask"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/status:

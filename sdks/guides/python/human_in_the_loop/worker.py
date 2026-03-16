@@ -1,4 +1,4 @@
-from hatchet_sdk import DurableContext, EmptyModel, Hatchet, UserEventCondition
+from hatchet_sdk import DurableContext, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
@@ -8,14 +8,13 @@ APPROVAL_EVENT_KEY = "approval:decision"
 # > Step 02 Wait For Event
 async def wait_for_approval(ctx: DurableContext) -> dict:
     run_id = ctx.workflow_run_id
-    approval = await ctx.aio_wait_for(
-        "approval",
-        UserEventCondition(
-            event_key=APPROVAL_EVENT_KEY,
-            expression=f"input.runId == '{run_id}'",
-        ),
+    approval = await ctx.aio_wait_for_event(
+        APPROVAL_EVENT_KEY,
+        f"input.runId == '{run_id}'",
     )
     return approval
+
+
 # !!
 
 
@@ -27,6 +26,8 @@ async def approval_task(input: EmptyModel, ctx: DurableContext) -> dict:
     if approval.get("approved"):
         return {"status": "approved", "action": proposed_action}
     return {"status": "rejected", "reason": approval.get("reason", "")}
+
+
 # !!
 
 

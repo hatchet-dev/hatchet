@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -79,6 +79,11 @@ class V1TaskSummary(BaseModel):
         description="The output of the task run (for the latest run)"
     )
     status: V1TaskStatus
+    is_evicted: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the task has been evicted from a worker (still counts as RUNNING).",
+        alias="isEvicted",
+    )
     started_at: Optional[datetime] = Field(
         default=None,
         description="The timestamp the task run started.",
@@ -134,6 +139,7 @@ class V1TaskSummary(BaseModel):
         "numSpawnedChildren",
         "output",
         "status",
+        "isEvicted",
         "startedAt",
         "stepId",
         "taskExternalId",
@@ -232,6 +238,7 @@ class V1TaskSummary(BaseModel):
                 "numSpawnedChildren": obj.get("numSpawnedChildren"),
                 "output": obj.get("output"),
                 "status": obj.get("status"),
+                "isEvicted": obj.get("isEvicted"),
                 "startedAt": obj.get("startedAt"),
                 "stepId": obj.get("stepId"),
                 "taskExternalId": obj.get("taskExternalId"),

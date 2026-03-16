@@ -98,6 +98,7 @@ export const RunsProvider = ({
     ...initColumnVisibility,
     parentTaskExternalId: false, // Always hidden, used for filtering only
     flattenDAGs: false, // Always hidden, used for filtering only
+    runningFilter: false, // Always hidden, used for filtering only
   });
 
   const {
@@ -147,6 +148,7 @@ export const RunsProvider = ({
     createdAfter: filters.apiFilters.since,
     finishedBefore: filters.apiFilters.until,
     statuses: filters.apiFilters.statuses,
+    runningFilter: filters.apiFilters.runningFilter,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     workerId,
     workflowIds:

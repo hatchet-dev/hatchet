@@ -11,8 +11,9 @@ import (
 )
 
 type V1WorkflowRunsService struct {
-	config       *server.ServerConfig
-	proxyTrigger *proxy.Proxy[admincontracts.TriggerWorkflowRunRequest, admincontracts.TriggerWorkflowRunResponse]
+	config                 *server.ServerConfig
+	proxyTrigger           *proxy.Proxy[admincontracts.TriggerWorkflowRunRequest, admincontracts.TriggerWorkflowRunResponse]
+	proxyBranchDurableTask *proxy.Proxy[admincontracts.BranchDurableTaskRequest, admincontracts.BranchDurableTaskResponse]
 }
 
 func NewV1WorkflowRunsService(config *server.ServerConfig) *V1WorkflowRunsService {
@@ -20,8 +21,13 @@ func NewV1WorkflowRunsService(config *server.ServerConfig) *V1WorkflowRunsServic
 		return cli.Admin().TriggerWorkflowRun(ctx, in)
 	})
 
+	proxyBranchDurableTask := proxy.NewProxy(config, func(ctx context.Context, cli *client.GRPCClient, in *admincontracts.BranchDurableTaskRequest) (*admincontracts.BranchDurableTaskResponse, error) {
+		return cli.Admin().BranchDurableTask(ctx, in)
+	})
+
 	return &V1WorkflowRunsService{
-		config:       config,
-		proxyTrigger: proxyTrigger,
+		config:                 config,
+		proxyTrigger:           proxyTrigger,
+		proxyBranchDurableTask: proxyBranchDurableTask,
 	}
 }

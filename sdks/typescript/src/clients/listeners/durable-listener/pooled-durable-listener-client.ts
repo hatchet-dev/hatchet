@@ -1,4 +1,4 @@
-import { EventEmitter, getMaxListeners, on, setMaxListeners } from 'events';
+import { EventEmitter, on } from 'events';
 import {
   DurableEvent,
   ListenForDurableEventRequest,
@@ -8,7 +8,7 @@ import {
 import { isAbortError } from 'abort-controller-x';
 import { getErrorMessage } from '@util/errors/hatchet-error';
 import sleep from '@hatchet/util/sleep';
-import { createAbortError } from '@hatchet/util/abort-error';
+import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
 import {
   DurableEventListenerConditions,
   SleepMatchCondition,
@@ -74,20 +74,7 @@ export class DurableEventStreamable {
 
       this.responseEmitter.once('response', onResponse);
       if (signal) {
-        /**
-         * Node defaults AbortSignal max listeners to 10, which is easy to exceed with
-         * legitimate high-concurrency waits (e.g. multiple concurrent `ctx.waitFor(...)`
-         * calls in the same task).
-         *
-         * If the signal is still at the default cap, bump it to a reasonable level
-         * to avoid noisy `MaxListenersExceededWarning` while still keeping protection
-         * against true leaks in unusual cases.
-         */
-        const max = getMaxListeners(signal);
-        if (max !== 0 && max < 50) {
-          setMaxListeners(50, signal);
-        }
-        signal.addEventListener('abort', onAbort, { once: true });
+        bindAbortSignalHandler(signal, onAbort);
       }
     });
   }
