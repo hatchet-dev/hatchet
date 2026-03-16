@@ -253,7 +253,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return cast(
             TWorkflowInput,
             self._config.input_validator.validate_python(
-                ctx.workflow_input, context=HATCHET_PYDANTIC_SENTINEL
+                ctx._workflow_input, context=HATCHET_PYDANTIC_SENTINEL
             ),
         )
 

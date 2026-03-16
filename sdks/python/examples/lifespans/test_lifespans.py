@@ -37,7 +37,7 @@ async def test_lifespan_drain_on_sigterm(
     on_demand_worker: Popen[Any],
 ) -> None:
     n = 6
-    ref = await lifespan_drain_task.aio_run_no_wait(DrainInput(n=n))
+    ref = await lifespan_drain_task.aio_run(DrainInput(n=n), wait_for_result=False)
 
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)

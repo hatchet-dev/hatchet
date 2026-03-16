@@ -311,6 +311,16 @@ class Context:
         return self._input
 
     @property
+    def _workflow_input(self) -> JSONSerializableMapping:
+        """
+        The input to the workflow, as a dictionary. It's recommended to use the `input` parameter to the task (the first argument passed into the task at runtime) instead of this property.
+
+        :return: The input to the workflow.
+        """
+
+        return self._input
+
+    @property
     def lifespan(self) -> Any:
         """
         The worker lifespan, if it exists. You can read about lifespans in [the docs](https://docs.hatchet.run/home/lifespans).
