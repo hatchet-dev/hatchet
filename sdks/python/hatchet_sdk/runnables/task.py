@@ -461,6 +461,16 @@ class Task(Generic[TWorkflowInput, R]):
         else:
             concurrency = self.concurrency
 
+        labels = (
+            {
+                d.key: d.to_proto()
+                for d in self.desired_worker_labels
+                if d.key is not None
+            }
+            if isinstance(self.desired_worker_labels, list)
+            else self.desired_worker_labels
+        )
+
         return CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
@@ -469,7 +479,7 @@ class Task(Generic[TWorkflowInput, R]):
             parents=[p.name for p in self.parents],
             retries=self.retries,
             rate_limits=self.rate_limits,
-            worker_labels=self.desired_worker_labels,
+            worker_labels=labels,
             backoff_factor=self.backoff_factor,
             backoff_max_seconds=self.backoff_max_seconds,
             concurrency=[t.to_proto() for t in concurrency],

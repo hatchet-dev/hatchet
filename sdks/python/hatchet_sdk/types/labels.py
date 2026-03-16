@@ -44,6 +44,15 @@ class DesiredWorkerLabel(WorkerLabel):
         _warn_if_int_comparator(v, stacklevel=5)  # type: ignore[arg-type]
         return v
 
+    def to_proto(self) -> DesiredWorkerLabels:
+        return DesiredWorkerLabels(
+            str_value=self.value if not isinstance(self.value, int) else None,
+            int_value=self.value if isinstance(self.value, int) else None,
+            required=self.required,
+            weight=self.weight,
+            comparator=self.comparator,  # type: ignore[arg-type]
+        )
+
 
 def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
     value = d.value

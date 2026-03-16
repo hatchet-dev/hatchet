@@ -1051,6 +1051,12 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
+            labels = (
+                {d.key: d for d in desired_worker_labels if d.key is not None}
+                if isinstance(desired_worker_labels, list)
+                else (desired_worker_labels or {})
+            )
+
             task = Task(
                 _fn=func,
                 is_durable=False,
@@ -1063,8 +1069,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels={
-                    key: transform_desired_worker_label(d)
-                    for key, d in (desired_worker_labels or {}).items()
+                    key: transform_desired_worker_label(d) for key, d in labels.items()
                 },
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
@@ -1157,6 +1162,12 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
+            labels = (
+                {d.key: d for d in desired_worker_labels if d.key is not None}
+                if isinstance(desired_worker_labels, list)
+                else (desired_worker_labels or {})
+            )
+
             task = Task(
                 _fn=func,
                 is_durable=True,
@@ -1169,8 +1180,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels={
-                    key: transform_desired_worker_label(d)
-                    for key, d in (desired_worker_labels or {}).items()
+                    key: transform_desired_worker_label(d) for key, d in labels.items()
                 },
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
