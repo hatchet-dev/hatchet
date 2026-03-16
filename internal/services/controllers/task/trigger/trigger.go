@@ -137,21 +137,19 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 		return fmt.Errorf("could not trigger workflows from names: %w", err)
 	}
 
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		return tw.signaler.SignalTasksCreated(ctx, tenantId, tasks)
-	})
-
-	eg.Go(func() error {
-		return tw.signaler.SignalDAGsCreated(ctx, tenantId, dags)
-	})
-
 	// signaling errors do not result in a failure, since we have already written the tasks to the database, but
 	// we log the error
 	// FIXME: we need a mechanism to DLQ these failed signals
-	if err := eg.Wait(); err != nil {
+	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
 		tw.l.Error().Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromWorkflowNames")
+	}
+
+	return nil
+}
+
+func (tw *TriggerWriter) SignalCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload, dags []*v1.DAGWithData) error {
+	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
+		tw.l.Error().Err(err).Msg("failed to signal created tasks and DAGs in SignalCreated")
 	}
 
 	return nil

@@ -40,11 +40,14 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
+from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
     R,
     StepType,
@@ -162,8 +165,11 @@ class Task(Generic[TWorkflowInput, R]):
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
         slot_requests: dict[str, int] | None = None,
+        durable_eviction: EvictionPolicy | None = None,
     ) -> None:
         self._is_durable = is_durable
+        self.durable_eviction = durable_eviction
+
         if slot_requests is None:
             slot_requests = {"durable": 1} if is_durable else {"default": 1}
         self._slot_requests = slot_requests
@@ -205,6 +211,11 @@ class Task(Generic[TWorkflowInput, R]):
             workflow_input=workflow._config.input_validator,
             step_output=TypeAdapter(normalize_validator(return_type)),
         )
+
+        if not self._is_async_function and self._is_durable:
+            logger.warning(
+                f"{self.fn.__name__} is defined as a synchronous, durable task. in the future, durable tasks will only support `async`. please update this durable task to be async, or make it non-durable."
+            )
 
     @property
     def fn(self):  # type: ignore[no-untyped-def]

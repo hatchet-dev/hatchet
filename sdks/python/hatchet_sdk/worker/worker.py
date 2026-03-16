@@ -7,6 +7,7 @@ import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
@@ -14,14 +15,16 @@ from types import FrameType
 from typing import Any, TypeVar
 from warnings import warn
 
-import grpc
-
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
-from hatchet_sdk.deprecated.deprecation import semver_less_than
+from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice, semver_less_than
 from hatchet_sdk.deprecated.worker import legacy_aio_start
-from hatchet_sdk.exceptions import LifespanSetupError, LoopAlreadyRunningError
+from hatchet_sdk.engine_version import MinEngineVersion
+from hatchet_sdk.exceptions import (
+    LifespanSetupError,
+    LoopAlreadyRunningError,
+)
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
@@ -34,6 +37,7 @@ from hatchet_sdk.worker.action_listener_process import (
     worker_action_listener_process,
 )
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
+from hatchet_sdk.worker.slot_types import SlotType
 
 T = TypeVar("T")
 
@@ -106,6 +110,7 @@ class Worker:
 
         self._action_runner: WorkerActionRunLoopManager | None = None
         self._legacy_durable_action_runner: WorkerActionRunLoopManager | None = None
+        self._engine_version: str | None = None
 
         self._ctx = multiprocessing.get_context("spawn")
 
@@ -411,14 +416,7 @@ class Worker:
         if self._handle_kill:
             sys.exit(0)
 
-    # Minimum engine version that supports multiple slot types.
-    _MIN_SLOT_CONFIG_VERSION = "v0.78.23"
-
-    def _emit_legacy_deprecation(self) -> None:
-        from datetime import datetime, timezone
-
-        from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice
-
+    def _emit_legacy_slot_deprecation(self) -> None:
         emit_deprecation_notice(
             feature="legacy-engine",
             message=(
@@ -430,6 +428,32 @@ class Worker:
             error_days=180,
         )
 
+    def _check_eviction_support(self, engine_version: str) -> None:
+        """Warn and strip eviction policies if the engine is too old to support them."""
+        if not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION):
+            return
+
+        tasks_with_eviction = [
+            task
+            for task in self.action_registry.values()
+            if task.durable_eviction is not None
+        ]
+        if not tasks_with_eviction:
+            return
+
+        names = ", ".join(t.name for t in tasks_with_eviction)
+        emit_deprecation_notice(
+            feature="pre-eviction-engine",
+            message=(
+                f"Engine {engine_version} does not support durable eviction "
+                f"(requires >= {MinEngineVersion.DURABLE_EVICTION}). "
+                f"Eviction policies will be ignored for tasks: {names}. "
+                "Please upgrade your Hatchet engine."
+            ),
+            start=datetime(2026, 3, 3, tzinfo=timezone.utc),
+            error_days=180,
+        )
+
     async def _check_engine_version(self) -> str | None:
         """Returns the engine version string, or None if engine is legacy (pre-slot-config).
 
@@ -437,21 +461,13 @@ class Worker:
         version for slot_config support. Returns the version string for modern
         engines so callers can branch on specific versions.
         """
+        version = await self.client.dispatcher.get_version()
 
-        try:
-            version = await self._client.dispatcher.get_version()
+        if not version or semver_less_than(version, MinEngineVersion.SLOT_CONFIG):
+            self._emit_legacy_slot_deprecation()
+            return None
 
-            # Empty version or older than minimum → legacy
-            if not version or semver_less_than(version, self._MIN_SLOT_CONFIG_VERSION):
-                self._emit_legacy_deprecation()
-                return None
-
-            return version  # new engine
-        except grpc.RpcError as e:
-            if e.code() == grpc.StatusCode.UNIMPLEMENTED:
-                self._emit_legacy_deprecation()
-                return None  # old engine
-            raise
+        return version
 
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
@@ -472,6 +488,9 @@ class Worker:
         if engine_version is None:
             await legacy_aio_start(self)
             return
+
+        self._engine_version = engine_version
+        self._check_eviction_support(engine_version)
 
         lifespan_context = None
         if self._lifespan:
@@ -520,6 +539,7 @@ class Worker:
                 self.name,
                 self._action_registry,
                 sum(self._slot_config.values()),
+                self.slot_config.get(SlotType.DURABLE.value, 0),
                 self._config,
                 self._action_queue,
                 self._event_queue,
@@ -528,6 +548,7 @@ class Worker:
                 self._client.debug,
                 self._labels,
                 lifespan_context,
+                engine_version=self._engine_version,
             )
 
         raise RuntimeError("event loop not set, cannot start action runner")
@@ -707,11 +728,14 @@ class Worker:
         self._killing = True
 
         if self._action_runner:
+            # TODO-DURABLE: we nee to ensure that the worker is paused before calling this in all SDKs
+            await self._action_runner.evict_all_waiting_durable_runs()
             await self._action_runner.wait_for_tasks()
             await self._action_runner.exit_gracefully()
 
         # Also clean up the durable action runner (legacy mode)
         if self._legacy_durable_action_runner:
+            await self._legacy_durable_action_runner.evict_all_waiting_durable_runs()
             await self._legacy_durable_action_runner.wait_for_tasks()
             await self._legacy_durable_action_runner.exit_gracefully()
 

@@ -5,8 +5,36 @@ CREATE TYPE v1_readable_status_olap AS ENUM (
     'RUNNING',
     'CANCELLED',
     'FAILED',
-    'COMPLETED'
+    'COMPLETED',
+    'EVICTED'
 );
+
+-- NOTE: enum ordering puts EVICTED after COMPLETED, but logically EVICTED is
+-- non-terminal and should rank below terminal statuses. These functions provide
+-- the canonical priority ordering for aggregation and comparison.
+CREATE OR REPLACE FUNCTION v1_status_to_priority(s v1_readable_status_olap)
+RETURNS int IMMUTABLE LANGUAGE sql AS $$
+    SELECT CASE s
+        WHEN 'QUEUED'    THEN 1
+        WHEN 'RUNNING'   THEN 2
+        WHEN 'EVICTED'   THEN 3
+        WHEN 'CANCELLED' THEN 4
+        WHEN 'FAILED'    THEN 5
+        WHEN 'COMPLETED' THEN 6
+    END;
+$$;
+
+CREATE OR REPLACE FUNCTION v1_status_from_priority(p int)
+RETURNS v1_readable_status_olap IMMUTABLE LANGUAGE sql AS $$
+    SELECT CASE p
+        WHEN 1 THEN 'QUEUED'
+        WHEN 2 THEN 'RUNNING'
+        WHEN 3 THEN 'EVICTED'
+        WHEN 4 THEN 'CANCELLED'
+        WHEN 5 THEN 'FAILED'
+        WHEN 6 THEN 'COMPLETED'
+    END::v1_readable_status_olap;
+$$;
 
 -- HELPER FUNCTIONS FOR PARTITIONED TABLES --
 CREATE OR REPLACE FUNCTION get_v1_partitions_before_date(
@@ -84,6 +112,7 @@ BEGIN
     PERFORM create_v1_partition_with_status(newTableName, 'COMPLETED');
     PERFORM create_v1_partition_with_status(newTableName, 'CANCELLED');
     PERFORM create_v1_partition_with_status(newTableName, 'FAILED');
+    PERFORM create_v1_partition_with_status(newTableName, 'EVICTED');
 
     -- If it's not already attached, attach the partition
     IF NOT EXISTS (SELECT 1 FROM pg_inherits WHERE inhrelid = newTableName::regclass) THEN
@@ -272,7 +301,9 @@ CREATE TYPE v1_event_type_olap AS ENUM (
     'TIMED_OUT',
     'RATE_LIMIT_ERROR',
     'SKIPPED',
-    'COULD_NOT_SEND_TO_WORKER'
+    'COULD_NOT_SEND_TO_WORKER',
+    'DURABLE_EVICTED',
+    'DURABLE_RESTORING'
 );
 
 -- this is a hash-partitioned table on the task_id, so that we can process batches of events in parallel
@@ -333,6 +364,7 @@ CREATE TABLE v1_task_events_olap (
     worker_id UUID,
     additional__event_data TEXT,
     additional__event_message TEXT,
+    durable_invocation_count INT NOT NULL DEFAULT 0,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 );

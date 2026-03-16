@@ -23,9 +23,10 @@ _sym_db = _symbol_database.Default()
 
 
 from hatchet_sdk.contracts.v1.shared import condition_pb2 as v1_dot_shared_dot_condition__pb2
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as v1_dot_shared_dot_trigger__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13v1/dispatcher.proto\x12\x02v1\x1a\x19v1/shared/condition.proto\"z\n\x1bRegisterDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x36\n\nconditions\x18\x03 \x01(\x0b\x32\".v1.DurableEventListenerConditions\"\x1e\n\x1cRegisterDurableEventResponse\"C\n\x1cListenForDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\"A\n\x0c\x44urableEvent\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\x32\xbe\x01\n\x0cV1Dispatcher\x12[\n\x14RegisterDurableEvent\x12\x1f.v1.RegisterDurableEventRequest\x1a .v1.RegisterDurableEventResponse\"\x00\x12Q\n\x15ListenForDurableEvent\x12 .v1.ListenForDurableEventRequest\x1a\x10.v1.DurableEvent\"\x00(\x01\x30\x01\x42\x42Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13v1/dispatcher.proto\x12\x02v1\x1a\x19v1/shared/condition.proto\x1a\x17v1/shared/trigger.proto\"5\n DurableTaskRequestRegisterWorker\x12\x11\n\tworker_id\x18\x01 \x01(\t\"6\n!DurableTaskResponseRegisterWorker\x12\x11\n\tworker_id\x18\x01 \x01(\t\"y\n\x17\x44urableEventLogEntryRef\x12 \n\x18\x64urable_task_external_id\x18\x01 \x01(\t\x12\x18\n\x10invocation_count\x18\x02 \x01(\x05\x12\x11\n\tbranch_id\x18\x03 \x01(\x03\x12\x0f\n\x07node_id\x18\x04 \x01(\x03\"<\n\x16\x44urableTaskRunAckEntry\x12\x0f\n\x07node_id\x18\x01 \x01(\x03\x12\x11\n\tbranch_id\x18\x02 \x01(\x03\"\xa3\x01\n\x1f\x44urableTaskEventMemoAckResponse\x12(\n\x03ref\x18\x01 \x01(\x0b\x32\x1b.v1.DurableEventLogEntryRef\x12\x1c\n\x14memo_already_existed\x18\x02 \x01(\x08\x12 \n\x13memo_result_payload\x18\x03 \x01(\x0cH\x00\x88\x01\x01\x42\x16\n\x14_memo_result_payload\"\x95\x01\n&DurableTaskEventTriggerRunsAckResponse\x12 \n\x18\x64urable_task_external_id\x18\x01 \x01(\t\x12\x18\n\x10invocation_count\x18\x02 \x01(\x05\x12/\n\x0brun_entries\x18\x03 \x03(\x0b\x32\x1a.v1.DurableTaskRunAckEntry\"N\n\"DurableTaskEventWaitForAckResponse\x12(\n\x03ref\x18\x01 \x01(\x0b\x32\x1b.v1.DurableEventLogEntryRef\"f\n)DurableTaskEventLogEntryCompletedResponse\x12(\n\x03ref\x18\x01 \x01(\x0b\x32\x1b.v1.DurableEventLogEntryRef\x12\x0f\n\x07payload\x18\x02 \x01(\x0c\"\x7f\n!DurableTaskEvictInvocationRequest\x12\x18\n\x10invocation_count\x18\x01 \x01(\x05\x12 \n\x18\x64urable_task_external_id\x18\x02 \x01(\t\x12\x13\n\x06reason\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\t\n\x07_reason\"\\\n\x1e\x44urableTaskEvictionAckResponse\x12\x18\n\x10invocation_count\x18\x01 \x01(\x05\x12 \n\x18\x64urable_task_external_id\x18\x02 \x01(\t\"\x82\x01\n DurableTaskAwaitedCompletedEntry\x12 \n\x18\x64urable_task_external_id\x18\x01 \x01(\t\x12\x11\n\tbranch_id\x18\x02 \x01(\x03\x12\x0f\n\x07node_id\x18\x03 \x01(\x03\x12\x18\n\x10invocation_count\x18\x04 \x01(\x05\"j\n\x1c\x44urableTaskServerEvictNotice\x12 \n\x18\x64urable_task_external_id\x18\x01 \x01(\t\x12\x18\n\x10invocation_count\x18\x02 \x01(\x05\x12\x0e\n\x06reason\x18\x03 \x01(\t\"r\n\x1e\x44urableTaskWorkerStatusRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12=\n\x0fwaiting_entries\x18\x02 \x03(\x0b\x32$.v1.DurableTaskAwaitedCompletedEntry\"m\n\x1e\x44urableTaskCompleteMemoRequest\x12(\n\x03ref\x18\x01 \x01(\x0b\x32\x1b.v1.DurableEventLogEntryRef\x12\x0f\n\x07payload\x18\x02 \x01(\x0c\x12\x10\n\x08memo_key\x18\x03 \x01(\x0c\"\x83\x01\n\x16\x44urableTaskMemoRequest\x12\x18\n\x10invocation_count\x18\x01 \x01(\x05\x12 \n\x18\x64urable_task_external_id\x18\x02 \x01(\t\x12\x0b\n\x03key\x18\x03 \x01(\x0c\x12\x14\n\x07payload\x18\x04 \x01(\x0cH\x00\x88\x01\x01\x42\n\n\x08_payload\"\x8d\x01\n\x1d\x44urableTaskTriggerRunsRequest\x12\x18\n\x10invocation_count\x18\x01 \x01(\x05\x12 \n\x18\x64urable_task_external_id\x18\x02 \x01(\t\x12\x30\n\x0ctrigger_opts\x18\x03 \x03(\x0b\x32\x1a.v1.TriggerWorkflowRequest\"\xb5\x01\n\x19\x44urableTaskWaitForRequest\x12\x18\n\x10invocation_count\x18\x01 \x01(\x05\x12 \n\x18\x64urable_task_external_id\x18\x02 \x01(\t\x12\x44\n\x13wait_for_conditions\x18\x03 \x01(\x0b\x32\".v1.DurableEventListenerConditionsH\x00\x88\x01\x01\x42\x16\n\x14_wait_for_conditions\"\xb7\x03\n\x12\x44urableTaskRequest\x12?\n\x0fregister_worker\x18\x01 \x01(\x0b\x32$.v1.DurableTaskRequestRegisterWorkerH\x00\x12*\n\x04memo\x18\x02 \x01(\x0b\x32\x1a.v1.DurableTaskMemoRequestH\x00\x12\x39\n\x0ctrigger_runs\x18\x03 \x01(\x0b\x32!.v1.DurableTaskTriggerRunsRequestH\x00\x12\x31\n\x08wait_for\x18\x04 \x01(\x0b\x32\x1d.v1.DurableTaskWaitForRequestH\x00\x12\x41\n\x10\x65vict_invocation\x18\x05 \x01(\x0b\x32%.v1.DurableTaskEvictInvocationRequestH\x00\x12;\n\rworker_status\x18\x06 \x01(\x0b\x32\".v1.DurableTaskWorkerStatusRequestH\x00\x12;\n\rcomplete_memo\x18\x07 \x01(\x0b\x32\".v1.DurableTaskCompleteMemoRequestH\x00\x42\t\n\x07message\"\x89\x01\n\x18\x44urableTaskErrorResponse\x12(\n\x03ref\x18\x01 \x01(\x0b\x32\x1b.v1.DurableEventLogEntryRef\x12,\n\nerror_type\x18\x02 \x01(\x0e\x32\x18.v1.DurableTaskErrorType\x12\x15\n\rerror_message\x18\x03 \x01(\t\"\x92\x04\n\x13\x44urableTaskResponse\x12@\n\x0fregister_worker\x18\x01 \x01(\x0b\x32%.v1.DurableTaskResponseRegisterWorkerH\x00\x12\x37\n\x08memo_ack\x18\x02 \x01(\x0b\x32#.v1.DurableTaskEventMemoAckResponseH\x00\x12\x46\n\x10trigger_runs_ack\x18\x03 \x01(\x0b\x32*.v1.DurableTaskEventTriggerRunsAckResponseH\x00\x12>\n\x0cwait_for_ack\x18\x04 \x01(\x0b\x32&.v1.DurableTaskEventWaitForAckResponseH\x00\x12H\n\x0f\x65ntry_completed\x18\x05 \x01(\x0b\x32-.v1.DurableTaskEventLogEntryCompletedResponseH\x00\x12-\n\x05\x65rror\x18\x06 \x01(\x0b\x32\x1c.v1.DurableTaskErrorResponseH\x00\x12:\n\x0c\x65viction_ack\x18\x07 \x01(\x0b\x32\".v1.DurableTaskEvictionAckResponseH\x00\x12\x38\n\x0cserver_evict\x18\x08 \x01(\x0b\x32 .v1.DurableTaskServerEvictNoticeH\x00\x42\t\n\x07message\"z\n\x1bRegisterDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x36\n\nconditions\x18\x03 \x01(\x0b\x32\".v1.DurableEventListenerConditions\"\x1e\n\x1cRegisterDurableEventResponse\"C\n\x1cListenForDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\"A\n\x0c\x44urableEvent\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x12\n\nsignal_key\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c*k\n\x14\x44urableTaskErrorType\x12\'\n#DURABLE_TASK_ERROR_TYPE_UNSPECIFIED\x10\x00\x12*\n&DURABLE_TASK_ERROR_TYPE_NONDETERMINISM\x10\x01\x32\x84\x02\n\x0cV1Dispatcher\x12\x44\n\x0b\x44urableTask\x12\x16.v1.DurableTaskRequest\x1a\x17.v1.DurableTaskResponse\"\x00(\x01\x30\x01\x12[\n\x14RegisterDurableEvent\x12\x1f.v1.RegisterDurableEventRequest\x1a .v1.RegisterDurableEventResponse\"\x00\x12Q\n\x15ListenForDurableEvent\x12 .v1.ListenForDurableEventRequest\x1a\x10.v1.DurableEvent\"\x00(\x01\x30\x01\x42\x42Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,14 +34,56 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'v1.dispatcher_pb2', _global
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1'
-  _globals['_REGISTERDURABLEEVENTREQUEST']._serialized_start=54
-  _globals['_REGISTERDURABLEEVENTREQUEST']._serialized_end=176
-  _globals['_REGISTERDURABLEEVENTRESPONSE']._serialized_start=178
-  _globals['_REGISTERDURABLEEVENTRESPONSE']._serialized_end=208
-  _globals['_LISTENFORDURABLEEVENTREQUEST']._serialized_start=210
-  _globals['_LISTENFORDURABLEEVENTREQUEST']._serialized_end=277
-  _globals['_DURABLEEVENT']._serialized_start=279
-  _globals['_DURABLEEVENT']._serialized_end=344
-  _globals['_V1DISPATCHER']._serialized_start=347
-  _globals['_V1DISPATCHER']._serialized_end=537
+  _globals['_DURABLETASKERRORTYPE']._serialized_start=3437
+  _globals['_DURABLETASKERRORTYPE']._serialized_end=3544
+  _globals['_DURABLETASKREQUESTREGISTERWORKER']._serialized_start=79
+  _globals['_DURABLETASKREQUESTREGISTERWORKER']._serialized_end=132
+  _globals['_DURABLETASKRESPONSEREGISTERWORKER']._serialized_start=134
+  _globals['_DURABLETASKRESPONSEREGISTERWORKER']._serialized_end=188
+  _globals['_DURABLEEVENTLOGENTRYREF']._serialized_start=190
+  _globals['_DURABLEEVENTLOGENTRYREF']._serialized_end=311
+  _globals['_DURABLETASKRUNACKENTRY']._serialized_start=313
+  _globals['_DURABLETASKRUNACKENTRY']._serialized_end=373
+  _globals['_DURABLETASKEVENTMEMOACKRESPONSE']._serialized_start=376
+  _globals['_DURABLETASKEVENTMEMOACKRESPONSE']._serialized_end=539
+  _globals['_DURABLETASKEVENTTRIGGERRUNSACKRESPONSE']._serialized_start=542
+  _globals['_DURABLETASKEVENTTRIGGERRUNSACKRESPONSE']._serialized_end=691
+  _globals['_DURABLETASKEVENTWAITFORACKRESPONSE']._serialized_start=693
+  _globals['_DURABLETASKEVENTWAITFORACKRESPONSE']._serialized_end=771
+  _globals['_DURABLETASKEVENTLOGENTRYCOMPLETEDRESPONSE']._serialized_start=773
+  _globals['_DURABLETASKEVENTLOGENTRYCOMPLETEDRESPONSE']._serialized_end=875
+  _globals['_DURABLETASKEVICTINVOCATIONREQUEST']._serialized_start=877
+  _globals['_DURABLETASKEVICTINVOCATIONREQUEST']._serialized_end=1004
+  _globals['_DURABLETASKEVICTIONACKRESPONSE']._serialized_start=1006
+  _globals['_DURABLETASKEVICTIONACKRESPONSE']._serialized_end=1098
+  _globals['_DURABLETASKAWAITEDCOMPLETEDENTRY']._serialized_start=1101
+  _globals['_DURABLETASKAWAITEDCOMPLETEDENTRY']._serialized_end=1231
+  _globals['_DURABLETASKSERVEREVICTNOTICE']._serialized_start=1233
+  _globals['_DURABLETASKSERVEREVICTNOTICE']._serialized_end=1339
+  _globals['_DURABLETASKWORKERSTATUSREQUEST']._serialized_start=1341
+  _globals['_DURABLETASKWORKERSTATUSREQUEST']._serialized_end=1455
+  _globals['_DURABLETASKCOMPLETEMEMOREQUEST']._serialized_start=1457
+  _globals['_DURABLETASKCOMPLETEMEMOREQUEST']._serialized_end=1566
+  _globals['_DURABLETASKMEMOREQUEST']._serialized_start=1569
+  _globals['_DURABLETASKMEMOREQUEST']._serialized_end=1700
+  _globals['_DURABLETASKTRIGGERRUNSREQUEST']._serialized_start=1703
+  _globals['_DURABLETASKTRIGGERRUNSREQUEST']._serialized_end=1844
+  _globals['_DURABLETASKWAITFORREQUEST']._serialized_start=1847
+  _globals['_DURABLETASKWAITFORREQUEST']._serialized_end=2028
+  _globals['_DURABLETASKREQUEST']._serialized_start=2031
+  _globals['_DURABLETASKREQUEST']._serialized_end=2470
+  _globals['_DURABLETASKERRORRESPONSE']._serialized_start=2473
+  _globals['_DURABLETASKERRORRESPONSE']._serialized_end=2610
+  _globals['_DURABLETASKRESPONSE']._serialized_start=2613
+  _globals['_DURABLETASKRESPONSE']._serialized_end=3143
+  _globals['_REGISTERDURABLEEVENTREQUEST']._serialized_start=3145
+  _globals['_REGISTERDURABLEEVENTREQUEST']._serialized_end=3267
+  _globals['_REGISTERDURABLEEVENTRESPONSE']._serialized_start=3269
+  _globals['_REGISTERDURABLEEVENTRESPONSE']._serialized_end=3299
+  _globals['_LISTENFORDURABLEEVENTREQUEST']._serialized_start=3301
+  _globals['_LISTENFORDURABLEEVENTREQUEST']._serialized_end=3368
+  _globals['_DURABLEEVENT']._serialized_start=3370
+  _globals['_DURABLEEVENT']._serialized_end=3435
+  _globals['_V1DISPATCHER']._serialized_start=3547
+  _globals['_V1DISPATCHER']._serialized_end=3807
 # @@protoc_insertion_point(module_scope)

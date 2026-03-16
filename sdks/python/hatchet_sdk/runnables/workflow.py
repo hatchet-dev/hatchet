@@ -32,6 +32,15 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
+from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.contextvars import (
+    ctx_durable_context,
+)
+from hatchet_sdk.runnables.eviction import (
+    DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+    EvictionPolicy,
+)
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     EmptyModel,
@@ -797,6 +806,26 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
+
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            config = WorkflowRunTriggerConfig(
+                workflow_name=self.config.name,
+                input=self._serialize_input(input, target="string"),
+                options=self._create_options_with_combined_additional_meta(options),
+            )
+            refs = await durable_ctx._spawn_children_no_wait([config])
+            if not refs:
+                raise RuntimeError(
+                    "Failed to spawn durable child workflow: no run references returned"
+                )
+            node_id, branch_id, workflow_name = refs[0]
+            return await durable_ctx._aio_result_for_spawned_child(
+                node_id=node_id,
+                branch_id=branch_id,
+                workflow_name=workflow_name,
+            )
+
         ref = await self._client._client.admin.aio_run_workflow(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
@@ -911,6 +940,23 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param wait_for_result: If True, await completion and return results. If False, return a list of WorkflowRunRef immediately.
         :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
+
+        ## fixme: this might need a no-wait flavor?
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            spawned_refs = await durable_ctx._spawn_children_no_wait(workflows)
+            return await asyncio.gather(
+                *[
+                    durable_ctx._aio_result_for_spawned_child(
+                        node_id=node_id,
+                        branch_id=branch_id,
+                        workflow_name=workflow_name,
+                    )
+                    for node_id, branch_id, workflow_name in spawned_refs
+                ],
+                return_exceptions=return_exceptions,
+            )
+
         refs = await self._client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
@@ -1105,6 +1151,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[
@@ -1145,6 +1192,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param skip_if: A list of conditions that, if met, will cause the task to be skipped.
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
+
+        :param eviction_policy: An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -1193,6 +1242,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                durable_eviction=eviction_policy,
             )
 
             self._durable_tasks.append(task)
@@ -1439,11 +1489,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if isinstance(result, BaseException):
             return result
 
-        ## if a task is cancelled, we can get `None` back here
+        # if a task is cancelled, we can get `None` back here
         ## this is a bit of an edge case since both `None` and an empty dict
         ## would cause Pydantic validation errors, but if you were expecting a `dict`
         ## return, then the empty dict would not error and would work correctly
-        output = result.get(self._task.name) or {}
+
+        # Durable child callbacks can return the task payload directly, while
+        # non-durable child runs typically return {task_name: payload}.
+        output = result.get(self._task.name) or result or {}
 
         return cast(
             R,

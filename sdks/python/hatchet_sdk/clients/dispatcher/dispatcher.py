@@ -4,10 +4,15 @@ from sys import version_info
 from typing import cast
 
 import grpc.aio
+import tenacity
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.rest.tenacity_utils import (
+    tenacity_retry,
+    tenacity_alert_retry,
+    tenacity_should_retry,
+)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -95,23 +100,36 @@ class DispatcherClient:
 
         return ActionListener(self.config, response.worker_id)
 
-    async def get_version(self) -> str:
-        """Call GetVersion RPC. Returns the engine semantic version string.
+    @tenacity.retry(
+        reraise=True,
+        wait=tenacity.wait_exponential_jitter(initial=0.5, max=5),
+        stop=tenacity.stop_after_attempt(3),
+        before_sleep=tenacity_alert_retry,
+        retry=tenacity.retry_if_exception(tenacity_should_retry),
+    )
+    async def get_version(self) -> str | None:
+        """Call GetVersion RPC. Returns the engine semantic version string,
+        or ``None`` if the engine is too old to support GetVersion.
 
-        Raises grpc.RpcError with UNIMPLEMENTED on older engines.
+        Retries transient gRPC errors up to 3 times with exponential backoff.
         """
         if not self.aio_client:
             aio_conn = new_conn(self.config, True)
             self.aio_client = DispatcherStub(aio_conn)
 
-        response = cast(
-            GetVersionResponse,
-            await self.aio_client.GetVersion(  # type: ignore[misc]
-                GetVersionRequest(),
-                timeout=DEFAULT_REGISTER_TIMEOUT,
-                metadata=create_authorization_header(self.token),
-            ),
-        )
+        try:
+            response = cast(
+                GetVersionResponse,
+                await self.aio_client.GetVersion(  # type: ignore[misc]
+                    GetVersionRequest(),
+                    timeout=DEFAULT_REGISTER_TIMEOUT,
+                    metadata=create_authorization_header(self.token),
+                ),
+            )
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.UNIMPLEMENTED:
+                return None
+            raise
 
         return response.version
 

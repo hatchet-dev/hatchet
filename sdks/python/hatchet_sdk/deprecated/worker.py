@@ -205,6 +205,7 @@ def _legacy_run_action_runner(
             worker.name + name_suffix,
             action_registry,
             max_runs,
+            max_runs,
             worker._config,
             action_queue,
             event_queue,

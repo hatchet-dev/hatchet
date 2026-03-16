@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
 import type { BaseWorkflowDeclaration } from '@hatchet-dev/typescript-sdk/v1';
 import { Worker } from '../../client/worker/worker';
+import { supportsEviction } from '../../client/worker/engine-version';
+import { fetchEngineVersion } from '../../client/worker/deprecated/legacy-worker';
 
 export function requireEnv(name: string): string {
   const value = process.env[name];
@@ -48,6 +50,15 @@ export async function stopWorker(worker: Worker | undefined) {
   }
   await worker.stop();
   await sleep(300);
+}
+
+/**
+ * Checks whether the connected engine supports durable eviction.
+ * Call from beforeAll / beforeEach and skip tests when false.
+ */
+export async function checkDurableEvictionSupport(client: HatchetClient): Promise<boolean> {
+  const version = await fetchEngineVersion(client).catch(() => undefined);
+  return supportsEviction(version);
 }
 
 export async function poll<T>(

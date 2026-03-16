@@ -26,6 +26,10 @@ from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import ctx_hatchet_context
+from hatchet_sdk.runnables.eviction import (
+    DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+    EvictionPolicy,
+)
 from hatchet_sdk.runnables.types import (
     DefaultFilter,
     EmptyModel,
@@ -200,6 +204,14 @@ class Hatchet:
         The current namespace you're interacting with.
         """
         return self._client.config.namespace
+
+    async def aio_get_engine_version(self) -> str | None:
+        """Fetch the engine version via the dispatcher's GetVersion RPC.
+
+        :return: The engine version string, or ``None`` if the engine is too old
+            to support GetVersion.
+        """
+        return await self._client.dispatcher.get_version()
 
     def worker(
         self,
@@ -574,6 +586,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -605,6 +618,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[
@@ -639,6 +653,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> (
         Callable[
             [
@@ -696,6 +711,8 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
+        :param eviction_policy: An optional eviction policy controlling when idle durable tasks are evicted from workers.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -741,6 +758,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+                eviction_policy=eviction_policy,
             )
 
             return Standalone[TWorkflowInput, R](

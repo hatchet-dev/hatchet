@@ -8,9 +8,8 @@ EVENT_KEY = "user:update"
 # > Durable Event
 @hatchet.durable_task(name="DurableEventTask")
 async def durable_event_task(input: EmptyModel, ctx: DurableContext) -> None:
-    res = await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(event_key="user:update"),
+    res = await ctx.aio_wait_for_event(
+        "user:update",
     )
 
     print("got event", res)
@@ -24,12 +23,7 @@ async def durable_event_task_with_filter(
     input: EmptyModel, ctx: DurableContext
 ) -> None:
     # > Durable Event With Filter
-    res = await ctx.aio_wait_for(
-        "event",
-        UserEventCondition(
-            event_key="user:update", expression="input.user_id == '1234'"
-        ),
-    )
+    res = await ctx.aio_wait_for_event("user:update", "input.user_id == '1234'")
     # !!
 
     print("got event", res)
