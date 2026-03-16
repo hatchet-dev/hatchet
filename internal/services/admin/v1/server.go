@@ -672,13 +672,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		}
 	}
 
-	a.analytics.Enqueue(
-		ctx,
-		analytics.Workflow, analytics.Create,
-		currWorkflow.WorkflowVersion.WorkflowId.String(),
-		nil,
-	)
-
 	// notify that a new set of queues have been created
 	// important: this assumes that actions correspond 1:1 with queues, which they do at the moment
 	// but might not in the future

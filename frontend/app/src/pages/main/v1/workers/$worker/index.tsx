@@ -135,7 +135,10 @@ export default function WorkerDetail() {
   });
 
   const registeredWorkflows = useMemo(
-    () => worker?.registeredWorkflows || [],
+    () =>
+      worker?.registeredWorkflows?.sort((a, b) =>
+        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+      ) ?? [],
     [worker],
   );
 
