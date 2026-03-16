@@ -9,6 +9,7 @@ import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 import type { CallContext, CallOptions } from 'nice-grpc-common';
 import { Timestamp } from '../google/protobuf/timestamp';
 import { TaskConditions } from './shared/condition';
+import { DesiredWorkerLabels } from './shared/trigger';
 
 export const protobufPackage = 'v1';
 
@@ -114,6 +115,7 @@ export enum RunStatus {
   COMPLETED = 2,
   FAILED = 3,
   CANCELLED = 4,
+  EVICTED = 5,
   UNRECOGNIZED = -1,
 }
 
@@ -134,6 +136,9 @@ export function runStatusFromJSON(object: any): RunStatus {
     case 4:
     case 'CANCELLED':
       return RunStatus.CANCELLED;
+    case 5:
+    case 'EVICTED':
+      return RunStatus.EVICTED;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -153,6 +158,8 @@ export function runStatusToJSON(object: RunStatus): string {
       return 'FAILED';
     case RunStatus.CANCELLED:
       return 'CANCELLED';
+    case RunStatus.EVICTED:
+      return 'EVICTED';
     case RunStatus.UNRECOGNIZED:
     default:
       return 'UNRECOGNIZED';
@@ -212,63 +219,6 @@ export function concurrencyLimitStrategyToJSON(object: ConcurrencyLimitStrategy)
   }
 }
 
-export enum WorkerLabelComparator {
-  EQUAL = 0,
-  NOT_EQUAL = 1,
-  GREATER_THAN = 2,
-  GREATER_THAN_OR_EQUAL = 3,
-  LESS_THAN = 4,
-  LESS_THAN_OR_EQUAL = 5,
-  UNRECOGNIZED = -1,
-}
-
-export function workerLabelComparatorFromJSON(object: any): WorkerLabelComparator {
-  switch (object) {
-    case 0:
-    case 'EQUAL':
-      return WorkerLabelComparator.EQUAL;
-    case 1:
-    case 'NOT_EQUAL':
-      return WorkerLabelComparator.NOT_EQUAL;
-    case 2:
-    case 'GREATER_THAN':
-      return WorkerLabelComparator.GREATER_THAN;
-    case 3:
-    case 'GREATER_THAN_OR_EQUAL':
-      return WorkerLabelComparator.GREATER_THAN_OR_EQUAL;
-    case 4:
-    case 'LESS_THAN':
-      return WorkerLabelComparator.LESS_THAN;
-    case 5:
-    case 'LESS_THAN_OR_EQUAL':
-      return WorkerLabelComparator.LESS_THAN_OR_EQUAL;
-    case -1:
-    case 'UNRECOGNIZED':
-    default:
-      return WorkerLabelComparator.UNRECOGNIZED;
-  }
-}
-
-export function workerLabelComparatorToJSON(object: WorkerLabelComparator): string {
-  switch (object) {
-    case WorkerLabelComparator.EQUAL:
-      return 'EQUAL';
-    case WorkerLabelComparator.NOT_EQUAL:
-      return 'NOT_EQUAL';
-    case WorkerLabelComparator.GREATER_THAN:
-      return 'GREATER_THAN';
-    case WorkerLabelComparator.GREATER_THAN_OR_EQUAL:
-      return 'GREATER_THAN_OR_EQUAL';
-    case WorkerLabelComparator.LESS_THAN:
-      return 'LESS_THAN';
-    case WorkerLabelComparator.LESS_THAN_OR_EQUAL:
-      return 'LESS_THAN_OR_EQUAL';
-    case WorkerLabelComparator.UNRECOGNIZED:
-    default:
-      return 'UNRECOGNIZED';
-  }
-}
-
 export interface CancelTasksRequest {
   /** a list of external UUIDs */
   externalIds: string[];
@@ -312,6 +262,24 @@ export interface TriggerWorkflowRunRequest_DesiredWorkerLabelsEntry {
 
 export interface TriggerWorkflowRunResponse {
   externalId: string;
+}
+
+export interface BranchDurableTaskRequest {
+  /** (required) the external id (uuid) of the durable task */
+  taskExternalId: string;
+  /** (required) the node id to branch from */
+  nodeId: number;
+  /** (required) the branch id to branch from */
+  branchId: number;
+}
+
+export interface BranchDurableTaskResponse {
+  /** the external id of the durable task */
+  taskExternalId: string;
+  /** the node id of the new entry */
+  nodeId: number;
+  /** the branch id of the new entry */
+  branchId: number;
 }
 
 /** CreateWorkflowVersionRequest represents options to create a workflow version. */
@@ -362,29 +330,6 @@ export interface Concurrency {
   maxRuns?: number | undefined;
   /** (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS */
   limitStrategy?: ConcurrencyLimitStrategy | undefined;
-}
-
-export interface DesiredWorkerLabels {
-  /** value of the affinity */
-  strValue?: string | undefined;
-  intValue?: number | undefined;
-  /**
-   * (optional) Specifies whether the affinity setting is required.
-   * If required, the worker will not accept actions that do not have a truthy affinity setting.
-   *
-   * Defaults to false.
-   */
-  required?: boolean | undefined;
-  /**
-   * (optional) Specifies the comparator for the affinity setting.
-   * If not set, the default is EQUAL.
-   */
-  comparator?: WorkerLabelComparator | undefined;
-  /**
-   * (optional) Specifies the weight of the affinity setting.
-   * If not set, the default is 100.
-   */
-  weight?: number | undefined;
 }
 
 /** CreateTaskOpts represents options to create a task. */
@@ -468,6 +413,8 @@ export interface TaskRunDetail {
   output?: Uint8Array | undefined;
   /** the readable id of the task */
   readableId: string;
+  /** whether the task has been evicted from a worker (status will be RUNNING) */
+  isEvicted: boolean;
 }
 
 export interface GetRunDetailsResponse {
@@ -481,6 +428,8 @@ export interface GetRunDetailsResponse {
   done: boolean;
   /** (optional) additional metadata for the workflow run */
   additionalMetadata: Uint8Array;
+  /** whether any task in this run has been evicted */
+  isEvicted: boolean;
 }
 
 export interface GetRunDetailsResponse_TaskRunsEntry {
@@ -1226,6 +1175,196 @@ export const TriggerWorkflowRunResponse: MessageFns<TriggerWorkflowRunResponse> 
   },
 };
 
+function createBaseBranchDurableTaskRequest(): BranchDurableTaskRequest {
+  return { taskExternalId: '', nodeId: 0, branchId: 0 };
+}
+
+export const BranchDurableTaskRequest: MessageFns<BranchDurableTaskRequest> = {
+  encode(
+    message: BranchDurableTaskRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.taskExternalId !== '') {
+      writer.uint32(10).string(message.taskExternalId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(16).int64(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(24).int64(message.branchId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BranchDurableTaskRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBranchDurableTaskRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.taskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BranchDurableTaskRequest {
+    return {
+      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+    };
+  },
+
+  toJSON(message: BranchDurableTaskRequest): unknown {
+    const obj: any = {};
+    if (message.taskExternalId !== '') {
+      obj.taskExternalId = message.taskExternalId;
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<BranchDurableTaskRequest>): BranchDurableTaskRequest {
+    return BranchDurableTaskRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BranchDurableTaskRequest>): BranchDurableTaskRequest {
+    const message = createBaseBranchDurableTaskRequest();
+    message.taskExternalId = object.taskExternalId ?? '';
+    message.nodeId = object.nodeId ?? 0;
+    message.branchId = object.branchId ?? 0;
+    return message;
+  },
+};
+
+function createBaseBranchDurableTaskResponse(): BranchDurableTaskResponse {
+  return { taskExternalId: '', nodeId: 0, branchId: 0 };
+}
+
+export const BranchDurableTaskResponse: MessageFns<BranchDurableTaskResponse> = {
+  encode(
+    message: BranchDurableTaskResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.taskExternalId !== '') {
+      writer.uint32(10).string(message.taskExternalId);
+    }
+    if (message.nodeId !== 0) {
+      writer.uint32(16).int64(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      writer.uint32(24).int64(message.branchId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BranchDurableTaskResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBranchDurableTaskResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.taskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.nodeId = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.branchId = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BranchDurableTaskResponse {
+    return {
+      taskExternalId: isSet(object.taskExternalId) ? globalThis.String(object.taskExternalId) : '',
+      nodeId: isSet(object.nodeId) ? globalThis.Number(object.nodeId) : 0,
+      branchId: isSet(object.branchId) ? globalThis.Number(object.branchId) : 0,
+    };
+  },
+
+  toJSON(message: BranchDurableTaskResponse): unknown {
+    const obj: any = {};
+    if (message.taskExternalId !== '') {
+      obj.taskExternalId = message.taskExternalId;
+    }
+    if (message.nodeId !== 0) {
+      obj.nodeId = Math.round(message.nodeId);
+    }
+    if (message.branchId !== 0) {
+      obj.branchId = Math.round(message.branchId);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<BranchDurableTaskResponse>): BranchDurableTaskResponse {
+    return BranchDurableTaskResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BranchDurableTaskResponse>): BranchDurableTaskResponse {
+    const message = createBaseBranchDurableTaskResponse();
+    message.taskExternalId = object.taskExternalId ?? '';
+    message.nodeId = object.nodeId ?? 0;
+    message.branchId = object.branchId ?? 0;
+    return message;
+  },
+};
+
 function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest {
   return {
     name: '',
@@ -1716,138 +1855,6 @@ export const Concurrency: MessageFns<Concurrency> = {
     message.expression = object.expression ?? '';
     message.maxRuns = object.maxRuns ?? undefined;
     message.limitStrategy = object.limitStrategy ?? undefined;
-    return message;
-  },
-};
-
-function createBaseDesiredWorkerLabels(): DesiredWorkerLabels {
-  return {
-    strValue: undefined,
-    intValue: undefined,
-    required: undefined,
-    comparator: undefined,
-    weight: undefined,
-  };
-}
-
-export const DesiredWorkerLabels: MessageFns<DesiredWorkerLabels> = {
-  encode(message: DesiredWorkerLabels, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.strValue !== undefined) {
-      writer.uint32(10).string(message.strValue);
-    }
-    if (message.intValue !== undefined) {
-      writer.uint32(16).int32(message.intValue);
-    }
-    if (message.required !== undefined) {
-      writer.uint32(24).bool(message.required);
-    }
-    if (message.comparator !== undefined) {
-      writer.uint32(32).int32(message.comparator);
-    }
-    if (message.weight !== undefined) {
-      writer.uint32(40).int32(message.weight);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): DesiredWorkerLabels {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDesiredWorkerLabels();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.strValue = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.intValue = reader.int32();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.required = reader.bool();
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.comparator = reader.int32() as any;
-          continue;
-        }
-        case 5: {
-          if (tag !== 40) {
-            break;
-          }
-
-          message.weight = reader.int32();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): DesiredWorkerLabels {
-    return {
-      strValue: isSet(object.strValue) ? globalThis.String(object.strValue) : undefined,
-      intValue: isSet(object.intValue) ? globalThis.Number(object.intValue) : undefined,
-      required: isSet(object.required) ? globalThis.Boolean(object.required) : undefined,
-      comparator: isSet(object.comparator)
-        ? workerLabelComparatorFromJSON(object.comparator)
-        : undefined,
-      weight: isSet(object.weight) ? globalThis.Number(object.weight) : undefined,
-    };
-  },
-
-  toJSON(message: DesiredWorkerLabels): unknown {
-    const obj: any = {};
-    if (message.strValue !== undefined) {
-      obj.strValue = message.strValue;
-    }
-    if (message.intValue !== undefined) {
-      obj.intValue = Math.round(message.intValue);
-    }
-    if (message.required !== undefined) {
-      obj.required = message.required;
-    }
-    if (message.comparator !== undefined) {
-      obj.comparator = workerLabelComparatorToJSON(message.comparator);
-    }
-    if (message.weight !== undefined) {
-      obj.weight = Math.round(message.weight);
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<DesiredWorkerLabels>): DesiredWorkerLabels {
-    return DesiredWorkerLabels.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<DesiredWorkerLabels>): DesiredWorkerLabels {
-    const message = createBaseDesiredWorkerLabels();
-    message.strValue = object.strValue ?? undefined;
-    message.intValue = object.intValue ?? undefined;
-    message.required = object.required ?? undefined;
-    message.comparator = object.comparator ?? undefined;
-    message.weight = object.weight ?? undefined;
     return message;
   },
 };
@@ -2673,7 +2680,14 @@ export const GetRunDetailsRequest: MessageFns<GetRunDetailsRequest> = {
 };
 
 function createBaseTaskRunDetail(): TaskRunDetail {
-  return { externalId: '', status: 0, error: undefined, output: undefined, readableId: '' };
+  return {
+    externalId: '',
+    status: 0,
+    error: undefined,
+    output: undefined,
+    readableId: '',
+    isEvicted: false,
+  };
 }
 
 export const TaskRunDetail: MessageFns<TaskRunDetail> = {
@@ -2692,6 +2706,9 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
     }
     if (message.readableId !== '') {
       writer.uint32(42).string(message.readableId);
+    }
+    if (message.isEvicted !== false) {
+      writer.uint32(48).bool(message.isEvicted);
     }
     return writer;
   },
@@ -2743,6 +2760,14 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
           message.readableId = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.isEvicted = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2759,6 +2784,7 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
       error: isSet(object.error) ? globalThis.String(object.error) : undefined,
       output: isSet(object.output) ? bytesFromBase64(object.output) : undefined,
       readableId: isSet(object.readableId) ? globalThis.String(object.readableId) : '',
+      isEvicted: isSet(object.isEvicted) ? globalThis.Boolean(object.isEvicted) : false,
     };
   },
 
@@ -2779,6 +2805,9 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
     if (message.readableId !== '') {
       obj.readableId = message.readableId;
     }
+    if (message.isEvicted !== false) {
+      obj.isEvicted = message.isEvicted;
+    }
     return obj;
   },
 
@@ -2792,6 +2821,7 @@ export const TaskRunDetail: MessageFns<TaskRunDetail> = {
     message.error = object.error ?? undefined;
     message.output = object.output ?? undefined;
     message.readableId = object.readableId ?? '';
+    message.isEvicted = object.isEvicted ?? false;
     return message;
   },
 };
@@ -2803,6 +2833,7 @@ function createBaseGetRunDetailsResponse(): GetRunDetailsResponse {
     taskRuns: {},
     done: false,
     additionalMetadata: new Uint8Array(0),
+    isEvicted: false,
   };
 }
 
@@ -2825,6 +2856,9 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
     }
     if (message.additionalMetadata.length !== 0) {
       writer.uint32(42).bytes(message.additionalMetadata);
+    }
+    if (message.isEvicted !== false) {
+      writer.uint32(48).bool(message.isEvicted);
     }
     return writer;
   },
@@ -2879,6 +2913,14 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
           message.additionalMetadata = reader.bytes();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.isEvicted = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2902,6 +2944,7 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
           )
         : {},
       done: isSet(object.done) ? globalThis.Boolean(object.done) : false,
+      isEvicted: isSet(object.isEvicted) ? globalThis.Boolean(object.isEvicted) : false,
       additionalMetadata: isSet(object.additionalMetadata)
         ? bytesFromBase64(object.additionalMetadata)
         : new Uint8Array(0),
@@ -2928,6 +2971,9 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
     if (message.done !== false) {
       obj.done = message.done;
     }
+    if (message.isEvicted !== false) {
+      obj.isEvicted = message.isEvicted;
+    }
     if (message.additionalMetadata.length !== 0) {
       obj.additionalMetadata = base64FromBytes(message.additionalMetadata);
     }
@@ -2950,6 +2996,7 @@ export const GetRunDetailsResponse: MessageFns<GetRunDetailsResponse> = {
       return acc;
     }, {});
     message.done = object.done ?? false;
+    message.isEvicted = object.isEvicted ?? false;
     message.additionalMetadata = object.additionalMetadata ?? new Uint8Array(0);
     return message;
   },
@@ -3088,6 +3135,14 @@ export const AdminServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    branchDurableTask: {
+      name: 'BranchDurableTask',
+      requestType: BranchDurableTaskRequest,
+      requestStream: false,
+      responseType: BranchDurableTaskResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -3112,6 +3167,10 @@ export interface AdminServiceImplementation<CallContextExt = {}> {
     request: GetRunDetailsRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<GetRunDetailsResponse>>;
+  branchDurableTask(
+    request: BranchDurableTaskRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<BranchDurableTaskResponse>>;
 }
 
 export interface AdminServiceClient<CallOptionsExt = {}> {
@@ -3135,6 +3194,10 @@ export interface AdminServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<GetRunDetailsRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<GetRunDetailsResponse>;
+  branchDurableTask(
+    request: DeepPartial<BranchDurableTaskRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<BranchDurableTaskResponse>;
 }
 
 function bytesFromBase64(b64: string): Uint8Array {
@@ -3194,6 +3257,17 @@ function fromJsonTimestamp(o: any): Date {
   } else {
     return fromTimestamp(Timestamp.fromJSON(o));
   }
+}
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+  }
+  return num;
 }
 
 function isObject(value: any): boolean {

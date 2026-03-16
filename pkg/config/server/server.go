@@ -561,6 +561,11 @@ type AuthConfig struct {
 	JWTManager token.JWTManager
 
 	CustomAuthenticator CustomAuthenticator
+
+	// Operations listed here bypass the tenant RBAC check. Use this for
+	// extension operations (e.g. cloud) that handle their own authorization
+	// in handlers. OSS operations in rbac.yaml are still fully checked.
+	AllowedOperations []string
 }
 
 type PylonConfig struct {

@@ -1,5 +1,7 @@
 import { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
+import { createAction } from '@hatchet/clients/dispatcher/action-listener';
 import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
+import { ActionType } from '@hatchet-dev/typescript-sdk/protoc/dispatcher';
 
 describe('V1Worker handleCancelStepRun cancellation supervision', () => {
   beforeEach(() => {
@@ -19,6 +21,8 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
     };
 
     const taskExternalId = 'task-1';
+    const retryCount = 0;
+    const actionKey = `${taskExternalId}/${retryCount}`;
 
     // Use the real HatchetPromise behavior: cancel rejects the wrapper immediately,
     // while the underlying work (`inner`) continues.
@@ -43,11 +47,32 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
         },
       },
       cancellingTaskRuns: new Set(),
-      futures: { [taskExternalId]: future },
-      contexts: { [taskExternalId]: ctx },
+      evictionManager: undefined,
+      futures: { [actionKey]: future },
+      contexts: { [actionKey]: ctx },
+      cleanupRun(id: string) {
+        this.evictionManager?.unregisterRun(id);
+        delete this.futures[id];
+        delete this.contexts[id];
+      },
     };
 
-    const action: any = { taskRunExternalId: taskExternalId };
+    const action = createAction({
+      taskRunExternalId: taskExternalId,
+      retryCount,
+      tenantId: 'tenant-1',
+      workflowRunId: 'workflow-run-1',
+      getGroupKeyRunId: '',
+      jobId: 'job-1',
+      jobName: 'job-1',
+      jobRunId: 'job-run-1',
+      taskId: 'task-1',
+      actionId: 'action-1',
+      actionType: ActionType.START_STEP_RUN,
+      actionPayload: 'action-payload-1',
+      taskName: 'task-1',
+      priority: 1,
+    });
 
     const p = InternalWorker.prototype.handleCancelStepRun.call(fakeThis, action);
 
@@ -58,8 +83,8 @@ describe('V1Worker handleCancelStepRun cancellation supervision', () => {
     expect(cancelSpy).toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
 
-    expect(fakeThis.futures[taskExternalId]).toBeUndefined();
-    expect(fakeThis.contexts[taskExternalId]).toBeUndefined();
+    expect(fakeThis.futures[actionKey]).toBeUndefined();
+    expect(fakeThis.contexts[actionKey]).toBeUndefined();
   });
 
   it('suppresses "was cancelled" debug log when cancellation is supervised', async () => {

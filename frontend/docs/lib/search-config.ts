@@ -144,7 +144,7 @@ function processTerm(term: string): string | null {
  * as single tokens so that code-pattern queries match precisely.
  */
 export const MINISEARCH_OPTIONS = {
-  fields: ["title", "content", "codeIdentifiers"] as string[],
+  fields: ["title", "content", "codeIdentifiers", "keywords"] as string[],
   storeFields: ["title", "pageTitle", "pageRoute"] as string[],
   processTerm,
 };
@@ -153,7 +153,7 @@ export const MINISEARCH_OPTIONS = {
  * Default search options for querying the index.
  */
 export const SEARCH_OPTIONS = {
-  boost: { title: 2, codeIdentifiers: 3 },
+  boost: { title: 2, codeIdentifiers: 3, keywords: 5 },
   prefix: true,
   fuzzy: 0.2,
   combineWith: "OR" as const,
@@ -390,6 +390,12 @@ export function rerankResults<T extends { id: string; score: number; [k: string]
       }
       if (queryTerms.length > 0) {
         boost *= 1 + (routeTermHits / queryTerms.length) * 0.5;
+      }
+
+      // Downrank API reference pages — they're useful but shouldn't crowd
+      // out conceptual docs for general queries.
+      if (route.startsWith("reference/")) {
+        boost *= 0.3;
       }
 
       return { ...r, score: r.score * boost };

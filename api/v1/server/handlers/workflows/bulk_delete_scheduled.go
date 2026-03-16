@@ -29,6 +29,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 	defer cancel()
 
 	var ids []uuid.UUID
+	usedFilter := request.Body.Filter != nil
 	if request.Body.ScheduledWorkflowRunIds != nil {
 		ids = *request.Body.ScheduledWorkflowRunIds
 	}
@@ -110,6 +111,13 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 	}
 
 	if len(ids) == 0 {
+		if usedFilter {
+			return gen.WorkflowScheduledBulkDelete200JSONResponse(gen.ScheduledWorkflowsBulkDeleteResponse{
+				DeletedIds: []uuid.UUID{},
+				Errors:     errors,
+			}), nil
+		}
+
 		return gen.WorkflowScheduledBulkDelete400JSONResponse(apierrors.NewAPIErrors("Provide scheduledWorkflowRunIds or filter.")), nil
 	}
 

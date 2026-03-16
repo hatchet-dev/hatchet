@@ -535,6 +535,40 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
 
+func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map[string]*v1.DesiredWorkerLabels {
+	if labels == nil {
+		return nil
+	}
+
+	result := make(map[string]*v1.DesiredWorkerLabels, len(labels))
+
+	for key, label := range labels {
+		proto := &v1.DesiredWorkerLabels{
+			Required: &label.Required,
+			Weight:   &label.Weight,
+		}
+
+		if label.Comparator != nil {
+			comparator := v1.WorkerLabelComparator(*label.Comparator)
+			proto.Comparator = &comparator
+		}
+
+		switch v := label.Value.(type) {
+		case string:
+			proto.StrValue = &v
+		case int:
+			intVal := int32(v) // nolint: gosec
+			proto.IntValue = &intVal
+		case int32:
+			proto.IntValue = &v
+		}
+
+		result[key] = proto
+	}
+
+	return result
+}
+
 // Deprecated: SpawnWorkflowsOpts is an internal type used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SpawnWorkflowsOpts struct {

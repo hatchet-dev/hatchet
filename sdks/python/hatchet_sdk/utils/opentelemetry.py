@@ -41,3 +41,8 @@ class OTelAttribute(str, Enum):
 
     ## Schedule Workflow
     RUN_AT_TIMESTAMPS = "run_at_timestamps"
+
+    ## Durable Context
+    SIGNAL_KEY = "signal_key"
+    NUM_CONDITIONS = "num_conditions"
+    MEMO_FN_NAME = "memo_fn_name"

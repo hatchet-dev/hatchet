@@ -49,7 +49,7 @@ def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 @hatchet.durable_task()
-def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("Executing durable task!")
     return {"result": "Hello from durable!"}
 

@@ -477,7 +477,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	s.analytics.Count(ctx, analytics.Worker, analytics.Release)
-	return s.releaseSlotV1(ctx, tenant, req)
+	return s.releaseSlot(ctx, tenant, req)
+}
+
+func (s *DispatcherImpl) RestoreEvictedTask(ctx context.Context, req *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	s.analytics.Count(ctx, analytics.DurableTask, analytics.Restore)
+
+	return s.restoreEvictedTask(ctx, tenant, req)
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {

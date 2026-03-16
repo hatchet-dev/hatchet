@@ -1,6 +1,7 @@
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as _trigger_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -29,15 +30,6 @@ class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     GROUP_ROUND_ROBIN: _ClassVar[ConcurrencyLimitStrategy]
     CANCEL_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
 
-class WorkerLabelComparator(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    EQUAL: _ClassVar[WorkerLabelComparator]
-    NOT_EQUAL: _ClassVar[WorkerLabelComparator]
-    GREATER_THAN: _ClassVar[WorkerLabelComparator]
-    GREATER_THAN_OR_EQUAL: _ClassVar[WorkerLabelComparator]
-    LESS_THAN: _ClassVar[WorkerLabelComparator]
-    LESS_THAN_OR_EQUAL: _ClassVar[WorkerLabelComparator]
-
 class RateLimitDuration(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     SECOND: _ClassVar[RateLimitDuration]
@@ -57,12 +49,6 @@ DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
 GROUP_ROUND_ROBIN: ConcurrencyLimitStrategy
 CANCEL_NEWEST: ConcurrencyLimitStrategy
-EQUAL: WorkerLabelComparator
-NOT_EQUAL: WorkerLabelComparator
-GREATER_THAN: WorkerLabelComparator
-GREATER_THAN_OR_EQUAL: WorkerLabelComparator
-LESS_THAN: WorkerLabelComparator
-LESS_THAN_OR_EQUAL: WorkerLabelComparator
 SECOND: RateLimitDuration
 MINUTE: RateLimitDuration
 HOUR: RateLimitDuration
@@ -131,20 +117,6 @@ class CreateWorkflowJobOpts(_message.Message):
     steps: _containers.RepeatedCompositeFieldContainer[CreateWorkflowStepOpts]
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., steps: _Optional[_Iterable[_Union[CreateWorkflowStepOpts, _Mapping]]] = ...) -> None: ...
 
-class DesiredWorkerLabels(_message.Message):
-    __slots__ = ("str_value", "int_value", "required", "comparator", "weight")
-    STR_VALUE_FIELD_NUMBER: _ClassVar[int]
-    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
-    REQUIRED_FIELD_NUMBER: _ClassVar[int]
-    COMPARATOR_FIELD_NUMBER: _ClassVar[int]
-    WEIGHT_FIELD_NUMBER: _ClassVar[int]
-    str_value: str
-    int_value: int
-    required: bool
-    comparator: WorkerLabelComparator
-    weight: int
-    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
-
 class CreateWorkflowStepOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds")
     class WorkerLabelsEntry(_message.Message):
@@ -152,8 +124,8 @@ class CreateWorkflowStepOpts(_message.Message):
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
-        value: DesiredWorkerLabels
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
+        value: _trigger_pb2.DesiredWorkerLabels
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[_trigger_pb2.DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_FIELD_NUMBER: _ClassVar[int]
@@ -173,10 +145,10 @@ class CreateWorkflowStepOpts(_message.Message):
     user_data: str
     retries: int
     rate_limits: _containers.RepeatedCompositeFieldContainer[CreateStepRateLimit]
-    worker_labels: _containers.MessageMap[str, DesiredWorkerLabels]
+    worker_labels: _containers.MessageMap[str, _trigger_pb2.DesiredWorkerLabels]
     backoff_factor: float
     backoff_max_seconds: int
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateStepRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ...) -> None: ...
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateStepRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ...) -> None: ...
 
 class CreateStepRateLimit(_message.Message):
     __slots__ = ("key", "units", "key_expr", "units_expr", "limit_values_expr", "duration")
@@ -265,45 +237,14 @@ class WorkflowTriggerCronRef(_message.Message):
 class BulkTriggerWorkflowRequest(_message.Message):
     __slots__ = ("workflows",)
     WORKFLOWS_FIELD_NUMBER: _ClassVar[int]
-    workflows: _containers.RepeatedCompositeFieldContainer[TriggerWorkflowRequest]
-    def __init__(self, workflows: _Optional[_Iterable[_Union[TriggerWorkflowRequest, _Mapping]]] = ...) -> None: ...
+    workflows: _containers.RepeatedCompositeFieldContainer[_trigger_pb2.TriggerWorkflowRequest]
+    def __init__(self, workflows: _Optional[_Iterable[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]]] = ...) -> None: ...
 
 class BulkTriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_ids",)
     WORKFLOW_RUN_IDS_FIELD_NUMBER: _ClassVar[int]
     workflow_run_ids: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, workflow_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
-
-class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority", "desired_worker_labels")
-    class DesiredWorkerLabelsEntry(_message.Message):
-        __slots__ = ("key", "value")
-        KEY_FIELD_NUMBER: _ClassVar[int]
-        VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: str
-        value: DesiredWorkerLabels
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    INPUT_FIELD_NUMBER: _ClassVar[int]
-    PARENT_ID_FIELD_NUMBER: _ClassVar[int]
-    PARENT_TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
-    CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
-    CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
-    ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
-    DESIRED_WORKER_ID_FIELD_NUMBER: _ClassVar[int]
-    PRIORITY_FIELD_NUMBER: _ClassVar[int]
-    DESIRED_WORKER_LABELS_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    input: str
-    parent_id: str
-    parent_task_run_external_id: str
-    child_index: int
-    child_key: str
-    additional_metadata: str
-    desired_worker_id: str
-    priority: int
-    desired_worker_labels: _containers.MessageMap[str, DesiredWorkerLabels]
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)
@@ -324,3 +265,8 @@ class PutRateLimitRequest(_message.Message):
 class PutRateLimitResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+# Re-export for backwards compatibility
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import TriggerWorkflowRequest as TriggerWorkflowRequest
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels as DesiredWorkerLabels
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import WorkerLabelComparator as WorkerLabelComparator
