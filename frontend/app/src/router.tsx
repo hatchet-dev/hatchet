@@ -371,6 +371,19 @@ const tenantManagedWorkerRoute = createRoute({
   ),
 });
 
+const tenantOrganizationsAndTenantsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'organizations-and-tenants',
+  loader: async () => {
+    const mod = await import('./pages/main/v1/organizations-and-tenants');
+    return mod.loader();
+  },
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/organizations-and-tenants'),
+    'default',
+  ),
+});
+
 const tenantSettingsIndexRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings',
@@ -569,6 +582,7 @@ const tenantRoutes = [
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
   tenantManagedWorkerRoute,
+  tenantOrganizationsAndTenantsRoute,
   tenantSettingsIndexRoute,
   tenantSettingsOverviewRoute,
   tenantSettingsApiTokensRoute,
@@ -643,6 +657,7 @@ export const appRoutes = {
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
   tenantManagedWorkerRoute,
+  tenantOrganizationsAndTenantsRoute,
   tenantSettingsIndexRoute,
   tenantSettingsOverviewRoute,
   tenantSettingsApiTokensRoute,

@@ -1,6 +1,8 @@
 import { getCloudMetadataQuery } from './auth/hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
+import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
+import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
 import {
@@ -64,6 +66,12 @@ function AuthenticatedInner() {
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
+  >();
+  const [inviteModalTenantId, setInviteModalTenantId] = useState<
+    string | undefined
+  >();
+  const [orgInviteModal, setOrgInviteModal] = useState<
+    { organizationId: string; organizationName: string } | undefined
   >();
 
   const loaderData = useLoaderData({ from: '/' });
@@ -271,10 +279,29 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
+      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
         setDefaultOrganizationId(defaultOrganizationId);
         setNewTenantModalOpen(true);
       }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
+        setInviteModalTenantId(tenantId);
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on(
+        'create-organization-invite',
+        ({ organizationId, organizationName }) => {
+          setOrgInviteModal({ organizationId, organizationName });
+        },
+      ),
     [],
   );
 
@@ -329,6 +356,31 @@ function AuthenticatedInner() {
             </div>
           </DialogContent>
         </Dialog>
+        {inviteModalTenantId && (
+          <CreateTenantInviteModal
+            tenantId={inviteModalTenantId}
+            onClose={() => setInviteModalTenantId(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('tenant-invite-created', {
+                tenantId: inviteModalTenantId,
+                invite,
+              });
+            }}
+          />
+        )}
+        {orgInviteModal && (
+          <OrganizationInviteMemberModal
+            organizationId={orgInviteModal.organizationId}
+            organizationName={orgInviteModal.organizationName}
+            onClose={() => setOrgInviteModal(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('organization-invite-created', {
+                organizationId: orgInviteModal.organizationId,
+                invite,
+              });
+            }}
+          />
+        )}
       </SupportChat>
     </PostHogProvider>
   );
