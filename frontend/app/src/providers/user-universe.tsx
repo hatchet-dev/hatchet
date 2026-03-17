@@ -135,6 +135,12 @@ export const userUniverseQuery = ({
       return tenant;
     };
 
+    tenantMemberships.sort((a, b) => {
+      return a.tenant.name.localeCompare(b.tenant.name, undefined, {
+        sensitivity: 'base',
+      });
+    });
+
     organizations.forEach((organization) => {
       // I hereby declare this mutation inside of this query function to be ethical
       organization.tenants.sort((a, b) => {
