@@ -12,16 +12,16 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 		ctx, cancel := context.WithTimeout(ctx, 300*time.Second) // only runs once per day, so long context timeout
 		defer cancel()
 
-		t.l.Debug().Msg("ticker: polling expiring tokens")
+		t.l.Debug().Ctx(ctx).Msg("ticker: polling expiring tokens")
 
 		expiring_tokens, err := t.repov1.Ticker().PollExpiringTokens(ctx)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not poll expiring tokens")
+			t.l.Err(err).Ctx(ctx).Msg("could not poll expiring tokens")
 			return
 		}
 
-		t.l.Debug().Msgf("ticker: alerting %d expiring tokens", len(expiring_tokens))
+		t.l.Debug().Ctx(ctx).Msgf("ticker: alerting %d expiring tokens", len(expiring_tokens))
 
 		for _, expiring_token := range expiring_tokens {
 			tenantId := expiring_token.TenantId
@@ -30,7 +30,7 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 				continue
 			}
 
-			t.l.Debug().Msgf("ticker: handling expiring token for tenant %s", tenantId)
+			t.l.Debug().Ctx(ctx).Msgf("ticker: handling expiring token for tenant %s", tenantId)
 
 			innerErr := t.ta.SendExpiringTokenAlert(*tenantId, expiring_token)
 
@@ -40,7 +40,7 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 		}
 
 		if err != nil {
-			t.l.Err(err).Msg("could not handle expiring tokens")
+			t.l.Err(err).Ctx(ctx).Msg("could not handle expiring tokens")
 		}
 	}
 }
@@ -50,30 +50,30 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
-		t.l.Debug().Msg("ticker: resolving tenant resource limits")
+		t.l.Debug().Ctx(ctx).Msg("ticker: resolving tenant resource limits")
 
 		err := t.repov1.TenantLimit().ResolveAllTenantResourceLimits(ctx)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not resolve tenant resource limits")
+			t.l.Err(err).Ctx(ctx).Msg("could not resolve tenant resource limits")
 			return
 		}
 
-		t.l.Debug().Msg("ticker: polling tenant resource limit alerts")
+		t.l.Debug().Ctx(ctx).Msg("ticker: polling tenant resource limit alerts")
 
 		alerts, err := t.repov1.Ticker().PollTenantResourceLimitAlerts(ctx)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not poll tenant resource limit alerts")
+			t.l.Err(err).Ctx(ctx).Msg("could not poll tenant resource limit alerts")
 			return
 		}
 
-		t.l.Debug().Msgf("ticker: alerting %d tenant resource limit alerts", len(alerts))
+		t.l.Debug().Ctx(ctx).Msgf("ticker: alerting %d tenant resource limit alerts", len(alerts))
 
 		for _, alert := range alerts {
 			tenantId := alert.TenantId
 
-			t.l.Debug().Msgf("ticker: handling tenant resource limit alert for tenant %s", tenantId)
+			t.l.Debug().Ctx(ctx).Msgf("ticker: handling tenant resource limit alert for tenant %s", tenantId)
 
 			innerErr := t.ta.SendTenantResourceLimitAlert(tenantId, alert)
 
@@ -83,7 +83,7 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		}
 
 		if err != nil {
-			t.l.Err(err).Msg("could not handle tenant resource limit alerts")
+			t.l.Err(err).Ctx(ctx).Msg("could not handle tenant resource limit alerts")
 		}
 	}
 }

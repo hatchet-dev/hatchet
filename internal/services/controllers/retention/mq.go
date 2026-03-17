@@ -12,13 +12,13 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Contex
 		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 
-		rc.l.Debug().Msgf("retention controller: deleting queue items")
+		rc.l.Debug().Ctx(ctx).Msgf("retention controller: deleting queue items")
 
 		// get internal tenant
 		tenant, err := rc.p.GetInternalTenantForController(ctx)
 
 		if err != nil {
-			rc.l.Error().Err(err).Msg("could not get internal tenant")
+			rc.l.Error().Ctx(ctx).Err(err).Msg("could not get internal tenant")
 			return
 		}
 
@@ -29,7 +29,7 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Contex
 		err = rc.runDeleteMessageQueueItemsQueries(ctx)
 
 		if err != nil {
-			rc.l.Err(err).Msg("could not run delete mq queue items")
+			rc.l.Err(err).Ctx(ctx).Msg("could not run delete mq queue items")
 		}
 	}
 }

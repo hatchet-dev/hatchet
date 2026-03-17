@@ -54,14 +54,12 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
-	re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
-
 	if err != nil {
-		if isInvalidArgument {
+		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
-		} else {
-			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
+
+		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
 	if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
@@ -118,14 +116,12 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	for i, workflow := range req.Workflows {
 		opt, err := a.newTriggerOpt(ctx, tenantId, workflow)
 
-		re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
-
 		if err != nil {
-			if isInvalidArgument {
+			if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
 				return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
-			} else {
-				return nil, fmt.Errorf("could not create trigger opt: %w", err)
 			}
+
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
 		if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
@@ -220,13 +216,11 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	t, err := i.repov1.Triggers().NewTriggerTaskData(ctx, tenantId, req, parentTask)
 
 	if err != nil {
-		re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
-
-		if isInvalidArgument {
+		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
 			return nil, re
-		} else {
-			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
+
+		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
 	return &v1.WorkflowNameTriggerOpts{
@@ -265,7 +259,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
-				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+				i.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
 			}
 		}
 
@@ -287,7 +281,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			dispatcherErr := eg.Wait()
 
 			if dispatcherErr != nil {
-				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+				i.l.Error().Ctx(ctx).Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 
 			// we return nil because the failed assignments would have been requeued by the local dispatcher,
@@ -304,7 +298,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			i.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+			i.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
 		} else if triggerErr == nil {
 			return nil
 		}

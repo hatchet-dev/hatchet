@@ -987,11 +987,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 raise RuntimeError(
                     "Failed to spawn durable child workflow: no run references returned"
                 )
-            node_id, branch_id, workflow_name = refs[0]
+
             return await durable_ctx._aio_result_for_spawned_child(
-                node_id=node_id,
-                branch_id=branch_id,
-                workflow_name=workflow_name,
+                node_id=refs[0].node_id,
+                branch_id=refs[0].branch_id,
+                workflow_name=refs[0].workflow_name,
             )
 
         ref = await self._client._client.admin.aio_run_workflow(
@@ -1116,11 +1116,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             return await asyncio.gather(
                 *[
                     durable_ctx._aio_result_for_spawned_child(
-                        node_id=node_id,
-                        branch_id=branch_id,
-                        workflow_name=workflow_name,
+                        node_id=ref.node_id,
+                        branch_id=ref.branch_id,
+                        workflow_name=ref.workflow_name,
                     )
-                    for node_id, branch_id, workflow_name in spawned_refs
+                    for ref in spawned_refs
                 ],
                 return_exceptions=return_exceptions,
             )

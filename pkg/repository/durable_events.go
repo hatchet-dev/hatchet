@@ -26,18 +26,18 @@ type TaskExternalIdNodeIdBranchId struct {
 }
 
 type SatisfiedEventWithPayload struct {
-	TaskExternalId  uuid.UUID
-	InvocationCount int32
+	Result          []byte
 	BranchID        int64
 	NodeID          int64
-	Result          []byte
+	InvocationCount int32
+	TaskExternalId  uuid.UUID
 }
 
 type BaseIngestEventOpts struct {
-	Kind            sqlcv1.V1DurableEventLogKind  `validate:"required"`
-	TenantId        uuid.UUID                     `validate:"required"`
 	Task            *sqlcv1.FlattenExternalIdsRow `validate:"required"`
+	Kind            sqlcv1.V1DurableEventLogKind  `validate:"required"`
 	InvocationCount int32
+	TenantId        uuid.UUID `validate:"required"`
 }
 
 type IngestMemoOpts struct {
@@ -61,43 +61,44 @@ type IngestDurableTaskEventOpts struct {
 }
 
 type IngestMemoResult struct {
-	InvocationCount int32
-	IsSatisfied     bool
+	ResultPayload   []byte
 	NodeId          int64
 	BranchId        int64
-	ResultPayload   []byte
+	InvocationCount int32
+	IsSatisfied     bool
 	AlreadyExisted  bool
 }
 
 type IngestTriggerRunsEntry struct {
-	NodeId         int64
-	BranchId       int64
-	IsSatisfied    bool
-	AlreadyExisted bool
-	ResultPayload  []byte
+	ResultPayload         []byte
+	NodeId                int64
+	BranchId              int64
+	WorkflowRunExternalId uuid.UUID
+	IsSatisfied           bool
+	AlreadyExisted        bool
 }
 
 type IngestTriggerRunsResult struct {
-	InvocationCount int32
 	Entries         []*IngestTriggerRunsEntry
 	CreatedTasks    []*V1TaskWithPayload
 	CreatedDAGs     []*DAGWithData
+	InvocationCount int32
 }
 
 type IngestWaitForResult struct {
-	InvocationCount int32
-	IsSatisfied     bool
+	ResultPayload   []byte
 	NodeId          int64
 	BranchId        int64
+	InvocationCount int32
+	IsSatisfied     bool
 	AlreadyExisted  bool
-	ResultPayload   []byte
 }
 
 type IngestDurableTaskEventResult struct {
-	Kind              sqlcv1.V1DurableEventLogKind
 	MemoResult        *IngestMemoResult
 	TriggerRunsResult *IngestTriggerRunsResult
 	WaitForResult     *IngestWaitForResult
+	Kind              sqlcv1.V1DurableEventLogKind
 }
 
 type HandleBranchResult struct {
@@ -107,19 +108,19 @@ type HandleBranchResult struct {
 }
 
 type IncrementDurableTaskInvocationCountsOpts struct {
-	TenantId       uuid.UUID
-	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
+	TaskId         int64
+	TenantId       uuid.UUID
 }
 
 type CompleteMemoEntryOpts struct {
-	TenantId        uuid.UUID
-	TaskExternalId  uuid.UUID
-	InvocationCount int32
-	BranchId        int64
-	NodeId          int64
 	MemoKey         []byte
 	Payload         []byte
+	BranchId        int64
+	NodeId          int64
+	InvocationCount int32
+	TenantId        uuid.UUID
+	TaskExternalId  uuid.UUID
 }
 
 type NodeIdBranchIdTuple struct {
@@ -152,17 +153,17 @@ type NonDeterminismDetail struct {
 }
 
 type NonDeterminismError struct {
-	NodeId                  int64
-	BranchId                int64
-	TaskExternalId          uuid.UUID
-	ExpectedIdempotencyKey  []byte
-	ActualIdempotencyKey    []byte
+	Detail                  *NonDeterminismDetail
+	ExistingEntryInsertedAt pgtype.Timestamptz
 	ExpectedKind            sqlcv1.V1DurableEventLogKind
 	ActualKind              sqlcv1.V1DurableEventLogKind
+	ExpectedIdempotencyKey  []byte
+	ActualIdempotencyKey    []byte
+	NodeId                  int64
+	BranchId                int64
 	ExistingEntryId         int64
-	ExistingEntryInsertedAt pgtype.Timestamptz
+	TaskExternalId          uuid.UUID
 	ExistingEntryTenantId   uuid.UUID
-	Detail                  *NonDeterminismDetail
 }
 
 func (m *NonDeterminismError) Error() string {
@@ -321,11 +322,11 @@ type GetOrCreateLogEntryOpt struct {
 }
 
 type GetOrCreateLogEntryOpts struct {
-	TenantId              uuid.UUID
-	DurableTaskId         int64
 	DurableTaskInsertedAt pgtype.Timestamptz
-	DurableTaskExternalId uuid.UUID
 	Entries               []GetOrCreateLogEntryOpt
+	DurableTaskId         int64
+	TenantId              uuid.UUID
+	DurableTaskExternalId uuid.UUID
 }
 
 type EventLogEntryWithPayloads struct {
@@ -663,9 +664,9 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			createParams.Issatisfieds = append(createParams.Issatisfieds, entry.IsSatisfied)
 		}
 
-		createdRows, err := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
-		if err != nil {
-			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", err)
+		createdRows, createErr := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
+		if createErr != nil {
+			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", createErr)
 		}
 
 		for _, createdRow := range createdRows {
@@ -955,12 +956,22 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
 		for i, entry := range logEntries {
+			triggerOpts, ok := nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
+				NodeId:   entry.Entry.NodeID,
+				BranchId: entry.Entry.BranchID,
+			}]
+
+			if !ok {
+				return nil, fmt.Errorf("missing trigger opts for nodeId %d and branchId %d", entry.Entry.NodeID, entry.Entry.BranchID)
+			}
+
 			entries[i] = &IngestTriggerRunsEntry{
-				NodeId:         entry.Entry.NodeID,
-				BranchId:       entry.Entry.BranchID,
-				IsSatisfied:    entry.Entry.IsSatisfied,
-				AlreadyExisted: entry.AlreadyExisted,
-				ResultPayload:  entry.ResultPayload,
+				NodeId:                entry.Entry.NodeID,
+				BranchId:              entry.Entry.BranchID,
+				IsSatisfied:           entry.Entry.IsSatisfied,
+				AlreadyExisted:        entry.AlreadyExisted,
+				ResultPayload:         entry.ResultPayload,
+				WorkflowRunExternalId: triggerOpts.ExternalId,
 			}
 		}
 

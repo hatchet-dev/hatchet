@@ -39,6 +39,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Context.fetch_task_run_error()` is deprecated. Use `Context.get_task_run_error()` instead.
 - Deprecates a number of internal properties and methods on the `Worker` and `Context` that are not intended for public use. These will be removed in v2.0.0.
 
+## [1.29.2] - 2026-03-17
+
+### Added
+
+- Added `list` and `aio_list` method for Rate Limits Client
+- Added `pause`, `unpause`, `aio_pause`, and `aio_unpause` methods for workers client
+
+## [1.29.1] - 2026-03-17
+
+### Changed
+
+- Updates the `DurableTaskRunAckEntry` model to include `workflow_run_external_id` field, to enable spawning children from durable tasks fire-and-forget style.
+
 ## [1.29.0] - 2026-03-16
 
 ### Added
