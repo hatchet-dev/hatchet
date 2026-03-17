@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 
 from examples.fanout.worker import ChildInput, ParentInput, child_wf, parent_wf
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
@@ -10,7 +10,7 @@ hatchet = Hatchet()
 async def main() -> None:
     await parent_wf.aio_run(
         ParentInput(n=2),
-        options=RunWorkflowOptions(additional_metadata={"hello": "moon"}),
+        additional_metadata={"hello": "moon"},
     )
 
 

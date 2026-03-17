@@ -31,6 +31,7 @@ from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import (
     BulkPushEventOptions as BulkPushEventOptions,
 )
@@ -112,9 +113,18 @@ class EventClient(BaseRestClient):
         event_key: str,
         payload: JSONSerializableMapping,
         options: PushEventOptions = PushEventOptions(),
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        scope: str | None = None,
     ) -> Event:
         return await asyncio.to_thread(
-            self.push, event_key=event_key, payload=payload, options=options
+            self.push,
+            event_key=event_key,
+            payload=payload,
+            options=options,
+            additional_metadata=additional_metadata,
+            priority=priority,
+            scope=scope,
         )
 
     async def aio_bulk_push(
@@ -129,8 +139,20 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions = PushEventOptions(),
+        options: PushEventOptions | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        scope: str | None = None,
     ) -> Event:
+        if options is not None:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = PushEventOptions()
+
         namespace = options.namespace or self.namespace
         namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
         push_event = tenacity_retry(
@@ -138,7 +160,7 @@ class EventClient(BaseRestClient):
         )
 
         try:
-            meta_bytes = json.dumps(options.additional_metadata)
+            meta_bytes = json.dumps(additional_metadata or options.additional_metadata)
         except Exception as e:
             raise ValueError("Error encoding meta") from e
 
@@ -152,8 +174,8 @@ class EventClient(BaseRestClient):
             payload=payload_str,
             event_timestamp=proto_timestamp_now(),
             additional_metadata=meta_bytes,
-            priority=options.priority,
-            scope=options.scope,
+            priority=priority or options.priority,
+            scope=scope or options.scope,
         )
 
         response = cast(

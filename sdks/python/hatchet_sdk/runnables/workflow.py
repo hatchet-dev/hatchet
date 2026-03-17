@@ -364,6 +364,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         key: str | None = None,
         options: TriggerWorkflowOptions | None = None,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        desired_worker_id: str | None = None,
+        sticky: bool = False,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> WorkflowRunTriggerConfig:
         """
         Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.
@@ -378,7 +384,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
-                options
+                options,
+                child_key=child_key,
+                additional_metadata=additional_metadata,
+                priority=priority,
+                sticky=sticky,
+                desired_worker_id=desired_worker_id,
+                desired_worker_labels=desired_worker_labels,
             ),
             key=key,
         )
@@ -1667,6 +1679,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = ...,
         options: TriggerWorkflowOptions | None = None,
         wait_for_result: Literal[True] = True,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> R: ...
 
     @overload
@@ -1676,6 +1694,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         options: TriggerWorkflowOptions | None = None,
         *,
         wait_for_result: Literal[False],
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     def run(
@@ -1683,6 +1707,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions | None = None,
         wait_for_result: bool = True,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow synchronously and wait for it to complete.
@@ -1696,11 +1726,31 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
         if not wait_for_result:
-            ref = self._workflow.run(input, options, wait_for_result=False)
+            ref = self._workflow.run(
+                input,
+                options,
+                wait_for_result=False,
+                child_key=child_key,
+                additional_metadata=additional_metadata,
+                priority=priority,
+                sticky=sticky,
+                desired_worker_id=desired_worker_id,
+                desired_worker_labels=desired_worker_labels,
+            )
             return TaskRunRef[TWorkflowInput, R](self, ref)
 
         return self._extract_result(
-            self._workflow.run(input, options, wait_for_result=True)
+            self._workflow.run(
+                input,
+                options,
+                wait_for_result=True,
+                child_key=child_key,
+                additional_metadata=additional_metadata,
+                priority=priority,
+                sticky=sticky,
+                desired_worker_id=desired_worker_id,
+                desired_worker_labels=desired_worker_labels,
+            )
         )
 
     @overload
@@ -1709,6 +1759,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = ...,
         options: TriggerWorkflowOptions | None = None,
         wait_for_result: Literal[True] = True,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> R: ...
 
     @overload
@@ -1718,6 +1774,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         options: TriggerWorkflowOptions | None = None,
         *,
         wait_for_result: Literal[False],
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     async def aio_run(
@@ -1725,6 +1787,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions | None = None,
         wait_for_result: bool = True,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow asynchronously and wait for it to complete.
@@ -1739,16 +1807,42 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         """
 
         if not wait_for_result:
-            ref = await self._workflow.aio_run(input, options, wait_for_result=False)
+            ref = await self._workflow.aio_run(
+                input,
+                options,
+                wait_for_result=False,
+                child_key=child_key,
+                additional_metadata=additional_metadata,
+                priority=priority,
+                sticky=sticky,
+                desired_worker_id=desired_worker_id,
+                desired_worker_labels=desired_worker_labels,
+            )
             return TaskRunRef[TWorkflowInput, R](self, ref)
 
-        res = await self._workflow.aio_run(input, options, wait_for_result=True)
+        res = await self._workflow.aio_run(
+            input,
+            options,
+            wait_for_result=True,
+            child_key=child_key,
+            additional_metadata=additional_metadata,
+            priority=priority,
+            sticky=sticky,
+            desired_worker_id=desired_worker_id,
+            desired_worker_labels=desired_worker_labels,
+        )
         return await asyncio.to_thread(self._extract_result, res)
 
     def run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions | None = None,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Trigger a workflow run without waiting for it to complete.
@@ -1768,12 +1862,28 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.run(input=input, options=options, wait_for_result=False)
+        return self.run(
+            input=input,
+            options=options,
+            wait_for_result=False,
+            child_key=child_key,
+            additional_metadata=additional_metadata,
+            priority=priority,
+            sticky=sticky,
+            desired_worker_id=desired_worker_id,
+            desired_worker_labels=desired_worker_labels,
+        )
 
     async def aio_run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions | None = None,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
@@ -1792,7 +1902,17 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             DeprecationWarning,
             stacklevel=2,
         )
-        return await self.aio_run(input=input, options=options, wait_for_result=False)
+        return await self.aio_run(
+            input=input,
+            options=options,
+            wait_for_result=False,
+            child_key=child_key,
+            additional_metadata=additional_metadata,
+            priority=priority,
+            sticky=sticky,
+            desired_worker_id=desired_worker_id,
+            desired_worker_labels=desired_worker_labels,
+        )
 
     @overload
     def run_many(

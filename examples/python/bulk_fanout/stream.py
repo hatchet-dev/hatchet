@@ -2,7 +2,7 @@ import asyncio
 import random
 
 from examples.bulk_fanout.worker import ParentInput, bulk_parent_wf
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet
 
 
 async def main() -> None:
@@ -21,7 +21,7 @@ async def main() -> None:
     # and can have an arbitrary property name.
     bulk_parent_wf.run(
         input=ParentInput(n=2),
-        options=RunWorkflowOptions(additional_metadata={streamKey: streamVal}),
+        additional_metadata={streamKey: streamVal},
     )
 
     # Stream all events for the additional meta key value

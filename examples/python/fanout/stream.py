@@ -2,7 +2,7 @@ import asyncio
 import random
 
 from examples.fanout.worker import ParentInput, parent_wf
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet
 
 
 async def main() -> None:
@@ -23,7 +23,7 @@ async def main() -> None:
 
     parent_wf.run(
         ParentInput(n=2),
-        options=RunWorkflowOptions(additional_metadata={streamKey: streamVal}),
+        additional_metadata={streamKey: streamVal},
     )
 
     # Stream all events for the additional meta key value

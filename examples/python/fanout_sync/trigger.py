@@ -1,7 +1,7 @@
 import asyncio
 
 from examples.fanout_sync.worker import ParentInput, sync_fanout_parent
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
@@ -9,7 +9,7 @@ hatchet = Hatchet()
 async def main() -> None:
     sync_fanout_parent.run(
         ParentInput(n=2),
-        options=RunWorkflowOptions(additional_metadata={"hello": "moon"}),
+        additional_metadata={"hello": "moon"},
     )
 
 

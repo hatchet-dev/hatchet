@@ -16,10 +16,8 @@ hatchet = Hatchet()
 )
 async def spawn_cache_on_retry_parent(input: EmptyModel, ctx: Context) -> None:
     await spawn_cache_on_retry_child.aio_run(
-        options=TriggerWorkflowOptions(
-            additional_metadata=ctx.additional_metadata or {}
-        ),
         wait_for_result=False,
+        additional_metadata=ctx.additional_metadata,
     )
 
     for _ in range(60):

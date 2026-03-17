@@ -1,7 +1,7 @@
 import asyncio
 
 from examples.bulk_fanout.worker import ParentInput, bulk_parent_wf
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
@@ -11,12 +11,10 @@ async def main() -> None:
         workflows=[
             bulk_parent_wf.create_bulk_run_item(
                 input=ParentInput(n=i),
-                options=RunWorkflowOptions(
-                    additional_metadata={
-                        "bulk-trigger": i,
-                        "hello-{i}": "earth-{i}",
-                    }
-                ),
+                additional_metadata={
+                    "bulk-trigger": i,
+                    "hello-{i}": "earth-{i}",
+                },
             )
             for i in range(20)
         ],

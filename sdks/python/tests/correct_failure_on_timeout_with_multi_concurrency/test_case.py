@@ -30,11 +30,9 @@ async def test_failure_on_timeout(
                 input=InputModel(
                     concurrency_key=test_run_id,
                 ),
-                options=TriggerWorkflowOptions(
-                    additional_metadata={
-                        "test_run_id": test_run_id,
-                    }
-                ),
+                additional_metadata={
+                    "test_run_id": test_run_id,
+                },
             )
             for _ in range(2)
         ],

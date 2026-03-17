@@ -10,7 +10,7 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import EmptyModel, Hatchet, TriggerWorkflowOptions, V1TaskStatus
+from hatchet_sdk import EmptyModel, Hatchet, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -25,9 +25,7 @@ async def test_payload_replay_bug(hatchet: Hatchet) -> None:
 
     ref = await payload_initial_cancel_bug_workflow.aio_run(
         input=Input(random_number=42),
-        options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id}
-        ),
+        additional_metadata={"test_run_id": test_run_id},
         wait_for_result=False,
     )
 

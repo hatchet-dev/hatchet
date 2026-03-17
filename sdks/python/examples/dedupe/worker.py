@@ -2,7 +2,7 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
-from hatchet_sdk import Context, EmptyModel, Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.exceptions import DedupeViolationError
 
 hatchet = Hatchet()
@@ -21,9 +21,7 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
         try:
             results.append(
                 dedupe_child_wf.aio_run(
-                    options=TriggerWorkflowOptions(
-                        additional_metadata={"dedupe": "test"}, key=f"child{i}"
-                    ),
+                    additional_metadata={"dedupe": "test"},
                 )
             )
         except DedupeViolationError as e:
