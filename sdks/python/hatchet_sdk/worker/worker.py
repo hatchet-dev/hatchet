@@ -388,9 +388,17 @@ class Worker:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
 
-    def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
+    def start(self, options: WorkerStartOptions | None = None) -> None:
         self.register_workflows(self._workflows)
 
+        if options is not None:
+            warn(
+                "Passing WorkerStartOptions is deprecated and will be removed in version 2.0.0.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+
+        options = options or WorkerStartOptions()
         if not self._action_registry:
             raise ValueError(
                 "no actions registered, register workflows before starting worker"
