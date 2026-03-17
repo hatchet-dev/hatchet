@@ -29,6 +29,7 @@ try:
         TracerProvider,
         get_tracer,
         get_tracer_provider,
+        set_tracer_provider,
     )
     from opentelemetry.trace.propagation.tracecontext import (
         TraceContextTextMapPropagator,
@@ -43,7 +44,6 @@ import inspect
 from datetime import datetime
 
 from google.protobuf import timestamp_pb2
-from opentelemetry.trace import set_tracer_provider
 
 import hatchet_sdk
 from hatchet_sdk import ClientConfig
@@ -121,8 +121,8 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     created within a step run context, so that child spans are queryable
     by the same attributes (e.g. hatchet.step_run_id) as the parent."""
 
-    def __init__(self, span_exporter: SpanExporter) -> None:
-        super().__init__(span_exporter)
+    def __init__(self, span_exporter: SpanExporter, **kwargs: Any) -> None:
+        super().__init__(span_exporter, **kwargs)
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         attrs = ctx_hatchet_span_attributes.get()
@@ -294,16 +294,31 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         meter_provider: MeterProvider | None = None,
         config: ClientConfig | None = None,
         enable_hatchet_otel_collector: bool = True,
+        schedule_delay_millis: int | None = None,
+        max_export_batch_size: int | None = None,
+        max_queue_size: int | None = None,
     ):
         self.config = config or ClientConfig()
 
+        self._bsp_kwargs: dict[str, Any] = {}
+        if schedule_delay_millis is not None:
+            self._bsp_kwargs["schedule_delay_millis"] = schedule_delay_millis
+        if max_export_batch_size is not None:
+            self._bsp_kwargs["max_export_batch_size"] = max_export_batch_size
+        if max_queue_size is not None:
+            self._bsp_kwargs["max_queue_size"] = max_queue_size
+
         if tracer_provider is not None:
             self.tracer_provider = tracer_provider
-
-            self.tracer_provider = SDKTracerProvider()
-            set_tracer_provider(self.tracer_provider)
         else:
-            self.tracer_provider = get_tracer_provider()
+            existing = get_tracer_provider()
+            if isinstance(existing, SDKTracerProvider):
+                self.tracer_provider = existing
+            elif enable_hatchet_otel_collector:
+                self.tracer_provider = SDKTracerProvider()
+                set_tracer_provider(self.tracer_provider)
+            else:
+                self.tracer_provider = existing
 
         if enable_hatchet_otel_collector:
             self._add_hatchet_exporter()
@@ -332,7 +347,9 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         self.tracer_provider.add_span_processor(
-            _HatchetAttributeSpanProcessor(_HatchetSpanExporter(otlp_exporter))
+            _HatchetAttributeSpanProcessor(
+                _HatchetSpanExporter(otlp_exporter), **self._bsp_kwargs
+            )
         )
 
     def instrumentation_dependencies(self) -> Collection[str]:

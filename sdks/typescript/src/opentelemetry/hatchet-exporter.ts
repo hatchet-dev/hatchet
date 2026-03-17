@@ -114,16 +114,30 @@ function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTr
   });
 }
 
+export interface HatchetBspConfig {
+  scheduledDelayMillis?: number;
+  maxExportBatchSize?: number;
+  maxQueueSize?: number;
+}
+
 /**
  * Adds the Hatchet OTLP exporter to the given TracerProvider.
  * The exporter sends spans to the Hatchet engine's collector endpoint
  * using the same connection settings as the Hatchet client.
  */
-export function addHatchetExporter(tracerProvider: SdkTracerProvider, config: ClientConfig): void {
+export function addHatchetExporter(
+  tracerProvider: SdkTracerProvider,
+  config: ClientConfig,
+  bspConfig?: HatchetBspConfig
+): void {
   const inner = createHatchetExporter(config);
   const exporter = new HatchetExporterWrapper(inner as unknown as SpanExporter);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const processor = new HatchetAttributeSpanProcessor(exporter as any);
+  const processor = new HatchetAttributeSpanProcessor(exporter as any, {
+    scheduledDelayMillis: bspConfig?.scheduledDelayMillis,
+    maxExportBatchSize: bspConfig?.maxExportBatchSize,
+    maxQueueSize: bspConfig?.maxQueueSize,
+  });
 
   tracerProvider.addSpanProcessor(processor);
 }

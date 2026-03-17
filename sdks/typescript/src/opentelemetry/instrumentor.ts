@@ -27,6 +27,7 @@ import { OTelAttribute, type ActionOTelAttributeValue } from '../util/openteleme
 import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
 import { setHatchetSpanAttributes } from './hatchet-span-context';
+import type { HatchetBspConfig } from './hatchet-exporter';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
 import { ScheduleClient, CreateScheduledRunInput } from '../v1/client/features/schedules';
 
@@ -71,6 +72,11 @@ type HatchetInstrumentationConfig = OpenTelemetryConfig &
      * from environment variables / .hatchet.yaml.
      */
     clientConfig?: ClientConfig;
+
+    /**
+     * Configuration for the BatchSpanProcessor that sends spans to the Hatchet collector.
+     */
+    bspConfig?: HatchetBspConfig;
   };
 type Carrier = Record<string, string>;
 
@@ -159,7 +165,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     super(INSTRUMENTOR_NAME, HATCHET_VERSION, mergedConfig);
 
     if (mergedConfig.enableHatchetCollector) {
-      this._setupHatchetCollector(config.clientConfig);
+      this._setupHatchetCollector(config.clientConfig, config.bspConfig);
     }
   }
 
@@ -167,7 +173,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
    * Sets up the Hatchet OTLP exporter on the current TracerProvider.
    * Loads client config from environment if not provided.
    */
-  private _setupHatchetCollector(clientConfig?: ClientConfig): void {
+  private _setupHatchetCollector(clientConfig?: ClientConfig, bspConfig?: HatchetBspConfig): void {
     try {
       /* eslint-disable @typescript-eslint/no-require-imports */
       const { addHatchetExporter } =
@@ -205,7 +211,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         return;
       }
 
-      addHatchetExporter(sdkTracerProvider, config);
+      addHatchetExporter(sdkTracerProvider, config, bspConfig);
       diag.info('hatchet instrumentation: Hatchet OTLP collector enabled');
     } catch (e) {
       diag.warn(`hatchet instrumentation: Failed to set up Hatchet collector: ${e}`);

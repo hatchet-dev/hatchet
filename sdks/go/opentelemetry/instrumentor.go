@@ -35,6 +35,7 @@ type instrumentorOptions struct {
 	tracerProvider *sdktrace.TracerProvider
 
 	enableCollector bool
+	bspOptions      []sdktrace.BatchSpanProcessorOption
 }
 
 // InstrumentorOption configures the Instrumentor.
@@ -55,6 +56,14 @@ func WithTracerProvider(tp *sdktrace.TracerProvider) InstrumentorOption {
 func DisableHatchetCollector() InstrumentorOption {
 	return func(o *instrumentorOptions) {
 		o.enableCollector = false
+	}
+}
+
+// WithBatchSpanProcessorOptions sets options for the BatchSpanProcessor that
+// sends spans to the Hatchet collector.
+func WithBatchSpanProcessorOptions(opts ...sdktrace.BatchSpanProcessorOption) InstrumentorOption {
+	return func(o *instrumentorOptions) {
+		o.bspOptions = opts
 	}
 }
 
@@ -106,7 +115,7 @@ func NewInstrumentor(opts ...InstrumentorOption) (*Instrumentor, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Hatchet OTLP exporter: %w", err)
 		}
-		bsp := sdktrace.NewBatchSpanProcessor(exporter)
+		bsp := sdktrace.NewBatchSpanProcessor(exporter, o.bspOptions...)
 		tp.RegisterSpanProcessor(NewHatchetAttributeSpanProcessor(bsp))
 	}
 

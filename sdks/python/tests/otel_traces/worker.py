@@ -7,7 +7,7 @@ from opentelemetry.trace import get_tracer
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
-HatchetInstrumentor().instrument()
+HatchetInstrumentor(schedule_delay_millis=1000).instrument()
 
 hatchet = Hatchet(debug=True)
 

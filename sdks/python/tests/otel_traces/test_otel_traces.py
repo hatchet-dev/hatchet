@@ -47,7 +47,7 @@ async def test_otel_spans_created_on_task_run(
     await ref.aio_result()
 
     # Give the OTLP exporter time to flush spans to the collector
-    await asyncio.sleep(3)
+    await asyncio.sleep(10)
 
     spans = _get_trace_spans(hatchet, ref.workflow_run_id)
 
@@ -112,7 +112,7 @@ async def test_otel_traces_on_retry(
     await ref.aio_result()
 
     # Give the OTLP exporter time to flush spans to the collector
-    await asyncio.sleep(3)
+    await asyncio.sleep(10)
 
     spans = _get_trace_spans(hatchet, ref.workflow_run_id)
 
