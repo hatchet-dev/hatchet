@@ -1623,7 +1623,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self._s._extract_result(result)
 
     def stream(self) -> RunEventListener:
-        return self._wrr.stream()
+        return self._wrr._stream()
 
 
 class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):

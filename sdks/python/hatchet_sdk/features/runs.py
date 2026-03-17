@@ -891,7 +891,7 @@ class RunsClient(BaseRestClient):
     ) -> AsyncIterator[str]:
         ref = self.get_run_ref(workflow_run_id=workflow_run_id)
 
-        async for chunk in ref.stream():
+        async for chunk in ref._stream():
             if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
                 yield chunk.payload
 
