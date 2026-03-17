@@ -105,10 +105,7 @@ const authenticatedRoute = createRoute({
   path: '/',
   loader: async () => {
     const mod = await import('./pages/authenticated');
-    if (mod.loader) {
-      return mod.loader({ request: new Request(window.location.href) });
-    }
-    return null;
+    return mod.loader({ request: new Request(window.location.href) });
   },
   component: lazyRouteComponent(
     () => import('./pages/authenticated'),

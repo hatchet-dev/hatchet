@@ -17,7 +17,6 @@ import {
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
@@ -27,8 +26,9 @@ import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import {
+  useLoaderData,
   useLocation,
   useMatchRoute,
   useNavigate,
@@ -42,12 +42,15 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const { isCloudEnabled } = await queryClient.fetchQuery(
+  const { isCloudEnabled, ...meta } = await queryClient.fetchQuery(
     getCloudMetadataQuery,
   );
 
   await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
-  return {};
+  return {
+    inactivityLogoutMs:
+      'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
+  };
 }
 
 function AuthenticatedInner() {
@@ -63,13 +66,7 @@ function AuthenticatedInner() {
     string | undefined
   >();
 
-  const { data: cloudMetadata } = useQuery({
-    queryKey: ['metadata'],
-    queryFn: async () => {
-      const res = await cloudApi.metadataGet();
-      return res.data;
-    },
-  });
+  const loaderData = useLoaderData({ from: '/' });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -113,7 +110,7 @@ function AuthenticatedInner() {
   });
 
   useInactivityDetection({
-    timeoutMs: cloudMetadata?.inactivityLogoutMs || -1,
+    timeoutMs: loaderData.inactivityLogoutMs,
     onInactive: () => {
       logoutMutation.mutate();
     },
