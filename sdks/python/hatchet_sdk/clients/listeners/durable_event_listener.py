@@ -76,6 +76,7 @@ class MaybeCachedMemoEntry(BaseModel):
 class DurableTaskRunAckEntry(BaseModel):
     node_id: int
     branch_id: int
+    workflow_run_external_id: str
 
 
 class DurableTaskEventRunAck(BaseModel):
@@ -371,6 +372,7 @@ class DurableEventListener:
                             DurableTaskRunAckEntry(
                                 node_id=e.node_id,
                                 branch_id=e.branch_id,
+                                workflow_run_external_id=e.workflow_run_external_id,
                             )
                             for e in trigger_ack.run_entries
                         ],

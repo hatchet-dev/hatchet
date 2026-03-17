@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
 from warnings import warn
@@ -498,6 +499,14 @@ class Context:
         return TaskRunError.deserialize(error)
 
 
+@dataclass
+class DurableSpawnResult:
+    node_id: int
+    branch_id: int
+    workflow_name: str
+    workflow_run_external_id: str
+
+
 class DurableContext(Context):
     def __init__(
         self,
@@ -719,7 +728,7 @@ class DurableContext(Context):
     async def _spawn_children_no_wait(
         self,
         configs: list[WorkflowRunTriggerConfig],
-    ) -> list[tuple[int, int, str]]:
+    ) -> list[DurableSpawnResult]:
         listener = self._durable_listener
 
         await self._ensure_stream_started()
@@ -743,7 +752,12 @@ class DurableContext(Context):
             raise TypeError(f"Expected run ack, got {type(ack).__name__}")
 
         return [
-            (entry.node_id, entry.branch_id, configs[i].workflow_name)
+            DurableSpawnResult(
+                node_id=entry.node_id,
+                branch_id=entry.branch_id,
+                workflow_name=configs[i].workflow_name,
+                workflow_run_external_id=entry.workflow_run_external_id,
+            )
             for i, entry in enumerate(ack.run_entries)
         ]
 

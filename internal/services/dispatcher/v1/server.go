@@ -672,8 +672,9 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 
 	for _, entry := range ingestionResult.TriggerRunsResult.Entries {
 		ackResp.RunEntries = append(ackResp.RunEntries, &contracts.DurableTaskRunAckEntry{
-			NodeId:   entry.NodeId,
-			BranchId: entry.BranchId,
+			NodeId:                entry.NodeId,
+			BranchId:              entry.BranchId,
+			WorkflowRunExternalId: entry.WorkflowRunExternalId.String(),
 		})
 	}
 

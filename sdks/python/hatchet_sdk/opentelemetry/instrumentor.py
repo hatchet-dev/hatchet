@@ -55,7 +55,7 @@ from hatchet_sdk.clients.events import (
     EventClient,
     PushEventOptions,
 )
-from hatchet_sdk.context.context import DurableContext
+from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
 from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
@@ -890,11 +890,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_spawn_children_no_wait(
         self,
-        wrapped: Callable[..., Coroutine[None, None, list[tuple[int, int, str]]]],
+        wrapped: Callable[..., Coroutine[None, None, list[DurableSpawnResult]]],
         instance: DurableContext,
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
-    ) -> list[tuple[int, int, str]]:
+    ) -> list[DurableSpawnResult]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         configs = cast(list[WorkflowRunTriggerConfig], params[0])
