@@ -157,10 +157,12 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 		go func(tm *tenantManager) {
 			defer wg.Done()
 
-			err := tm.Cleanup()
-
-			if err != nil {
+			if err := tm.Cleanup(); err != nil {
 				tm.l.Error().Err(err).Msg("failed to cleanup tenant manager")
+			}
+
+			if err := p.Extensions.CleanupTenant(tm.tenantId); err != nil {
+				tm.l.Error().Err(err).Msg("failed to cleanup extension metrics for tenant")
 			}
 		}(tm)
 	}
