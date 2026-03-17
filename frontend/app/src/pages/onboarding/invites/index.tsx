@@ -380,8 +380,8 @@ export default function Invites() {
                   });
                 }
 
-                setOrgInvites(
-                  orgInvites.filter(
+                setOrgInvites((prevOrgInvites) =>
+                  prevOrgInvites.filter(
                     (invite) => invite.organizationId !== organizationId,
                   ),
                 );
@@ -394,8 +394,8 @@ export default function Invites() {
                   setLastAcceptedInvite({ type: 'tenant', tenantId });
                 }
 
-                setTenantInvites(
-                  tenantInvites.filter(
+                setTenantInvites((prevTenantInvites) =>
+                  prevTenantInvites.filter(
                     (invite) => invite.tenantId !== tenantId,
                   ),
                 );
