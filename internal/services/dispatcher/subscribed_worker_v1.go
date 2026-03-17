@@ -23,6 +23,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	task *v1.V1TaskWithPayload,
+	durableInvocationCount *int32,
 ) error {
 	if ctx.Err() != nil {
 		return fmt.Errorf("context done before starting task: %w", ctx.Err())
@@ -37,7 +38,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount, durableInvocationCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -189,7 +190,7 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, retryCount)
+	action := populateAssignedAction(tenantId, task, retryCount, nil)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -243,24 +244,25 @@ func (worker *subscribedWorker) CancelTask(
 	return nil
 }
 
-func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32, invocationCount *int32) *contracts.AssignedAction {
 	workflowId := task.WorkflowID.String()
 	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
-		TenantId:          tenantID.String(),
-		JobId:             task.StepID.String(), // FIXME
-		JobName:           task.StepReadableID,
-		JobRunId:          task.ExternalID.String(), // FIXME
-		TaskId:            task.StepID.String(),
-		TaskRunExternalId: task.ExternalID.String(),
-		ActionId:          task.ActionID,
-		TaskName:          task.StepReadableID,
-		WorkflowRunId:     task.WorkflowRunID.String(),
-		RetryCount:        retryCount,
-		Priority:          task.Priority.Int32,
-		WorkflowId:        &workflowId,
-		WorkflowVersionId: &workflowVersionId,
+		TenantId:                   tenantID.String(),
+		JobId:                      task.StepID.String(), // FIXME
+		JobName:                    task.StepReadableID,
+		JobRunId:                   task.ExternalID.String(), // FIXME
+		TaskId:                     task.StepID.String(),
+		TaskRunExternalId:          task.ExternalID.String(),
+		ActionId:                   task.ActionID,
+		TaskName:                   task.StepReadableID,
+		WorkflowRunId:              task.WorkflowRunID.String(),
+		RetryCount:                 retryCount,
+		Priority:                   task.Priority.Int32,
+		WorkflowId:                 &workflowId,
+		WorkflowVersionId:          &workflowVersionId,
+		DurableTaskInvocationCount: invocationCount,
 	}
 
 	if task.AdditionalMetadata != nil {

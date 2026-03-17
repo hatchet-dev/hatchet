@@ -213,6 +213,8 @@ type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
 
+type WasEvicted bool
+
 type TaskRepository interface {
 	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
@@ -257,6 +259,10 @@ type TaskRepository interface {
 	RefreshTimeoutBy(ctx context.Context, tenantId uuid.UUID, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 
 	ReleaseSlot(ctx context.Context, tenantId, externalId uuid.UUID) (*sqlcv1.V1TaskRuntime, error)
+
+	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (WasEvicted, error)
+
+	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
@@ -1575,6 +1581,67 @@ func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, external
 	return resp, nil
 }
 
+func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (WasEvicted, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return false, err
+	}
+
+	defer rollback()
+
+	evicted, err := r.queries.EvictTask(ctx, tx, sqlcv1.EvictTaskParams{
+		Tenantid:       tenantId,
+		Taskid:         task.Id,
+		Taskinsertedat: task.InsertedAt,
+		Retrycount:     task.RetryCount,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, err
+	}
+
+	return WasEvicted(evicted > 0), nil
+}
+
+func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	retryCounts := make([]int32, len(tasks))
+
+	for i, t := range tasks {
+		taskIds[i] = t.Id
+		taskInsertedAts[i] = t.InsertedAt
+		retryCounts[i] = t.RetryCount
+	}
+
+	rows, err := r.queries.RestoreEvictedTasks(ctx, tx, sqlcv1.RestoreEvictedTasksParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
@@ -1762,6 +1829,7 @@ func (r *sharedRepository) insertTasks(
 	createExpressionOpts := make(map[uuid.UUID][]createTaskExpressionEvalOpt, 0)
 	workflowVersionIds := make([]uuid.UUID, len(tasks))
 	workflowRunIds := make([]uuid.UUID, len(tasks))
+	isDurables := make([]bool, len(tasks))
 	desiredWorkerLabels := make([][]byte, len(tasks))
 
 	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
@@ -1789,6 +1857,7 @@ func (r *sharedRepository) insertTasks(
 		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff
 		workflowRunIds[i] = task.WorkflowRunId
+		isDurables[i] = stepConfig.IsDurable
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
@@ -2080,6 +2149,7 @@ func (r *sharedRepository) insertTasks(
 				WorkflowVersionIds:           make([]uuid.UUID, 0),
 				WorkflowRunIds:               make([]uuid.UUID, 0),
 				Inputs:                       make([][]byte, 0),
+				IsDurables:                   make([]bool, 0),
 				DesiredWorkerLabels:          make([][]byte, 0),
 			}
 		}
@@ -2117,6 +2187,7 @@ func (r *sharedRepository) insertTasks(
 		params.RetryMaxBackoff = append(params.RetryMaxBackoff, retryMaxBackoffs[i])
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
+		params.IsDurables = append(params.IsDurables, isDurables[i])
 
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
@@ -3170,6 +3241,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				SignalExternalId:     task.ParentTaskExternalID,
 				SignalTaskId:         &task.ParentTaskID.Int64,
 				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
+				SignalTaskExternalId: &task.ExternalID,
 				SignalKey:            &k,
 			})
 		}
@@ -4133,17 +4205,22 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, fmt.Errorf("failed to list task running statuses: %w", err)
 	}
 
-	externalIdToIsRunning := make(map[string]bool)
+	externalIdToIsRunning := make(map[uuid.UUID]bool)
+	externalIdToIsEvicted := make(map[uuid.UUID]bool)
 
 	for _, stat := range taskStats {
-		externalIdToIsRunning[stat.ExternalID.String()] = stat.IsRunning
+		externalIdToIsRunning[stat.ExternalID] = stat.IsRunning
+		externalIdToIsEvicted[stat.ExternalID] = stat.IsEvicted
 	}
 
 	for _, task := range flat {
-		isRunning := externalIdToIsRunning[task.ExternalID.String()]
+		isRunning := externalIdToIsRunning[task.ExternalID]
+		isEvicted := externalIdToIsEvicted[task.ExternalID]
 		status := statusutils.V1RunStatusQueued
 
-		if isRunning {
+		if isEvicted {
+			status = statusutils.V1RunStatusEvicted
+		} else if isRunning {
 			status = statusutils.V1RunStatusRunning
 		}
 

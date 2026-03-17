@@ -545,8 +545,7 @@ export class HatchetClient<
       this._durableListener = new DurableListenerClient(
         this._config,
         channelFactory(this._config, this._credentials),
-        this._clientFactory,
-        this.api
+        this._clientFactory
       );
     }
     return this._durableListener;

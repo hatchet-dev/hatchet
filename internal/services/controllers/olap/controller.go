@@ -638,6 +638,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	retryCounts := make([]int32, 0)
+	durableInvocationCounts := make([]int32, 0)
 	workerIds := make([]uuid.UUID, 0)
 	workflowIds := make([]uuid.UUID, 0)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
@@ -664,6 +665,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
 		retryCounts = append(retryCounts, msg.RetryCount)
+		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
@@ -720,6 +722,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCOMPLETED)
 		case sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
+		case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapEVICTED)
+		case sqlcv1.V1EventTypeOlapDURABLERESTORING:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
 		}
 	}
 
@@ -741,6 +747,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			EventTimestamp:         timestamps[i],
 			ReadableStatus:         readableStatuses[i],
 			RetryCount:             retryCounts[i],
+			DurableInvocationCount: durableInvocationCounts[i],
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
 			ExternalID:             eventExternalIds[i],

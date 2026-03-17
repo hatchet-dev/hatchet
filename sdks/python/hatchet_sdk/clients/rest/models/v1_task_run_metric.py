@@ -16,8 +16,9 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, StrictInt
-from typing import Any, ClassVar, Dict, List
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from typing import Any, ClassVar, Dict, List, Optional
+from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from typing import Optional, Set
 from typing_extensions import Self
@@ -30,7 +31,10 @@ class V1TaskRunMetric(BaseModel):
 
     status: V1TaskStatus
     count: StrictInt
-    __properties: ClassVar[List[str]] = ["status", "count"]
+    running_detail_count: Optional[V1RunningDetailCount] = Field(
+        default=None, alias="runningDetailCount"
+    )
+    __properties: ClassVar[List[str]] = ["status", "count", "runningDetailCount"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -69,6 +73,9 @@ class V1TaskRunMetric(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of running_detail_count
+        if self.running_detail_count:
+            _dict["runningDetailCount"] = self.running_detail_count.to_dict()
         return _dict
 
     @classmethod
@@ -81,6 +88,14 @@ class V1TaskRunMetric(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate(
-            {"status": obj.get("status"), "count": obj.get("count")}
+            {
+                "status": obj.get("status"),
+                "count": obj.get("count"),
+                "runningDetailCount": (
+                    V1RunningDetailCount.from_dict(obj["runningDetailCount"])
+                    if obj.get("runningDetailCount") is not None
+                    else None
+                ),
+            }
         )
         return _obj

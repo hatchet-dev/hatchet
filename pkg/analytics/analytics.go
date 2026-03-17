@@ -18,6 +18,7 @@ const (
 	Event       Resource = "event"
 	WorkflowRun Resource = "workflow-run"
 	TaskRun     Resource = "task-run"
+	DurableTask Resource = "durable-task"
 	Worker      Resource = "worker"
 	RateLimit   Resource = "rate-limit"
 	Webhook     Resource = "webhook"
@@ -45,6 +46,11 @@ const (
 	Release   Action = "release"
 	Refresh   Action = "refresh"
 	Send      Action = "send"
+	Evict     Action = "evict"
+	Restore   Action = "restore"
+	Branch    Action = "branch"
+	Memo      Action = "memo"
+	WaitFor   Action = "wait-for"
 )
 
 type Properties map[string]interface{}
