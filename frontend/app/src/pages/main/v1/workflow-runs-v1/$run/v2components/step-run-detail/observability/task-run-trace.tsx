@@ -1,4 +1,4 @@
-import { TreeView } from '@/components/v1/agent-prism/TreeView';
+import { TraceTimeline } from './trace-timeline';
 import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type {
   OtelSpanTree,
@@ -62,16 +62,14 @@ export function TaskRunTrace({
   }
 
   return (
-    <div className="my-4">
-      <div className="overflow-y-auto">
-        <TreeView
-          spanTrees={spanTrees}
-          expandedSpansIds={expandedSpansIds}
-          onExpandSpansIdsChange={setExpandedSpansIds}
-          selectedSpan={selectedSpan}
-          onSpanSelect={handleSpanSelect}
-        />
-      </div>
+    <div className="my-4 min-w-0 overflow-hidden">
+      <TraceTimeline
+        spanTrees={spanTrees}
+        expandedSpanIds={expandedSpansIds}
+        onExpandChange={setExpandedSpansIds}
+        selectedSpan={selectedSpan}
+        onSpanSelect={handleSpanSelect}
+      />
     </div>
   );
 }

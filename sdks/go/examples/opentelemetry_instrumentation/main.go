@@ -119,6 +119,7 @@ func main() {
 			time.Sleep(30 * time.Millisecond)
 			chargeSpan.End()
 
+			return ChargePaymentOutput{}, fmt.Errorf("test error")
 			paySpan.End()
 
 			return ChargePaymentOutput{
