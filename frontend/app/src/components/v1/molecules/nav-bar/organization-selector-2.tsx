@@ -16,13 +16,15 @@ import {
   CheckIcon,
   ChevronUpDownIcon,
   Cog6ToothIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 import {
   Popover,
   PopoverContent,
+  PopoverPortal,
   PopoverTrigger,
 } from '@radix-ui/react-popover';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useState, useMemo, useCallback } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -125,12 +127,13 @@ export function OrganizationSelector2({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="start"
-        sideOffset={8}
-        className="w-[287px] rounded-md border border-border p-0 shadow-md"
-      >
+      <PopoverPortal>
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          className="z-[200] w-[287px] rounded-md border border-border p-0 shadow-md"
+        >
         <Command className="border-0">
           <CommandList>
             <CommandEmpty>No organizations found.</CommandEmpty>
@@ -167,9 +170,26 @@ export function OrganizationSelector2({
                 </CommandItem>
               ))}
             </CommandGroup>
+            <div className="px-2 py-1">
+              <Button
+                variant="outline"
+                size="sm"
+                fullWidth
+                leftIcon={<PlusIcon className="size-4" />}
+                asChild
+              >
+                <Link
+                  to={appRoutes.organizationsNewRoute.to}
+                  onClick={() => setOpen(false)}
+                >
+                  Create Organization
+                </Link>
+              </Button>
+            </div>
           </CommandList>
         </Command>
-      </PopoverContent>
+        </PopoverContent>
+      </PopoverPortal>
     </Popover>
   );
 }

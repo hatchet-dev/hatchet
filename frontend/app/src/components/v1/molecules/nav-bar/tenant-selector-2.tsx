@@ -5,14 +5,22 @@ import {
   CommandGroup,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from '@/components/v1/ui/command';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useUserUniverse } from '@/providers/user-universe';
-import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline';
+import {
+  CheckIcon,
+  ChevronUpDownIcon,
+  PlusIcon,
+} from '@heroicons/react/24/outline';
 import {
   Popover,
   PopoverContent,
+  PopoverPortal,
   PopoverTrigger,
 } from '@radix-ui/react-popover';
 import { useState, useMemo } from 'react';
@@ -34,6 +42,7 @@ export function TenantSelector2({ className }: TenantSelector2Props) {
     getTenantWithTenantId,
     tenantMemberships,
   } = useUserUniverse();
+  const { meta } = useApiMeta();
   const [open, setOpen] = useState(false);
 
   const currentOrg = useMemo(() => {
@@ -80,14 +89,15 @@ export function TenantSelector2({ className }: TenantSelector2Props) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="start"
-        sideOffset={8}
-        className="w-[287px] rounded-md border border-border p-0 shadow-md"
-      >
+      <PopoverPortal>
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          className="z-[200] w-[287px] rounded-md border border-border p-0 shadow-md"
+        >
         <Command className="border-0">
-          <CommandList>
+          <CommandList data-cy="tenant-switcher-list">
             <CommandEmpty>No tenants found.</CommandEmpty>
             <CommandGroup>
               {tenantsToDisplay.map((t) => (
@@ -98,6 +108,7 @@ export function TenantSelector2({ className }: TenantSelector2Props) {
                     setTenant(t);
                     setOpen(false);
                   }}
+                  data-cy={t.slug ? `tenant-switcher-item-${t.slug}` : undefined}
                   className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
                 >
                   <div className="flex w-full items-center justify-between">
@@ -115,8 +126,29 @@ export function TenantSelector2({ className }: TenantSelector2Props) {
               ))}
             </CommandGroup>
           </CommandList>
+          {meta?.allowCreateTenant && (
+            <>
+              <CommandSeparator />
+              <CommandList>
+                <CommandItem
+                  className="cursor-pointer text-sm"
+                  data-cy="new-tenant"
+                  onSelect={() => {
+                    globalEmitter.emit('new-tenant', {
+                      defaultOrganizationId: currentOrg?.metadata.id,
+                    });
+                    setOpen(false);
+                  }}
+                >
+                  <PlusIcon className="mr-2 size-4" />
+                  New Tenant
+                </CommandItem>
+              </CommandList>
+            </>
+          )}
         </Command>
-      </PopoverContent>
+        </PopoverContent>
+      </PopoverPortal>
     </Popover>
   );
 }
