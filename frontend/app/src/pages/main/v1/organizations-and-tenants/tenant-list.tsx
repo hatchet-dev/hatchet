@@ -20,7 +20,7 @@ import { capitalize } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 export const TenantTable = ({
   tenants,
@@ -71,8 +71,8 @@ export const TenantTable = ({
             const isExpanded = expandedTenants.has(tenant.metadata.id);
 
             return (
-              <>
-                <TableRow key={tenant.metadata.id}>
+              <Fragment key={tenant.metadata.id}>
+                <TableRow>
                   <TableCell>
                     <Link
                       to={appRoutes.tenantRoute.to}
@@ -159,7 +159,7 @@ export const TenantTable = ({
                       <TableCell />
                     </TableRow>
                   ))}
-              </>
+              </Fragment>
             );
           })}
         </TableBody>
