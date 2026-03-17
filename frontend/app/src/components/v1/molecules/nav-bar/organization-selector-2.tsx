@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@radix-ui/react-popover';
-import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useState, useMemo, useCallback } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -34,7 +34,6 @@ export function OrganizationSelector2({
   className,
 }: OrganizationSelector2Props) {
   const navigate = useNavigate();
-  const location = useLocation();
   const {
     setTenant,
     isUserUniverseLoaded: isTenantLoaded,

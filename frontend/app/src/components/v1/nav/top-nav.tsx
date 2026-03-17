@@ -1,6 +1,7 @@
 import { useSidebar } from '@/components/hooks/use-sidebar';
 import { useTheme } from '@/components/hooks/use-theme';
 import { OrganizationSelector2 as OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector-2';
+import { TenantSelector2 } from '@/components/v1/molecules/nav-bar/tenant-selector-2';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import {
@@ -308,7 +309,10 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         <div className="flex ml-auto items-center justify-end gap-2">
           {showTenantSwitcher &&
             (isCloudEnabled ? (
-              <OrganizationSelector />
+              <>
+                <OrganizationSelector />
+                <TenantSelector2 />
+              </>
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
             ))}
@@ -401,7 +405,10 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
           />
           {showTenantSwitcher &&
             (isCloudEnabled ? (
-              <OrganizationSelector />
+              <>
+                <OrganizationSelector />
+                <TenantSelector2 />
+              </>
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
             ))}

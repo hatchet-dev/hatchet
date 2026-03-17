@@ -65,17 +65,19 @@ type UserUniverse = {
 
 const UserUniverseContext = createContext<UserUniverse | null>(null);
 
-type PossibleQueryResponses =
+type PossibleQueryResponses = {
+  tenantMemberships: TenantMember[];
+  getTenantWithTenantId: (tenantId: string) => Tenant;
+} & (
   | {
       isCloudEnabled: true;
       organizations: OrganizationForUserList['rows'];
-      tenantMemberships: TenantMember[];
     }
   | {
       isCloudEnabled: false;
       organizations: null;
-      tenantMemberships: TenantMember[];
-    };
+    }
+);
 
 export const userUniverseQuery = ({
   isCloudEnabled,
@@ -93,17 +95,26 @@ export const userUniverseQuery = ({
       ]);
 
     const tenantMembershipRows = tenantMembershipsResponse.data.rows || [];
-    const organizations = organizationsResponse?.data.rows || [];
 
-    const archivedTenantIds =
-      organizations &&
-      new Set(
-        organizations.flatMap((organization) =>
-          organization.tenants
-            .filter((tenant) => tenant.status === TenantStatusType.ARCHIVED)
-            .map((tenant) => tenant.id),
-        ),
-      );
+    const archivedTenantIds = new Set<string>();
+
+    const organizations = (organizationsResponse?.data.rows || []).map(
+      (organization) => {
+        return {
+          ...organization,
+          tenants:
+            organization.tenants?.filter((tenant) => {
+              if (tenant.status === TenantStatusType.ARCHIVED) {
+                archivedTenantIds.add(tenant.id);
+                return false;
+              }
+
+              return true;
+            }) || [],
+        };
+      },
+    );
+
     const tenantMemberships = archivedTenantIds
       ? tenantMembershipRows.filter(
           (membership) =>
@@ -112,16 +123,41 @@ export const userUniverseQuery = ({
         )
       : tenantMembershipRows;
 
+    const tenantIdToTenant = new Map<string, Tenant>(
+      tenantMemberships.map((membership) => {
+        invariant(membership.tenant);
+        return [membership.tenant.metadata.id, membership.tenant];
+      }),
+    );
+    const getTenantWithTenantId = (tenantId: string) => {
+      const tenant = tenantIdToTenant.get(tenantId);
+      invariant(tenant);
+      return tenant;
+    };
+
+    organizations.forEach((organization) => {
+      // I hereby declare this mutation inside of this query function to be ethical
+      organization.tenants.sort((a, b) => {
+        const tenantA = getTenantWithTenantId(a.id);
+        const tenantB = getTenantWithTenantId(b.id);
+        return tenantA.name.localeCompare(tenantB.name, undefined, {
+          sensitivity: 'base',
+        });
+      });
+    });
+
     return isCloudEnabled
       ? {
           isCloudEnabled,
           organizations,
           tenantMemberships,
+          getTenantWithTenantId,
         }
       : {
           isCloudEnabled,
           organizations: null,
           tenantMemberships,
+          getTenantWithTenantId,
         };
   },
   enabled: isCloudLoaded,
@@ -165,24 +201,6 @@ export function UserUniverseProvider({
     const tenantMembershipAndOrganizationsAreLoaded =
       tenantMembershipAndOrganizationsQuery.isSuccess;
 
-    let getTenantWithTenantId: ((tenantId: string) => Tenant) | null = null;
-
-    if (tenantMembershipAndOrganizationsAreLoaded) {
-      const tenantIdToTenant = new Map<string, Tenant>(
-        tenantMembershipAndOrganizationsQuery.data.tenantMemberships.map(
-          (membership) => {
-            invariant(membership.tenant);
-            return [membership.tenant.metadata.id, membership.tenant];
-          },
-        ),
-      );
-      getTenantWithTenantId = (tenantId: string) => {
-        const tenant = tenantIdToTenant.get(tenantId);
-        invariant(tenant);
-        return tenant;
-      };
-    }
-
     if (isCloudEnabled) {
       const getWithOrganizations = get as () => Promise<{
         organizations: OrganizationForUserList['rows'];
@@ -205,8 +223,6 @@ export function UserUniverseProvider({
           return organization;
         };
 
-        invariant(getTenantWithTenantId);
-
         return {
           isCloudEnabled,
           isLoaded: tenantMembershipAndOrganizationsAreLoaded,
@@ -216,7 +232,8 @@ export function UserUniverseProvider({
           get: getWithOrganizations,
           invalidate,
           getOrganizationForTenant,
-          getTenantWithTenantId,
+          getTenantWithTenantId:
+            tenantMembershipAndOrganizationsQuery.data.getTenantWithTenantId,
         };
       }
 
@@ -245,7 +262,8 @@ export function UserUniverseProvider({
             get: getWithoutOrganizations,
             invalidate,
             getOrganizationForTenant: null,
-            getTenantWithTenantId: getTenantWithTenantId!, // wtf typescript come on
+            getTenantWithTenantId:
+              tenantMembershipAndOrganizationsQuery.data.getTenantWithTenantId,
           }
         : {
             isCloudEnabled,
