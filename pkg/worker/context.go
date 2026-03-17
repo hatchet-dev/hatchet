@@ -112,6 +112,12 @@ type HatchetContext interface {
 	Priority() int32
 
 	FilterPayload() map[string]interface{}
+
+	ParentWorkflowRunId() *string
+
+	ChildIndex() *int32
+
+	ChildKey() *string
 }
 
 // Deprecated: TriggeredBy is an internal type used by the new Go SDK.

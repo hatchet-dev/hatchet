@@ -22,12 +22,29 @@ func hatchetAttributes(ctx worker.HatchetContext) []attribute.KeyValue {
 		attribute.String("hatchet.step_run_id", ctx.StepRunId()),
 		attribute.String("hatchet.step_id", ctx.StepId()),
 		attribute.String("hatchet.action_id", ctx.ActionId()),
+		attribute.String("hatchet.action_name", ctx.ActionId()),
 		attribute.String("hatchet.step_name", ctx.StepName()),
 		attribute.Int("hatchet.retry_count", ctx.RetryCount()),
 	}
 
 	if wfID := ctx.WorkflowId(); wfID != nil {
 		attrs = append(attrs, attribute.String("hatchet.workflow_id", *wfID))
+	}
+
+	if wfVersionID := ctx.WorkflowVersionId(); wfVersionID != nil {
+		attrs = append(attrs, attribute.String("hatchet.workflow_version_id", *wfVersionID))
+	}
+
+	if parentID := ctx.ParentWorkflowRunId(); parentID != nil {
+		attrs = append(attrs, attribute.String("hatchet.parent_workflow_run_id", *parentID))
+	}
+
+	if childIdx := ctx.ChildIndex(); childIdx != nil {
+		attrs = append(attrs, attribute.Int("hatchet.child_workflow_index", int(*childIdx)))
+	}
+
+	if childKey := ctx.ChildKey(); childKey != nil {
+		attrs = append(attrs, attribute.String("hatchet.child_workflow_key", *childKey))
 	}
 
 	return attrs

@@ -110,6 +110,7 @@ function getActionOtelAttributes(
     [OTelAttribute.ACTION_PAYLOAD]: action.actionPayload,
     [OTelAttribute.WORKFLOW_NAME]: action.jobName,
     [OTelAttribute.ACTION_NAME]: action.actionId,
+    [OTelAttribute.STEP_NAME]: action.taskName,
     [OTelAttribute.WORKFLOW_ID]: action.workflowId,
     [OTelAttribute.WORKFLOW_VERSION_ID]: action.workflowVersionId,
   } satisfies Record<ActionOTelAttributeValue, Attributes[string] | undefined>;

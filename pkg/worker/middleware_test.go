@@ -146,6 +146,18 @@ func (c *testHatchetContext) FilterPayload() map[string]interface{} {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) ParentWorkflowRunId() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) ChildIndex() *int32 {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) ChildKey() *string {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) ActionId() string {
 	panic("not implemented")
 }
