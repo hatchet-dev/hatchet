@@ -22,7 +22,7 @@ import (
 func (worker *subscribedWorker) tryAcquireSendLockWithTimeout(timeout time.Duration) bool {
 	select {
 	// attempt to send to the semaphore, blocks on contention because it has a buffer of 1
-	case <-worker.sendSemaphore:
+	case worker.sendSemaphore <- struct{}{}:
 		return true
 	// timing out dequeues the semaphore send
 	case <-time.After(timeout):
