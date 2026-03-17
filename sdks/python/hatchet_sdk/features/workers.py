@@ -99,7 +99,7 @@ class WorkersClient(BaseRestClient):
         with self.client() as client:
             return self._wa(client).worker_update(
                 worker=worker_id,
-                update_worker_request=UpdateWorkerRequest(is_paused=True),
+                update_worker_request=UpdateWorkerRequest(isPaused=True),
             )
 
     async def aio_pause(self, worker_id: str) -> Worker:
@@ -121,7 +121,7 @@ class WorkersClient(BaseRestClient):
         with self.client() as client:
             return self._wa(client).worker_update(
                 worker=worker_id,
-                update_worker_request=UpdateWorkerRequest(is_paused=False),
+                update_worker_request=UpdateWorkerRequest(isPaused=False),
             )
 
     async def aio_unpause(self, worker_id: str) -> Worker:
