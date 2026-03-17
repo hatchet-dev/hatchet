@@ -88,3 +88,47 @@ class WorkersClient(BaseRestClient):
         :return: The updated worker.
         """
         return await asyncio.to_thread(self.update, worker_id, opts)
+
+    def pause(self, worker_id: str) -> Worker:
+        """
+        Pause a worker by its ID.
+
+        :param worker_id: The ID of the worker to pause.
+        :return: The paused worker.
+        """
+        with self.client() as client:
+            return self._wa(client).worker_update(
+                worker=worker_id,
+                update_worker_request=UpdateWorkerRequest(is_paused=True),
+            )
+
+    async def aio_pause(self, worker_id: str) -> Worker:
+        """
+        Pause a worker by its ID.
+
+        :param worker_id: The ID of the worker to pause.
+        :return: The paused worker.
+        """
+        return await asyncio.to_thread(self.pause, worker_id)
+
+    def unpause(self, worker_id: str) -> Worker:
+        """
+        Unpause a worker by its ID.
+
+        :param worker_id: The ID of the worker to unpause.
+        :return: The unpaused worker.
+        """
+        with self.client() as client:
+            return self._wa(client).worker_update(
+                worker=worker_id,
+                update_worker_request=UpdateWorkerRequest(is_paused=False),
+            )
+
+    async def aio_unpause(self, worker_id: str) -> Worker:
+        """
+        Unpause a worker by its ID.
+
+        :param worker_id: The ID of the worker to unpause.
+        :return: The unpaused worker.
+        """
+        return await asyncio.to_thread(self.unpause, worker_id)
