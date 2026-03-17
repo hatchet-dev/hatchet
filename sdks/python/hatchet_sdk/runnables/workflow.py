@@ -271,7 +271,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             **additional_metadata_from_trigger,
         }
 
-    def _create_options_with_combined_additional_meta(
+    def _create_trigger_run_options_with_combined_additional_meta(
         self,
         options: TriggerWorkflowOptions | None,
         child_key: str | None = None,
@@ -295,6 +295,35 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_label=desired_worker_labels,
+        )
+        options_copy = options.model_copy()
+        options_copy.additional_metadata = self._combine_additional_metadata(
+            options.additional_metadata
+        )
+
+        return options_copy
+
+    def _create_schedule_options_with_combined_metadata(
+        self,
+        options: ScheduleTriggerWorkflowOptions | None,
+        child_key: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: int | None = None,
+        sticky: bool = False,
+        desired_worker_id: str | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+    ) -> ScheduleTriggerWorkflowOptions:
+        if options is not None:
+            warn(
+                "Passing options to the run(), schedule(), etc. methods is deprecated and will be removed in v2.0.0. Please pass these parameters directly instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        options = options or ScheduleTriggerWorkflowOptions(
+            child_key=child_key,
+            additional_metadata=additional_metadata or {},
+            priority=priority,
         )
         options_copy = options.model_copy()
         options_copy.additional_metadata = self._combine_additional_metadata(
@@ -348,7 +377,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return WorkflowRunTriggerConfig(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(options),
+            options=self._create_trigger_run_options_with_combined_additional_meta(
+                options
+            ),
             key=key,
         )
 
@@ -562,7 +593,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param options: Additional options for workflow execution.
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
-        opts = self._create_options_with_combined_additional_meta(
+        opts = self._create_schedule_options_with_combined_metadata(
             options,
             child_key=child_key,
             additional_metadata=additional_metadata,
@@ -811,7 +842,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ref = self._client._client.admin.run_workflow(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
-            options=self._create_options_with_combined_additional_meta(
+            options=self._create_trigger_run_options_with_combined_additional_meta(
                 options,
                 child_key=child_key,
                 additional_metadata=additional_metadata,
@@ -922,7 +953,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :raises RuntimeError: If the workflow is triggered within a durable context that supports durable eviction but fails to spawn a durable child workflow.
         """
 
-        opts = self._create_options_with_combined_additional_meta(
+        opts = self._create_trigger_run_options_with_combined_additional_meta(
             options,
             child_key=child_key,
             additional_metadata=additional_metadata,
