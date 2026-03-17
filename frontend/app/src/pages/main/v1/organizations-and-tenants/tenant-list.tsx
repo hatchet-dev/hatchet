@@ -122,7 +122,7 @@ export const TenantTable = ({
                 {isExpanded &&
                   members?.map((member) => (
                     <TableRow
-                      key={`${tenant.metadata.id}-${member.metadata?.id}`}
+                      key={`${tenant.metadata.id}-${member.metadata.id}`}
                       className="bg-muted/30"
                     >
                       <TableCell>
