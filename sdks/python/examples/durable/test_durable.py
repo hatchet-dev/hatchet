@@ -29,7 +29,7 @@ requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_evicti
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_workflow(hatchet: Hatchet) -> None:
-    ref = durable_workflow.run(wait_for_result=False)
+    ref = await durable_workflow.aio_run(wait_for_result=False)
     id = str(uuid4())
 
     await asyncio.sleep(SLEEP_TIME + 10)
