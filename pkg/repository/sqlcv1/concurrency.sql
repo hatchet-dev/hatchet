@@ -326,7 +326,6 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT *
     FROM (
         SELECT *,
-            -- ORDER BY wcs_all.is_filled ASC, wcs_all.sort_id DESC
             ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled ASC, sort_id DESC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE

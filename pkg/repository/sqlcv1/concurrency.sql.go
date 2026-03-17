@@ -953,8 +953,7 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled, rn
     FROM (
         SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled,
-            -- ORDER BY wcs_all.is_filled ASC, wcs_all.sort_id DESC
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id DESC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled ASC, sort_id DESC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = $1::uuid
@@ -1031,8 +1030,7 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled, rn
     FROM (
         SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled,
-            -- wcs_all.is_filled DESC, wcs_all.sort_id ASC
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled DESC, sort_id ASC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = $1::uuid
