@@ -441,6 +441,50 @@ replayTasks:
     tags:
       - Task
 
+restoreTask:
+  post:
+    x-resources: ["tenant", "task"]
+    description: Restore an evicted durable task
+    operationId: v1-task:restore
+    parameters:
+      - description: The task id
+        in: path
+        name: task
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1RestoreTaskResponse"
+        description: Successfully restored the task
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+    summary: Restore a task
+    tags:
+      - Task
+
 listLogs:
   get:
     x-resources: ["tenant", "task"]

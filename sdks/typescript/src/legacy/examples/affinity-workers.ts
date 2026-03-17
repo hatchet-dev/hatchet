@@ -1,4 +1,4 @@
-import { WorkerLabelComparator } from '@hatchet/protoc/workflows';
+import { WorkerLabelComparator } from '@hatchet/v1';
 import Hatchet from '../../sdk';
 import { Workflow } from '../../workflow';
 

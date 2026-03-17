@@ -256,6 +256,12 @@ export enum TenantVersion {
   V1 = "V1",
 }
 
+export enum V1RunningFilter {
+  ALL = "ALL",
+  EVICTED = "EVICTED",
+  ON_WORKER = "ON_WORKER",
+}
+
 export enum V1LogLineOrderByDirection {
   ASC = "ASC",
   DESC = "DESC",
@@ -290,6 +296,8 @@ export enum V1TaskEventType {
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
+  DURABLE_EVICTED = "DURABLE_EVICTED",
+  DURABLE_RESTORING = "DURABLE_RESTORING",
 }
 
 export enum V1WorkflowType {
@@ -362,6 +370,8 @@ export interface V1TaskSummary {
   /** The output of the task run (for the latest run) */
   output: object;
   status: V1TaskStatus;
+  /** Whether the task has been evicted from a worker (still counts as RUNNING). */
+  isEvicted?: boolean;
   /**
    * The timestamp the task run started.
    * @format date-time
@@ -548,6 +558,10 @@ export interface V1ReplayedTasks {
   ids?: string[];
 }
 
+export interface V1RestoreTaskResponse {
+  requeued: boolean;
+}
+
 export interface V1DagChildren {
   /** @format uuid */
   dagId?: string;
@@ -665,11 +679,53 @@ export interface V1WorkflowRunDetails {
   workflowConfig?: object;
 }
 
+export interface V1BranchDurableTaskRequest {
+  /**
+   * The external id of the durable task to branch.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id to replay from.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id to replay from.
+   * @format int64
+   */
+  branchId: number;
+}
+
+export interface V1BranchDurableTaskResponse {
+  /**
+   * The external id of the durable task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id of the new entry.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id of the new entry.
+   * @format int64
+   */
+  branchId: number;
+}
+
 export interface V1TaskTiming {
   metadata: APIResourceMeta;
   /** The depth of the task in the waterfall. */
   depth: number;
   status: V1TaskStatus;
+  /** Whether the task has been evicted from a worker (still counts as RUNNING). */
+  isEvicted?: boolean;
   /** The display name of the task run. */
   taskDisplayName: string;
   /**
@@ -733,9 +789,17 @@ export interface V1TaskTimingList {
   rows: V1TaskTiming[];
 }
 
+export interface V1RunningDetailCount {
+  /** The number of evicted tasks within the RUNNING status bucket. */
+  evicted: number;
+  /** The number of tasks currently on a worker within the RUNNING status bucket. */
+  onWorker: number;
+}
+
 export interface V1TaskRunMetric {
   status: V1TaskStatus;
   count: number;
+  runningDetailCount?: V1RunningDetailCount;
 }
 
 export type V1TaskRunMetrics = V1TaskRunMetric[];

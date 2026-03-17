@@ -343,10 +343,11 @@ func TestDeadLetteringSuccess(t *testing.T) {
 
 // deleteQueue is a helper function for removing durable queues which are used for tests.
 func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
-	poolCh, err := t.subChannels.Acquire(context.Background())
+	ctx := context.Background()
+	poolCh, err := t.subChannels.Acquire(ctx)
 
 	if err != nil {
-		t.l.Error().Msgf("[deleteQueue] cannot acquire channel for deleting queue: %v", err)
+		t.l.Error().Ctx(ctx).Msgf("[deleteQueue] cannot acquire channel for deleting queue: %v", err)
 		return err
 	}
 
@@ -362,7 +363,7 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 	_, err = ch.QueueDelete(q.Name(), true, true, false)
 
 	if err != nil {
-		t.l.Error().Msgf("cannot delete queue: %q, %v", q.Name(), err)
+		t.l.Error().Ctx(ctx).Msgf("cannot delete queue: %q, %v", q.Name(), err)
 		return err
 	}
 
@@ -373,14 +374,14 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 		_, err = ch.QueueDelete(dlq1, true, true, false)
 
 		if err != nil {
-			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq1, err)
+			t.l.Error().Ctx(ctx).Msgf("cannot delete dead letter queue: %q, %v", dlq1, err)
 			return err
 		}
 
 		_, err = ch.QueueDelete(dlq2, true, true, false)
 
 		if err != nil {
-			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq2, err)
+			t.l.Error().Ctx(ctx).Msgf("cannot delete dead letter queue: %q, %v", dlq2, err)
 			return err
 		}
 	}

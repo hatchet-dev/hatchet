@@ -1,3 +1,4 @@
+import { TaskStats } from '@hatchet/clients/rest/generated/data-contracts';
 import { HatchetClient } from '../client';
 
 export type TaskStatusMetrics = {
@@ -47,6 +48,24 @@ export class MetricsClient {
    */
   async getQueueMetrics(opts?: Parameters<typeof this.api.tenantGetStepRunQueueMetrics>[1]) {
     const { data } = await this.api.tenantGetStepRunQueueMetrics(this.tenantId, opts);
+    return data;
+  }
+
+  /**
+   * Scrape Prometheus metrics for the tenant.
+   * @returns The metrics in Prometheus text format.
+   */
+  async scrapePrometheusMetrics(): Promise<string> {
+    const { data } = await this.api.tenantGetPrometheusMetrics(this.tenantId);
+    return data;
+  }
+
+  /**
+   * Get task statistics for the tenant.
+   * @returns A record mapping task names to their statistics.
+   */
+  async getTaskStats(): Promise<TaskStats> {
+    const { data } = await this.api.tenantGetTaskStats(this.tenantId);
     return data;
   }
 }

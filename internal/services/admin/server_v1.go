@@ -5,15 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
@@ -27,7 +28,7 @@ import (
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
-func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -54,6 +55,10 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
 	if err != nil {
+		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+		}
+
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
@@ -112,6 +117,10 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		opt, err := a.newTriggerOpt(ctx, tenantId, workflow)
 
 		if err != nil {
+			if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
+				return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+			}
+
 			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
@@ -170,7 +179,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 func (i *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
 	tenantId uuid.UUID,
-	req *contracts.TriggerWorkflowRequest,
+	req *v1contracts.TriggerWorkflowRequest,
 ) (*v1.WorkflowNameTriggerOpts, error) {
 	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
 	defer span.End()
@@ -181,55 +190,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
 	)
 
-	additionalMeta := ""
-
-	if req.AdditionalMetadata != nil {
-		additionalMeta = *req.AdditionalMetadata
-	}
-
-	var desiredWorkerId *uuid.UUID
-	if req.DesiredWorkerId != nil {
-		workerId, err := uuid.Parse(*req.DesiredWorkerId)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "desiredWorkerId must be a valid UUID: %s", err)
-		}
-		desiredWorkerId = &workerId
-	}
-
-	t := &v1.TriggerTaskData{
-		WorkflowName:       req.Name,
-		Data:               []byte(req.Input),
-		AdditionalMetadata: []byte(additionalMeta),
-		DesiredWorkerId:    desiredWorkerId,
-		Priority:           req.Priority,
-	}
-
-	if len(req.DesiredWorkerLabels) > 0 {
-		labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(req.DesiredWorkerLabels))
-		for key, label := range req.DesiredWorkerLabels {
-			var comparator *string
-			if label.Comparator != nil {
-				c := label.Comparator.String()
-				comparator = &c
-			}
-			labels = append(labels, v1.ProtoToDesiredWorkerLabel(
-				key,
-				label.StrValue,
-				label.IntValue,
-				label.Required,
-				label.Weight,
-				comparator,
-			))
-		}
-		t.DesiredWorkerLabels = labels
-	}
-
-	if req.Priority != nil {
-		if *req.Priority < 1 || *req.Priority > 3 {
-			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
-		}
-		t.Priority = req.Priority
-	}
+	var parentTask *sqlcv1.FlattenExternalIdsRow
 
 	if req.ParentTaskRunExternalId != nil {
 		parentTaskExternalId, err := uuid.Parse(*req.ParentTaskRunExternalId)
@@ -238,8 +199,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			return nil, status.Errorf(codes.InvalidArgument, "parentStepRunId must be a valid UUID: %s", err)
 		}
 
-		// lookup the parent external id
-		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
+		maybeParentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
 			parentTaskExternalId,
@@ -250,14 +210,17 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
 
-		parentExternalId := parentTask.ExternalID
-		childIndex := int64(*req.ChildIndex)
+		parentTask = maybeParentTask
+	}
 
-		t.ParentExternalId = &parentExternalId
-		t.ParentTaskId = &parentTask.ID
-		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
-		t.ChildIndex = &childIndex
-		t.ChildKey = req.ChildKey
+	t, err := i.repov1.Triggers().NewTriggerTaskData(ctx, tenantId, req, parentTask)
+
+	if err != nil {
+		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
+			return nil, re
+		}
+
+		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
 	return &v1.WorkflowNameTriggerOpts{
@@ -296,7 +259,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
-				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+				i.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
 			}
 		}
 
@@ -318,7 +281,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			dispatcherErr := eg.Wait()
 
 			if dispatcherErr != nil {
-				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+				i.l.Error().Ctx(ctx).Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 
 			// we return nil because the failed assignments would have been requeued by the local dispatcher,
@@ -335,7 +298,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			i.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+			i.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
 		} else if triggerErr == nil {
 			return nil
 		}

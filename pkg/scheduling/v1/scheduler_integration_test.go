@@ -41,6 +41,8 @@ func (c *captureSnapshotsExt) ReportSnapshot(tenantId uuid.UUID, input *schedv1.
 
 func (c *captureSnapshotsExt) PostAssign(_ uuid.UUID, _ *schedv1.PostAssignInput) {}
 
+func (c *captureSnapshotsExt) CleanupTenant(_ uuid.UUID) error { return nil }
+
 func (c *captureSnapshotsExt) Cleanup() error { return nil }
 
 func runWithDatabase(t *testing.T, test func(conf *database.Layer) error) {

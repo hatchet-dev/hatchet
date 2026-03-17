@@ -144,3 +144,45 @@ V1TriggerWorkflowRunRequest:
   required:
     - workflowName
     - input
+
+V1BranchDurableTaskRequest:
+  properties:
+    taskExternalId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The external id of the durable task to branch.
+    nodeId:
+      type: integer
+      format: int64
+      description: The node id to replay from.
+    branchId:
+      type: integer
+      format: int64
+      description: The branch id to replay from.
+  required:
+    - taskExternalId
+    - nodeId
+    - branchId
+
+V1BranchDurableTaskResponse:
+  properties:
+    taskExternalId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The external id of the durable task.
+    nodeId:
+      type: integer
+      format: int64
+      description: The node id of the new entry.
+    branchId:
+      type: integer
+      format: int64
+      description: The branch id of the new entry.
+  required:
+    - taskExternalId
+    - nodeId
+    - branchId

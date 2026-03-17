@@ -17,6 +17,7 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
@@ -124,6 +125,7 @@ class TaskRunDetail(BaseModel):
     output: JSONSerializableMapping | None = None
     error: str | None = None
     status: V1TaskStatus
+    is_evicted: bool = False
 
 
 class WorkflowRunDetail(BaseModel):
@@ -189,13 +191,13 @@ class AdminClient:
         workflow_name: str,
         input: str | None,
         options: TriggerWorkflowOptions,
-    ) -> v0_workflow_protos.TriggerWorkflowRequest:
+    ) -> trigger_protos.TriggerWorkflowRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
         desired_worker_labels = None
         if _options.desired_worker_label:
             desired_worker_labels = {
-                key: v0_workflow_protos.DesiredWorkerLabels(
+                key: trigger_protos.DesiredWorkerLabels(
                     str_value=d.value if not isinstance(d.value, int) else None,
                     int_value=d.value if isinstance(d.value, int) else None,
                     required=d.required,
@@ -205,7 +207,7 @@ class AdminClient:
                 for key, d in _options.desired_worker_label.items()
             }
 
-        return v0_workflow_protos.TriggerWorkflowRequest(
+        return trigger_protos.TriggerWorkflowRequest(
             name=workflow_name,
             input=input,
             parent_id=_options.parent_id,
@@ -354,7 +356,7 @@ class AdminClient:
         workflow_name: str,
         input: str | None,
         options: TriggerWorkflowOptions,
-    ) -> v0_workflow_protos.TriggerWorkflowRequest:
+    ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
@@ -601,6 +603,7 @@ class AdminClient:
                     ),
                     error=details.error if details.error else None,
                     status=RunStatus.from_proto(details.status).to_v1_task_status(),
+                    is_evicted=getattr(details, "is_evicted", False),
                 )
                 for readable_id, details in response.task_runs.items()
             },

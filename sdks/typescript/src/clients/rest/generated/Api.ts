@@ -111,6 +111,7 @@ import {
   V1ReplayTaskRequest,
   V1ReplayedTasks,
   V1RestoreTaskResponse,
+  V1RunningFilter,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -408,6 +409,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       triggering_event_external_id?: string;
       /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
       include_payloads?: boolean;
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
     },
     params: RequestParams = {}
   ) =>
@@ -472,6 +475,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       additional_metadata?: string[];
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
     },
     params: RequestParams = {}
   ) =>

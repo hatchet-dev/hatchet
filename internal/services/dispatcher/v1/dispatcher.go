@@ -3,10 +3,13 @@ package v1
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -15,26 +18,34 @@ import (
 
 type DispatcherService interface {
 	contracts.V1DispatcherServer
+	DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error
 }
 
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
 
-	repo      v1.Repository
-	mq        msgqueue.MessageQueue
-	v         validator.Validator
-	analytics analytics.Analytics
-	l         *zerolog.Logger
+	triggerWriter *trigger.TriggerWriter
+	pubBuffer     *msgqueue.MQPubBuffer
+	dispatcherId  uuid.UUID
+
+	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
+	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
+	repo               v1.Repository
+	mq                 msgqueue.MessageQueue
+	v                  validator.Validator
+	analytics          analytics.Analytics
+	l                  *zerolog.Logger
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)
 
 type DispatcherServiceOpts struct {
-	repo      v1.Repository
-	mq        msgqueue.MessageQueue
-	v         validator.Validator
-	analytics analytics.Analytics
-	l         *zerolog.Logger
+	dispatcherId uuid.UUID
+	repo         v1.Repository
+	mq           msgqueue.MessageQueue
+	v            validator.Validator
+	analytics    analytics.Analytics
+	l            *zerolog.Logger
 }
 
 func defaultDispatcherServiceOpts() *DispatcherServiceOpts {
@@ -72,6 +83,12 @@ func WithLogger(l *zerolog.Logger) DispatcherServiceOpt {
 	}
 }
 
+func WithDispatcherId(id uuid.UUID) DispatcherServiceOpt {
+	return func(opts *DispatcherServiceOpts) {
+		opts.dispatcherId = id
+	}
+}
+
 func WithAnalytics(a analytics.Analytics) DispatcherServiceOpt {
 	return func(opts *DispatcherServiceOpts) {
 		opts.analytics = a
@@ -93,11 +110,17 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error)
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, 0)
+
 	return &DispatcherServiceImpl{
-		repo:      opts.repo,
-		mq:        opts.mq,
-		v:         opts.v,
-		analytics: opts.analytics,
-		l:         opts.l,
+		repo:          opts.repo,
+		mq:            opts.mq,
+		v:             opts.v,
+		l:             opts.l,
+		triggerWriter: tw,
+		pubBuffer:     pubBuffer,
+		dispatcherId:  opts.dispatcherId,
+		analytics:     opts.analytics,
 	}, nil
 }

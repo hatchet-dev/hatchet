@@ -31,7 +31,7 @@ func (e *ErrorInterceptor) ErrorUnaryServerInterceptor() grpc.UnaryServerInterce
 
 		// if this is not a grpc error already, convert it to an internal grpc error
 		if err != nil && status.Code(err) == codes.Unknown {
-			e.l.Err(err).Msg("")
+			e.l.Err(err).Ctx(ctx).Msg("")
 			e.a.SendAlert(context.Background(), err, nil)
 
 			err = status.Errorf(codes.Internal, "An internal error occurred.")
@@ -48,7 +48,7 @@ func (e *ErrorInterceptor) ErrorStreamServerInterceptor() grpc.StreamServerInter
 
 		// if this is not a grpc error already, convert it to an internal grpc error
 		if err != nil && status.Code(err) == codes.Unknown {
-			e.l.Err(err).Msg("")
+			e.l.Err(err).Ctx(stream.Context()).Msg("")
 			e.a.SendAlert(context.Background(), err, nil)
 
 			err = status.Errorf(codes.Internal, "An internal error occurred.")

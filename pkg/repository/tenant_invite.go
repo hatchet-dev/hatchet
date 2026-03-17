@@ -131,12 +131,12 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		)
 
 		if err != nil {
-			r.l.Error().Err(err).Msg("error counting pending invites")
+			r.l.Error().Ctx(ctx).Err(err).Msg("error counting pending invites")
 			return nil, err
 		}
 
 		if invites >= int64(opts.MaxPending) {
-			r.l.Error().Msg("max pending invites reached")
+			r.l.Error().Ctx(ctx).Msg("max pending invites reached")
 			return nil, fmt.Errorf("max pending invites reached")
 		}
 	}

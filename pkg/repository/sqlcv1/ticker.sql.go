@@ -430,11 +430,8 @@ WITH latest_workflow_versions AS (
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
         latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id"
-    LEFT JOIN
-        "WorkflowRunTriggeredBy" AS runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
-        AND runTriggeredBy IS NULL
         AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
         AND (
@@ -444,23 +441,34 @@ WITH latest_workflow_versions AS (
             )
             OR "tickerId" = $1::uuid
         )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM "WorkflowRunTriggeredBy" AS runTriggeredBy
+            WHERE runTriggeredBy."scheduledId" = scheduledWorkflow."id"
+        )
+    ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
 ),
 active_scheduled_workflows AS (
     SELECT
-        id, "workflowVersionId", "tenantId", "additionalMetadata"
+        id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt", method, priority
     FROM
-        not_run_scheduled_workflows
+        "WorkflowTriggerScheduledRef"
+    WHERE "id" IN (SELECT "id" FROM not_run_scheduled_workflows)
+    ORDER BY "triggerAt" ASC, "id" ASC
     FOR UPDATE SKIP LOCKED
 )
+
 UPDATE
     "WorkflowTriggerScheduledRef" as scheduledWorkflows
 SET
     "tickerId" = $1::uuid
 FROM
     active_scheduled_workflows
+JOIN "WorkflowVersion" as versions ON versions."id" = active_scheduled_workflows."parentId"
+JOIN "Workflow" as workflow ON workflow."id" = versions."workflowId"
 WHERE
     scheduledWorkflows."id" = active_scheduled_workflows."id"
-RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, versions."id" AS "workflowVersionId", workflow."tenantId"
 `
 
 type PollScheduledWorkflowsRow struct {
