@@ -4,7 +4,7 @@ from examples.priority.worker import priority_workflow
 from hatchet_sdk import (
     TriggerWorkflowOptions,
     Priority,
-    ScheduleWorkflowOptions,
+    ScheduleTriggerWorkflowOptions,
     ScheduleTriggerWorkflowOptions,
 )
 

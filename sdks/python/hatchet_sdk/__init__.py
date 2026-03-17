@@ -168,7 +168,6 @@ from hatchet_sdk.types.trigger import (
     BulkPushEventWithMetadata,
     PushEventOptions,
     ScheduleTriggerWorkflowOptions,
-    ScheduleWorkflowOptions,
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
@@ -257,7 +256,7 @@ __all__ = [
     "RunFilter",
     "RunStatus",
     "ScheduleTriggerWorkflowOptions",
-    "ScheduleWorkflowOptions",
+    "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
     "SlotType",
     "StepRun",

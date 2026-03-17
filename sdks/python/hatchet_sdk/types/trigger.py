@@ -7,17 +7,14 @@ from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
-class ScheduleWorkflowOptions(BaseModel):
-    child_key: str | None = None
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | Priority | None = None
-
-
-class ScheduleTriggerWorkflowOptions(ScheduleWorkflowOptions):
+class ScheduleTriggerWorkflowOptions(BaseModel):
     parent_id: str | None = None
     parent_step_run_id: str | None = None
     child_index: int | None = None
+    child_key: str | None = None
     namespace: str | None = None
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
+    priority: int | None = None
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
