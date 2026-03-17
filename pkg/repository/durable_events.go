@@ -70,11 +70,12 @@ type IngestMemoResult struct {
 }
 
 type IngestTriggerRunsEntry struct {
-	NodeId         int64
-	BranchId       int64
-	IsSatisfied    bool
-	AlreadyExisted bool
-	ResultPayload  []byte
+	NodeId                int64
+	BranchId              int64
+	WorkflowRunExternalId uuid.UUID
+	IsSatisfied           bool
+	AlreadyExisted        bool
+	ResultPayload         []byte
 }
 
 type IngestTriggerRunsResult struct {
@@ -955,12 +956,22 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
 		for i, entry := range logEntries {
+			triggerOpts, ok := nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
+				NodeId:   entry.Entry.NodeID,
+				BranchId: entry.Entry.BranchID,
+			}]
+
+			if !ok {
+				return nil, fmt.Errorf("missing trigger opts for nodeId %d and branchId %d", entry.Entry.NodeID, entry.Entry.BranchID)
+			}
+
 			entries[i] = &IngestTriggerRunsEntry{
-				NodeId:         entry.Entry.NodeID,
-				BranchId:       entry.Entry.BranchID,
-				IsSatisfied:    entry.Entry.IsSatisfied,
-				AlreadyExisted: entry.AlreadyExisted,
-				ResultPayload:  entry.ResultPayload,
+				NodeId:                entry.Entry.NodeID,
+				BranchId:              entry.Entry.BranchID,
+				IsSatisfied:           entry.Entry.IsSatisfied,
+				AlreadyExisted:        entry.AlreadyExisted,
+				ResultPayload:         entry.ResultPayload,
+				WorkflowRunExternalId: triggerOpts.ExternalId,
 			}
 		}
 

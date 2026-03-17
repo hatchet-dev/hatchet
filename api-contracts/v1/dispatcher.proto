@@ -33,6 +33,7 @@ message DurableEventLogEntryRef {
 message DurableTaskRunAckEntry {
     int64 node_id = 1;
     int64 branch_id = 2;
+    string workflow_run_external_id = 3;
 }
 
 message DurableTaskEventMemoAckResponse {
