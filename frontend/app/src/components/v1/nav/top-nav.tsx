@@ -1,7 +1,7 @@
 import { useSidebar } from '@/components/hooks/use-sidebar';
 import { useTheme } from '@/components/hooks/use-theme';
-import { OrganizationSelector2 as OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector-2';
-import { TenantSelector2 } from '@/components/v1/molecules/nav-bar/tenant-selector-2';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
+import { TenantSelector } from '@/components/v1/molecules/nav-bar/tenant-selector';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import {
   Breadcrumb,
@@ -309,7 +309,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
           {showTenantSwitcher && (
             <>
               {isCloudEnabled ? <OrganizationSelector /> : null}
-              <TenantSelector2 />
+              <TenantSelector />
             </>
           )}
           <AccountDropdown user={user} />
@@ -402,7 +402,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
           {showTenantSwitcher && (
             <>
               {isCloudEnabled ? <OrganizationSelector /> : null}
-              <TenantSelector2 />
+              <TenantSelector />
             </>
           )}
           <AccountDropdown user={user} />

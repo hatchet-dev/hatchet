@@ -29,7 +29,7 @@ type TenantSelector2Props = {
   className?: string;
 };
 
-export function TenantSelector2({ className }: TenantSelector2Props) {
+export function TenantSelector({ className }: TenantSelector2Props) {
   const { setTenant, tenant } = useTenantDetails();
   const {
     isLoaded: isUniverseLoaded,

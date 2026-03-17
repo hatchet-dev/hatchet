@@ -32,7 +32,7 @@ type OrganizationSelector2Props = {
   className?: string;
 };
 
-export function OrganizationSelector2({
+export function OrganizationSelector({
   className,
 }: OrganizationSelector2Props) {
   const navigate = useNavigate();
@@ -134,60 +134,62 @@ export function OrganizationSelector2({
           sideOffset={8}
           className="z-[200] w-[287px] rounded-md border border-border p-0 shadow-md"
         >
-        <Command className="border-0">
-          <CommandList>
-            <CommandEmpty>No organizations found.</CommandEmpty>
-            <CommandGroup>
-              {sortedOrgs.map((org) => (
-                <CommandItem
-                  key={org.metadata.id}
-                  value={`org-${org.metadata.id}`}
-                  onSelect={() => handleOrgSelect(org)}
-                  className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
-                >
-                  <div className="flex w-full items-center justify-between">
-                    <span className="min-w-0 flex-1 truncate">{org.name}</span>
-                    <div className="ml-2 flex flex-shrink-0 items-center gap-1">
-                      <CheckIcon
-                        className={cn(
-                          'size-4',
-                          currentOrg?.metadata.id === org.metadata.id
-                            ? 'opacity-100'
-                            : 'opacity-0',
-                        )}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
-                        onClick={(e) => handleSettingsClick(e, org)}
-                        title="Settings"
-                      >
-                        <Cog6ToothIcon className="size-3" />
-                      </Button>
+          <Command className="border-0">
+            <CommandList>
+              <CommandEmpty>No organizations found.</CommandEmpty>
+              <CommandGroup>
+                {sortedOrgs.map((org) => (
+                  <CommandItem
+                    key={org.metadata.id}
+                    value={`org-${org.metadata.id}`}
+                    onSelect={() => handleOrgSelect(org)}
+                    className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <span className="min-w-0 flex-1 truncate">
+                        {org.name}
+                      </span>
+                      <div className="ml-2 flex flex-shrink-0 items-center gap-1">
+                        <CheckIcon
+                          className={cn(
+                            'size-4',
+                            currentOrg?.metadata.id === org.metadata.id
+                              ? 'opacity-100'
+                              : 'opacity-0',
+                          )}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
+                          onClick={(e) => handleSettingsClick(e, org)}
+                          title="Settings"
+                        >
+                          <Cog6ToothIcon className="size-3" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <div className="px-2 py-1">
-              <Button
-                variant="outline"
-                size="sm"
-                fullWidth
-                leftIcon={<PlusIcon className="size-4" />}
-                asChild
-              >
-                <Link
-                  to={appRoutes.organizationsNewRoute.to}
-                  onClick={() => setOpen(false)}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <div className="px-2 py-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  fullWidth
+                  leftIcon={<PlusIcon className="size-4" />}
+                  asChild
                 >
-                  Create Organization
-                </Link>
-              </Button>
-            </div>
-          </CommandList>
-        </Command>
+                  <Link
+                    to={appRoutes.organizationsNewRoute.to}
+                    onClick={() => setOpen(false)}
+                  >
+                    Create Organization
+                  </Link>
+                </Button>
+              </div>
+            </CommandList>
+          </Command>
         </PopoverContent>
       </PopoverPortal>
     </Popover>
