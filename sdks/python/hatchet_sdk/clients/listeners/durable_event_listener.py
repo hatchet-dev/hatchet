@@ -34,7 +34,7 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
-from hatchet_sdk.types.trigger import RunWorkflowOptions
+from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.cache import TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -51,7 +51,7 @@ class WaitForEvent:
 class RunChildEvent:
     workflow_name: str
     input: str | None
-    run_workflow_opts: RunWorkflowOptions
+    run_workflow_opts: TriggerWorkflowOptions
 
 
 @dataclass(frozen=True)

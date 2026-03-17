@@ -50,7 +50,7 @@ from hatchet_sdk.clients.events import (
 from hatchet_sdk.context.context import DurableContext
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
-from hatchet_sdk.types.trigger import RunWorkflowOptions
+from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -462,20 +462,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_run_workflow(
         self,
         wrapped: Callable[
-            [str, str | None, RunWorkflowOptions],
+            [str, str | None, TriggerWorkflowOptions],
             WorkflowRunRef,
         ],
         instance: AdminClient,
-        args: tuple[str, str | None, RunWorkflowOptions],
-        kwargs: dict[str, str | None | RunWorkflowOptions],
+        args: tuple[str, str | None, TriggerWorkflowOptions],
+        kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
         payload = cast(str | None, params[1])
         options = cast(
-            RunWorkflowOptions,
-            params[2] if len(params) > 2 else RunWorkflowOptions(),
+            TriggerWorkflowOptions,
+            params[2] if len(params) > 2 else TriggerWorkflowOptions(),
         )
 
         attributes = {
@@ -507,7 +507,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            options = RunWorkflowOptions(
+            options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
                     options.additional_metadata,
@@ -520,20 +520,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_async_run_workflow(
         self,
         wrapped: Callable[
-            [str, str | None, RunWorkflowOptions],
+            [str, str | None, TriggerWorkflowOptions],
             Coroutine[None, None, WorkflowRunRef],
         ],
         instance: AdminClient,
-        args: tuple[str, str | None, RunWorkflowOptions],
-        kwargs: dict[str, str | None | RunWorkflowOptions],
+        args: tuple[str, str | None, TriggerWorkflowOptions],
+        kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
         payload = cast(str | None, params[1])
         options = cast(
-            RunWorkflowOptions,
-            params[2] if len(params) > 2 else RunWorkflowOptions(),
+            TriggerWorkflowOptions,
+            params[2] if len(params) > 2 else TriggerWorkflowOptions(),
         )
 
         attributes = {
@@ -565,7 +565,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            options = RunWorkflowOptions(
+            options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
                     options.additional_metadata,
@@ -678,7 +678,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             workflow_run_configs_with_meta = [
                 WorkflowRunTriggerConfig(
                     **config.model_dump(exclude={"options"}),
-                    options=RunWorkflowOptions(
+                    options=TriggerWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
                         additional_metadata=_inject_traceparent_into_metadata(
                             config.options.additional_metadata,
@@ -721,7 +721,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             workflow_run_configs_with_meta = [
                 WorkflowRunTriggerConfig(
                     **config.model_dump(exclude={"options"}),
-                    options=RunWorkflowOptions(
+                    options=TriggerWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
                         additional_metadata=_inject_traceparent_into_metadata(
                             config.options.additional_metadata,

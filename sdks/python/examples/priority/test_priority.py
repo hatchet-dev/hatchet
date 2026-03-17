@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
 from hatchet_sdk import (
     Hatchet,
-    RunWorkflowOptions,
+    TriggerWorkflowOptions,
     ScheduleTriggerWorkflowOptions,
 )
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
@@ -48,7 +48,7 @@ async def dummy_runs() -> None:
     await priority_workflow.aio_run_many(
         [
             priority_workflow.create_bulk_run_item(
-                options=RunWorkflowOptions(
+                options=TriggerWorkflowOptions(
                     priority=(priority_to_int(priority)),
                     additional_metadata={
                         "priority": priority,
@@ -89,7 +89,7 @@ async def test_priority(
     run_refs = await priority_workflow.aio_run_many(
         [
             priority_workflow.create_bulk_run_item(
-                options=RunWorkflowOptions(
+                options=TriggerWorkflowOptions(
                     priority=(priority_to_int(pr)),
                     additional_metadata={
                         "priority": pr,

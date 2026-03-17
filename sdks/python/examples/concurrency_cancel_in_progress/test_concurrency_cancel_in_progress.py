@@ -8,7 +8,7 @@ from examples.concurrency_cancel_in_progress.worker import (
     WorkflowInput,
     concurrency_cancel_in_progress_workflow,
 )
-from hatchet_sdk import Hatchet, RunWorkflowOptions, V1TaskStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, TriggerWorkflowOptions, V1TaskStatus, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -19,7 +19,7 @@ async def test_run(hatchet: Hatchet) -> None:
     for i in range(10):
         ref = await concurrency_cancel_in_progress_workflow.aio_run(
             WorkflowInput(group="A"),
-            options=RunWorkflowOptions(
+            options=TriggerWorkflowOptions(
                 additional_metadata={"test_run_id": test_run_id, "i": str(i)},
             ),
             wait_for_result=False,

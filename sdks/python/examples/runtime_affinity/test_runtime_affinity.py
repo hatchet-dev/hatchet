@@ -1,5 +1,5 @@
 import pytest
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.labels import DesiredWorkerLabel
 from subprocess import Popen
 from typing import Any, Generator
@@ -85,7 +85,7 @@ async def test_runtime_affinity(
     for _ in range(20):
         target_worker = choice(labels)
         res = await affinity_example_task.aio_run(
-            options=RunWorkflowOptions(
+            options=TriggerWorkflowOptions(
                 desired_worker_label=[
                     DesiredWorkerLabel(
                         key="affinity",

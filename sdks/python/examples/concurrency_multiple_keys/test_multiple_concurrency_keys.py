@@ -14,7 +14,7 @@ from examples.concurrency_multiple_keys.worker import (
     WorkflowInput,
     concurrency_multiple_keys_workflow,
 )
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
@@ -62,7 +62,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
                     name=(name := choice(characters)),
                     digit=(digit := choice([str(i) for i in range(6)])),
                 ),
-                options=RunWorkflowOptions(
+                options=TriggerWorkflowOptions(
                     additional_metadata={
                         "test_run_id": test_run_id,
                         "key": f"{name}-{digit}",

@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from examples.run_details.worker import MockInput, run_detail_test_workflow
-from hatchet_sdk import Hatchet, RunStatus, RunWorkflowOptions, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus, TriggerWorkflowOptions, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -14,7 +14,7 @@ async def test_run(hatchet: Hatchet) -> None:
     meta = {"test_run_id": test_run_id}
     ref = run_detail_test_workflow.run(
         input=mock_input,
-        options=RunWorkflowOptions(additional_metadata=meta),
+        options=TriggerWorkflowOptions(additional_metadata=meta),
         wait_for_result=False,
     )
 

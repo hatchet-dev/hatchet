@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from examples.fanout.worker import ParentInput, parent_wf
-from hatchet_sdk import Hatchet, RunWorkflowOptions
+from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -25,7 +25,9 @@ async def test_additional_metadata_propagation(hatchet: Hatchet) -> None:
 
     ref = await parent_wf.aio_run(
         ParentInput(n=2),
-        options=RunWorkflowOptions(additional_metadata={"test_run_id": test_run_id}),
+        options=TriggerWorkflowOptions(
+            additional_metadata={"test_run_id": test_run_id}
+        ),
         wait_for_result=False,
     )
 

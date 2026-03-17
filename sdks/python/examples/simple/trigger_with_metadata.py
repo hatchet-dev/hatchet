@@ -1,9 +1,9 @@
 from examples.simple.worker import simple
-from hatchet_sdk import RunWorkflowOptions
+from hatchet_sdk import TriggerWorkflowOptions
 
 # > Trigger with metadata
 simple.run(
-    options=RunWorkflowOptions(
+    options=TriggerWorkflowOptions(
         additional_metadata={"source": "api"}  # Arbitrary key-value pair
     )
 )

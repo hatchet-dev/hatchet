@@ -38,13 +38,10 @@ from hatchet_sdk.types.labels import (
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.types.trigger import (
-    RunWorkflowOptions,
-)
-from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
 )
 from hatchet_sdk.types.trigger import (
-    TriggerWorkflowOptions as TriggerWorkflowOptions,
+    TriggerWorkflowOptions,
 )
 from hatchet_sdk.types.trigger import (
     WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
@@ -185,7 +182,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: RunWorkflowOptions,
+        options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
@@ -366,7 +363,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: RunWorkflowOptions,
+        options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
@@ -386,7 +383,7 @@ class AdminClient:
             options.child_index if options.child_index is not None else spawn_index
         )
 
-        trigger_options = RunWorkflowOptions(
+        trigger_options = TriggerWorkflowOptions(
             parent_id=options.parent_id or workflow_run_id,
             parent_step_run_id=options.parent_step_run_id or step_run_id,
             child_key=options.child_key,
@@ -411,7 +408,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: RunWorkflowOptions = RunWorkflowOptions(),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
         client = self._get_or_create_v0_client()
@@ -442,7 +439,7 @@ class AdminClient:
         self,
         workflow_name: str,
         input: str | None,
-        options: RunWorkflowOptions = RunWorkflowOptions(),
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         client = self._get_or_create_v0_client()
         trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
