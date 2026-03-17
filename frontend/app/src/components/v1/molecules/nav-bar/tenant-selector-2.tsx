@@ -30,13 +30,8 @@ type TenantSelector2Props = {
 };
 
 export function TenantSelector2({ className }: TenantSelector2Props) {
+  const { setTenant, tenant } = useTenantDetails();
   const {
-    setTenant,
-    isUserUniverseLoaded: isTenantLoaded,
-    tenant,
-  } = useTenantDetails();
-  const {
-    organizations,
     isLoaded: isUniverseLoaded,
     getOrganizationForTenant,
     getTenantWithTenantId,
@@ -51,9 +46,6 @@ export function TenantSelector2({ className }: TenantSelector2Props) {
     }
     return getOrganizationForTenant(tenant.metadata.id);
   }, [tenant, getOrganizationForTenant]);
-
-  const triggerDisabled =
-    !isTenantLoaded || !isUniverseLoaded || !organizations?.length;
 
   const tenantsToDisplay = isUniverseLoaded
     ? currentOrg
@@ -75,14 +67,14 @@ export function TenantSelector2({ className }: TenantSelector2Props) {
             open && 'bg-muted/30',
             className,
           )}
-          disabled={triggerDisabled}
+          disabled={!isUniverseLoaded}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <span className="min-w-0 flex-1 truncate">
               {tenant?.name ?? ''}
             </span>
           </div>
-          {(!isTenantLoaded || !isUniverseLoaded) && !open ? (
+          {!isUniverseLoaded ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
           ) : (
             <ChevronUpDownIcon className="size-4 shrink-0 opacity-50" />
@@ -96,57 +88,59 @@ export function TenantSelector2({ className }: TenantSelector2Props) {
           sideOffset={8}
           className="z-[200] w-[287px] rounded-md border border-border p-0 shadow-md"
         >
-        <Command className="border-0">
-          <CommandList data-cy="tenant-switcher-list">
-            <CommandEmpty>No tenants found.</CommandEmpty>
-            <CommandGroup>
-              {tenantsToDisplay.map((t) => (
-                <CommandItem
-                  key={t.metadata.id}
-                  value={`tenant-${t.metadata.id}`}
-                  onSelect={() => {
-                    setTenant(t);
-                    setOpen(false);
-                  }}
-                  data-cy={t.slug ? `tenant-switcher-item-${t.slug}` : undefined}
-                  className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
-                >
-                  <div className="flex w-full items-center justify-between">
-                    <span className="min-w-0 flex-1 truncate">{t.name}</span>
-                    <CheckIcon
-                      className={cn(
-                        'ml-2 size-4',
-                        tenant?.metadata.id === t.metadata.id
-                          ? 'opacity-100'
-                          : 'opacity-0',
-                      )}
-                    />
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-          {meta?.allowCreateTenant && (
-            <>
-              <CommandSeparator />
-              <CommandList>
-                <CommandItem
-                  className="cursor-pointer text-sm"
-                  data-cy="new-tenant"
-                  onSelect={() => {
-                    globalEmitter.emit('new-tenant', {
-                      defaultOrganizationId: currentOrg?.metadata.id,
-                    });
-                    setOpen(false);
-                  }}
-                >
-                  <PlusIcon className="mr-2 size-4" />
-                  New Tenant
-                </CommandItem>
-              </CommandList>
-            </>
-          )}
-        </Command>
+          <Command className="border-0">
+            <CommandList data-cy="tenant-switcher-list">
+              <CommandEmpty>No tenants found.</CommandEmpty>
+              <CommandGroup>
+                {tenantsToDisplay.map((t) => (
+                  <CommandItem
+                    key={t.metadata.id}
+                    value={`tenant-${t.metadata.id}`}
+                    onSelect={() => {
+                      setTenant(t);
+                      setOpen(false);
+                    }}
+                    data-cy={
+                      t.slug ? `tenant-switcher-item-${t.slug}` : undefined
+                    }
+                    className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                      <CheckIcon
+                        className={cn(
+                          'ml-2 size-4',
+                          tenant?.metadata.id === t.metadata.id
+                            ? 'opacity-100'
+                            : 'opacity-0',
+                        )}
+                      />
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+            {meta?.allowCreateTenant && (
+              <>
+                <CommandSeparator />
+                <CommandList>
+                  <CommandItem
+                    className="cursor-pointer text-sm"
+                    data-cy="new-tenant"
+                    onSelect={() => {
+                      globalEmitter.emit('new-tenant', {
+                        defaultOrganizationId: currentOrg?.metadata.id,
+                      });
+                      setOpen(false);
+                    }}
+                  >
+                    <PlusIcon className="mr-2 size-4" />
+                    New Tenant
+                  </CommandItem>
+                </CommandList>
+              </>
+            )}
+          </Command>
         </PopoverContent>
       </PopoverPortal>
     </Popover>
