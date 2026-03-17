@@ -108,7 +108,7 @@ export function OrganizationSelector({
           aria-expanded={open}
           aria-label="Select an organization"
           className={cn(
-            'w-full min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+            'w-[150px] md:w-[200px] justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
             open && 'bg-muted/30',
             className,
           )}
