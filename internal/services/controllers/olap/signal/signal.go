@@ -60,7 +60,7 @@ func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID
 		msg, err := tasktypes.CreatedDAGMessage(tenantId, dagCp)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create message for olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -72,7 +72,7 @@ func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not add message to olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -102,7 +102,7 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 		msg, err := tasktypes.CreatedTaskMessage(tenantId, task)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create message for olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -114,7 +114,7 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not add message to olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -263,7 +263,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 		msg, err := tasktypes.NotifyTaskCreated(tenantId, tasks)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create message for scheduler partition queue")
+			s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for scheduler partition queue")
 		} else {
 			err = s.mq.SendMessage(
 				ctx,
@@ -272,7 +272,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 			)
 
 			if err != nil {
-				s.l.Err(err).Msg("could not add message to scheduler partition queue")
+				s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
 			}
 		}
 	}
@@ -302,7 +302,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create monitoring event message")
+			s.l.Err(err).Ctx(ctx).Msg("could not create monitoring event message")
 			continue
 		}
 
@@ -314,7 +314,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not add monitoring event message to olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not add monitoring event message to olap queue")
 			continue
 		}
 	}
@@ -365,7 +365,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 		})
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create message for olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -377,7 +377,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not add message to olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -431,7 +431,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId
 		})
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create message for olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -443,7 +443,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not add message to olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -496,7 +496,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 		})
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create message for olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
 			continue
 		}
 
@@ -508,7 +508,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not add message to olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not add message to olap queue")
 			continue
 		}
 	}
@@ -544,7 +544,7 @@ func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId uuid.UU
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not create monitoring event message")
+			s.l.Err(err).Ctx(ctx).Msg("could not create monitoring event message")
 			continue
 		}
 
@@ -556,7 +556,7 @@ func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId uuid.UU
 		)
 
 		if err != nil {
-			s.l.Err(err).Msg("could not add monitoring event message to olap queue")
+			s.l.Err(err).Ctx(ctx).Msg("could not add monitoring event message to olap queue")
 			continue
 		}
 	}

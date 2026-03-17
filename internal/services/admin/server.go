@@ -88,12 +88,12 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			defer cancel()
 
 			for _, action := range actions {
-				a.l.Debug().Msgf("notifying new queue for tenant %s and action %s", tenantId, action)
+				a.l.Debug().Ctx(ctx).Msgf("notifying new queue for tenant %s and action %s", tenantId, action)
 
 				msg, err := tasktypes.NotifyNewQueue(tenantId, action)
 
 				if err != nil {
-					a.l.Err(err).Msg("could not create message for notifying new queue")
+					a.l.Err(err).Ctx(ctx).Msg("could not create message for notifying new queue")
 				} else {
 					err = a.mqv1.SendMessage(
 						notifyCtx,
@@ -102,17 +102,17 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 					)
 
 					if err != nil {
-						a.l.Err(err).Msg("could not add message to scheduler partition queue")
+						a.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
 					}
 
-					a.l.Debug().Msgf("notified new queue for tenant %s and action %s", tenantId, action)
+					a.l.Debug().Ctx(ctx).Msgf("notified new queue for tenant %s and action %s", tenantId, action)
 				}
 			}
 		}()
 	} else if err != nil {
-		a.l.Warn().Err(err).Msgf("could not get actions for tasks for workflow version %s, skipping notifying new queues for tenant %s", currWorkflow.WorkflowVersion.ID.String(), tenantId)
+		a.l.Warn().Ctx(ctx).Err(err).Msgf("could not get actions for tasks for workflow version %s, skipping notifying new queues for tenant %s", currWorkflow.WorkflowVersion.ID.String(), tenantId)
 	} else if !tenant.SchedulerPartitionId.Valid {
-		a.l.Debug().Msgf("tenant %s does not have a valid scheduler partition id, skipping notifying new queues for workflow version %s", tenantId, currWorkflow.WorkflowVersion.ID.String())
+		a.l.Debug().Ctx(ctx).Msgf("tenant %s does not have a valid scheduler partition id, skipping notifying new queues for workflow version %s", tenantId, currWorkflow.WorkflowVersion.ID.String())
 	}
 
 	resp := toWorkflowVersion(currWorkflow)
