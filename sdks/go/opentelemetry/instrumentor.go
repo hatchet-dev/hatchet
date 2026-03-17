@@ -109,9 +109,7 @@ func NewInstrumentor(opts ...InstrumentorOption) (*Instrumentor, error) {
 			return nil, fmt.Errorf("failed to resolve client config for OTel collector: %w", err)
 		}
 
-		insecure := clientCfg.TLSConfig == nil
-
-		exporter, err := newHatchetExporter(clientCfg.GRPCBroadcastAddress, clientCfg.Token, insecure)
+		exporter, err := newHatchetExporter(clientCfg.GRPCBroadcastAddress, clientCfg.Token, clientCfg.TLSConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Hatchet OTLP exporter: %w", err)
 		}

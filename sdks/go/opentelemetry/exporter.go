@@ -52,7 +52,7 @@ func (e *hatchetExporter) Shutdown(ctx context.Context) error {
 	return e.inner.Shutdown(ctx)
 }
 
-func newHatchetExporter(endpoint, token string, insecureConn bool) (sdktrace.SpanExporter, error) {
+func newHatchetExporter(endpoint, token string, tlsCfg *tls.Config) (sdktrace.SpanExporter, error) {
 	opts := []otlptracegrpc.Option{
 		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithHeaders(map[string]string{
@@ -60,10 +60,10 @@ func newHatchetExporter(endpoint, token string, insecureConn bool) (sdktrace.Spa
 		}),
 	}
 
-	if insecureConn {
+	if tlsCfg == nil {
 		opts = append(opts, otlptracegrpc.WithInsecure())
 	} else {
-		opts = append(opts, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12}))) //nolint:gosec // G402
+		opts = append(opts, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(tlsCfg)))
 	}
 
 	inner, err := otlptracegrpc.New(context.Background(), opts...)

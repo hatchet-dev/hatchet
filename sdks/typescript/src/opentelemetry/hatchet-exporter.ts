@@ -107,11 +107,26 @@ class HatchetAttributeSpanProcessor extends BatchSpanProcessor {
 function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTraceExporter> {
   const insecure = config.tls_config.tls_strategy === 'none';
 
-  return new OTLPTraceExporter({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const opts: Record<string, any> = {
     url: `${insecure ? 'http' : 'https'}://${config.host_port}`,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    metadata: { authorization: `Bearer ${config.token}` } as any,
-  });
+    metadata: { authorization: `Bearer ${config.token}` },
+  };
+
+  if (!insecure && config.tls_config.ca_file) {
+    try {
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const fs = require('fs') as typeof import('fs');
+      const { ChannelCredentials } = require('nice-grpc') as typeof import('nice-grpc');
+      /* eslint-enable @typescript-eslint/no-require-imports */
+      const rootCerts = fs.readFileSync(config.tls_config.ca_file);
+      opts.credentials = ChannelCredentials.createSsl(rootCerts);
+    } catch {
+      // Fall through to default TLS handling
+    }
+  }
+
+  return new OTLPTraceExporter(opts);
 }
 
 export interface HatchetBspConfig {

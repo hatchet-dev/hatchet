@@ -340,11 +340,23 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
 
-        otlp_exporter = OTLPSpanExporter(
-            endpoint=endpoint,
-            headers=headers,
-            insecure=insecure,
-        )
+        exporter_kwargs: dict[str, Any] = {
+            "endpoint": endpoint,
+            "headers": headers,
+        }
+
+        if insecure:
+            exporter_kwargs["insecure"] = True
+        elif self.config.tls_config.root_ca_file:
+            import grpc
+
+            with open(self.config.tls_config.root_ca_file, "rb") as f:
+                root_certs = f.read()
+            exporter_kwargs["credentials"] = grpc.ssl_channel_credentials(
+                root_certificates=root_certs
+            )
+
+        otlp_exporter = OTLPSpanExporter(**exporter_kwargs)
 
         self.tracer_provider.add_span_processor(
             _HatchetAttributeSpanProcessor(
@@ -482,6 +494,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 result = await wrapped(*args, **kwargs)
 
                 if isinstance(result, Exception):
+                    span.record_exception(result)
                     span.set_status(StatusCode.ERROR, str(result))
 
                 return result
