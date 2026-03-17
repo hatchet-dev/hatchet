@@ -185,7 +185,7 @@ type ConfigFileRuntime struct {
 	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
 	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
 
-	// GRPCWorkerMaxLockAcquisitionTimeMS is the maximum number of milliseconds that the dispatcher will wait while attempting
+	// GRPCWorkerMaxLockAcquisitionTime is the maximum number of milliseconds that the dispatcher will wait while attempting
 	// to send messages to workers. If it waits longer, the request will be rejected. Default is 250
 	GRPCWorkerMaxWorkerLockAcquisitionTime time.Duration `mapstructure:"grpcWorkerMaxLockAcquisitionTime" json:"grpcWorkerMaxLockAcquisitionTime,omitempty" default:"250ms"`
 
@@ -684,7 +684,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
-	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTimeMS", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME_MS")
+	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTime", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME")
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")

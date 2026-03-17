@@ -201,7 +201,7 @@ func WithPayloadSizeThreshold(threshold int) DispatcherOpt {
 	}
 }
 
-func WithDefaultMaxWorkerLockAcquisitionTimeMS(t time.Duration) DispatcherOpt {
+func WithDefaultMaxWorkerLockAcquisitionTime(t time.Duration) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.defaultMaxWorkerLockAcquisitionTime = t
 	}
