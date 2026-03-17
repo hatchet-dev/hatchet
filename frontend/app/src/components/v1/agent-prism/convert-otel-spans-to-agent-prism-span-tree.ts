@@ -2,6 +2,7 @@ import type {
   OtelSpanTree,
   RelevantOpenTelemetrySpanProperties,
 } from './span-tree-type';
+import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import invariant from 'tiny-invariant';
 
 export const convertOtelSpansToOtelSpanTree = (
@@ -42,6 +43,37 @@ export const convertOtelSpansToOtelSpanTree = (
   });
 
   invariant(rootSpans.length > 0, 'Must have at least one root span');
+
+  // When there are multiple root spans, create a synthetic parent span
+  // that groups them under a single "hatchet.workflow_start" node.
+  if (rootSpans.length > 1) {
+    const earliestStart = Math.min(
+      ...rootSpans.map((s) => new Date(s.createdAt).getTime()),
+    );
+    const latestEnd = Math.max(
+      ...rootSpans.map(
+        (s) => new Date(s.createdAt).getTime() + s.durationNs / 1e6,
+      ),
+    );
+    const durationNs = (latestEnd - earliestStart) * 1e6;
+
+    const hasError = rootSpans.some(
+      (s) => s.statusCode === OtelStatusCode.ERROR,
+    );
+
+    const syntheticRoot: OtelSpanTree = {
+      spanId: '__synthetic_workflow_start__',
+      parentSpanId: undefined,
+      spanName: 'hatchet.start_workflow',
+      statusCode: hasError ? OtelStatusCode.ERROR : OtelStatusCode.OK,
+      durationNs,
+      createdAt: new Date(earliestStart).toISOString(),
+      spanAttributes: { instrumentor: 'hatchet' },
+      children: rootSpans,
+    };
+
+    return [syntheticRoot];
+  }
 
   return rootSpans;
 };

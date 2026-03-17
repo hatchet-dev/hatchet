@@ -43,6 +43,7 @@ interface TaskRunDetailProps {
   taskRunId: string;
   defaultOpenTab?: TabOption;
   showViewTaskRunButton?: boolean;
+  onTaskRunClick?: (taskRunId: string) => void;
 }
 
 export const TASK_RUN_TERMINAL_STATUSES = [
@@ -103,6 +104,7 @@ export const TaskRunDetail = ({
   taskRunId,
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
+  onTaskRunClick,
 }: TaskRunDetailProps) => {
   const [logsResetKey, setLogsResetKey] = useState(0);
   const taskRunQuery = useQuery({
@@ -298,6 +300,7 @@ export const TaskRunDetail = ({
           <Observability
             taskRunId={taskRunId}
             isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+            onTaskRunClick={onTaskRunClick}
           />
         </TabsContent>
       </Tabs>

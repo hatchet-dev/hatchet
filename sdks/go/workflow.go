@@ -658,7 +658,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
 	}
-	otelCtx, span := tracer.Start(otelCtx, fmt.Sprintf("hatchet trigger task %s", w.declaration.Name()),
+	otelCtx, span := tracer.Start(otelCtx, "hatchet.run_workflow",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String("hatchet.task_name", w.declaration.Name())),
 	)
@@ -721,7 +721,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.String("hatchet.workflow_run_id", v0Workflow.RunId()))
+	span.SetAttributes(attribute.String("hatchet.child_workflow_run_id", v0Workflow.RunId()))
 	span.SetStatus(codes.Ok, "")
 
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
@@ -729,6 +729,17 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 
 // RunMany executes multiple workflow instances with different inputs.
 func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	ctx, span := tracer.Start(ctx, "hatchet.run_workflows",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.task_name", w.declaration.Name()),
+			attribute.Int("hatchet.num_workflows", len(inputs)),
+		),
+	)
+	defer span.End()
+
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
@@ -755,5 +766,11 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 
 	wg.Wait()
 
-	return workflowRefs, errors.Join(errs...)
+	if err := errors.Join(errs...); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return workflowRefs, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return workflowRefs, nil
 }

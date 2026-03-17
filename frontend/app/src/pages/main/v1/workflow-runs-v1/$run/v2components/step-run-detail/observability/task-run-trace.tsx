@@ -69,7 +69,7 @@ export function TaskRunTrace({
           expandedSpansIds={expandedSpansIds}
           onExpandSpansIdsChange={setExpandedSpansIds}
           selectedSpan={selectedSpan}
-          onSpanSelect={onTaskRunClick ? handleSpanSelect : undefined}
+          onSpanSelect={handleSpanSelect}
         />
       </div>
     </div>

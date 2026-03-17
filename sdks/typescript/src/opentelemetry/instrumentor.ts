@@ -21,6 +21,7 @@ import type {
 } from '@hatchet/clients/event/event-client';
 import type { AdminClient } from '@hatchet/v1/client/admin';
 import type { InternalWorker } from '@hatchet/v1/client/worker/worker-internal';
+import type { DurableContext } from '@hatchet/v1/client/worker/context';
 import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
 import { OTelAttribute, type ActionOTelAttributeValue } from '../util/opentelemetry';
 import { parseJSON } from '../util/parse';
@@ -246,12 +247,25 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
       this.unpatchWorker.bind(this)
     );
 
+    const durableContextModuleFile = new InstrumentationNodeModuleFile(
+      '@hatchet-dev/typescript-sdk/v1/client/worker/context.js',
+      SUPPORTED_VERSIONS,
+      this.patchDurableContext.bind(this),
+      this.unpatchDurableContext.bind(this)
+    );
+
     const moduleDefinition = new InstrumentationNodeModuleDefinition(
       INSTRUMENTOR_NAME,
       SUPPORTED_VERSIONS,
       undefined,
       undefined,
-      [eventClientModuleFile, adminClientModuleFile, workerModuleFile, scheduleClientModuleFile]
+      [
+        eventClientModuleFile,
+        adminClientModuleFile,
+        workerModuleFile,
+        scheduleClientModuleFile,
+        durableContextModuleFile,
+      ]
     );
 
     return [moduleDefinition];
@@ -773,6 +787,71 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               .finally(() => {
                 span.end();
               });
+          }
+        );
+      };
+    });
+  }
+  // --- DurableContext patching ---
+
+  private patchDurableContext(moduleExports: unknown): unknown {
+    const exports = moduleExports as { DurableContext?: { prototype: DurableContext<unknown> } };
+    if (!exports?.DurableContext?.prototype) {
+      return moduleExports;
+    }
+
+    this._patchWaitFor(exports.DurableContext.prototype);
+    return moduleExports;
+  }
+
+  private unpatchDurableContext(moduleExports: unknown): void {
+    const exports = moduleExports as { DurableContext?: { prototype: DurableContext<unknown> } };
+    if (!exports?.DurableContext?.prototype) {
+      return;
+    }
+    if (isWrapped(exports.DurableContext.prototype.waitFor)) {
+      this._unwrap(exports.DurableContext.prototype, 'waitFor');
+    }
+  }
+
+  // IMPORTANT: Keep this wrapper's signature in sync with DurableContext.waitFor
+  private _patchWaitFor(prototype: DurableContext<unknown>): void {
+    if (isWrapped(prototype.waitFor)) {
+      this._unwrap(prototype, 'waitFor');
+    }
+
+    this._wrap(prototype, 'waitFor', (original: DurableContext<unknown>['waitFor']) => {
+      const instrumentor = this;
+
+      return async function wrappedWaitFor(
+        this: DurableContext<unknown>,
+        ...args: Parameters<DurableContext<unknown>['waitFor']>
+      ): Promise<Record<string, any>> {
+        const { tracer } = instrumentor;
+
+        return tracer.startActiveSpan(
+          'hatchet.durable.wait_for',
+          {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              instrumentor: 'hatchet',
+              'hatchet.step_run_id': (this as any).action?.taskRunExternalId ?? '',
+            },
+          },
+          async (span: Span) => {
+            try {
+              const result = await original.apply(this, args);
+              span.setStatus({ code: SpanStatusCode.OK });
+              return result;
+            } catch (error: unknown) {
+              if (error instanceof Error) {
+                span.recordException(error);
+                span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+              }
+              throw error;
+            } finally {
+              span.end();
+            }
           }
         );
       };

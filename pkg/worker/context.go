@@ -9,7 +9,11 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -983,6 +987,16 @@ func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*Sing
 
 // WaitFor implements the DurableHatchetContext.WaitFor method.
 func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitResult, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/worker")
+	_, span := tracer.Start(d.GetContext(), "hatchet.durable.wait_for",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.step_run_id", d.StepRunId()),
+		),
+	)
+	defer span.End()
+
 	// Increment wait key to ensure unique keys for multiple wait operations
 	d.waitKeyCounterMu.Lock()
 	d.waitKeyCounter++
@@ -993,12 +1007,15 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	durableListener, err := d.saveOrLoadDurableEventListener()
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	// compose the durable event to listen for
 	c := conditions.ToPB(v1.Action_CREATE)
 	signalKey := fmt.Sprintf("signal-%d", count)
+
+	span.SetAttributes(attribute.String("hatchet.signal_key", signalKey))
 
 	_, err = d.client().Dispatcher().RegisterDurableEvent(d, &v1.RegisterDurableEventRequest{
 		TaskId:    d.StepRunId(),
@@ -1010,6 +1027,7 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	})
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to register durable event: %w", err)
 	}
 
@@ -1022,11 +1040,13 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	})
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to add signal: %w", err)
 	}
 
 	data := <-resCh
 
+	span.SetStatus(codes.Ok, "")
 	return newWaitResult(data)
 }
 

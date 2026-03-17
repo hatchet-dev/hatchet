@@ -413,19 +413,24 @@ export const SpanCard: FC<SpanCardProps> = ({
                 >
                   {data.spanName}
                 </h3>
-                {hasStepLink && stepName && (
-                  <span
-                    className="cursor-pointer truncate text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
-                    title={`View task run: ${stepName}`}
-                    onClick={(e: MouseEvent) => {
-                      e.stopPropagation();
-                      onSpanSelect?.(data);
-                    }}
-                    role="link"
-                  >
-                    {stepName}
-                  </span>
-                )}
+                {stepName &&
+                  (hasStepLink ? (
+                    <span
+                      className="cursor-pointer truncate text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+                      title={`View task run: ${stepName}`}
+                      onClick={(e: MouseEvent) => {
+                        e.stopPropagation();
+                        onSpanSelect?.(data);
+                      }}
+                      role="link"
+                    >
+                      {stepName}
+                    </span>
+                  ) : (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {stepName}
+                    </span>
+                  ))}
               </div>
             </Collapsible.Trigger>
 

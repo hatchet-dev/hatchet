@@ -626,7 +626,7 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
 	}
-	otelCtx, span := tracer.Start(otelCtx, fmt.Sprintf("hatchet trigger task %s", workflowName),
+	otelCtx, span := tracer.Start(otelCtx, "hatchet.run_workflow",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String("hatchet.task_name", workflowName)),
 	)
@@ -690,7 +690,7 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.String("hatchet.workflow_run_id", v0Workflow.RunId()))
+	span.SetAttributes(attribute.String("hatchet.child_workflow_run_id", v0Workflow.RunId()))
 	span.SetStatus(codes.Ok, "")
 
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
@@ -705,6 +705,17 @@ type RunManyOpt struct {
 // RunMany executes multiple workflow instances with different inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	ctx, span := tracer.Start(ctx, "hatchet.run_workflows",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.task_name", workflowName),
+			attribute.Int("hatchet.num_workflows", len(inputs)),
+		),
+	)
+	defer span.End()
+
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
@@ -731,7 +742,13 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 
 	wg.Wait()
 
-	return workflowRefs, errors.Join(errs...)
+	if err := errors.Join(errs...); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return workflowRefs, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return workflowRefs, nil
 }
 
 // Metrics returns a feature client for interacting with workflow and task metrics.

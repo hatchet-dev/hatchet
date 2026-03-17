@@ -38,6 +38,17 @@ type SendConfirmationOutput struct {
 	Sent bool `json:"sent"`
 }
 
+type NotifyInput struct {
+	OrderID       string `json:"orderId"`
+	TransactionID string `json:"transactionId"`
+	Channel       string `json:"channel"`
+}
+
+type NotifyOutput struct {
+	Delivered bool   `json:"delivered"`
+	Channel   string `json:"channel"`
+}
+
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {
@@ -50,6 +61,25 @@ func main() {
 	}
 
 	tracer := otel.Tracer("otel-instrumentation-example")
+
+	// Child workflow for sending notifications via a specific channel
+	notifyTask := client.NewStandaloneTask(
+		"otel-send-notification",
+		func(ctx hatchet.Context, input NotifyInput) (NotifyOutput, error) {
+			_, span := tracer.Start(ctx, "notification.render-template")
+			time.Sleep(5 * time.Millisecond)
+			span.End()
+
+			_, span = tracer.Start(ctx, fmt.Sprintf("notification.deliver.%s", input.Channel))
+			time.Sleep(20 * time.Millisecond)
+			span.End()
+
+			return NotifyOutput{
+				Delivered: true,
+				Channel:   input.Channel,
+			}, nil
+		},
+	)
 
 	workflow := client.NewWorkflow("otel-order-processing")
 
@@ -131,22 +161,29 @@ func main() {
 				return SendConfirmationOutput{}, err
 			}
 
-			_, span := tracer.Start(ctx, "notification.render-template")
-			time.Sleep(5 * time.Millisecond)
-			span.End()
+			// Spawn a child workflow to send the notification
+			result, err := notifyTask.Run(ctx, NotifyInput{
+				OrderID:       input.OrderID,
+				TransactionID: payment.TransactionID,
+				Channel:       "email",
+			})
+			if err != nil {
+				return SendConfirmationOutput{}, fmt.Errorf("failed to send notification: %w", err)
+			}
 
-			_, span = tracer.Start(ctx, "notification.send-email")
-			time.Sleep(20 * time.Millisecond)
-			span.End()
+			var notifyOutput NotifyOutput
+			if err := result.Into(&notifyOutput); err != nil {
+				return SendConfirmationOutput{}, fmt.Errorf("failed to read notification result: %w", err)
+			}
 
-			return SendConfirmationOutput{Sent: true}, nil
+			return SendConfirmationOutput{Sent: notifyOutput.Delivered}, nil
 		},
 		hatchet.WithParents(chargePayment, reserveInventory),
 	)
 
 	worker, err := client.NewWorker(
 		"otel-instrumentation-worker",
-		hatchet.WithWorkflows(workflow),
+		hatchet.WithWorkflows(workflow, notifyTask),
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
