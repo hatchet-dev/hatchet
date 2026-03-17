@@ -967,6 +967,12 @@ func sqlcSpanName(stmt string) string {
 		if end := strings.IndexAny(after, " \n"); end > 0 {
 			return after[:end]
 		}
+		// Fallback: if there is no space or newline after the query name,
+		// use the trimmed remainder as the span name instead of falling
+		// back to the entire SQL statement.
+		if trimmed := strings.TrimSpace(after); trimmed != "" {
+			return trimmed
+		}
 	}
 	return firstNWords(stmt, 6)
 }
