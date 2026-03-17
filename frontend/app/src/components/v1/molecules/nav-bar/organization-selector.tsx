@@ -28,13 +28,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useState, useMemo, useCallback } from 'react';
 import invariant from 'tiny-invariant';
 
-type OrganizationSelector2Props = {
-  className?: string;
-};
-
-export function OrganizationSelector({
-  className,
-}: OrganizationSelector2Props) {
+export function OrganizationSelector({ className }: { className?: string }) {
   const navigate = useNavigate();
   const {
     setTenant,

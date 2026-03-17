@@ -25,11 +25,7 @@ import {
 } from '@radix-ui/react-popover';
 import { useState, useMemo } from 'react';
 
-type TenantSelector2Props = {
-  className?: string;
-};
-
-export function TenantSelector({ className }: TenantSelector2Props) {
+export function TenantSelector({ className }: { className?: string }) {
   const { setTenant, tenant } = useTenantDetails();
   const {
     isLoaded: isUniverseLoaded,
