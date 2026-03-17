@@ -1,4 +1,3 @@
-import contextvars
 import json
 from collections.abc import Callable, Collection, Coroutine
 from importlib.metadata import version
@@ -59,17 +58,12 @@ from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
 from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.runnables.contextvars import ctx_hatchet_span_attributes
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 hatchet_sdk_version = version("hatchet-sdk")
-
-# ContextVar that holds the hatchet.* attributes from the active
-# hatchet.start_step_run span so they can be injected into child spans.
-_hatchet_span_attributes: contextvars.ContextVar[dict[str, str | int] | None] = (
-    contextvars.ContextVar("_hatchet_span_attributes", default=None)
-)
 
 
 class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
@@ -81,7 +75,7 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
         super().__init__(span_exporter)
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
-        attrs = _hatchet_span_attributes.get()
+        attrs = ctx_hatchet_span_attributes.get()
         if attrs and span.is_recording():
             for key, value in attrs.items():
                 span.set_attribute(key, value)
@@ -415,7 +409,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             span_name += f".{action.action_id}"
 
         hatchet_attrs = action.get_otel_attributes(self.config)
-        token = _hatchet_span_attributes.set(hatchet_attrs)
+        token = ctx_hatchet_span_attributes.set(hatchet_attrs)
 
         try:
             with self._tracer.start_as_current_span(
@@ -431,7 +425,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
                 return result
         finally:
-            _hatchet_span_attributes.reset(token)
+            ctx_hatchet_span_attributes.reset(token)
 
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_cancel_action(

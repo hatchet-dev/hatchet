@@ -55,3 +55,9 @@ task_count = TaskCounter()
 ctx_hatchet_context: ContextVar[Context | None] = ContextVar(
     "ctx_hatchet_context", default=None
 )
+
+# Holds the hatchet.* attributes from the active hatchet.start_step_run span
+# so that HatchetAttributeSpanProcessor can inject them into child spans.
+ctx_hatchet_span_attributes: ContextVar[dict[str, str | int] | None] = ContextVar(
+    "ctx_hatchet_span_attributes", default=None
+)
