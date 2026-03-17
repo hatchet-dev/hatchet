@@ -103,6 +103,10 @@ const organizationsNewRoute = createRoute({
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  loader: async () => {
+    const mod = await import('./pages/authenticated');
+    return mod.loader({ request: new Request(window.location.href) });
+  },
   component: lazyRouteComponent(
     () => import('./pages/authenticated'),
     'default',
