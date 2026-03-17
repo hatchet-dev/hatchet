@@ -327,7 +327,7 @@ WITH locked_workflow_concurrency_slots AS (
     FROM (
         SELECT *,
             -- ORDER BY wcs_all.is_filled ASC, wcs_all.sort_id DESC
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id DESC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled ASC, sort_id DESC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = @tenantId::uuid
@@ -561,8 +561,7 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT *
     FROM (
         SELECT *,
-            -- wcs_all.is_filled DESC, wcs_all.sort_id ASC
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled DESC, sort_id ASC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = @tenantId::uuid
