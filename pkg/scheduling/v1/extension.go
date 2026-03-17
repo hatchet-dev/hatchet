@@ -40,6 +40,7 @@ type SchedulerExtension interface {
 	SetTenants(tenants []*sqlcv1.Tenant)
 	ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput)
 	PostAssign(tenantId uuid.UUID, input *PostAssignInput)
+	CleanupTenant(tenantId uuid.UUID) error
 	Cleanup() error
 }
 
@@ -77,6 +78,20 @@ func (e *Extensions) PostAssign(tenantId uuid.UUID, input *PostAssignInput) {
 		f := ext.PostAssign
 		go f(tenantId, input)
 	}
+}
+
+func (e *Extensions) CleanupTenant(tenantId uuid.UUID) error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	eg := errgroup.Group{}
+
+	for _, ext := range e.exts {
+		f := ext.CleanupTenant
+		eg.Go(func() error { return f(tenantId) })
+	}
+
+	return eg.Wait()
 }
 
 func (e *Extensions) Cleanup() error {
