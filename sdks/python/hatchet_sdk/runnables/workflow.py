@@ -376,7 +376,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param input: The input data for the workflow.
         :param key: The key for the workflow run. This is used to identify the run in the bulk operation and for deduplication.
-        :param options: Additional options for the workflow run.
+        :param options: Deprecated. Additional options for the workflow run. Use the other keyword arguments instead.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: A `WorkflowRunTriggerConfig` object that can be used to trigger the workflow run, which you then pass into the `run_many` methods.
         """
@@ -602,7 +608,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param run_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the scheduled workflow run.
+
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
         opts = self._create_schedule_options_with_combined_metadata(
@@ -633,7 +643,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param run_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the scheduled workflow run.
+
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
         return await asyncio.to_thread(
@@ -774,7 +788,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
 
         :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
 
@@ -845,8 +865,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers a workflow run, blocks until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, block until completion and return the result. If False, return a WorkflowRunRef immediately.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
@@ -886,7 +912,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
 
         :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
 
@@ -957,8 +989,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers a workflow run, awaits until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, await completion and return the result. If False, return a WorkflowRunRef immediately.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
 
@@ -1720,8 +1758,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         This method triggers a workflow run, blocks until completion, and returns the extracted result.
 
         :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, block until completion and return the result. If False, return a TaskRunRef immediately.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
@@ -1800,8 +1844,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         This method triggers a workflow run, awaits until completion, and returns the extracted result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, await completion and return the result. If False, return a TaskRunRef immediately.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
@@ -1850,7 +1900,13 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         This method triggers a workflow run and immediately returns a reference to the run without blocking while the workflow runs.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
 
@@ -1890,7 +1946,13 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
 
         :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
+        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
+        :param child_key: An optional key for deduplicating child workflow runs.
+        :param additional_metadata: Additional metadata to attach to the workflow run.
+        :param priority: The priority of the workflow run.
+        :param sticky: Whether to use sticky scheduling for the workflow run.
+        :param desired_worker_id: The ID of the desired worker to run the workflow on.
+        :param desired_worker_labels: A list of desired worker labels for worker affinity.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
 

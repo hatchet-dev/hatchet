@@ -15,17 +15,13 @@ tracer = trace_provider.get_tracer(__name__)
 ADDITIONAL_METADATA = {"hello": "world"}
 
 
-def create_push_kwargs() -> dict[str, dict[str, str]]:
-    return {"additional_metadata": ADDITIONAL_METADATA}
-
-
 def push_event() -> None:
     print("\npush_event")
     with tracer.start_as_current_span("push_event"):
         hatchet.event.push(
             "otel:event",
             {"test": "test"},
-            **create_push_kwargs(),
+            additional_metadata=ADDITIONAL_METADATA,
         )
 
 
@@ -33,7 +29,9 @@ async def async_push_event() -> None:
     print("\nasync_push_event")
     with tracer.start_as_current_span("async_push_event"):
         await hatchet.event.aio_push(
-            "otel:event", {"test": "test"}, **create_push_kwargs()
+            "otel:event",
+            {"test": "test"},
+            additional_metadata=ADDITIONAL_METADATA,
         )
 
 
