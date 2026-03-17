@@ -10,6 +10,10 @@ import (
 )
 
 func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request gen.V1WorkflowRunGetTraceRequestObject) (gen.V1WorkflowRunGetTraceResponseObject, error) {
+	if !t.config.HatchetO11y.Enabled {
+		return gen.V1WorkflowRunGetTrace200JSONResponse(gen.OtelSpanList{}), nil
+	}
+
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 

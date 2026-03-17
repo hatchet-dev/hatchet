@@ -9,6 +9,10 @@ import (
 )
 
 func (t *TasksService) V1TaskGetTrace(ctx echo.Context, request gen.V1TaskGetTraceRequestObject) (gen.V1TaskGetTraceResponseObject, error) {
+	if !t.config.HatchetO11y.Enabled {
+		return gen.V1TaskGetTrace200JSONResponse(gen.OtelSpanList{}), nil
+	}
+
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap) //nolint:errcheck
 
 	limit := int64(1000)

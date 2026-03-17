@@ -24,8 +24,9 @@ const (
 type otelCollectorImpl struct {
 	collectortracev1.UnimplementedTraceServiceServer
 
-	repo repository.Repository
-	l    *zerolog.Logger
+	repo         repository.Repository
+	l            *zerolog.Logger
+	maxBatchSize int
 }
 
 func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -49,6 +50,13 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
+	var rejected int64
+	if oc.maxBatchSize > 0 && len(spans) > oc.maxBatchSize {
+		rejected = int64(len(spans) - oc.maxBatchSize)
+		oc.l.Warn().Int("total", len(spans)).Int("max", oc.maxBatchSize).Int64("rejected", rejected).Msg("span batch exceeds max size, truncating")
+		spans = spans[:oc.maxBatchSize]
+	}
+
 	err := otelColRepo.CreateSpans(ctx, tenantId, &repository.CreateSpansOpts{
 		TenantID: tenantId,
 		Spans:    spans,
@@ -58,13 +66,22 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		oc.l.Error().Err(err).Msg("failed to store spans")
 		return &collectortracev1.ExportTraceServiceResponse{
 			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
-				RejectedSpans: int64(len(spans)),
+				RejectedSpans: int64(len(spans)) + rejected,
 				ErrorMessage:  err.Error(),
 			},
 		}, nil
 	}
 
 	oc.l.Debug().Int("span_count", len(spans)).Str("tenant_id", tenantId.String()).Msg("stored spans")
+
+	if rejected > 0 {
+		return &collectortracev1.ExportTraceServiceResponse{
+			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
+				RejectedSpans: rejected,
+				ErrorMessage:  "batch size exceeded maximum limit",
+			},
+		}, nil
+	}
 
 	return &collectortracev1.ExportTraceServiceResponse{}, nil
 }

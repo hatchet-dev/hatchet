@@ -820,22 +820,20 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
       this._unwrap(prototype, 'waitFor');
     }
 
-    this._wrap(prototype, 'waitFor', (original: DurableContext<unknown>['waitFor']) => {
-      const instrumentor = this;
+    const { tracer } = this;
 
+    this._wrap(prototype, 'waitFor', (original: DurableContext<unknown>['waitFor']) => {
       return async function wrappedWaitFor(
         this: DurableContext<unknown>,
         ...args: Parameters<DurableContext<unknown>['waitFor']>
-      ): Promise<Record<string, any>> {
-        const { tracer } = instrumentor;
-
+      ): Promise<Record<string, unknown>> {
         return tracer.startActiveSpan(
           'hatchet.durable.wait_for',
           {
             kind: SpanKind.INTERNAL,
             attributes: {
               instrumentor: 'hatchet',
-              'hatchet.step_run_id': (this as any).action?.taskRunExternalId ?? '',
+              'hatchet.step_run_id': this.action?.taskRunExternalId ?? '',
             },
           },
           async (span: Span) => {

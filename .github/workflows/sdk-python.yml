@@ -102,6 +102,7 @@ jobs:
           export SERVER_DEFAULT_ENGINE_VERSION=V1
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
           export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
+          export SERVER_HATCHET_O11Y_ENABLED=true
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -244,7 +245,7 @@ jobs:
         run: |
           echo "Testing current SDK against engine ${{ env.LATEST_TAG }}"
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto --ignore=tests/otel_traces
 
       - name: Collect engine logs
         if: always()

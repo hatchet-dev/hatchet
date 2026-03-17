@@ -16,10 +16,11 @@ import { hatchetSpanAttributes } from './hatchet-span-context';
 try {
   require.resolve('@opentelemetry/exporter-trace-otlp-grpc');
   require.resolve('@opentelemetry/sdk-trace-base');
+  require.resolve('@opentelemetry/core');
 } catch {
   throw new Error(
     'To use HatchetInstrumentor with enableHatchetCollector, you must install: ' +
-      'npm install @opentelemetry/exporter-trace-otlp-grpc @opentelemetry/sdk-trace-base'
+      'npm install @opentelemetry/exporter-trace-otlp-grpc @opentelemetry/sdk-trace-base @opentelemetry/core'
   );
 }
 
@@ -28,6 +29,8 @@ try {
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc') as typeof import('@opentelemetry/exporter-trace-otlp-grpc');
 // prettier-ignore
 const sdkTraceBase = require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
+// prettier-ignore
+const { ExportResultCode } = require('@opentelemetry/core') as typeof import('@opentelemetry/core');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const { BatchSpanProcessor } = sdkTraceBase;
@@ -35,6 +38,51 @@ const { BatchSpanProcessor } = sdkTraceBase;
 type SdkTracerProvider = import('@opentelemetry/sdk-trace-base').BasicTracerProvider;
 type ReadableSpan = import('@opentelemetry/sdk-trace-base').ReadableSpan;
 type SdkSpan = import('@opentelemetry/sdk-trace-base').Span;
+type SpanExporter = import('@opentelemetry/sdk-trace-base').SpanExporter;
+type ExportResult = import('@opentelemetry/core').ExportResult;
+
+const GRPC_STATUS_UNIMPLEMENTED = 12;
+const RETRY_AFTER_MS = 5 * 60 * 1000;
+
+class HatchetExporterWrapper implements SpanExporter {
+  private inner: SpanExporter;
+  private retryAt = 0;
+
+  constructor(inner: SpanExporter) {
+    this.inner = inner;
+  }
+
+  export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
+    if (this.retryAt > 0 && Date.now() < this.retryAt) {
+      resultCallback({ code: ExportResultCode.SUCCESS });
+      return;
+    }
+
+    this.inner.export(spans, (result: ExportResult) => {
+      if (result.code !== ExportResultCode.SUCCESS && result.error) {
+        const err = result.error as unknown as Record<string, unknown>;
+        if (
+          err.code === GRPC_STATUS_UNIMPLEMENTED ||
+          err.message?.toString().includes('UNIMPLEMENTED')
+        ) {
+          this.retryAt = Date.now() + RETRY_AFTER_MS;
+          resultCallback({ code: ExportResultCode.SUCCESS });
+          return;
+        }
+      }
+      this.retryAt = 0;
+      resultCallback(result);
+    });
+  }
+
+  shutdown(): Promise<void> {
+    return this.inner.shutdown();
+  }
+
+  forceFlush(): Promise<void> {
+    return this.inner.forceFlush?.() ?? Promise.resolve();
+  }
+}
 
 /**
  * HatchetAttributeSpanProcessor wraps a BatchSpanProcessor and injects
@@ -56,9 +104,6 @@ class HatchetAttributeSpanProcessor extends BatchSpanProcessor {
   }
 }
 
-/**
- * Creates an OTLP gRPC trace exporter pointing at the Hatchet engine.
- */
 function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTraceExporter> {
   const insecure = config.tls_config.tls_strategy === 'none';
 
@@ -75,7 +120,8 @@ function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTr
  * using the same connection settings as the Hatchet client.
  */
 export function addHatchetExporter(tracerProvider: SdkTracerProvider, config: ClientConfig): void {
-  const exporter = createHatchetExporter(config);
+  const inner = createHatchetExporter(config);
+  const exporter = new HatchetExporterWrapper(inner as unknown as SpanExporter);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const processor = new HatchetAttributeSpanProcessor(exporter as any);
 
