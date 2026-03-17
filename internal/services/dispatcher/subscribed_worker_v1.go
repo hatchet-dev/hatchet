@@ -19,21 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-func (worker *subscribedWorker) tryAcquireSendLockWithTimeout(timeout time.Duration) bool {
-	select {
-	// attempt to send to the semaphore, blocks on contention because it has a buffer of 1
-	case worker.sendSemaphore <- struct{}{}:
-		return true
-	// timing out dequeues the semaphore send
-	case <-time.After(timeout):
-		return false
-	}
-}
-
-func (worker *subscribedWorker) releaseSendLock() {
-	<-worker.sendSemaphore
-}
-
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -110,7 +95,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	if !worker.tryAcquireSendLockWithTimeout(worker.sendLockAcquisitionTimeout) {
+	if !worker.sendLock.Acquire() {
 		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "flow control is active")
@@ -121,7 +106,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
 
-	defer worker.releaseSendLock()
+	defer worker.sendLock.Release()
 	defer lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
@@ -178,7 +163,7 @@ func (worker *subscribedWorker) CancelTask(
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
 	sentCh := make(chan error, 1)
-	acquiredLock := worker.tryAcquireSendLockWithTimeout(worker.sendLockAcquisitionTimeout)
+	acquiredLock := worker.sendLock.Acquire()
 	if !acquiredLock {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 			task.TenantID,
@@ -188,7 +173,7 @@ func (worker *subscribedWorker) CancelTask(
 				WorkerId:       &worker.workerId,
 				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
 				EventTimestamp: time.Now().UTC(),
-				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLockAcquisitionTimeout),
+				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.timeout),
 			},
 		)
 		if err != nil {
@@ -205,7 +190,7 @@ func (worker *subscribedWorker) CancelTask(
 
 	go func() {
 		defer close(sentCh)
-		defer worker.releaseSendLock()
+		defer worker.sendLock.Release()
 
 		sentCh <- worker.stream.Send(action)
 	}()

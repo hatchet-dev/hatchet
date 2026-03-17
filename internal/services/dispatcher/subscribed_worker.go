@@ -16,8 +16,7 @@ type subscribedWorker struct {
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
 
-	sendSemaphore              chan struct{}
-	sendLockAcquisitionTimeout time.Duration
+	sendLock *TimeoutLock
 
 	workerId uuid.UUID
 
@@ -31,13 +30,12 @@ func newSubscribedWorker(
 	maxLockAcquisitionTime time.Duration,
 	pubBuffer *msgqueue.MQPubBuffer,
 ) *subscribedWorker {
-
+	lock := NewTimeoutLock(maxLockAcquisitionTime)
 	return &subscribedWorker{
-		stream:                     stream,
-		finished:                   fin,
-		workerId:                   workerId,
-		pubBuffer:                  pubBuffer,
-		sendLockAcquisitionTimeout: maxLockAcquisitionTime,
-		sendSemaphore:              make(chan struct{}, 1),
+		stream:    stream,
+		finished:  fin,
+		workerId:  workerId,
+		pubBuffer: pubBuffer,
+		sendLock:  lock,
 	}
 }
