@@ -188,7 +188,7 @@ func (worker *subscribedWorker) CancelTask(
 				WorkerId:       &worker.workerId,
 				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
 				EventTimestamp: time.Now().UTC(),
-				EventMessage:   "Worker backlog size exceeded",
+				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLockAcquisitionTimeout),
 			},
 		)
 		if err != nil {

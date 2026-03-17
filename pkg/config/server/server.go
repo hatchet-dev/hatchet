@@ -187,7 +187,7 @@ type ConfigFileRuntime struct {
 
 	// GRPCWorkerMaxLockAcquisitionTime is the maximum amount of time the dispatcher will wait while attempting
 	// to send a messages to a worker. If it waits longer, the request will be rejected. Default is 250ms
-	GRPCWorkerMaxWorkerLockAcquisitionTime time.Duration `mapstructure:"grpcWorkerMaxLockAcquisitionTime" json:"grpcWorkerMaxLockAcquisitionTime,omitempty" default:"250ms"`
+	GRPCMaxWorkerLockAcquisitionTime time.Duration `mapstructure:"grpcWorkerMaxLockAcquisitionTime" json:"grpcWorkerMaxLockAcquisitionTime,omitempty" default:"250ms"`
 
 	// GRPCStaticStreamWindowSize sets the static stream window size for the grpc server. This can help with performance
 	// with overloaded workers and large messages. Default is 10MB.
