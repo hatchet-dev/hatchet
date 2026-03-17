@@ -13,7 +13,7 @@ except ImportError:
     from llm_service import get_llm_service
     from tool_service import get_tool_service
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Define Agent Task
@@ -35,6 +35,8 @@ async def agent_task(input: EmptyModel, ctx: DurableContext) -> dict:
     return await agent_reasoning_loop(query)
 
 
+
+
 # > Step 02 Reasoning Loop
 async def agent_reasoning_loop(query: str) -> dict:
     llm = get_llm_service()
@@ -48,6 +50,8 @@ async def agent_reasoning_loop(query: str) -> dict:
             result = tools.run(tc["name"], tc.get("args", {}))
             messages.append({"role": "tool", "content": result})
     return {"response": "Max iterations reached"}
+
+
 
 
 # > Step 03 Stream Response

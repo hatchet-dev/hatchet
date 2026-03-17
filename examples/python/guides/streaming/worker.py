@@ -8,7 +8,7 @@ from hatchet_sdk import (
     Hatchet,
 )
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Define Streaming Task
@@ -34,6 +34,8 @@ async def _emit_chunks(ctx: Context) -> None:
     for i in range(5):
         await ctx.aio_put_stream(f"chunk-{i}")
         await asyncio.sleep(0.5)
+
+
 
 
 def main() -> None:
