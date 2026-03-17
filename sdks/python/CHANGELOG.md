@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `worker_labels` and `desired_worker_labels` are now stored internally as `list[WorkerLabel]` / `list[DesiredWorkerLabel]` and converted to the protobuf representation at the last moment, rather than eagerly at construction time.
+- Adds top-level parameters to all of the `run`, `schedule`, etc. methods to pass options directly, instead of needing to import e.g. `TriggerWorkflowOptions` which wasn't very Pythonic.
 
 ### Deprecated
 
