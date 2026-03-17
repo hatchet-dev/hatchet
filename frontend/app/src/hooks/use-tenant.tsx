@@ -66,18 +66,17 @@ export function useTenantDetails() {
         }),
       );
 
-      if (!isOnTenantRoute) {
-        navigate({
-          to: appRoutes.tenantRunsRoute.to,
-          params: { tenant: tenant.metadata.id },
-        });
-        return;
-      }
+      const navigateTarget = isOnTenantRoute
+        ? {
+            to: '.', // stay on the current route
+            params: { tenant: tenant.metadata.id },
+          }
+        : {
+            to: appRoutes.tenantRunsRoute.to,
+            params: { tenant: tenant.metadata.id },
+          };
 
-      navigate({
-        to: '.', // stay on the current route
-        params: { tenant: tenant.metadata.id },
-      });
+      navigate(navigateTarget);
     },
     [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
   );
