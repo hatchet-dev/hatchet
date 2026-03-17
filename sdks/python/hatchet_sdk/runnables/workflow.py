@@ -715,7 +715,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: RunWorkflowOptions | None = None,
-        wait_for_result: Literal[False] = False,
+        *,
+        wait_for_result: Literal[False],
     ) -> WorkflowRunRef: ...
 
     def run(
@@ -784,7 +785,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: RunWorkflowOptions | None = None,
-        wait_for_result: Literal[False] = False,
+        *,
+        wait_for_result: Literal[False],
     ) -> WorkflowRunRef: ...
 
     async def aio_run(
@@ -1518,7 +1520,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: RunWorkflowOptions | None = None,
-        wait_for_result: Literal[False] = False,
+        *,
+        wait_for_result: Literal[False],
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     def run(
@@ -1559,7 +1562,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: RunWorkflowOptions | None = None,
-        wait_for_result: Literal[False] = False,
+        *,
+        wait_for_result: Literal[False],
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     async def aio_run(

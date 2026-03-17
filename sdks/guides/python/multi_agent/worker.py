@@ -5,7 +5,7 @@ try:
 except ImportError:
     from mock_llm import mock_orchestrator_llm, mock_specialist_llm
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Specialist Agents
@@ -22,6 +22,8 @@ async def write(input: EmptyModel, ctx: DurableContext) -> dict:
 @hatchet.durable_task(name="CodeSpecialist", execution_timeout="2m")
 async def code(input: EmptyModel, ctx: DurableContext) -> dict:
     return {"result": mock_specialist_llm(input["task"], "code")}
+
+
 # !!
 
 
@@ -47,15 +49,19 @@ async def orchestrator(input: EmptyModel, ctx: DurableContext) -> dict:
         if not specialist:
             raise ValueError(f"Unknown specialist: {response['tool_call']['name']}")
 
-        result = await specialist.aio_run(input={
-            "task": response["tool_call"]["args"]["task"],
-            "context": "\n".join(m["content"] for m in messages),
-        })
+        result = await specialist.aio_run(
+            input={
+                "task": response["tool_call"]["args"]["task"],
+                "context": "\n".join(m["content"] for m in messages),
+            }
+        )
 
         messages.append({"role": "assistant", "content": f"Called {response['tool_call']['name']}"})
         messages.append({"role": "tool", "content": result["result"]})
 
     return {"result": "Max iterations reached"}
+
+
 # !!
 
 

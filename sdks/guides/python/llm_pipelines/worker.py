@@ -6,7 +6,7 @@ try:
 except ImportError:
     from llm_service import get_llm_service
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Define Pipeline
@@ -28,6 +28,8 @@ async def prompt_task(input: PipelineInput, ctx: Context) -> dict:
 # > Step 02 Prompt Task
 def _build_prompt(user_input: str, context: str = "") -> str:
     return f"Process the following: {user_input}" + (f"\nContext: {context}" if context else "")
+
+
 # !!
 
 
