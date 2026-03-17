@@ -954,21 +954,38 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 func newOTelPgxTracer() *otelpgx.Tracer {
 	return otelpgx.NewTracer(
 		otelpgx.WithDisableSQLStatementInAttributes(),
+		otelpgx.WithTrimSQLInSpanName(),
 		otelpgx.WithSpanNameFunc(sqlcSpanName),
 	)
 }
 
 // sqlcSpanName extracts the query name from sqlc's "-- name: QueryName :verb"
 // comment that prefixes every generated SQL constant. For ad-hoc queries without
-// the comment, it returns UNKNOWN.
+// the comment, it falls back to the first 6 words of the statement.
 func sqlcSpanName(stmt string) string {
 	if after, ok := strings.CutPrefix(stmt, "-- name: "); ok {
 		if end := strings.IndexAny(after, " \n"); end > 0 {
 			return after[:end]
 		}
-		if t := strings.TrimSpace(after); t != "" {
-			return t
+		// Fallback: if there is no space or newline after the query name,
+		// use the trimmed remainder as the span name instead of falling
+		// back to the entire SQL statement.
+		if trimmed := strings.TrimSpace(after); trimmed != "" {
+			return trimmed
 		}
 	}
-	return "UNKNOWN"
+	return firstNWords(stmt, 6)
+}
+
+func firstNWords(s string, n int) string {
+	s = strings.TrimSpace(s)
+	end := 0
+	for i := 0; i < n; i++ {
+		next := strings.IndexByte(s[end:], ' ')
+		if next < 0 {
+			return strings.ToUpper(s)
+		}
+		end += next + 1
+	}
+	return strings.ToUpper(strings.TrimSpace(s[:end]))
 }

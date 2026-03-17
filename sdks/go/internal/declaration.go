@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -17,8 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal/task"
-
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 // WrappedTaskFn represents a task function that can be executed by the Hatchet worker.
@@ -514,7 +512,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 		Input:      inputMap,
 	}
 
-	runOpts := &v1contracts.TriggerWorkflowRequest{}
+	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
 		opt(runOpts)
@@ -554,7 +552,7 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 		Input:     inputMap,
 	}
 
-	runOpts := &v1contracts.TriggerWorkflowRequest{}
+	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
 		opt(runOpts)

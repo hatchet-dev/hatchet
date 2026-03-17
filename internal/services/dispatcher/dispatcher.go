@@ -326,7 +326,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		err := d.handleV1Task(ctx, task)
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
+			d.l.Error().Ctx(ctx).Err(err).Msgf("could not handle dispatcher task %s", task.ID)
 			return err
 		}
 
@@ -342,7 +342,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	cleanup := func() error {
-		d.l.Debug().Msgf("dispatcher is shutting down...")
+		d.l.Debug().Ctx(ctx).Msgf("dispatcher is shutting down...")
 		cancel()
 
 		if err := cleanupQueueV1(); err != nil {
@@ -354,7 +354,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		d.pubBuffer.Stop()
 
 		// drain the existing connections
-		d.l.Debug().Msg("draining existing connections")
+		d.l.Debug().Ctx(ctx).Msg("draining existing connections")
 
 		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
 			value.Range(func(key string, value *subscribedWorker) bool {
@@ -380,9 +380,9 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
 
-		d.l.Debug().Msgf("deleted dispatcher %s", dispatcherId)
+		d.l.Debug().Ctx(ctx).Msgf("deleted dispatcher %s", dispatcherId)
 
-		d.l.Debug().Msgf("dispatcher has shutdown")
+		d.l.Debug().Ctx(ctx).Msgf("dispatcher has shutdown")
 		return nil
 	}
 
@@ -448,7 +448,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
-		d.l.Debug().Msgf("dispatcher: updating heartbeat")
+		d.l.Debug().Ctx(ctx).Msgf("dispatcher: updating heartbeat")
 
 		now := time.Now().UTC()
 
@@ -458,7 +458,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		})
 
 		if err != nil {
-			d.l.Err(err).Msg("dispatcher: could not update heartbeat")
+			d.l.Err(err).Ctx(ctx).Msg("dispatcher: could not update heartbeat")
 		}
 	}
 }

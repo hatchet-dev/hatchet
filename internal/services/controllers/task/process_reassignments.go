@@ -57,14 +57,14 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			continue
 		}
 
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 			continue
 		}
 
@@ -85,14 +85,14 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			)
 
 			if err != nil {
-				tc.l.Error().Err(err).Msg("could not create monitoring event message")
+				tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 				continue
 			}
 
 			err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 			if err != nil {
-				tc.l.Error().Err(err).Msg("could not create monitoring event message")
+				tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 				continue
 			}
 		}

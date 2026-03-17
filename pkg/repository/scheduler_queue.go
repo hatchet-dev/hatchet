@@ -278,7 +278,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	}
 
 	taskIds := make([]int64, 0, len(r.Assigned))
-	tenantIds := make([]uuid.UUID, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
 	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
 
@@ -290,7 +289,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if _, ok := queuedItemsMap[id]; ok {
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
 			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
-			tenantIds = append(tenantIds, tenantId)
 			workerIds = append(workerIds, assignedItem.WorkerId)
 
 			if assignedItem.QueueItem.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignedItem.QueueItem.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {

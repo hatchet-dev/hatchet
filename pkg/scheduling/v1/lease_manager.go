@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -22,6 +23,7 @@ type LeaseManager struct {
 	lr v1.LeaseRepository
 
 	conf *sharedConfig
+	l    zerolog.Logger
 
 	tenantId uuid.UUID
 
@@ -49,6 +51,7 @@ func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, not
 	return &LeaseManager{
 		lr:                  conf.repo.Lease(),
 		conf:                conf,
+		l:                   conf.l.With().Str("tenant_id", tenantId.String()).Logger(),
 		tenantId:            tenantId,
 		workersCh:           workersCh,
 		queuesCh:            queuesCh,
@@ -59,7 +62,7 @@ func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, not
 func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult, isIncremental bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
+			l.l.Error().Interface("recovered", r).Msg("recovered from panic")
 		}
 	}()
 
@@ -75,7 +78,7 @@ func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult, is
 func (l *LeaseManager) sendQueues(queues []string, isIncremental bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
+			l.l.Error().Interface("recovered", r).Msg("recovered from panic")
 		}
 	}()
 
@@ -91,7 +94,7 @@ func (l *LeaseManager) sendQueues(queues []string, isIncremental bool) {
 func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepConcurrency, isIncremental bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
+			l.l.Error().Interface("recovered", r).Msg("recovered from panic")
 		}
 	}()
 
@@ -296,18 +299,18 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 }
 
 func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) error {
-	l.conf.l.Debug().Msgf("[notifyNewQueue] notifying new queue %s for tenant %s", queueName, l.tenantId)
+	l.l.Debug().Msgf("[notifyNewQueue] notifying new queue %s for tenant %s", queueName, l.tenantId)
 
 	l.processMu.RLock()
 	defer l.processMu.RUnlock()
 
 	if l.cleanedUp {
-		l.conf.l.Debug().Msgf("[notifyNewQueue] lease manager already cleaned up, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
+		l.l.Debug().Msgf("[notifyNewQueue] lease manager already cleaned up, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
 		return nil
 	}
 
 	if !l.queueLeasesMu.TryLock() {
-		l.conf.l.Debug().Msgf("[notifyNewQueue] could not acquire queueLeasesMu, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
+		l.l.Debug().Msgf("[notifyNewQueue] could not acquire queueLeasesMu, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
 		return nil
 	}
 
@@ -316,7 +319,7 @@ func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) err
 	// check that we don't already have a lease for this queue
 	for _, lease := range l.queueLeases {
 		if lease.ResourceId == queueName {
-			l.conf.l.Debug().Msgf("[notifyNewQueue] already have lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
+			l.l.Debug().Msgf("[notifyNewQueue] already have lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
 			return nil
 		}
 	}
@@ -327,12 +330,12 @@ func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) err
 	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, []string{queueName}, []*sqlcv1.Lease{})
 
 	if err != nil {
-		l.conf.l.Debug().Err(err).Msgf("[notifyNewQueue] error acquiring lease for queue %s for tenant %s", queueName, l.tenantId)
+		l.l.Debug().Err(err).Msgf("[notifyNewQueue] error acquiring lease for queue %s for tenant %s", queueName, l.tenantId)
 		return err
 	}
 
 	if len(lease) == 0 || lease[0].ResourceId == "" {
-		l.conf.l.Debug().Msgf("[notifyNewQueue] did not acquire lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
+		l.l.Debug().Msgf("[notifyNewQueue] did not acquire lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
 		return nil
 	}
 
@@ -475,7 +478,7 @@ func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 		defer wg.Done()
 
 		if err := l.acquireWorkerLeases(loopCtx); err != nil {
-			l.conf.l.Error().Err(err).Msg("error acquiring worker leases")
+			l.l.Error().Err(err).Msg("error acquiring worker leases")
 		}
 	}()
 
@@ -483,7 +486,7 @@ func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 		defer wg.Done()
 
 		if err := l.acquireQueueLeases(loopCtx); err != nil {
-			l.conf.l.Error().Err(err).Msg("error acquiring queue leases")
+			l.l.Error().Err(err).Msg("error acquiring queue leases")
 		}
 	}()
 
@@ -491,7 +494,7 @@ func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 		defer wg.Done()
 
 		if err := l.acquireConcurrencyLeases(loopCtx); err != nil {
-			l.conf.l.Error().Err(err).Msg("error acquiring concurrency leases")
+			l.l.Error().Err(err).Msg("error acquiring concurrency leases")
 		}
 	}()
 

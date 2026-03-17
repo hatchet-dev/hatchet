@@ -29,7 +29,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 	taskId, err := uuid.Parse(req.TaskId)
 
 	if err != nil {
-		d.l.Error().Msgf("task id %s is not a valid uuid", req.TaskId)
+		d.l.Error().Ctx(ctx).Msgf("task id %s is not a valid uuid", req.TaskId)
 		return nil, status.Error(codes.InvalidArgument, "task id is not a valid uuid")
 	}
 
@@ -45,7 +45,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
 
 		if err != nil {
-			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			d.l.Error().Ctx(ctx).Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
 			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
 		}
 
@@ -61,7 +61,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 		orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
 
 		if err != nil {
-			d.l.Error().Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
+			d.l.Error().Ctx(ctx).Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
 			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
 		}
 
@@ -176,14 +176,14 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		// results := cleanResults(e.Results)
 
 		// if results == nil {
-		// 	s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
+		// 	s.l.Warn().Ctx(ctx).Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
 		// 	e.Results = nil
 		// }
 
 		externalId := acks.getExternalId(e.TaskID, e.TaskInsertedAt, e.EventKey.String)
 
 		if externalId == uuid.Nil {
-			d.l.Warn().Msgf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
+			d.l.Warn().Ctx(ctx).Msgf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 			return fmt.Errorf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 		}
 
@@ -197,7 +197,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		sendMu.Unlock()
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not send durable event for task %s, key %s", externalId, e.EventKey.String)
+			d.l.Error().Ctx(ctx).Err(err).Msgf("could not send durable event for task %s, key %s", externalId, e.EventKey.String)
 			return err
 		}
 
@@ -212,7 +212,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		}
 
 		if !iterMu.TryLock() {
-			d.l.Warn().Msg("could not acquire lock")
+			d.l.Warn().Ctx(ctx).Msg("could not acquire lock")
 			return nil
 		}
 
@@ -224,7 +224,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		dbEvents, err := d.repo.Tasks().ListSignalCompletedEvents(ctx, tenantId, signalEvents)
 
 		if err != nil {
-			d.l.Error().Err(err).Msg("could not list signal completed events")
+			d.l.Error().Ctx(ctx).Err(err).Msg("could not list signal completed events")
 			return err
 		}
 
@@ -237,7 +237,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		}
 
 		if time.Since(start) > 100*time.Millisecond {
-			d.l.Warn().Msgf("list durable events for %d signals took %s", len(signalEvents), time.Since(start))
+			d.l.Warn().Ctx(ctx).Msgf("list durable events for %d signals took %s", len(signalEvents), time.Since(start))
 		}
 
 		return nil
@@ -254,14 +254,14 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 					return
 				}
 
-				d.l.Error().Err(err).Msg("could not receive message from client")
+				d.l.Error().Ctx(ctx).Err(err).Msg("could not receive message from client")
 				return
 			}
 
 			taskId, err := uuid.Parse(req.TaskId)
 
 			if err != nil {
-				d.l.Warn().Msgf("task id %s is not a valid uuid", req.TaskId)
+				d.l.Warn().Ctx(ctx).Msgf("task id %s is not a valid uuid", req.TaskId)
 				continue
 			}
 
@@ -269,7 +269,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 			task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskId, false)
 
 			if err != nil {
-				d.l.Error().Err(err).Msg("could not get task by external id")
+				d.l.Error().Ctx(ctx).Err(err).Msg("could not get task by external id")
 				continue
 			}
 
@@ -293,7 +293,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				}
 
 				if err := iter(signalEvents); err != nil {
-					d.l.Error().Err(err).Msg("could not iterate over workflow runs")
+					d.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 				}
 			}
 		}
@@ -327,11 +327,10 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 
 type durableTaskInvocation struct {
 	server   contracts.V1Dispatcher_DurableTaskServer
+	l        *zerolog.Logger
+	sendMu   sync.Mutex
 	tenantId uuid.UUID
 	workerId uuid.UUID
-	l        *zerolog.Logger
-
-	sendMu sync.Mutex
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -576,11 +575,13 @@ func (d *DispatcherServiceImpl) handleMemo(
 
 	var nde *v1.NonDeterminismError
 	var sie *v1.StaleInvocationError
-	if err != nil && errors.As(err, &nde) {
+
+	switch {
+	case err != nil && errors.As(err, &nde):
 		return d.sendNonDeterminismError(invocation, nde, req.InvocationCount)
-	} else if err != nil && errors.As(err, &sie) {
+	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
-	} else if err != nil {
+	case err != nil:
 		return status.Errorf(codes.Internal, "failed to ingest memo event: %v", err)
 	}
 
@@ -658,11 +659,13 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 
 	var nde *v1.NonDeterminismError
 	var sie *v1.StaleInvocationError
-	if err != nil && errors.As(err, &nde) {
+
+	switch {
+	case err != nil && errors.As(err, &nde):
 		return d.sendNonDeterminismError(invocation, nde, req.InvocationCount)
-	} else if err != nil && errors.As(err, &sie) {
+	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
-	} else if err != nil {
+	case err != nil:
 		return status.Errorf(codes.Internal, "failed to ingest trigger runs event: %v", err)
 	}
 
@@ -729,9 +732,9 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	if req.WaitForConditions != nil {
 		for _, condition := range req.WaitForConditions.SleepConditions {
-			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-			if err != nil {
-				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			if parseErr != nil {
+				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", parseErr)
 			}
 			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 				Kind:            v1.CreateExternalSignalConditionKindSLEEP,
@@ -742,9 +745,9 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		}
 
 		for _, condition := range req.WaitForConditions.UserEventConditions {
-			orGroupId, err := uuid.Parse(condition.Base.OrGroupId)
-			if err != nil {
-				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", err)
+			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			if parseErr != nil {
+				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", parseErr)
 			}
 			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 				Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
@@ -770,11 +773,13 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	var nde *v1.NonDeterminismError
 	var sie *v1.StaleInvocationError
-	if err != nil && errors.As(err, &nde) {
+
+	switch {
+	case err != nil && errors.As(err, &nde):
 		return d.sendNonDeterminismError(invocation, nde, req.InvocationCount)
-	} else if err != nil && errors.As(err, &sie) {
+	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
-	} else if err != nil {
+	case err != nil:
 		return status.Errorf(codes.Internal, "failed to ingest wait_for event: %v", err)
 	}
 

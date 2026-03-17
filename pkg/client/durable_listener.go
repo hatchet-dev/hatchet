@@ -72,7 +72,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 			err := w.Close()
 
 			if err != nil {
-				r.l.Error().Err(err).Msg("failed to close durable events listener")
+				r.l.Error().Ctx(ctx).Err(err).Msg("failed to close durable events listener")
 			}
 
 			r.durableEventsListenerMu.Lock()
@@ -83,7 +83,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		err := w.Listen(ctx)
 
 		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for durable events")
+			r.l.Error().Ctx(ctx).Err(err).Msg("failed to listen for durable events")
 		}
 	}()
 
@@ -105,7 +105,7 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 
 		if err != nil {
 			retries++
-			w.l.Error().Err(err).Msgf("could not resubscribe to the durable event listener")
+			w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener")
 			continue
 		}
 
@@ -123,7 +123,7 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 			})
 
 			if err != nil {
-				w.l.Error().Err(err).Msgf("could not listen for durable events on the worker")
+				w.l.Error().Ctx(ctx).Err(err).Msgf("could not listen for durable events on the worker")
 				rangeErr = err
 				return false
 			}

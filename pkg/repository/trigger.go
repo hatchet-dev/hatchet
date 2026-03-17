@@ -2262,7 +2262,7 @@ func (r *sharedRepository) NewTriggerTaskData(
 	req *v1contracts.TriggerWorkflowRequest,
 	parentTask *sqlcv1.FlattenExternalIdsRow,
 ) (*TriggerTaskData, error) {
-	ctx, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerTaskData")
+	_, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerTaskData")
 	defer span.End()
 
 	span.SetAttributes(

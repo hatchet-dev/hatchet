@@ -407,14 +407,12 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
-	re, isInvalidArgument := err.(*v1.TriggerOptInvalidArgumentError)
-
 	if err != nil {
-		if isInvalidArgument {
+		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
-		} else {
-			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
+
+		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
@@ -616,7 +614,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
-				a.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+				a.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
 			}
 		}
 
@@ -638,7 +636,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			dispatcherErr := eg.Wait()
 
 			if dispatcherErr != nil {
-				a.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+				a.l.Error().Ctx(ctx).Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 
 			// we return nil because the failed assignments would have been requeued by the local dispatcher,
@@ -655,7 +653,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			a.l.Error().Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
+			a.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
 		} else if triggerErr == nil {
 			return nil
 		}
@@ -729,7 +727,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		msg := tasktypes.NewCronUpdateMessage(tenantId, msgqueue.MsgIDCronUpdate)
 		err = a.mq.SendMessage(ctx, msgqueue.TICKER_UPDATE_QUEUE, msg)
 		if err != nil {
-			a.l.Err(err).Msg("could not send cron trigger update message")
+			a.l.Err(err).Ctx(ctx).Msg("could not send cron trigger update message")
 		}
 	}
 
@@ -747,7 +745,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 				msg, err := tasktypes.NotifyNewQueue(tenantId, action)
 
 				if err != nil {
-					a.l.Err(err).Msg("could not create message for notifying new queue")
+					a.l.Err(err).Ctx(ctx).Msg("could not create message for notifying new queue")
 				} else {
 					err = a.mq.SendMessage(
 						notifyCtx,
@@ -756,7 +754,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 					)
 
 					if err != nil {
-						a.l.Err(err).Msg("could not add message to scheduler partition queue")
+						a.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
 					}
 				}
 			}

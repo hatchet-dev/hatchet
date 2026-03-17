@@ -160,7 +160,7 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 			err := tm.Cleanup()
 
 			if err != nil {
-				p.cf.l.Error().Err(err).Msgf("failed to cleanup tenant manager for tenant %s", tm.tenantId.String())
+				tm.l.Error().Err(err).Msg("failed to cleanup tenant manager")
 			}
 		}(tm)
 	}

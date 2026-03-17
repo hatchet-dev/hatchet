@@ -14,9 +14,9 @@ type CleanupFn struct {
 }
 
 type Cleanup struct {
+	logger    *zerolog.Logger
 	Fns       []CleanupFn
 	TimeLimit time.Duration
-	logger    *zerolog.Logger
 }
 
 func New(logger *zerolog.Logger) Cleanup {

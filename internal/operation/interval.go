@@ -103,7 +103,7 @@ func (i *Interval) RunInterval(ctx context.Context) <-chan struct{} {
 					rowsModified, err := i.gauge(ctx, i.resourceId)
 
 					if err != nil {
-						i.l.Error().Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
+						i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
 					} else {
 						i.SetIntervalGauge(rowsModified)
 					}
@@ -175,7 +175,7 @@ func (i *Interval) SetIntervalGauge(rowsModified int) {
 		newInterval, err := i.repo.SetInterval(ctx, i.operationId, uuid.MustParse(i.resourceId), i.currInterval)
 
 		if err != nil {
-			i.l.Error().Err(err).Msg(fmt.Sprintf("error setting interval for resource %s", i.resourceId))
+			i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error setting interval for resource %s", i.resourceId))
 		} else {
 			i.currInterval = newInterval
 		}
