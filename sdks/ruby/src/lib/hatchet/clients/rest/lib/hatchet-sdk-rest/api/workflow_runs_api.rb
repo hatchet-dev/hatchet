@@ -19,6 +19,88 @@ module HatchetSdkRest
     def initialize(api_client = ApiClient.default)
       @api_client = api_client
     end
+    # Branch durable task
+    # Branch a durable task from a specific node, creating a new branch and re-processing its matches.
+    # @param tenant [String] The tenant id
+    # @param v1_branch_durable_task_request [V1BranchDurableTaskRequest] The branch request
+    # @param [Hash] opts the optional parameters
+    # @return [V1BranchDurableTaskResponse]
+    def v1_durable_task_branch(tenant, v1_branch_durable_task_request, opts = {})
+      data, _status_code, _headers = v1_durable_task_branch_with_http_info(tenant, v1_branch_durable_task_request, opts)
+      data
+    end
+
+    # Branch durable task
+    # Branch a durable task from a specific node, creating a new branch and re-processing its matches.
+    # @param tenant [String] The tenant id
+    # @param v1_branch_durable_task_request [V1BranchDurableTaskRequest] The branch request
+    # @param [Hash] opts the optional parameters
+    # @return [Array<(V1BranchDurableTaskResponse, Integer, Hash)>] V1BranchDurableTaskResponse data, response status code and response headers
+    def v1_durable_task_branch_with_http_info(tenant, v1_branch_durable_task_request, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: WorkflowRunsApi.v1_durable_task_branch ...'
+      end
+      # verify the required parameter 'tenant' is set
+      if @api_client.config.client_side_validation && tenant.nil?
+        fail ArgumentError, "Missing the required parameter 'tenant' when calling WorkflowRunsApi.v1_durable_task_branch"
+      end
+      if @api_client.config.client_side_validation && tenant.to_s.length > 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowRunsApi.v1_durable_task_branch, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && tenant.to_s.length < 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowRunsApi.v1_durable_task_branch, the character length must be greater than or equal to 36.'
+      end
+
+      # verify the required parameter 'v1_branch_durable_task_request' is set
+      if @api_client.config.client_side_validation && v1_branch_durable_task_request.nil?
+        fail ArgumentError, "Missing the required parameter 'v1_branch_durable_task_request' when calling WorkflowRunsApi.v1_durable_task_branch"
+      end
+      # resource path
+      local_var_path = '/api/v1/stable/tenants/{tenant}/durable-tasks/branch'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+      # HTTP header 'Content-Type'
+      content_type = @api_client.select_header_content_type(['application/json'])
+      if !content_type.nil?
+          header_params['Content-Type'] = content_type
+      end
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body] || @api_client.object_to_http_body(v1_branch_durable_task_request)
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'V1BranchDurableTaskResponse'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"WorkflowRunsApi.v1_durable_task_branch",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:POST, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: WorkflowRunsApi#v1_durable_task_branch\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
+
     # Create workflow run
     # Trigger a new workflow run
     # @param tenant [String] The tenant id
@@ -188,6 +270,7 @@ module HatchetSdkRest
     # @option opts [Time] :_until The latest date to filter by
     # @option opts [Array<String>] :additional_metadata Additional metadata k-v pairs to filter by
     # @option opts [Array<String>] :workflow_ids The workflow ids to find runs for
+    # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @return [Array<String>]
     def v1_workflow_run_external_ids_list(tenant, since, opts = {})
       data, _status_code, _headers = v1_workflow_run_external_ids_list_with_http_info(tenant, since, opts)
@@ -203,6 +286,7 @@ module HatchetSdkRest
     # @option opts [Time] :_until The latest date to filter by
     # @option opts [Array<String>] :additional_metadata Additional metadata k-v pairs to filter by
     # @option opts [Array<String>] :workflow_ids The workflow ids to find runs for
+    # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @return [Array<(Array<String>, Integer, Hash)>] Array<String> data, response status code and response headers
     def v1_workflow_run_external_ids_list_with_http_info(tenant, since, opts = {})
       if @api_client.config.debugging
@@ -234,6 +318,7 @@ module HatchetSdkRest
       query_params[:'until'] = opts[:'_until'] if !opts[:'_until'].nil?
       query_params[:'additional_metadata'] = @api_client.build_collection_param(opts[:'additional_metadata'], :multi) if !opts[:'additional_metadata'].nil?
       query_params[:'workflow_ids'] = @api_client.build_collection_param(opts[:'workflow_ids'], :multi) if !opts[:'workflow_ids'].nil?
+      query_params[:'running_filter'] = opts[:'running_filter'] if !opts[:'running_filter'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}
@@ -501,6 +586,7 @@ module HatchetSdkRest
     # @option opts [String] :parent_task_external_id The parent task external id to filter by
     # @option opts [String] :triggering_event_external_id The external id of the event that triggered the workflow run
     # @option opts [Boolean] :include_payloads A flag for whether or not to include the input and output payloads in the response. Defaults to &#x60;true&#x60; if unset.
+    # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @return [V1TaskSummaryList]
     def v1_workflow_run_list(tenant, since, only_tasks, opts = {})
       data, _status_code, _headers = v1_workflow_run_list_with_http_info(tenant, since, only_tasks, opts)
@@ -523,6 +609,7 @@ module HatchetSdkRest
     # @option opts [String] :parent_task_external_id The parent task external id to filter by
     # @option opts [String] :triggering_event_external_id The external id of the event that triggered the workflow run
     # @option opts [Boolean] :include_payloads A flag for whether or not to include the input and output payloads in the response. Defaults to &#x60;true&#x60; if unset.
+    # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @return [Array<(V1TaskSummaryList, Integer, Hash)>] V1TaskSummaryList data, response status code and response headers
     def v1_workflow_run_list_with_http_info(tenant, since, only_tasks, opts = {})
       if @api_client.config.debugging
@@ -589,6 +676,7 @@ module HatchetSdkRest
       query_params[:'parent_task_external_id'] = opts[:'parent_task_external_id'] if !opts[:'parent_task_external_id'].nil?
       query_params[:'triggering_event_external_id'] = opts[:'triggering_event_external_id'] if !opts[:'triggering_event_external_id'].nil?
       query_params[:'include_payloads'] = opts[:'include_payloads'] if !opts[:'include_payloads'].nil?
+      query_params[:'running_filter'] = opts[:'running_filter'] if !opts[:'running_filter'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}

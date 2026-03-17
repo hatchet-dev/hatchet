@@ -40,9 +40,7 @@ childWorkflow.task({
       required: true,
     },
   },
-  fn: async (ctx) => {
-    return { childStep1: 'childStep1 results!' };
-  },
+  fn: async (ctx) => ({ childStep1: 'childStep1 results!' }),
 });
 // !!
 
@@ -55,9 +53,7 @@ childWorkflow.task({
       comparator: WorkerLabelComparator.LESS_THAN,
     },
   },
-  fn: async (ctx) => {
-    return { childStep2: 'childStep2 results!' };
-  },
+  fn: async (ctx) => ({ childStep2: 'childStep2 results!' }),
 });
 
 async function main() {

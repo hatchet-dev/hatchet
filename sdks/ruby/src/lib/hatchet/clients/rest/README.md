@@ -153,6 +153,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::TaskApi* | [**v1_task_get_point_metrics**](docs/TaskApi.md#v1_task_get_point_metrics) | **GET** /api/v1/stable/tenants/{tenant}/task-point-metrics | Get task point metrics
 *HatchetSdkRest::TaskApi* | [**v1_task_list_status_metrics**](docs/TaskApi.md#v1_task_list_status_metrics) | **GET** /api/v1/stable/tenants/{tenant}/task-metrics | Get task metrics
 *HatchetSdkRest::TaskApi* | [**v1_task_replay**](docs/TaskApi.md#v1_task_replay) | **POST** /api/v1/stable/tenants/{tenant}/tasks/replay | Replay tasks
+*HatchetSdkRest::TaskApi* | [**v1_task_restore**](docs/TaskApi.md#v1_task_restore) | **POST** /api/v1/stable/tasks/{task}/restore | Restore a task
 *HatchetSdkRest::TenantApi* | [**alert_email_group_create**](docs/TenantApi.md#alert_email_group_create) | **POST** /api/v1/tenants/{tenant}/alerting-email-groups | Create tenant alert email group
 *HatchetSdkRest::TenantApi* | [**alert_email_group_delete**](docs/TenantApi.md#alert_email_group_delete) | **DELETE** /api/v1/alerting-email-groups/{alert-email-group} | Delete tenant alert email group
 *HatchetSdkRest::TenantApi* | [**alert_email_group_list**](docs/TenantApi.md#alert_email_group_list) | **GET** /api/v1/tenants/{tenant}/alerting-email-groups | List tenant alert email groups
@@ -222,6 +223,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_create**](docs/WorkflowRunApi.md#workflow_run_create) | **POST** /api/v1/workflows/{workflow}/trigger | Trigger workflow run
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_get_input**](docs/WorkflowRunApi.md#workflow_run_get_input) | **GET** /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input | Get workflow run input
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_update_replay**](docs/WorkflowRunApi.md#workflow_run_update_replay) | **POST** /api/v1/tenants/{tenant}/workflow-runs/replay | Replay workflow runs
+*HatchetSdkRest::WorkflowRunsApi* | [**v1_durable_task_branch**](docs/WorkflowRunsApi.md#v1_durable_task_branch) | **POST** /api/v1/stable/tenants/{tenant}/durable-tasks/branch | Branch durable task
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_create**](docs/WorkflowRunsApi.md#v1_workflow_run_create) | **POST** /api/v1/stable/tenants/{tenant}/workflow-runs/trigger | Create workflow run
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_display_names_list**](docs/WorkflowRunsApi.md#v1_workflow_run_display_names_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/display-names | List workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_external_ids_list**](docs/WorkflowRunsApi.md#v1_workflow_run_external_ids_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/external-ids | List workflow run external ids
@@ -359,6 +361,8 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::UserRegisterRequest](docs/UserRegisterRequest.md)
  - [HatchetSdkRest::UserTenantMembershipsList](docs/UserTenantMembershipsList.md)
  - [HatchetSdkRest::UserTenantPublic](docs/UserTenantPublic.md)
+ - [HatchetSdkRest::V1BranchDurableTaskRequest](docs/V1BranchDurableTaskRequest.md)
+ - [HatchetSdkRest::V1BranchDurableTaskResponse](docs/V1BranchDurableTaskResponse.md)
  - [HatchetSdkRest::V1CELDebugRequest](docs/V1CELDebugRequest.md)
  - [HatchetSdkRest::V1CELDebugResponse](docs/V1CELDebugResponse.md)
  - [HatchetSdkRest::V1CELDebugResponseStatus](docs/V1CELDebugResponseStatus.md)
@@ -383,6 +387,9 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1LogLineOrderByDirection](docs/V1LogLineOrderByDirection.md)
  - [HatchetSdkRest::V1ReplayTaskRequest](docs/V1ReplayTaskRequest.md)
  - [HatchetSdkRest::V1ReplayedTasks](docs/V1ReplayedTasks.md)
+ - [HatchetSdkRest::V1RestoreTaskResponse](docs/V1RestoreTaskResponse.md)
+ - [HatchetSdkRest::V1RunningDetailCount](docs/V1RunningDetailCount.md)
+ - [HatchetSdkRest::V1RunningFilter](docs/V1RunningFilter.md)
  - [HatchetSdkRest::V1TaskEvent](docs/V1TaskEvent.md)
  - [HatchetSdkRest::V1TaskEventList](docs/V1TaskEventList.md)
  - [HatchetSdkRest::V1TaskEventType](docs/V1TaskEventType.md)

@@ -140,13 +140,13 @@ export class Worker {
   }
 
   private _checkEvictionSupport(engineVersion: string | undefined): void {
-    if (supportsEviction(engineVersion)) return;
+    if (supportsEviction(engineVersion)) {return;}
 
     const workflows = (this.config.workflows || []) as BaseWorkflowDeclaration<any, any>[];
     const tasksWithEviction: string[] = [];
 
     for (const wf of workflows) {
-      if (!(wf instanceof BaseWorkflowDeclaration)) continue;
+      if (!(wf instanceof BaseWorkflowDeclaration)) {continue;}
       for (const task of wf.definition._durableTasks) {
         if (task.evictionPolicy) {
           tasksWithEviction.push(`${wf.definition.name}:${task.name}`);
@@ -154,7 +154,7 @@ export class Worker {
       }
     }
 
-    if (tasksWithEviction.length === 0) return;
+    if (tasksWithEviction.length === 0) {return;}
 
     const names = tasksWithEviction.join(', ');
     const logger = this._v1.config.logger('Worker', this._v1.config.log_level);
@@ -240,7 +240,7 @@ export class Worker {
         await sleep(2000);
         return;
       }
-      if (this._internal?.workerId) return;
+      if (this._internal?.workerId) {return;}
       await sleep(pollInterval);
     }
     throw new Error(`Worker ${this.name} did not become ready within ${timeoutMs}ms`);

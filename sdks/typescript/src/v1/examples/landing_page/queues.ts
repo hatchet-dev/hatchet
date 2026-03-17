@@ -8,11 +8,9 @@ async function main() {
   // > Declaring a Task
   const simple = hatchet.task({
     name: 'simple',
-    fn: (input: SimpleInput) => {
-      return {
+    fn: (input: SimpleInput) => ({
         TransformedMessage: input.Message.toLowerCase(),
-      };
-    },
+      }),
   });
   // !!
 

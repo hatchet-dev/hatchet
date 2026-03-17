@@ -433,7 +433,7 @@ export class InternalWorker {
   }
 
   private ensureEvictionManager(): DurableEvictionManager {
-    if (this.evictionManager) return this.evictionManager;
+    if (this.evictionManager) {return this.evictionManager;}
 
     const totalDurableSlots = this.slotConfig?.durable ?? this.durableSlots ?? 0;
 

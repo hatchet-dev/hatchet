@@ -10,31 +10,27 @@ type SimpleOutput = {
 
 export const declaredType = hatchet.task<SimpleInput, SimpleOutput>({
   name: 'declared-type',
-  fn: (input) => {
-    return {
+  fn: (input) => ({
       TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
+    }),
 });
 
 export const inferredType = hatchet.task({
   name: 'inferred-type',
-  fn: (input: SimpleInput) => {
-    return {
+  fn: (input: SimpleInput) => ({
       TransformedMessage: input.Message.toUpperCase(),
-    };
-  },
+    }),
 });
 
 export const inferredTypeDurable = hatchet.durableTask({
   name: 'inferred-type-durable',
-  fn: async (input: SimpleInput, ctx) => {
+  fn: async (input: SimpleInput, ctx) =>
     // await ctx.sleepFor('5s');
 
-    return {
+     ({
       TransformedMessage: input.Message.toUpperCase(),
-    };
-  },
+    })
+  ,
 });
 
 export const crazyWorkflow = hatchet.workflow<any, any>({

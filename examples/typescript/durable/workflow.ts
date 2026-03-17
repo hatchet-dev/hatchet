@@ -33,7 +33,7 @@ durableWorkflow.durableTask({
 
     return {
       status: 'success',
-      event: event,
+      event,
       sleep_duration_ms: sleepResult.durationMs,
     };
   },
@@ -129,9 +129,7 @@ export const waitForSleepTwice = hatchet.durableTask({
 
 export const spawnChildTask = hatchet.task({
   name: 'spawn-child-task',
-  fn: async (input: { n?: number }) => {
-    return { message: `hello from child ${input.n ?? 1}` };
-  },
+  fn: async (input: { n?: number }) => ({ message: `hello from child ${input.n ?? 1}` }),
 });
 
 export const durableWithSpawn = hatchet.durableTask({

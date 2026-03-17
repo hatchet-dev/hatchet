@@ -1211,7 +1211,7 @@ type TenantInviteList struct {
 type TenantMember struct {
 	Metadata APIResourceMeta  `json:"metadata"`
 	Role     TenantMemberRole `json:"role"`
-	Tenant   *Tenant          `json:"tenant,omitempty"`
+	Tenant   Tenant           `json:"tenant"`
 	User     UserTenantPublic `json:"user"`
 }
 

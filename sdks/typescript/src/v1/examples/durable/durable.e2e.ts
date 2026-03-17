@@ -72,7 +72,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable sleep cancel + replay', async () => {
-    if (requireEviction()) return;
+    if (requireEviction()) {return;}
     const ref = await waitForSleepTwice.runNoWait({});
 
     await sleep((SLEEP_TIME_SECONDS * 1000) / 2);
@@ -100,7 +100,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable sleep + event + spawn replay', async () => {
-    if (requireEviction()) return;
+    if (requireEviction()) {return;}
     const start = Date.now();
     const ref = await durableSleepEventSpawn.runNoWait({});
 
@@ -134,7 +134,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable completed replay', async () => {
-    if (requireEviction()) return;
+    if (requireEviction()) {return;}
     const ref = await waitForSleepTwice.runNoWait({});
 
     const start = Date.now();
@@ -165,7 +165,7 @@ describe('durable-e2e', () => {
   }, 300_000);
 
   it('durable non-determinism', async () => {
-    if (requireEviction()) return;
+    if (requireEviction()) {return;}
     const ref = await durableNonDeterminism.runNoWait({});
     const result = await ref.output;
 
@@ -182,7 +182,7 @@ describe('durable-e2e', () => {
   it.each([1, 2, 3])(
     'durable replay reset from node %i',
     async (nodeId) => {
-      if (requireEviction()) return;
+      if (requireEviction()) {return;}
       const ref = await durableReplayReset.runNoWait({});
       const result = await ref.output;
 

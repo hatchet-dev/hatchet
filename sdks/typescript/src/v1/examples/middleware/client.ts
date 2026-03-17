@@ -15,9 +15,7 @@ const myMiddleware = {
     console.log('before', input.first);
     return { ...input, dependency: 'abc-123' };
   },
-  after: (output, ctx, input) => {
-    return { ...output, additionalData: 2 };
-  },
+  after: (output, ctx, input) => ({ ...output, additionalData: 2 }),
 } satisfies HatchetMiddleware<GlobalInputType, GlobalOutputType>;
 
 export const hatchetWithMiddleware = HatchetClient.init<
@@ -32,9 +30,7 @@ const firstMiddleware = {
     console.log('before', input.first);
     return { ...input, dependency: 'abc-123' };
   },
-  after: (output, ctx, input) => {
-    return { ...output, firstExtra: 3 };
-  },
+  after: (output, ctx, input) => ({ ...output, firstExtra: 3 }),
 } satisfies HatchetMiddleware<GlobalInputType>;
 
 const secondMiddleware = {
@@ -42,9 +38,7 @@ const secondMiddleware = {
     console.log('before', input.dependency); // available from previous middleware
     return { ...input, anotherDep: true };
   },
-  after: (output, ctx, input) => {
-    return { ...output, secondExtra: 4 };
-  },
+  after: (output, ctx, input) => ({ ...output, secondExtra: 4 }),
 } satisfies HatchetMiddleware<GlobalInputType & { dependency: string }>;
 
 export const hatchetWithMiddlewareChaining = HatchetClient.init<GlobalInputType>()

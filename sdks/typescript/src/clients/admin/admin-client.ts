@@ -332,8 +332,7 @@ export class AdminClient {
         })
       );
 
-      return bulkTriggerWorkflowResponse.then((res) => {
-        return res.workflowRunIds.map((resp, index) => {
+      return bulkTriggerWorkflowResponse.then((res) => res.workflowRunIds.map((resp, index) => {
           const { options } = workflowRuns[index];
           return new WorkflowRunRef<P>(
             resp,
@@ -341,8 +340,7 @@ export class AdminClient {
             this.workflows,
             options?.parentId
           );
-        });
-      });
+        }));
     } catch (e: unknown) {
       throw toHatchetError(e);
     }

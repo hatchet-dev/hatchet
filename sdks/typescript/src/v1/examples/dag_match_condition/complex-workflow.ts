@@ -12,11 +12,9 @@ export const taskConditionWorkflow = hatchet.workflow({
 // > Add base task
 const start = taskConditionWorkflow.task({
   name: 'start',
-  fn: () => {
-    return {
+  fn: () => ({
       randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+    }),
 });
 // !!
 
@@ -25,11 +23,9 @@ const waitForSleep = taskConditionWorkflow.task({
   name: 'waitForSleep',
   parents: [start],
   waitFor: [new SleepCondition('10s')],
-  fn: () => {
-    return {
+  fn: () => ({
       randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+    }),
 });
 // !!
 
@@ -39,11 +35,9 @@ const skipOnEvent = taskConditionWorkflow.task({
   parents: [start],
   waitFor: [new SleepCondition('10s')],
   skipIf: [new UserEventCondition('skip_on_event:skip', 'true')],
-  fn: () => {
-    return {
+  fn: () => ({
       randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+    }),
 });
 // !!
 
@@ -52,22 +46,18 @@ const leftBranch = taskConditionWorkflow.task({
   name: 'leftBranch',
   parents: [waitForSleep],
   skipIf: [new ParentCondition(waitForSleep, 'output.randomNumber > 50')],
-  fn: () => {
-    return {
+  fn: () => ({
       randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+    }),
 });
 
 const rightBranch = taskConditionWorkflow.task({
   name: 'rightBranch',
   parents: [waitForSleep],
   skipIf: [new ParentCondition(waitForSleep, 'output.randomNumber <= 50')],
-  fn: () => {
-    return {
+  fn: () => ({
       randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+    }),
 });
 // !!
 
@@ -76,11 +66,9 @@ const waitForEvent = taskConditionWorkflow.task({
   name: 'waitForEvent',
   parents: [start],
   waitFor: [Or(new SleepCondition('1m'), new UserEventCondition('wait_for_event:start', 'true'))],
-  fn: () => {
-    return {
+  fn: () => ({
       randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+    }),
 });
 // !!
 

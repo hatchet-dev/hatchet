@@ -9,11 +9,11 @@ export type SimpleInput = {
 export const simple = hatchet.task({
   name: 'simple',
   onEvents: ['user:created'],
-  fn: (input: SimpleInput) => {
+  fn: (input: SimpleInput) =>
     // ...
-    return {
+     ({
       TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
+    })
+  ,
 });
 // !!

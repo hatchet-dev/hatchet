@@ -7,19 +7,15 @@ export const onSuccessDag = hatchet.workflow({
 
 onSuccessDag.task({
   name: 'always-succeed',
-  fn: async () => {
-    return {
+  fn: async () => ({
       'always-succeed': 'success',
-    };
-  },
+    }),
 });
 onSuccessDag.task({
   name: 'always-succeed2',
-  fn: async () => {
-    return {
+  fn: async () => ({
       'always-succeed': 'success',
-    };
-  },
+    }),
 });
 
 // 👀 onSuccess handler will run if all tasks in the workflow succeed

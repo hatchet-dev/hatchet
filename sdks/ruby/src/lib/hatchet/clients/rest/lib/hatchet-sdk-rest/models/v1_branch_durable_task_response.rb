@@ -14,47 +14,22 @@ require 'date'
 require 'time'
 
 module HatchetSdkRest
-  class TenantMember
-    attr_accessor :metadata
+  class V1BranchDurableTaskResponse
+    # The external id of the durable task.
+    attr_accessor :task_external_id
 
-    # The user associated with this tenant member.
-    attr_accessor :user
+    # The node id of the new entry.
+    attr_accessor :node_id
 
-    # The role of the user in the tenant.
-    attr_accessor :role
-
-    # The tenant associated with this tenant member.
-    attr_accessor :tenant
-
-    class EnumAttributeValidator
-      attr_reader :datatype
-      attr_reader :allowable_values
-
-      def initialize(datatype, allowable_values)
-        @allowable_values = allowable_values.map do |value|
-          case datatype.to_s
-          when /Integer/i
-            value.to_i
-          when /Float/i
-            value.to_f
-          else
-            value
-          end
-        end
-      end
-
-      def valid?(value)
-        !value || allowable_values.include?(value)
-      end
-    end
+    # The branch id of the new entry.
+    attr_accessor :branch_id
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'metadata' => :'metadata',
-        :'user' => :'user',
-        :'role' => :'role',
-        :'tenant' => :'tenant'
+        :'task_external_id' => :'taskExternalId',
+        :'node_id' => :'nodeId',
+        :'branch_id' => :'branchId'
       }
     end
 
@@ -71,10 +46,9 @@ module HatchetSdkRest
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'metadata' => :'APIResourceMeta',
-        :'user' => :'UserTenantPublic',
-        :'role' => :'TenantMemberRole',
-        :'tenant' => :'Tenant'
+        :'task_external_id' => :'String',
+        :'node_id' => :'Integer',
+        :'branch_id' => :'Integer'
       }
     end
 
@@ -88,40 +62,34 @@ module HatchetSdkRest
     # @param [Hash] attributes Model attributes in the form of hash
     def initialize(attributes = {})
       if (!attributes.is_a?(Hash))
-        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::TenantMember` initialize method"
+        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::V1BranchDurableTaskResponse` initialize method"
       end
 
       # check to see if the attribute exists and convert string to symbol for hash key
       acceptable_attribute_map = self.class.acceptable_attribute_map
       attributes = attributes.each_with_object({}) { |(k, v), h|
         if (!acceptable_attribute_map.key?(k.to_sym))
-          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::TenantMember`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
+          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::V1BranchDurableTaskResponse`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
         end
         h[k.to_sym] = v
       }
 
-      if attributes.key?(:'metadata')
-        self.metadata = attributes[:'metadata']
+      if attributes.key?(:'task_external_id')
+        self.task_external_id = attributes[:'task_external_id']
       else
-        self.metadata = nil
+        self.task_external_id = nil
       end
 
-      if attributes.key?(:'user')
-        self.user = attributes[:'user']
+      if attributes.key?(:'node_id')
+        self.node_id = attributes[:'node_id']
       else
-        self.user = nil
+        self.node_id = nil
       end
 
-      if attributes.key?(:'role')
-        self.role = attributes[:'role']
+      if attributes.key?(:'branch_id')
+        self.branch_id = attributes[:'branch_id']
       else
-        self.role = nil
-      end
-
-      if attributes.key?(:'tenant')
-        self.tenant = attributes[:'tenant']
-      else
-        self.tenant = nil
+        self.branch_id = nil
       end
     end
 
@@ -130,20 +98,24 @@ module HatchetSdkRest
     def list_invalid_properties
       warn '[DEPRECATED] the `list_invalid_properties` method is obsolete'
       invalid_properties = Array.new
-      if @metadata.nil?
-        invalid_properties.push('invalid value for "metadata", metadata cannot be nil.')
+      if @task_external_id.nil?
+        invalid_properties.push('invalid value for "task_external_id", task_external_id cannot be nil.')
       end
 
-      if @user.nil?
-        invalid_properties.push('invalid value for "user", user cannot be nil.')
+      if @task_external_id.to_s.length > 36
+        invalid_properties.push('invalid value for "task_external_id", the character length must be smaller than or equal to 36.')
       end
 
-      if @role.nil?
-        invalid_properties.push('invalid value for "role", role cannot be nil.')
+      if @task_external_id.to_s.length < 36
+        invalid_properties.push('invalid value for "task_external_id", the character length must be greater than or equal to 36.')
       end
 
-      if @tenant.nil?
-        invalid_properties.push('invalid value for "tenant", tenant cannot be nil.')
+      if @node_id.nil?
+        invalid_properties.push('invalid value for "node_id", node_id cannot be nil.')
+      end
+
+      if @branch_id.nil?
+        invalid_properties.push('invalid value for "branch_id", branch_id cannot be nil.')
       end
 
       invalid_properties
@@ -153,51 +125,50 @@ module HatchetSdkRest
     # @return true if the model is valid
     def valid?
       warn '[DEPRECATED] the `valid?` method is obsolete'
-      return false if @metadata.nil?
-      return false if @user.nil?
-      return false if @role.nil?
-      return false if @tenant.nil?
+      return false if @task_external_id.nil?
+      return false if @task_external_id.to_s.length > 36
+      return false if @task_external_id.to_s.length < 36
+      return false if @node_id.nil?
+      return false if @branch_id.nil?
       true
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] metadata Value to be assigned
-    def metadata=(metadata)
-      if metadata.nil?
-        fail ArgumentError, 'metadata cannot be nil'
+    # @param [Object] task_external_id Value to be assigned
+    def task_external_id=(task_external_id)
+      if task_external_id.nil?
+        fail ArgumentError, 'task_external_id cannot be nil'
       end
 
-      @metadata = metadata
+      if task_external_id.to_s.length > 36
+        fail ArgumentError, 'invalid value for "task_external_id", the character length must be smaller than or equal to 36.'
+      end
+
+      if task_external_id.to_s.length < 36
+        fail ArgumentError, 'invalid value for "task_external_id", the character length must be greater than or equal to 36.'
+      end
+
+      @task_external_id = task_external_id
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] user Value to be assigned
-    def user=(user)
-      if user.nil?
-        fail ArgumentError, 'user cannot be nil'
+    # @param [Object] node_id Value to be assigned
+    def node_id=(node_id)
+      if node_id.nil?
+        fail ArgumentError, 'node_id cannot be nil'
       end
 
-      @user = user
+      @node_id = node_id
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] role Value to be assigned
-    def role=(role)
-      if role.nil?
-        fail ArgumentError, 'role cannot be nil'
+    # @param [Object] branch_id Value to be assigned
+    def branch_id=(branch_id)
+      if branch_id.nil?
+        fail ArgumentError, 'branch_id cannot be nil'
       end
 
-      @role = role
-    end
-
-    # Custom attribute writer method with validation
-    # @param [Object] tenant Value to be assigned
-    def tenant=(tenant)
-      if tenant.nil?
-        fail ArgumentError, 'tenant cannot be nil'
-      end
-
-      @tenant = tenant
+      @branch_id = branch_id
     end
 
     # Checks equality by comparing each attribute.
@@ -205,10 +176,9 @@ module HatchetSdkRest
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          metadata == o.metadata &&
-          user == o.user &&
-          role == o.role &&
-          tenant == o.tenant
+          task_external_id == o.task_external_id &&
+          node_id == o.node_id &&
+          branch_id == o.branch_id
     end
 
     # @see the `==` method
@@ -220,7 +190,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, user, role, tenant].hash
+      [task_external_id, node_id, branch_id].hash
     end
 
     # Builds the object from hash

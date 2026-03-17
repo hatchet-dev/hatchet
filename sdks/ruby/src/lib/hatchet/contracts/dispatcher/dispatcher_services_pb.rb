@@ -28,6 +28,7 @@ module Dispatcher
     rpc :Unsubscribe, ::WorkerUnsubscribeRequest, ::WorkerUnsubscribeResponse
     rpc :RefreshTimeout, ::RefreshTimeoutRequest, ::RefreshTimeoutResponse
     rpc :ReleaseSlot, ::ReleaseSlotRequest, ::ReleaseSlotResponse
+    rpc :RestoreEvictedTask, ::RestoreEvictedTaskRequest, ::RestoreEvictedTaskResponse
     rpc :UpsertWorkerLabels, ::UpsertWorkerLabelsRequest, ::UpsertWorkerLabelsResponse
     # GetVersion returns the dispatcher protocol version as a simple integer.
     # SDKs use this to determine feature support (e.g. slot_config registration).

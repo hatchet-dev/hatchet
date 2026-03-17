@@ -66,14 +66,14 @@ export class DurableEvictionCache {
 
   findKeyByTaskRunExternalId(taskRunExternalId: string): ActionKey | undefined {
     for (const [key, rec] of this._runs) {
-      if (rec.taskRunExternalId === taskRunExternalId) return key;
+      if (rec.taskRunExternalId === taskRunExternalId) {return key;}
     }
     return undefined;
   }
 
   markWaiting(key: ActionKey, now: number, waitKind: string, resourceId: string): void {
     const rec = this._runs.get(key);
-    if (!rec) return;
+    if (!rec) {return;}
     rec._waitCount += 1;
     if (rec._waitCount === 1) {
       rec.waitingSince = now;
@@ -84,7 +84,7 @@ export class DurableEvictionCache {
 
   markActive(key: ActionKey): void {
     const rec = this._runs.get(key);
-    if (!rec) return;
+    if (!rec) {return;}
     rec._waitCount = Math.max(0, rec._waitCount - 1);
     if (rec._waitCount === 0) {
       rec.waitingSince = undefined;
@@ -103,11 +103,11 @@ export class DurableEvictionCache {
       (r) => r._waitCount > 0 && r.evictionPolicy !== undefined
     );
 
-    if (waiting.length === 0) return undefined;
+    if (waiting.length === 0) {return undefined;}
 
     const ttlEligible = waiting.filter((r) => {
       const ttl = r.evictionPolicy?.ttl;
-      if (!ttl || !r.waitingSince) return false;
+      if (!ttl || !r.waitingSince) {return false;}
       return now - r.waitingSince >= durationToMs(ttl);
     });
 
@@ -133,7 +133,7 @@ export class DurableEvictionCache {
         now - r.waitingSince >= minWaitForCapacityEvictionMs
     );
 
-    if (capacityCandidates.length === 0) return undefined;
+    if (capacityCandidates.length === 0) {return undefined;}
 
     capacityCandidates.sort(
       (a, b) =>
@@ -150,9 +150,9 @@ export class DurableEvictionCache {
     reserveSlots: number,
     waitingCount: number
   ): boolean {
-    if (durableSlots <= 0) return false;
+    if (durableSlots <= 0) {return false;}
     const maxWaiting = durableSlots - reserveSlots;
-    if (maxWaiting <= 0) return false;
+    if (maxWaiting <= 0) {return false;}
     return waitingCount >= maxWaiting;
   }
 }

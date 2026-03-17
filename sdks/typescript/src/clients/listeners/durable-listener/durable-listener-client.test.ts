@@ -82,15 +82,15 @@ function controllableStream() {
 
             continue;
           }
-          if (ended) return;
+          if (ended) {return;}
           const result = await new Promise<{ response?: any; done?: boolean; error?: Error }>(
             (r) => {
               waiter = r;
             }
           );
-          if (result.error) throw result.error;
-          if (result.done) return;
-          if (result.response !== undefined) yield result.response;
+          if (result.error) {throw result.error;}
+          if (result.done) {return;}
+          if (result.response !== undefined) {yield result.response;}
         }
       },
     },
@@ -126,7 +126,7 @@ describe('DurableListenerClient reconnection', () => {
 
   afterEach(async () => {
     await listener.stop();
-    for (const s of openStreams) s.end();
+    for (const s of openStreams) {s.end();}
     openStreams.length = 0;
     await settle(10);
   });
@@ -243,7 +243,7 @@ describe('DurableListenerClient reconnection', () => {
         (async () => {
           const iter = reqIter[Symbol.asyncIterator]();
           const first = await iter.next();
-          if (!first.done) registrations.push(first.value);
+          if (!first.done) {registrations.push(first.value);}
         })();
         return call === 1 ? emptyStream() : h.stream;
       });

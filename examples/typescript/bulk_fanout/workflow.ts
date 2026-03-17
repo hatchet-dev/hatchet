@@ -4,9 +4,7 @@ export type ParentInput = { n: number };
 
 export const bulkChild = hatchet.task({
   name: 'bulk-child',
-  fn: async (input: { i: number }) => {
-    return { i: input.i };
-  },
+  fn: async (input: { i: number }) => ({ i: input.i }),
 });
 
 export const bulkParentWorkflow = hatchet.workflow({
