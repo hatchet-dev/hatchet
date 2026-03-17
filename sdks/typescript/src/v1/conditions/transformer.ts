@@ -10,6 +10,7 @@ import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
 import { CreateWorkflowTaskOpts } from '../task';
 import { Action, BaseCondition, Condition } from './base';
 import { ParentCondition } from './parent-condition';
+import { durationToString } from '../client/duration';
 
 export function taskConditionsToPb(
   task: Omit<CreateWorkflowTaskOpts<any, any>, 'fn'>,
@@ -32,7 +33,7 @@ export function conditionsToPb(conditions: Condition[], namespace?: string): Tas
     if (condition instanceof SleepCondition) {
       sleepConditions.push({
         base: baseToPb(condition.base),
-        sleepFor: condition.sleepFor,
+        sleepFor: durationToString(condition.sleepFor),
       });
     } else if (condition instanceof UserEventCondition) {
       userEventConditions.push({

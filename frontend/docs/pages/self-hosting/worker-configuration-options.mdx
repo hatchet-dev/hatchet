@@ -44,6 +44,7 @@ These variables enable a local HTTP server that exposes `/health` and `/metrics`
 
 | Variable                                      | Description                                         | Default Value |
 | --------------------------------------------- | --------------------------------------------------- | ------------- |
-| `HATCHET_CLIENT_LOG_LEVEL`                    | Log level for the worker                            | `INFO`        |
+| `HATCHET_CLIENT_LOG_LEVEL`                    | Log level for the worker client                     | `WARN`        |
+| `HATCHET_CLIENT_LOG_FORMAT`                   | Log format for the worker client                    | `console`     |
 | `HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH` | Maximum gRPC message receive size (Python SDK only) | `4MB`         |
 | `HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH` | Maximum gRPC message send size (Python SDK only)    | `4MB`         |

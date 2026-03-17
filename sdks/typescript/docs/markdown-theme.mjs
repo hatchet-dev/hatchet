@@ -11,6 +11,7 @@ const HEADING_RENAMES = {
   MetricsClient: 'Metrics Client',
   RateLimitsClient: 'Rate Limits Client',
   RunsClient: 'Runs Client',
+  LogsClient: 'Logs Client',
   SchedulesClient: 'Schedules Client',
   WorkersClient: 'Workers Client',
   WorkflowsClient: 'Workflows Client',
@@ -23,7 +24,7 @@ const HEADINGS_TO_REMOVE = [
   'Classes',
 ];
 
-const HEADINGS_TO_BOLD = [
+const REMOVE_HEADER_STYLES = [
   'Parameters',
   'Returns',
   'Extends',
@@ -35,7 +36,8 @@ const HEADINGS_TO_BOLD = [
   'Note',
   'Alias',
   'Implements',
-  'Extended by'
+  'Extended by',
+  'Properties'
 ];
 
 class HatchetDocsTheme extends MarkdownTheme {
@@ -54,7 +56,7 @@ function refactorHeadings(content) {
   for (const heading of HEADINGS_TO_REMOVE) {
     result = result.replace(new RegExp(`#{1,6}\\s+${heading}\\n*`, 'g'), '');
   }
-  for (const heading of HEADINGS_TO_BOLD) {
+  for (const heading of REMOVE_HEADER_STYLES) {
     result = result.replace(new RegExp(`^#{1,6}\\s+(${heading})$`, 'gmi'), '$1');
   }
   return result;

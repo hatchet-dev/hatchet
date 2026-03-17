@@ -14,14 +14,14 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 		ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.runTaskTablePartition")
 		defer span.End()
 
-		tc.l.Debug().Msgf("partition: running task table partition")
+		tc.l.Debug().Ctx(ctx).Msgf("partition: running task table partition")
 
 		err := tc.createTablePartition(ctx)
 
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create table partition")
-			tc.l.Error().Err(err).Msg("could not create table partition")
+			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create table partition")
 		}
 	}
 }

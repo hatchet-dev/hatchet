@@ -101,6 +101,7 @@ type ClientOpts struct {
 	presetWorkerLabels map[string]string
 
 	disableGzipCompression bool
+	grpcHeaders            map[string]string
 }
 
 func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
@@ -129,7 +130,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		}
 	}
 
-	logger := logger.NewDefaultLogger("client")
+	logger := logger.NewStdErr(&clientConfig.Logger, "client")
 
 	return &ClientOpts{
 		tenantId:               clientConfig.TenantId,
@@ -224,6 +225,17 @@ func WithSharedMeta(meta map[string]string) ClientOpt {
 func InitWorkflows() ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.initWorkflows = true
+	}
+}
+
+func WithGRPCHeaders(headers map[string]string) ClientOpt {
+	return func(opts *ClientOpts) {
+		if opts.grpcHeaders == nil {
+			opts.grpcHeaders = make(map[string]string)
+		}
+		for k, v := range headers {
+			opts.grpcHeaders[k] = v
+		}
 	}
 }
 
@@ -343,7 +355,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		namespace:  opts.namespace,
 		l:          opts.l,
 		v:          opts.v,
-		ctxLoader:  newContextLoader(opts.token),
+		ctxLoader:  newContextLoader(opts.token, opts.grpcHeaders),
 		sharedMeta: opts.sharedMeta,
 	}
 

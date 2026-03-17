@@ -28,7 +28,7 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 	}
 
 	if num := len(retryQueueItems); num > 0 {
-		tc.l.Info().Msgf("reassigning %d step runs", num)
+		tc.l.Info().Ctx(ctx).Msgf("reassigning %d step runs", num)
 	}
 
 	for _, task := range retryQueueItems {

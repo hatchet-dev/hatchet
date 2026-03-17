@@ -63,7 +63,7 @@ func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func
 func (m *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
 	wrappedPayload, err := m.m.wrapMessage(name, payload)
 	if err != nil {
-		m.l.Error().Err(err).Msg("error wrapping message")
+		m.l.Error().Ctx(ctx).Err(err).Msg("error wrapping message")
 		return err
 	}
 

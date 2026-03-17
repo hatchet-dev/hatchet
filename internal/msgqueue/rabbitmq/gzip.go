@@ -5,6 +5,8 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+
+	"sync"
 )
 
 type CompressionResult struct {
@@ -15,6 +17,17 @@ type CompressionResult struct {
 
 	// CompressionRatio is the ratio of compressed size to original size (compressed / original)
 	CompressionRatio float64
+}
+
+// gzipWriterPool reuses gzip.Writer instances to avoid repeated allocations.
+// No explicit size cap is needed: sync.Pool is self-limiting because the Go
+// runtime evicts pooled objects during GC, so the pool cannot grow unbounded.
+// In practice the pool size is also bounded by the number of goroutines
+// concurrently compressing, which is small for a RabbitMQ publish path.
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
 }
 
 func getPayloadSize(payloads [][]byte) int {
@@ -53,16 +66,20 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 
 	for i, payload := range payloads {
 		var buf bytes.Buffer
-		gzipWriter := gzip.NewWriter(&buf)
 
-		if _, err := gzipWriter.Write(payload); err != nil {
-			gzipWriter.Close()
+		w := gzipWriterPool.Get().(*gzip.Writer)
+		w.Reset(&buf)
+
+		if _, err := w.Write(payload); err != nil {
+			w.Close()
 			return nil, fmt.Errorf("failed to write to gzip writer: %w", err)
 		}
 
-		if err := gzipWriter.Close(); err != nil {
+		if err := w.Close(); err != nil {
 			return nil, fmt.Errorf("failed to close gzip writer: %w", err)
 		}
+
+		gzipWriterPool.Put(w)
 
 		compressed[i] = buf.Bytes()
 		compressedSize += len(compressed[i])

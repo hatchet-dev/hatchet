@@ -525,6 +525,7 @@ type CreateTaskEventsOLAPParams struct {
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 	ExternalID             *uuid.UUID           `json:"external_id"`
+	DurableInvocationCount int32                `json:"durable_invocation_count"`
 }
 
 type CreateTaskEventsOLAPTmpParams struct {
@@ -1177,7 +1178,8 @@ SELECT
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
     COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed
+    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
+    COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
 FROM v1_statuses_olap
 WHERE
     tenant_id = $1::UUID
@@ -1213,6 +1215,7 @@ type GetTenantStatusMetricsRow struct {
 	TotalCompleted int64     `json:"total_completed"`
 	TotalCancelled int64     `json:"total_cancelled"`
 	TotalFailed    int64     `json:"total_failed"`
+	TotalEvicted   int64     `json:"total_evicted"`
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
@@ -1234,6 +1237,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		&i.TotalCompleted,
 		&i.TotalCancelled,
 		&i.TotalFailed,
+		&i.TotalEvicted,
 	)
 	return &i, err
 }
@@ -1614,6 +1618,7 @@ WITH aggregated_events AS (
     task_inserted_at,
     retry_count,
     event_type,
+    durable_invocation_count,
     MIN(event_timestamp) AS time_first_seen,
     MAX(event_timestamp) AS time_last_seen,
     COUNT(*) AS count,
@@ -1623,7 +1628,7 @@ WITH aggregated_events AS (
     tenant_id = $1::uuid
     AND task_id = $2::bigint
     AND task_inserted_at = $3::timestamptz
-  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
 )
 SELECT
   a.tenant_id,
@@ -1631,6 +1636,7 @@ SELECT
   a.task_inserted_at,
   a.retry_count,
   a.event_type,
+  a.durable_invocation_count,
   a.time_first_seen,
   a.time_last_seen,
   a.count,
@@ -1664,6 +1670,7 @@ type ListTaskEventsRow struct {
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	RetryCount             int32                `json:"retry_count"`
 	EventType              V1EventTypeOlap      `json:"event_type"`
+	DurableInvocationCount int32                `json:"durable_invocation_count"`
 	TimeFirstSeen          interface{}          `json:"time_first_seen"`
 	TimeLastSeen           interface{}          `json:"time_last_seen"`
 	Count                  int64                `json:"count"`
@@ -1693,6 +1700,7 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 			&i.TaskInsertedAt,
 			&i.RetryCount,
 			&i.EventType,
+			&i.DurableInvocationCount,
 			&i.TimeFirstSeen,
 			&i.TimeLastSeen,
 			&i.Count,
@@ -1731,6 +1739,7 @@ WITH tasks AS (
     task_inserted_at,
     retry_count,
     event_type,
+    durable_invocation_count,
     MIN(event_timestamp)::timestamptz AS time_first_seen,
     MAX(event_timestamp)::timestamptz AS time_last_seen,
     COUNT(*) AS count,
@@ -1739,7 +1748,7 @@ WITH tasks AS (
   WHERE
     tenant_id = $2::uuid
     AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
-  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
 )
 SELECT
   a.tenant_id,
@@ -1747,6 +1756,7 @@ SELECT
   a.task_inserted_at,
   a.retry_count,
   a.event_type,
+  a.durable_invocation_count,
   a.time_first_seen,
   a.time_last_seen,
   a.count,
@@ -1783,6 +1793,7 @@ type ListTaskEventsForWorkflowRunRow struct {
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	RetryCount             int32                `json:"retry_count"`
 	EventType              V1EventTypeOlap      `json:"event_type"`
+	DurableInvocationCount int32                `json:"durable_invocation_count"`
 	TimeFirstSeen          pgtype.Timestamptz   `json:"time_first_seen"`
 	TimeLastSeen           pgtype.Timestamptz   `json:"time_last_seen"`
 	Count                  int64                `json:"count"`
@@ -1814,6 +1825,7 @@ func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg
 			&i.TaskInsertedAt,
 			&i.RetryCount,
 			&i.EventType,
+			&i.DurableInvocationCount,
 			&i.TimeFirstSeen,
 			&i.TimeLastSeen,
 			&i.Count,
@@ -2152,7 +2164,7 @@ WITH input AS (
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
     WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
-    SELECT r.run_id, e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+    SELECT r.run_id, e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
@@ -2366,7 +2378,7 @@ WITH selected_retry_count AS (
     LIMIT 1
 ), relevant_events AS (
     SELECT
-        tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
+        tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count
     FROM
         v1_task_events_olap
     WHERE
@@ -2410,7 +2422,11 @@ WITH selected_retry_count AS (
     FROM
         relevant_events
     ORDER BY
-        readable_status DESC
+        CASE
+            WHEN readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN 1
+            ELSE 0
+        END DESC,
+        event_timestamp DESC
     LIMIT 1
 ), error_message AS (
     SELECT
@@ -2437,6 +2453,7 @@ WITH selected_retry_count AS (
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
@@ -2498,6 +2515,7 @@ type PopulateSingleTaskRunDataRow struct {
 	DagID                 pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
+	IsStandalone          bool                 `json:"is_standalone"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
@@ -2542,6 +2560,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
+		&i.IsStandalone,
 		&i.Status,
 		&i.FinishedAt,
 		&i.StartedAt,
@@ -2583,7 +2602,8 @@ WITH input AS (
         t.readable_status,
         t.parent_task_external_id,
         t.workflow_run_id,
-        t.latest_retry_count
+        t.latest_retry_count,
+        t.dag_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -2592,7 +2612,7 @@ WITH input AS (
         t.tenant_id = $4::uuid
 ), relevant_events AS (
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
     FROM
         v1_task_events_olap e
     JOIN
@@ -2705,6 +2725,7 @@ SELECT
     END::JSONB AS input,
     t.readable_status::v1_readable_status_olap as status,
     t.workflow_run_id,
+    (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
@@ -2757,6 +2778,7 @@ type PopulateTaskRunDataRow struct {
 	Input                 []byte               `json:"input"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	WorkflowRunID         uuid.UUID            `json:"workflow_run_id"`
+	IsStandalone          bool                 `json:"is_standalone"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
@@ -2800,6 +2822,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.Input,
 			&i.Status,
 			&i.WorkflowRunID,
+			&i.IsStandalone,
 			&i.FinishedAt,
 			&i.StartedAt,
 			&i.QueuedAt,
@@ -3105,7 +3128,7 @@ WITH runs AS (
         AND lt.task_id IS NOT NULL
 ), relevant_events AS (
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
@@ -3114,7 +3137,7 @@ WITH runs AS (
     UNION ALL
 
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
     FROM runs r
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
     WHERE r.task_id IS NOT NULL
@@ -3318,7 +3341,8 @@ WITH tenants AS (
         COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
-        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'EVICTED') AS evicted_count
     FROM
         locked_dags d
     LEFT JOIN
@@ -3338,6 +3362,8 @@ WITH tenants AS (
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
             WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            -- If all tasks are evicted, mark DAG as evicted
+            WHEN dtc.evicted_count = dtc.task_count AND dtc.task_count = dtc.total_tasks THEN 'EVICTED'
             WHEN dtc.failed_count > 0 THEN 'FAILED'
             WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
             WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
@@ -3564,7 +3590,7 @@ WITH tenants AS (
         e.task_id,
         e.task_inserted_at,
         e.retry_count,
-        MAX(e.readable_status) AS max_readable_status
+        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS max_readable_status
     FROM
         locked_events e
     JOIN
@@ -3686,10 +3712,16 @@ WITH tenants AS (
                     tu.retry_count > t.latest_retry_count
                     AND tu.max_readable_status != t.readable_status
                 ) OR
-                -- if the retry count is equal to the latest retry count, update the status if the status is greater
+                -- if the retry count is equal to the latest retry count, update the status if the priority is higher
                 (
                     tu.retry_count = t.latest_retry_count
-                    AND tu.max_readable_status > t.readable_status
+                    AND v1_status_to_priority(tu.max_readable_status) > v1_status_to_priority(t.readable_status)
+                ) OR
+                -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+                (
+                    tu.retry_count = t.latest_retry_count
+                    AND t.readable_status = 'EVICTED'
+                    AND tu.max_readable_status != 'EVICTED'
                 )
             )
     RETURNING

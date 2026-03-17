@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -35,6 +36,7 @@ type IngestorOptFunc func(*IngestorOpts)
 type IngestorOpts struct {
 	mqv1                  msgqueue.MessageQueue
 	repov1                v1.Repository
+	analytics             analytics.Analytics
 	isLogIngestionEnabled bool
 
 	localScheduler              *scheduler.Scheduler
@@ -81,6 +83,7 @@ func defaultIngestorOpts() *IngestorOpts {
 
 	return &IngestorOpts{
 		isLogIngestionEnabled: true,
+		analytics:             analytics.NoOpAnalytics{},
 		l:                     &l,
 	}
 }
@@ -109,6 +112,12 @@ func WithLogger(l *zerolog.Logger) IngestorOptFunc {
 	}
 }
 
+func WithAnalytics(a analytics.Analytics) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.analytics = a
+	}
+}
+
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
@@ -124,6 +133,7 @@ type IngestorImpl struct {
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
 
+	analytics analytics.Analytics
 	tw        *trigger.TriggerWriter
 	pubBuffer *msgqueue.MQPubBuffer
 }
@@ -170,6 +180,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
+		analytics:                opts.analytics,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
 		l:                        opts.l,
 		localScheduler:           localScheduler,

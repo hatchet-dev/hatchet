@@ -21,3 +21,19 @@ def timedelta_to_expr(td: Duration) -> str:
     if seconds % MINUTE == 0:
         return f"{seconds // MINUTE}m"
     return f"{seconds}s"
+
+
+def expr_to_timedelta(expr: str) -> timedelta:
+    unit = expr[-1]
+    value = int(expr[:-1])
+
+    if unit == "d":
+        return timedelta(days=value)
+    if unit == "h":
+        return timedelta(hours=value)
+    if unit == "m":
+        return timedelta(minutes=value)
+    if unit == "s":
+        return timedelta(seconds=value)
+
+    raise ValueError(f"Invalid time expression: {expr}")

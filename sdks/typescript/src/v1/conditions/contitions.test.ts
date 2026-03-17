@@ -8,10 +8,11 @@ import {
   Sleep,
   UserEvent,
 } from './index';
+import { durationToString } from '../client/duration';
 
 export function render(condition: Condition | OrCondition): string {
   if (condition instanceof SleepCondition) {
-    return `sleepFor: ${condition.sleepFor}`;
+    return `sleepFor: ${durationToString(condition.sleepFor)}`;
   }
   if (condition instanceof UserEventCondition) {
     return `event: ${condition.eventKey}${condition.expression ? `, expression: ${condition.expression}` : ''}`;

@@ -1220,15 +1220,10 @@ func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversion
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema",
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
-    wc.id as "concurrencyId",
-    wc.max_concurrency as "concurrencyMaxRuns",
-    wc.strategy as "concurrencyLimitStrategy",
-    wc.expression as "concurrencyExpression"
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused"
 FROM
     "WorkflowVersion" as wv
 JOIN "Workflow" as w on w."id" = wv."workflowId"
-LEFT JOIN v1_workflow_concurrency as wc ON (wc.workflow_version_id, wc.workflow_id) = (wv."id", w."id")
 WHERE
     wv."id" = $1::uuid AND
     wv."deletedAt" IS NULL
@@ -1236,12 +1231,8 @@ LIMIT 1
 `
 
 type GetWorkflowVersionByIdRow struct {
-	WorkflowVersion          WorkflowVersion           `json:"workflow_version"`
-	Workflow                 Workflow                  `json:"workflow"`
-	ConcurrencyId            pgtype.Int8               `json:"concurrencyId"`
-	ConcurrencyMaxRuns       pgtype.Int4               `json:"concurrencyMaxRuns"`
-	ConcurrencyLimitStrategy NullV1ConcurrencyStrategy `json:"concurrencyLimitStrategy"`
-	ConcurrencyExpression    pgtype.Text               `json:"concurrencyExpression"`
+	WorkflowVersion WorkflowVersion `json:"workflow_version"`
+	Workflow        Workflow        `json:"workflow"`
 }
 
 func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkflowVersionByIdRow, error) {
@@ -1271,10 +1262,6 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.U
 		&i.Workflow.Name,
 		&i.Workflow.Description,
 		&i.Workflow.IsPaused,
-		&i.ConcurrencyId,
-		&i.ConcurrencyMaxRuns,
-		&i.ConcurrencyLimitStrategy,
-		&i.ConcurrencyExpression,
 	)
 	return &i, err
 }
@@ -1801,6 +1788,57 @@ func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, ar
 			&i.JobKind,
 			&i.MatchConditionCount,
 			&i.Parents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowConcurrencyByVersionId = `-- name: ListWorkflowConcurrencyByVersionId :many
+SELECT
+    wc.id,
+    wc.max_concurrency AS "maxRuns",
+    wc.strategy AS "limitStrategy",
+    wc.expression
+FROM
+    v1_workflow_concurrency wc
+WHERE
+    wc.workflow_version_id = $1::uuid AND
+    wc.workflow_id = $2::uuid
+ORDER BY wc.id ASC
+`
+
+type ListWorkflowConcurrencyByVersionIdParams struct {
+	Workflowversionid uuid.UUID `json:"workflowversionid"`
+	Workflowid        uuid.UUID `json:"workflowid"`
+}
+
+type ListWorkflowConcurrencyByVersionIdRow struct {
+	ID            int64                 `json:"id"`
+	MaxRuns       int32                 `json:"maxRuns"`
+	LimitStrategy V1ConcurrencyStrategy `json:"limitStrategy"`
+	Expression    string                `json:"expression"`
+}
+
+func (q *Queries) ListWorkflowConcurrencyByVersionId(ctx context.Context, db DBTX, arg ListWorkflowConcurrencyByVersionIdParams) ([]*ListWorkflowConcurrencyByVersionIdRow, error) {
+	rows, err := db.Query(ctx, listWorkflowConcurrencyByVersionId, arg.Workflowversionid, arg.Workflowid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkflowConcurrencyByVersionIdRow
+	for rows.Next() {
+		var i ListWorkflowConcurrencyByVersionIdRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MaxRuns,
+			&i.LimitStrategy,
+			&i.Expression,
 		); err != nil {
 			return nil, err
 		}

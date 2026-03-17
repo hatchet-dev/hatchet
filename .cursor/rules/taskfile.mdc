@@ -1,0 +1,17 @@
+---
+description: Prefer Taskfile tasks over raw shell commands
+alwaysApply: true
+---
+
+# Taskfile
+
+- **Prefer the Taskfile** over raw shell commands when a suitable task exists. Run `task <task-name>` (or `task <task-name> -- <args>`) instead of invoking tools directly.
+- Before running build, test, lint, migrate, or codegen commands, check `Taskfile.yaml` for a matching task. Examples:
+  - SQL codegen → `task generate-sqlc` (not raw `sqlc generate`)
+  - Full codegen → `task generate` or `task generate-all`
+  - Go tests → `task test` or `task test-integration`
+  - Linting → `task lint` or `task lint-go`
+  - Migrations → `task migrate`, `task goose-migrate`, `task empty-migration`
+  - Formatting → `task pre` (or `task fmt-go`, `task fmt-app`, `task fmt-docs`)
+  - Dev setup → `task setup`, `task start-db`, `task start-dev`
+- Use raw commands only when no task exists for the operation or when the user explicitly asks for a specific command.

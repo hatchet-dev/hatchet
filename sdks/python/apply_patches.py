@@ -52,7 +52,11 @@ def atomically_patch_file(
 
 
 def patch_contract_import_paths(content: str) -> str:
-    return apply_patch(content, r"\bfrom v1\b", "from hatchet_sdk.contracts.v1")
+    content = apply_patch(content, r"\bfrom v1\b", "from hatchet_sdk.contracts.v1")
+    content = apply_patch(
+        content, r"\bfrom workflows\b", "from hatchet_sdk.contracts.workflows"
+    )
+    return content
 
 
 def patch_grpc_dispatcher_import(content: str) -> str:
@@ -588,6 +592,38 @@ def patch_workflow_run_metrics_counts_return_type(content: str) -> str:
     return apply_patch(content, pattern, replacement)
 
 
+def patch_workflows_pb2_reexport(content: str) -> str:
+    """Re-export types that moved to v1/shared/trigger.proto for backwards compatibility."""
+    reexport = (
+        "\n# Re-export for backwards compatibility\n"
+        "from hatchet_sdk.contracts.v1.shared.trigger_pb2 import "
+        "TriggerWorkflowRequest as TriggerWorkflowRequest  # noqa: F401\n"
+        "from hatchet_sdk.contracts.v1.shared.trigger_pb2 import "
+        "DesiredWorkerLabels as DesiredWorkerLabels  # noqa: F401\n"
+        "from hatchet_sdk.contracts.v1.shared.trigger_pb2 import "
+        "WorkerLabelComparator as WorkerLabelComparator  # noqa: F401\n"
+    )
+    if "TriggerWorkflowRequest as TriggerWorkflowRequest" in content:
+        return content
+    return content + reexport
+
+
+def patch_workflows_pyi_reexport(content: str) -> str:
+    """Add type stubs for re-exported types."""
+    reexport = (
+        "\n# Re-export for backwards compatibility\n"
+        "from hatchet_sdk.contracts.v1.shared.trigger_pb2 import "
+        "TriggerWorkflowRequest as TriggerWorkflowRequest\n"
+        "from hatchet_sdk.contracts.v1.shared.trigger_pb2 import "
+        "DesiredWorkerLabels as DesiredWorkerLabels\n"
+        "from hatchet_sdk.contracts.v1.shared.trigger_pb2 import "
+        "WorkerLabelComparator as WorkerLabelComparator\n"
+    )
+    if "TriggerWorkflowRequest as TriggerWorkflowRequest" in content:
+        return content
+    return content + reexport
+
+
 if __name__ == "__main__":
     atomically_patch_file(
         "hatchet_sdk/clients/rest/api_client.py",
@@ -622,3 +658,12 @@ if __name__ == "__main__":
     apply_patches_to_matching_files("hatchet_sdk/contracts", "*_grpc.py", grpc_patches)
     apply_patches_to_matching_files("hatchet_sdk/contracts", "*_pb2.py", pb2_patches)
     apply_patches_to_matching_files("hatchet_sdk/contracts", "*_pb2.pyi", pb2_patches)
+
+    atomically_patch_file(
+        "hatchet_sdk/contracts/workflows_pb2.py",
+        [patch_workflows_pb2_reexport],
+    )
+    atomically_patch_file(
+        "hatchet_sdk/contracts/workflows_pb2.pyi",
+        [patch_workflows_pyi_reexport],
+    )

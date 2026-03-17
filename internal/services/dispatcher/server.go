@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -28,7 +30,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
+	s.l.Debug().Ctx(ctx).Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
 	svcs := request.Services
 
@@ -83,7 +85,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	}
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not create worker for tenant %s", tenantId)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not create worker for tenant %s", tenantId)
 		return nil, err
 	}
 
@@ -97,7 +99,21 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		}
 	}
 
-	// return the worker id to the worker
+	s.analytics.Count(ctx, analytics.Worker, analytics.Register, analytics.Props(
+		"worker_name", request.WorkerName,
+		"runtime_language", strings.ToLower(request.GetRuntimeInfo().GetLanguage().String()),
+		"runtime_sdk_version", request.GetRuntimeInfo().GetSdkVersion(),
+		"runtime_language_version", request.GetRuntimeInfo().GetLanguageVersion(),
+		"runtime_os", request.GetRuntimeInfo().GetOs(),
+		"runtime_extra", request.GetRuntimeInfo().GetExtra(),
+		"has_labels", len(request.Labels) > 0,
+		"has_webhook_id", request.WebhookId != nil,
+		"has_runtime_info", request.RuntimeInfo != nil,
+		"has_slot_config", len(request.SlotConfig) > 0,
+		"has_custom_slots", request.Slots != nil,
+		"has_services", len(request.Services) > 0,
+	))
+
 	return &contracts.WorkerRegisterResponse{
 		TenantId:   tenantId.String(),
 		WorkerId:   workerId,
@@ -107,6 +123,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contracts.UpsertWorkerLabelsRequest) (*contracts.UpsertWorkerLabelsResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	s.analytics.Count(ctx, analytics.Worker, analytics.Create)
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
@@ -146,7 +163,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, workerId, affinities)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
 		return nil, err
 	}
 
@@ -155,24 +172,24 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 
 // Subscribe handles a subscribe request from a client
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
-	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
+	ctx := stream.Context()
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	s.analytics.Count(ctx, analytics.Worker, analytics.Listen)
 	sessionId := uuid.New().String()
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
 		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
 	}
 
-	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
-
-	ctx := stream.Context()
+	s.l.Debug().Ctx(ctx).Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
 	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not get worker %s", request.WorkerId)
 		return err
 	}
 
@@ -189,7 +206,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				return nil
 			}
 
-			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
 	}
@@ -219,14 +236,14 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		for {
 			select {
 			case <-ctx.Done():
-				s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
+				s.l.Debug().Ctx(ctx).Msgf("worker id %s has disconnected", request.WorkerId)
 				return
 			case <-fin:
-				s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
+				s.l.Debug().Ctx(ctx).Msgf("closing stream for worker id: %s", request.WorkerId)
 				return
 			case <-timer.C:
 				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
-					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
+					s.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", request.WorkerId)
 
 					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
@@ -238,7 +255,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 							return
 						}
 
-						s.l.Error().Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
+						s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
 						return
 					}
 
@@ -252,10 +269,10 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	for {
 		select {
 		case <-fin:
-			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
+			s.l.Debug().Ctx(ctx).Msgf("closing stream for worker id: %s", request.WorkerId)
 			return nil
 		case <-ctx.Done():
-			s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
+			s.l.Debug().Ctx(ctx).Msgf("worker id %s has disconnected", request.WorkerId)
 			return nil
 		}
 	}
@@ -264,24 +281,24 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 // ListenV2 is like Listen, but implementation does not include heartbeats. This should only used by SDKs
 // against engine version v0.18.1+
 func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
-	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
+	ctx := stream.Context()
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	s.analytics.Count(stream.Context(), analytics.Worker, analytics.Listen)
 	sessionId := uuid.New().String()
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
 		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
 	}
 
-	ctx := stream.Context()
-
-	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
+	s.l.Debug().Ctx(ctx).Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
 	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not get worker %s", request.WorkerId)
 		return err
 	}
 
@@ -298,7 +315,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 				return nil
 			}
 
-			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
 	}
@@ -318,7 +335,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			lastSessionEstablished = worker.LastListenerEstablished.Time.String()
 		}
 
-		s.l.Error().Err(err).Msgf("could not update worker %s active status to true (session established %s, last session established %s)", request.WorkerId, sessionEstablished.String(), lastSessionEstablished)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status to true (session established %s, last session established %s)", request.WorkerId, sessionEstablished.String(), lastSessionEstablished)
 		return err
 	}
 
@@ -340,18 +357,18 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	for {
 		select {
 		case <-fin:
-			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
+			s.l.Debug().Ctx(ctx).Msgf("closing stream for worker id: %s", request.WorkerId)
 
 			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				s.l.Error().Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
+				s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
 
 			return nil
 		case <-ctx.Done():
-			s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
+			s.l.Debug().Ctx(ctx).Msgf("worker id %s has disconnected", request.WorkerId)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
@@ -359,7 +376,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				s.l.Error().Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
+				s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
 
@@ -380,17 +397,17 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	workerId, err := uuid.Parse(req.WorkerId)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("invalid worker ID format: %s", req.WorkerId)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("invalid worker ID format: %s", req.WorkerId)
 		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", req.WorkerId)
 	}
 
 	heartbeatAt := time.Now().UTC()
 
-	s.l.Debug().Msgf("Received heartbeat request from ID: %s", req.WorkerId)
+	s.l.Debug().Ctx(ctx).Msgf("Received heartbeat request from ID: %s", req.WorkerId)
 
 	// if heartbeat time is greater than expected heartbeat interval, show a warning
 	if req.HeartbeatAt.AsTime().Before(heartbeatAt.Add(-1 * HeartbeatInterval)) {
-		s.l.Warn().Msgf("heartbeat time is greater than expected heartbeat interval")
+		s.l.Warn().Ctx(ctx).Msgf("heartbeat time is greater than expected heartbeat interval")
 	}
 
 	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
@@ -418,7 +435,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		span.RecordError(err)
 		span.SetStatus(telemetry_codes.Error, "could not update worker heartbeat")
 		if errors.Is(err, pgx.ErrNoRows) {
-			s.l.Error().Msgf("could not update worker heartbeat: worker %s not found", req.WorkerId)
+			s.l.Error().Ctx(ctx).Msgf("could not update worker heartbeat: worker %s not found", req.WorkerId)
 			return nil, err
 		}
 
@@ -436,7 +453,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 				msg, err := tasktypes.NotifyNewWorker(tenantId, worker.ID)
 
 				if err != nil {
-					s.l.Err(err).Msg("could not create message for notifying new worker")
+					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
 				} else {
 					err = s.mqv1.SendMessage(
 						notifyCtx,
@@ -445,7 +462,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 					)
 
 					if err != nil {
-						s.l.Err(err).Msg("could not add message to scheduler partition queue")
+						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
 					}
 				}
 			}()
@@ -457,11 +474,21 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	s.analytics.Count(ctx, analytics.Worker, analytics.Release)
+	return s.releaseSlot(ctx, tenant, req)
+}
 
-	return s.releaseSlotV1(ctx, tenant, req)
+func (s *DispatcherImpl) RestoreEvictedTask(ctx context.Context, req *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	s.analytics.Count(ctx, analytics.DurableTask, analytics.Restore)
+
+	return s.restoreEvictedTask(ctx, tenant, req)
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
+	if _, ok := stream.Context().Value("tenant").(*sqlcv1.Tenant); ok {
+		s.analytics.Count(stream.Context(), analytics.WorkflowRun, analytics.Subscribe)
+	}
 	return s.subscribeToWorkflowEventsV1(request, stream)
 }
 
@@ -580,6 +607,7 @@ func calculateResultsSize(results []*contracts.StepRunResult) (totalSize int, si
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
+	s.analytics.Count(server.Context(), analytics.WorkflowRun, analytics.Subscribe)
 	return s.subscribeToWorkflowRunsV1(server)
 }
 
@@ -613,6 +641,7 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+	s.analytics.Count(ctx, analytics.Worker, analytics.Delete)
 
 	workerId, err := uuid.Parse(request.WorkerId)
 	if err != nil {
@@ -630,7 +659,6 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 
 func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-
 	return d.refreshTimeoutV1(ctx, tenant, request)
 }
 
