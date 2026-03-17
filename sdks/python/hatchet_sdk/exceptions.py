@@ -2,6 +2,28 @@ import json
 import traceback
 from typing import cast
 
+from hatchet_sdk.engine_version import MinEngineVersion
+
+
+class NonDeterminismError(Exception):
+    def __init__(
+        self, task_external_id: str, invocation_count: int, message: str, node_id: int
+    ) -> None:
+        self.task_external_id = task_external_id
+        self.invocation_count = invocation_count
+        self.message = message
+        self.node_id = node_id
+
+        detail = (
+            message
+            if message
+            else f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}"
+        )
+
+        super().__init__(
+            f"{detail}\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/v1/patterns/mixing-patterns"
+        )
+
 
 class InvalidDependencyError(Exception):
     pass
@@ -170,3 +192,15 @@ class IllegalTaskOutputError(Exception):
 
 class LifespanSetupError(Exception):
     pass
+
+
+class EvictionNotSupportedError(NonRetryableException):
+    """Raised when an eviction policy is configured against an engine version
+    that does not support durable-task eviction."""
+
+    def __init__(self, engine_version: str | None = None) -> None:
+        version_info = f" (engine version: {engine_version})" if engine_version else ""
+        super().__init__(
+            f"Eviction policies require engine >= {MinEngineVersion.DURABLE_EVICTION}{version_info}. "
+            "Please upgrade your Hatchet engine or remove the eviction policy from your task."
+        )

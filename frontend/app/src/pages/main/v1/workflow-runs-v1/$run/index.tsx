@@ -61,8 +61,12 @@ function statusToBadgeVariant(status: V1TaskStatus) {
       return 'cancelled';
     case V1TaskStatus.QUEUED:
       return 'queued';
-    default:
+    case V1TaskStatus.RUNNING:
       return 'inProgress';
+    default: {
+      const exhaustivenessCheck: never = status;
+      throw new Error(`Unknown status: ${exhaustivenessCheck}`);
+    }
   }
 }
 

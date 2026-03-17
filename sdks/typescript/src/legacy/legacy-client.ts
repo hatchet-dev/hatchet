@@ -122,8 +122,7 @@ export class LegacyHatchetClient {
       new DurableListenerClient(
         this.config,
         channelFactory(this.config, this.credentials),
-        clientFactory,
-        this.api
+        clientFactory
       );
 
     this.logger = logger || this.config.logger('HatchetClient', this.config.log_level);

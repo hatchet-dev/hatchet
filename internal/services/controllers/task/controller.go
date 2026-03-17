@@ -437,6 +437,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessInternalEvents(context.Background(), tenantId, payloads)
 	case msgqueue.MsgIDTaskTrigger:
 		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
+	case msgqueue.MsgIDDurableRestoreTask:
+		return tc.handleDurableRestoreTask(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -1097,6 +1099,12 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 		}
 	}
 
+	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
+		if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, matchResult.SatisfiedDurableEventLogEntries); err != nil {
+			tc.l.Error().Err(err).Msg("could not process satisfied entries")
+		}
+	}
+
 	return nil
 }
 
@@ -1134,6 +1142,12 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 
 		if err != nil {
 			return fmt.Errorf("could not signal replayed tasks: %w", err)
+		}
+	}
+
+	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
+		if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, matchResult.SatisfiedDurableEventLogEntries); err != nil {
+			tc.l.Error().Err(err).Msg("could not process satisfied entries")
 		}
 	}
 

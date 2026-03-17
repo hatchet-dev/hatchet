@@ -123,8 +123,10 @@ type V1WorkflowRunPopulator struct {
 }
 
 type TaskRunMetric struct {
-	Status string `json:"status"`
-	Count  uint64 `json:"count"`
+	Status        string `json:"status"`
+	Count         uint64 `json:"count"`
+	EvictedCount  uint64 `json:"evictedCount,omitempty"`
+	OnWorkerCount uint64 `json:"onWorkerCount,omitempty"`
 }
 type Sticky string
 
@@ -1472,32 +1474,33 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		return nil, err
 	}
 
-	metrics := make([]TaskRunMetric, 0)
+	runningCount := uint64(res.TotalRunning) // nolint: gosec
+	evictedCount := uint64(res.TotalEvicted) // nolint: gosec
 
-	metrics = append(metrics, TaskRunMetric{
-		Status: "QUEUED",
-		Count:  uint64(res.TotalQueued),
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "RUNNING",
-		Count:  uint64(res.TotalRunning),
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "COMPLETED",
-		Count:  uint64(res.TotalCompleted),
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "CANCELLED",
-		Count:  uint64(res.TotalCancelled),
-	})
-
-	metrics = append(metrics, TaskRunMetric{
-		Status: "FAILED",
-		Count:  uint64(res.TotalFailed),
-	})
+	metrics := []TaskRunMetric{
+		{
+			Status: "QUEUED",
+			Count:  uint64(res.TotalQueued), // nolint: gosec
+		},
+		{
+			Status:        "RUNNING",
+			Count:         runningCount + evictedCount,
+			EvictedCount:  evictedCount,
+			OnWorkerCount: runningCount,
+		},
+		{
+			Status: "COMPLETED",
+			Count:  uint64(res.TotalCompleted), // nolint: gosec
+		},
+		{
+			Status: "CANCELLED",
+			Count:  uint64(res.TotalCancelled), // nolint: gosec
+		},
+		{
+			Status: "FAILED",
+			Count:  uint64(res.TotalFailed), // nolint: gosec
+		},
+	}
 
 	return metrics, nil
 }
@@ -1510,8 +1513,7 @@ func (r *OLAPRepositoryImpl) saveEventsToCache(events []sqlcv1.CreateTaskEventsO
 }
 
 func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
-	// key on the task_id, retry_count, and event_type
-	return fmt.Sprintf("%d-%s-%d", event.TaskID, event.EventType, event.RetryCount)
+	return fmt.Sprintf("%d-%s-%d-%d", event.TaskID, event.EventType, event.RetryCount, event.DurableInvocationCount)
 }
 
 func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {

@@ -5,6 +5,17 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-03-16
+
+### Added
+
+- Added a `DurableContext.wait_for_event` helper which returns the payload of the awaited event.
+- Added an `EvictionPolicy`, which allows durable tasks to be evicted from the worker when idle.
+
+### Changed
+
+- Makes a bunch of internal-facing changes for new durable execution features
+
 ## [1.28.2] - 2026-03-12
 
 ### Changed

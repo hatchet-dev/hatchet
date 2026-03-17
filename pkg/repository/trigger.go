@@ -11,11 +11,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type EventTriggerOpts struct {
@@ -109,6 +112,9 @@ type createDAGOpts struct {
 	// (required) a list of task external ids that are part of this DAG
 	TaskIds []uuid.UUID
 
+	// (required) a parallel list of step readable ids for each task
+	TaskStepReadableIds []string
+
 	// (required) the workflow id for this DAG
 	WorkflowId uuid.UUID
 
@@ -132,6 +138,8 @@ type TriggerRepository interface {
 	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
+
+	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*TriggerTaskData, error)
 }
 
 type TriggerRepositoryImpl struct {
@@ -358,14 +366,36 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 	return eventExternalIdToRuns
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	triggerOpts, err := r.prepareTriggerFromWorkflowNames(ctx, r.pool, tenantId, opts)
+func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	return r.triggerWorkflows(ctx, nil, tenantId, triggerOpts, nil)
+	return s.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
+}
+
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+	tx, err := r.PrepareOptimisticTx(ctx)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
+	}
+
+	defer tx.Rollback()
+
+	tasks, dags, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	return tasks, dags, nil
 }
 
 type ErrNamesNotFound struct {
@@ -601,6 +631,7 @@ func (r *sharedRepository) triggerWorkflows(
 	// a map of trigger tuples to step external IDs
 	stepsToExternalIds := make([]map[uuid.UUID]uuid.UUID, len(tuples))
 	dagToTaskIds := make(map[uuid.UUID][]uuid.UUID)
+	dagToTaskReadableIds := make(map[uuid.UUID][]string)
 
 	// generate UUIDs for each step
 	for i, tuple := range tuples {
@@ -633,6 +664,7 @@ func (r *sharedRepository) triggerWorkflows(
 				externalId := uuid.New()
 				stepsToExternalIds[i][step.ID] = externalId
 				dagToTaskIds[tuple.externalId] = append(dagToTaskIds[tuple.externalId], externalId)
+				dagToTaskReadableIds[tuple.externalId] = append(dagToTaskReadableIds[tuple.externalId], step.ReadableId.String)
 			}
 		}
 	}
@@ -1014,6 +1046,7 @@ func (r *sharedRepository) triggerWorkflows(
 				ExternalId:           tuple.externalId,
 				Input:                tuple.input,
 				TaskIds:              dagToTaskIds[tuple.externalId],
+				TaskStepReadableIds:  dagToTaskReadableIds[tuple.externalId],
 				WorkflowId:           tuple.workflowId,
 				WorkflowVersionId:    tuple.workflowVersionId,
 				WorkflowName:         tuple.workflowName,
@@ -1230,6 +1263,9 @@ type DAGWithData struct {
 	ParentTaskExternalID *uuid.UUID
 
 	TotalTasks int
+
+	TaskExternalIDs     []uuid.UUID
+	TaskStepReadableIDs []string
 }
 
 type V1TaskWithPayload struct {
@@ -1337,6 +1373,8 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			AdditionalMetadata:   additionalMeta,
 			ParentTaskExternalID: &parentTaskExternalID,
 			TotalTasks:           len(opt.TaskIds),
+			TaskExternalIDs:      opt.TaskIds,
+			TaskStepReadableIDs:  opt.TaskStepReadableIds,
 		})
 	}
 
@@ -1527,6 +1565,7 @@ func (r *sharedRepository) registerChildWorkflows(
 					Conditions:           getChildWorkflowGroupMatches(stepExternalId, stepReadableId),
 					SignalExternalId:     tuple.parentExternalId,
 					SignalTaskId:         tuple.parentTaskId,
+					SignalTaskExternalId: tuple.parentExternalId,
 					SignalTaskInsertedAt: sqlchelpers.TimestamptzFromTime(*tuple.parentTaskInsertedAt),
 					SignalKey:            &key,
 				})
@@ -2207,4 +2246,97 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	}
 
 	return triggerOpts, nil
+}
+
+type TriggerOptInvalidArgumentError struct {
+	Err error
+}
+
+func (r *TriggerOptInvalidArgumentError) Error() string {
+	return fmt.Sprintf("err %v", r.Err)
+}
+
+func (r *sharedRepository) NewTriggerTaskData(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	req *v1contracts.TriggerWorkflowRequest,
+	parentTask *sqlcv1.FlattenExternalIdsRow,
+) (*TriggerTaskData, error) {
+	ctx, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerTaskData")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("sharedRepository.NewTriggerTaskData.workflow_name", req.Name),
+		attribute.Int("sharedRepository.NewTriggerTaskData.payload_size", len(req.Input)),
+		attribute.Bool("sharedRepository.NewTriggerTaskData.is_child_workflow", req.ParentTaskRunExternalId != nil),
+	)
+
+	additionalMeta := ""
+
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+
+	var desiredWorkerId *uuid.UUID
+	if req.DesiredWorkerId != nil {
+		if *req.DesiredWorkerId != "" {
+			workerId, err := uuid.Parse(*req.DesiredWorkerId)
+			if err != nil {
+				return nil, &TriggerOptInvalidArgumentError{
+					Err: fmt.Errorf("desiredWorkerId must be a valid UUID: %w", err),
+				}
+			}
+			desiredWorkerId = &workerId
+		}
+	}
+
+	t := &TriggerTaskData{
+		WorkflowName:       req.Name,
+		Data:               []byte(req.Input),
+		AdditionalMetadata: []byte(additionalMeta),
+		DesiredWorkerId:    desiredWorkerId,
+		Priority:           req.Priority,
+	}
+
+	if len(req.DesiredWorkerLabels) > 0 {
+		labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(req.DesiredWorkerLabels))
+		for key, label := range req.DesiredWorkerLabels {
+			var comparator *string
+			if label.Comparator != nil {
+				c := label.Comparator.String()
+				comparator = &c
+			}
+			labels = append(labels, ProtoToDesiredWorkerLabel(
+				key,
+				label.StrValue,
+				label.IntValue,
+				label.Required,
+				label.Weight,
+				comparator,
+			))
+		}
+		t.DesiredWorkerLabels = labels
+	}
+
+	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 3 {
+			return nil, &TriggerOptInvalidArgumentError{
+				Err: fmt.Errorf("priority must be between 1 and 3, got %d", *req.Priority),
+			}
+		}
+		t.Priority = req.Priority
+	}
+
+	if parentTask != nil {
+		parentExternalId := parentTask.ExternalID
+		childIndex := int64(*req.ChildIndex)
+
+		t.ParentExternalId = &parentExternalId
+		t.ParentTaskId = &parentTask.ID
+		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
+		t.ChildIndex = &childIndex
+		t.ChildKey = req.ChildKey
+	}
+
+	return t, nil
 }

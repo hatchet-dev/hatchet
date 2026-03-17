@@ -107,6 +107,12 @@ listWorkflowRuns:
         required: false
         schema:
           type: boolean
+      - description: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        in: query
+        name: running_filter
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
     responses:
       "200":
         content:
@@ -247,6 +253,12 @@ listWorkflowRunExternalIds:
             format: uuid
             minLength: 36
             maxLength: 36
+      - description: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        in: query
+        name: running_filter
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
     responses:
       "200":
         content:
@@ -528,6 +540,51 @@ getWorkflowRunTrace:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: The workflow run was not found
     summary: Get OTel trace
+    tags:
+      - Workflow Runs
+
+branchDurableTask:
+  post:
+    x-resources: ["tenant"]
+    description: Branch a durable task from a specific node, creating a new branch and re-processing its matches.
+    operationId: v1-durable-task:branch
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1BranchDurableTaskRequest"
+      description: The branch request
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1BranchDurableTaskResponse"
+        description: Successfully branch the durable task
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Branch durable task
     tags:
       - Workflow Runs
 

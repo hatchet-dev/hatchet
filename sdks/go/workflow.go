@@ -97,6 +97,36 @@ func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 	}
 }
 
+func desiredWorkerLabelsToProto(labels map[string]*DesiredWorkerLabel) map[string]*v1.DesiredWorkerLabels {
+	result := make(map[string]*v1.DesiredWorkerLabels, len(labels))
+
+	for key, label := range labels {
+		proto := &v1.DesiredWorkerLabels{
+			Required: &label.Required,
+			Weight:   &label.Weight,
+		}
+
+		if label.Comparator != nil {
+			comparator := v1.WorkerLabelComparator(*label.Comparator)
+			proto.Comparator = &comparator
+		}
+
+		switch v := label.Value.(type) {
+		case string:
+			proto.StrValue = &v
+		case int:
+			intVal := int32(v) // nolint: gosec
+			proto.IntValue = &intVal
+		case int32:
+			proto.IntValue = &v
+		}
+
+		result[key] = proto
+	}
+
+	return result
+}
+
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
 func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 	if input == nil {
