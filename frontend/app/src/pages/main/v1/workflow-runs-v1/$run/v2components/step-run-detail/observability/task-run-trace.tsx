@@ -7,7 +7,7 @@ import type {
 import { useCallback, useMemo, useState } from 'react';
 
 const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
-  if (spanTree.spanAttributes?.['instrumentor'] !== 'hatchet') {
+  if (spanTree.spanAttributes?.instrumentor !== 'hatchet') {
     return [];
   }
 

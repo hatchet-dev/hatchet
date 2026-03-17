@@ -94,8 +94,8 @@ function getActionOtelAttributes(
     [OTelAttribute.TENANT_ID]: action.tenantId,
     [OTelAttribute.WORKER_ID]: workerId,
     [OTelAttribute.WORKFLOW_RUN_ID]: action.workflowRunId,
-    [OTelAttribute.STEP_ID]: action.stepId,
-    [OTelAttribute.STEP_RUN_ID]: action.stepRunId,
+    [OTelAttribute.STEP_ID]: action.taskId,
+    [OTelAttribute.STEP_RUN_ID]: action.taskRunExternalId,
     [OTelAttribute.RETRY_COUNT]: action.retryCount,
     [OTelAttribute.PARENT_WORKFLOW_RUN_ID]: action.parentWorkflowRunId,
     [OTelAttribute.CHILD_WORKFLOW_INDEX]: action.childWorkflowIndex,
@@ -669,7 +669,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           action: Action
         ): Promise<void> {
           const attributes: Attributes = {
-            [`hatchet.${OTelAttribute.STEP_RUN_ID}`]: action.stepRunId,
+            [`hatchet.${OTelAttribute.STEP_RUN_ID}`]: action.taskRunExternalId,
           };
 
           return tracer.startActiveSpan(

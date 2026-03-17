@@ -360,12 +360,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             self._wrap_spawn_children_no_wait,
         )
 
-        wrap_function_wrapper(
-            hatchet_sdk,
-            "context.context.DurableContext.aio_memo",
-            self._wrap_aio_memo,
-        )
-
     def extract_bound_args(
         self,
         wrapped_func: Callable[..., Any],
@@ -943,42 +937,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 span.set_status(StatusCode.ERROR, str(e))
                 raise
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
-    async def _wrap_aio_memo(
-        self,
-        wrapped: Callable[..., Coroutine[None, None, Any]],
-        instance: DurableContext,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-    ) -> Any:
-        params = self.extract_bound_args(wrapped, args, kwargs)
-
-        fn = params[0]
-        fn_name = getattr(fn, "__name__", str(fn))
-
-        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
-
-        attributes = {
-            OTelAttribute.MEMO_FN_NAME: fn_name,
-            OTelAttribute.STEP_RUN_ID: instance.step_run_id,
-        }
-
-        with self._tracer.start_as_current_span(
-            f"hatchet.durable.memo.{fn_name}",
-            attributes={
-                f"hatchet.{k.value}": v
-                for k, v in attributes.items()
-                if v is not None and k not in self.config.otel.excluded_attributes
-            },
-            context=traceparent,
-            kind=SpanKind.INTERNAL,
-        ) as span:
-            try:
-                return await wrapped(*args, **kwargs)
-            except Exception as e:
-                span.set_status(StatusCode.ERROR, str(e))
-                raise
-
     def _uninstrument(self, **kwargs: InstrumentKwargs) -> None:
         self.tracer_provider = NoOpTracerProvider()
         self.meter_provider = NoOpMeterProvider()
@@ -994,4 +952,3 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         unwrap(hatchet_sdk, "clients.admin.AdminClient.aio_run_workflows")
         unwrap(hatchet_sdk, "context.context.DurableContext.aio_wait_for")
         unwrap(hatchet_sdk, "context.context.DurableContext._spawn_children_no_wait")
-        unwrap(hatchet_sdk, "context.context.DurableContext.aio_memo")
