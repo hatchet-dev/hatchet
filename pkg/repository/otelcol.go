@@ -179,7 +179,7 @@ func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Cont
 			RetryCount: r.RetryCount,
 		})
 
-		childID := extractChildWorkflowRunID(r.SpanName, r.SpanAttributes)
+		childID := ExtractChildWorkflowRunID(r.SpanName, r.SpanAttributes)
 		if childID != uuid.Nil {
 			childWorkflowRunIDs = append(childWorkflowRunIDs, childID)
 		}
@@ -269,7 +269,7 @@ func (o *otelCollectorRepositoryImpl) listSpansForWorkflowRunTree(ctx context.Co
 			})
 
 			// Check span attributes for child workflow run IDs
-			childID := extractChildWorkflowRunID(r.SpanName, r.SpanAttributes)
+			childID := ExtractChildWorkflowRunID(r.SpanName, r.SpanAttributes)
 			if childID != uuid.Nil && !visited[childID] {
 				visited[childID] = true
 				queue = append(queue, childID)
@@ -284,7 +284,7 @@ func (o *otelCollectorRepositoryImpl) listSpansForWorkflowRunTree(ctx context.Co
 // workflow_run_id, but only from trigger spans. Non-trigger spans (like
 // hatchet.start_step_run) also carry hatchet.workflow_run_id but it refers
 // to their OWN workflow run, not a child.
-func extractChildWorkflowRunID(spanName string, attrs []byte) uuid.UUID {
+func ExtractChildWorkflowRunID(spanName string, attrs []byte) uuid.UUID {
 	if len(attrs) == 0 {
 		return uuid.Nil
 	}
