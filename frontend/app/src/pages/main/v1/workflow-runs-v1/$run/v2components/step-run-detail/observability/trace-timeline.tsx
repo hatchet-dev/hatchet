@@ -115,17 +115,28 @@ function formatDurationShort(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-const barColors: Record<OtelStatusCode, string> = {
+const barColorsByStatus: Record<string, string> = {
   [OtelStatusCode.OK]: 'bg-success',
   [OtelStatusCode.UNSET]: 'bg-success',
   [OtelStatusCode.ERROR]: 'bg-danger',
 };
 
-const dotColors: Record<OtelStatusCode, string> = {
-  [OtelStatusCode.OK]: 'bg-success',
-  [OtelStatusCode.UNSET]: 'bg-success',
-  [OtelStatusCode.ERROR]: 'bg-danger',
-};
+function getBarColor(span: OtelSpanTree): string {
+  if (span.statusCode === OtelStatusCode.ERROR) {
+    return 'bg-danger';
+  }
+  if (barColorsByStatus[span.statusCode]) {
+    return barColorsByStatus[span.statusCode];
+  }
+  return 'bg-success';
+}
+
+function getDotColor(span: OtelSpanTree): string {
+  if (span.statusCode === OtelStatusCode.ERROR) {
+    return 'bg-danger';
+  }
+  return 'bg-success';
+}
 
 function SpanTooltip({
   row,
@@ -148,7 +159,7 @@ function SpanTooltip({
         <span
           className={cn(
             'size-2.5 shrink-0 rounded-full',
-            dotColors[row.span.statusCode],
+            getDotColor(row.span),
           )}
         />
         <span className="flex-1 font-mono text-sm text-foreground">
@@ -261,17 +272,21 @@ export function TraceTimeline({
               }}
             >
               {/* Tree connector lines */}
-              {Array.from({ length: row.depth }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex shrink-0 items-center justify-center"
-                  style={{ width: CONNECTOR_WIDTH, height: ROW_HEIGHT }}
-                >
-                  {row.connectorFlags[i] && (
-                    <div className="h-full w-px bg-border" />
-                  )}
-                </div>
-              ))}
+              {Array.from({ length: row.depth }).map((_, i) => {
+                const isOwnLevel = i === row.depth - 1;
+                const showLine = isOwnLevel
+                  ? row.connectorFlags[i] || !row.isLastChild
+                  : row.connectorFlags[i];
+                return (
+                  <div
+                    key={i}
+                    className="flex shrink-0 items-center justify-center"
+                    style={{ width: CONNECTOR_WIDTH, height: ROW_HEIGHT }}
+                  >
+                    {showLine && <div className="h-full w-px bg-border" />}
+                  </div>
+                );
+              })}
 
               {/* Expand/collapse chevron */}
               {row.hasChildren ? (
@@ -365,7 +380,7 @@ export function TraceTimeline({
                 <div
                   className={cn(
                     'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm transition-shadow',
-                    barColors[row.span.statusCode],
+                    getBarColor(row.span),
                     hoveredSpanId === row.span.spanId &&
                       'ring-1 ring-foreground/20',
                   )}
