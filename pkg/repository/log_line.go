@@ -35,6 +35,9 @@ type ListLogsOpts struct {
 
 	// (optional) Order by direction
 	OrderByDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) a list of task external ids to filter by
+	TaskExternalIds []uuid.UUID
 }
 
 type CreateLogLineOpts struct {
@@ -60,10 +63,18 @@ type CreateLogLineOpts struct {
 	RetryCount int
 }
 
+type ListLogLineRow struct {
+	*sqlcv1.V1LogLine
+
+	TaskExternalId uuid.UUID
+}
+
 type LogLineRepository interface {
-	ListLogLines(ctx context.Context, tenantId, taskExternalId uuid.UUID, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
+	ListLogLines(ctx context.Context, tenantId uuid.UUID, opts *ListLogsOpts) ([]*ListLogLineRow, error)
 
 	PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error
+
+	GetLogLinePointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration, search *string, levels []string, taskExternalIds []uuid.UUID) ([]*sqlcv1.GetLogLinePointMetricsRow, error)
 }
 
 type logLineRepositoryImpl struct {
@@ -76,22 +87,13 @@ func newLogLineRepository(s *sharedRepository) LogLineRepository {
 	}
 }
 
-func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, taskExternalId uuid.UUID, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
+func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.UUID, opts *ListLogsOpts) ([]*ListLogLineRow, error) {
 	if err := r.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	// get the task id and inserted at
-	task, err := r.GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
-
-	if err != nil {
 		return nil, err
 	}
 
 	queryParams := sqlcv1.ListLogLinesParams{
 		Tenantid:         tenantId,
-		Taskid:           task.ID,
-		Taskinsertedat:   task.InsertedAt,
 		Orderbydirection: "ASC",
 	}
 
@@ -147,12 +149,54 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId, task
 		}
 	}
 
+	if len(opts.TaskExternalIds) > 0 {
+		internalIds, err := r.resolveTaskExternalIds(ctx, tenantId, opts.TaskExternalIds)
+		if err != nil {
+			return nil, err
+		}
+		queryParams.TaskIds = internalIds
+	}
+
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
 	if err != nil {
 		return nil, err
 	}
 
-	return logLines, nil
+	// gather unique task ids, inserted ats to look up associated task external ids
+	uniqueTaskIds := make(map[int64]struct{})
+	for _, logLine := range logLines {
+		uniqueTaskIds[logLine.TaskID] = struct{}{}
+	}
+
+	taskIds := make([]int64, 0, len(uniqueTaskIds))
+	for taskId := range uniqueTaskIds {
+		taskIds = append(taskIds, taskId)
+	}
+
+	// look up associated task external ids
+	tasks, err := r.listTasks(ctx, r.pool, tenantId, taskIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// create a map of task id to external id
+	taskIdToExternalId := make(map[int64]uuid.UUID)
+	for _, task := range tasks {
+		taskIdToExternalId[task.ID] = task.ExternalID
+	}
+
+	// attach task external ids to log lines
+	res := make([]*ListLogLineRow, len(logLines))
+
+	for i, logLine := range logLines {
+		res[i] = &ListLogLineRow{
+			V1LogLine:      logLine,
+			TaskExternalId: taskIdToExternalId[logLine.TaskID],
+		}
+	}
+
+	return res, nil
 }
 
 func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error {
@@ -185,4 +229,56 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 	)
 
 	return err
+}
+
+func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration, search *string, levels []string, taskExternalIds []uuid.UUID) ([]*sqlcv1.GetLogLinePointMetricsRow, error) {
+	params := sqlcv1.GetLogLinePointMetricsParams{
+		Interval:      durationToPgInterval(bucketInterval),
+		Tenantid:      tenantId,
+		Createdafter:  sqlchelpers.TimestamptzFromTime(*startTimestamp),
+		Createdbefore: sqlchelpers.TimestamptzFromTime(*endTimestamp),
+	}
+
+	if search != nil {
+		params.Search = sqlchelpers.TextFromStr(*search)
+	}
+
+	if len(levels) > 0 {
+		lvls := make([]sqlcv1.V1LogLineLevel, len(levels))
+		for i, l := range levels {
+			lvls[i] = sqlcv1.V1LogLineLevel(l)
+		}
+		params.Levels = lvls
+	}
+
+	if len(taskExternalIds) > 0 {
+		internalIds, err := r.resolveTaskExternalIds(ctx, tenantId, taskExternalIds)
+		if err != nil {
+			return []*sqlcv1.GetLogLinePointMetricsRow{}, nil
+		}
+		params.TaskIds = internalIds
+	}
+
+	rows, err := r.queries.GetLogLinePointMetrics(ctx, r.pool, params)
+	if err != nil {
+		return []*sqlcv1.GetLogLinePointMetricsRow{}, nil
+	}
+
+	return rows, nil
+}
+
+func (r *logLineRepositoryImpl) resolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]int64, error) {
+	tasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
+		Tenantid:    tenantId,
+		Externalids: externalIds,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]int64, len(tasks))
+	for i, t := range tasks {
+		ids[i] = t.ID
+	}
+	return ids, nil
 }

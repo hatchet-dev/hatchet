@@ -13,6 +13,7 @@ import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
 import { Waterfall } from './v2components/waterfall';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
+import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -39,7 +40,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 class StatusError extends Error {
   status: number;
@@ -261,7 +262,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
+  const { workflowRun, shape, taskRuns, isLoading, isError } = useWorkflowDetails();
 
   if (isLoading || isError || !workflowRun) {
     return null;
@@ -269,6 +270,10 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
 
   const inputData = JSON.stringify(workflowRun.input || {});
   const additionalMetadata = workflowRun.additionalMetadata;
+  const taskExternalIds = useMemo(
+    () => taskRuns.map((t) => t.taskExternalId),
+    [taskRuns],
+  );
 
   return (
     <div className="h-full w-full flex-grow">
@@ -289,6 +294,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             </TabsTrigger>
             <TabsTrigger variant="underlined" value="waterfall">
               Waterfall
+            </TabsTrigger>
+            <TabsTrigger variant="underlined" value="logs">
+              Logs
             </TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="min-h-0 flex-1">
@@ -338,6 +346,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               selectedTaskId={undefined}
               handleTaskSelect={handleTaskRunExpand}
             />
+          </TabsContent>
+          <TabsContent value="logs">
+            <WorkflowRunLogs taskExternalIds={taskExternalIds} />
           </TabsContent>
         </Tabs>
       </div>

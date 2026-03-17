@@ -10,6 +10,12 @@ V1LogLine:
     metadata:
       type: object
       description: The log metadata.
+    taskExternalId:
+      type: string
+      description: The external ID of the task associated with the log line.
+      format: uuid
+      minLength: 36
+      maxLength: 36
     retryCount:
       type: integer
       description: The retry count of the log line.
@@ -23,6 +29,7 @@ V1LogLine:
     - createdAt
     - message
     - metadata
+    - taskExternalId
 
 V1LogLineLevel:
   type: string
@@ -46,3 +53,32 @@ V1LogLineList:
       items:
         $ref: "#/V1LogLine"
       type: array
+
+V1LogsPointMetric:
+  type: object
+  properties:
+    time:
+      type: string
+      format: date-time
+    DEBUG:
+      type: integer
+    INFO:
+      type: integer
+    WARN:
+      type: integer
+    ERROR:
+      type: integer
+  required:
+    - time
+    - DEBUG
+    - INFO
+    - WARN
+    - ERROR
+
+V1LogsPointMetrics:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        $ref: "#/V1LogsPointMetric"

@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-func ToV1LogLine(log *sqlcv1.V1LogLine) *gen.V1LogLine {
+func ToV1LogLine(log *v1.ListLogLineRow) *gen.V1LogLine {
 
 	retryCount := int(log.RetryCount)
 	attempt := retryCount + 1
@@ -23,12 +23,13 @@ func ToV1LogLine(log *sqlcv1.V1LogLine) *gen.V1LogLine {
 	level := gen.V1LogLineLevel(log.Level)
 
 	res := &gen.V1LogLine{
-		CreatedAt:  log.CreatedAt.Time,
-		Message:    log.Message,
-		RetryCount: &retryCount,
-		Attempt:    &attempt,
-		Metadata:   metadata,
-		Level:      &level,
+		CreatedAt:      log.CreatedAt.Time,
+		Message:        log.Message,
+		RetryCount:     &retryCount,
+		Attempt:        &attempt,
+		Metadata:       metadata,
+		Level:          &level,
+		TaskExternalId: log.TaskExternalId,
 	}
 
 	if log.Metadata != nil {

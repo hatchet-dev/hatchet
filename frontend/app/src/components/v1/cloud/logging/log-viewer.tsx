@@ -1,8 +1,10 @@
 import { AnsiLine } from './ansi-line';
 import { LogLine } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { ArrowRightIcon } from 'lucide-react';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -52,9 +54,15 @@ export interface LogViewerProps {
   onAtTopChange?: (atTop: boolean) => void;
   isLoading?: boolean;
   taskStatus?: V1TaskStatus;
+  onViewRun?: (taskExternalId: string) => void;
+  emptyMessage?: string;
+  showAttempt?: boolean;
 }
 
-function getEmptyStateMessage(taskStatus?: V1TaskStatus): string {
+function getEmptyStateMessage(taskStatus?: V1TaskStatus, emptyMessage?: string): string {
+  if (emptyMessage) {
+    return emptyMessage;
+  }
   switch (taskStatus) {
     case V1TaskStatus.COMPLETED:
       return 'Task completed with no logs.';
@@ -99,6 +107,9 @@ export function LogViewer({
   onAtTopChange,
   isLoading,
   taskStatus,
+  onViewRun,
+  emptyMessage,
+  showAttempt = true,
 }: LogViewerProps) {
   const [showRelativeTime, setShowRelativeTime] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -128,7 +139,7 @@ export function LogViewer({
       if (log.instance) {
         hasInstance = true;
       }
-      if (log.attempt !== undefined) {
+      if (showAttempt && log.attempt !== undefined) {
         hasAttempt = true;
       }
       if (hasInstance && hasAttempt) {
@@ -136,7 +147,7 @@ export function LogViewer({
       }
     }
     return { hasInstance, hasAttempt };
-  }, [sortedLogs]);
+  }, [sortedLogs, showAttempt]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -177,6 +188,8 @@ export function LogViewer({
 
   const isRunning = taskStatus === V1TaskStatus.RUNNING;
 
+  const heightClass = 'flex-1 min-h-0';
+
   // Build dynamic grid-template-columns
   const gridCols = [
     'auto', // timestamp
@@ -184,34 +197,39 @@ export function LogViewer({
     hasInstance && 'minmax(100px, 200px)',
     hasAttempt && 'auto',
     'minmax(0, 1fr)', // message
+    onViewRun && '40px', // view run action
   ]
     .filter(Boolean)
     .join(' ');
 
   if (isLoading) {
     return (
-      <div className="max-h-[25rem] min-h-[25rem] rounded-lg border bg-background flex items-center justify-center">
+      <div className={cn(heightClass, 'rounded-lg border bg-background flex items-center justify-center')}>
         <span className="text-sm text-muted-foreground">Loading logs...</span>
       </div>
     );
   }
 
   const isEmpty = logs.length === 0;
-  if (isEmpty && taskStatus !== undefined) {
+  if (isEmpty) {
     return (
-      <div className="max-h-[25rem] min-h-[25rem] rounded-lg border bg-background flex items-center justify-center">
+      <div className={cn(heightClass, 'rounded-lg border bg-background flex items-center justify-center')}>
         <span className="text-sm text-muted-foreground">
-          {getEmptyStateMessage(taskStatus)}
+          {getEmptyStateMessage(taskStatus, emptyMessage)}
         </span>
       </div>
     );
   }
 
   // Column count for subgrid span
-  const colCount = 3 + (hasInstance ? 1 : 0) + (hasAttempt ? 1 : 0);
+  const colCount =
+    3 +
+    (hasInstance ? 1 : 0) +
+    (hasAttempt ? 1 : 0) +
+    (onViewRun ? 1 : 0);
 
   return (
-    <div className="relative rounded-lg border bg-background overflow-hidden">
+    <div className="relative rounded-lg border bg-background overflow-hidden flex flex-col flex-1 min-h-0">
       {isRunning && (
         <div className="absolute top-2 right-4 z-20 flex items-center gap-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md">
           <span className="relative flex h-2 w-2">
@@ -223,7 +241,7 @@ export function LogViewer({
       )}
 
       <div
-        className="grid max-h-[25rem] min-h-[25rem] overflow-y-auto"
+        className={cn('grid overflow-y-auto', heightClass)}
         style={{
           gridTemplateColumns: gridCols,
           alignContent: 'start',
@@ -258,6 +276,7 @@ export function LogViewer({
           <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Message
           </div>
+          {onViewRun && <div />}
         </div>
 
         {/* Data rows */}
@@ -317,6 +336,21 @@ export function LogViewer({
                 {/* fixme: figure out how to use the type guard properly here */}
                 <AnsiLine text={log.line as string} />
               </div>
+              {onViewRun && (
+                <div className="flex items-center justify-center py-1">
+                  {log.taskExternalId && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                      onClick={() => onViewRun(log.taskExternalId!)}
+                      title="View run"
+                    >
+                      <ArrowRightIcon className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
       </div>

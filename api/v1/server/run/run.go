@@ -21,7 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/info"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
-	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/monitoring"
 	rate_limits "github.com/hatchet-dev/hatchet/api/v1/server/handlers/rate-limits"
@@ -32,6 +31,7 @@ import (
 	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -54,7 +54,7 @@ type apiService struct {
 	*tenants.TenantService
 	*events.EventService
 	*rate_limits.RateLimitService
-	*logs.LogService
+	*logs.LogsService
 	*workflows.WorkflowService
 	*workers.WorkerService
 	*metadata.MetadataService
@@ -80,7 +80,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		TenantService:         tenants.NewTenantService(config),
 		EventService:          events.NewEventService(config),
 		RateLimitService:      rate_limits.NewRateLimitService(config),
-		LogService:            logs.NewLogService(config),
+		LogsService:           logs.NewLogsService(config),
 		WorkflowService:       workflows.NewWorkflowService(config),
 		WorkflowRunsService:   workflowruns.NewWorkflowRunsService(config),
 		WorkerService:         workers.NewWorkerService(config),

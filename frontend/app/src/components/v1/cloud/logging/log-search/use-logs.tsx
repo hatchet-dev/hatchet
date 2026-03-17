@@ -39,6 +39,7 @@ export interface LogLine {
   level?: string;
   metadata?: Record<string, unknown>;
   attempt?: number;
+  taskExternalId?: string;
 }
 
 export interface UseLogsOptions {
