@@ -2,7 +2,6 @@ import { useSidebar } from '@/components/hooks/use-sidebar';
 import { useTheme } from '@/components/hooks/use-theme';
 import { OrganizationSelector2 as OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector-2';
 import { TenantSelector2 } from '@/components/v1/molecules/nav-bar/tenant-selector-2';
-import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import {
   Breadcrumb,
@@ -307,15 +306,12 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex ml-auto items-center justify-end gap-2">
-          {showTenantSwitcher &&
-            (isCloudEnabled ? (
-              <>
-                <OrganizationSelector />
-                <TenantSelector2 />
-              </>
-            ) : (
-              <TenantSwitcher memberships={tenantMemberships} />
-            ))}
+          {showTenantSwitcher && (
+            <>
+              {isCloudEnabled ? <OrganizationSelector /> : null}
+              <TenantSelector2 />
+            </>
+          )}
           <AccountDropdown user={user} />
         </div>
       </div>
@@ -403,15 +399,12 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
               </div>
             }
           />
-          {showTenantSwitcher &&
-            (isCloudEnabled ? (
-              <>
-                <OrganizationSelector />
-                <TenantSelector2 />
-              </>
-            ) : (
-              <TenantSwitcher memberships={tenantMemberships} />
-            ))}
+          {showTenantSwitcher && (
+            <>
+              {isCloudEnabled ? <OrganizationSelector /> : null}
+              <TenantSelector2 />
+            </>
+          )}
           <AccountDropdown user={user} />
         </div>
       </div>
