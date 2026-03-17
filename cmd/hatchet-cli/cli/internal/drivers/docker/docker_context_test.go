@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/docker/docker/client"
 	dockercontext "github.com/docker/go-sdk/context"
 )
 
@@ -24,8 +25,8 @@ func TestDockerContextResolution(t *testing.T) {
 		defer driver.apiClient.Close()
 
 		host := driver.apiClient.DaemonHost()
-		if host == "" {
-			t.Error("expected default Docker host, got empty string")
+		if host != client.DefaultDockerHost {
+			t.Errorf("expected %q, got %q", client.DefaultDockerHost, host)
 		}
 	})
 
@@ -51,8 +52,8 @@ func TestDockerContextResolution(t *testing.T) {
 		defer driver.apiClient.Close()
 
 		host := driver.apiClient.DaemonHost()
-		if host == "" {
-			t.Error("expected default Docker host, got empty string")
+		if host != client.DefaultDockerHost {
+			t.Errorf("expected %q, got %q", client.DefaultDockerHost, host)
 		}
 	})
 
@@ -128,8 +129,8 @@ func TestDockerContextResolution(t *testing.T) {
 		defer driver.apiClient.Close()
 
 		host := driver.apiClient.DaemonHost()
-		if host == "" {
-			t.Error("expected default Docker host, got empty string")
+		if host != client.DefaultDockerHost {
+			t.Errorf("expected %q, got %q", client.DefaultDockerHost, host)
 		}
 	})
 
@@ -155,8 +156,8 @@ func TestDockerContextResolution(t *testing.T) {
 		defer driver.apiClient.Close()
 
 		host := driver.apiClient.DaemonHost()
-		if host == "" {
-			t.Error("expected default Docker host, got empty string")
+		if host != client.DefaultDockerHost {
+			t.Errorf("expected %q, got %q", client.DefaultDockerHost, host)
 		}
 	})
 }
