@@ -81,7 +81,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "setup",
     query: "setup",
-    expectAnyOf: ["v1/quickstart", "reference/cli/index", "agent-instructions/setup-cli"],
+    expectAnyOf: ["v1/quickstart", "reference/cli/index", "reference/cli"],
     topN: 10,
   },
   {
@@ -539,7 +539,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "CLI",
     query: "CLI",
-    expectAnyOf: ["reference/cli", "agent-instructions/setup-cli"],
+    expectAnyOf: ["reference/cli", "v1/developer-experience"],
   },
   {
     name: "TUI",
@@ -745,7 +745,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "debug → troubleshooting",
     query: "debug",
-    expectAnyOf: ["v1/troubleshooting", "v1/troubleshooting/index", "v1/logging", "agent-instructions/debug-run"],
+    expectAnyOf: ["v1/troubleshooting", "v1/troubleshooting/index", "v1/logging"],
     topN: 10,
   },
   {
