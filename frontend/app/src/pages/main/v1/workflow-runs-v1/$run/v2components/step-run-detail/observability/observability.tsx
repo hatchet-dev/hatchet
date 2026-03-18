@@ -1,7 +1,7 @@
 import { TaskRunTrace } from './task-run-trace';
-import { TraceSearchInput } from './trace-search/trace-search-input';
 import { filterSpanTrees } from './trace-search/filter';
 import { parseTraceQuery } from './trace-search/parser';
+import { TraceSearchInput } from './trace-search/trace-search-input';
 import type { TraceAutocompleteContext } from './trace-search/types';
 import {
   convertOtelSpansToOtelSpanTree,
@@ -92,7 +92,9 @@ function buildAutocompleteContext(
   const valuesByKey = new Map<string, Set<string>>();
 
   for (const span of spans) {
-    if (!span.spanAttributes) continue;
+    if (!span.spanAttributes) {
+      continue;
+    }
     for (const [key, value] of Object.entries(span.spanAttributes)) {
       keySet.add(key);
       let vals = valuesByKey.get(key);
@@ -167,34 +169,33 @@ export const Observability = (props: ObservabilityProps) => {
     return null;
   }, [traces, tasks]);
 
-  const parsedQuery = useMemo(() => parseTraceQuery(queryString), [queryString]);
+  const parsedQuery = useMemo(
+    () => parseTraceQuery(queryString),
+    [queryString],
+  );
 
   const filteredTrees = useMemo(() => {
-    if (!spanTrees) return null;
+    if (!spanTrees) {
+      return null;
+    }
     return filterSpanTrees(spanTrees, parsedQuery);
   }, [spanTrees, parsedQuery]);
 
-  const handleAddFilter = useCallback(
-    (key: string, value: string) => {
-      const token = `${key}:${value}`;
-      setQueryString((prev) => {
-        const trimmed = prev.trim();
-        return trimmed ? `${trimmed} ${token}` : token;
-      });
-    },
-    [],
-  );
+  const handleAddFilter = useCallback((key: string, value: string) => {
+    const token = `${key}:${value}`;
+    setQueryString((prev) => {
+      const trimmed = prev.trim();
+      return trimmed ? `${trimmed} ${token}` : token;
+    });
+  }, []);
 
-  const handleRemoveFilter = useCallback(
-    (key: string, value: string) => {
-      const token = `${key}:${value}`;
-      setQueryString((prev) => {
-        const parts = prev.split(/\s+/).filter((p) => p !== token);
-        return parts.join(' ');
-      });
-    },
-    [],
-  );
+  const handleRemoveFilter = useCallback((key: string, value: string) => {
+    const token = `${key}:${value}`;
+    setQueryString((prev) => {
+      const parts = prev.split(/\s+/).filter((p) => p !== token);
+      return parts.join(' ');
+    });
+  }, []);
 
   if (!tracesQuery.isFetched) {
     return <Loading />;
@@ -211,17 +212,17 @@ export const Observability = (props: ObservabilityProps) => {
           />
         )}
         <div className="py-4 text-sm text-muted-foreground">
-          {spanTrees
-            ? 'No spans match the current filter.'
-            : (
-                <>
-                  No traces found. To collect traces, use the{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                    HatchetInstrumentor
-                  </code>{' '}
-                  in your SDK.
-                </>
-              )}
+          {spanTrees ? (
+            'No spans match the current filter.'
+          ) : (
+            <>
+              No traces found. To collect traces, use the{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                HatchetInstrumentor
+              </code>{' '}
+              in your SDK.
+            </>
+          )}
         </div>
       </div>
     );
