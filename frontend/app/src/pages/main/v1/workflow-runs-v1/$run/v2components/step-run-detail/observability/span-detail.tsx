@@ -269,7 +269,12 @@ export function SpanDetail({
         </div>
       </div>
 
-      <div className={cn('grid gap-4', span.queuedPhase ? 'grid-cols-4' : 'grid-cols-3')}>
+      <div
+        className={cn(
+          'grid gap-4',
+          span.queuedPhase ? 'grid-cols-4' : 'grid-cols-3',
+        )}
+      >
         {span.queuedPhase && (
           <div>
             <span className="text-xs text-muted-foreground">Queue Time</span>
@@ -319,7 +324,6 @@ export function SpanDetail({
           />
         </div>
       )}
-
     </div>
   );
 }
