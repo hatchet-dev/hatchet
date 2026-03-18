@@ -110,9 +110,39 @@ function formatDurationShort(ms: number): string {
     return '<1ms';
   }
   if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
+    return `${ms.toFixed(ms < 10 ? 2 : 1)}ms`;
   }
-  return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 60000) {
+    return `${(ms / 1000).toFixed(2)}s`;
+  }
+  const m = Math.floor(ms / 60000);
+  const s = ((ms % 60000) / 1000).toFixed(1);
+  return `${m}m ${s}s`;
+}
+
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const base = d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+  const ms = String(d.getMilliseconds()).padStart(3, '0');
+  return `${base}.${ms}`;
+}
+
+function statusLabel(code: string): string {
+  switch (code) {
+    case OtelStatusCode.OK:
+      return 'OK';
+    case OtelStatusCode.ERROR:
+      return 'Error';
+    default:
+      return 'Unset';
+  }
 }
 
 const barColorsByStatus: Record<string, string> = {
@@ -163,28 +193,45 @@ function SpanTooltip({
   style: React.CSSProperties;
 }) {
   const durationMs = row.span.durationNs / 1_000_000;
+  const displayName = getDisplayName(row.span);
+  const status = statusLabel(row.span.statusCode);
+  const started = formatTimestamp(row.span.createdAt);
 
   return (
     <div
-      className="z-50 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg"
-      style={{ minWidth: 220, ...style }}
+      className="pointer-events-none z-50 overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
+      style={{ maxWidth: 420, ...style }}
     >
-      <div className="truncate px-3 py-2 font-mono text-xs text-muted-foreground">
-        {row.span.spanId}
+      <div className="border-b border-border px-3 py-2">
+        <div className="font-mono text-sm font-medium text-foreground">
+          {displayName}
+        </div>
+        {displayName !== row.span.spanName && (
+          <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+            {row.span.spanName}
+          </div>
+        )}
       </div>
-      <div className="flex h-8 items-center gap-2 px-3">
-        <span
-          className={cn(
-            'size-2.5 shrink-0 rounded-full',
-            getDotColor(row.span),
-          )}
-        />
-        <span className="flex-1 font-mono text-sm text-foreground">
-          Duration
-        </span>
-        <span className="font-mono text-sm text-foreground">
+
+      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 px-3 py-2 text-xs">
+        <span className="text-muted-foreground">Duration</span>
+        <span className="font-mono font-medium text-foreground">
           {formatDurationShort(durationMs)}
         </span>
+
+        <span className="text-muted-foreground">Status</span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              'size-1.5 shrink-0 rounded-full',
+              getDotColor(row.span),
+            )}
+          />
+          <span className="font-mono text-foreground">{status}</span>
+        </span>
+
+        <span className="text-muted-foreground">Started</span>
+        <span className="font-mono text-foreground">{started}</span>
       </div>
     </div>
   );
@@ -446,8 +493,8 @@ export function TraceTimeline({
             row={hoveredRow}
             style={{
               position: 'fixed',
-              left: Math.min(tooltipPos.x + 12, window.innerWidth - 240),
-              top: tooltipPos.y - 70,
+              left: Math.min(tooltipPos.x + 12, window.innerWidth - 440),
+              top: Math.max(8, tooltipPos.y - 100),
             }}
           />,
           document.body,
