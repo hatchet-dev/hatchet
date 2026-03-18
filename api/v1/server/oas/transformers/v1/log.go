@@ -23,13 +23,14 @@ func ToV1LogLine(log *v1.ListLogLineRow) *gen.V1LogLine {
 	level := gen.V1LogLineLevel(log.Level)
 
 	res := &gen.V1LogLine{
-		CreatedAt:      log.CreatedAt.Time,
-		Message:        log.Message,
-		RetryCount:     &retryCount,
-		Attempt:        &attempt,
-		Metadata:       metadata,
-		Level:          &level,
-		TaskExternalId: log.TaskExternalId,
+		CreatedAt:       log.CreatedAt.Time,
+		Message:         log.Message,
+		RetryCount:      &retryCount,
+		Attempt:         &attempt,
+		Metadata:        metadata,
+		Level:           &level,
+		TaskExternalId:  &log.TaskExternalId,
+		TaskDisplayName: &log.TaskDisplayName,
 	}
 
 	if log.Metadata != nil {

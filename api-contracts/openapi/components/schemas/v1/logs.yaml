@@ -16,6 +16,9 @@ V1LogLine:
       format: uuid
       minLength: 36
       maxLength: 36
+    taskDisplayName:
+      type: string
+      description: The display name of the task associated with the log line.
     retryCount:
       type: integer
       description: The retry count of the log line.
@@ -29,7 +32,6 @@ V1LogLine:
     - createdAt
     - message
     - metadata
-    - taskExternalId
 
 V1LogLineLevel:
   type: string

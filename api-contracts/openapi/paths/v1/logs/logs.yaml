@@ -1,7 +1,7 @@
 listLogs:
   get:
     x-resources: ["tenant"]
-    description: Lists log lines for a task
+    description: LLists log lines for a tenant
     operationId: v1-tenant-log-line:list
     parameters:
       - description: The tenant id

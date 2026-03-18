@@ -1633,8 +1633,11 @@ type V1LogLine struct {
 	// RetryCount The retry count of the log line.
 	RetryCount *int `json:"retryCount,omitempty"`
 
+	// TaskDisplayName The display name of the task associated with the log line.
+	TaskDisplayName *string `json:"taskDisplayName,omitempty"`
+
 	// TaskExternalId The external ID of the task associated with the log line.
-	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+	TaskExternalId *openapi_types.UUID `json:"taskExternalId,omitempty"`
 }
 
 // V1LogLineLevel defines model for V1LogLineLevel.
@@ -2577,6 +2580,9 @@ type V1TenantLogLineGetPointMetricsParams struct {
 
 	// Levels The log level(s) to include
 	Levels *[]V1LogLineLevel `form:"levels,omitempty" json:"levels,omitempty"`
+
+	// TaskExternalIds The task external ID(s) to filter by
+	TaskExternalIds *[]openapi_types.UUID `form:"taskExternalIds,omitempty" json:"taskExternalIds,omitempty"`
 }
 
 // V1TenantLogLineListParams defines parameters for V1TenantLogLineList.
@@ -2601,6 +2607,9 @@ type V1TenantLogLineListParams struct {
 
 	// Attempt The attempt number to filter for
 	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
+
+	// TaskExternalIds The task external ID(s) to filter by
+	TaskExternalIds *[]openapi_types.UUID `form:"taskExternalIds,omitempty" json:"taskExternalIds,omitempty"`
 }
 
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
@@ -7456,6 +7465,22 @@ func NewV1TenantLogLineGetPointMetricsRequest(server string, tenant openapi_type
 
 		}
 
+		if params.TaskExternalIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskExternalIds", runtime.ParamLocationQuery, *params.TaskExternalIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -7595,6 +7620,22 @@ func NewV1TenantLogLineListRequest(server string, tenant openapi_types.UUID, par
 		if params.Attempt != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "attempt", runtime.ParamLocationQuery, *params.Attempt); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TaskExternalIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskExternalIds", runtime.ParamLocationQuery, *params.TaskExternalIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

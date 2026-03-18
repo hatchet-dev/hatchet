@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -95,6 +96,12 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "log_lines.count", Value: len(logLines)},
 	)
+
+	t.config.Analytics.Count(ctx.Request().Context(), analytics.Log, analytics.List, analytics.Properties{
+		"has_search":            search != nil,
+		"has_levels":            len(levels) > 0,
+		"has_task_external_ids": len(taskExternalIds) > 0,
+	})
 
 	rows := make([]gen.V1LogLine, len(logLines))
 

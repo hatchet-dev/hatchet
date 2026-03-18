@@ -1,10 +1,8 @@
 import { AnsiLine } from './ansi-line';
 import { LogLine } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Button } from '@/components/v1/ui/button';
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { ArrowRightIcon } from 'lucide-react';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -57,6 +55,7 @@ export interface LogViewerProps {
   onViewRun?: (taskExternalId: string) => void;
   emptyMessage?: string;
   showAttempt?: boolean;
+  showTaskName?: boolean;
 }
 
 function getEmptyStateMessage(taskStatus?: V1TaskStatus, emptyMessage?: string): string {
@@ -110,6 +109,7 @@ export function LogViewer({
   onViewRun,
   emptyMessage,
   showAttempt = true,
+  showTaskName = false,
 }: LogViewerProps) {
   const [showRelativeTime, setShowRelativeTime] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -196,8 +196,8 @@ export function LogViewer({
     '72px', // level
     hasInstance && 'minmax(100px, 200px)',
     hasAttempt && 'auto',
+    showTaskName && 'minmax(100px, 200px)',
     'minmax(0, 1fr)', // message
-    onViewRun && '40px', // view run action
   ]
     .filter(Boolean)
     .join(' ');
@@ -226,7 +226,7 @@ export function LogViewer({
     3 +
     (hasInstance ? 1 : 0) +
     (hasAttempt ? 1 : 0) +
-    (onViewRun ? 1 : 0);
+    (showTaskName ? 1 : 0);
 
   return (
     <div className="relative rounded-lg border bg-background overflow-hidden flex flex-col flex-1 min-h-0">
@@ -273,10 +273,14 @@ export function LogViewer({
               Attempt
             </div>
           )}
+          {showTaskName && (
+            <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Task
+            </div>
+          )}
           <div className="px-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Message
           </div>
-          {onViewRun && <div />}
         </div>
 
         {/* Data rows */}
@@ -316,6 +320,21 @@ export function LogViewer({
                   {log.attempt ?? '—'}
                 </div>
               )}
+              {showTaskName && (
+                <div
+                  className={cn(
+                    'px-3 py-1.5 font-mono text-xs text-muted-foreground truncate',
+                    onViewRun && log.taskExternalId && 'cursor-pointer hover:text-foreground hover:underline',
+                  )}
+                  onClick={
+                    onViewRun && log.taskExternalId
+                      ? () => onViewRun(log.taskExternalId!)
+                      : undefined
+                  }
+                >
+                  {log.taskDisplayName || '—'}
+                </div>
+              )}
               <div
                 className={cn(
                   'px-3 py-1.5 font-mono text-xs text-foreground truncate',
@@ -336,21 +355,6 @@ export function LogViewer({
                 {/* fixme: figure out how to use the type guard properly here */}
                 <AnsiLine text={log.line as string} />
               </div>
-              {onViewRun && (
-                <div className="flex items-center justify-center py-1">
-                  {log.taskExternalId && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                      onClick={() => onViewRun(log.taskExternalId!)}
-                      title="View run"
-                    >
-                      <ArrowRightIcon className="size-3.5" />
-                    </Button>
-                  )}
-                </div>
-              )}
             </div>
           ))}
       </div>

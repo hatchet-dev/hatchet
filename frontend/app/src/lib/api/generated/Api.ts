@@ -282,7 +282,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Lists log lines for a task
+   * @description LLists log lines for a tenant
    *
    * @tags Log
    * @name V1TenantLogLineList

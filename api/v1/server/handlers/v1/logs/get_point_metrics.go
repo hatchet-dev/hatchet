@@ -7,14 +7,23 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (t *LogsService) V1TenantLogLineGetPointMetrics(ctx echo.Context, request gen.V1TenantLogLineGetPointMetricsRequestObject) (gen.V1TenantLogLineGetPointMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	// 24 hours ago, rounded to the nearest minute
+	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/stable/tenants/{tenant}/log-point-metrics")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+	)
+
 	lowerBound := time.Now().UTC().Add(-24 * time.Hour).Truncate(30 * time.Minute)
 	upperBound := time.Now().UTC()
 
@@ -63,10 +72,24 @@ func (t *LogsService) V1TenantLogLineGetPointMetrics(ctx echo.Context, request g
 		taskExternalIds = append(taskExternalIds, *request.Params.TaskExternalIds...)
 	}
 
-	rows, err := t.config.V1.Logs().GetLogLinePointMetrics(ctx.Request().Context(), tenantId, &lowerBound, &upperBound, bucketInterval, search, levels, taskExternalIds)
+	rows, err := t.config.V1.Logs().GetLogLinePointMetrics(reqCtx, tenantId, &v1.GetLogLinePointMetricsOpts{
+		StartTimestamp:  lowerBound,
+		EndTimestamp:    upperBound,
+		BucketInterval:  bucketInterval,
+		Search:          search,
+		Levels:          levels,
+		TaskExternalIds: taskExternalIds,
+	})
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
+
+	t.config.Analytics.Count(ctx.Request().Context(), analytics.Log, analytics.Get, analytics.Properties{
+		"has_search":            search != nil,
+		"has_levels":            len(levels) > 0,
+		"has_task_external_ids": len(taskExternalIds) > 0,
+	})
 
 	converted := convertToLogMetrics(rows)
 	filled := fillMissingLogBuckets(lowerBound, upperBound, converted, bucketInterval)

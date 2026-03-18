@@ -67,6 +67,17 @@ type ListLogLineRow struct {
 	*sqlcv1.V1LogLine
 
 	TaskExternalId uuid.UUID
+
+	TaskDisplayName string
+}
+
+type GetLogLinePointMetricsOpts struct {
+	StartTimestamp  time.Time `validate:"required"`
+	EndTimestamp    time.Time `validate:"required"`
+	Search          *string
+	Levels          []string `validate:"omitnil,dive,oneof=INFO ERROR WARN DEBUG"`
+	TaskExternalIds []uuid.UUID
+	BucketInterval  time.Duration `validate:"required"`
 }
 
 type LogLineRepository interface {
@@ -74,7 +85,7 @@ type LogLineRepository interface {
 
 	PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error
 
-	GetLogLinePointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration, search *string, levels []string, taskExternalIds []uuid.UUID) ([]*sqlcv1.GetLogLinePointMetricsRow, error)
+	GetLogLinePointMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetLogLinePointMetricsOpts) ([]*sqlcv1.GetLogLinePointMetricsRow, error)
 }
 
 type logLineRepositoryImpl struct {
@@ -181,18 +192,25 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	}
 
 	// create a map of task id to external id
-	taskIdToExternalId := make(map[int64]uuid.UUID)
+	taskIdToTask := make(map[int64]*sqlcv1.V1Task)
 	for _, task := range tasks {
-		taskIdToExternalId[task.ID] = task.ExternalID
+		taskIdToTask[task.ID] = task
 	}
 
 	// attach task external ids to log lines
 	res := make([]*ListLogLineRow, len(logLines))
 
 	for i, logLine := range logLines {
+		task, ok := taskIdToTask[logLine.TaskID]
+
+		if !ok {
+			continue
+		}
+
 		res[i] = &ListLogLineRow{
-			V1LogLine:      logLine,
-			TaskExternalId: taskIdToExternalId[logLine.TaskID],
+			V1LogLine:       logLine,
+			TaskExternalId:  task.ExternalID,
+			TaskDisplayName: task.DisplayName,
 		}
 	}
 
@@ -231,37 +249,41 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 	return err
 }
 
-func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration, search *string, levels []string, taskExternalIds []uuid.UUID) ([]*sqlcv1.GetLogLinePointMetricsRow, error) {
+func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetLogLinePointMetricsOpts) ([]*sqlcv1.GetLogLinePointMetricsRow, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
 	params := sqlcv1.GetLogLinePointMetricsParams{
-		Interval:      durationToPgInterval(bucketInterval),
+		Interval:      durationToPgInterval(opts.BucketInterval),
 		Tenantid:      tenantId,
-		Createdafter:  sqlchelpers.TimestamptzFromTime(*startTimestamp),
-		Createdbefore: sqlchelpers.TimestamptzFromTime(*endTimestamp),
+		Createdafter:  sqlchelpers.TimestamptzFromTime(opts.StartTimestamp),
+		Createdbefore: sqlchelpers.TimestamptzFromTime(opts.EndTimestamp),
 	}
 
-	if search != nil {
-		params.Search = sqlchelpers.TextFromStr(*search)
+	if opts.Search != nil {
+		params.Search = sqlchelpers.TextFromStr(*opts.Search)
 	}
 
-	if len(levels) > 0 {
-		lvls := make([]sqlcv1.V1LogLineLevel, len(levels))
-		for i, l := range levels {
+	if len(opts.Levels) > 0 {
+		lvls := make([]sqlcv1.V1LogLineLevel, len(opts.Levels))
+		for i, l := range opts.Levels {
 			lvls[i] = sqlcv1.V1LogLineLevel(l)
 		}
 		params.Levels = lvls
 	}
 
-	if len(taskExternalIds) > 0 {
-		internalIds, err := r.resolveTaskExternalIds(ctx, tenantId, taskExternalIds)
+	if len(opts.TaskExternalIds) > 0 {
+		internalIds, err := r.resolveTaskExternalIds(ctx, tenantId, opts.TaskExternalIds)
 		if err != nil {
-			return []*sqlcv1.GetLogLinePointMetricsRow{}, nil
+			return nil, err
 		}
 		params.TaskIds = internalIds
 	}
 
 	rows, err := r.queries.GetLogLinePointMetrics(ctx, r.pool, params)
 	if err != nil {
-		return []*sqlcv1.GetLogLinePointMetricsRow{}, nil
+		return nil, err
 	}
 
 	return rows, nil

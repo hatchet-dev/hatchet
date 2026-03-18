@@ -519,7 +519,9 @@ export interface V1LogLine {
    * @minLength 36
    * @maxLength 36
    */
-  taskExternalId: string;
+  taskExternalId?: string;
+  /** The display name of the task associated with the log line. */
+  taskDisplayName?: string;
   /** The retry count of the log line. */
   retryCount?: number;
   /** The attempt number of the log line. */
