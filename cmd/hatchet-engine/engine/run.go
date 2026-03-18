@@ -152,8 +152,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		return fmt.Errorf("could not create partitioner: %w", err)
 	}
 
-	p.Shutdown(cleanup)
-
 	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
@@ -513,6 +511,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		"telemetry",
 	)
 
+	p.AddCleanupMethods(cleanup)
+
 	l.Debug().Msgf("engine has started")
 
 	<-ctx.Done()
@@ -547,8 +547,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if err != nil {
 		return fmt.Errorf("could not create partitioner: %w", err)
 	}
-
-	p.Shutdown(cleanup)
 
 	healthProbes := sc.Runtime.Healthcheck
 	var h *health.Health
@@ -940,6 +938,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		},
 		"telemetry",
 	)
+	p.AddCleanupMethods(cleanup)
 
 	l.Debug().Msgf("engine has started")
 

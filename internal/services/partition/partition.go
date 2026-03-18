@@ -77,7 +77,7 @@ func (p *Partition) GetSchedulerPartitionId() string {
 	return p.schedulerPartitionId
 }
 
-func (p *Partition) Shutdown(cleanup *cleanup.Cleanup) {
+func (p *Partition) AddCleanupMethods(cleanup *cleanup.Cleanup) {
 	cleanup.Add(
 		p.controllerCron.Shutdown,
 		"partitioner controller cron",
