@@ -950,7 +950,10 @@ export function TraceTimeline({
               >
                 {q && (
                   <div
-                    className="absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm bg-green-500/20"
+                    className={cn(
+                      'absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm',
+                      hasErrorInTree(row.span) ? 'bg-red-500/20' : 'bg-green-500/20',
+                    )}
                     style={{
                       left: `${qLeftPct}%`,
                       width: `${Math.max(qWidthPct, 0.3)}%`,
