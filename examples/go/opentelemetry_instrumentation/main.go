@@ -124,6 +124,7 @@ func main() {
 
 			// Parent span wrapping the full payment flow
 			payCtx, paySpan := tracer.Start(ctx, "payment.process")
+			defer paySpan.End()
 
 			// Tokenize the card before charging
 			_, tokenSpan := tracer.Start(payCtx, "payment.tokenize-card")
@@ -134,8 +135,6 @@ func main() {
 			_, chargeSpan := tracer.Start(payCtx, "payment.charge")
 			time.Sleep(4 * time.Second)
 			chargeSpan.End()
-
-			paySpan.End()
 
 			return ChargePaymentOutput{
 				TransactionID: fmt.Sprintf("txn-%s", validated.OrderID),

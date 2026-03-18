@@ -905,12 +905,12 @@ func (w *Worker) getGroupKeyActionFinishedEvent(action *client.Action, output st
 	return event, nil
 }
 
-func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
+func (w *Worker) sendFailureEvent(ctx HatchetContext, taskErr error) error {
 	assignedAction := ctx.action()
 
 	failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
 
-	w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
+	w.alerter.SendAlert(context.Background(), taskErr, map[string]interface{}{
 		"actionId":      assignedAction.ActionId,
 		"workerId":      assignedAction.WorkerId,
 		"workflowRunId": assignedAction.WorkflowRunId,
@@ -919,9 +919,9 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 		"actionType":    assignedAction.ActionType,
 	})
 
-	failureEvent.EventPayload = err.Error()
+	failureEvent.EventPayload = taskErr.Error()
 
-	if IsNonRetryableError(err) {
+	if IsNonRetryableError(taskErr) {
 		shouldNotRetry := true
 		failureEvent.ShouldNotRetry = &shouldNotRetry
 	}
@@ -929,16 +929,16 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 	innerCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, err = w.client.Dispatcher().SendStepActionEvent(
+	_, dispatchErr := w.client.Dispatcher().SendStepActionEvent(
 		innerCtx,
 		failureEvent,
 	)
 
-	if err != nil {
-		return fmt.Errorf("could not send action event: %w", err)
+	if dispatchErr != nil {
+		return fmt.Errorf("could not send action event: %w", dispatchErr)
 	}
 
-	return err
+	return taskErr
 }
 
 func getHostName() string {
