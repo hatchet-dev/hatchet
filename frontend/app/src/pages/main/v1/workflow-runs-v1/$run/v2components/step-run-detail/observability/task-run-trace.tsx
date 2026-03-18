@@ -56,6 +56,21 @@ export function TaskRunTrace({
     );
   }, []);
 
+  const handleMinimapSpanSelect = useCallback(
+    (span: OtelSpanTree, ancestorSpanIds: string[]) => {
+      setExpandedSpansIds((prev) => {
+        const set = new Set(prev);
+        for (const id of ancestorSpanIds) {
+          set.add(id);
+        }
+        set.add(span.spanId);
+        return Array.from(set);
+      });
+      setSelection({ kind: 'span', span });
+    },
+    [],
+  );
+
   const handleGroupSelect = useCallback((group: SpanGroupInfo) => {
     setSelection((prev) =>
       prev?.kind === 'group' && prev.group.groupId === group.groupId
@@ -90,6 +105,7 @@ export function TaskRunTrace({
             visibleRange={visibleRange}
             onRangeChange={setVisibleRange}
             expandedSpanIds={expandedSpansIds}
+            onSpanSelect={handleMinimapSpanSelect}
           />
         </div>
       </div>

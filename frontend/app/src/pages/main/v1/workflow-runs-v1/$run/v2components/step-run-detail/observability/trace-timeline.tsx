@@ -696,6 +696,15 @@ export function TraceTimeline({
     [expandedSpanIds, onExpandChange],
   );
 
+  const expandOnly = useCallback(
+    (id: string) => {
+      if (!expandedSet.has(id)) {
+        onExpandChange([...expandedSpanIds, id]);
+      }
+    },
+    [expandedSet, expandedSpanIds, onExpandChange],
+  );
+
   const handleBarHover = useCallback(
     (rowKey: string | null, event?: MouseEvent) => {
       setHoveredRowKey(rowKey);
@@ -858,7 +867,7 @@ export function TraceTimeline({
                 )}
                 style={{ height: ROW_HEIGHT }}
                 onClick={() => {
-                  toggleExpand(row.group.groupId);
+                  expandOnly(row.group.groupId);
                   onGroupSelect?.(row.group);
                 }}
               >
@@ -931,7 +940,7 @@ export function TraceTimeline({
               style={{ height: ROW_HEIGHT }}
               onClick={() => {
                 if (row.hasChildren) {
-                  toggleExpand(row.span.spanId);
+                  expandOnly(row.span.spanId);
                 }
                 onSpanSelect?.(row.span);
               }}

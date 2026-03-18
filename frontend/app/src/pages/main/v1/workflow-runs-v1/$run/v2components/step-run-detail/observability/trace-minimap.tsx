@@ -17,6 +17,8 @@ type SpanMarker = {
   spanName: string;
   durationMs: number;
   visible: boolean;
+  span: OtelSpanTree;
+  ancestorSpanIds: string[];
 };
 
 type DragState = {
@@ -103,7 +105,11 @@ function collectSpanMarkers(
 ): SpanMarker[] {
   const markers: SpanMarker[] = [];
 
-  const traverse = (node: OtelSpanTree, parentVisible: boolean) => {
+  const traverse = (
+    node: OtelSpanTree,
+    parentVisible: boolean,
+    ancestors: string[],
+  ) => {
     const startMs = new Date(node.createdAt).getTime();
     const pct = totalMs > 0 ? (startMs - minMs) / totalMs : 0;
     markers.push({
@@ -114,13 +120,18 @@ function collectSpanMarkers(
       spanName: getHatchetDisplayName(node),
       durationMs: node.durationNs / 1_000_000,
       visible: parentVisible,
+      span: node,
+      ancestorSpanIds: ancestors,
     });
     const childrenVisible =
       parentVisible && (!expandedIds || expandedIds.has(node.spanId));
-    node.children?.forEach((child) => traverse(child, childrenVisible));
+    const nextAncestors = [...ancestors, node.spanId];
+    node.children?.forEach((child) =>
+      traverse(child, childrenVisible, nextAncestors),
+    );
   };
 
-  trees.forEach((tree) => traverse(tree, true));
+  trees.forEach((tree) => traverse(tree, true, []));
   return markers.sort((a, b) => a.pct - b.pct);
 }
 
@@ -136,6 +147,7 @@ interface TraceMinimapProps {
   visibleRange: TimeRange;
   onRangeChange: (range: TimeRange) => void;
   expandedSpanIds?: string[];
+  onSpanSelect?: (span: OtelSpanTree, ancestorSpanIds: string[]) => void;
 }
 
 export function TraceMinimap({
@@ -145,6 +157,7 @@ export function TraceMinimap({
   visibleRange,
   onRangeChange,
   expandedSpanIds,
+  onSpanSelect,
 }: TraceMinimapProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<DragMode>(null);
@@ -290,12 +303,20 @@ export function TraceMinimap({
         <div
           key={i}
           className={cn(
-            'absolute inset-y-[6px] flex flex-col justify-center transition-[transform,opacity]',
+            'absolute inset-y-[6px] flex cursor-pointer flex-col justify-center transition-[transform,opacity]',
             m.hasErrorInTree ? 'z-[3]' : 'z-[2]',
             hoveredIdx === i && 'z-[5] scale-x-150',
             !m.visible && 'opacity-[0.01]',
           )}
           style={{ left: `${m.pct * 100}%`, width: 6 }}
+          onPointerDown={(e) => {
+            if (onSpanSelect) {
+              e.stopPropagation();
+            }
+          }}
+          onClick={() => {
+            onSpanSelect?.(m.span, m.ancestorSpanIds);
+          }}
           onMouseEnter={(e) => {
             setHoveredIdx(i);
             setTooltipPos({ x: e.clientX, y: e.clientY });
