@@ -158,7 +158,7 @@ func main() {
 		"reserve-inventory",
 		func(ctx hatchet.Context, input OrderInput) (ReserveInventoryOutput, error) {
 			_, span := tracer.Start(ctx, "inventory.check-availability")
-			time.Sleep(6 * time.Second)
+			time.Sleep(6 * time.Millisecond)
 			span.End()
 
 			_, span = tracer.Start(ctx, "inventory.reserve")

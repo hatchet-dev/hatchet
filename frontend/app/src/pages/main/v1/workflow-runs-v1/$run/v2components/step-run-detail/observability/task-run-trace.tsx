@@ -89,6 +89,7 @@ export function TaskRunTrace({
             maxMs={maxEnd}
             visibleRange={visibleRange}
             onRangeChange={setVisibleRange}
+            expandedSpanIds={expandedSpansIds}
           />
         </div>
       </div>

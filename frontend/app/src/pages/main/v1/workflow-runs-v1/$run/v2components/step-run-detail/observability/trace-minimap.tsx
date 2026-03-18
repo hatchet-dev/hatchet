@@ -1,10 +1,9 @@
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-const HANDLE_W = 17;
 const MIN_RANGE_PCT = 0.05;
 
 type TimeRange = { startPct: number; endPct: number };
@@ -17,6 +16,7 @@ type SpanMarker = {
   inProgress: boolean;
   spanName: string;
   durationMs: number;
+  visible: boolean;
 };
 
 type DragState = {
@@ -84,10 +84,11 @@ function collectSpanMarkers(
   trees: OtelSpanTree[],
   minMs: number,
   totalMs: number,
+  expandedIds?: Set<string>,
 ): SpanMarker[] {
   const markers: SpanMarker[] = [];
 
-  const traverse = (node: OtelSpanTree) => {
+  const traverse = (node: OtelSpanTree, parentVisible: boolean) => {
     const startMs = new Date(node.createdAt).getTime();
     const pct = totalMs > 0 ? (startMs - minMs) / totalMs : 0;
     markers.push({
@@ -97,11 +98,14 @@ function collectSpanMarkers(
       inProgress: !!node.inProgress,
       spanName: getHatchetDisplayName(node),
       durationMs: node.durationNs / 1_000_000,
+      visible: parentVisible,
     });
-    node.children?.forEach(traverse);
+    const childrenVisible =
+      parentVisible && (!expandedIds || expandedIds.has(node.spanId));
+    node.children?.forEach((child) => traverse(child, childrenVisible));
   };
 
-  trees.forEach(traverse);
+  trees.forEach((tree) => traverse(tree, true));
   return markers.sort((a, b) => a.pct - b.pct);
 }
 
@@ -116,6 +120,7 @@ interface TraceMinimapProps {
   maxMs: number;
   visibleRange: TimeRange;
   onRangeChange: (range: TimeRange) => void;
+  expandedSpanIds?: string[];
 }
 
 export function TraceMinimap({
@@ -124,6 +129,7 @@ export function TraceMinimap({
   maxMs,
   visibleRange,
   onRangeChange,
+  expandedSpanIds,
 }: TraceMinimapProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<DragMode>(null);
@@ -135,8 +141,13 @@ export function TraceMinimap({
     y: number;
   } | null>(null);
 
+  const expandedSet = useMemo(
+    () => (expandedSpanIds ? new Set(expandedSpanIds) : undefined),
+    [expandedSpanIds],
+  );
+
   const totalMs = maxMs - minMs;
-  const markers = collectSpanMarkers(spanTrees, minMs, totalMs);
+  const markers = collectSpanMarkers(spanTrees, minMs, totalMs, expandedSet);
 
   const startDrag = useCallback(
     (mode: DragMode, e: React.PointerEvent, anchorPct?: number) => {
@@ -252,9 +263,10 @@ export function TraceMinimap({
         <div
           key={i}
           className={cn(
-            'absolute inset-y-[6px] flex flex-col justify-center transition-transform',
+            'absolute inset-y-[6px] flex flex-col justify-center transition-[transform,opacity]',
             m.hasErrorInTree ? 'z-[3]' : 'z-[2]',
             hoveredIdx === i && 'z-[5] scale-x-150',
+            !m.visible && 'opacity-[0.02]',
           )}
           style={{ left: `${m.pct * 100}%`, width: 6 }}
           onMouseEnter={(e) => {
