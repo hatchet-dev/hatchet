@@ -15,6 +15,7 @@ import {
   RiFunctionLine,
   RiToolsLine,
   RiPlayLargeLine,
+  RiFileTextLine,
   RiOrganizationChart,
 } from 'react-icons/ri';
 
@@ -22,6 +23,7 @@ export function sideNavItems(opts: {
   canBill?: boolean;
   managedWorkerEnabled?: boolean;
   isCloudEnabled?: boolean;
+  logsEnabled?: boolean;
 }): SideNavSection[] {
   const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
 
@@ -176,6 +178,20 @@ export function sideNavItems(opts: {
             />
           ),
         },
+        ...(opts.logsEnabled
+          ? [
+              {
+                key: 'logs',
+                name: 'Logs',
+                to: appRoutes.tenantLogsRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiFileTextLine
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : []),
       ],
     },
     {

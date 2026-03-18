@@ -9,9 +9,9 @@ func ToV1CELDebugResponse(success bool, output *bool, err *string) gen.V1CELDebu
 	}
 
 	if success {
-		response.Status = gen.V1CELDebugResponseStatusSUCCESS
+		response.Status = gen.SUCCESS
 	} else {
-		response.Status = gen.V1CELDebugResponseStatusERROR
+		response.Status = gen.ERROR
 	}
 
 	return response
