@@ -8,6 +8,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
+// middlewareConfig holds configuration for the OTel middleware.
+type middlewareConfig struct {
+	excludedAttributes        map[OTelAttribute]bool
+	includeTaskNameInSpanName bool
+}
+
 // NewMiddleware creates a Hatchet middleware that wraps each step run execution
 // with an OpenTelemetry span. It:
 //   - Extracts W3C traceparent from AdditionalMetadata for distributed trace propagation
@@ -16,12 +22,17 @@ import (
 //     them into all child spans
 //
 //nolint:staticcheck // SA1019: worker.MiddlewareFunc is deprecated but still used internally
-func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc {
+func NewMiddleware(tracer trace.Tracer, cfg ...middlewareConfig) worker.MiddlewareFunc {
 	propagator := propagation.TraceContext{}
 
+	var config middlewareConfig
+	if len(cfg) > 0 {
+		config = cfg[0]
+	}
+
 	return func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
-		// Build hatchet attributes from context
-		attrs := hatchetAttributes(ctx)
+		// Build hatchet attributes from context (with exclusions)
+		attrs := hatchetAttributes(ctx, config.excludedAttributes)
 
 		// Extract traceparent from additional metadata if present
 		parentCtx := ctx.GetContext()
@@ -37,8 +48,14 @@ func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc {
 		// Store hatchet attributes in context for the SpanProcessor
 		parentCtx = withHatchetAttributes(parentCtx, attrs)
 
+		// Build span name (optionally include task name)
+		spanName := "hatchet.start_step_run"
+		if config.includeTaskNameInSpanName {
+			spanName += "." + ctx.ActionId()
+		}
+
 		// Start span
-		spanCtx, span := tracer.Start(parentCtx, "hatchet.start_step_run",
+		spanCtx, span := tracer.Start(parentCtx, spanName,
 			trace.WithSpanKind(trace.SpanKindConsumer),
 			trace.WithAttributes(attrs...),
 		)

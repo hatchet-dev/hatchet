@@ -36,6 +36,9 @@ type instrumentorOptions struct {
 
 	enableCollector bool
 	bspOptions      []sdktrace.BatchSpanProcessorOption
+
+	excludedAttributes        map[OTelAttribute]bool
+	includeTaskNameInSpanName bool
 }
 
 // InstrumentorOption configures the Instrumentor.
@@ -64,6 +67,27 @@ func DisableHatchetCollector() InstrumentorOption {
 func WithBatchSpanProcessorOptions(opts ...sdktrace.BatchSpanProcessorOption) InstrumentorOption {
 	return func(o *instrumentorOptions) {
 		o.bspOptions = opts
+	}
+}
+
+// WithExcludedAttributes excludes the specified attributes from spans.
+// Excluded attributes will not be set on the root task span or propagated to child spans.
+func WithExcludedAttributes(attrs ...OTelAttribute) InstrumentorOption {
+	return func(o *instrumentorOptions) {
+		if o.excludedAttributes == nil {
+			o.excludedAttributes = make(map[OTelAttribute]bool)
+		}
+		for _, attr := range attrs {
+			o.excludedAttributes[attr] = true
+		}
+	}
+}
+
+// WithIncludeTaskNameInSpanName appends the task's action ID to the
+// "hatchet.start_step_run" span name (e.g. "hatchet.start_step_run.validate-order").
+func WithIncludeTaskNameInSpanName() InstrumentorOption {
+	return func(o *instrumentorOptions) {
+		o.includeTaskNameInSpanName = true
 	}
 }
 
@@ -133,7 +157,10 @@ func NewInstrumentor(opts ...InstrumentorOption) (*Instrumentor, error) {
 //
 //nolint:staticcheck // SA1019: worker.MiddlewareFunc is deprecated but still used internally
 func (i *Instrumentor) Middleware() worker.MiddlewareFunc {
-	return NewMiddleware(i.tracer)
+	return NewMiddleware(i.tracer, middlewareConfig{
+		excludedAttributes:        i.opts.excludedAttributes,
+		includeTaskNameInSpanName: i.opts.includeTaskNameInSpanName,
+	})
 }
 
 // TracerProvider returns the TracerProvider used by the instrumentor.

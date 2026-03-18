@@ -1,5 +1,5 @@
 """
-HatchetInstrumentor example with rich traces.
+HatchetInstrumentor example — order processing workflow with custom spans.
 
 Run the worker:
     poetry run python -m examples.opentelemetry_instrumentation.hatchet.worker
@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from opentelemetry.trace import StatusCode, get_tracer
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 # > Setup
@@ -23,114 +23,118 @@ HatchetInstrumentor().instrument()
 hatchet = Hatchet()
 
 
-otel_workflow = hatchet.workflow(name="OTelDataPipeline")
+class OrderInput(BaseModel):
+    order_id: str
+    customer_id: str
+    amount: int
 
 
-class FetchDataOutput(BaseModel):
-    records_fetched: int
+class ValidateOrderOutput(BaseModel):
+    order_id: str
+    valid: bool
 
 
-class ValidateDataOutput(BaseModel):
-    valid_records: int
-    dropped: int
+class ChargePaymentOutput(BaseModel):
+    transaction_id: str
+    charged: int
 
 
-class ProcessDataOutput(BaseModel):
-    processed_groups: int
+class ReserveInventoryOutput(BaseModel):
+    reservation_id: str
+    items_reserved: int
 
 
-class SaveResultsOutput(BaseModel):
-    saved: bool
+class SendConfirmationOutput(BaseModel):
+    sent: bool
+    transaction_id: str
+    reservation_id: str
+
+
+otel_workflow = hatchet.workflow(name="otel-order-processing-py", input_validator=OrderInput)
 
 
 # > Custom Spans
 @otel_workflow.task()
-def fetch_data(input: EmptyModel, ctx: Context) -> FetchDataOutput:
+def validate_order(input: OrderInput, ctx: Context) -> ValidateOrderOutput:
     tracer = get_tracer(__name__)
 
-    with tracer.start_as_current_span(
-        "http.request",
-        attributes={"http.method": "GET", "http.url": "https://api.example.com/data"},
-    ) as span:
-        time.sleep(0.05)
-        span.set_attribute("http.status_code", 200)
-        span.set_attribute("http.response_content_length", 4096)
-
-    with tracer.start_as_current_span("json.parse") as span:
+    with tracer.start_as_current_span("order.validate.schema") as span:
         time.sleep(0.01)
-        span.set_attribute("json.record_count", 42)
+        span.set_attribute("order.id", input.order_id)
 
-    return FetchDataOutput(records_fetched=42)
-
-
-@otel_workflow.task()
-def validate_data(input: EmptyModel, ctx: Context) -> ValidateDataOutput:
-    tracer = get_tracer(__name__)
-
-    with tracer.start_as_current_span("schema.validate") as span:
+    with tracer.start_as_current_span("order.validate.fraud-check") as span:
         time.sleep(0.02)
-        span.set_attribute("validation.schema", "v2.1")
-        span.set_attribute("validation.records_checked", 42)
-        span.set_attribute("validation.errors", 2)
-        span.set_status(StatusCode.OK, "2 records failed validation")
+        span.set_attribute("fraud.score", 0.05)
+        span.set_attribute("fraud.decision", "allow")
 
-    with tracer.start_as_current_span("data.clean") as span:
-        time.sleep(0.01)
-        span.set_attribute("clean.records_dropped", 2)
-        span.set_attribute("clean.records_remaining", 40)
-
-    return ValidateDataOutput(valid_records=40, dropped=2)
+    return ValidateOrderOutput(order_id=input.order_id, valid=True)
 
 
-@otel_workflow.task()
-def process_data(input: EmptyModel, ctx: Context) -> ProcessDataOutput:
+@otel_workflow.task(parents=[validate_order])
+def charge_payment(input: OrderInput, ctx: Context) -> ChargePaymentOutput:
     tracer = get_tracer(__name__)
 
-    with tracer.start_as_current_span("transform.pipeline") as pipeline_span:
-        pipeline_span.set_attribute("pipeline.stages", 3)
-
-        with tracer.start_as_current_span("transform.normalize"):
+    with tracer.start_as_current_span("payment.process") as pay_span:
+        with tracer.start_as_current_span("payment.tokenize-card") as span:
             time.sleep(0.015)
+            span.set_attribute("payment.provider", "stripe")
 
-        with tracer.start_as_current_span("transform.enrich") as enrich_span:
-            time.sleep(0.02)
-            enrich_span.set_attribute("enrich.source", "geocoding-api")
-
-        with tracer.start_as_current_span("transform.aggregate") as agg_span:
+        with tracer.start_as_current_span("payment.charge") as span:
             time.sleep(0.03)
-            agg_span.set_attribute("aggregate.groups", 8)
-            agg_span.set_attribute("aggregate.method", "sum")
+            span.set_attribute("payment.amount_cents", input.amount)
+            span.set_attribute("payment.currency", "USD")
 
-    return ProcessDataOutput(processed_groups=8)
+        pay_span.set_status(StatusCode.OK)
+
+    return ChargePaymentOutput(
+        transaction_id=f"txn-{input.order_id}",
+        charged=input.amount,
+    )
 
 
-@otel_workflow.task()
-def save_results(input: EmptyModel, ctx: Context) -> SaveResultsOutput:
+@otel_workflow.task(parents=[validate_order])
+def reserve_inventory(input: OrderInput, ctx: Context) -> ReserveInventoryOutput:
     tracer = get_tracer(__name__)
 
-    with tracer.start_as_current_span(
-        "db.query",
-        attributes={"db.system": "postgresql", "db.operation": "INSERT"},
-    ) as span:
-        time.sleep(0.04)
-        span.set_attribute("db.rows_affected", 8)
-
-    with tracer.start_as_current_span("cache.invalidate") as span:
-        time.sleep(0.005)
-        span.set_attribute("cache.keys_invalidated", 3)
-
-    with tracer.start_as_current_span("notification.send") as span:
+    with tracer.start_as_current_span("inventory.check-availability") as span:
         time.sleep(0.01)
-        span.set_attribute("notification.channel", "webhook")
-        span.set_attribute("notification.status", "delivered")
+        span.set_attribute("inventory.sku_count", 3)
+        span.set_attribute("inventory.all_available", True)
 
-    return SaveResultsOutput(saved=True)
+    with tracer.start_as_current_span("inventory.reserve") as span:
+        time.sleep(0.015)
+        span.set_attribute("inventory.warehouse", "us-east-1")
+
+    return ReserveInventoryOutput(
+        reservation_id=f"res-{input.order_id}",
+        items_reserved=3,
+    )
+
+
+@otel_workflow.task(parents=[charge_payment, reserve_inventory])
+def send_confirmation(input: OrderInput, ctx: Context) -> SendConfirmationOutput:
+    tracer = get_tracer(__name__)
+
+    with tracer.start_as_current_span("notification.render-template") as span:
+        time.sleep(0.005)
+        span.set_attribute("template.name", "order-confirmation")
+
+    with tracer.start_as_current_span("notification.send-email") as span:
+        time.sleep(0.02)
+        span.set_attribute("email.to", "customer@example.com")
+        span.set_attribute("email.provider", "sendgrid")
+
+    return SendConfirmationOutput(
+        sent=True,
+        transaction_id=f"txn-{input.order_id}",
+        reservation_id=f"res-{input.order_id}",
+    )
 
 
 # > Worker
 def main() -> None:
     worker = hatchet.worker(
-        "otel-pipeline-worker",
+        "otel-instrumentation-worker-py",
         workflows=[otel_workflow],
     )
     worker.start()

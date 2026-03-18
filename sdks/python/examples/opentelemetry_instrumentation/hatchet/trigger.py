@@ -1,5 +1,5 @@
 """
-Trigger the OTelDataPipeline workflow.
+Trigger the order processing workflow.
 
 Make sure the worker is already running:
     poetry run python -m examples.opentelemetry_instrumentation.hatchet.worker
@@ -21,19 +21,17 @@ tracer = get_tracer(__name__)
 
 # > Trigger
 def main() -> None:
-    # The run_workflow call is auto-traced with a "hatchet.run_workflow" span.
-    # The traceparent is automatically injected into additional_metadata,
-    # so the worker-side spans become children of this trigger span.
-    with tracer.start_as_current_span("trigger_otel_data_pipeline"):
+    with tracer.start_as_current_span("trigger_order_processing"):
         result = otel_workflow.run(
             options=TriggerWorkflowOptions(
                 additional_metadata={
                     "source": "otel-example",
-                    "pipeline": "data-ingest",
                 },
             ),
         )
         print(f"Workflow result: {result}")
+
+
 # !!
 
 
