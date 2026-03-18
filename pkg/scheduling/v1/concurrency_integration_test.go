@@ -215,13 +215,20 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 
 // --- Workflow concurrency slot cleanup regression test ---
 
-// TestConcurrency_WorkflowSlotsCleanedUpAfterTaskPurge verifies that when tasks with
-// chained concurrency strategies (CANCEL_IN_PROGRESS → GROUP_ROUND_ROBIN) are purged
-// from v1_task, the workflow-level concurrency slots for BOTH parent strategies are
-// cleaned up. This is a regression test for a bug where the CARDINALITY check in
-// cleanup_workflow_concurrency_slots blocked cleanup when all tasks were purged
-// (COUNT(tasks)=0 made CARDINALITY <= 0 always false).
-func TestConcurrency_WorkflowSlotsCleanedUpAfterTaskPurge(t *testing.T) {
+// TestConcurrency_WorkflowSlotsCleanedUpAfterRelease verifies that when tasks with
+// chained concurrency strategies (CANCEL_IN_PROGRESS → GROUP_ROUND_ROBIN) are released
+// via ReleaseTasks, the workflow-level concurrency slots for BOTH parent strategies are
+// cleaned up even when relevant_tasks_for_dags returns 0 rows.
+//
+// This is a regression test for a bug where the CARDINALITY check in
+// cleanup_workflow_concurrency_slots blocked cleanup when no DAG tasks existed
+// (COUNT(relevant_tasks_for_dags)=0 made CARDINALITY <= 0 always false).
+//
+// To exercise the DAG code path in cleanup_workflow_concurrency_slots (where the bug
+// lives), the test creates DAGs so that v1_lookup_table maps workflow_run_id → dag_id.
+// It then deletes v1_dag_to_task links before releasing, simulating the state after
+// partition GC where the DAG entry exists but its tasks are unreachable.
+func TestConcurrency_WorkflowSlotsCleanedUpAfterRelease(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -239,7 +246,7 @@ func TestConcurrency_WorkflowSlotsCleanedUpAfterTaskPurge(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		desc := "test workflow for slot cleanup after purge"
+		desc := "test workflow for slot cleanup after release"
 		cancelInProgress := "CANCEL_IN_PROGRESS"
 		groupRR := "GROUP_ROUND_ROBIN"
 		var maxRunsCIP int32 = 5
@@ -289,6 +296,37 @@ func TestConcurrency_WorkflowSlotsCleanedUpAfterTaskPurge(t *testing.T) {
 		stepId := stratCIP.StepID
 
 		numTasks := 3
+
+		// Pre-generate workflow_run_ids (one per task, as each task is its own workflow run).
+		workflowRunIds := make([]uuid.UUID, numTasks)
+		for i := 0; i < numTasks; i++ {
+			workflowRunIds[i] = uuid.New()
+		}
+
+		// Create DAGs so that v1_lookup_table maps each workflow_run_id → dag_id.
+		// This forces cleanup_workflow_concurrency_slots through the DAG code path
+		// (final_concurrency_slots_for_dags) rather than the task path.
+		dagParams := sqlcv1.CreateDAGsParams{
+			Tenantids:             make([]uuid.UUID, numTasks),
+			Externalids:           make([]uuid.UUID, numTasks),
+			Displaynames:          make([]string, numTasks),
+			Workflowids:           make([]uuid.UUID, numTasks),
+			Workflowversionids:    make([]uuid.UUID, numTasks),
+			Parenttaskexternalids: make([]uuid.UUID, numTasks),
+		}
+		for i := 0; i < numTasks; i++ {
+			dagParams.Tenantids[i] = tenantId
+			dagParams.Externalids[i] = workflowRunIds[i]
+			dagParams.Displaynames[i] = fmt.Sprintf("dag-%d", i)
+			dagParams.Workflowids[i] = workflowId
+			dagParams.Workflowversionids[i] = workflowVersionId
+			dagParams.Parenttaskexternalids[i] = uuid.Nil
+		}
+		dags, err := queries.CreateDAGs(ctx, conf.Pool, dagParams)
+		require.NoError(t, err)
+		require.Len(t, dags, numTasks)
+
+		// Create tasks with dag_id set so that v1_dag_to_task links are created.
 		taskParams := newCreateTasksParams(numTasks)
 		for i := 0; i < numTasks; i++ {
 			taskParams.Tenantids[i] = tenantId
@@ -309,7 +347,9 @@ func TestConcurrency_WorkflowSlotsCleanedUpAfterTaskPurge(t *testing.T) {
 			taskParams.ConcurrencyStrategyIds[i] = []int64{stratCIP.ID, stratGRR.ID}
 			taskParams.ConcurrencyKeys[i] = []string{fmt.Sprintf("%d", i), "org-1"}
 			taskParams.WorkflowVersionIds[i] = workflowVersionId
-			taskParams.WorkflowRunIds[i] = uuid.New()
+			taskParams.WorkflowRunIds[i] = workflowRunIds[i]
+			taskParams.Dagids[i] = pgtype.Int8{Int64: dags[i].ID, Valid: true}
+			taskParams.Daginsertedats[i] = dags[i].InsertedAt
 		}
 
 		tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
@@ -328,7 +368,6 @@ func TestConcurrency_WorkflowSlotsCleanedUpAfterTaskPurge(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res2.Queued, numTasks, "all tasks should be queued")
 
-		// Verify workflow concurrency slots exist for both parents
 		countWfSlots := func(strategyId int64) int {
 			var count int
 			err := conf.Pool.QueryRow(ctx,
@@ -342,28 +381,39 @@ func TestConcurrency_WorkflowSlotsCleanedUpAfterTaskPurge(t *testing.T) {
 		cipParentId := stratCIP.ParentStrategyID.Int64
 		grrParentId := stratGRR.ParentStrategyID.Int64
 
-		require.Greater(t, countWfSlots(cipParentId), 0, "CIP workflow slots should exist")
-		require.Greater(t, countWfSlots(grrParentId), 0, "GRR workflow slots should exist")
+		require.Greater(t, countWfSlots(cipParentId), 0, "CIP workflow slots should exist before release")
+		require.Greater(t, countWfSlots(grrParentId), 0, "GRR workflow slots should exist before release")
 
-		// Simulate task purge: delete tasks from v1_task
-		for _, task := range tasks {
+		// Delete v1_dag_to_task links to simulate partition GC. After this,
+		// relevant_tasks_for_dags will return 0 rows for each workflow_run_id,
+		// which is the exact scenario that triggers the CARDINALITY bug.
+		for _, dag := range dags {
 			_, err := conf.Pool.Exec(ctx,
-				`DELETE FROM v1_task WHERE id = $1 AND inserted_at = $2`,
-				task.ID, task.InsertedAt,
-			)
+				`DELETE FROM v1_dag_to_task WHERE dag_id = $1 AND dag_inserted_at = $2`,
+				dag.ID, dag.InsertedAt)
 			require.NoError(t, err)
 		}
 
-		// Run the cleanup job that deletes orphaned step-level concurrency slots.
-		// This triggers the delete cascade to workflow concurrency slots.
-		result, err := queries.CleanupV1ConcurrencySlot(ctx, conf.Pool, 1000)
-		require.NoError(t, err)
-		require.True(t, result.RowsAffected() > 0, "should have cleaned up step-level concurrency slots")
+		// Release tasks via the production path (ReleaseTasks deletes step-level
+		// concurrency slots, which fires the after-delete trigger that calls
+		// cleanup_workflow_concurrency_slots).
+		releaseParams := sqlcv1.ReleaseTasksParams{
+			Taskids:         make([]int64, numTasks),
+			Taskinsertedats: make([]pgtype.Timestamptz, numTasks),
+			Retrycounts:     make([]int32, numTasks),
+		}
+		for i, task := range tasks {
+			releaseParams.Taskids[i] = task.ID
+			releaseParams.Taskinsertedats[i] = task.InsertedAt
+			releaseParams.Retrycounts[i] = 0
+		}
 
-		// The regression: before the fix, GRR workflow slots survived because
-		// CARDINALITY(child_strategy_ids) <= COUNT(purged_tasks) was 3 <= 0 = false.
-		require.Equal(t, 0, countWfSlots(cipParentId), "CIP workflow concurrency slots should be cleaned up after task purge")
-		require.Equal(t, 0, countWfSlots(grrParentId), "GRR workflow concurrency slots should be cleaned up after task purge")
+		released, err := queries.ReleaseTasks(ctx, conf.Pool, releaseParams)
+		require.NoError(t, err)
+		require.Len(t, released, numTasks, "all tasks should be released")
+
+		require.Equal(t, 0, countWfSlots(cipParentId), "CIP workflow concurrency slots should be cleaned up after release")
+		require.Equal(t, 0, countWfSlots(grrParentId), "GRR workflow concurrency slots should be cleaned up after release")
 
 		return nil
 	})
