@@ -146,7 +146,7 @@ func (c *testHatchetContext) FilterPayload() map[string]interface{} {
 	panic("not implemented")
 }
 
-func (c *testHatchetContext) TenantId(payload map[string]interface{}) {
+func (c *testHatchetContext) TenantId() string {
 	panic("not implemented")
 }
 
