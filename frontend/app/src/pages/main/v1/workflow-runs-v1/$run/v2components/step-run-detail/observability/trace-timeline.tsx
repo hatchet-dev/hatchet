@@ -1,9 +1,9 @@
-import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown, AlertCircle } from 'lucide-react';
 import {
+  useEffect,
   useMemo,
   useState,
   useCallback,
@@ -65,7 +65,9 @@ type FlatShowMoreRow = {
 type FlatRow = FlatSpanRow | FlatGroupRow | FlatShowMoreRow;
 
 function hasErrorInTree(span: OtelSpanTree): boolean {
-  if (span.statusCode === OtelStatusCode.ERROR) return true;
+  if (span.statusCode === OtelStatusCode.ERROR) {
+    return true;
+  }
   return span.children.some(hasErrorInTree);
 }
 
@@ -104,8 +106,7 @@ function groupSiblings(
   children: OtelSpanTree[],
   parentSpanId?: string,
 ): Array<
-  | { kind: 'span'; span: OtelSpanTree }
-  | { kind: 'group'; group: SpanGroupInfo }
+  { kind: 'span'; span: OtelSpanTree } | { kind: 'group'; group: SpanGroupInfo }
 > {
   if (children.length <= GROUP_THRESHOLD) {
     return children.map((span) => ({ kind: 'span' as const, span }));
@@ -114,7 +115,9 @@ function groupSiblings(
   const byName = new Map<string, OtelSpanTree[]>();
   for (const child of children) {
     const name = getDisplayName(child);
-    if (!byName.has(name)) byName.set(name, []);
+    if (!byName.has(name)) {
+      byName.set(name, []);
+    }
     byName.get(name)!.push(child);
   }
 
@@ -186,17 +189,23 @@ function flattenTree(
       const tree = item.span;
       const hasChildren = tree.children.length > 0;
       const isExpanded = expandedIds.has(tree.spanId) && hasChildren;
+      const stableKey =
+        tree.spanName === 'hatchet.start_step_run' &&
+        tree.spanAttributes?.['hatchet.step_run_id']
+          ? tree.spanAttributes['hatchet.step_run_id']
+          : tree.spanId;
 
       rows.push({
         kind: 'span',
-        rowKey: tree.spanId,
+        rowKey: stableKey,
         span: tree,
         depth,
         isLastChild: isLast,
         connectorFlags: [...connectorFlags],
         hasChildren,
         isExpanded,
-        matchesFilter: (tree as { matchesFilter?: boolean }).matchesFilter ?? true,
+        matchesFilter:
+          (tree as { matchesFilter?: boolean }).matchesFilter ?? true,
       });
 
       if (isExpanded) {
@@ -237,17 +246,23 @@ function flattenTree(
             spanIdx === visibleSpans.length - 1 && remaining <= 0;
           const hasChildren = span.children.length > 0;
           const isSpanExpanded = expandedIds.has(span.spanId) && hasChildren;
+          const stableKey =
+            span.spanName === 'hatchet.start_step_run' &&
+            span.spanAttributes?.['hatchet.step_run_id']
+              ? span.spanAttributes['hatchet.step_run_id']
+              : span.spanId;
 
           rows.push({
             kind: 'span',
-            rowKey: span.spanId,
+            rowKey: stableKey,
             span,
             depth: depth + 1,
             isLastChild: isLastInGroup,
             connectorFlags: [...connectorFlags, !isLast],
             hasChildren,
             isExpanded: isSpanExpanded,
-            matchesFilter: (span as { matchesFilter?: boolean }).matchesFilter ?? true,
+            matchesFilter:
+              (span as { matchesFilter?: boolean }).matchesFilter ?? true,
           });
 
           if (isSpanExpanded) {
@@ -379,6 +394,9 @@ const barColorsByStatus: Record<string, string> = {
 };
 
 function getBarColor(span: OtelSpanTree): string {
+  if (span.inProgress) {
+    return 'bg-blue-500/60';
+  }
   if (isEngineSpan(span)) {
     return span.statusCode === OtelStatusCode.ERROR
       ? 'bg-red-500/40'
@@ -394,6 +412,9 @@ function getBarColor(span: OtelSpanTree): string {
 }
 
 function getDotColor(span: OtelSpanTree): string {
+  if (span.inProgress) {
+    return 'bg-blue-500';
+  }
   if (hasErrorInTree(span)) {
     return 'bg-red-500';
   }
@@ -471,7 +492,11 @@ function SpanTooltip({
             )}
           />
           <span className="font-mono text-foreground">
-            {descendantError ? 'Error (child)' : ownStatus}
+            {row.span.inProgress
+              ? 'In Progress'
+              : descendantError
+                ? 'Error (child)'
+                : ownStatus}
           </span>
         </span>
 
@@ -534,6 +559,7 @@ export type VisibleRange = { startPct: number; endPct: number };
 
 interface TraceTimelineProps {
   spanTrees: OtelSpanTree[];
+  isRunning?: boolean;
   expandedSpanIds: string[];
   onExpandChange: (ids: string[]) => void;
   groupVisibleCounts: Record<string, number>;
@@ -547,6 +573,7 @@ interface TraceTimelineProps {
 
 export function TraceTimeline({
   spanTrees,
+  isRunning,
   expandedSpanIds,
   onExpandChange,
   groupVisibleCounts,
@@ -564,6 +591,28 @@ export function TraceTimeline({
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const hasAnyInProgress = useMemo(
+    () =>
+      (function check(nodes: OtelSpanTree[]): boolean {
+        return nodes.some((n) => n.inProgress || check(n.children));
+      })(spanTrees),
+    [spanTrees],
+  );
+
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!isRunning || !hasAnyInProgress) {
+      return;
+    }
+    let raf: number;
+    const tick = () => {
+      setNow(Date.now());
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isRunning, hasAnyInProgress]);
+
   const expandedSet = useMemo(
     () => new Set(expandedSpanIds),
     [expandedSpanIds],
@@ -575,7 +624,23 @@ export function TraceTimeline({
   );
 
   const { visMinStart, ticks, timelineMaxMs } = useMemo(() => {
-    const { minStart, maxEnd } = findTimeRange(spanTrees);
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    const traverse = (node: OtelSpanTree) => {
+      const start = new Date(node.createdAt).getTime();
+      const end = node.inProgress ? now : start + node.durationNs / 1e6;
+      minStart = Math.min(minStart, start);
+      maxEnd = Math.max(maxEnd, end);
+      if (node.queuedPhase) {
+        const qStart = new Date(node.queuedPhase.createdAt).getTime();
+        const qEnd = qStart + node.queuedPhase.durationNs / 1e6;
+        minStart = Math.min(minStart, qStart);
+        maxEnd = Math.max(maxEnd, qEnd);
+      }
+      node.children?.forEach(traverse);
+    };
+    spanTrees.forEach(traverse);
+
     const totalDurationMs = maxEnd - minStart;
 
     const isZoomed =
@@ -590,14 +655,18 @@ export function TraceTimeline({
       return {
         visMinStart: visStartMs,
         ticks,
-        timelineMaxMs: Math.max(maxTick, visDurationMs),
+        timelineMaxMs: hasAnyInProgress
+          ? visDurationMs
+          : Math.max(maxTick, visDurationMs),
       };
     }
 
     const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
-    const timelineMaxMs = Math.max(maxTick, totalDurationMs);
+    const timelineMaxMs = hasAnyInProgress
+      ? totalDurationMs
+      : Math.max(maxTick, totalDurationMs);
     return { visMinStart: minStart, ticks, timelineMaxMs };
-  }, [spanTrees, visibleRange]);
+  }, [spanTrees, visibleRange, now, hasAnyInProgress]);
 
   const toggleExpand = useCallback(
     (id: string) => {
@@ -724,7 +793,9 @@ export function TraceTimeline({
                 <span
                   className={cn(
                     'truncate text-sm leading-tight',
-                    isSelected ? 'font-medium text-foreground' : 'text-foreground',
+                    isSelected
+                      ? 'font-medium text-foreground'
+                      : 'text-foreground',
                   )}
                   title={row.group.groupName}
                 >
@@ -874,9 +945,7 @@ export function TraceTimeline({
                     100
                   : 0;
               const widthPct =
-                timelineMaxMs > 0
-                  ? (durationMs / timelineMaxMs) * 100
-                  : 0;
+                timelineMaxMs > 0 ? (durationMs / timelineMaxMs) * 100 : 0;
               const isSelected = selectedGroupId === row.group.groupId;
               const hasErrors = row.group.errorCount > 0;
 
@@ -891,7 +960,8 @@ export function TraceTimeline({
                 >
                   <div
                     className={cn(
-                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm transition-all',
+                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
+                      !hasAnyInProgress && 'transition-all',
                       hasErrors ? 'bg-red-500/30' : 'bg-green-500/30',
                       isSelected
                         ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
@@ -914,7 +984,9 @@ export function TraceTimeline({
             }
 
             const startMs = new Date(row.span.createdAt).getTime();
-            const durationMs = row.span.durationNs / 1_000_000;
+            const durationMs = row.span.inProgress
+              ? Math.max(0, now - startMs)
+              : row.span.durationNs / 1_000_000;
             const leftPct =
               timelineMaxMs > 0
                 ? ((startMs - visMinStart) / timelineMaxMs) * 100
@@ -952,7 +1024,11 @@ export function TraceTimeline({
                   <div
                     className={cn(
                       'absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm',
-                      hasErrorInTree(row.span) ? 'bg-red-500/20' : 'bg-green-500/20',
+                      row.span.inProgress
+                        ? 'bg-blue-500/20'
+                        : hasErrorInTree(row.span)
+                          ? 'bg-red-500/20'
+                          : 'bg-green-500/20',
                     )}
                     style={{
                       left: `${qLeftPct}%`,
@@ -975,8 +1051,9 @@ export function TraceTimeline({
                 )}
                 <div
                   className={cn(
-                    'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm transition-all',
+                    'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
                     getBarColor(row.span),
+                    !hasAnyInProgress && 'transition-all',
                     isSelected
                       ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
                       : hoveredRowKey === row.rowKey

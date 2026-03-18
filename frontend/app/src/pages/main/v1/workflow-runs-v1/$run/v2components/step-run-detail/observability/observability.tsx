@@ -3,12 +3,15 @@ import { TraceSearchInput } from './trace-search/trace-search-input';
 import { filterSpanTrees } from './trace-search/filter';
 import { parseTraceQuery } from './trace-search/parser';
 import type { TraceAutocompleteContext } from './trace-search/types';
-import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
+import {
+  convertOtelSpansToOtelSpanTree,
+  type TaskSummaryForSynthesis,
+} from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
 import { Loading } from '@/components/v1/ui/loading';
 import api from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
@@ -76,6 +79,7 @@ async function fetchAllSpansByWorkflowRun(
 
 type ObservabilityProps = {
   isRunning: boolean;
+  tasks?: TaskSummaryForSynthesis[];
 } & (
   | { taskRunId: string; workflowRunExternalId?: never }
   | { taskRunId?: never; workflowRunExternalId: string }
@@ -112,12 +116,27 @@ function buildAutocompleteContext(
 }
 
 export const Observability = (props: ObservabilityProps) => {
-  const { isRunning } = props;
+  const { isRunning, tasks } = props;
 
   const queryId = props.taskRunId ?? props.workflowRunExternalId;
   const queryType = props.taskRunId ? 'task' : 'workflow-run';
 
   const [queryString, setQueryString] = useState('');
+
+  const completedAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (isRunning) {
+      completedAtRef.current = null;
+    } else if (!completedAtRef.current) {
+      completedAtRef.current = Date.now();
+    }
+  }, [isRunning]);
+
+  const GRACE_PERIOD_MS = 15_000;
+  const inGracePeriod =
+    !isRunning &&
+    completedAtRef.current !== null &&
+    Date.now() - completedAtRef.current < GRACE_PERIOD_MS;
 
   const tracesQuery = useQuery({
     queryKey: [queryType + ':trace', queryId],
@@ -125,7 +144,7 @@ export const Observability = (props: ObservabilityProps) => {
       queryType === 'task'
         ? fetchAllSpansByTask(queryId)
         : fetchAllSpansByWorkflowRun(queryId),
-    refetchInterval: isRunning ? 5000 : false,
+    refetchInterval: isRunning ? 5000 : inGracePeriod ? 5000 : false,
   });
 
   const traces = tracesQuery.data;
@@ -136,9 +155,17 @@ export const Observability = (props: ObservabilityProps) => {
   );
 
   const spanTrees = useMemo(() => {
-    if (!traces || !hasAtLeastOneElement(traces)) return null;
-    return convertOtelSpansToOtelSpanTree(traces);
-  }, [traces]);
+    if (traces && hasAtLeastOneElement(traces)) {
+      return convertOtelSpansToOtelSpanTree(traces, tasks);
+    }
+    const pendingTasks = tasks?.filter(
+      (t) => t.status === 'QUEUED' || t.status === 'RUNNING',
+    );
+    if (pendingTasks && pendingTasks.length > 0) {
+      return convertOtelSpansToOtelSpanTree(undefined, pendingTasks);
+    }
+    return null;
+  }, [traces, tasks]);
 
   const parsedQuery = useMemo(() => parseTraceQuery(queryString), [queryString]);
 
@@ -209,6 +236,7 @@ export const Observability = (props: ObservabilityProps) => {
       />
       <TaskRunTrace
         spanTrees={filteredTrees}
+        isRunning={isRunning}
         activeFilters={parsedQuery}
         onAddFilter={handleAddFilter}
         onRemoveFilter={handleRemoveFilter}

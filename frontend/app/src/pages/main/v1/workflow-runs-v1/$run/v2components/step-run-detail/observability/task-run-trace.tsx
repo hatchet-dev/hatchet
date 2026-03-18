@@ -18,11 +18,13 @@ type Selection =
 
 export function TaskRunTrace({
   spanTrees,
+  isRunning,
   activeFilters,
   onAddFilter,
   onRemoveFilter,
 }: {
   spanTrees: FilteredSpanTree[];
+  isRunning?: boolean;
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
@@ -92,6 +94,7 @@ export function TaskRunTrace({
       </div>
       <TraceTimeline
         spanTrees={spanTrees}
+        isRunning={isRunning}
         expandedSpanIds={expandedSpansIds}
         onExpandChange={setExpandedSpansIds}
         groupVisibleCounts={groupVisibleCounts}

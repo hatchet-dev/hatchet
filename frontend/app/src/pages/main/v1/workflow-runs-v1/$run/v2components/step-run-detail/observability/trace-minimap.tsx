@@ -14,6 +14,7 @@ type SpanMarker = {
   pct: number;
   statusCode: OtelStatusCode;
   hasErrorInTree: boolean;
+  inProgress: boolean;
   spanName: string;
   durationMs: number;
 };
@@ -50,6 +51,9 @@ function hasErrorInTree(span: OtelSpanTree): boolean {
 }
 
 function getMarkerColor(marker: SpanMarker): string {
+  if (marker.inProgress) {
+    return 'bg-blue-500';
+  }
   if (marker.hasErrorInTree) {
     return 'bg-red-500';
   }
@@ -57,6 +61,9 @@ function getMarkerColor(marker: SpanMarker): string {
 }
 
 function getDotColor(marker: SpanMarker): string {
+  if (marker.inProgress) {
+    return 'bg-blue-500';
+  }
   if (marker.hasErrorInTree) {
     return 'bg-red-500';
   }
@@ -87,6 +94,7 @@ function collectSpanMarkers(
       pct: Math.max(0, Math.min(1, pct)),
       statusCode: node.statusCode,
       hasErrorInTree: hasErrorInTree(node),
+      inProgress: !!node.inProgress,
       spanName: getHatchetDisplayName(node),
       durationMs: node.durationNs / 1_000_000,
     });
@@ -377,7 +385,11 @@ export function TraceMinimap({
                 )}
               />
               <span className="flex-1 font-mono text-xs text-muted-foreground">
-                {hoveredMarker.hasErrorInTree ? 'Error' : 'OK'}
+                {hoveredMarker.inProgress
+                  ? 'In Progress'
+                  : hoveredMarker.hasErrorInTree
+                    ? 'Error'
+                    : 'OK'}
               </span>
               <span className="font-mono text-xs text-foreground">
                 {formatDuration(hoveredMarker.durationMs)}

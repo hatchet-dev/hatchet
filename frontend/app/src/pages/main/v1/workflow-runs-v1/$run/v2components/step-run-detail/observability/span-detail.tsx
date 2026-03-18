@@ -218,7 +218,9 @@ export function SpanDetail({
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
 }) {
-  const status = statusConfig(span.statusCode);
+  const status = span.inProgress
+    ? { label: 'In Progress', dot: 'bg-blue-500' }
+    : statusConfig(span.statusCode);
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
   const taskRunId = span.spanAttributes?.['hatchet.step_run_id'];
   const { open } = useSidePanel();

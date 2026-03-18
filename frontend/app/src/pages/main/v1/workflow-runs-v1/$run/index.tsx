@@ -15,6 +15,7 @@ import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
+import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -40,7 +41,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 class StatusError extends Error {
   status: number;
@@ -262,7 +263,28 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
+  const { workflowRun, shape, taskRuns, isLoading, isError } =
+    useWorkflowDetails();
+
+  const tasksForSynthesis = useMemo((): TaskSummaryForSynthesis[] => {
+    const result: TaskSummaryForSynthesis[] = [];
+    const flatten = (tasks: V1TaskSummary[]) => {
+      for (const t of tasks) {
+        result.push({
+          externalId: t.metadata.id,
+          displayName: t.displayName,
+          status: t.status,
+          createdAt: t.createdAt,
+          startedAt: t.startedAt,
+        });
+        if (t.children) {
+          flatten(t.children);
+        }
+      }
+    };
+    flatten(taskRuns);
+    return result;
+  }, [taskRuns]);
 
   if (isLoading || isError || !workflowRun) {
     return null;
@@ -338,6 +360,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               isRunning={
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
+              tasks={tasksForSynthesis}
             />
           </TabsContent>
         </Tabs>
