@@ -952,8 +952,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 **{
                     f"hatchet.{k.value}": v
                     for k, v in attributes.items()
-                    if v is not None
-                    and k not in self.config.otel.excluded_attributes
+                    if v is not None and k not in self.config.otel.excluded_attributes
                 },
             },
             context=traceparent,
