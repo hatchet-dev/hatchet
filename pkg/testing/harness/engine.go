@@ -198,7 +198,6 @@ func startEngine() func() {
 	// Switch to PgBouncer for the engine if enabled
 	if pgBouncerEnabled {
 		log.Printf("Switching main pool to PgBouncer: %s", pgBouncerConnStr)
-		// DATABASE_URL remains the direct postgres connection; set pgbouncer URL for the main pool
 		os.Setenv("DATABASE_PGBOUNCER_URL", pgBouncerConnStr)
 	}
 
