@@ -71,6 +71,8 @@ type HatchetContext interface {
 
 	WorkflowVersionId() *string
 
+	TenantId() string
+
 	Log(message string)
 
 	StreamEvent(message []byte)
@@ -348,6 +350,12 @@ func (h *hatchetContext) WorkflowId() *string {
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowVersionId() *string {
 	return h.a.WorkflowVersionId
+}
+
+// Deprecated: TenantId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+func (h *hatchetContext) TenantId() string {
+	return h.a.TenantId
 }
 
 // Deprecated: Log is an internal method used by the new Go SDK.
