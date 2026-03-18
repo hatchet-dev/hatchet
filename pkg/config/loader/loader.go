@@ -166,7 +166,15 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return err
 	}
 
-	config, err := pgxpool.ParseConfig(databaseUrl)
+	// Determine which URL the main pool should use:
+	// - If DATABASE_PGBOUNCER_URL is set, main pool connects through pgbouncer
+	// - Otherwise, main pool connects directly via DATABASE_URL
+	mainPoolUrl := databaseUrl
+	if cf.PgBouncerURL != "" {
+		mainPoolUrl = cf.PgBouncerURL
+	}
+
+	config, err := pgxpool.ParseConfig(mainPoolUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -182,12 +190,23 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		config.ConnConfig.Tracer = newOTelPgxTracer()
 	}
 
-	if cf.MaxConns != 0 {
-		config.MaxConns = int32(cf.MaxConns) // nolint: gosec
-	}
+	if cf.PgBouncerURL != "" {
+		// When using pgbouncer, apply pgbouncer-specific pool sizing
+		if cf.PgBouncerMaxConns != 0 {
+			config.MaxConns = int32(cf.PgBouncerMaxConns) // nolint: gosec
+		}
 
-	if cf.MinConns != 0 {
-		config.MinConns = int32(cf.MinConns) // nolint: gosec
+		if cf.PgBouncerMinConns != 0 {
+			config.MinConns = int32(cf.PgBouncerMinConns) // nolint: gosec
+		}
+	} else {
+		if cf.MaxConns != 0 {
+			config.MaxConns = int32(cf.MaxConns) // nolint: gosec
+		}
+
+		if cf.MinConns != 0 {
+			config.MinConns = int32(cf.MinConns) // nolint: gosec
+		}
 	}
 
 	config.MaxConnLifetime = cf.MaxConnLifetime
@@ -263,27 +282,23 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
-	// A small direct pool for DDL operations that cannot go through pgbouncer
-	// (e.g. DETACH PARTITION CONCURRENTLY which cannot run inside a transaction block).
+	// When pgbouncer is configured, create a small direct pool using DATABASE_URL
+	// for DDL operations that cannot go through pgbouncer (e.g. DETACH PARTITION CONCURRENTLY).
 	var directPool *pgxpool.Pool
 
-	if cf.PgBouncerEnabled && cf.DirectDatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_PGBOUNCER_ENABLED is set but DATABASE_DIRECT_URL is not; " +
-			"a direct PostgreSQL connection is required for DDL operations like DETACH PARTITION CONCURRENTLY")
-	}
-
-	if cf.DirectDatabaseURL != "" {
-		directConfig, err := pgxpool.ParseConfig(cf.DirectDatabaseURL)
+	if cf.PgBouncerURL != "" {
+		var directConfig *pgxpool.Config
+		directConfig, err = pgxpool.ParseConfig(databaseUrl)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse direct database url: %w", err)
 		}
 
-		if cf.DirectDatabaseMaxConns != 0 {
-			directConfig.MaxConns = int32(cf.DirectDatabaseMaxConns) // nolint: gosec
+		if cf.MaxConns != 0 {
+			directConfig.MaxConns = int32(cf.MaxConns) // nolint: gosec
 		}
 
-		if cf.DirectDatabaseMinConns != 0 {
-			directConfig.MinConns = int32(cf.DirectDatabaseMinConns) // nolint: gosec
+		if cf.MinConns != 0 {
+			directConfig.MinConns = int32(cf.MinConns) // nolint: gosec
 		}
 
 		directConfig.MaxConnLifetime = cf.MaxConnLifetime
