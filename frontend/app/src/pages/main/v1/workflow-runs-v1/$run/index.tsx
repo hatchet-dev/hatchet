@@ -338,7 +338,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               isRunning={
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
-              onTaskRunClick={handleTaskRunExpand}
             />
           </TabsContent>
         </Tabs>

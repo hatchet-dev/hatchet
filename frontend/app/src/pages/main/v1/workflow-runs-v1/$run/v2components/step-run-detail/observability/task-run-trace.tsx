@@ -1,3 +1,4 @@
+import { SpanDetail } from './span-detail';
 import { TraceMinimap } from './trace-minimap';
 import {
   TraceTimeline,
@@ -14,7 +15,6 @@ import { useCallback, useMemo, useState } from 'react';
 
 export function TaskRunTrace({
   spans,
-  onTaskRunClick,
 }: {
   spans: [
     RelevantOpenTelemetrySpanProperties,
@@ -42,16 +42,15 @@ export function TaskRunTrace({
     endPct: 1,
   });
 
-  const handleSpanSelect = useCallback(
-    (span: OtelSpanTree) => {
-      setSelectedSpan(span);
-      const stepRunId = span.spanAttributes?.['hatchet.step_run_id'];
-      if (stepRunId && onTaskRunClick) {
-        onTaskRunClick(stepRunId);
-      }
-    },
-    [onTaskRunClick],
-  );
+  const handleSpanSelect = useCallback((span: OtelSpanTree) => {
+    setSelectedSpan((prev) =>
+      prev?.spanId === span.spanId ? undefined : span,
+    );
+  }, []);
+
+  const handleSpanDetailClose = useCallback(() => {
+    setSelectedSpan(undefined);
+  }, []);
 
   if (spanTrees.length === 0) {
     return (
@@ -87,6 +86,9 @@ export function TaskRunTrace({
         onSpanSelect={handleSpanSelect}
         visibleRange={visibleRange}
       />
+      {selectedSpan && (
+        <SpanDetail span={selectedSpan} onClose={handleSpanDetailClose} />
+      )}
     </div>
   );
 }

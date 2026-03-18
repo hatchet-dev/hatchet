@@ -70,7 +70,6 @@ async function fetchAllSpansByWorkflowRun(
 
 type ObservabilityProps = {
   isRunning: boolean;
-  onTaskRunClick?: (taskRunId: string) => void;
 } & (
   | { taskRunId: string; workflowRunExternalId?: never }
   | { taskRunId?: never; workflowRunExternalId: string }
@@ -109,5 +108,5 @@ export const Observability = (props: ObservabilityProps) => {
     );
   }
 
-  return <TaskRunTrace spans={traces} onTaskRunClick={props.onTaskRunClick} />;
+  return <TaskRunTrace spans={traces} />;
 };

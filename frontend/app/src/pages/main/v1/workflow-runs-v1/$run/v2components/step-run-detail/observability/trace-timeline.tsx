@@ -345,8 +345,10 @@ export function TraceTimeline({
             <div
               key={row.span.spanId}
               className={cn(
-                'flex shrink-0 cursor-pointer items-center rounded-l px-2',
-                isSelected && 'bg-[rgba(0,92,158,0.02)]',
+                'flex shrink-0 cursor-pointer items-center rounded-l px-2 transition-colors',
+                isSelected
+                  ? 'bg-primary/8'
+                  : 'hover:bg-muted/50',
               )}
               style={{ height: ROW_HEIGHT }}
               onClick={() => {
@@ -397,7 +399,11 @@ export function TraceTimeline({
               <span
                 className={cn(
                   'truncate text-sm leading-tight',
-                  row.depth === 0 ? 'text-foreground' : 'text-muted-foreground',
+                  isSelected
+                    ? 'font-medium text-foreground'
+                    : row.depth === 0
+                      ? 'text-foreground'
+                      : 'text-muted-foreground',
                 )}
                 title={getDisplayName(row.span)}
               >
@@ -456,18 +462,26 @@ export function TraceTimeline({
             const widthPct =
               timelineMaxMs > 0 ? (durationMs / timelineMaxMs) * 100 : 0;
 
+            const isSelected = selectedSpan?.spanId === row.span.spanId;
+
             return (
               <div
                 key={row.span.spanId}
-                className="relative shrink-0"
+                className={cn(
+                  'relative shrink-0 transition-colors',
+                  isSelected && 'bg-primary/8',
+                )}
                 style={{ height: ROW_HEIGHT }}
               >
                 <div
                   className={cn(
-                    'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm transition-shadow',
+                    'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm transition-all',
                     getBarColor(row.span),
-                    hoveredSpanId === row.span.spanId &&
-                      'ring-1 ring-foreground/20',
+                    isSelected
+                      ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                      : hoveredSpanId === row.span.spanId
+                        ? 'ring-1 ring-foreground/20'
+                        : '',
                   )}
                   style={{
                     left: `${leftPct}%`,
