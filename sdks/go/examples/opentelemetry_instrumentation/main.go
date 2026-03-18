@@ -152,7 +152,7 @@ func main() {
 	// Step 3: Send order confirmation (runs after both payment and inventory are done).
 	// Spawns multiple child workflows concurrently to test parallel Run() spans.
 	_ = workflow.NewTask(
-		"send-confirmation",
+		"dag-confirmation",
 		func(ctx hatchet.Context, input OrderInput) (SendConfirmationOutput, error) {
 			var payment ChargePaymentOutput
 			if err := ctx.ParentOutput(chargePayment, &payment); err != nil {
