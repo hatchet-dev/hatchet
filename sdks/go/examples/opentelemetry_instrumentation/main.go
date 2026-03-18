@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -149,6 +150,8 @@ func main() {
 		hatchet.WithParents(validateOrder),
 	)
 
+	// Step 3: Send order confirmation (runs after both payment and inventory are done).
+	// Spawns multiple child workflows concurrently to test parallel Run() spans.
 	_ = workflow.NewTask(
 		"send-confirmation",
 		func(ctx hatchet.Context, input OrderInput) (SendConfirmationOutput, error) {
@@ -162,22 +165,41 @@ func main() {
 				return SendConfirmationOutput{}, err
 			}
 
-			// Spawn a child workflow to send the notification
-			result, err := notifyTask.Run(ctx, NotifyInput{
-				OrderID:       input.OrderID,
-				TransactionID: payment.TransactionID,
-				Channel:       "email",
-			})
-			if err != nil {
-				return SendConfirmationOutput{}, fmt.Errorf("failed to send notification: %w", err)
+			channels := []string{"email", "sms", "push", "slack", "webhook"}
+			numNotifications := 10
+
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+			var firstErr error
+
+			for i := 0; i < numNotifications; i++ {
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+
+					channel := channels[idx%len(channels)]
+					_, runErr := notifyTask.Run(ctx, NotifyInput{
+						OrderID:       input.OrderID,
+						TransactionID: payment.TransactionID,
+						Channel:       channel,
+					})
+					if runErr != nil {
+						mu.Lock()
+						if firstErr == nil {
+							firstErr = runErr
+						}
+						mu.Unlock()
+					}
+				}(i)
 			}
 
-			var notifyOutput NotifyOutput
-			if err := result.Into(&notifyOutput); err != nil {
-				return SendConfirmationOutput{}, fmt.Errorf("failed to read notification result: %w", err)
+			wg.Wait()
+
+			if firstErr != nil {
+				return SendConfirmationOutput{}, fmt.Errorf("notification failed: %w", firstErr)
 			}
 
-			return SendConfirmationOutput{Sent: notifyOutput.Delivered}, nil
+			return SendConfirmationOutput{Sent: true}, nil
 		},
 		hatchet.WithParents(chargePayment, reserveInventory),
 	)

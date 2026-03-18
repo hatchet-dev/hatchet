@@ -690,6 +690,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           action: Action
         ): Promise<void> {
           const attributes: Attributes = {
+            instrumentor: 'hatchet',
             [`hatchet.${OTelAttribute.STEP_RUN_ID}`]: action.taskRunExternalId,
           };
 

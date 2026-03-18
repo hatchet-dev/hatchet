@@ -629,18 +629,13 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		otelCtx = hCtx.GetContext()
 	}
 	otelCtx, span := tracer.Start(otelCtx, "hatchet.run_workflow",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(attribute.String("hatchet.task_name", w.declaration.Name())),
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.task_name", w.declaration.Name()),
+		),
 	)
 	defer span.End()
-
-	// Update the HatchetContext's inner context with the OTel span context,
-	// or use the OTel context directly for plain context.Context callers.
-	if hCtx, ok := ctx.(Context); ok {
-		hCtx.SetContext(otelCtx)
-	} else {
-		ctx = otelCtx
-	}
 
 	runOpts := &runOpts{}
 	for _, opt := range opts {
@@ -652,7 +647,8 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		priority = &[]int32{int32(*runOpts.Priority)}[0]
 	}
 
-	// Inject traceparent for cross-workflow trace propagation
+	// Inject traceparent for cross-workflow trace propagation.
+	// Use otelCtx (not ctx) so the span's trace context is propagated.
 	runOpts.AdditionalMetadata = injectTraceparentToMap(otelCtx, runOpts.AdditionalMetadata)
 
 	var v0Opts []v0Client.RunOptFunc

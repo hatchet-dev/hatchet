@@ -948,9 +948,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         with self._tracer.start_as_current_span(
             "hatchet.durable.wait_for",
             attributes={
-                f"hatchet.{k.value}": v
-                for k, v in attributes.items()
-                if v is not None and k not in self.config.otel.excluded_attributes
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in attributes.items()
+                    if v is not None and k not in self.config.otel.excluded_attributes
+                },
             },
             context=traceparent,
             kind=SpanKind.INTERNAL,
@@ -978,33 +981,37 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if len(configs) == 1:
             config = configs[0]
             span_name = "hatchet.run_workflow"
-            span_attributes = {
-                f"hatchet.{k.value}": v
-                for k, v in {
-                    OTelAttribute.WORKFLOW_NAME: config.workflow_name,
-                    OTelAttribute.ACTION_PAYLOAD: config.input,
-                    OTelAttribute.PARENT_ID: config.options.parent_id,
-                    OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
-                    OTelAttribute.CHILD_INDEX: config.options.child_index,
-                    OTelAttribute.CHILD_KEY: config.options.child_key,
-                    OTelAttribute.NAMESPACE: config.options.namespace,
-                    OTelAttribute.ADDITIONAL_METADATA: json.dumps(
-                        config.options.additional_metadata, default=str
-                    ),
-                    OTelAttribute.PRIORITY: config.options.priority,
-                    OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
-                    OTelAttribute.STICKY: config.options.sticky,
-                    OTelAttribute.KEY: config.options.key,
-                }.items()
-                if v
-                and k not in self.config.otel.excluded_attributes
-                and v != "{}"
-                and v != "[]"
+            span_attributes: dict[str, str | int] = {
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in {
+                        OTelAttribute.WORKFLOW_NAME: config.workflow_name,
+                        OTelAttribute.ACTION_PAYLOAD: config.input,
+                        OTelAttribute.PARENT_ID: config.options.parent_id,
+                        OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
+                        OTelAttribute.CHILD_INDEX: config.options.child_index,
+                        OTelAttribute.CHILD_KEY: config.options.child_key,
+                        OTelAttribute.NAMESPACE: config.options.namespace,
+                        OTelAttribute.ADDITIONAL_METADATA: json.dumps(
+                            config.options.additional_metadata, default=str
+                        ),
+                        OTelAttribute.PRIORITY: config.options.priority,
+                        OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
+                        OTelAttribute.STICKY: config.options.sticky,
+                        OTelAttribute.KEY: config.options.key,
+                    }.items()
+                    if v
+                    and k not in self.config.otel.excluded_attributes
+                    and v != "{}"
+                    and v != "[]"
+                },
             }
         else:
             unique_workflow_names = {c.workflow_name for c in configs}
             span_name = "hatchet.run_workflows"
             span_attributes = {
+                "instrumentor": "hatchet",
                 "hatchet.num_workflows": len(configs),
                 "hatchet.unique_workflow_names": json.dumps(
                     unique_workflow_names, default=str
