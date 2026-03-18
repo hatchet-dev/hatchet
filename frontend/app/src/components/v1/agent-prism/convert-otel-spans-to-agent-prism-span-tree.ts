@@ -5,6 +5,50 @@ import type {
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import invariant from 'tiny-invariant';
 
+function deduplicateStepRunSpans(nodes: OtelSpanTree[]): void {
+  const byStepRunId = new Map<
+    string,
+    { sdk?: OtelSpanTree; engine?: OtelSpanTree }
+  >();
+
+  for (const node of nodes) {
+    if (node.spanName !== 'hatchet.start_step_run') {
+      continue;
+    }
+    const stepRunId = node.spanAttributes?.['hatchet.step_run_id'];
+    if (!stepRunId) {
+      continue;
+    }
+
+    const entry = byStepRunId.get(stepRunId) ?? {};
+    if (node.spanAttributes?.['hatchet.span_source'] === 'engine') {
+      entry.engine = node;
+    } else {
+      entry.sdk = node;
+    }
+    byStepRunId.set(stepRunId, entry);
+  }
+
+  const toRemove = new Set<string>();
+  for (const { sdk, engine } of byStepRunId.values()) {
+    if (sdk && engine) {
+      toRemove.add(engine.spanId);
+    }
+  }
+
+  if (toRemove.size > 0) {
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      if (toRemove.has(nodes[i].spanId)) {
+        nodes.splice(i, 1);
+      }
+    }
+  }
+
+  for (const node of nodes) {
+    deduplicateStepRunSpans(node.children);
+  }
+}
+
 function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
   const queuedByStepRunId = new Map<string, OtelSpanTree>();
   for (const node of nodes) {
@@ -12,10 +56,7 @@ function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
       node.spanName === 'hatchet.engine.queued' &&
       node.spanAttributes?.['hatchet.step_run_id']
     ) {
-      queuedByStepRunId.set(
-        node.spanAttributes['hatchet.step_run_id'],
-        node,
-      );
+      queuedByStepRunId.set(node.spanAttributes['hatchet.step_run_id'], node);
     }
   }
 
@@ -81,6 +122,7 @@ export const convertOtelSpansToOtelSpanTree = (
 
   invariant(rootSpans.length > 0, 'Must have at least one root span');
 
+  deduplicateStepRunSpans(rootSpans);
   mergeQueuedSpans(rootSpans);
 
   if (rootSpans.length > 1) {

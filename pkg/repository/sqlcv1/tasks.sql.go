@@ -1513,7 +1513,9 @@ SELECT
     external_id,
     retry_count,
     workflow_id,
-    workflow_run_id
+    workflow_run_id,
+    additional_metadata,
+    step_readable_id
 FROM
     v1_task
 WHERE
@@ -1527,12 +1529,14 @@ type ListTaskMetasParams struct {
 }
 
 type ListTaskMetasRow struct {
-	ID            int64              `json:"id"`
-	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID    uuid.UUID          `json:"external_id"`
-	RetryCount    int32              `json:"retry_count"`
-	WorkflowID    uuid.UUID          `json:"workflow_id"`
-	WorkflowRunID uuid.UUID          `json:"workflow_run_id"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	RetryCount         int32              `json:"retry_count"`
+	WorkflowID         uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+	StepReadableID     string             `json:"step_readable_id"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -1551,6 +1555,8 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.RetryCount,
 			&i.WorkflowID,
 			&i.WorkflowRunID,
+			&i.AdditionalMetadata,
+			&i.StepReadableID,
 		); err != nil {
 			return nil, err
 		}

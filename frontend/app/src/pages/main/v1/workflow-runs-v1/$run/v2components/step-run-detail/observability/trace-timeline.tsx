@@ -382,7 +382,7 @@ function getBarColor(span: OtelSpanTree): string {
   if (isEngineSpan(span)) {
     return span.statusCode === OtelStatusCode.ERROR
       ? 'bg-red-500/40'
-      : 'bg-slate-500/40';
+      : 'bg-green-500/40';
   }
   if (hasErrorInTree(span)) {
     return 'bg-red-500';

@@ -158,7 +158,7 @@ func main() {
 		"reserve-inventory",
 		func(ctx hatchet.Context, input OrderInput) (ReserveInventoryOutput, error) {
 			_, span := tracer.Start(ctx, "inventory.check-availability")
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(10 * time.Second)
 			span.End()
 
 			_, span = tracer.Start(ctx, "inventory.reserve")
@@ -250,7 +250,7 @@ func main() {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	worker.Use(instrumentor.Middleware())
+	// worker.Use(instrumentor.Middleware())
 
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()

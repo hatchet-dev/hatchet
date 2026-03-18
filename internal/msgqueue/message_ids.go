@@ -30,5 +30,4 @@ const (
 	MsgIDCronCreate                   = "cron-create"
 	MsgIDCronUpdate                   = "cron-update"
 	MsgIDCronDelete                   = "cron-delete"
-	MsgIDEngineSpan                   = "engine-span"
 )

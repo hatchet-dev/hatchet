@@ -317,6 +317,7 @@ export function SpanDetail({
           />
         </div>
       )}
+
     </div>
   );
 }

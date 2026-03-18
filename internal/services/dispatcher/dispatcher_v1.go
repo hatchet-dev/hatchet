@@ -2,12 +2,9 @@ package dispatcher
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -423,12 +420,10 @@ func (d *DispatcherImpl) sendTasksToWorker(
 							d.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event")
 						}
 					}()
-				}
-
-				d.enqueueEngineQueuedSpan(ctx, task)
-
-				return nil
 			}
+
+			return nil
+		}
 
 			requeue(task.V1Task)
 
@@ -581,91 +576,4 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 	}
 
 	return multiErr
-}
-
-func (d *DispatcherImpl) enqueueEngineQueuedSpan(ctx context.Context, task *V1TaskWithPayloadAndInvocationCount) {
-	traceID, parentSpanID := parseTraceparent(task.AdditionalMetadata)
-	if traceID == "" {
-		return
-	}
-
-	spanID := generateSpanID()
-	if spanID == "" {
-		return
-	}
-
-	now := time.Now().UTC()
-	startNano := safeUint64(task.InsertedAt.Time.UnixNano())
-	endNano := safeUint64(now.UnixNano())
-
-	externalID := task.ExternalID
-	wfRunID := task.WorkflowRunID
-
-	spanMsg, err := tasktypesv1.EngineSpanMessage(task.TenantID, tasktypesv1.EngineSpanPayload{
-		TenantID:              task.TenantID,
-		TraceID:               traceID,
-		SpanID:                spanID,
-		ParentSpanID:          parentSpanID,
-		SpanName:              "hatchet.engine.queued",
-		StartTimeUnixNano:     startNano,
-		EndTimeUnixNano:       endNano,
-		TaskRunExternalID:     &externalID,
-		WorkflowRunExternalID: &wfRunID,
-		RetryCount:            task.RetryCount,
-		Attributes: map[string]string{
-			"hatchet.span_source":     "engine",
-			"hatchet.step_run_id":     externalID.String(),
-			"hatchet.workflow_run_id": wfRunID.String(),
-			"hatchet.step_name":       task.StepReadableID,
-			"hatchet.retry_count":     fmt.Sprintf("%d", task.RetryCount),
-		},
-	})
-
-	if err != nil {
-		d.l.Error().Ctx(ctx).Err(err).Int64("task_id", task.ID).Msg("could not create engine span message")
-		return
-	}
-
-	if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, spanMsg, false); err != nil {
-		d.l.Error().Ctx(ctx).Err(err).Int64("task_id", task.ID).Msg("could not publish engine span")
-	}
-}
-
-func parseTraceparent(additionalMetadata []byte) (traceID, parentSpanID string) {
-	if len(additionalMetadata) == 0 {
-		return "", ""
-	}
-
-	var meta map[string]interface{}
-	if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
-		return "", ""
-	}
-
-	tp, ok := meta["traceparent"].(string)
-	if !ok || tp == "" {
-		return "", ""
-	}
-
-	// traceparent format: version-traceID-parentSpanID-flags
-	parts := strings.SplitN(tp, "-", 4)
-	if len(parts) < 3 {
-		return "", ""
-	}
-
-	return parts[1], parts[2]
-}
-
-func safeUint64(v int64) uint64 {
-	if v < 0 {
-		return 0
-	}
-	return uint64(v) // nolint:gosec
-}
-
-func generateSpanID() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		return ""
-	}
-	return hex.EncodeToString(b)
 }

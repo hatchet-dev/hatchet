@@ -2,8 +2,6 @@ package olap
 
 import (
 	"context"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -17,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/codes"
-	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -456,8 +453,6 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId strin
 		return tc.handleCelEvaluationFailure(ctx, tenantId, payloads)
 	case "offload-payload":
 		return tc.handlePayloadOffload(ctx, tenantId, payloads)
-	case "engine-span":
-		return tc.handleEngineSpans(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -652,6 +647,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]*uuid.UUID, 0)
+	var spanEvents []engineSpanEvent
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -677,6 +673,18 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
 		externalId := uuid.New()
 		eventExternalIds = append(eventExternalIds, &externalId)
+
+		spanEvents = append(spanEvents, engineSpanEvent{
+			taskID:             msg.TaskId,
+			insertedAt:         taskMeta.InsertedAt.Time,
+			eventType:          msg.EventType,
+			eventTimestamp:     msg.EventTimestamp,
+			retryCount:         msg.RetryCount,
+			externalID:         taskMeta.ExternalID,
+			workflowRunID:      taskMeta.WorkflowRunID,
+			stepReadableID:     taskMeta.StepReadableID,
+			additionalMetadata: taskMeta.AdditionalMetadata,
+		})
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -778,6 +786,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	if err != nil {
 		return err
 	}
+
+	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
 
 	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
 		return nil
@@ -893,71 +903,4 @@ func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context
 			oc.l.Error().Ctx(ctx).Err(err).Msg("could not process external cutover payloads")
 		}
 	}
-}
-
-func (tc *OLAPControllerImpl) handleEngineSpans(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.EngineSpanPayload](payloads)
-
-	otelRepo := tc.repo.OTelCollector()
-	if otelRepo == nil {
-		return nil
-	}
-
-	spans := make([]*v1.SpanData, 0, len(msgs))
-
-	for _, msg := range msgs {
-		traceID, err := hex.DecodeString(msg.TraceID)
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Str("trace_id", msg.TraceID).Msg("invalid engine span trace_id")
-			continue
-		}
-
-		spanID, err := hex.DecodeString(msg.SpanID)
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Str("span_id", msg.SpanID).Msg("invalid engine span span_id")
-			continue
-		}
-
-		var parentSpanID []byte
-		if msg.ParentSpanID != "" {
-			parentSpanID, err = hex.DecodeString(msg.ParentSpanID)
-			if err != nil {
-				tc.l.Error().Ctx(ctx).Err(err).Str("parent_span_id", msg.ParentSpanID).Msg("invalid engine span parent_span_id")
-				continue
-			}
-		}
-
-		attrs, _ := json.Marshal(msg.Attributes)
-
-		resourceAttrs, _ := json.Marshal(map[string]string{
-			"service.name": "hatchet-engine",
-		})
-
-		spans = append(spans, &v1.SpanData{
-			TenantID:             tenantId,
-			TraceID:              traceID,
-			SpanID:               spanID,
-			ParentSpanID:         parentSpanID,
-			Name:                 msg.SpanName,
-			Kind:                 tracev1.Span_SPAN_KIND_INTERNAL,
-			StartTimeUnixNano:    msg.StartTimeUnixNano,
-			EndTimeUnixNano:      msg.EndTimeUnixNano,
-			StatusCode:           tracev1.Status_StatusCode(msg.StatusCode),
-			Attributes:           attrs,
-			ResourceAttributes:   resourceAttrs,
-			InstrumentationScope: "hatchet-engine",
-			TaskRunExternalID:    msg.TaskRunExternalID,
-			WorkflowRunID:        msg.WorkflowRunExternalID,
-			RetryCount:           msg.RetryCount,
-		})
-	}
-
-	if len(spans) == 0 {
-		return nil
-	}
-
-	return otelRepo.CreateSpans(ctx, tenantId, &v1.CreateSpansOpts{
-		TenantID: tenantId,
-		Spans:    spans,
-	})
 }
