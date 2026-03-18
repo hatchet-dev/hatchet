@@ -6,11 +6,13 @@ import Keywords from "@/components/Keywords";
 
 # Workers
 
-Workers are the processes that execute [tasks](/v1/tasks). Each worker is a long-running process that maintains a persistent gRPC connection to the Hatchet engine. Workers receive and execute task assignments, and report results back to the engine. You can run them locally during development, in containers, on bare-metal VMs, or anywhere you can run a long-running process, and scale them horizontally.
+Workers in Hatchet are the long-processes that execute [tasks](/v1/tasks). In the broadest sense, it may be helpful to think of a worker as a simple `while` loop that receives a new task assignment from the Hatchet Engine, executes the task, and reports the results back to the Engine.
+
+When workers are spun up - in any environment, be it locally, on a VM, etc. - they will register themselves with the Hatchet Engine to start receiving and executing tasks.
 
 ## Declaring a worker
 
-A worker needs a name and a set of tasks or workflows to register:
+A worker needs a name and a set of tasks or tasks (or workflows, more on this later) to register:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -27,7 +29,9 @@ A worker needs a name and a set of tasks or workflows to register:
   </Tabs.Tab>
 </UniversalTabs>
 
-When a worker starts, it registers each of its tasks with the Hatchet engine. From that point on, Hatchet knows to route matching tasks to that worker. Multiple workers can register the same task - Hatchet distributes work across all of them.
+When a worker starts, it registers each of its tasks and workflows with the Hatchet engine. From that point on, Hatchet knows to route matching tasks to that worker.
+
+One important note is that multiple workers can register the same task. In this scenario, Hatchet distributes work across all of them, allowing for simple horizontal scaling.
 
 ## Starting a worker
 
@@ -43,7 +47,13 @@ hatchet worker dev
   </Tabs.Tab>
   <Tabs.Tab value="script" label="Script">
 
-You can also run workers directly. Set a `HATCHET_CLIENT_TOKEN` environment variable, or provide it via parameters when creating the Hatchet client. Generate API tokens from the Hatchet dashboard by navigating to the **Settings** tab and clicking **API Tokens**. Click **Generate API Token** to create a new token, and do not share it publicly.
+You can also run workers without the CLI, which you're likely to do in a production setting, for instance. To do this, you'll first need to set a `HATCHET_CLIENT_TOKEN` environment variable, or provide it via parameters when creating the Hatchet client.
+
+<Callout type="info">
+
+If you don't already have a token, you can generate one in the "API Tokens" section under "Settings" in the dashboard.
+
+</Callout>
 
 ```bash
 export HATCHET_CLIENT_TOKEN="<your-client-token>"
@@ -110,77 +120,42 @@ Once the worker starts, you will see logs confirming it is connected:
   docs for details.
 </Callout>
 
-## Worker lifecycle
+## Slots
 
-A worker moves through four phases during its lifetime:
+Every worker has a fixed number of **slots** that control how many tasks it can run concurrently, which can be configured with the `slots` option on the worker. For instance, if `slots` is set to 5, the worker will run up to five tasks at the concurrently at any time. Any additional tasks wait in the queue until a slot opens up.
 
-```mermaid
-graph LR
-    Created -->|Connects to engine| ACTIVE
-    ACTIVE -->|Heartbeat timeout| INACTIVE
-    ACTIVE -->|Graceful shutdown| STOPPED
-    INACTIVE -->|Reconnects| ACTIVE
-```
+Slots are a **local** limit. They protect the individual worker from attempting to run more tasks concurrently than desired, which can help control resource usage by the worker.
 
-- **ACTIVE** - the worker is connected and accepting tasks.
-- **INACTIVE** - the engine has not received a heartbeat within the expected window of 30 seconds. Tasks assigned to this worker will be reassigned.
-- **STOPPED** - the worker shut down gracefully. In-flight tasks are allowed to complete before the process exits.
+### Choosing a slot count
 
-Hatchet uses heartbeats to monitor worker health. Workers send a heartbeat every **4 seconds**. If the engine does not receive a heartbeat for **30 seconds**, the engine marks the worker INACTIVE and re-queues its in-flight tasks for other workers to pick up.
+The default slot count for workers in Hatchet is 100. In many cases, leaving the default as-is will be perfectly fine, especially when first getting set up with Hatchet.
+
+Over time, you'll likely run into one of two issues: Resource starvation (meaning the worker is using up too much memory, CPU, etc.), or wanting to squeeze more juice out of your workers.
+
+If your workers are resource starved, there are basically two options:
+
+1. Reduce the slot count, so the worker runs less work concurrently. This is a blunt instrument, in the sense that it doesn't let you _tune_ resources to the needs of the workload running on the worker. For instance, if you're using 100% of your memory but only 10% of your CPU, reducing the slot count will likely help the worker stay online, but you'll be significantly under-utilizing CPU. In this case, you can:
+2. Reconfigure the specs of the machine the worker is running on. For instance, in the example above, you might be able to migrate from a CPU-optimized machine to a memory-optimized one, which will give you more efficient resource utilization across the board.
+
+On the other hand, if your workers are underutilizing resources, your options are:
+
+1. Increase the number of slots on them so they can pick up more work. This is especially helpful for heavily I/O bound tasks, which generally are spending most of their time waiting.
+2. Similar to the opposite case of resource starvation, you can scale down the resource requirements of the machine the worker is running on.
+
+<Callout type="info">
+  In general, we recommend not pushing the number of slots on a single worker
+  much past 250-300. At this point, it likely makes sense to scale more
+  horizontally.
+</Callout>
+
+## Heartbeats
+
+Hatchet uses heartbeats to monitor worker health. Workers send a heartbeat every **4 seconds**. If the engine does not receive a heartbeat for **30 seconds**, the engine considers the worker to be inactive, and re-queues its in-flight tasks for other workers to pick up.
 
 There are a number of common reasons a worker might miss heartbeats:
 
 - **Process crash** - the worker process exits unexpectedly (OOM kill, unhandled exception, SIGKILL).
 - **Network disruption** - the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
 - **Resource pressure** - High CPU or memory usage can starve the worker for resources
-
-## Slots
-
-Every worker has a fixed number of **slots** that control how many tasks it can run concurrently, which can be configured with the `slots` option on the worker. For instance, if `slots` is set to 5, the worker will run up to five tasks at the same time. Any additional tasks wait in the queue until a slot opens up.
-
-Slots are a **local** limit - they protect the individual worker from attempting to run more tasks concurrently than desired, which can help limit resource usage by the worker. [Concurrency controls](/v1/concurrency) are a **global** limit across the entire fleet of workers: Use them to prevent a single task, customer, etc. from monopolizing capacity, or to respect the limits of an external resource like a third-party API or database connection pool. The two work together: concurrency controls decide how many runs Hatchet will allow to be active; slots decide how many of those runs each individual worker is willing to accept.
-
-### Choosing a slot count
-
-Start with a slot count that matches the degree of parallelism the worker can reasonably sustain. For CPU-heavy tasks, that is typically the number of CPU cores available to the worker. For I/O-heavy tasks (HTTP calls, database queries), the slot count can likely be significantly higher, as most of the time running tasks is spent waiting.
-
-<Callout type="info">
-  Adding slots is only helpful up to the point where the worker is not
-  bottlenecked by another resource. If the worker is CPU-bound, memory-bound, or
-  waiting on network I/O, more slots will just increase contention.
-</Callout>
-
-## Scaling workers
-
-Throughput can increase in two ways: adding more slots to a single worker, or running more workers. In most situations, horizontal scaling (more workers) is the simplest path because each worker brings its own pool of slots and its own resources.
-
-When running in Kubernetes or a similar orchestrator, you can autoscale workers based on queue depth using the [Task Stats API](/v1/autoscaling-workers). Hatchet also supports [KEDA integration](/v1/autoscaling-workers#autoscaling-with-keda) for event-driven autoscaling.
-
-## Task assignment
-
-By default, Hatchet distributes tasks to any available worker that has registered the task. This behavior can be configured in several ways:
-
-| Concept                                                            | What it does                                                    |
-| ------------------------------------------------------------------ | --------------------------------------------------------------- |
-| [Worker Affinity](/v1/advanced-assignment/worker-affinity)         | Prefer or require specific workers based on labels and weights. |
-| [Sticky Assignment](/v1/advanced-assignment/sticky-assignment)     | Pin related tasks in a workflow to the same worker.             |
-| [Manual Slot Release](/v1/advanced-assignment/manual-slot-release) | Free a worker slot before the task function returns.            |
-
-These are useful when a worker has specialized hardware (a GPU, a loaded ML model), or when co-locating related tasks on the same worker avoids redundant setup.
-
-## Running in production
-
-In development, the fastest way to run a worker is `hatchet worker dev`, which handles authentication and hot reloads task code on changes. In production, workers are run as standalone processes or containers.
-
-| Concept                                         | What it does                                                            |
-| ----------------------------------------------- | ----------------------------------------------------------------------- |
-| [Running with Docker](/v1/docker)               | Containerize workers for deployment.                                    |
-| [Autoscaling Workers](/v1/autoscaling-workers)  | Scale workers dynamically based on queue depth.                         |
-| [Worker Health Checks](/v1/worker-healthchecks) | Expose `/health` and `/metrics` endpoints for monitoring.               |
-| [Preparing for Production](/v1/production)      | Operational best practices for monitoring, error handling, and scaling. |
-
-## Workers and tasks
-
-Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means workers can be organized by resource requirements, deployment boundary, or any other criterion, and Hatchet handles routing tasks to the right place.
 
 <Keywords keywords="worker, slots, registration, concurrency, horizontal scaling, autoscaling" />
