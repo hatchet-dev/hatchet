@@ -1,9 +1,10 @@
-import { SpanDetail } from './span-detail';
+import { SpanDetail, GroupDetail } from './span-detail';
 import { TraceMinimap } from './trace-minimap';
 import {
   TraceTimeline,
   LABEL_WIDTH,
   type VisibleRange,
+  type SpanGroupInfo,
 } from './trace-timeline';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
@@ -12,6 +13,10 @@ import type {
   RelevantOpenTelemetrySpanProperties,
 } from '@/components/v1/agent-prism/span-tree-type';
 import { useCallback, useMemo, useState } from 'react';
+
+type Selection =
+  | { kind: 'span'; span: OtelSpanTree }
+  | { kind: 'group'; group: SpanGroupInfo };
 
 export function TaskRunTrace({
   spans,
@@ -36,21 +41,45 @@ export function TaskRunTrace({
     spanTrees.map((s) => s.spanId),
   );
 
-  const [selectedSpan, setSelectedSpan] = useState<OtelSpanTree | undefined>();
+  const [groupVisibleCounts, setGroupVisibleCounts] = useState<
+    Record<string, number>
+  >({});
+
+  const [selection, setSelection] = useState<Selection | undefined>();
   const [visibleRange, setVisibleRange] = useState<VisibleRange>({
     startPct: 0,
     endPct: 1,
   });
 
   const handleSpanSelect = useCallback((span: OtelSpanTree) => {
-    setSelectedSpan((prev) =>
-      prev?.spanId === span.spanId ? undefined : span,
+    setSelection((prev) =>
+      prev?.kind === 'span' && prev.span.spanId === span.spanId
+        ? undefined
+        : { kind: 'span', span },
     );
   }, []);
 
-  const handleSpanDetailClose = useCallback(() => {
-    setSelectedSpan(undefined);
+  const handleGroupSelect = useCallback((group: SpanGroupInfo) => {
+    setSelection((prev) =>
+      prev?.kind === 'group' && prev.group.groupId === group.groupId
+        ? undefined
+        : { kind: 'group', group },
+    );
   }, []);
+
+  const handleDetailClose = useCallback(() => {
+    setSelection(undefined);
+  }, []);
+
+  const handleShowMore = useCallback(
+    (groupId: string, newVisibleCount: number) => {
+      setGroupVisibleCounts((prev) => ({
+        ...prev,
+        [groupId]: newVisibleCount,
+      }));
+    },
+    [],
+  );
 
   if (spanTrees.length === 0) {
     return (
@@ -82,12 +111,21 @@ export function TaskRunTrace({
         spanTrees={spanTrees}
         expandedSpanIds={expandedSpansIds}
         onExpandChange={setExpandedSpansIds}
-        selectedSpan={selectedSpan}
+        groupVisibleCounts={groupVisibleCounts}
+        onShowMore={handleShowMore}
+        selectedSpan={selection?.kind === 'span' ? selection.span : undefined}
+        selectedGroupId={
+          selection?.kind === 'group' ? selection.group.groupId : undefined
+        }
         onSpanSelect={handleSpanSelect}
+        onGroupSelect={handleGroupSelect}
         visibleRange={visibleRange}
       />
-      {selectedSpan && (
-        <SpanDetail span={selectedSpan} onClose={handleSpanDetailClose} />
+      {selection?.kind === 'span' && (
+        <SpanDetail span={selection.span} onClose={handleDetailClose} />
+      )}
+      {selection?.kind === 'group' && (
+        <GroupDetail group={selection.group} onClose={handleDetailClose} />
       )}
     </div>
   );

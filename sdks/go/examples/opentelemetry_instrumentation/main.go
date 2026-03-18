@@ -43,6 +43,7 @@ type NotifyInput struct {
 	OrderID       string `json:"orderId"`
 	TransactionID string `json:"transactionId"`
 	Channel       string `json:"channel"`
+	I             int    `json:"i"`
 }
 
 type NotifyOutput struct {
@@ -66,6 +67,29 @@ func main() {
 	// Child workflow for sending notifications via a specific channel
 	notifyTask := client.NewStandaloneTask(
 		"otel-send-notification",
+		func(ctx hatchet.Context, input NotifyInput) (NotifyOutput, error) {
+			_, span := tracer.Start(ctx, "notification.render-template")
+			time.Sleep(5 * time.Millisecond)
+			span.End()
+
+			_, span = tracer.Start(ctx, fmt.Sprintf("notification.deliver.%s", input.Channel))
+			time.Sleep(20 * time.Millisecond)
+			span.End()
+
+			if input.I == 10 {
+				return NotifyOutput{}, fmt.Errorf("test error")
+			}
+
+			return NotifyOutput{
+				Delivered: true,
+				Channel:   input.Channel,
+			}, nil
+		},
+	)
+
+	// Child workflow for sending notifications via a specific channel
+	otherTask := client.NewStandaloneTask(
+		"otel-other-task",
 		func(ctx hatchet.Context, input NotifyInput) (NotifyOutput, error) {
 			_, span := tracer.Start(ctx, "notification.render-template")
 			time.Sleep(5 * time.Millisecond)
@@ -165,7 +189,7 @@ func main() {
 			}
 
 			channels := []string{"email", "sms", "push", "slack", "webhook"}
-			numNotifications := 10
+			numNotifications := 5
 
 			var wg sync.WaitGroup
 			var mu sync.Mutex
@@ -181,6 +205,7 @@ func main() {
 						OrderID:       input.OrderID,
 						TransactionID: payment.TransactionID,
 						Channel:       channel,
+						I:             idx,
 					})
 					if runErr != nil {
 						mu.Lock()
@@ -190,6 +215,20 @@ func main() {
 						mu.Unlock()
 					}
 				}(i)
+			}
+
+			_, runErr := otherTask.Run(ctx, NotifyInput{
+				OrderID:       input.OrderID,
+				TransactionID: payment.TransactionID,
+				Channel:       "email",
+				I:             1,
+			})
+			if runErr != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = runErr
+				}
+				mu.Unlock()
 			}
 
 			wg.Wait()
@@ -205,7 +244,7 @@ func main() {
 
 	worker, err := client.NewWorker(
 		"otel-instrumentation-worker",
-		hatchet.WithWorkflows(workflow, notifyTask),
+		hatchet.WithWorkflows(workflow, notifyTask, otherTask),
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)

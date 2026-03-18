@@ -1,3 +1,4 @@
+import type { SpanGroupInfo } from './trace-timeline';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { Button } from '@/components/v1/ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
@@ -172,9 +173,7 @@ export function SpanDetail({
         <div>
           <span className="text-xs text-muted-foreground">Status</span>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <span
-              className={cn('size-2 shrink-0 rounded-full', status.dot)}
-            />
+            <span className={cn('size-2 shrink-0 rounded-full', status.dot)} />
             <span className="font-mono text-sm text-foreground">
               {status.label}
             </span>
@@ -194,6 +193,89 @@ export function SpanDetail({
           <AttrTable entries={hatchet} title="Hatchet Attributes" />
         </div>
       )}
+    </div>
+  );
+}
+
+function formatDurationMs(ms: number): string {
+  if (ms < 1) {
+    return '<1ms';
+  }
+  if (ms < 1000) {
+    return `${ms.toFixed(ms < 10 ? 2 : 1)}ms`;
+  }
+  if (ms < 60_000) {
+    return `${(ms / 1000).toFixed(2)}s`;
+  }
+  const m = Math.floor(ms / 60_000);
+  const s = ((ms % 60_000) / 1000).toFixed(1);
+  return `${m}m ${s}s`;
+}
+
+export function GroupDetail({
+  group,
+  onClose,
+}: {
+  group: SpanGroupInfo;
+  onClose: () => void;
+}) {
+  const timeRangeMs = group.latestEndMs - group.earliestStartMs;
+  const durations = group.spans.map((s) => s.durationNs / 1_000_000);
+  const avgMs = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+  const minMs = Math.min(...durations);
+  const maxMs = Math.max(...durations);
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="truncate font-mono text-sm font-semibold text-foreground">
+            {group.groupName}
+          </h3>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
+            {group.totalCount.toLocaleString()} spans
+            {group.errorCount > 0 && (
+              <span className="text-danger">
+                {' '}
+                · {group.errorCount.toLocaleString()} errors
+              </span>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <div>
+          <span className="text-xs text-muted-foreground">Time Range</span>
+          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+            {formatDurationMs(timeRangeMs)}
+          </p>
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">Avg Duration</span>
+          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+            {formatDurationMs(avgMs)}
+          </p>
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">Min Duration</span>
+          <p className="mt-0.5 font-mono text-sm text-foreground">
+            {formatDurationMs(minMs)}
+          </p>
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">Max Duration</span>
+          <p className="mt-0.5 font-mono text-sm text-foreground">
+            {formatDurationMs(maxMs)}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
