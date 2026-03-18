@@ -54,8 +54,18 @@ function getContentSnippet(
     .replace(/```[\s\S]*?```/g, "")
     .replace(/`[^`]*`/g, "")
     .replace(/^\|[-|\s:]+\|$/gm, "") // table separator rows
-    .replace(/^\|.*\|$/gm, (row) =>   // table data rows → cell text
-      row.replace(/^\||\|$/g, "").split("|").map((c) => c.trim()).filter(Boolean).join(", "))
+    .replace(
+      /^\|.*\|$/gm,
+      (
+        row, // table data rows → cell text
+      ) =>
+        row
+          .replace(/^\||\|$/g, "")
+          .split("|")
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .join(", "),
+    )
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/[*_~]+/g, "")
     .replace(/\n+/g, " ")
