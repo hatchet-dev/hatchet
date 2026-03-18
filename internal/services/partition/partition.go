@@ -9,6 +9,8 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/cleanup"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -75,29 +77,27 @@ func (p *Partition) GetSchedulerPartitionId() string {
 	return p.schedulerPartitionId
 }
 
-func (p *Partition) Shutdown() error {
-	err := p.controllerCron.Shutdown()
+func (p *Partition) Shutdown(cleanup *cleanup.Cleanup) {
+	cleanup.Add(
+		p.controllerCron.Shutdown,
+		"partitioner controller cron",
+	)
+	cleanup.Add(
+		p.workerCron.Shutdown,
+		"partitioner worker cron",
+	)
+	cleanup.Add(
+		p.schedulerCron.Shutdown,
+		"partitioner scheduler cron",
+	)
 
-	if err != nil {
-		return fmt.Errorf("could not shutdown controller cron: %w", err)
-	}
-
-	err = p.workerCron.Shutdown()
-
-	if err != nil {
-		return fmt.Errorf("could not shutdown worker cron: %w", err)
-	}
-
-	err = p.schedulerCron.Shutdown()
-
-	if err != nil {
-		return fmt.Errorf("could not shutdown scheduler cron: %w", err)
-	}
-
-	// wait for heartbeat timeout duration
-	time.Sleep(heartbeatTimeout)
-
-	return nil
+	cleanup.Add(
+		func() error {
+			time.Sleep(heartbeatTimeout)
+			return nil
+		},
+		"partitioner heartbeat timeout",
+	)
 }
 
 func (p *Partition) StartControllerPartition(ctx context.Context) (func() error, error) {
