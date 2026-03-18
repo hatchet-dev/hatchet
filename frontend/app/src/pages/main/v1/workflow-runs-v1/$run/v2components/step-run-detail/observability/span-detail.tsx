@@ -157,7 +157,7 @@ function AttrTable({
               return (
                 <tr
                   key={key}
-                  className="group border-b border-border last:border-b-0"
+                  className="group border-b border-border last:border-b-0 transition-colors hover:bg-muted/50"
                 >
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono text-muted-foreground">
                     {key}
@@ -267,7 +267,15 @@ export function SpanDetail({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className={cn('grid gap-4', span.queuedPhase ? 'grid-cols-4' : 'grid-cols-3')}>
+        {span.queuedPhase && (
+          <div>
+            <span className="text-xs text-muted-foreground">Queue Time</span>
+            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+              {formatDuration(span.queuedPhase.durationNs)}
+            </p>
+          </div>
+        )}
         <div>
           <span className="text-xs text-muted-foreground">Duration</span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
