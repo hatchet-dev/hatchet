@@ -17,6 +17,7 @@ type SpanMarker = {
   spanName: string;
   durationMs: number;
   visible: boolean;
+  span: OtelSpanTree;
 };
 
 type DragState = {
@@ -114,6 +115,7 @@ function collectSpanMarkers(
       spanName: getHatchetDisplayName(node),
       durationMs: node.durationNs / 1_000_000,
       visible: parentVisible,
+      span: node,
     });
     const childrenVisible =
       parentVisible && (!expandedIds || expandedIds.has(node.spanId));
@@ -136,6 +138,7 @@ interface TraceMinimapProps {
   visibleRange: TimeRange;
   onRangeChange: (range: TimeRange) => void;
   expandedSpanIds?: string[];
+  onSpanClick?: (span: OtelSpanTree) => void;
 }
 
 export function TraceMinimap({
@@ -145,6 +148,7 @@ export function TraceMinimap({
   visibleRange,
   onRangeChange,
   expandedSpanIds,
+  onSpanClick,
 }: TraceMinimapProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<DragMode>(null);
@@ -290,7 +294,7 @@ export function TraceMinimap({
         <div
           key={i}
           className={cn(
-            'absolute inset-y-[6px] flex flex-col justify-center transition-[transform,opacity]',
+            'absolute inset-y-[6px] flex cursor-pointer flex-col justify-center transition-[transform,opacity]',
             m.hasErrorInTree ? 'z-[3]' : 'z-[2]',
             hoveredIdx === i && 'z-[5] scale-x-150',
             !m.visible && 'opacity-[0.01]',
@@ -306,6 +310,10 @@ export function TraceMinimap({
           onMouseLeave={() => {
             setHoveredIdx(null);
             setTooltipPos(null);
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSpanClick?.(m.span);
           }}
         >
           <div className={cn('flex-1 rounded-full', getMarkerColor(m))} />

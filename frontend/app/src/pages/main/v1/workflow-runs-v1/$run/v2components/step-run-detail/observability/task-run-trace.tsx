@@ -12,6 +12,33 @@ import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { useCallback, useMemo, useState } from 'react';
 
+function collectAncestorIds(
+  trees: OtelSpanTree[],
+  targetSpanId: string,
+): string[] {
+  const path: string[] = [];
+
+  function walk(node: OtelSpanTree, ancestors: string[]): boolean {
+    if (node.spanId === targetSpanId) {
+      path.push(...ancestors);
+      return true;
+    }
+    for (const child of node.children) {
+      if (walk(child, [...ancestors, node.spanId])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  for (const tree of trees) {
+    if (walk(tree, [])) {
+      break;
+    }
+  }
+  return path;
+}
+
 type Selection =
   | { kind: 'span'; span: OtelSpanTree }
   | { kind: 'group'; group: SpanGroupInfo };
@@ -78,6 +105,22 @@ export function TaskRunTrace({
     [],
   );
 
+  const handleMinimapSpanClick = useCallback(
+    (span: OtelSpanTree) => {
+      const ancestorIds = collectAncestorIds(spanTrees, span.spanId);
+      const idsToExpand = [...ancestorIds, span.spanId];
+      setExpandedSpansIds((prev) => {
+        const set = new Set(prev);
+        for (const id of idsToExpand) {
+          set.add(id);
+        }
+        return Array.from(set);
+      });
+      setSelection({ kind: 'span', span });
+    },
+    [spanTrees],
+  );
+
   return (
     <div className="my-4 flex min-w-0 flex-col gap-4 overflow-hidden">
       <div className="flex min-w-0">
@@ -90,6 +133,7 @@ export function TaskRunTrace({
             visibleRange={visibleRange}
             onRangeChange={setVisibleRange}
             expandedSpanIds={expandedSpansIds}
+            onSpanClick={handleMinimapSpanClick}
           />
         </div>
       </div>
