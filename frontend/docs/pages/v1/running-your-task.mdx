@@ -12,7 +12,7 @@ Hatchet lets you run tasks in a number of ways, which support different applicat
 
 ## Fire-and-wait
 
-Fire-and-wait is a common way of triggering a task which blocks until it completes and returns a result. This is particularly useful for situations where you want to do something with the result of your task. For instance, if your tasks generates some LLM output which you want to return to the user or persist in the database, you might trigger a task, wait for it to complete, collect its result, and then continue on with your application logic.
+Fire-and-wait is a common way of triggering a task which blocks until it completes and returns a result. This is particularly useful for situations where you want to do something with the result of your task. For instance, if your task generates some LLM output which you want to return to the user or persist in the database, you might trigger a task, wait for it to complete, collect its result, and then continue on with your application logic.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -129,7 +129,7 @@ Note that Hatchet supports second-level cron granularity, although in most cases
 
 ## Scheduled runs
 
-Finally, Hatchet also supports [scheduling a run to be triggered at a specific time in the future](/v1/scheduled-runs). This is particularly useful for situations where you want to wait a known about of time before running some task, such as sending a follow up email or a welcome email to a new user, or allowing your customers to choose when they want something to run, such as sending a reminder, for instance.
+Finally, Hatchet also supports [scheduling a run to be triggered at a specific time in the future](/v1/scheduled-runs). This is particularly useful for situations where you want to wait a known amount of time before running some task, such as sending a follow up email or a welcome email to a new user, or allowing your customers to choose when they want something to run, such as sending a reminder, for instance.
 
 ### Triggering from the dashboard
 

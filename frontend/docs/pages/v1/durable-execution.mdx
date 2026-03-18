@@ -14,7 +14,7 @@ This means that if you run a durable task to a midway point and the worker it's 
 
 {/* todo-docs: update links here to more relevant sections */}
 
-The core assumption of durable execution in Hatchet is that durable tasks only do one of a two things: They can [_wait_](/v1/patterns/durable-task-execution#the-durable-context) for something, such as a sleep to complete or an event to be pushed, or they can [_spawn child tasks_](/v1/patterns/durable-task-execution#spawning-child-tasks). These operations can also be composed, such that you can have a durable task wait for _either_ a sleep to complete _or_ an event to be pushed, whichever comes first, for instance. You can achieve this behavior by using [or groups](/v1/patterns/durable-task-execution#or-groups).
+The core assumption of durable execution in Hatchet is that durable tasks only do one of two things: They can [_wait_](/v1/patterns/durable-task-execution#the-durable-context) for something, such as a sleep to complete or an event to be pushed, or they can [_spawn child tasks_](/v1/patterns/durable-task-execution#spawning-child-tasks). These operations can also be composed, such that you can have a durable task wait for _either_ a sleep to complete _or_ an event to be pushed, whichever comes first, for instance. You can achieve this behavior by using [or groups](/v1/patterns/durable-task-execution#or-groups).
 
 ## Example Uses
 

@@ -41,7 +41,7 @@ You can refer to the [examples above](#defining-a-task) to see how to provide va
 
 In addition to input and output payloads, every task receives a **context**. The context provides Hatchet-related information that might be useful to the execution of the task at runtime. For instance, you might access the `workflow_run_id`, the `task_run_id`, or the `retry_count` from the context and have your task's application logic do something with those values.
 
-The context also provides a helper methods for interacting with a number of Hatchet's features, such as [managing cancellations](/v1/cancellation), [refreshing timeouts](/v1/timeouts#refreshing-timeouts), [pushing stream events](/v1/streaming#pushing-stream-events) and more.
+The context also provides helper methods for interacting with a number of Hatchet's features, such as [managing cancellations](/v1/cancellation), [refreshing timeouts](/v1/timeouts#refreshing-timeouts), [pushing stream events](/v1/streaming#pushing-stream-events) and more.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">

@@ -12,7 +12,7 @@ When workers are spun up - in any environment, be it locally, on a VM, etc. - th
 
 ## Declaring a worker
 
-A worker needs a name and a set of tasks or tasks (or workflows, more on this later) to register:
+A worker needs a name and a set of tasks (or workflows, more on this later) to register:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -59,7 +59,7 @@ If you don't already have a token, you can generate one in the "API Tokens" sect
 export HATCHET_CLIENT_TOKEN="<your-client-token>"
 ```
 
-If the engine is running in a self-hosted without TLS enabled, also set:
+If the engine is running self-hosted without TLS enabled, also set:
 
 ```bash
 export HATCHET_CLIENT_TLS_STRATEGY=none
@@ -122,7 +122,7 @@ Once the worker starts, you will see logs confirming it is connected:
 
 ## Slots
 
-Every worker has a fixed number of **slots** that control how many tasks it can run concurrently, which can be configured with the `slots` option on the worker. For instance, if `slots` is set to 5, the worker will run up to five tasks at the concurrently at any time. Any additional tasks wait in the queue until a slot opens up.
+Every worker has a fixed number of **slots** that control how many tasks it can run concurrently, which can be configured with the `slots` option on the worker. For instance, if `slots` is set to 5, the worker will run up to five tasks concurrently at any time. Any additional tasks wait in the queue until a slot opens up.
 
 Slots are a **local** limit. They protect the individual worker from attempting to run more tasks concurrently than desired, which can help control resource usage by the worker.
 
