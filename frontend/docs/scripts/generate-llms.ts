@@ -209,7 +209,12 @@ function collectPages(): DocPage[] {
     (k) => !k.startsWith("_"),
   );
 
+  // Sections to exclude from search index and llms output
+  const EXCLUDED_SECTIONS = new Set(["agent-instructions"]);
+
   for (const sectionKey of sectionOrder) {
+    if (EXCLUDED_SECTIONS.has(sectionKey)) continue;
+
     const sectionDir = path.join(PAGES_DIR, sectionKey);
     const sectionMetaPath = path.join(sectionDir, "_meta.js");
 
