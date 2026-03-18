@@ -71,29 +71,10 @@ const (
 	JobRunStatusSUCCEEDED JobRunStatus = "SUCCEEDED"
 )
 
-// Defines values for LogLineLevel.
-const (
-	LogLineLevelDEBUG LogLineLevel = "DEBUG"
-	LogLineLevelERROR LogLineLevel = "ERROR"
-	LogLineLevelINFO  LogLineLevel = "INFO"
-	LogLineLevelWARN  LogLineLevel = "WARN"
-)
-
-// Defines values for LogLineOrderByDirection.
-const (
-	LogLineOrderByDirectionAsc  LogLineOrderByDirection = "asc"
-	LogLineOrderByDirectionDesc LogLineOrderByDirection = "desc"
-)
-
-// Defines values for LogLineOrderByField.
-const (
-	LogLineOrderByFieldCreatedAt LogLineOrderByField = "createdAt"
-)
-
 // Defines values for RateLimitOrderByDirection.
 const (
-	Asc  RateLimitOrderByDirection = "asc"
-	Desc RateLimitOrderByDirection = "desc"
+	RateLimitOrderByDirectionAsc  RateLimitOrderByDirection = "asc"
+	RateLimitOrderByDirectionDesc RateLimitOrderByDirection = "desc"
 )
 
 // Defines values for RateLimitOrderByField.
@@ -200,8 +181,8 @@ const (
 
 // Defines values for V1CELDebugResponseStatus.
 const (
-	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
-	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
+	ERROR   V1CELDebugResponseStatus = "ERROR"
+	SUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
@@ -351,10 +332,10 @@ const (
 
 // Defines values for WorkflowRunOrderByField.
 const (
-	CreatedAt  WorkflowRunOrderByField = "createdAt"
-	Duration   WorkflowRunOrderByField = "duration"
-	FinishedAt WorkflowRunOrderByField = "finishedAt"
-	StartedAt  WorkflowRunOrderByField = "startedAt"
+	WorkflowRunOrderByFieldCreatedAt  WorkflowRunOrderByField = "createdAt"
+	WorkflowRunOrderByFieldDuration   WorkflowRunOrderByField = "duration"
+	WorkflowRunOrderByFieldFinishedAt WorkflowRunOrderByField = "finishedAt"
+	WorkflowRunOrderByFieldStartedAt  WorkflowRunOrderByField = "startedAt"
 )
 
 // Defines values for WorkflowRunStatus.
@@ -730,39 +711,6 @@ type ListSlackWebhooks struct {
 	Pagination PaginationResponse `json:"pagination"`
 	Rows       []SlackWebhook     `json:"rows"`
 }
-
-// LogLine defines model for LogLine.
-type LogLine struct {
-	// CreatedAt The creation date of the log line.
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Message The log message.
-	Message string `json:"message"`
-
-	// Metadata The log metadata.
-	Metadata map[string]interface{} `json:"metadata"`
-}
-
-// LogLineLevel defines model for LogLineLevel.
-type LogLineLevel string
-
-// LogLineLevelField defines model for LogLineLevelField.
-type LogLineLevelField = []LogLineLevel
-
-// LogLineList defines model for LogLineList.
-type LogLineList struct {
-	Pagination *PaginationResponse `json:"pagination,omitempty"`
-	Rows       *[]LogLine          `json:"rows,omitempty"`
-}
-
-// LogLineOrderByDirection defines model for LogLineOrderByDirection.
-type LogLineOrderByDirection string
-
-// LogLineOrderByField defines model for LogLineOrderByField.
-type LogLineOrderByField string
-
-// LogLineSearch defines model for LogLineSearch.
-type LogLineSearch = string
 
 // PaginationResponse defines model for PaginationResponse.
 type PaginationResponse struct {
@@ -1684,6 +1632,12 @@ type V1LogLine struct {
 
 	// RetryCount The retry count of the log line.
 	RetryCount *int `json:"retryCount,omitempty"`
+
+	// TaskDisplayName The display name of the task associated with the log line.
+	TaskDisplayName *string `json:"taskDisplayName,omitempty"`
+
+	// TaskExternalId The external ID of the task associated with the log line.
+	TaskExternalId *openapi_types.UUID `json:"taskExternalId,omitempty"`
 }
 
 // V1LogLineLevel defines model for V1LogLineLevel.
@@ -1697,6 +1651,20 @@ type V1LogLineList struct {
 
 // V1LogLineOrderByDirection defines model for V1LogLineOrderByDirection.
 type V1LogLineOrderByDirection string
+
+// V1LogsPointMetric defines model for V1LogsPointMetric.
+type V1LogsPointMetric struct {
+	DEBUG int       `json:"DEBUG"`
+	ERROR int       `json:"ERROR"`
+	INFO  int       `json:"INFO"`
+	WARN  int       `json:"WARN"`
+	Time  time.Time `json:"time"`
+}
+
+// V1LogsPointMetrics defines model for V1LogsPointMetrics.
+type V1LogsPointMetrics struct {
+	Results *[]V1LogsPointMetric `json:"results,omitempty"`
+}
 
 // V1ReplayTaskRequest defines model for V1ReplayTaskRequest.
 type V1ReplayTaskRequest struct {
@@ -2599,6 +2567,51 @@ type V1FilterListParams struct {
 	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
 }
 
+// V1TenantLogLineGetPointMetricsParams defines parameters for V1TenantLogLineGetPointMetrics.
+type V1TenantLogLineGetPointMetricsParams struct {
+	// Since The start time to get logs for
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+
+	// Until The end time to get logs for
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// Search A full-text search query to filter for
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Levels The log level(s) to include
+	Levels *[]V1LogLineLevel `form:"levels,omitempty" json:"levels,omitempty"`
+
+	// TaskExternalIds The task external ID(s) to filter by
+	TaskExternalIds *[]openapi_types.UUID `form:"taskExternalIds,omitempty" json:"taskExternalIds,omitempty"`
+}
+
+// V1TenantLogLineListParams defines parameters for V1TenantLogLineList.
+type V1TenantLogLineListParams struct {
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Since The start time to get logs for
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+
+	// Until The end time to get logs for
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// Search A full-text search query to filter for
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Levels The log level(s) to include
+	Levels *[]V1LogLineLevel `form:"levels,omitempty" json:"levels,omitempty"`
+
+	// OrderByDirection The direction to order by
+	OrderByDirection *V1LogLineOrderByDirection `form:"order_by_direction,omitempty" json:"order_by_direction,omitempty"`
+
+	// Attempt The attempt number to filter for
+	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
+
+	// TaskExternalIds The task external ID(s) to filter by
+	TaskExternalIds *[]openapi_types.UUID `form:"taskExternalIds,omitempty" json:"taskExternalIds,omitempty"`
+}
+
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
 type V1TaskListStatusMetricsParams struct {
 	// Since The start time to get metrics for
@@ -2744,27 +2757,6 @@ type StepRunListEventsParams struct {
 
 	// Limit The number to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
-}
-
-// LogLineListParams defines parameters for LogLineList.
-type LogLineListParams struct {
-	// Offset The number to skip
-	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Limit The number to limit by
-	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Levels A list of levels to filter by
-	Levels *LogLineLevelField `form:"levels,omitempty" json:"levels,omitempty"`
-
-	// Search The search query to filter for
-	Search *LogLineSearch `form:"search,omitempty" json:"search,omitempty"`
-
-	// OrderByField What to order by
-	OrderByField *LogLineOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
-
-	// OrderByDirection The order direction
-	OrderByDirection *LogLineOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
 }
 
 // EventListParams defines parameters for EventList.
@@ -3373,6 +3365,12 @@ type ClientInterface interface {
 
 	V1FilterUpdate(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1TenantLogLineGetPointMetrics request
+	V1TenantLogLineGetPointMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineGetPointMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TenantLogLineList request
+	V1TenantLogLineList(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3442,9 +3440,6 @@ type ClientInterface interface {
 
 	// StepRunListEvents request
 	StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// LogLineList request
-	LogLineList(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantCreateWithBody request with any body
 	TenantCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4173,6 +4168,30 @@ func (c *Client) V1FilterUpdate(ctx context.Context, tenant openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1TenantLogLineGetPointMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineGetPointMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TenantLogLineGetPointMetricsRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TenantLogLineList(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TenantLogLineListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskListStatusMetricsRequest(c.Server, tenant, params)
 	if err != nil {
@@ -4463,18 +4482,6 @@ func (c *Client) StepRunListArchives(ctx context.Context, stepRun openapi_types.
 
 func (c *Client) StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunListEventsRequest(c.Server, stepRun, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) LogLineList(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewLogLineListRequest(c.Server, stepRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7365,6 +7372,294 @@ func NewV1FilterUpdateRequestWithBody(server string, tenant openapi_types.UUID, 
 	return req, nil
 }
 
+// NewV1TenantLogLineGetPointMetricsRequest generates requests for V1TenantLogLineGetPointMetrics
+func NewV1TenantLogLineGetPointMetricsRequest(server string, tenant openapi_types.UUID, params *V1TenantLogLineGetPointMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/log-point-metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Levels != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "levels", runtime.ParamLocationQuery, *params.Levels); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TaskExternalIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskExternalIds", runtime.ParamLocationQuery, *params.TaskExternalIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1TenantLogLineListRequest generates requests for V1TenantLogLineList
+func NewV1TenantLogLineListRequest(server string, tenant openapi_types.UUID, params *V1TenantLogLineListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/logs", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Levels != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "levels", runtime.ParamLocationQuery, *params.Levels); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "order_by_direction", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Attempt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "attempt", runtime.ParamLocationQuery, *params.Attempt); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TaskExternalIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskExternalIds", runtime.ParamLocationQuery, *params.TaskExternalIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewV1TaskListStatusMetricsRequest generates requests for V1TaskListStatusMetrics
 func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams) (*http.Request, error) {
 	var err error
@@ -8780,142 +9075,6 @@ func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, para
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewLogLineListRequest generates requests for LogLineList
-func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *LogLineListParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/step-runs/%s/logs", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Offset != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Levels != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "levels", runtime.ParamLocationQuery, *params.Levels); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Search != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.OrderByField != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.OrderByDirection != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -13532,6 +13691,12 @@ type ClientWithResponsesInterface interface {
 
 	V1FilterUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error)
 
+	// V1TenantLogLineGetPointMetricsWithResponse request
+	V1TenantLogLineGetPointMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineGetPointMetricsParams, reqEditors ...RequestEditorFn) (*V1TenantLogLineGetPointMetricsResponse, error)
+
+	// V1TenantLogLineListWithResponse request
+	V1TenantLogLineListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*V1TenantLogLineListResponse, error)
+
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
 
@@ -13601,9 +13766,6 @@ type ClientWithResponsesInterface interface {
 
 	// StepRunListEventsWithResponse request
 	StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error)
-
-	// LogLineListWithResponse request
-	LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error)
 
 	// TenantCreateWithBodyWithResponse request with any body
 	TenantCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantCreateResponse, error)
@@ -14618,6 +14780,55 @@ func (r V1FilterUpdateResponse) StatusCode() int {
 	return 0
 }
 
+type V1TenantLogLineGetPointMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1LogsPointMetrics
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TenantLogLineGetPointMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TenantLogLineGetPointMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TenantLogLineListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1LogLineList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TenantLogLineListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TenantLogLineListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1TaskListStatusMetricsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15111,30 +15322,6 @@ func (r StepRunListEventsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r StepRunListEventsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type LogLineListResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *LogLineList
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r LogLineListResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r LogLineListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17527,6 +17714,24 @@ func (c *ClientWithResponses) V1FilterUpdateWithResponse(ctx context.Context, te
 	return ParseV1FilterUpdateResponse(rsp)
 }
 
+// V1TenantLogLineGetPointMetricsWithResponse request returning *V1TenantLogLineGetPointMetricsResponse
+func (c *ClientWithResponses) V1TenantLogLineGetPointMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineGetPointMetricsParams, reqEditors ...RequestEditorFn) (*V1TenantLogLineGetPointMetricsResponse, error) {
+	rsp, err := c.V1TenantLogLineGetPointMetrics(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TenantLogLineGetPointMetricsResponse(rsp)
+}
+
+// V1TenantLogLineListWithResponse request returning *V1TenantLogLineListResponse
+func (c *ClientWithResponses) V1TenantLogLineListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*V1TenantLogLineListResponse, error) {
+	rsp, err := c.V1TenantLogLineList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TenantLogLineListResponse(rsp)
+}
+
 // V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
 func (c *ClientWithResponses) V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error) {
 	rsp, err := c.V1TaskListStatusMetrics(ctx, tenant, params, reqEditors...)
@@ -17745,15 +17950,6 @@ func (c *ClientWithResponses) StepRunListEventsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseStepRunListEventsResponse(rsp)
-}
-
-// LogLineListWithResponse request returning *LogLineListResponse
-func (c *ClientWithResponses) LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error) {
-	rsp, err := c.LogLineList(ctx, stepRun, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseLogLineListResponse(rsp)
 }
 
 // TenantCreateWithBodyWithResponse request with arbitrary body returning *TenantCreateResponse
@@ -19916,6 +20112,93 @@ func ParseV1FilterUpdateResponse(rsp *http.Response) (*V1FilterUpdateResponse, e
 	return response, nil
 }
 
+// ParseV1TenantLogLineGetPointMetricsResponse parses an HTTP response from a V1TenantLogLineGetPointMetricsWithResponse call
+func ParseV1TenantLogLineGetPointMetricsResponse(rsp *http.Response) (*V1TenantLogLineGetPointMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TenantLogLineGetPointMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1LogsPointMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TenantLogLineListResponse parses an HTTP response from a V1TenantLogLineListWithResponse call
+func ParseV1TenantLogLineListResponse(rsp *http.Response) (*V1TenantLogLineListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TenantLogLineListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1LogLineList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseV1TaskListStatusMetricsResponse parses an HTTP response from a V1TaskListStatusMetricsWithResponse call
 func ParseV1TaskListStatusMetricsResponse(rsp *http.Response) (*V1TaskListStatusMetricsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -20843,46 +21126,6 @@ func ParseStepRunListEventsResponse(rsp *http.Response) (*StepRunListEventsRespo
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseLogLineListResponse parses an HTTP response from a LogLineListWithResponse call
-func ParseLogLineListResponse(rsp *http.Response) (*LogLineListResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &LogLineListResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LogLineList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	}
 

@@ -211,6 +211,15 @@ const tenantEventsRoute = createRoute({
   ),
 });
 
+const tenantLogsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'logs',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/logs'),
+    'default',
+  ),
+});
+
 const tenantFiltersRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'filters',
@@ -564,6 +573,7 @@ const tenantSettingsSubpathRedirect = createRoute({
 
 const tenantRoutes = [
   tenantEventsRoute,
+  tenantLogsRoute,
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
@@ -639,6 +649,7 @@ export const appRoutes = {
   onboardingInvitesRoute,
   tenantRoute,
   tenantEventsRoute,
+  tenantLogsRoute,
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
