@@ -536,6 +536,16 @@ function convertFileTree(text: string): string {
   );
 }
 
+function convertMarkdownTables(text: string): string {
+  // Remove separator rows (e.g. | --- | --- |)
+  text = text.replace(/^\|[-|\s:]+\|$/gm, "");
+  // Convert data/header rows: strip pipes and join cells with commas
+  text = text.replace(/^\|(.+)\|$/gm, (_match, inner: string) =>
+    inner.split("|").map((c: string) => c.trim()).filter(Boolean).join(", "),
+  );
+  return text;
+}
+
 function stripJsxComponents(text: string): string {
   // Self-closing JSX tags
   text = text.replace(/<[A-Z]\w*(?:\.\w+)*\s*[^>]*\/\s*>/g, "");
@@ -639,6 +649,7 @@ function convertMdxToMarkdown(
   text = convertSteps(text);
   text = convertCards(text);
   text = convertFileTree(text);
+  text = convertMarkdownTables(text);
   text = stripJsxComponents(text);
   text = cleanBlankLines(text);
 
