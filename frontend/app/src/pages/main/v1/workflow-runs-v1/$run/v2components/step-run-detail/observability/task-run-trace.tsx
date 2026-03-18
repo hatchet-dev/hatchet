@@ -1,5 +1,9 @@
 import { TraceMinimap } from './trace-minimap';
-import { TraceTimeline, LABEL_WIDTH, type VisibleRange } from './trace-timeline';
+import {
+  TraceTimeline,
+  LABEL_WIDTH,
+  type VisibleRange,
+} from './trace-timeline';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type {
@@ -28,7 +32,9 @@ export function TaskRunTrace({
     [spanTrees],
   );
 
-  const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>([]);
+  const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>(() =>
+    spanTrees.map((s) => s.spanId),
+  );
 
   const [selectedSpan, setSelectedSpan] = useState<OtelSpanTree | undefined>();
   const [visibleRange, setVisibleRange] = useState<VisibleRange>({
