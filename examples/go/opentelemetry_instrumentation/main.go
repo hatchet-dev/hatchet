@@ -56,6 +56,7 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
+	// > Setup
 	// Set up the OTel instrumentor — by default it creates a TracerProvider that
 	// sends spans to the Hatchet engine's OTLP collector. The instrumentor also
 	// provides middleware that creates a root span per task run and propagates
@@ -93,6 +94,7 @@ func main() {
 
 	workflow := client.NewWorkflow("otel-order-processing")
 
+	// > Custom Spans
 	// Step 1: Validate the incoming order (schema + fraud check).
 	validateOrder := workflow.NewTask(
 		"validate-order",
@@ -221,6 +223,7 @@ func main() {
 		hatchet.WithParents(chargePayment, reserveInventory),
 	)
 
+	// > Middleware
 	worker, err := client.NewWorker(
 		"otel-instrumentation-worker",
 		hatchet.WithWorkflows(workflow, notifyTask),
@@ -235,6 +238,7 @@ func main() {
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
 
+	// > Shutdown
 	// Flush remaining spans on shutdown
 	go func() {
 		<-interruptCtx.Done()

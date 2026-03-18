@@ -16,6 +16,7 @@ export const orderWorkflow = hatchet.workflow<OrderInput>({
   name: 'otel-order-processing-ts',
 });
 
+// > Custom Spans
 const validateOrder = orderWorkflow.task({
   name: 'validate-order',
   fn: async (input) => {
@@ -121,6 +122,7 @@ orderWorkflow.task({
   },
 });
 
+// > Worker
 async function main() {
   const worker = await hatchet.worker('otel-instrumentation-worker-ts', {
     workflows: [orderWorkflow],

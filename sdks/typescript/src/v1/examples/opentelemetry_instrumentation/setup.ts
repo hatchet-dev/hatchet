@@ -13,6 +13,7 @@ const { trace } = require('@opentelemetry/api');
 import type { Tracer } from '@opentelemetry/api';
 import { HatchetInstrumentor } from '@hatchet/opentelemetry';
 
+// > Setup
 export function initOtel(): void {
   registerInstrumentations({
     instrumentations: [
@@ -22,6 +23,7 @@ export function initOtel(): void {
     ],
   });
 }
+// !!
 
 export function getTracer(name: string): Tracer {
   return trace.getTracer(name);

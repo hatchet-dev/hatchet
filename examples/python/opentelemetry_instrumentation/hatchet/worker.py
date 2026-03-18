@@ -17,6 +17,7 @@ from opentelemetry.trace import StatusCode, get_tracer
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
+# > Setup
 HatchetInstrumentor().instrument()
 
 hatchet = Hatchet()
@@ -42,6 +43,7 @@ class SaveResultsOutput(BaseModel):
     saved: bool
 
 
+# > Custom Spans
 @otel_workflow.task()
 def fetch_data(input: EmptyModel, ctx: Context) -> FetchDataOutput:
     tracer = get_tracer(__name__)
@@ -125,6 +127,7 @@ def save_results(input: EmptyModel, ctx: Context) -> SaveResultsOutput:
     return SaveResultsOutput(saved=True)
 
 
+# > Worker
 def main() -> None:
     worker = hatchet.worker(
         "otel-pipeline-worker",

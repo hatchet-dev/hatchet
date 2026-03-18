@@ -16,6 +16,7 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
+	// > Trigger
 	instrumentor, err := hatchetotel.NewInstrumentor()
 	if err != nil {
 		log.Fatalf("failed to create instrumentor: %v", err)

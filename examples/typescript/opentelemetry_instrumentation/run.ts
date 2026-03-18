@@ -7,6 +7,7 @@ initOtel();
 
 const tracer = getTracer('otel-instrumentation-triggers');
 
+// > Trigger
 async function runWorkflow() {
   return tracer.startActiveSpan('trigger_order_processing', async (span: Span) => {
     try {

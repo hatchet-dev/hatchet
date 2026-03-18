@@ -56,6 +56,7 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
+	// > Setup
 	// Set up the OTel instrumentor — by default it creates a TracerProvider that
 	// sends spans to the Hatchet engine's OTLP collector. The instrumentor also
 	// provides middleware that creates a root span per task run and propagates
@@ -68,6 +69,7 @@ func main() {
 	// Use the global tracer for creating custom child spans inside tasks.
 	// These will inherit hatchet.* attributes from the parent task run span.
 	tracer := otel.Tracer("otel-instrumentation-example")
+	// !!
 
 	// Standalone task for sending notifications — spawned as a child workflow
 	// from send-confirmation below. Each notification gets its own trace subtree.
@@ -93,6 +95,7 @@ func main() {
 
 	workflow := client.NewWorkflow("otel-order-processing")
 
+	// > Custom Spans
 	// Step 1: Validate the incoming order (schema + fraud check).
 	validateOrder := workflow.NewTask(
 		"validate-order",
@@ -113,6 +116,7 @@ func main() {
 			}, nil
 		},
 	)
+	// !!
 
 	// Step 2a: Charge the customer's payment method (runs after validate-order).
 	chargePayment := workflow.NewTask(
@@ -221,6 +225,7 @@ func main() {
 		hatchet.WithParents(chargePayment, reserveInventory),
 	)
 
+	// > Middleware
 	worker, err := client.NewWorker(
 		"otel-instrumentation-worker",
 		hatchet.WithWorkflows(workflow, notifyTask),
@@ -231,10 +236,12 @@ func main() {
 
 	// Register the OTel middleware so every task run gets a root span
 	worker.Use(instrumentor.Middleware())
+	// !!
 
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
 
+	// > Shutdown
 	// Flush remaining spans on shutdown
 	go func() {
 		<-interruptCtx.Done()
@@ -242,6 +249,7 @@ func main() {
 			log.Printf("failed to shutdown instrumentor: %v", shutdownErr)
 		}
 	}()
+	// !!
 
 	if startErr := worker.StartBlocking(interruptCtx); startErr != nil {
 		log.Printf("worker error: %v", startErr)

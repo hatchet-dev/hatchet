@@ -12,6 +12,7 @@ const { trace } = require('@opentelemetry/api');
 import type { Tracer } from '@opentelemetry/api';
 import { HatchetInstrumentor } from '@hatchet-dev/typescript-sdk/opentelemetry';
 
+// > Setup
 export function initOtel(): void {
   registerInstrumentations({
     instrumentations: [

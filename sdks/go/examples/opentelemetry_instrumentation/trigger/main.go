@@ -16,6 +16,7 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
+	// > Trigger
 	instrumentor, err := hatchetotel.NewInstrumentor()
 	if err != nil {
 		log.Fatalf("failed to create instrumentor: %v", err)
@@ -43,4 +44,5 @@ func main() {
 	// Wait a bit for spans to flush
 	time.Sleep(2 * time.Second)
 	fmt.Println("done — check the trace view for both trigger and worker spans")
+	// !!
 }

@@ -19,6 +19,7 @@ HatchetInstrumentor().instrument()
 tracer = get_tracer(__name__)
 
 
+# > Trigger
 def main() -> None:
     # The run_workflow call is auto-traced with a "hatchet.run_workflow" span.
     # The traceparent is automatically injected into additional_metadata,
@@ -33,6 +34,7 @@ def main() -> None:
             ),
         )
         print(f"Workflow result: {result}")
+# !!
 
 
 if __name__ == "__main__":
