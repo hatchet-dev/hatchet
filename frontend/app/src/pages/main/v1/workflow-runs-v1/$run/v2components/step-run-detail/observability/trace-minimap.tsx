@@ -1,0 +1,389 @@
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
+import { cn } from '@/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+const HANDLE_W = 17;
+const MIN_RANGE_PCT = 0.05;
+
+type TimeRange = { startPct: number; endPct: number };
+type DragMode = 'left' | 'right' | 'brush' | null;
+
+type SpanMarker = {
+  pct: number;
+  statusCode: OtelStatusCode;
+  spanName: string;
+  durationMs: number;
+};
+
+type DragState = {
+  mouseX: number;
+  startPct: number;
+  endPct: number;
+  anchorPct?: number;
+};
+
+function getHatchetDisplayName(span: OtelSpanTree): string {
+  if (!span.spanName.startsWith('hatchet.')) {
+    return span.spanName;
+  }
+  if (span.spanAttributes?.['hatchet.step_name']) {
+    return span.spanAttributes['hatchet.step_name'];
+  }
+  if (span.spanAttributes?.['hatchet.workflow_name']) {
+    return span.spanAttributes['hatchet.workflow_name'];
+  }
+  const actionId = span.spanAttributes?.['hatchet.action_id'];
+  if (actionId?.includes(':')) {
+    return actionId.split(':')[0];
+  }
+  return span.spanName;
+}
+
+function getMarkerColor(statusCode: OtelStatusCode): string {
+  if (statusCode === OtelStatusCode.ERROR) {
+    return 'bg-danger';
+  }
+  return 'bg-success';
+}
+
+function getDotColor(statusCode: OtelStatusCode): string {
+  if (statusCode === OtelStatusCode.ERROR) {
+    return 'bg-danger';
+  }
+  return 'bg-success';
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1) {
+    return '<1ms';
+  }
+  if (ms < 1000) {
+    return `${Math.round(ms)}ms`;
+  }
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function collectSpanMarkers(
+  trees: OtelSpanTree[],
+  minMs: number,
+  totalMs: number,
+): SpanMarker[] {
+  const markers: SpanMarker[] = [];
+
+  const traverse = (node: OtelSpanTree) => {
+    const startMs = new Date(node.createdAt).getTime();
+    const pct = totalMs > 0 ? (startMs - minMs) / totalMs : 0;
+    markers.push({
+      pct: Math.max(0, Math.min(1, pct)),
+      statusCode: node.statusCode,
+      spanName: getHatchetDisplayName(node),
+      durationMs: node.durationNs / 1_000_000,
+    });
+    node.children?.forEach(traverse);
+  };
+
+  trees.forEach(traverse);
+  return markers.sort((a, b) => a.pct - b.pct);
+}
+
+function pctFromEvent(e: { clientX: number }, el: HTMLElement): number {
+  const rect = el.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+}
+
+interface TraceMinimapProps {
+  spanTrees: OtelSpanTree[];
+  minMs: number;
+  maxMs: number;
+  visibleRange: TimeRange;
+  onRangeChange: (range: TimeRange) => void;
+}
+
+export function TraceMinimap({
+  spanTrees,
+  minMs,
+  maxMs,
+  visibleRange,
+  onRangeChange,
+}: TraceMinimapProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState<DragMode>(null);
+  const dragRef = useRef<DragState | null>(null);
+
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const totalMs = maxMs - minMs;
+  const markers = collectSpanMarkers(spanTrees, minMs, totalMs);
+
+  const startDrag = useCallback(
+    (mode: DragMode, e: React.PointerEvent, anchorPct?: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragging(mode);
+      dragRef.current = {
+        mouseX: e.clientX,
+        startPct: visibleRange.startPct,
+        endPct: visibleRange.endPct,
+        anchorPct,
+      };
+    },
+    [visibleRange],
+  );
+
+  const handleTrackDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!trackRef.current) {
+        return;
+      }
+      const clickPct = pctFromEvent(e, trackRef.current);
+      startDrag('brush', e, clickPct);
+    },
+    [startDrag],
+  );
+
+  const handleDoubleClick = useCallback(() => {
+    onRangeChange({ startPct: 0, endPct: 1 });
+  }, [onRangeChange]);
+
+  useEffect(() => {
+    if (!dragging) {
+      return;
+    }
+
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current || !trackRef.current) {
+        return;
+      }
+
+      const trackWidth = trackRef.current.getBoundingClientRect().width;
+      if (trackWidth <= 0) {
+        return;
+      }
+
+      const { startPct: origStart, endPct: origEnd } = dragRef.current;
+
+      if (dragging === 'brush') {
+        const anchor = dragRef.current.anchorPct!;
+        const current = pctFromEvent(e, trackRef.current);
+        let lo = Math.min(anchor, current);
+        let hi = Math.max(anchor, current);
+        if (hi - lo < MIN_RANGE_PCT) {
+          if (current >= anchor) {
+            hi = Math.min(1, lo + MIN_RANGE_PCT);
+          } else {
+            lo = Math.max(0, hi - MIN_RANGE_PCT);
+          }
+        }
+        onRangeChange({ startPct: lo, endPct: hi });
+        return;
+      }
+
+      const deltaPct =
+        (e.clientX - dragRef.current.mouseX) / trackWidth;
+
+      if (dragging === 'left') {
+        const newStart = Math.max(
+          0,
+          Math.min(origEnd - MIN_RANGE_PCT, origStart + deltaPct),
+        );
+        onRangeChange({ startPct: newStart, endPct: origEnd });
+      } else if (dragging === 'right') {
+        const newEnd = Math.min(
+          1,
+          Math.max(origStart + MIN_RANGE_PCT, origEnd + deltaPct),
+        );
+        onRangeChange({ startPct: origStart, endPct: newEnd });
+      }
+    };
+
+    const onUp = () => {
+      setDragging(null);
+      dragRef.current = null;
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+  }, [dragging, onRangeChange]);
+
+  const sPct = visibleRange.startPct * 100;
+  const ePct = visibleRange.endPct * 100;
+
+  const hoveredMarker = hoveredIdx !== null ? markers[hoveredIdx] : null;
+
+  const cursorStyle =
+    dragging === 'left' || dragging === 'right' ? 'ew-resize' : 'crosshair';
+
+  return (
+    <div
+      ref={trackRef}
+      className="group relative h-[43px] overflow-hidden rounded-lg border border-border/50 bg-muted/30"
+      style={{ cursor: cursorStyle }}
+      onPointerDown={handleTrackDown}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* Event markers */}
+      {markers.map((m, i) => (
+        <div
+          key={i}
+          className={cn(
+            'absolute inset-y-[6px] z-[2] flex flex-col justify-center transition-transform',
+            hoveredIdx === i && 'z-[5] scale-x-150',
+          )}
+          style={{ left: `${m.pct * 100}%`, width: 6 }}
+          onMouseEnter={(e) => {
+            setHoveredIdx(i);
+            setTooltipPos({ x: e.clientX, y: e.clientY });
+          }}
+          onMouseMove={(e) => {
+            setTooltipPos({ x: e.clientX, y: e.clientY });
+          }}
+          onMouseLeave={() => {
+            setHoveredIdx(null);
+            setTooltipPos(null);
+          }}
+        >
+          <div
+            className={cn(
+              'flex-1 rounded-full',
+              getMarkerColor(m.statusCode),
+            )}
+          />
+        </div>
+      ))}
+
+      {/* Left dim overlay */}
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0 z-[1] bg-background/70"
+        style={{ width: `${sPct}%` }}
+      />
+
+      {/* Right dim overlay */}
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-background/70"
+        style={{ width: `${100 - ePct}%` }}
+      />
+
+      {/* Selected region with handles inside — visible on hover or while dragging */}
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-y-0 z-[3] transition-opacity duration-150',
+          dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+        )}
+        style={{ left: `${sPct}%`, right: `${100 - ePct}%` }}
+      >
+        {/* Left handle — pinned to left edge of selected region */}
+        <div
+          className="pointer-events-auto absolute bottom-0 left-0 top-0 flex w-[17px] flex-col items-center justify-center"
+          style={{ cursor: 'ew-resize' }}
+          onPointerDown={(e) => startDrag('left', e)}
+        >
+          <div className="flex h-[6px] items-center justify-center">
+            <div className="h-px w-1.5 bg-border" />
+          </div>
+          <div className="flex flex-1 items-center justify-center rounded-md border border-border/60 bg-muted/80 px-0.5">
+            <svg
+              width="8"
+              height="12"
+              viewBox="0 0 8 12"
+              fill="none"
+              className="text-muted-foreground"
+            >
+              <path
+                d="M5 1L1 6L5 11"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div className="flex h-[6px] items-center justify-center">
+            <div className="h-px w-1.5 bg-border" />
+          </div>
+        </div>
+
+        {/* Right handle — pinned to right edge of selected region */}
+        <div
+          className="pointer-events-auto absolute bottom-0 right-0 top-0 flex w-[17px] flex-col items-center justify-center"
+          style={{ cursor: 'ew-resize' }}
+          onPointerDown={(e) => startDrag('right', e)}
+        >
+          <div className="flex h-[6px] items-center justify-center">
+            <div className="h-px w-1.5 bg-border" />
+          </div>
+          <div className="flex flex-1 items-center justify-center rounded-md border border-border/60 bg-muted/80 px-0.5">
+            <svg
+              width="8"
+              height="12"
+              viewBox="0 0 8 12"
+              fill="none"
+              className="text-muted-foreground"
+            >
+              <path
+                d="M3 1L7 6L3 11"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div className="flex h-[6px] items-center justify-center">
+            <div className="h-px w-1.5 bg-border" />
+          </div>
+        </div>
+      </div>
+
+      {/* Inner shadow */}
+      <div className="pointer-events-none absolute inset-0 z-[4] rounded-[inherit] shadow-[inset_0px_7px_10px_0px_rgba(0,0,0,0.01),inset_0px_1px_3px_0px_rgba(0,0,0,0.01)]" />
+
+      {/* Hover tooltip via portal */}
+      {hoveredMarker &&
+        tooltipPos &&
+        !dragging &&
+        createPortal(
+          <div
+            className="z-50 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg"
+            style={{
+              position: 'fixed',
+              left: Math.min(tooltipPos.x + 12, window.innerWidth - 220),
+              top: tooltipPos.y + 16,
+              minWidth: 180,
+              pointerEvents: 'none',
+            }}
+          >
+            <div className="truncate px-3 py-1.5 font-mono text-xs text-foreground">
+              {hoveredMarker.spanName}
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5">
+              <span
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  getDotColor(hoveredMarker.statusCode),
+                )}
+              />
+              <span className="flex-1 font-mono text-xs text-muted-foreground">
+                {hoveredMarker.statusCode === OtelStatusCode.ERROR
+                  ? 'Error'
+                  : 'OK'}
+              </span>
+              <span className="font-mono text-xs text-foreground">
+                {formatDuration(hoveredMarker.durationMs)}
+              </span>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}

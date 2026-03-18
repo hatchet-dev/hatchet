@@ -7,7 +7,7 @@ import { useMemo, useState, useCallback, useRef, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 
 const ROW_HEIGHT = 40;
-const LABEL_WIDTH = 320;
+export const LABEL_WIDTH = 320;
 const CONNECTOR_WIDTH = 12;
 const CONNECTOR_GAP = 8;
 
@@ -121,6 +121,23 @@ const barColorsByStatus: Record<string, string> = {
   [OtelStatusCode.ERROR]: 'bg-danger',
 };
 
+function getDisplayName(span: OtelSpanTree): string {
+  if (!span.spanName.startsWith('hatchet.')) {
+    return span.spanName;
+  }
+  if (span.spanAttributes?.['hatchet.step_name']) {
+    return span.spanAttributes['hatchet.step_name'];
+  }
+  if (span.spanAttributes?.['hatchet.workflow_name']) {
+    return span.spanAttributes['hatchet.workflow_name'];
+  }
+  const actionId = span.spanAttributes?.['hatchet.action_id'];
+  if (actionId?.includes(':')) {
+    return actionId.split(':')[0];
+  }
+  return span.spanName;
+}
+
 function getBarColor(span: OtelSpanTree): string {
   if (span.statusCode === OtelStatusCode.ERROR) {
     return 'bg-danger';
@@ -173,12 +190,15 @@ function SpanTooltip({
   );
 }
 
+export type VisibleRange = { startPct: number; endPct: number };
+
 interface TraceTimelineProps {
   spanTrees: OtelSpanTree[];
   expandedSpanIds: string[];
   onExpandChange: (ids: string[]) => void;
   selectedSpan?: OtelSpanTree;
   onSpanSelect?: (span: OtelSpanTree) => void;
+  visibleRange?: VisibleRange;
 }
 
 export function TraceTimeline({
@@ -187,6 +207,7 @@ export function TraceTimeline({
   onExpandChange,
   selectedSpan,
   onSpanSelect,
+  visibleRange,
 }: TraceTimelineProps) {
   const [hoveredSpanId, setHoveredSpanId] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{
@@ -205,13 +226,30 @@ export function TraceTimeline({
     [spanTrees, expandedSet],
   );
 
-  const { minStart, ticks, timelineMaxMs } = useMemo(() => {
+  const { visMinStart, ticks, timelineMaxMs } = useMemo(() => {
     const { minStart, maxEnd } = findTimeRange(spanTrees);
     const totalDurationMs = maxEnd - minStart;
+
+    const isZoomed =
+      visibleRange &&
+      (visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999);
+
+    if (isZoomed) {
+      const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
+      const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
+      const visDurationMs = visEndMs - visStartMs;
+      const { ticks, maxTick } = computeTimeTicks(visDurationMs);
+      return {
+        visMinStart: visStartMs,
+        ticks,
+        timelineMaxMs: Math.max(maxTick, visDurationMs),
+      };
+    }
+
     const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
     const timelineMaxMs = Math.max(maxTick, totalDurationMs);
-    return { minStart, ticks, timelineMaxMs };
-  }, [spanTrees]);
+    return { visMinStart: minStart, ticks, timelineMaxMs };
+  }, [spanTrees, visibleRange]);
 
   const toggleExpand = useCallback(
     (spanId: string) => {
@@ -314,9 +352,9 @@ export function TraceTimeline({
                   'truncate text-sm leading-tight',
                   row.depth === 0 ? 'text-foreground' : 'text-muted-foreground',
                 )}
-                title={row.span.spanName}
+                title={getDisplayName(row.span)}
               >
-                {row.span.spanName}
+                {getDisplayName(row.span)}
               </span>
             </div>
           );
@@ -324,7 +362,7 @@ export function TraceTimeline({
       </div>
 
       {/* Right panel: timeline */}
-      <div className="flex min-w-0 flex-1 flex-col pr-10">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden pr-10">
         {/* Time axis labels */}
         <div className="relative h-6 shrink-0">
           {ticks.map((t, i) => {
@@ -366,7 +404,7 @@ export function TraceTimeline({
             const durationMs = row.span.durationNs / 1_000_000;
             const leftPct =
               timelineMaxMs > 0
-                ? ((startMs - minStart) / timelineMaxMs) * 100
+                ? ((startMs - visMinStart) / timelineMaxMs) * 100
                 : 0;
             const widthPct =
               timelineMaxMs > 0 ? (durationMs / timelineMaxMs) * 100 : 0;

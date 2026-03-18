@@ -1,21 +1,12 @@
-import { TraceTimeline } from './trace-timeline';
+import { TraceMinimap } from './trace-minimap';
+import { TraceTimeline, LABEL_WIDTH, type VisibleRange } from './trace-timeline';
+import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type {
   OtelSpanTree,
   RelevantOpenTelemetrySpanProperties,
 } from '@/components/v1/agent-prism/span-tree-type';
 import { useCallback, useMemo, useState } from 'react';
-
-const getSpanIdsOfAllHatchetSpans = (spanTree: OtelSpanTree): string[] => {
-  if (spanTree.spanAttributes?.instrumentor !== 'hatchet') {
-    return [];
-  }
-
-  return [
-    spanTree.spanId,
-    ...spanTree.children.flatMap(getSpanIdsOfAllHatchetSpans),
-  ];
-};
 
 export function TaskRunTrace({
   spans,
@@ -32,11 +23,18 @@ export function TaskRunTrace({
     [spans],
   );
 
-  const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>(
-    spanTrees.flatMap(getSpanIdsOfAllHatchetSpans),
+  const { minStart, maxEnd } = useMemo(
+    () => findTimeRange(spanTrees),
+    [spanTrees],
   );
 
+  const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>([]);
+
   const [selectedSpan, setSelectedSpan] = useState<OtelSpanTree | undefined>();
+  const [visibleRange, setVisibleRange] = useState<VisibleRange>({
+    startPct: 0,
+    endPct: 1,
+  });
 
   const handleSpanSelect = useCallback(
     (span: OtelSpanTree) => {
@@ -62,13 +60,26 @@ export function TaskRunTrace({
   }
 
   return (
-    <div className="my-4 min-w-0 overflow-hidden">
+    <div className="my-4 flex min-w-0 flex-col gap-4 overflow-hidden">
+      <div className="flex min-w-0">
+        <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+        <div className="min-w-0 flex-1 pr-10">
+          <TraceMinimap
+            spanTrees={spanTrees}
+            minMs={minStart}
+            maxMs={maxEnd}
+            visibleRange={visibleRange}
+            onRangeChange={setVisibleRange}
+          />
+        </div>
+      </div>
       <TraceTimeline
         spanTrees={spanTrees}
         expandedSpanIds={expandedSpansIds}
         onExpandChange={setExpandedSpansIds}
         selectedSpan={selectedSpan}
         onSpanSelect={handleSpanSelect}
+        visibleRange={visibleRange}
       />
     </div>
   );

@@ -61,6 +61,11 @@ export const convertOtelSpansToOtelSpanTree = (
       (s) => s.statusCode === OtelStatusCode.ERROR,
     );
 
+    const actionId = rootSpans
+      .map((s) => s.spanAttributes?.['hatchet.action_id'])
+      .find((id) => id?.includes(':'));
+    const workflowName = actionId ? actionId.split(':')[0] : undefined;
+
     const syntheticRoot: OtelSpanTree = {
       spanId: '__synthetic_workflow_start__',
       parentSpanId: undefined,
@@ -68,7 +73,10 @@ export const convertOtelSpansToOtelSpanTree = (
       statusCode: hasError ? OtelStatusCode.ERROR : OtelStatusCode.OK,
       durationNs,
       createdAt: new Date(earliestStart).toISOString(),
-      spanAttributes: { instrumentor: 'hatchet' },
+      spanAttributes: {
+        instrumentor: 'hatchet',
+        ...(workflowName && { 'hatchet.workflow_name': workflowName }),
+      },
       children: rootSpans,
     };
 
