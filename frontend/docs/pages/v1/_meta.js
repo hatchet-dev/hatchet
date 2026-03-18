@@ -11,9 +11,13 @@ export default {
     type: "separator",
   },
   tasks: "Tasks",
-  workflows: "Workflows",
   workers: "Workers",
   "running-your-task": "Running Tasks",
+  "durable-execution": "Durable Execution",
+  workflows: {
+    title: "Workflows",
+    display: "hidden",
+  },
   "--triggers": {
     title: "Triggers",
     type: "separator",
