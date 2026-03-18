@@ -63,6 +63,7 @@ class Action(BaseModel):
     step_id: str
     step_run_id: str
     action_id: str
+    step_name: str = ""
     action_type: ActionType
     retry_count: int
     action_payload: ActionPayload
@@ -94,6 +95,7 @@ class Action(BaseModel):
             OTelAttribute.ACTION_PAYLOAD: payload_str,
             OTelAttribute.WORKFLOW_NAME: self.job_name,
             OTelAttribute.ACTION_NAME: self.action_id,
+            OTelAttribute.STEP_NAME: self.step_name,
             OTelAttribute.WORKFLOW_ID: self.workflow_id,
             OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
         }

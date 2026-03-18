@@ -70,12 +70,12 @@ type IngestMemoResult struct {
 }
 
 type IngestTriggerRunsEntry struct {
+	ResultPayload         []byte
 	NodeId                int64
 	BranchId              int64
 	WorkflowRunExternalId uuid.UUID
 	IsSatisfied           bool
 	AlreadyExisted        bool
-	ResultPayload         []byte
 }
 
 type IngestTriggerRunsResult struct {
@@ -664,9 +664,9 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			createParams.Issatisfieds = append(createParams.Issatisfieds, entry.IsSatisfied)
 		}
 
-		createdRows, err := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
-		if err != nil {
-			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", err)
+		createdRows, createErr := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
+		if createErr != nil {
+			return nil, fmt.Errorf("failed to bulk-create event log entries: %w", createErr)
 		}
 
 		for _, createdRow := range createdRows {

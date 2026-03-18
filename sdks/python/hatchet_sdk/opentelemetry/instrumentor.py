@@ -29,6 +29,7 @@ try:
         TracerProvider,
         get_tracer,
         get_tracer_provider,
+        set_tracer_provider,
     )
     from opentelemetry.trace.propagation.tracecontext import (
         TraceContextTextMapPropagator,
@@ -43,7 +44,6 @@ import inspect
 from datetime import datetime
 
 from google.protobuf import timestamp_pb2
-from opentelemetry.trace import set_tracer_provider
 
 import hatchet_sdk
 from hatchet_sdk import ClientConfig
@@ -121,8 +121,8 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     created within a step run context, so that child spans are queryable
     by the same attributes (e.g. hatchet.step_run_id) as the parent."""
 
-    def __init__(self, span_exporter: SpanExporter) -> None:
-        super().__init__(span_exporter)
+    def __init__(self, span_exporter: SpanExporter, **kwargs: Any) -> None:
+        super().__init__(span_exporter, **kwargs)
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         attrs = ctx_hatchet_span_attributes.get()
@@ -258,17 +258,23 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     The instrumentor provides an OpenTelemetry integration for Hatchet by setting up
     tracing and metrics collection.
 
-    :param tracer_provider: TracerProvider | None: The OpenTelemetry TracerProvider to use.
+    :param tracer_provider: The OpenTelemetry TracerProvider to use.
             If not provided and `enable_hatchet_otel_collector` is True, a new SDKTracerProvider
             will be created. Otherwise, the global tracer provider will be used.
-    :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
+    :param meter_provider: The OpenTelemetry MeterProvider to use.
             If not provided, a no-op meter provider will be used.
-    :param config: ClientConfig | None: The configuration for the Hatchet client. If not provided,
+    :param config: The configuration for the Hatchet client. If not provided,
             a default configuration will be used.
-    :param enable_hatchet_otel_collector: bool: If True (the default), adds an OTLP exporter
+    :param enable_hatchet_otel_collector: If True (the default), adds an OTLP exporter
             to send traces to the Hatchet engine. Uses the same connection settings (host, TLS,
             token) as the Hatchet client. This can be combined with your own tracer_provider to
             send traces to multiple destinations (e.g., both Hatchet and Jaeger/Datadog).
+    :param schedule_delay_millis: The delay in milliseconds between two consecutive
+            exports of the BatchSpanProcessor. Defaults to the OTel SDK default (5000ms) if not set.
+    :param max_export_batch_size: The maximum batch size for the BatchSpanProcessor.
+            Defaults to the OTel SDK default (512) if not set.
+    :param max_queue_size: The maximum queue size for the BatchSpanProcessor.
+            Defaults to the OTel SDK default (2048) if not set.
 
     Example usage::
 
@@ -294,16 +300,31 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         meter_provider: MeterProvider | None = None,
         config: ClientConfig | None = None,
         enable_hatchet_otel_collector: bool = True,
+        schedule_delay_millis: int | None = None,
+        max_export_batch_size: int | None = None,
+        max_queue_size: int | None = None,
     ):
         self.config = config or ClientConfig()
 
+        self._bsp_kwargs: dict[str, Any] = {}
+        if schedule_delay_millis is not None:
+            self._bsp_kwargs["schedule_delay_millis"] = schedule_delay_millis
+        if max_export_batch_size is not None:
+            self._bsp_kwargs["max_export_batch_size"] = max_export_batch_size
+        if max_queue_size is not None:
+            self._bsp_kwargs["max_queue_size"] = max_queue_size
+
         if tracer_provider is not None:
             self.tracer_provider = tracer_provider
-
-            self.tracer_provider = SDKTracerProvider()
-            set_tracer_provider(self.tracer_provider)
         else:
-            self.tracer_provider = get_tracer_provider()
+            existing = get_tracer_provider()
+            if isinstance(existing, SDKTracerProvider):
+                self.tracer_provider = existing
+            elif enable_hatchet_otel_collector:
+                self.tracer_provider = SDKTracerProvider()
+                set_tracer_provider(self.tracer_provider)
+            else:
+                self.tracer_provider = existing
 
         if enable_hatchet_otel_collector:
             self._add_hatchet_exporter()
@@ -325,14 +346,28 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
 
-        otlp_exporter = OTLPSpanExporter(
-            endpoint=endpoint,
-            headers=headers,
-            insecure=insecure,
-        )
+        exporter_kwargs: dict[str, Any] = {
+            "endpoint": endpoint,
+            "headers": headers,
+        }
+
+        if insecure:
+            exporter_kwargs["insecure"] = True
+        elif self.config.tls_config.root_ca_file:
+            import grpc
+
+            with open(self.config.tls_config.root_ca_file, "rb") as f:
+                root_certs = f.read()
+            exporter_kwargs["credentials"] = grpc.ssl_channel_credentials(
+                root_certificates=root_certs
+            )
+
+        otlp_exporter = OTLPSpanExporter(**exporter_kwargs)
 
         self.tracer_provider.add_span_processor(
-            _HatchetAttributeSpanProcessor(_HatchetSpanExporter(otlp_exporter))
+            _HatchetAttributeSpanProcessor(
+                _HatchetSpanExporter(otlp_exporter), **self._bsp_kwargs
+            )
         )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -465,6 +500,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 result = await wrapped(*args, **kwargs)
 
                 if isinstance(result, Exception):
+                    span.record_exception(result)
                     span.set_status(StatusCode.ERROR, str(result))
 
                 return result

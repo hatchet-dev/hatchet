@@ -21,7 +21,7 @@ func (p *PostgresMessageQueue) addTenantExchangeMessage(ctx context.Context, q m
 	err := p.RegisterTenant(ctx, tenantId)
 
 	if err != nil {
-		p.l.Error().Msgf("error registering tenant exchange: %v", err)
+		p.l.Error().Ctx(ctx).Msgf("error registering tenant exchange: %v", err)
 		return err
 	}
 
@@ -51,7 +51,7 @@ func (p *PostgresMessageQueue) pubNonDurableMessages(ctx context.Context, queueN
 				return p.repo.Notify(ctx, queueName, string(msgBytes))
 			})
 		} else {
-			p.l.Error().Err(err).Msg("error marshalling message")
+			p.l.Error().Ctx(ctx).Err(err).Msg("error marshalling message")
 		}
 	}
 

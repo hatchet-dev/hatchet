@@ -1,7 +1,7 @@
 package dispatcher
 
 import (
-	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,14 +16,9 @@ type subscribedWorker struct {
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
 
-	sendMu sync.Mutex
+	sendLock *TimeoutLock
 
 	workerId uuid.UUID
-
-	backlogSize   int64
-	backlogSizeMu sync.Mutex
-
-	maxBacklogSize int64
 
 	pubBuffer *msgqueue.MQPubBuffer
 }
@@ -32,18 +27,15 @@ func newSubscribedWorker(
 	stream contracts.Dispatcher_ListenServer,
 	fin chan<- bool,
 	workerId uuid.UUID,
-	maxBacklogSize int64,
+	maxLockAcquisitionTime time.Duration,
 	pubBuffer *msgqueue.MQPubBuffer,
 ) *subscribedWorker {
-	if maxBacklogSize <= 0 {
-		maxBacklogSize = 20
-	}
-
+	lock := NewTimeoutLock(maxLockAcquisitionTime)
 	return &subscribedWorker{
-		stream:         stream,
-		finished:       fin,
-		workerId:       workerId,
-		maxBacklogSize: maxBacklogSize,
-		pubBuffer:      pubBuffer,
+		stream:    stream,
+		finished:  fin,
+		workerId:  workerId,
+		pubBuffer: pubBuffer,
+		sendLock:  lock,
 	}
 }

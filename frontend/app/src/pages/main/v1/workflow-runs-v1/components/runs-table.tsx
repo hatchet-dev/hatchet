@@ -93,10 +93,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     toolbarFilters,
     tableRows,
     numPages,
-    isRunsLoading,
     isRunsFetching,
     isStatusCountsFetching,
-    isStatusCountsLoading,
     isQueueMetricsLoading,
     isRefetching,
     runStatusCounts,
@@ -194,8 +192,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     return () => clearInterval(interval);
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const hasLoaded = !isRunsLoading && !isStatusCountsLoading;
-  const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
+  const isFetching = isRunsFetching || isStatusCountsFetching;
 
   const leftActions = [
     ...(!hideCounts

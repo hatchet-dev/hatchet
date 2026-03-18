@@ -69,7 +69,7 @@ function OrganizationGroup({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    globalEmitter.emit('new-tenant', {
+    globalEmitter.emit('create-new-tenant', {
       defaultOrganizationId: organization.metadata.id,
     });
   };

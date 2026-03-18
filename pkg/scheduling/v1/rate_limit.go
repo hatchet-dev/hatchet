@@ -77,7 +77,7 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 			err := r.flushToDatabase(ctx)
 
 			if err != nil {
-				r.l.Error().Err(err).Msg("error flushing rate limits to database")
+				r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			}
 		}
 	}
@@ -106,7 +106,7 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Err(err).Msg("error flushing rate limits to database")
+			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			return res
 		}
 
@@ -117,7 +117,7 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Err(err).Msg("error flushing rate limits to database")
+			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			return res
 		}
 	}
