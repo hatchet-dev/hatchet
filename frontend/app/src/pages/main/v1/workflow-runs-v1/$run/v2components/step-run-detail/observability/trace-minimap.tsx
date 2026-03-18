@@ -13,6 +13,7 @@ type DragMode = 'left' | 'right' | 'brush' | null;
 type SpanMarker = {
   pct: number;
   statusCode: OtelStatusCode;
+  hasErrorInTree: boolean;
   spanName: string;
   durationMs: number;
 };
@@ -41,15 +42,22 @@ function getHatchetDisplayName(span: OtelSpanTree): string {
   return span.spanName;
 }
 
-function getMarkerColor(statusCode: OtelStatusCode): string {
-  if (statusCode === OtelStatusCode.ERROR) {
+function hasErrorInTree(span: OtelSpanTree): boolean {
+  if (span.statusCode === OtelStatusCode.ERROR) {
+    return true;
+  }
+  return span.children.some(hasErrorInTree);
+}
+
+function getMarkerColor(marker: SpanMarker): string {
+  if (marker.hasErrorInTree) {
     return 'bg-red-500';
   }
   return 'bg-green-500';
 }
 
-function getDotColor(statusCode: OtelStatusCode): string {
-  if (statusCode === OtelStatusCode.ERROR) {
+function getDotColor(marker: SpanMarker): string {
+  if (marker.hasErrorInTree) {
     return 'bg-red-500';
   }
   return 'bg-green-500';
@@ -78,6 +86,7 @@ function collectSpanMarkers(
     markers.push({
       pct: Math.max(0, Math.min(1, pct)),
       statusCode: node.statusCode,
+      hasErrorInTree: hasErrorInTree(node),
       spanName: getHatchetDisplayName(node),
       durationMs: node.durationNs / 1_000_000,
     });
@@ -184,8 +193,7 @@ export function TraceMinimap({
         return;
       }
 
-      const deltaPct =
-        (e.clientX - dragRef.current.mouseX) / trackWidth;
+      const deltaPct = (e.clientX - dragRef.current.mouseX) / trackWidth;
 
       if (dragging === 'left') {
         const newStart = Math.max(
@@ -236,7 +244,8 @@ export function TraceMinimap({
         <div
           key={i}
           className={cn(
-            'absolute inset-y-[6px] z-[2] flex flex-col justify-center transition-transform',
+            'absolute inset-y-[6px] flex flex-col justify-center transition-transform',
+            m.hasErrorInTree ? 'z-[3]' : 'z-[2]',
             hoveredIdx === i && 'z-[5] scale-x-150',
           )}
           style={{ left: `${m.pct * 100}%`, width: 6 }}
@@ -252,12 +261,7 @@ export function TraceMinimap({
             setTooltipPos(null);
           }}
         >
-          <div
-            className={cn(
-              'flex-1 rounded-full',
-              getMarkerColor(m.statusCode),
-            )}
-          />
+          <div className={cn('flex-1 rounded-full', getMarkerColor(m))} />
         </div>
       ))}
 
@@ -369,13 +373,11 @@ export function TraceMinimap({
               <span
                 className={cn(
                   'size-2 shrink-0 rounded-full',
-                  getDotColor(hoveredMarker.statusCode),
+                  getDotColor(hoveredMarker),
                 )}
               />
               <span className="flex-1 font-mono text-xs text-muted-foreground">
-                {hoveredMarker.statusCode === OtelStatusCode.ERROR
-                  ? 'Error'
-                  : 'OK'}
+                {hoveredMarker.hasErrorInTree ? 'Error' : 'OK'}
               </span>
               <span className="font-mono text-xs text-foreground">
                 {formatDuration(hoveredMarker.durationMs)}
