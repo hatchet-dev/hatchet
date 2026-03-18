@@ -8,8 +8,8 @@ type ChildInput = {
 export const child = hatchet.task({
   name: 'child',
   fn: (input: ChildInput) => ({
-      Value: input.N,
-    }),
+    Value: input.N,
+  }),
 });
 
 // > Declaring a Parent

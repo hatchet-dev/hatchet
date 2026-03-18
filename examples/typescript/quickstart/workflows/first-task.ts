@@ -11,6 +11,6 @@ type SimpleOutput = {
 export const firstTask = hatchet.task({
   name: 'first-task',
   fn: (input: SimpleInput, ctx): SimpleOutput => ({
-      TransformedMessage: input.Message.toLowerCase(),
-    }),
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });

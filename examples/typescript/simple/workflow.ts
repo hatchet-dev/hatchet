@@ -10,8 +10,8 @@ export const simple = hatchet.task({
   name: 'simple',
   retries: 3,
   fn: async (input: SimpleInput) => ({
-      TransformedMessage: input.Message.toLowerCase(),
-    }),
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
 
 

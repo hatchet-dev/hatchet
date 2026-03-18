@@ -21,9 +21,9 @@ export const dag = hatchet.workflow<DagInput, DagOutput>({
 const reverse = dag.task({
   name: 'reverse',
   fn: (input) => ({
-      Original: input.Message,
-      Transformed: input.Message.split('').reverse().join(''),
-    }),
+    Original: input.Message,
+    Transformed: input.Message.split('').reverse().join(''),
+  }),
 });
 
 dag.task({

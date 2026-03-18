@@ -13,8 +13,8 @@ export const simpleWithZod = hatchet.task({
   name: 'simple-with-zod',
   retries: 3,
   fn: async (input: SimpleInputWithZod) => ({
-      TransformedMessage: input.Message.toLowerCase(),
-    }),
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
   inputValidator: SimpleInputSchema,
 });
 
