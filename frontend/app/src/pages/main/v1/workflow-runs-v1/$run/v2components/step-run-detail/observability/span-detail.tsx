@@ -81,11 +81,11 @@ function formatTimestamp(iso: string): string {
 function statusConfig(code: string) {
   switch (code) {
     case OtelStatusCode.OK:
-      return { label: 'OK', dot: 'bg-success' };
+      return { label: 'OK', dot: 'bg-green-500' };
     case OtelStatusCode.ERROR:
-      return { label: 'Error', dot: 'bg-danger' };
+      return { label: 'Error', dot: 'bg-red-500' };
     default:
-      return { label: 'Unset', dot: 'bg-muted-foreground' };
+      return { label: 'Unset', dot: 'bg-slate-500' };
   }
 }
 
@@ -359,7 +359,7 @@ export function GroupDetail({
           <p className="mt-1 font-mono text-xs text-muted-foreground">
             {group.totalCount.toLocaleString()} spans
             {group.errorCount > 0 && (
-              <span className="text-danger">
+              <span className="text-red-500">
                 {' '}
                 · {group.errorCount.toLocaleString()} errors
               </span>

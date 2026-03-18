@@ -43,16 +43,16 @@ function getHatchetDisplayName(span: OtelSpanTree): string {
 
 function getMarkerColor(statusCode: OtelStatusCode): string {
   if (statusCode === OtelStatusCode.ERROR) {
-    return 'bg-danger';
+    return 'bg-red-500';
   }
-  return 'bg-success';
+  return 'bg-green-500';
 }
 
 function getDotColor(statusCode: OtelStatusCode): string {
   if (statusCode === OtelStatusCode.ERROR) {
-    return 'bg-danger';
+    return 'bg-red-500';
   }
-  return 'bg-success';
+  return 'bg-green-500';
 }
 
 function formatDuration(ms: number): string {

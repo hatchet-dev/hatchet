@@ -373,31 +373,31 @@ function statusLabel(code: string): string {
 }
 
 const barColorsByStatus: Record<string, string> = {
-  [OtelStatusCode.OK]: 'bg-success',
-  [OtelStatusCode.UNSET]: 'bg-success',
-  [OtelStatusCode.ERROR]: 'bg-danger',
+  [OtelStatusCode.OK]: 'bg-green-500',
+  [OtelStatusCode.UNSET]: 'bg-green-500',
+  [OtelStatusCode.ERROR]: 'bg-red-500',
 };
 
 function getBarColor(span: OtelSpanTree): string {
   if (isEngineSpan(span)) {
     return span.statusCode === OtelStatusCode.ERROR
-      ? 'bg-danger/40'
-      : 'bg-muted-foreground/40';
+      ? 'bg-red-500/40'
+      : 'bg-slate-500/40';
   }
   if (hasErrorInTree(span)) {
-    return 'bg-danger';
+    return 'bg-red-500';
   }
   if (barColorsByStatus[span.statusCode]) {
     return barColorsByStatus[span.statusCode];
   }
-  return 'bg-success';
+  return 'bg-green-500';
 }
 
 function getDotColor(span: OtelSpanTree): string {
   if (hasErrorInTree(span)) {
-    return 'bg-danger';
+    return 'bg-red-500';
   }
-  return 'bg-success';
+  return 'bg-green-500';
 }
 
 function SpanTooltip({
@@ -520,7 +520,7 @@ function GroupTooltip({
         {group.errorCount > 0 && (
           <>
             <span className="text-muted-foreground">Errors</span>
-            <span className="font-mono font-medium text-danger">
+            <span className="font-mono font-medium text-red-500">
               {group.errorCount.toLocaleString()}
             </span>
           </>
@@ -734,7 +734,7 @@ export function TraceTimeline({
                   {row.group.totalCount.toLocaleString()}
                 </span>
                 {row.group.errorCount > 0 && (
-                  <span className="ml-1 flex shrink-0 items-center gap-0.5 rounded bg-danger/10 px-1.5 py-0.5 font-mono text-xs text-danger">
+                  <span className="ml-1 flex shrink-0 items-center gap-0.5 rounded bg-red-500/10 px-1.5 py-0.5 font-mono text-xs text-red-500">
                     <AlertCircle className="size-3" />
                     {row.group.errorCount.toLocaleString()}
                   </span>
@@ -892,7 +892,7 @@ export function TraceTimeline({
                   <div
                     className={cn(
                       'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm transition-all',
-                      hasErrors ? 'bg-danger/30' : 'bg-success/30',
+                      hasErrors ? 'bg-red-500/30' : 'bg-green-500/30',
                       isSelected
                         ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
                         : hoveredRowKey === row.rowKey
@@ -950,7 +950,7 @@ export function TraceTimeline({
               >
                 {q && (
                   <div
-                    className="absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm bg-success/20"
+                    className="absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm bg-green-500/20"
                     style={{
                       left: `${qLeftPct}%`,
                       width: `${Math.max(qWidthPct, 0.3)}%`,
