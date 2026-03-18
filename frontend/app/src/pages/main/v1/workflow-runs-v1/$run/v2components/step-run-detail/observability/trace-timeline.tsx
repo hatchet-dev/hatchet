@@ -69,7 +69,21 @@ function hasErrorInTree(span: OtelSpanTree): boolean {
   return span.children.some(hasErrorInTree);
 }
 
+function isEngineSpan(span: OtelSpanTree): boolean {
+  return span.spanAttributes?.['hatchet.span_source'] === 'engine';
+}
+
+const ENGINE_SPAN_DISPLAY_NAMES: Record<string, string> = {
+  'hatchet.engine.queued': 'Queued',
+  'hatchet.engine.scheduling': 'Scheduling',
+  'hatchet.engine.retry_backoff': 'Retry Backoff',
+  'hatchet.engine.workflow_run': 'Workflow Run',
+};
+
 function getDisplayName(span: OtelSpanTree): string {
+  if (ENGINE_SPAN_DISPLAY_NAMES[span.spanName]) {
+    return ENGINE_SPAN_DISPLAY_NAMES[span.spanName];
+  }
   if (!span.spanName.startsWith('hatchet.')) {
     return span.spanName;
   }
@@ -365,6 +379,11 @@ const barColorsByStatus: Record<string, string> = {
 };
 
 function getBarColor(span: OtelSpanTree): string {
+  if (isEngineSpan(span)) {
+    return span.statusCode === OtelStatusCode.ERROR
+      ? 'bg-danger/40'
+      : 'bg-muted-foreground/40';
+  }
   if (hasErrorInTree(span)) {
     return 'bg-danger';
   }
@@ -394,6 +413,8 @@ function SpanTooltip({
   const descendantError =
     row.span.statusCode !== OtelStatusCode.ERROR && hasErrorInTree(row.span);
   const started = formatTimestamp(row.span.createdAt);
+  const q = row.span.queuedPhase;
+  const queueMs = q ? q.durationNs / 1_000_000 : 0;
 
   return (
     <div
@@ -412,10 +433,34 @@ function SpanTooltip({
       </div>
 
       <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 px-3 py-2 text-xs">
-        <span className="text-muted-foreground">Duration</span>
-        <span className="font-mono font-medium text-foreground">
-          {formatDurationShort(durationMs)}
-        </span>
+        {q ? (
+          <>
+            <span className="text-muted-foreground">Queue Time</span>
+            <span className="font-mono font-medium text-foreground">
+              {formatDurationShort(queueMs)}
+            </span>
+            <span className="text-muted-foreground">Execution</span>
+            <span className="font-mono font-medium text-foreground">
+              {formatDurationShort(durationMs)}
+            </span>
+            <span className="text-muted-foreground">Total</span>
+            <span className="font-mono font-medium text-foreground">
+              {formatDurationShort(queueMs + durationMs)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-muted-foreground">
+              {isEngineSpan(row.span) &&
+              row.span.spanName === 'hatchet.engine.queued'
+                ? 'Queue Time'
+                : 'Duration'}
+            </span>
+            <span className="font-mono font-medium text-foreground">
+              {formatDurationShort(durationMs)}
+            </span>
+          </>
+        )}
 
         <span className="text-muted-foreground">Status</span>
         <span className="flex items-center gap-1.5">
@@ -432,6 +477,13 @@ function SpanTooltip({
 
         <span className="text-muted-foreground">Started</span>
         <span className="font-mono text-foreground">{started}</span>
+
+        {isEngineSpan(row.span) && (
+          <>
+            <span className="text-muted-foreground">Source</span>
+            <span className="font-mono text-foreground">Engine</span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -758,6 +810,11 @@ export function TraceTimeline({
               >
                 {getDisplayName(row.span)}
               </span>
+              {isEngineSpan(row.span) && (
+                <span className="ml-1.5 shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  engine
+                </span>
+              )}
             </div>
           );
         })}
@@ -867,6 +924,20 @@ export function TraceTimeline({
             const isSelected = selectedSpan?.spanId === row.span.spanId;
             const isBarDimmed = !row.matchesFilter;
 
+            const q = row.span.queuedPhase;
+            let qLeftPct = 0;
+            let qWidthPct = 0;
+            if (q) {
+              const qStartMs = new Date(q.createdAt).getTime();
+              const qDurMs = q.durationNs / 1_000_000;
+              qLeftPct =
+                timelineMaxMs > 0
+                  ? ((qStartMs - visMinStart) / timelineMaxMs) * 100
+                  : 0;
+              qWidthPct =
+                timelineMaxMs > 0 ? (qDurMs / timelineMaxMs) * 100 : 0;
+            }
+
             return (
               <div
                 key={row.rowKey}
@@ -877,6 +948,28 @@ export function TraceTimeline({
                 )}
                 style={{ height: ROW_HEIGHT }}
               >
+                {q && (
+                  <div
+                    className="absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm bg-success/20"
+                    style={{
+                      left: `${qLeftPct}%`,
+                      width: `${Math.max(qWidthPct, 0.3)}%`,
+                      minWidth: 2,
+                    }}
+                    onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
+                    onMouseMove={handleBarMouseMove}
+                    onMouseLeave={() => handleBarHover(null)}
+                    onClick={() => onSpanSelect?.(row.span)}
+                  >
+                    <div
+                      className="absolute inset-0 opacity-40"
+                      style={{
+                        backgroundImage:
+                          'repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(255,255,255,0.18) 3px, rgba(255,255,255,0.18) 6px)',
+                      }}
+                    />
+                  </div>
+                )}
                 <div
                   className={cn(
                     'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm transition-all',

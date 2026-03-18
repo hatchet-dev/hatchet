@@ -5,6 +5,43 @@ import type {
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import invariant from 'tiny-invariant';
 
+function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
+  const queuedByStepRunId = new Map<string, OtelSpanTree>();
+  for (const node of nodes) {
+    if (
+      node.spanName === 'hatchet.engine.queued' &&
+      node.spanAttributes?.['hatchet.step_run_id']
+    ) {
+      queuedByStepRunId.set(
+        node.spanAttributes['hatchet.step_run_id'],
+        node,
+      );
+    }
+  }
+
+  if (queuedByStepRunId.size > 0) {
+    const toRemove = new Set<string>();
+    for (const node of nodes) {
+      if (node.spanName === 'hatchet.start_step_run') {
+        const stepRunId = node.spanAttributes?.['hatchet.step_run_id'];
+        if (stepRunId && queuedByStepRunId.has(stepRunId)) {
+          node.queuedPhase = queuedByStepRunId.get(stepRunId);
+          toRemove.add(queuedByStepRunId.get(stepRunId)!.spanId);
+        }
+      }
+    }
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      if (toRemove.has(nodes[i].spanId)) {
+        nodes.splice(i, 1);
+      }
+    }
+  }
+
+  for (const node of nodes) {
+    mergeQueuedSpans(node.children);
+  }
+}
+
 export const convertOtelSpansToOtelSpanTree = (
   spans: [
     RelevantOpenTelemetrySpanProperties,
@@ -44,8 +81,8 @@ export const convertOtelSpansToOtelSpanTree = (
 
   invariant(rootSpans.length > 0, 'Must have at least one root span');
 
-  // When there are multiple root spans, create a synthetic parent span
-  // that groups them under a single "hatchet.workflow_start" node.
+  mergeQueuedSpans(rootSpans);
+
   if (rootSpans.length > 1) {
     const earliestStart = Math.min(
       ...rootSpans.map((s) => new Date(s.createdAt).getTime()),

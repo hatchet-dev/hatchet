@@ -13,4 +13,5 @@ export type RelevantOpenTelemetrySpanProperties = Pick<
 
 export type OtelSpanTree = RelevantOpenTelemetrySpanProperties & {
   children: OtelSpanTree[];
+  queuedPhase?: OtelSpanTree;
 };

@@ -148,3 +148,28 @@ func MonitoringEventMessageFromInternal(tenantId uuid.UUID, payload CreateMonito
 		payload,
 	)
 }
+
+type EngineSpanPayload struct {
+	TaskRunExternalID     *uuid.UUID        `json:"task_run_external_id,omitempty"`
+	WorkflowRunExternalID *uuid.UUID        `json:"workflow_run_external_id,omitempty"`
+	Attributes            map[string]string `json:"attributes,omitempty"`
+	TraceID               string            `json:"trace_id"`
+	SpanID                string            `json:"span_id"`
+	ParentSpanID          string            `json:"parent_span_id,omitempty"`
+	SpanName              string            `json:"span_name"`
+	StartTimeUnixNano     uint64            `json:"start_time_unix_nano"`
+	EndTimeUnixNano       uint64            `json:"end_time_unix_nano"`
+	StatusCode            int32             `json:"status_code"`
+	RetryCount            int32             `json:"retry_count"`
+	TenantID              uuid.UUID         `json:"tenant_id"`
+}
+
+func EngineSpanMessage(tenantId uuid.UUID, payload EngineSpanPayload) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDEngineSpan,
+		false,
+		true,
+		payload,
+	)
+}
