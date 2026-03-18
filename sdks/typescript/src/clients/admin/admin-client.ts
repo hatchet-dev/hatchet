@@ -2,9 +2,7 @@ import { Channel, ClientFactory } from 'nice-grpc';
 import {
   BulkTriggerWorkflowRequest,
   CreateWorkflowVersionOpts,
-  DesiredWorkerLabels,
   RateLimitDuration,
-  WorkerLabelComparator,
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
@@ -19,8 +17,9 @@ import {
   AdminServiceDefinition,
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
-import { Priority, RunsClient } from '@hatchet/v1';
+import { Priority, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { DesiredWorkerLabels } from '@hatchet/protoc/v1/shared/trigger';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,

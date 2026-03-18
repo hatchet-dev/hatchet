@@ -34,14 +34,14 @@ type FlushFunc func(resource Resource, action Action, tenantID uuid.UUID, tokenI
 type Aggregator struct {
 	done     chan struct{}
 	flushFn  FlushFunc
+	l        *zerolog.Logger
 	counters sync.Map
 	wg       sync.WaitGroup
 	interval time.Duration
 	maxKeys  int64
 	keyCount atomic.Int64
-	l        *zerolog.Logger
-	disabled bool
 	flushMu  sync.Mutex
+	disabled bool
 }
 
 func NewAggregator(l *zerolog.Logger, enabled bool, interval time.Duration, maxKeys int64, fn FlushFunc) *Aggregator {

@@ -79,14 +79,21 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId uuid.UUID, input *Snapshot
 
 	currentWorkers := make(map[WorkerPromLabels]struct{}, len(workerPromLabelsToSlotData))
 	for promLabels, utilization := range workerPromLabelsToSlotData {
+		currentWorkers[promLabels] = struct{}{}
+
 		usedSlots := float64(utilization.UtilizedSlots)
 		availableSlots := float64(utilization.NonUtilizedSlots)
+
+		// Skip setting gauge values for workers with no slots yet to avoid reporting
+		// transient 0-slot state between worker registration and slot replenishment.
+		// Previous non-zero values are preserved until the worker is replenished or removed.
+		if usedSlots+availableSlots == 0 {
+			continue
+		}
 
 		prometheus.TenantWorkerSlots.WithLabelValues(tenantIdStr, promLabels.ID.String(), promLabels.Name).Set(usedSlots + availableSlots)
 		prometheus.TenantUsedWorkerSlots.WithLabelValues(tenantIdStr, promLabels.ID.String(), promLabels.Name).Set(usedSlots)
 		prometheus.TenantAvailableWorkerSlots.WithLabelValues(tenantIdStr, promLabels.ID.String(), promLabels.Name).Set(availableSlots)
-
-		currentWorkers[promLabels] = struct{}{}
 	}
 
 	p.tenantIdToWorkerLabels[tenantId] = currentWorkers
@@ -94,9 +101,37 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId uuid.UUID, input *Snapshot
 
 func (p *PrometheusExtension) PostAssign(tenantId uuid.UUID, input *PostAssignInput) {}
 
+func (p *PrometheusExtension) deleteGaugesForTenant(tenantId uuid.UUID) {
+	tenantIdStr := tenantId.String()
+
+	if known, ok := p.tenantIdToWorkerLabels[tenantId]; ok {
+		for labels := range known {
+			prometheus.TenantWorkerSlots.DeleteLabelValues(tenantIdStr, labels.ID.String(), labels.Name)
+			prometheus.TenantUsedWorkerSlots.DeleteLabelValues(tenantIdStr, labels.ID.String(), labels.Name)
+			prometheus.TenantAvailableWorkerSlots.DeleteLabelValues(tenantIdStr, labels.ID.String(), labels.Name)
+		}
+
+		delete(p.tenantIdToWorkerLabels, tenantId)
+	}
+
+	delete(p.tenants, tenantId)
+}
+
+func (p *PrometheusExtension) CleanupTenant(tenantId uuid.UUID) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.deleteGaugesForTenant(tenantId)
+	return nil
+}
+
 func (p *PrometheusExtension) Cleanup() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	for tenantId := range p.tenantIdToWorkerLabels {
+		p.deleteGaugesForTenant(tenantId)
+	}
 
 	p.tenants = make(map[uuid.UUID]*sqlcv1.Tenant)
 	p.tenantIdToWorkerLabels = make(map[uuid.UUID]map[WorkerPromLabels]struct{})

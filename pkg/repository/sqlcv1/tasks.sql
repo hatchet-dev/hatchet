@@ -7,7 +7,11 @@ SELECT
     create_v1_range_partition('v1_payload', @date::date),
     create_v1_range_partition('v1_event', @date::date),
     create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
-    create_v1_range_partition('v1_event_to_run', @date::date);
+    create_v1_range_partition('v1_event_to_run', @date::date),
+    create_v1_range_partition('v1_durable_event_log_file', @date::date),
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
+    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
+;
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
@@ -25,6 +29,12 @@ WITH tomorrow_date AS (
     SELECT 'v1_payload_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_file_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_entry_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_durable_event_log_branch_point_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -56,6 +66,12 @@ WITH task_partitions AS (
     SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', @date::date) AS p
 ), event_to_run_partitions AS (
     SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
+), durable_event_log_file_partitions AS (
+    SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', @date::date) AS p
+), durable_event_log_entry_partitions AS (
+    SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
+), durable_event_log_branch_point_partitions AS (
+    SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
 )
 
 SELECT
@@ -111,6 +127,27 @@ SELECT
     *
 FROM
     event_to_run_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    durable_event_log_file_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    durable_event_log_entry_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    durable_event_log_branch_point_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -379,6 +416,8 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        -- evicted tasks are not eligible for re-assignment
+        AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
 )
@@ -938,6 +977,45 @@ WHERE
 RETURNING
     v1_task_runtime.*;
 
+-- name: EvictTask :one
+-- Marks a task as evicted in v1_task_runtime and releases worker slots.
+-- Skips rows whose execution timeout has already passed so the timeout
+-- mechanism handles them instead of producing a spurious EVICTED status.
+WITH locked_runtime AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count
+    FROM
+        v1_task_runtime
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+        AND retry_count = @retryCount::int
+        AND evicted_at IS NULL
+        AND (timeout_at IS NULL OR timeout_at > NOW())
+    FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+        AND retry_count = @retryCount::int
+), updated_runtime AS (
+    UPDATE v1_task_runtime
+    SET
+        evicted_at = NOW(),
+        worker_id = NULL
+    WHERE (task_id, task_inserted_at, retry_count)
+        IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtime)
+    RETURNING 1
+)
+SELECT
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
+
+
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
 -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
@@ -1221,7 +1299,8 @@ WITH inputs AS (
 
 SELECT
     t.external_id,
-    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running
+    (tr.task_id IS NOT NULL)::BOOLEAN AS is_running,
+    (tr.task_id IS NOT NULL AND tr.evicted_at IS NOT NULL)::BOOLEAN AS is_evicted
 FROM v1_task t
 LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
 WHERE

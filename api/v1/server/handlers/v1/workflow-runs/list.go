@@ -15,29 +15,102 @@ import (
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
+func allOlapStatuses(runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStatusOlap {
+	statuses := []sqlcv1.V1ReadableStatusOlap{
+		sqlcv1.V1ReadableStatusOlapQUEUED,
+		sqlcv1.V1ReadableStatusOlapFAILED,
+		sqlcv1.V1ReadableStatusOlapCOMPLETED,
+		sqlcv1.V1ReadableStatusOlapCANCELLED,
+	}
+
+	rf := gen.ALL
+	if runningFilter != nil {
+		rf = *runningFilter
+	}
+	switch rf {
+	case gen.EVICTED:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapEVICTED)
+	case gen.ONWORKER:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+	default:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
+	}
+
+	return statuses
+}
+
+var taskStatusToOlapStatus = map[gen.V1TaskStatus]sqlcv1.V1ReadableStatusOlap{
+	gen.V1TaskStatusQUEUED:    sqlcv1.V1ReadableStatusOlapQUEUED,
+	gen.V1TaskStatusRUNNING:   sqlcv1.V1ReadableStatusOlapRUNNING,
+	gen.V1TaskStatusFAILED:    sqlcv1.V1ReadableStatusOlapFAILED,
+	gen.V1TaskStatusCOMPLETED: sqlcv1.V1ReadableStatusOlapCOMPLETED,
+	gen.V1TaskStatusCANCELLED: sqlcv1.V1ReadableStatusOlapCANCELLED,
+}
+
+func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStatusOlap {
+	normalized := make([]sqlcv1.V1ReadableStatusOlap, 0, len(statuses))
+	seen := make(map[sqlcv1.V1ReadableStatusOlap]struct{}, len(statuses))
+
+	for _, status := range statuses {
+		if status == gen.V1TaskStatusRUNNING {
+			rf := gen.ALL
+			if runningFilter != nil {
+				rf = *runningFilter
+			}
+			switch rf {
+			case gen.EVICTED:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
+				}
+			case gen.ONWORKER:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+			default:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
+				}
+			}
+			continue
+		}
+
+		mapped, ok := taskStatusToOlapStatus[status]
+		if !ok {
+			continue
+		}
+
+		if _, exists := seen[mapped]; exists {
+			continue
+		}
+
+		seen[mapped] = struct{}{}
+		normalized = append(normalized, mapped)
+	}
+
+	return normalized
+}
+
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
 	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
-		since        = request.Params.Since
-		limit  int64 = 50
-		offset int64
+		statuses       = allOlapStatuses(request.Params.RunningFilter)
+		since          = request.Params.Since
+		limit    int64 = 50
+		offset   int64
 	)
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
 		}
 	}
 
@@ -176,13 +249,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	defer span.End()
 
 	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
+		statuses          = allOlapStatuses(request.Params.RunningFilter)
 		since             = request.Params.Since
 		workflowIds       = []uuid.UUID{}
 		limit       int64 = 50
@@ -191,10 +258,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
 		}
 	}
 
@@ -330,23 +394,14 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 	defer span.End()
 
 	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
+		statuses    = allOlapStatuses(request.Params.RunningFilter)
 		since       = request.Params.Since
 		workflowIds = []uuid.UUID{}
 	)
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
 		}
 	}
 

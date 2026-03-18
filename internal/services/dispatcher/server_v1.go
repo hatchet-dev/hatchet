@@ -308,16 +308,17 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId uuid.UUID) {
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
-	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
+	ctx := server.Context()
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
+	s.l.Debug().Ctx(ctx).Msgf("Received subscribe request for tenant: %s", tenantId)
 
 	acks := &workflowRunAcks{
 		acks: make(map[uuid.UUID]bool),
 	}
 
-	ctx, cancel := context.WithCancel(server.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	wg := sync.WaitGroup{}
@@ -332,7 +333,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		results := s.cleanResults(e.Results)
 
 		if results == nil {
-			s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
+			s.l.Warn().Ctx(ctx).Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
 			e.Results = nil
 		}
 
@@ -342,7 +343,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		workflowRunId, err := uuid.Parse(e.WorkflowRunId)
 
 		if err != nil {
-			s.l.Error().Err(err).Msgf("could not parse workflow run id %s", e.WorkflowRunId)
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not parse workflow run id %s", e.WorkflowRunId)
 			return err
 		}
 
@@ -353,7 +354,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			err := server.Send(e)
 
 			if err != nil {
-				s.l.Error().Err(err).Msgf("could not send workflow event for run %s", e.WorkflowRunId)
+				s.l.Error().Ctx(ctx).Err(err).Msgf("could not send workflow event for run %s", e.WorkflowRunId)
 				return err
 			}
 		}
@@ -399,7 +400,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(iterCtx, tenantId, workflowRunIds)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not list finalized workflow runs")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
 			return err
 		}
 
@@ -411,12 +412,12 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns = nil // nolint: ineffassign
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not convert task events to workflow run events")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
 			return err
 		}
 
 		if time.Since(start) > 100*time.Millisecond {
-			s.l.Warn().Msgf("list finalized workflow runs for %d workflows took %s", len(workflowRunIds), time.Since(start))
+			s.l.Warn().Ctx(ctx).Msgf("list finalized workflow runs for %d workflows took %s", len(workflowRunIds), time.Since(start))
 		}
 
 		for _, event := range events {
@@ -436,7 +437,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
-				s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+				s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 			}
 		}
 
@@ -461,14 +462,14 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 					return
 				}
 
-				s.l.Error().Err(err).Msg("could not receive message from client")
+				s.l.Error().Ctx(ctx).Err(err).Msg("could not receive message from client")
 				return
 			}
 
 			workflowRunId, err := uuid.Parse(req.WorkflowRunId)
 
 			if err != nil {
-				s.l.Warn().Err(err).Msg("invalid workflow run id")
+				s.l.Warn().Ctx(ctx).Err(err).Msg("invalid workflow run id")
 				continue
 			}
 
@@ -492,7 +493,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 				}
 
 				if err := iter(workflowRunIds); err != nil {
-					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 				}
 			}
 		}
@@ -571,7 +572,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	if request.RetryCount != nil {
 		retryCount = *request.RetryCount
 	} else {
-		s.l.Warn().Msg("retry count is nil, using task's current retry count")
+		s.l.Warn().Ctx(ctx).Msg("retry count is nil, using task's current retry count")
 	}
 
 	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
@@ -581,9 +582,19 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		}
 	}
 
+	var durableInvCount int32
+	invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
+		{ID: task.ID, InsertedAt: task.InsertedAt},
+	})
+	if err == nil {
+		if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			durableInvCount = *count
+		}
+	}
+
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
-		return s.handleTaskStarted(ctx, task, retryCount, request)
+		return s.handleTaskStarted(ctx, task, retryCount, durableInvCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
 		// TODO: IMPLEMENT
 		tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
@@ -592,15 +603,15 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 			WorkerId: request.WorkerId,
 		}, nil
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
-		return s.handleTaskCompleted(ctx, task, retryCount, request)
+		return s.handleTaskCompleted(ctx, task, retryCount, durableInvCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
-		return s.handleTaskFailed(ctx, task, retryCount, request)
+		return s.handleTaskFailed(ctx, task, retryCount, durableInvCount, request)
 	}
 
 	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
 }
 
-func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -608,6 +619,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		tenantId,
 		task.ID,
 		retryCount,
+		durableInvocationCount,
 		request,
 	)
 
@@ -627,7 +639,8 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	}, nil
 }
 
-func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	ctx := inputCtx
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -664,25 +677,26 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		tenantId,
 		task.ID,
 		retryCount,
+		durableInvocationCount,
 		request,
 	)
 
 	if err != nil {
-		s.l.Error().Err(err).Msg("could not create monitoring event message")
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
 		return resp, nil
 	}
 
 	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 	if err != nil {
-		s.l.Error().Err(err).Msg("could not publish monitoring event message")
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
 		return resp, nil
 	}
 
 	return resp, nil
 }
 
-func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -778,7 +792,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	}, nil
 }
 
-func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
+func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := tenant.ID
 	stepRunId, err := uuid.Parse(request.TaskRunExternalId)
 	if err != nil {
@@ -816,6 +830,26 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *sqlcv1.Tenan
 	}
 
 	return &contracts.ReleaseSlotResponse{}, nil
+}
+
+func (d *DispatcherImpl) restoreEvictedTask(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RestoreEvictedTaskRequest) (*contracts.RestoreEvictedTaskResponse, error) {
+	tenantId := tenant.ID
+	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid task_run_external_id: %w", err)
+	}
+
+	msg, err := tasktypes.DurableRestoreTaskMessage(tenantId, taskExternalId, "Restore via dispatcher RPC")
+	if err != nil {
+		return nil, err
+	}
+
+	err = d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.RestoreEvictedTaskResponse{Requeued: true}, nil
 }
 
 func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
@@ -903,7 +937,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 				sendMu.Unlock()
 
 				if err != nil {
-					s.l.Error().Err(err).Msgf("could not send workflow event to client")
+					s.l.Error().Ctx(ctx).Err(err).Msgf("could not send workflow event to client")
 					cancel()
 					return
 				}
@@ -987,7 +1021,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 			})
 
 		if err != nil {
-			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not convert task to workflow event")
 			return nil
 		} else if len(events) == 0 {
 			return nil
@@ -1113,7 +1147,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 			})
 
 		if err != nil {
-			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not convert task to workflow event")
 			return nil
 		} else if len(events) == 0 {
 			return nil
@@ -1127,7 +1161,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 
 			if err != nil {
 				cancel()
-				s.l.Error().Err(err).Msgf("could not send workflow event to client")
+				s.l.Error().Ctx(ctx).Err(err).Msgf("could not send workflow event to client")
 				return nil
 			}
 

@@ -90,7 +90,8 @@ func CreatedEventTriggerMessage(tenantId uuid.UUID, eventTriggers CreatedEventTr
 type CreateMonitoringEventPayload struct {
 	TaskId int64 `json:"task_id"`
 
-	RetryCount int32 `json:"retry_count"`
+	RetryCount             int32 `json:"retry_count"`
+	DurableInvocationCount int32 `json:"durable_invocation_count"`
 
 	WorkerId *uuid.UUID `json:"worker_id,omitempty"`
 
@@ -101,7 +102,7 @@ type CreateMonitoringEventPayload struct {
 	EventMessage   string    `json:"event_message,omitempty"`
 }
 
-func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
 	var workerId *uuid.UUID
 	parsedId, err := uuid.Parse(request.WorkerId)
 
@@ -110,11 +111,12 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 	}
 
 	payload := CreateMonitoringEventPayload{
-		TaskId:         taskId,
-		RetryCount:     retryCount,
-		WorkerId:       workerId,
-		EventTimestamp: request.EventTimestamp.AsTime(),
-		EventPayload:   request.EventPayload,
+		TaskId:                 taskId,
+		RetryCount:             retryCount,
+		DurableInvocationCount: durableInvocationCount,
+		WorkerId:               workerId,
+		EventTimestamp:         request.EventTimestamp.AsTime(),
+		EventPayload:           request.EventPayload,
 	}
 
 	switch request.EventType {

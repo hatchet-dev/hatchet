@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -32,26 +33,28 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s                           gocron.Scheduler
-	mqv1                        msgqueue.MessageQueue
-	pubBuffer                   *msgqueue.MQPubBuffer
-	sharedNonBufferedReaderv1   *msgqueue.SharedTenantReader
-	sharedBufferedReaderv1      *msgqueue.SharedBufferedTenantReader
-	l                           *zerolog.Logger
-	dv                          datautils.DataDecoderValidator
-	v                           validator.Validator
-	repov1                      v1.Repository
-	cache                       cache.Cacheable
-	payloadSizeThreshold        int
-	defaultMaxWorkerBacklogSize int64
-	workflowRunBufferSize       int
-	streamEventBufferTimeout    time.Duration
+	s                                   gocron.Scheduler
+	mqv1                                msgqueue.MessageQueue
+	pubBuffer                           *msgqueue.MQPubBuffer
+	sharedNonBufferedReaderv1           *msgqueue.SharedTenantReader
+	sharedBufferedReaderv1              *msgqueue.SharedBufferedTenantReader
+	l                                   *zerolog.Logger
+	dv                                  datautils.DataDecoderValidator
+	v                                   validator.Validator
+	repov1                              v1.Repository
+	cache                               cache.Cacheable
+	payloadSizeThreshold                int
+	defaultMaxWorkerLockAcquisitionTime time.Duration
+	workflowRunBufferSize               int
+	streamEventBufferTimeout            time.Duration
 
 	dispatcherId uuid.UUID
 	workers      *workers
 	a            *hatcheterrors.Wrapped
-	analytics    analytics.Analytics
-	version      string
+
+	durableCallbackFn func(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error
+	analytics         analytics.Analytics
+	version           string
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -118,19 +121,19 @@ func (w *workers) Delete(workerId uuid.UUID) {
 type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
-	mqv1                        msgqueue.MessageQueue
-	l                           *zerolog.Logger
-	dv                          datautils.DataDecoderValidator
-	repov1                      v1.Repository
-	dispatcherId                uuid.UUID
-	alerter                     hatcheterrors.Alerter
-	cache                       cache.Cacheable
-	analytics                   analytics.Analytics
-	payloadSizeThreshold        int
-	defaultMaxWorkerBacklogSize int64
-	workflowRunBufferSize       int
-	streamEventBufferTimeout    time.Duration
-	version                     string
+	mqv1                                msgqueue.MessageQueue
+	l                                   *zerolog.Logger
+	dv                                  datautils.DataDecoderValidator
+	repov1                              v1.Repository
+	dispatcherId                        uuid.UUID
+	alerter                             hatcheterrors.Alerter
+	cache                               cache.Cacheable
+	analytics                           analytics.Analytics
+	payloadSizeThreshold                int
+	defaultMaxWorkerLockAcquisitionTime time.Duration
+	workflowRunBufferSize               int
+	streamEventBufferTimeout            time.Duration
+	version                             string
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -138,15 +141,15 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &DispatcherOpts{
-		l:                           &logger,
-		dv:                          datautils.NewDataDecoderValidator(),
-		dispatcherId:                uuid.New(),
-		alerter:                     alerter,
-		analytics:                   analytics.NoOpAnalytics{},
-		payloadSizeThreshold:        3 * 1024 * 1024,
-		defaultMaxWorkerBacklogSize: 20,
-		workflowRunBufferSize:       1000,
-		streamEventBufferTimeout:    5 * time.Second,
+		l:                                   &logger,
+		dv:                                  datautils.NewDataDecoderValidator(),
+		dispatcherId:                        uuid.New(),
+		alerter:                             alerter,
+		analytics:                           analytics.NoOpAnalytics{},
+		payloadSizeThreshold:                3 * 1024 * 1024,
+		defaultMaxWorkerLockAcquisitionTime: 250 * time.Millisecond,
+		workflowRunBufferSize:               1000,
+		streamEventBufferTimeout:            5 * time.Second,
 	}
 }
 
@@ -198,9 +201,9 @@ func WithPayloadSizeThreshold(threshold int) DispatcherOpt {
 	}
 }
 
-func WithDefaultMaxWorkerBacklogSize(size int64) DispatcherOpt {
+func WithDefaultMaxWorkerLockAcquisitionTime(t time.Duration) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
-		opts.defaultMaxWorkerBacklogSize = size
+		opts.defaultMaxWorkerLockAcquisitionTime = t
 	}
 }
 
@@ -263,23 +266,23 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
 	return &DispatcherImpl{
-		mqv1:                        opts.mqv1,
-		pubBuffer:                   pubBuffer,
-		l:                           opts.l,
-		dv:                          opts.dv,
-		v:                           validator.NewDefaultValidator(),
-		repov1:                      opts.repov1,
-		dispatcherId:                opts.dispatcherId,
-		workers:                     &workers{},
-		s:                           s,
-		a:                           a,
-		cache:                       opts.cache,
-		payloadSizeThreshold:        opts.payloadSizeThreshold,
-		defaultMaxWorkerBacklogSize: opts.defaultMaxWorkerBacklogSize,
-		workflowRunBufferSize:       opts.workflowRunBufferSize,
-		analytics:                   opts.analytics,
-		streamEventBufferTimeout:    opts.streamEventBufferTimeout,
-		version:                     opts.version,
+		mqv1:                                opts.mqv1,
+		pubBuffer:                           pubBuffer,
+		l:                                   opts.l,
+		dv:                                  opts.dv,
+		v:                                   validator.NewDefaultValidator(),
+		repov1:                              opts.repov1,
+		dispatcherId:                        opts.dispatcherId,
+		workers:                             &workers{},
+		s:                                   s,
+		a:                                   a,
+		cache:                               opts.cache,
+		payloadSizeThreshold:                opts.payloadSizeThreshold,
+		defaultMaxWorkerLockAcquisitionTime: opts.defaultMaxWorkerLockAcquisitionTime,
+		workflowRunBufferSize:               opts.workflowRunBufferSize,
+		analytics:                           opts.analytics,
+		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
+		version:                             opts.version,
 	}, nil
 }
 
@@ -323,7 +326,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		err := d.handleV1Task(ctx, task)
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
+			d.l.Error().Ctx(ctx).Err(err).Msgf("could not handle dispatcher task %s", task.ID)
 			return err
 		}
 
@@ -339,7 +342,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	cleanup := func() error {
-		d.l.Debug().Msgf("dispatcher is shutting down...")
+		d.l.Debug().Ctx(ctx).Msgf("dispatcher is shutting down...")
 		cancel()
 
 		if err := cleanupQueueV1(); err != nil {
@@ -351,7 +354,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		d.pubBuffer.Stop()
 
 		// drain the existing connections
-		d.l.Debug().Msg("draining existing connections")
+		d.l.Debug().Ctx(ctx).Msg("draining existing connections")
 
 		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
 			value.Range(func(key string, value *subscribedWorker) bool {
@@ -377,9 +380,9 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
 
-		d.l.Debug().Msgf("deleted dispatcher %s", dispatcherId)
+		d.l.Debug().Ctx(ctx).Msgf("deleted dispatcher %s", dispatcherId)
 
-		d.l.Debug().Msgf("dispatcher has shutdown")
+		d.l.Debug().Ctx(ctx).Msgf("dispatcher has shutdown")
 		return nil
 	}
 
@@ -402,6 +405,8 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "task-cancelled":
 		err = d.a.WrapErr(d.handleTaskCancelled(ctx, task), map[string]interface{}{})
+	case msgqueue.MsgIDDurableCallbackCompleted:
+		err = d.a.WrapErr(d.handleDurableCallbackCompleted(ctx, task), map[string]interface{}{})
 	default:
 		err = fmt.Errorf("unknown task: %s", task.ID)
 	}
@@ -409,9 +414,41 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 	return err
 }
 
+func (d *DispatcherImpl) DispatcherId() uuid.UUID {
+	return d.dispatcherId
+}
+
+func (d *DispatcherImpl) SetDurableCallbackHandler(fn func(uuid.UUID, int32, int64, int64, []byte) error) {
+	d.durableCallbackFn = fn
+}
+
+func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
+	if d.durableCallbackFn == nil {
+		return nil
+	}
+
+	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](task.Payloads)
+
+	for _, payload := range payloads {
+		err := d.durableCallbackFn(
+			payload.TaskExternalId,
+			payload.InvocationCount,
+			payload.BranchId,
+			payload.NodeId,
+			payload.Payload,
+		)
+
+		if err != nil {
+			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s (worker may still be reconnecting; polling path will catch up)", payload.TaskExternalId)
+		}
+	}
+
+	return nil
+}
+
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
-		d.l.Debug().Msgf("dispatcher: updating heartbeat")
+		d.l.Debug().Ctx(ctx).Msgf("dispatcher: updating heartbeat")
 
 		now := time.Now().UTC()
 
@@ -421,7 +458,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		})
 
 		if err != nil {
-			d.l.Err(err).Msg("dispatcher: could not update heartbeat")
+			d.l.Err(err).Ctx(ctx).Msg("dispatcher: could not update heartbeat")
 		}
 	}
 }
