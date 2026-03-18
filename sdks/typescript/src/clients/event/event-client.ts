@@ -82,21 +82,21 @@ export class EventClient {
     const namespacedType = applyNamespace(type, this.config.namespace);
 
     const events = inputs.map((input) => ({
-        key: namespacedType,
-        payload: JSON.stringify(input.payload),
-        eventTimestamp: new Date(),
-        additionalMetadata: (() => {
-          if (input.additionalMetadata) {
-            return JSON.stringify(input.additionalMetadata);
-          }
-          if (options.additionalMetadata) {
-            return JSON.stringify(options.additionalMetadata);
-          }
-          return undefined;
-        })(),
-        priority: input.priority,
-        scope: input.scope,
-      }));
+      key: namespacedType,
+      payload: JSON.stringify(input.payload),
+      eventTimestamp: new Date(),
+      additionalMetadata: (() => {
+        if (input.additionalMetadata) {
+          return JSON.stringify(input.additionalMetadata);
+        }
+        if (options.additionalMetadata) {
+          return JSON.stringify(options.additionalMetadata);
+        }
+        return undefined;
+      })(),
+      priority: input.priority,
+      scope: input.scope,
+    }));
 
     const req: BulkPushEventRequest = {
       events,

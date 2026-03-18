@@ -6,6 +6,8 @@ export const MinEngineVersion = {
 } as const;
 
 export function supportsEviction(engineVersion: string | undefined): boolean {
-  if (!engineVersion) {return false;}
+  if (!engineVersion) {
+    return false;
+  }
   return !semverLessThan(engineVersion, MinEngineVersion.DURABLE_EVICTION);
 }

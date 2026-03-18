@@ -11,9 +11,8 @@ export const simple = hatchet.task({
   onEvents: ['user:created'],
   fn: (input: SimpleInput) =>
     // ...
-     ({
+    ({
       TransformedMessage: input.Message.toLowerCase(),
-    })
-  ,
+    }),
 });
 // !!

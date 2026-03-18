@@ -6,8 +6,8 @@ export const priority = hatchet.task({
   name: 'priority',
   defaultPriority: Priority.MEDIUM,
   fn: async (_, ctx) => ({
-      priority: ctx.priority(),
-    }),
+    priority: ctx.priority(),
+  }),
 });
 // !!
 
@@ -21,16 +21,16 @@ export const priorityWf = hatchet.workflow({
 priorityWf.task({
   name: 'child-medium',
   fn: async (_, ctx) => ({
-      priority: ctx.priority(),
-    }),
+    priority: ctx.priority(),
+  }),
 });
 
 priorityWf.task({
   name: 'child-high',
   // will inherit the default priority from the workflow
   fn: async (_, ctx) => ({
-      priority: ctx.priority(),
-    }),
+    priority: ctx.priority(),
+  }),
 });
 
 export const priorityTasks = [priority, priorityWf];

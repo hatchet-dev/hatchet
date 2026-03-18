@@ -11,15 +11,15 @@ type SimpleOutput = {
 export const declaredType = hatchet.task<SimpleInput, SimpleOutput>({
   name: 'declared-type',
   fn: (input) => ({
-      TransformedMessage: input.Message.toLowerCase(),
-    }),
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
 
 export const inferredType = hatchet.task({
   name: 'inferred-type',
   fn: (input: SimpleInput) => ({
-      TransformedMessage: input.Message.toUpperCase(),
-    }),
+    TransformedMessage: input.Message.toUpperCase(),
+  }),
 });
 
 export const inferredTypeDurable = hatchet.durableTask({
@@ -27,10 +27,9 @@ export const inferredTypeDurable = hatchet.durableTask({
   fn: async (input: SimpleInput, ctx) =>
     // await ctx.sleepFor('5s');
 
-     ({
+    ({
       TransformedMessage: input.Message.toUpperCase(),
-    })
-  ,
+    }),
 });
 
 export const crazyWorkflow = hatchet.workflow<any, any>({

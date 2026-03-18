@@ -21,7 +21,7 @@ export const simple = hatchet.task({
     },
   ],
   fn: (input: SimpleInput) => ({
-      TransformedMessage: input.Message.toLowerCase(),
-    }),
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
 // !!

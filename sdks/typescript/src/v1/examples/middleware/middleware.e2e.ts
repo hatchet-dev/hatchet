@@ -26,9 +26,9 @@ describe('middleware-e2e', () => {
     const task = client.task<{ message: string }, { message: string; extra: number }>({
       name: 'middleware-e2e-single',
       fn: (input) => ({
-          message: `${input.message}:${input.dependency}`,
-          extra: input.first + input.second,
-        }),
+        message: `${input.message}:${input.dependency}`,
+        extra: input.first + input.second,
+      }),
     });
 
     worker = await startWorker({
@@ -58,8 +58,8 @@ describe('middleware-e2e', () => {
     const task = client.task<{}, { result: string }>({
       name: 'middleware-e2e-no-spread',
       fn: (input) => ({
-          result: input.dependency,
-        }),
+        result: input.dependency,
+      }),
     });
 
     worker = await startWorker({
@@ -89,8 +89,8 @@ describe('middleware-e2e', () => {
     const task = client.task<{}, { result: number }>({
       name: 'middleware-e2e-chained',
       fn: (input) => ({
-          result: input.quadrupled,
-        }),
+        result: input.quadrupled,
+      }),
     });
 
     worker = await startWorker({

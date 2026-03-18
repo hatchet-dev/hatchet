@@ -11,7 +11,8 @@ function getDefaultAxiosOpts(serverUrl: string): AxiosRequestConfig {
   return opts;
 }
 
-const api = (serverUrl: string, token: string, axiosOpts?: AxiosRequestConfig) => new Api({
+const api = (serverUrl: string, token: string, axiosOpts?: AxiosRequestConfig) =>
+  new Api({
     baseURL: serverUrl,
     headers: {
       Authorization: `Bearer ${token}`,

@@ -23,6 +23,6 @@ export const onCron = hatchet.workflow<Input, OnCronOutput>({
 onCron.task({
   name: 'job',
   fn: (input) => ({
-      TransformedMessage: input.Message.toLowerCase(),
-    }),
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
