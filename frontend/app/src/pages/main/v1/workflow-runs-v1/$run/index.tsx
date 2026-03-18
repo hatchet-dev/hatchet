@@ -264,16 +264,17 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
 
   const { workflowRun, shape, taskRuns, isLoading, isError } = useWorkflowDetails();
 
+  const taskExternalIds = useMemo(
+    () => taskRuns.map((t) => t.taskExternalId),
+    [taskRuns],
+  );
+
   if (isLoading || isError || !workflowRun) {
     return null;
   }
 
   const inputData = JSON.stringify(workflowRun.input || {});
   const additionalMetadata = workflowRun.additionalMetadata;
-  const taskExternalIds = useMemo(
-    () => taskRuns.map((t) => t.taskExternalId),
-    [taskRuns],
-  );
 
   return (
     <div className="h-full w-full flex-grow">
