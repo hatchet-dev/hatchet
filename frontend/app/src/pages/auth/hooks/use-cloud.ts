@@ -7,7 +7,7 @@ import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 
-const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
+export const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
   // @ts-expect-error errors is returned when this is oss
   return !!cloudMeta && !cloudMeta?.errors;
 };
@@ -81,6 +81,10 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
     enabled: cloudMetaQuery.data?.isCloudEnabled && !!tenantId,
     queryFn: async () => {
       try {
+        // This shouldn't be possible because of the `enabled` above, and yet, Josh found it happening at runtime
+        if (tenantId === undefined) {
+          return null;
+        }
         // tenantId is guaranteed by `enabled`
         return await cloudApi.featureFlagsList(tenantId as string);
       } catch (e) {

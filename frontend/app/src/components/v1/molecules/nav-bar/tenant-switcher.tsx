@@ -144,7 +144,7 @@ export function TenantSwitcher({
                     className="cursor-pointer text-sm"
                     data-cy="new-tenant"
                     onSelect={() => {
-                      globalEmitter.emit('new-tenant', {});
+                      globalEmitter.emit('create-new-tenant', {});
                       setOpen(false);
                     }}
                   >

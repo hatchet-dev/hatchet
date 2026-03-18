@@ -75,15 +75,20 @@ export const userUniverseQuery = ({
 }) => ({
   queryKey: ['user-universe', isCloudEnabled],
   queryFn: async (): Promise<PossibleQueryResponses> => {
-    const [organizations, tenantMemberships] = await Promise.all([
+    const [organizationsResult, tenantMemberships] = await Promise.all([
       isCloudEnabled ? cloudApi.organizationList() : null,
       api.tenantMembershipsList(),
     ]);
 
+    const organizations = (organizationsResult?.data.rows || []).map((org) => ({
+      ...org,
+      tenants: org.tenants || [],
+    }));
+
     return isCloudEnabled
       ? {
           isCloudEnabled,
-          organizations: organizations?.data.rows || [],
+          organizations,
           tenantMemberships: tenantMemberships.data.rows || [],
         }
       : {
