@@ -107,6 +107,7 @@ export function TaskRunTrace({
         onSpanSelect={handleSpanSelect}
         onGroupSelect={handleGroupSelect}
         visibleRange={visibleRange}
+        onRangeChange={setVisibleRange}
       />
       {selection?.kind === 'span' && (
         <SpanDetail

@@ -569,6 +569,7 @@ interface TraceTimelineProps {
   onSpanSelect?: (span: OtelSpanTree) => void;
   onGroupSelect?: (group: SpanGroupInfo) => void;
   visibleRange?: VisibleRange;
+  onRangeChange?: (range: VisibleRange) => void;
 }
 
 export function TraceTimeline({
@@ -583,6 +584,7 @@ export function TraceTimeline({
   onSpanSelect,
   onGroupSelect,
   visibleRange,
+  onRangeChange,
 }: TraceTimelineProps) {
   const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{
@@ -590,6 +592,12 @@ export function TraceTimeline({
     y: number;
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const barsRef = useRef<HTMLDivElement>(null);
+  const [cursorPct, setCursorPct] = useState<number | null>(null);
+  const [brushRange, setBrushRange] = useState<{
+    lo: number;
+    hi: number;
+  } | null>(null);
 
   const hasAnyInProgress = useMemo(
     () =>
@@ -623,7 +631,8 @@ export function TraceTimeline({
     [spanTrees, expandedSet, groupVisibleCounts],
   );
 
-  const { visMinStart, ticks, timelineMaxMs } = useMemo(() => {
+  const { visMinStart, ticks, timelineMaxMs, traceMinStart, traceTotalMs } =
+    useMemo(() => {
     let minStart = Infinity;
     let maxEnd = -Infinity;
     const traverse = (node: OtelSpanTree) => {
@@ -658,6 +667,8 @@ export function TraceTimeline({
         timelineMaxMs: hasAnyInProgress
           ? visDurationMs
           : Math.max(maxTick, visDurationMs),
+        traceMinStart: minStart,
+        traceTotalMs: totalDurationMs,
       };
     }
 
@@ -665,7 +676,13 @@ export function TraceTimeline({
     const timelineMaxMs = hasAnyInProgress
       ? totalDurationMs
       : Math.max(maxTick, totalDurationMs);
-    return { visMinStart: minStart, ticks, timelineMaxMs };
+    return {
+      visMinStart: minStart,
+      ticks,
+      timelineMaxMs,
+      traceMinStart: minStart,
+      traceTotalMs: totalDurationMs,
+    };
   }, [spanTrees, visibleRange, now, hasAnyInProgress]);
 
   const toggleExpand = useCallback(
@@ -694,6 +711,92 @@ export function TraceTimeline({
   const handleBarMouseMove = useCallback((e: MouseEvent) => {
     setTooltipPos({ x: e.clientX, y: e.clientY });
   }, []);
+
+  const timelineValuesRef = useRef({
+    visMinStart: 0,
+    timelineMaxMs: 0,
+    traceMinStart: 0,
+    traceTotalMs: 0,
+  });
+  timelineValuesRef.current = {
+    visMinStart,
+    timelineMaxMs,
+    traceMinStart,
+    traceTotalMs,
+  };
+
+  const handleBarsPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!barsRef.current || !onRangeChange) {
+        return;
+      }
+
+      const rect = barsRef.current.getBoundingClientRect();
+      const startPct = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
+
+      const onMove = (ev: PointerEvent) => {
+        if (!barsRef.current) {
+          return;
+        }
+        const r = barsRef.current.getBoundingClientRect();
+        const pct = Math.max(
+          0,
+          Math.min(1, (ev.clientX - r.left) / r.width),
+        );
+        const lo = Math.min(startPct, pct);
+        const hi = Math.max(startPct, pct);
+        if (hi - lo > 0.005) {
+          setBrushRange({ lo, hi });
+        }
+      };
+
+      const onUp = (ev: PointerEvent) => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+
+        if (!barsRef.current) {
+          setBrushRange(null);
+          return;
+        }
+        const r = barsRef.current.getBoundingClientRect();
+        const pct = Math.max(
+          0,
+          Math.min(1, (ev.clientX - r.left) / r.width),
+        );
+        const lo = Math.min(startPct, pct);
+        const hi = Math.max(startPct, pct);
+
+        setBrushRange(null);
+
+        if (hi - lo >= 0.02) {
+          const v = timelineValuesRef.current;
+          const newStartMs = v.visMinStart + v.timelineMaxMs * lo;
+          const newEndMs = v.visMinStart + v.timelineMaxMs * hi;
+          onRangeChange({
+            startPct: Math.max(
+              0,
+              (newStartMs - v.traceMinStart) / v.traceTotalMs,
+            ),
+            endPct: Math.min(
+              1,
+              (newEndMs - v.traceMinStart) / v.traceTotalMs,
+            ),
+          });
+        }
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    },
+    [onRangeChange],
+  );
+
+  const handleBarsDoubleClick = useCallback(() => {
+    onRangeChange?.({ startPct: 0, endPct: 1 });
+  }, [onRangeChange]);
 
   const hoveredRow = hoveredRowKey
     ? flatRows.find((r) => r.rowKey === hoveredRowKey)
@@ -910,9 +1013,72 @@ export function TraceTimeline({
               </div>
             );
           })}
+
+          {cursorPct !== null && !brushRange && (
+            <div
+              className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
+              style={{
+                left: `${cursorPct * 100}%`,
+                transform:
+                  cursorPct < 0.05
+                    ? 'none'
+                    : cursorPct > 0.95
+                      ? 'translateX(-100%)'
+                      : 'translateX(-50%)',
+              }}
+            >
+              {formatTimeLabel(timelineMaxMs * cursorPct)}
+            </div>
+          )}
+
+          {brushRange && (
+            <>
+              <div
+                className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
+                style={{
+                  left: `${brushRange.lo * 100}%`,
+                  transform:
+                    brushRange.lo < 0.05 ? 'none' : 'translateX(-50%)',
+                }}
+              >
+                {formatTimeLabel(timelineMaxMs * brushRange.lo)}
+              </div>
+              <div
+                className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
+                style={{
+                  left: `${brushRange.hi * 100}%`,
+                  transform:
+                    brushRange.hi > 0.95
+                      ? 'translateX(-100%)'
+                      : 'translateX(-50%)',
+                }}
+              >
+                {formatTimeLabel(timelineMaxMs * brushRange.hi)}
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="relative">
+        <div
+          className="relative"
+          ref={barsRef}
+          style={{ cursor: onRangeChange ? 'crosshair' : undefined }}
+          onMouseMove={(e) => {
+            if (!barsRef.current) {
+              return;
+            }
+            const rect = barsRef.current.getBoundingClientRect();
+            setCursorPct(
+              Math.max(
+                0,
+                Math.min(1, (e.clientX - rect.left) / rect.width),
+              ),
+            );
+          }}
+          onMouseLeave={() => setCursorPct(null)}
+          onPointerDown={handleBarsPointerDown}
+          onDoubleClick={handleBarsDoubleClick}
+        >
           {ticks.map((t) => (
             <div
               key={t}
@@ -1001,13 +1167,16 @@ export function TraceTimeline({
             let qWidthPct = 0;
             if (q) {
               const qStartMs = new Date(q.createdAt).getTime();
-              const qDurMs = q.durationNs / 1_000_000;
+              // FIXME: snapping hides a real gap (typically 0.5–2ms) between queue-end
+              // and exec-start. Consider a synthetic "network/dispatch" span to
+              // visualize scheduling + worker dispatch latency instead of hiding it.
+              const snappedDurMs = startMs - qStartMs;
               qLeftPct =
                 timelineMaxMs > 0
                   ? ((qStartMs - visMinStart) / timelineMaxMs) * 100
                   : 0;
               qWidthPct =
-                timelineMaxMs > 0 ? (qDurMs / timelineMaxMs) * 100 : 0;
+                timelineMaxMs > 0 ? (snappedDurMs / timelineMaxMs) * 100 : 0;
             }
 
             return (
@@ -1024,6 +1193,7 @@ export function TraceTimeline({
                   <div
                     className={cn(
                       'absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm',
+                      !hasAnyInProgress && 'transition-all',
                       row.span.inProgress
                         ? 'bg-blue-500/20'
                         : hasErrorInTree(row.span)
@@ -1073,6 +1243,40 @@ export function TraceTimeline({
               </div>
             );
           })}
+
+          {cursorPct !== null && !brushRange && (
+            <div
+              className="pointer-events-none absolute top-0 z-10 w-px bg-foreground/40"
+              style={{ left: `${cursorPct * 100}%`, height: gridHeight }}
+            />
+          )}
+
+          {brushRange && (
+            <>
+              <div
+                className="pointer-events-none absolute top-0 z-10 border-x border-primary/30 bg-primary/10"
+                style={{
+                  left: `${brushRange.lo * 100}%`,
+                  width: `${(brushRange.hi - brushRange.lo) * 100}%`,
+                  height: gridHeight,
+                }}
+              />
+              <div
+                className="pointer-events-none absolute top-0 z-10 w-px bg-foreground/70"
+                style={{
+                  left: `${brushRange.lo * 100}%`,
+                  height: gridHeight,
+                }}
+              />
+              <div
+                className="pointer-events-none absolute top-0 z-10 w-px bg-foreground/70"
+                style={{
+                  left: `${brushRange.hi * 100}%`,
+                  height: gridHeight,
+                }}
+              />
+            </>
+          )}
         </div>
       </div>
 

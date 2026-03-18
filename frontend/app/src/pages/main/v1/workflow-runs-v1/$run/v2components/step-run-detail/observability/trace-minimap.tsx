@@ -80,6 +80,21 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function formatOffset(ms: number): string {
+  if (ms <= 0) {
+    return '0ms';
+  }
+  if (ms < 1000) {
+    return `${Math.round(ms)}ms`;
+  }
+  if (ms < 60000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return s > 0 ? `${m}m${s}s` : `${m}m`;
+}
+
 function collectSpanMarkers(
   trees: OtelSpanTree[],
   minMs: number,
@@ -140,6 +155,7 @@ export function TraceMinimap({
     x: number;
     y: number;
   } | null>(null);
+  const [hoverPct, setHoverPct] = useState<number | null>(null);
 
   const expandedSet = useMemo(
     () => (expandedSpanIds ? new Set(expandedSpanIds) : undefined),
@@ -170,9 +186,13 @@ export function TraceMinimap({
         return;
       }
       const clickPct = pctFromEvent(e, trackRef.current);
+      onRangeChange({
+        startPct: clickPct,
+        endPct: Math.min(1, clickPct + MIN_RANGE_PCT),
+      });
       startDrag('brush', e, clickPct);
     },
-    [startDrag],
+    [startDrag, onRangeChange],
   );
 
   const handleDoubleClick = useCallback(() => {
@@ -257,6 +277,13 @@ export function TraceMinimap({
       style={{ cursor: cursorStyle }}
       onPointerDown={handleTrackDown}
       onDoubleClick={handleDoubleClick}
+      onMouseMove={(e) => {
+        if (!trackRef.current) {
+          return;
+        }
+        setHoverPct(pctFromEvent(e, trackRef.current));
+      }}
+      onMouseLeave={() => setHoverPct(null)}
     >
       {/* Event markers */}
       {markers.map((m, i) => (
@@ -266,7 +293,7 @@ export function TraceMinimap({
             'absolute inset-y-[6px] flex flex-col justify-center transition-[transform,opacity]',
             m.hasErrorInTree ? 'z-[3]' : 'z-[2]',
             hoveredIdx === i && 'z-[5] scale-x-150',
-            !m.visible && 'opacity-[0.02]',
+            !m.visible && 'opacity-[0.01]',
           )}
           style={{ left: `${m.pct * 100}%`, width: 6 }}
           onMouseEnter={(e) => {
@@ -286,22 +313,30 @@ export function TraceMinimap({
       ))}
 
       {/* Left dim overlay */}
-      <div
-        className="pointer-events-none absolute inset-y-0 left-0 z-[1] bg-background/70"
-        style={{ width: `${sPct}%` }}
-      />
+      {dragging !== 'brush' && (
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 z-[1] bg-background/70"
+          style={{ width: `${sPct}%` }}
+        />
+      )}
 
       {/* Right dim overlay */}
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-background/70"
-        style={{ width: `${100 - ePct}%` }}
-      />
+      {dragging !== 'brush' && (
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-background/70"
+          style={{ width: `${100 - ePct}%` }}
+        />
+      )}
 
       {/* Selected region with handles inside — visible on hover or while dragging */}
       <div
         className={cn(
           'pointer-events-none absolute inset-y-0 z-[3] transition-opacity duration-150',
-          dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          dragging === 'brush'
+            ? 'opacity-0'
+            : dragging
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100',
         )}
         style={{ left: `${sPct}%`, right: `${100 - ePct}%` }}
       >
@@ -367,6 +402,66 @@ export function TraceMinimap({
           </div>
         </div>
       </div>
+
+      {/* Hover cursor line + timestamp */}
+      {hoverPct !== null && !dragging && (
+        <>
+          <div
+            className="pointer-events-none absolute inset-y-0 z-[5] w-px bg-foreground/60"
+            style={{ left: `${hoverPct * 100}%` }}
+          />
+          <div
+            className="pointer-events-none absolute top-0.5 z-[7] whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
+            style={{
+              left: `${hoverPct * 100}%`,
+              transform:
+                hoverPct < 0.08
+                  ? 'none'
+                  : hoverPct > 0.92
+                    ? 'translateX(-100%)'
+                    : 'translateX(-50%)',
+            }}
+          >
+            {formatOffset(totalMs * hoverPct)}
+          </div>
+        </>
+      )}
+
+      {/* Drag boundary lines + timestamps */}
+      {dragging && (
+        <>
+          <div
+            className="pointer-events-none absolute inset-y-0 z-[5] w-px bg-foreground/70"
+            style={{ left: `${visibleRange.startPct * 100}%` }}
+          />
+          <div
+            className="pointer-events-none absolute inset-y-0 z-[5] w-px bg-foreground/70"
+            style={{ left: `${visibleRange.endPct * 100}%` }}
+          />
+          <div
+            className="pointer-events-none absolute top-0.5 z-[7] whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
+            style={{
+              left: `${visibleRange.startPct * 100}%`,
+              transform:
+                visibleRange.startPct < 0.08 ? 'none' : 'translateX(-50%)',
+            }}
+          >
+            {formatOffset(totalMs * visibleRange.startPct)}
+          </div>
+          <div
+            className="pointer-events-none absolute bottom-0.5 z-[7] whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
+            style={{
+              left: `${visibleRange.endPct * 100}%`,
+              transform:
+                visibleRange.endPct > 0.92
+                  ? 'translateX(-100%)'
+                  : 'translateX(-50%)',
+            }}
+          >
+            {formatOffset(totalMs * visibleRange.endPct)}
+          </div>
+        </>
+      )}
 
       {/* Inner shadow */}
       <div className="pointer-events-none absolute inset-0 z-[4] rounded-[inherit] shadow-[inset_0px_7px_10px_0px_rgba(0,0,0,0.01),inset_0px_1px_3px_0px_rgba(0,0,0,0.01)]" />

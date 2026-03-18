@@ -75,7 +75,7 @@ function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
         const stepRunId = node.spanAttributes?.['hatchet.step_run_id'];
         if (stepRunId && queuedByStepRunId.has(stepRunId)) {
           node.queuedPhase = queuedByStepRunId.get(stepRunId);
-          toRemove.add(queuedByStepRunId.get(stepRunId)!.spanId);
+          toRemove.add(node.queuedPhase!.spanId);
         }
       }
     }
