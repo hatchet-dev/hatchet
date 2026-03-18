@@ -7,7 +7,7 @@ import (
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
-	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
+	"github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 func main() {

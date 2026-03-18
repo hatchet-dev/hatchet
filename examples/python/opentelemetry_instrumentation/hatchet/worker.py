@@ -50,7 +50,9 @@ class SendConfirmationOutput(BaseModel):
     reservation_id: str
 
 
-otel_workflow = hatchet.workflow(name="otel-order-processing-py", input_validator=OrderInput)
+otel_workflow = hatchet.workflow(
+    name="otel-order-processing-py", input_validator=OrderInput
+)
 
 
 # > Custom Spans
@@ -68,6 +70,8 @@ def validate_order(input: OrderInput, ctx: Context) -> ValidateOrderOutput:
         span.set_attribute("fraud.decision", "allow")
 
     return ValidateOrderOutput(order_id=input.order_id, valid=True)
+
+
 
 
 @otel_workflow.task(parents=[validate_order])
@@ -138,6 +142,8 @@ def main() -> None:
         workflows=[otel_workflow],
     )
     worker.start()
+
+
 
 
 if __name__ == "__main__":

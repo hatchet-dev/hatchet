@@ -11,7 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
-	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
+	"github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 type OrderInput struct {

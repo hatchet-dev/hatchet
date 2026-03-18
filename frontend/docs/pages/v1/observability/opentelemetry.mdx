@@ -26,6 +26,12 @@ Then call `HatchetInstrumentor().instrument()` before creating your worker. This
   src={snippets.python.opentelemetry_instrumentation.hatchet.worker.setup}
 />
 
+<Callout type="info">
+  See the [OpenTelemetry Python
+  documentation](https://opentelemetry.io/docs/languages/python/) for more on
+  setting up trace providers.
+</Callout>
+
 </Tabs.Tab>
 <Tabs.Tab title="Typescript">
 
@@ -38,6 +44,12 @@ npm install @opentelemetry/api @opentelemetry/instrumentation @opentelemetry/sdk
 Use the standard `registerInstrumentations` pattern to enable the `HatchetInstrumentor`:
 
 <Snippet src={snippets.typescript.opentelemetry_instrumentation.setup.setup} />
+
+<Callout type="info">
+  See the [OpenTelemetry JavaScript
+  documentation](https://opentelemetry.io/docs/languages/js/) for more on
+  setting up trace providers.
+</Callout>
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
@@ -54,6 +66,12 @@ Call `Shutdown` on exit to flush remaining spans:
 
 <Snippet src={snippets.go.opentelemetry_instrumentation.main.shutdown} />
 
+<Callout type="info">
+  See the [OpenTelemetry Go
+  documentation](https://opentelemetry.io/docs/languages/go/) for more on
+  setting up trace providers.
+</Callout>
+
 </Tabs.Tab>
 <Tabs.Tab title="Ruby">
 
@@ -61,11 +79,6 @@ OpenTelemetry instrumentation for the Ruby SDK is coming soon.
 
 </Tabs.Tab>
 </UniversalTabs>
-
-<Callout type="info">
-  Check out the [OpenTelemetry documentation](https://opentelemetry.io/docs/)
-  for more information on setting up trace providers for your language.
-</Callout>
 
 ## HatchetInstrumentor Options
 
@@ -95,20 +108,20 @@ Each SDK's instrumentor supports a number of configuration options. By default, 
 | ------------------------- | ------------------------------------------------------------------------ |
 | Custom TracerProvider     | Call `setTracerProvider(yourProvider)` before `registerInstrumentations` |
 | Disable Hatchet collector | `new HatchetInstrumentor({ enableHatchetCollector: false })`             |
-| Exclude span attributes   | `new HatchetInstrumentor({ excludedAttributes: ['action_payload'] })`    |
+| Exclude span attributes   | `new HatchetInstrumentor({ excludedAttributes: ['payload'] })`           |
 | Include task name in span | `new HatchetInstrumentor({ includeTaskNameInSpanName: true })`           |
 | BatchSpanProcessor tuning | `new HatchetInstrumentor({ bspConfig: { scheduledDelayMillis: 1000 } })` |
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-| Option                    | Usage                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------ |
-| Custom TracerProvider     | `opentelemetry.NewInstrumentor(opentelemetry.WithTracerProvider(tp))`                            |
-| Disable Hatchet collector | `opentelemetry.NewInstrumentor(opentelemetry.DisableHatchetCollector())`                         |
-| Exclude span attributes   | `opentelemetry.NewInstrumentor(opentelemetry.WithExcludedAttributes(opentelemetry.AttrPayload))` |
-| Include task name in span | `opentelemetry.NewInstrumentor(opentelemetry.WithIncludeTaskNameInSpanName())`                   |
-| BatchSpanProcessor tuning | `opentelemetry.NewInstrumentor(opentelemetry.WithBatchSpanProcessorOptions(...))`                |
+| Option                    | Usage                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| Custom TracerProvider     | `hatchetotel.NewInstrumentor(hatchetotel.WithTracerProvider(tp))`                          |
+| Disable Hatchet collector | `hatchetotel.NewInstrumentor(hatchetotel.DisableHatchetCollector())`                       |
+| Exclude span attributes   | `hatchetotel.NewInstrumentor(hatchetotel.WithExcludedAttributes(hatchetotel.AttrPayload))` |
+| Include task name in span | `hatchetotel.NewInstrumentor(hatchetotel.WithIncludeTaskNameInSpanName())`                 |
+| BatchSpanProcessor tuning | `hatchetotel.NewInstrumentor(hatchetotel.WithBatchSpanProcessorOptions(...))`              |
 
 </Tabs.Tab>
 <Tabs.Tab title="Ruby">
@@ -167,59 +180,3 @@ The instrumentor automatically creates spans for the following operations:
 | Durable wait          | `hatchet.durable.wait_for`  | `INTERNAL` |
 
 Span attributes are prefixed with `hatchet.*` (e.g. `hatchet.step_run_id`, `hatchet.worker_id`, `hatchet.workflow_name`). Trace context is automatically propagated via a W3C `traceparent` header injected into `additional_metadata`, so worker-side spans appear as children of the trigger span in your trace waterfall.
-
-## Integrations
-
-Hatchet's instrumentor is easy to integrate with third-party tracing tools.
-
-### Langfuse
-
-For example, you might be interested in using [Langfuse](https://langfuse.com/) for tracing an LLM-intensive application.
-
-<Callout type="warning">
-  Note that this example uses Langfuse's [V3 (OTel-based)
-  SDK](https://langfuse.com/docs/sdk/python/sdk-v3). See their docs for more
-  information.
-</Callout>
-
-First, configure the Langfuse client [as described by their documentation](https://langfuse.com/docs/opentelemetry/example-python-sdk):
-
-<Snippet
-  src={
-    snippets.python.opentelemetry_instrumentation.langfuse.client
-      .configure_langfuse
-  }
-/>
-
-Langfuse will set the global tracer provider, so you don't have to do it manually.
-
-Next, create an OpenAI client [using Langfuse's OpenAI wrapper `langfuse.openai` as a drop-in replacement for the default OpenAI](https://langfuse.com/docs/integrations/openai/python/get-started) client:
-
-<Snippet
-  src={
-    snippets.python.opentelemetry_instrumentation.langfuse.client
-      .create_open_ai_client
-  }
-/>
-
-And that's it! Now you're ready to instrument your Hatchet workers with Langfuse. For example, create a task like this:
-
-<Snippet
-  src={snippets.python.opentelemetry_instrumentation.langfuse.worker.task}
-/>
-
-And finally, run the task to view the Langfuse traces (cost, usage, etc.) interspersed with Hatchet's traces, in addition to any other traces you may have:
-
-<Snippet
-  src={
-    snippets.python.opentelemetry_instrumentation.langfuse.trigger.trigger_task
-  }
-/>
-
-When you run this task, you'll see a trace like this in Langfuse!
-
-<img
-  src="/langfuse-trace.png"
-  alt="example-langfuse-trace"
-  className="max-w-full mx-auto my-8"
-/>

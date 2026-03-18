@@ -8,7 +8,7 @@
 //
 //	instrumentor, err := opentelemetry.NewInstrumentor()
 //	worker.Use(instrumentor.Middleware())
-package opentelemetry
+package hatchetotel
 
 import (
 	"context"
