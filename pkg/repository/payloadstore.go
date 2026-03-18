@@ -221,7 +221,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 	} else {
 		if p.enableImmediateOffloads {
-			p.l.Warn().Msg("immediate offloads enabled but external store is not enabled, skipping immediate offloads")
+			p.l.Warn().Ctx(ctx).Msg("immediate offloads enabled but external store is not enabled, skipping immediate offloads")
 		}
 
 		for _, payload := range payloads {
@@ -848,7 +848,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l)
 
 				if err != nil {
-					p.l.Error().Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
+					p.l.Error().Ctx(ctx).Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
 					return
 				}
 
@@ -861,7 +861,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 				}
 
 				if err := commit(reconciliationCtx); err != nil {
-					p.l.Error().Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
+					p.l.Error().Ctx(ctx).Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
 					return
 				}
 
@@ -986,7 +986,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	processId := uuid.New()
 
 	for _, partition := range partitions {
-		p.l.Info().Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
+		p.l.Info().Ctx(ctx).Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
 		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate))
 
 		if err != nil {

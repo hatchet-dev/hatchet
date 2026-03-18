@@ -5,6 +5,19 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.2] - 2026-03-17
+
+### Added
+
+- Added `list` and `aio_list` method for Rate Limits Client
+- Added `pause`, `unpause`, `aio_pause`, and `aio_unpause` methods for workers client
+
+## [1.29.1] - 2026-03-17
+
+### Changed
+
+- Updates the `DurableTaskRunAckEntry` model to include `workflow_run_external_id` field, to enable spawning children from durable tasks fire-and-forget style.
+
 ## [1.29.0] - 2026-03-16
 
 ### Added

@@ -16,7 +16,7 @@ function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
   const { tenantId } = useCurrentTenantId();
-  const { cloud, featureFlags } = useCloud(tenantId);
+  const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
 
   const navSections = useMemo(
@@ -24,8 +24,9 @@ function Main() {
       sideNavItems({
         canBill: cloud?.canBill,
         managedWorkerEnabled,
+        isCloudEnabled,
       }),
-    [cloud?.canBill, managedWorkerEnabled],
+    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled],
   );
 
   const childCtx = useContextFromParent({

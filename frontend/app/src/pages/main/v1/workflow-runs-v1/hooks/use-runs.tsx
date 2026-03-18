@@ -77,7 +77,6 @@ export const useRuns = ({
       include_payloads: false,
       running_filter: runningFilter,
     }),
-    placeholderData: (prev) => prev,
     refetchInterval:
       Object.keys(rowSelection).length > 0 ? false : refetchInterval,
   });

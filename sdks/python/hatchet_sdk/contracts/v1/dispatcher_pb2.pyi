@@ -41,12 +41,14 @@ class DurableEventLogEntryRef(_message.Message):
     def __init__(self, durable_task_external_id: _Optional[str] = ..., invocation_count: _Optional[int] = ..., branch_id: _Optional[int] = ..., node_id: _Optional[int] = ...) -> None: ...
 
 class DurableTaskRunAckEntry(_message.Message):
-    __slots__ = ("node_id", "branch_id")
+    __slots__ = ("node_id", "branch_id", "workflow_run_external_id")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOW_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     node_id: int
     branch_id: int
-    def __init__(self, node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
+    workflow_run_external_id: str
+    def __init__(self, node_id: _Optional[int] = ..., branch_id: _Optional[int] = ..., workflow_run_external_id: _Optional[str] = ...) -> None: ...
 
 class DurableTaskEventMemoAckResponse(_message.Message):
     __slots__ = ("ref", "memo_already_existed", "memo_result_payload")

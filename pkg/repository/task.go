@@ -328,11 +328,11 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if !acquired {
-		r.l.Debug().Msg("partition operations already running on another controller instance, skipping")
+		r.l.Debug().Ctx(ctx).Msg("partition operations already running on another controller instance, skipping")
 		return nil
 	}
 
-	r.l.Debug().Msg("acquired advisory lock for partition operations")
+	r.l.Debug().Ctx(ctx).Msg("acquired advisory lock for partition operations")
 
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
@@ -366,7 +366,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if len(partitions) > 0 {
-		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
+		r.l.Warn().Ctx(ctx).Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
 	// Use the direct pool (bypasses pgbouncer) for DDL operations because
@@ -374,7 +374,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	ddlPool := r.DDLPool()
 
 	for _, partition := range partitions {
-		r.l.Debug().Msgf("detaching partition %s", partition.PartitionName)
+		r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partition.PartitionName)
 
 		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, ddlPool, r.l, 30*60*1000) // 30 minutes
 
@@ -474,7 +474,7 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 
 	for _, externalId := range externalIds {
 		if externalId == uuid.Nil {
-			r.l.Error().Msgf("passed in empty external id")
+			r.l.Error().Ctx(ctx).Msgf("passed in empty external id")
 			continue
 		}
 
@@ -951,7 +951,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 		rootId, ok := taskExternalIdsToRootIds[outputEvent.TaskExternalId]
 
 		if !ok {
-			r.l.Warn().Msgf("could not find root id for task %s", outputEvent.TaskExternalId)
+			r.l.Warn().Ctx(ctx).Msgf("could not find root id for task %s", outputEvent.TaskExternalId)
 			continue
 		}
 
@@ -966,7 +966,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 			rootId, ok := taskExternalIdsToRootIds[taskExternalId]
 
 			if !ok {
-				r.l.Warn().Msgf("could not find root id for task %s", taskExternalId)
+				r.l.Warn().Ctx(ctx).Msgf("could not find root id for task %s", taskExternalId)
 				continue
 			}
 
@@ -1003,7 +1003,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	}
 
 	if time.Since(start) > 100*time.Millisecond {
-		r.l.Warn().Dur(
+		r.l.Warn().Ctx(ctx).Dur(
 			"lookup_duration",
 			durLookup,
 		).Dur(
@@ -2097,7 +2097,7 @@ func (r *sharedRepository) insertTasks(
 					createExpressionOpts[task.ExternalId] = opts
 				}
 			} else {
-				r.l.Warn().Msgf("no expressions found for step %s", task.StepId)
+				r.l.Warn().Ctx(ctx).Msgf("no expressions found for step %s", task.StepId)
 			}
 		}
 	}
@@ -3057,17 +3057,17 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	for _, task := range lockedTasks {
 		// check whether to discard the task
 		if task.DagID.Valid && !successfullyLockedDAGsMap[task.DagID.Int64] {
-			r.l.Warn().Int64("task_id", task.ID).Msg("discarding task, could not lock DAG")
+			r.l.Warn().Ctx(ctx).Int64("task_id", task.ID).Msg("discarding task, could not lock DAG")
 			continue
 		}
 
 		if task.DagID.Valid && dagIdsFailedPreflight[task.DagID.Int64] {
-			r.l.Warn().Int64("task_id", task.ID).Msg("discarding task, failed preflight check for DAG")
+			r.l.Warn().Ctx(ctx).Int64("task_id", task.ID).Msg("discarding task, failed preflight check for DAG")
 			continue
 		}
 
 		if tasksFailedPreflight[task.ID] {
-			r.l.Warn().Int64("task_id", task.ID).Msg("discarding task, failed preflight check")
+			r.l.Warn().Ctx(ctx).Int64("task_id", task.ID).Msg("discarding task, failed preflight check")
 			continue
 		}
 
@@ -3214,7 +3214,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		for _, task := range spawnedChildTasks {
 			if !task.ChildIndex.Valid {
 				// TODO: handle error better/check with validation that this won't happen
-				r.l.Error().Msg("could not find child key or index for child workflow")
+				r.l.Error().Ctx(ctx).Msg("could not find child key or index for child workflow")
 				continue
 			}
 
@@ -3562,7 +3562,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 		task, ok := taskExternalIds[externalId]
 
 		if !ok {
-			r.l.Warn().Str("external_id", externalId.String()).Msg("could not find task for expression eval")
+			r.l.Warn().Ctx(ctx).Str("external_id", externalId.String()).Msg("could not find task for expression eval")
 			continue
 		}
 
@@ -3689,7 +3689,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		e, err := newTaskEventFromBytes(payload)
 
 		if err != nil {
-			r.l.Warn().Msgf("failed to parse task output: %v", err)
+			r.l.Warn().Ctx(ctx).Msgf("failed to parse task output: %v", err)
 			continue
 		}
 
@@ -3793,7 +3793,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 	}
 
 	if !acquired {
-		r.l.Info().Msg("advisory lock already held, skipping task table analysis")
+		r.l.Info().Ctx(ctx).Msg("advisory lock already held, skipping task table analysis")
 		return nil
 	}
 
@@ -3960,7 +3960,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		}
 		if result.RowsAffected() > 0 {
 			// FIXME: this is an error because there is an underlying bug that needs to be fixed
-			r.l.Error().Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
+			r.l.Error().Ctx(ctx).Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
 		}
 		return nil
 	}))
@@ -4253,7 +4253,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		status, err := statusutils.V1RunStatusFromEventType(event.EventType)
 
 		if err != nil {
-			r.l.Error().Msgf("failed to parse event type %s: %v", event.EventType, err)
+			r.l.Error().Ctx(ctx).Msgf("failed to parse event type %s: %v", event.EventType, err)
 			statusPtr := statusutils.V1RunStatusQueued
 			status = &statusPtr
 		}

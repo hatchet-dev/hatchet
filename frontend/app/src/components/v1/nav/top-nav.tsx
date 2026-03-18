@@ -99,7 +99,7 @@ function AccountDropdown({ user }: { user?: User }) {
             </span>
           </div>
           <ChevronDown className="size-4 shrink-0 opacity-60" />
-          {(pendingInvitesQuery.data ?? 0) > 0 && (
+          {(pendingInvitesQuery.data?.inviteCount ?? 0) > 0 && (
             <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-background bg-blue-500"></div>
           )}
         </Button>
@@ -116,7 +116,7 @@ function AccountDropdown({ user }: { user?: User }) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {(pendingInvitesQuery.data ?? 0) > 0 && (
+        {(pendingInvitesQuery.data?.inviteCount ?? 0) > 0 && (
           <>
             <DropdownMenuItem
               variant="interactive"
@@ -125,7 +125,7 @@ function AccountDropdown({ user }: { user?: User }) {
               }
             >
               <BiEnvelope className="mr-2 size-4" />
-              Invites ({pendingInvitesQuery.data})
+              Invites ({pendingInvitesQuery.data?.inviteCount ?? 0})
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

@@ -24,6 +24,18 @@ Returns
 
 The queue metrics for the current tenant.
 
+<a id="gettaskstats"></a>
+
+##### `getTaskStats()`
+
+Get task statistics for the tenant.
+
+Returns
+
+`Promise`\<`TaskStats`\>
+
+A record mapping task names to their statistics.
+
 <a id="gettaskstatusmetrics"></a>
 
 ##### `getTaskStatusMetrics()`
@@ -48,3 +60,15 @@ Returns
 `Promise`\<`TaskStatusMetrics`\>
 
 Counts per status for the matched task runs.
+
+<a id="scrapeprometheusmetrics"></a>
+
+##### `scrapePrometheusMetrics()`
+
+Scrape Prometheus metrics for the tenant.
+
+Returns
+
+`Promise`\<`string`\>
+
+The metrics in Prometheus text format.

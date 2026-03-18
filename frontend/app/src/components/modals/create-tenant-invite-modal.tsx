@@ -1,5 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import {
+  Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -14,25 +15,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { TenantMemberRole } from '@/lib/api';
+import { useOrganizations } from '@/hooks/use-organizations';
+import api, { CreateTenantInviteRequest, TenantMemberRole } from '@/lib/api';
+import { TenantInvite } from '@/lib/api/generated/data-contracts';
+import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-interface CreateInviteFormProps {
+type CreateTenantInviteFormProps = {
   className?: string;
   onSubmit: (opts: { email: string; role: TenantMemberRole }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   isCloudEnabled?: boolean;
   organizationId?: string | null;
-}
+};
 
-export function CreateInviteForm({
+const CreateTenantInviteForm = ({
   className,
   ...props
-}: CreateInviteFormProps) {
+}: CreateTenantInviteFormProps) => {
   const availableRoles = props.isCloudEnabled
     ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
     : [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.MEMBER];
@@ -60,7 +66,7 @@ export function CreateInviteForm({
   return (
     <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
-        <DialogTitle>Invite new member</DialogTitle>
+        <DialogTitle>Invite new tenant member</DialogTitle>
       </DialogHeader>
       <div className={cn('grid gap-6', className)}>
         <form
@@ -107,18 +113,6 @@ export function CreateInviteForm({
                   );
                 }}
               />
-              {props.isCloudEnabled && props.organizationId && (
-                <div className="text-sm text-muted-foreground">
-                  Organization owner invitations have moved to{' '}
-                  <a
-                    href={`/organizations/${props.organizationId}`}
-                    className="text-primary hover:underline"
-                  >
-                    organization settings
-                  </a>
-                  .
-                </div>
-              )}
               {roleError && (
                 <div className="text-sm text-red-500">{roleError}</div>
               )}
@@ -132,4 +126,47 @@ export function CreateInviteForm({
       </div>
     </DialogContent>
   );
-}
+};
+
+export const CreateTenantInviteModal = ({
+  tenantId,
+  onClose,
+  onCreated,
+}: {
+  tenantId: string;
+  onClose: () => void;
+  onCreated: (invite: TenantInvite) => void;
+}) => {
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors,
+  });
+
+  const organizationId = getOrganizationIdForTenant(tenantId);
+
+  const createMutation = useMutation({
+    mutationKey: ['tenant-invite:create', tenantId],
+    mutationFn: async (data: CreateTenantInviteRequest) => {
+      const res = await api.tenantInviteCreate(tenantId, data);
+      return res.data;
+    },
+    onSuccess: (invite) => {
+      onCreated(invite);
+      onClose();
+    },
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <CreateTenantInviteForm
+        isLoading={createMutation.isPending}
+        onSubmit={createMutation.mutate}
+        fieldErrors={fieldErrors}
+        isCloudEnabled={isCloudEnabled}
+        organizationId={organizationId}
+      />
+    </Dialog>
+  );
+};

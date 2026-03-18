@@ -102,6 +102,7 @@ const WORKER_STATUS_POLL_INTERVAL_MS = 1000;
 export interface DurableTaskRunAckEntryResult {
   nodeId: number;
   branchId: number;
+  workflowRunExternalId: string;
 }
 
 export interface DurableTaskEventRunAck {
@@ -431,6 +432,7 @@ export class DurableListenerClient {
           runEntries: (ack.runEntries || []).map((e) => ({
             nodeId: e.nodeId,
             branchId: e.branchId,
+            workflowRunExternalId: e.workflowRunExternalId,
           })),
         });
         this._pendingEventAcks.delete(key);

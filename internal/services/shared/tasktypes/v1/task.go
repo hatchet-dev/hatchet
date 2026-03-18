@@ -234,11 +234,11 @@ func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, rea
 }
 
 type DurableCallbackCompletedPayload struct {
-	TaskExternalId  uuid.UUID
+	Payload         []byte
 	BranchId        int64
 	NodeId          int64
 	InvocationCount int32
-	Payload         []byte
+	TaskExternalId  uuid.UUID
 }
 
 func DurableCallbackCompletedMessage(

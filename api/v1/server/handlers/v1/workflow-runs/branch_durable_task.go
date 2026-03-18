@@ -27,13 +27,10 @@ func (t *V1WorkflowRunsService) V1DurableTaskBranch(ctx echo.Context, request ge
 	)
 
 	if err != nil {
-		if e, ok := status.FromError(err); ok {
-			switch e.Code() {
-			case codes.InvalidArgument:
-				return gen.V1DurableTaskBranch400JSONResponse(
-					apierrors.NewAPIErrors(e.Message()),
-				), nil
-			}
+		if e, ok := status.FromError(err); ok && e.Code() == codes.InvalidArgument {
+			return gen.V1DurableTaskBranch400JSONResponse(
+				apierrors.NewAPIErrors(e.Message()),
+			), nil
 		}
 
 		return nil, err

@@ -8,6 +8,7 @@ import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import { Evaluate } from '@/lib/can/shared/permission.base';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
@@ -41,7 +42,7 @@ export function useTenantDetails() {
   const tenantId = appContext.tenantId;
   const tenant = appContext.tenant;
   const membership = appContext.membership;
-
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const queryClient = useQueryClient();
   const matchRoute = useMatchRoute();
   const navigate = useNavigate();
@@ -52,7 +53,6 @@ export function useTenantDetails() {
   const setTenant = useCallback(
     (tenant: Tenant) => {
       setLastTenant(tenant);
-      queryClient.clear();
 
       const isOnTenantRoute = Boolean(
         matchRoute({
@@ -78,7 +78,7 @@ export function useTenantDetails() {
 
       navigate(navigateTarget);
     },
-    [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
+    [matchRoute, navigate, setLastTenant, tenantParamInPath],
   );
 
   // Tenant and membership now come from AppContext
@@ -97,6 +97,7 @@ export function useTenantDetails() {
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['user:*'] });
+      invalidateUserUniverse();
       if (data.metadata.id) {
         setTenant(data);
       }

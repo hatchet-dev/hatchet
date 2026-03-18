@@ -35,9 +35,11 @@ export function SimpleTable<
     <div className="overflow-hidden rounded-md border bg-background">
       <Table>
         <TableHeader>
-          {columns.map(({ columnLabel }) => (
-            <TableHead key={columnLabel}>{columnLabel}</TableHead>
-          ))}
+          <TableRow>
+            {columns.map(({ columnLabel }) => (
+              <TableHead key={columnLabel}>{columnLabel}</TableHead>
+            ))}
+          </TableRow>
         </TableHeader>
         <TableBody>
           {data.map((row) => (
