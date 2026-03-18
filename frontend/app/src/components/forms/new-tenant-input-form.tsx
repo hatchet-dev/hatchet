@@ -127,7 +127,12 @@ export function NewTenantInputForm({
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={isSaving} data-cy="create-tenant-submit">
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isSaving}
+        data-cy="create-tenant-submit"
+      >
         {isSaving ? 'Creating...' : 'Create Tenant'}
       </Button>
     </form>
