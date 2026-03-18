@@ -2,7 +2,6 @@ import { cloudApi } from '@/lib/api/api';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
-  OrganizationForUser,
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';

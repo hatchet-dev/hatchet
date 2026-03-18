@@ -152,11 +152,6 @@ export const userUniverseQuery = ({
       });
     });
 
-    const organizations = (organizationsResult?.data.rows || []).map((org) => ({
-      ...org,
-      tenants: org.tenants || [],
-    }));
-
     return isCloudEnabled
       ? {
           isCloudEnabled,

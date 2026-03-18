@@ -124,7 +124,7 @@ export function TenantSelector({ className }: { className?: string }) {
                     className="cursor-pointer text-sm"
                     data-cy="new-tenant"
                     onSelect={() => {
-                      globalEmitter.emit('new-tenant', {
+                      globalEmitter.emit('create-new-tenant', {
                         defaultOrganizationId: currentOrg?.metadata.id,
                       });
                       setOpen(false);
