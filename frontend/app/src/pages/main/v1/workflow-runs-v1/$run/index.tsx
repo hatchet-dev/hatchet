@@ -26,6 +26,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
@@ -34,6 +35,7 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -235,6 +237,10 @@ function ExpandedTaskRun({ id }: { id: string }) {
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
   const executingRef = useRef(false);
+  const { tenantId } = useCurrentTenantId();
+  const { featureFlags, isCloudEnabled } = useCloud(tenantId);
+  const logsEnabled =
+    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -262,7 +268,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const { workflowRun, shape, taskRuns, isLoading, isError } = useWorkflowDetails();
+  const { workflowRun, shape, taskRuns, isLoading, isError } =
+    useWorkflowDetails();
 
   const taskExternalIds = useMemo(
     () => taskRuns.map((t) => t.taskExternalId),
@@ -296,9 +303,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             <TabsTrigger variant="underlined" value="waterfall">
               Waterfall
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="logs">
-              Logs
-            </TabsTrigger>
+            {logsEnabled && (
+              <TabsTrigger variant="underlined" value="logs">
+                Logs
+              </TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="overview" className="min-h-0 flex-1">
             <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
@@ -348,9 +357,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               handleTaskSelect={handleTaskRunExpand}
             />
           </TabsContent>
-          <TabsContent value="logs">
-            <WorkflowRunLogs taskExternalIds={taskExternalIds} />
-          </TabsContent>
+          {logsEnabled && (
+            <TabsContent value="logs">
+              <WorkflowRunLogs taskExternalIds={taskExternalIds} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

@@ -18,6 +18,8 @@ function Main() {
   const { tenantId } = useCurrentTenantId();
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
+  const logsEnabled =
+    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const navSections = useMemo(
     () =>
@@ -25,8 +27,9 @@ function Main() {
         canBill: cloud?.canBill,
         managedWorkerEnabled,
         isCloudEnabled,
+        logsEnabled,
       }),
-    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled],
+    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled, logsEnabled],
   );
 
   const childCtx = useContextFromParent({
