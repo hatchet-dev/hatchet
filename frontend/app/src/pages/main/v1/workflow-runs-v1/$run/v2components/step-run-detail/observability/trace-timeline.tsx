@@ -39,6 +39,7 @@ type FlatSpanRow = {
   connectorFlags: boolean[];
   hasChildren: boolean;
   isExpanded: boolean;
+  matchesFilter: boolean;
 };
 
 type FlatGroupRow = {
@@ -181,6 +182,7 @@ function flattenTree(
         connectorFlags: [...connectorFlags],
         hasChildren,
         isExpanded,
+        matchesFilter: (tree as { matchesFilter?: boolean }).matchesFilter ?? true,
       });
 
       if (isExpanded) {
@@ -231,6 +233,7 @@ function flattenTree(
             connectorFlags: [...connectorFlags, !isLast],
             hasChildren,
             isExpanded: isSpanExpanded,
+            matchesFilter: (span as { matchesFilter?: boolean }).matchesFilter ?? true,
           });
 
           if (isSpanExpanded) {
@@ -689,6 +692,7 @@ export function TraceTimeline({
           }
 
           const isSelected = selectedSpan?.spanId === row.span.spanId;
+          const isDimmed = !row.matchesFilter;
 
           return (
             <div
@@ -696,6 +700,7 @@ export function TraceTimeline({
               className={cn(
                 'flex shrink-0 cursor-pointer items-center rounded-l px-2 transition-colors',
                 isSelected ? 'bg-primary/8' : 'hover:bg-muted/50',
+                isDimmed && 'opacity-40',
               )}
               style={{ height: ROW_HEIGHT }}
               onClick={() => {
@@ -860,6 +865,7 @@ export function TraceTimeline({
             const widthPct =
               timelineMaxMs > 0 ? (durationMs / timelineMaxMs) * 100 : 0;
             const isSelected = selectedSpan?.spanId === row.span.spanId;
+            const isBarDimmed = !row.matchesFilter;
 
             return (
               <div
@@ -867,6 +873,7 @@ export function TraceTimeline({
                 className={cn(
                   'relative shrink-0 transition-colors',
                   isSelected && 'bg-primary/8',
+                  isBarDimmed && 'opacity-40',
                 )}
                 style={{ height: ROW_HEIGHT }}
               >

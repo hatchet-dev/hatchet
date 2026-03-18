@@ -1,3 +1,4 @@
+import type { ParsedTraceQuery } from './trace-search/types';
 import type { SpanGroupInfo } from './trace-timeline';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { Button } from '@/components/v1/ui/button';
@@ -6,6 +7,47 @@ import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
 import { PanelRight, X } from 'lucide-react';
 import { useCallback } from 'react';
+
+function FilterPlusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      {/* funnel */}
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+      {/* plus badge */}
+      <line x1="19" y1="15" x2="19" y2="21" />
+      <line x1="16" y1="18" x2="22" y2="18" />
+    </svg>
+  );
+}
+
+function FilterMinusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      {/* funnel */}
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+      {/* minus badge */}
+      <line x1="16" y1="18" x2="22" y2="18" />
+    </svg>
+  );
+}
 
 function formatDuration(ns: number): string {
   const ms = ns / 1_000_000;
@@ -71,12 +113,32 @@ function partitionAttributes(attrs: Record<string, string> | undefined) {
   return { hatchet, user };
 }
 
+function isFilterActive(
+  activeFilters: ParsedTraceQuery | undefined,
+  key: string,
+  value: string,
+): boolean {
+  if (!activeFilters) {
+    return false;
+  }
+  if (key.toLowerCase() === 'status') {
+    return activeFilters.status === value.toLowerCase();
+  }
+  return activeFilters.attributes.some(([k, v]) => k === key && v === value);
+}
+
 function AttrTable({
   entries,
   title,
+  activeFilters,
+  onAddFilter,
+  onRemoveFilter,
 }: {
   entries: [string, string][];
   title: string;
+  activeFilters?: ParsedTraceQuery;
+  onAddFilter?: (key: string, value: string) => void;
+  onRemoveFilter?: (key: string, value: string) => void;
 }) {
   if (entries.length === 0) {
     return null;
@@ -90,16 +152,52 @@ function AttrTable({
       <div className="overflow-hidden rounded-md border border-border">
         <table className="w-full text-xs">
           <tbody>
-            {entries.map(([key, value]) => (
-              <tr key={key} className="border-b border-border last:border-b-0">
-                <td className="whitespace-nowrap px-3 py-1.5 font-mono text-muted-foreground">
-                  {key}
-                </td>
-                <td className="break-all px-3 py-1.5 font-mono text-foreground">
-                  {value}
-                </td>
-              </tr>
-            ))}
+            {entries.map(([key, value]) => {
+              const active = isFilterActive(activeFilters, key, value);
+              return (
+                <tr
+                  key={key}
+                  className="group border-b border-border last:border-b-0"
+                >
+                  <td className="whitespace-nowrap px-3 py-1.5 font-mono text-muted-foreground">
+                    {key}
+                  </td>
+                  <td className="break-all px-3 py-1.5 font-mono text-foreground">
+                    <span className="flex items-center justify-between gap-2">
+                      <span>{value}</span>
+                      {(onAddFilter || onRemoveFilter) && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className={cn(
+                            'size-6 shrink-0 transition-opacity',
+                            active
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100',
+                          )}
+                          hoverText={
+                            active
+                              ? `Remove filter ${key}:${value}`
+                              : `Filter by ${key}:${value}`
+                          }
+                          onClick={() =>
+                            active
+                              ? onRemoveFilter?.(key, value)
+                              : onAddFilter?.(key, value)
+                          }
+                        >
+                          {active ? (
+                            <FilterMinusIcon className="size-3.5" />
+                          ) : (
+                            <FilterPlusIcon className="size-3.5" />
+                          )}
+                        </Button>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -110,9 +208,15 @@ function AttrTable({
 export function SpanDetail({
   span,
   onClose,
+  activeFilters,
+  onAddFilter,
+  onRemoveFilter,
 }: {
   span: OtelSpanTree;
   onClose: () => void;
+  activeFilters?: ParsedTraceQuery;
+  onAddFilter?: (key: string, value: string) => void;
+  onRemoveFilter?: (key: string, value: string) => void;
 }) {
   const status = statusConfig(span.statusCode);
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
@@ -189,8 +293,20 @@ export function SpanDetail({
 
       {(user.length > 0 || hatchet.length > 0) && (
         <div className="flex flex-col gap-3">
-          <AttrTable entries={user} title="Attributes" />
-          <AttrTable entries={hatchet} title="Hatchet Attributes" />
+          <AttrTable
+            entries={user}
+            title="Attributes"
+            activeFilters={activeFilters}
+            onAddFilter={onAddFilter}
+            onRemoveFilter={onRemoveFilter}
+          />
+          <AttrTable
+            entries={hatchet}
+            title="Hatchet Attributes"
+            activeFilters={activeFilters}
+            onAddFilter={onAddFilter}
+            onRemoveFilter={onRemoveFilter}
+          />
         </div>
       )}
     </div>

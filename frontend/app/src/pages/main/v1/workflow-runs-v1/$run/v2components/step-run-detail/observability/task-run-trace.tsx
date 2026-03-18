@@ -1,5 +1,7 @@
 import { SpanDetail, GroupDetail } from './span-detail';
 import { TraceMinimap } from './trace-minimap';
+import type { FilteredSpanTree } from './trace-search/filter';
+import type { ParsedTraceQuery } from './trace-search/types';
 import {
   TraceTimeline,
   LABEL_WIDTH,
@@ -7,11 +9,7 @@ import {
   type SpanGroupInfo,
 } from './trace-timeline';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
-import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
-import type {
-  OtelSpanTree,
-  RelevantOpenTelemetrySpanProperties,
-} from '@/components/v1/agent-prism/span-tree-type';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { useCallback, useMemo, useState } from 'react';
 
 type Selection =
@@ -19,19 +17,16 @@ type Selection =
   | { kind: 'group'; group: SpanGroupInfo };
 
 export function TaskRunTrace({
-  spans,
+  spanTrees,
+  activeFilters,
+  onAddFilter,
+  onRemoveFilter,
 }: {
-  spans: [
-    RelevantOpenTelemetrySpanProperties,
-    ...RelevantOpenTelemetrySpanProperties[],
-  ];
-  onTaskRunClick?: (taskRunId: string) => void;
+  spanTrees: FilteredSpanTree[];
+  activeFilters?: ParsedTraceQuery;
+  onAddFilter?: (key: string, value: string) => void;
+  onRemoveFilter?: (key: string, value: string) => void;
 }) {
-  const spanTrees = useMemo(
-    () => convertOtelSpansToOtelSpanTree(spans),
-    [spans],
-  );
-
   const { minStart, maxEnd } = useMemo(
     () => findTimeRange(spanTrees),
     [spanTrees],
@@ -81,18 +76,6 @@ export function TaskRunTrace({
     [],
   );
 
-  if (spanTrees.length === 0) {
-    return (
-      <div className="py-4 text-sm text-muted-foreground">
-        No trace found for this task run. To collect traces, use the{' '}
-        <code className="rounded bg-muted px-1 py-0.5 text-xs">
-          HatchetInstrumentor
-        </code>{' '}
-        in your SDK.
-      </div>
-    );
-  }
-
   return (
     <div className="my-4 flex min-w-0 flex-col gap-4 overflow-hidden">
       <div className="flex min-w-0">
@@ -122,7 +105,13 @@ export function TaskRunTrace({
         visibleRange={visibleRange}
       />
       {selection?.kind === 'span' && (
-        <SpanDetail span={selection.span} onClose={handleDetailClose} />
+        <SpanDetail
+          span={selection.span}
+          onClose={handleDetailClose}
+          activeFilters={activeFilters}
+          onAddFilter={onAddFilter}
+          onRemoveFilter={onRemoveFilter}
+        />
       )}
       {selection?.kind === 'group' && (
         <GroupDetail group={selection.group} onClose={handleDetailClose} />

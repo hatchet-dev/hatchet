@@ -1,8 +1,14 @@
 import { TaskRunTrace } from './task-run-trace';
+import { TraceSearchInput } from './trace-search/trace-search-input';
+import { filterSpanTrees } from './trace-search/filter';
+import { parseTraceQuery } from './trace-search/parser';
+import type { TraceAutocompleteContext } from './trace-search/types';
+import { convertOtelSpansToOtelSpanTree } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
 import { Loading } from '@/components/v1/ui/loading';
 import api from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
@@ -75,11 +81,43 @@ type ObservabilityProps = {
   | { taskRunId?: never; workflowRunExternalId: string }
 );
 
+function buildAutocompleteContext(
+  spans: RelevantOpenTelemetrySpanProperties[],
+): TraceAutocompleteContext {
+  const keySet = new Set<string>();
+  const valuesByKey = new Map<string, Set<string>>();
+
+  for (const span of spans) {
+    if (!span.spanAttributes) continue;
+    for (const [key, value] of Object.entries(span.spanAttributes)) {
+      keySet.add(key);
+      let vals = valuesByKey.get(key);
+      if (!vals) {
+        vals = new Set();
+        valuesByKey.set(key, vals);
+      }
+      vals.add(value);
+    }
+  }
+
+  const attributeValues = new Map<string, string[]>();
+  for (const [key, vals] of valuesByKey) {
+    attributeValues.set(key, [...vals].sort());
+  }
+
+  return {
+    attributeKeys: [...keySet].sort(),
+    attributeValues,
+  };
+}
+
 export const Observability = (props: ObservabilityProps) => {
   const { isRunning } = props;
 
   const queryId = props.taskRunId ?? props.workflowRunExternalId;
   const queryType = props.taskRunId ? 'task' : 'workflow-run';
+
+  const [queryString, setQueryString] = useState('');
 
   const tracesQuery = useQuery({
     queryKey: [queryType + ':trace', queryId],
@@ -90,23 +128,91 @@ export const Observability = (props: ObservabilityProps) => {
     refetchInterval: isRunning ? 5000 : false,
   });
 
+  const traces = tracesQuery.data;
+
+  const autocompleteContext = useMemo(
+    () => buildAutocompleteContext(traces ?? []),
+    [traces],
+  );
+
+  const spanTrees = useMemo(() => {
+    if (!traces || !hasAtLeastOneElement(traces)) return null;
+    return convertOtelSpansToOtelSpanTree(traces);
+  }, [traces]);
+
+  const parsedQuery = useMemo(() => parseTraceQuery(queryString), [queryString]);
+
+  const filteredTrees = useMemo(() => {
+    if (!spanTrees) return null;
+    return filterSpanTrees(spanTrees, parsedQuery);
+  }, [spanTrees, parsedQuery]);
+
+  const handleAddFilter = useCallback(
+    (key: string, value: string) => {
+      const token = `${key}:${value}`;
+      setQueryString((prev) => {
+        const trimmed = prev.trim();
+        return trimmed ? `${trimmed} ${token}` : token;
+      });
+    },
+    [],
+  );
+
+  const handleRemoveFilter = useCallback(
+    (key: string, value: string) => {
+      const token = `${key}:${value}`;
+      setQueryString((prev) => {
+        const parts = prev.split(/\s+/).filter((p) => p !== token);
+        return parts.join(' ');
+      });
+    },
+    [],
+  );
+
   if (!tracesQuery.isFetched) {
     return <Loading />;
   }
 
-  const traces = tracesQuery.data;
-
-  if (!traces || !hasAtLeastOneElement(traces)) {
+  if (!filteredTrees || filteredTrees.length === 0) {
     return (
-      <div className="py-4 text-sm text-muted-foreground">
-        No traces found. To collect traces, use the{' '}
-        <code className="rounded bg-muted px-1 py-0.5 text-xs">
-          HatchetInstrumentor
-        </code>{' '}
-        in your SDK.
+      <div className="flex flex-col gap-4">
+        {spanTrees && (
+          <TraceSearchInput
+            value={queryString}
+            onChange={setQueryString}
+            autocompleteContext={autocompleteContext}
+          />
+        )}
+        <div className="py-4 text-sm text-muted-foreground">
+          {spanTrees
+            ? 'No spans match the current filter.'
+            : (
+                <>
+                  No traces found. To collect traces, use the{' '}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                    HatchetInstrumentor
+                  </code>{' '}
+                  in your SDK.
+                </>
+              )}
+        </div>
       </div>
     );
   }
 
-  return <TaskRunTrace spans={traces} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <TraceSearchInput
+        value={queryString}
+        onChange={setQueryString}
+        autocompleteContext={autocompleteContext}
+      />
+      <TaskRunTrace
+        spanTrees={filteredTrees}
+        activeFilters={parsedQuery}
+        onAddFilter={handleAddFilter}
+        onRemoveFilter={handleRemoveFilter}
+      />
+    </div>
+  );
 };
