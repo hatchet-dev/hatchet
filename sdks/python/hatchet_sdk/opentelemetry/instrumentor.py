@@ -258,17 +258,23 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     The instrumentor provides an OpenTelemetry integration for Hatchet by setting up
     tracing and metrics collection.
 
-    :param tracer_provider: TracerProvider | None: The OpenTelemetry TracerProvider to use.
+    :param tracer_provider: The OpenTelemetry TracerProvider to use.
             If not provided and `enable_hatchet_otel_collector` is True, a new SDKTracerProvider
             will be created. Otherwise, the global tracer provider will be used.
-    :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
+    :param meter_provider: The OpenTelemetry MeterProvider to use.
             If not provided, a no-op meter provider will be used.
-    :param config: ClientConfig | None: The configuration for the Hatchet client. If not provided,
+    :param config: The configuration for the Hatchet client. If not provided,
             a default configuration will be used.
-    :param enable_hatchet_otel_collector: bool: If True (the default), adds an OTLP exporter
+    :param enable_hatchet_otel_collector: If True (the default), adds an OTLP exporter
             to send traces to the Hatchet engine. Uses the same connection settings (host, TLS,
             token) as the Hatchet client. This can be combined with your own tracer_provider to
             send traces to multiple destinations (e.g., both Hatchet and Jaeger/Datadog).
+    :param schedule_delay_millis: The delay in milliseconds between two consecutive
+            exports of the BatchSpanProcessor. Defaults to the OTel SDK default (5000ms) if not set.
+    :param max_export_batch_size: The maximum batch size for the BatchSpanProcessor.
+            Defaults to the OTel SDK default (512) if not set.
+    :param max_queue_size: The maximum queue size for the BatchSpanProcessor.
+            Defaults to the OTel SDK default (2048) if not set.
 
     Example usage::
 
