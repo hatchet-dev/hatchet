@@ -58,7 +58,10 @@ export interface LogViewerProps {
   showTaskName?: boolean;
 }
 
-function getEmptyStateMessage(taskStatus?: V1TaskStatus, emptyMessage?: string): string {
+function getEmptyStateMessage(
+  taskStatus?: V1TaskStatus,
+  emptyMessage?: string,
+): string {
   if (emptyMessage) {
     return emptyMessage;
   }
@@ -204,7 +207,12 @@ export function LogViewer({
 
   if (isLoading) {
     return (
-      <div className={cn(heightClass, 'rounded-lg border bg-background flex items-center justify-center')}>
+      <div
+        className={cn(
+          heightClass,
+          'rounded-lg border bg-background flex items-center justify-center',
+        )}
+      >
         <span className="text-sm text-muted-foreground">Loading logs...</span>
       </div>
     );
@@ -213,7 +221,12 @@ export function LogViewer({
   const isEmpty = logs.length === 0;
   if (isEmpty) {
     return (
-      <div className={cn(heightClass, 'rounded-lg border bg-background flex items-center justify-center')}>
+      <div
+        className={cn(
+          heightClass,
+          'rounded-lg border bg-background flex items-center justify-center',
+        )}
+      >
         <span className="text-sm text-muted-foreground">
           {getEmptyStateMessage(taskStatus, emptyMessage)}
         </span>
@@ -223,10 +236,7 @@ export function LogViewer({
 
   // Column count for subgrid span
   const colCount =
-    3 +
-    (hasInstance ? 1 : 0) +
-    (hasAttempt ? 1 : 0) +
-    (showTaskName ? 1 : 0);
+    3 + (hasInstance ? 1 : 0) + (hasAttempt ? 1 : 0) + (showTaskName ? 1 : 0);
 
   return (
     <div className="relative rounded-lg border bg-background overflow-hidden flex flex-col flex-1 min-h-0">
@@ -324,7 +334,9 @@ export function LogViewer({
                 <div
                   className={cn(
                     'px-3 py-1.5 font-mono text-xs text-muted-foreground truncate',
-                    onViewRun && log.taskExternalId && 'cursor-pointer hover:text-foreground hover:underline',
+                    onViewRun &&
+                      log.taskExternalId &&
+                      'cursor-pointer hover:text-foreground hover:underline',
                   )}
                   onClick={
                     onViewRun && log.taskExternalId

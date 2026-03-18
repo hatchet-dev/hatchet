@@ -24,7 +24,9 @@ const CHART_CONFIG = {
 
 function getNextPointTime(time: string, points: V1LogsPointMetric[]): string {
   const idx = points.findIndex((p) => p.time === time);
-  if (idx === -1) return time;
+  if (idx === -1) {
+    return time;
+  }
   if (idx === points.length - 1) {
     const last = new Date(points[idx].time).getTime();
     const prev = new Date(points[idx - 1].time).getTime();
@@ -35,7 +37,9 @@ function getNextPointTime(time: string, points: V1LogsPointMetric[]): string {
 
 function getPrevPointTime(time: string, points: V1LogsPointMetric[]): string {
   const idx = points.findIndex((p) => p.time === time);
-  if (idx === -1) return time;
+  if (idx === -1) {
+    return time;
+  }
   if (idx === 0) {
     const first = new Date(points[0].time).getTime();
     const second = new Date(points[1].time).getTime();
@@ -132,10 +136,30 @@ export function LogsChart({ metrics, since, until, onZoom }: LogsChartProps) {
                 />
               }
             />
-            <Bar dataKey="DEBUG" stackId="normal" fill={CHART_CONFIG.DEBUG.color} isAnimationActive={false} />
-            <Bar dataKey="INFO" stackId="normal" fill={CHART_CONFIG.INFO.color} isAnimationActive={false} />
-            <Bar dataKey="WARN" stackId="normal" fill={CHART_CONFIG.WARN.color} isAnimationActive={false} />
-            <Bar dataKey="ERROR" stackId="error" fill={CHART_CONFIG.ERROR.color} isAnimationActive={false} />
+            <Bar
+              dataKey="DEBUG"
+              stackId="normal"
+              fill={CHART_CONFIG.DEBUG.color}
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="INFO"
+              stackId="normal"
+              fill={CHART_CONFIG.INFO.color}
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="WARN"
+              stackId="normal"
+              fill={CHART_CONFIG.WARN.color}
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="ERROR"
+              stackId="error"
+              fill={CHART_CONFIG.ERROR.color}
+              isAnimationActive={false}
+            />
 
             {refAreaLeft && refAreaRight && (
               <ReferenceArea

@@ -11,12 +11,7 @@ import {
 import api from '@/lib/api/api';
 import { useSearchParams } from '@/lib/router-helpers';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 const LOGS_PER_PAGE = 100;
@@ -85,13 +80,19 @@ export function useTenantLogs() {
   );
 
   // Stable since: computed once per filter change, not on every render
-  const [since, setSince] = useState(() =>
-    filters.since ?? getSinceFromTimeWindow(filters.tw),
+  const [since, setSince] = useState(
+    () => filters.since ?? getSinceFromTimeWindow(filters.tw),
   );
 
   useEffect(() => {
     setSince(filters.since ?? getSinceFromTimeWindow(filters.tw));
-  }, [filters.tw, filters.since, filters.until, parsedQuery.level, parsedQuery.search]);
+  }, [
+    filters.tw,
+    filters.since,
+    filters.until,
+    parsedQuery.level,
+    parsedQuery.search,
+  ]);
 
   const logsQuery = useInfiniteQuery({
     queryKey: [
@@ -106,7 +107,11 @@ export function useTenantLogs() {
       const response = await api.v1TenantLogLineList(tenantId, {
         limit: LOGS_PER_PAGE,
         since,
-        ...(pageParam ? { until: pageParam } : filters.until ? { until: filters.until } : {}),
+        ...(pageParam
+          ? { until: pageParam }
+          : filters.until
+            ? { until: filters.until }
+            : {}),
         ...(parsedQuery.level && {
           levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
         }),
@@ -118,7 +123,9 @@ export function useTenantLogs() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {
       const rows = lastPage.rows ?? [];
-      if (rows.length < LOGS_PER_PAGE) return undefined;
+      if (rows.length < LOGS_PER_PAGE) {
+        return undefined;
+      }
       return rows[rows.length - 1].createdAt;
     },
     refetchInterval,
@@ -181,7 +188,12 @@ export function useTenantLogs() {
     (tw: TimeWindow) => {
       setSearchParams((prev) => ({
         ...Object.fromEntries(prev.entries()),
-        [FILTER_KEY]: JSON.stringify({ ...filters, tw, since: undefined, until: undefined }),
+        [FILTER_KEY]: JSON.stringify({
+          ...filters,
+          tw,
+          since: undefined,
+          until: undefined,
+        }),
       }));
     },
     [filters, setSearchParams],
@@ -190,7 +202,11 @@ export function useTenantLogs() {
   const clearTimeRange = useCallback(() => {
     setSearchParams((prev) => ({
       ...Object.fromEntries(prev.entries()),
-      [FILTER_KEY]: JSON.stringify({ ...filters, since: undefined, until: undefined }),
+      [FILTER_KEY]: JSON.stringify({
+        ...filters,
+        since: undefined,
+        until: undefined,
+      }),
     }));
   }, [filters, setSearchParams]);
 

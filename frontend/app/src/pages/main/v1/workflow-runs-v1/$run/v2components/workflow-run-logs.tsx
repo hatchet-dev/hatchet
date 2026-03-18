@@ -1,3 +1,4 @@
+import { TabOption } from './step-run-detail/step-run-detail';
 import {
   getAutocomplete,
   applySuggestion,
@@ -8,13 +9,12 @@ import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { V1LogLine, V1LogLineOrderByDirection } from '@/lib/api';
 import api from '@/lib/api/api';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-import { TabOption } from './step-run-detail/step-run-detail';
 
 const LOGS_PER_PAGE = 100;
 
@@ -71,7 +71,9 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {
       const rows = lastPage.rows ?? [];
-      if (rows.length < LOGS_PER_PAGE) return undefined;
+      if (rows.length < LOGS_PER_PAGE) {
+        return undefined;
+      }
       return rows[rows.length - 1].createdAt;
     },
     enabled: !!tenantId && taskExternalIds.length > 0,
@@ -124,7 +126,11 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
         placeholder="Search logs..."
         filterChips={[
           { key: 'level:', label: 'Level', description: 'Filter by log level' },
-          { key: 'attempt:', label: 'Attempt', description: 'Filter by attempt number' },
+          {
+            key: 'attempt:',
+            label: 'Attempt',
+            description: 'Filter by attempt number',
+          },
         ]}
       />
       <LogViewer

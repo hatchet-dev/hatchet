@@ -1,10 +1,13 @@
+import { LogsChart } from './components/logs-chart';
+import { useTenantLogs } from './hooks/use-tenant-logs';
+import type { TimeWindow } from './hooks/use-tenant-logs';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import {
   getAutocomplete,
   applySuggestion,
 } from '@/components/v1/cloud/logging/log-search/autocomplete';
 import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-search/types';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
-import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
@@ -18,9 +21,6 @@ import {
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback } from 'react';
-import { LogsChart } from './components/logs-chart';
-import { useTenantLogs } from './hooks/use-tenant-logs';
-import type { TimeWindow } from './hooks/use-tenant-logs';
 
 export default function TenantLogsPage() {
   const {
@@ -77,14 +77,20 @@ export default function TenantLogsPage() {
             const result = getAutocomplete(q, []);
             return {
               ...result,
-              suggestions: result.suggestions.filter((s) => s.value !== 'attempt:'),
+              suggestions: result.suggestions.filter(
+                (s) => s.value !== 'attempt:',
+              ),
             };
           }}
           applySuggestion={applySuggestion}
           autocompleteContext={[]}
           placeholder="Search logs..."
           filterChips={[
-            { key: 'level:', label: 'Level', description: 'Filter by log level' },
+            {
+              key: 'level:',
+              label: 'Level',
+              description: 'Filter by log level',
+            },
           ]}
           className="flex-1"
         />
@@ -116,10 +122,7 @@ export default function TenantLogsPage() {
             value={timeWindow}
             onValueChange={(value) => {
               if (value === 'custom') {
-                setCustomTimeRange(
-                  chartSince,
-                  new Date().toISOString(),
-                );
+                setCustomTimeRange(chartSince, new Date().toISOString());
               } else {
                 setTimeWindow(value as TimeWindow);
               }
