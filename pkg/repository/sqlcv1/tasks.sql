@@ -1094,27 +1094,6 @@ WHERE (task_id, task_inserted_at, task_retry_count) IN (
     FROM locked_cs
 );
 
--- name: CleanupV1WorkflowConcurrencySlot :execresult
-WITH orphaned_wcs AS (
-    SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-    FROM v1_workflow_concurrency_slot wcs
-    WHERE wcs.is_filled = TRUE
-        AND NOT EXISTS (
-            SELECT 1
-            FROM v1_concurrency_slot cs
-            WHERE cs.workflow_run_id = wcs.workflow_run_id
-                AND cs.parent_strategy_id = wcs.strategy_id
-        )
-    ORDER BY wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-    LIMIT @batchSize::int
-    FOR UPDATE SKIP LOCKED
-)
-DELETE FROM v1_workflow_concurrency_slot
-WHERE (strategy_id, workflow_version_id, workflow_run_id) IN (
-    SELECT strategy_id, workflow_version_id, workflow_run_id
-    FROM orphaned_wcs
-);
-
 -- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT

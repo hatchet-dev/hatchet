@@ -3952,20 +3952,6 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		return nil
 	}))
 
-	// CleanupV1WorkflowConcurrencySlot
-	eg.Go(runCleanup("cleanup-v1-workflow-concurrency-slot", func(ctx context.Context, tx sqlcv1.DBTX) error {
-		result, err := r.queries.CleanupV1WorkflowConcurrencySlot(ctx, tx, batchSize)
-		if err != nil {
-			return fmt.Errorf("error cleaning up v1_workflow_concurrency_slot: %v", err)
-		}
-		if result.RowsAffected() == batchSize {
-			mu.Lock()
-			shouldContinue = true
-			mu.Unlock()
-		}
-		return nil
-	}))
-
 	// ReactivateInactiveQueuesWithItems
 	eg.Go(runCleanup("cleanup-reactivate-queues", func(ctx context.Context, tx sqlcv1.DBTX) error {
 		result, err := r.queries.ReactivateInactiveQueuesWithItems(ctx, tx)
