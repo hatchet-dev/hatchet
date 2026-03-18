@@ -538,7 +538,12 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		opts = &SpawnWorkflowOpts{}
 	}
 
-	opts.AdditionalMetadata = injectTraceparent(h.GetContext(), opts.AdditionalMetadata)
+	// Only inject traceparent if the caller hasn't already set one (e.g. the
+	// new Go SDK's RunNoWait injects a traceparent pointing to its own
+	// hatchet.run_workflow span — we must not overwrite it).
+	if opts.AdditionalMetadata == nil || (*opts.AdditionalMetadata)["traceparent"] == "" {
+		opts.AdditionalMetadata = injectTraceparent(h.GetContext(), opts.AdditionalMetadata)
+	}
 
 	var desiredWorker *string
 
@@ -606,7 +611,9 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	listener, err := h.saveOrLoadListener()
 
 	for i, c := range childWorkflows {
-		c.AdditionalMetadata = injectTraceparent(h.GetContext(), c.AdditionalMetadata)
+		if c.AdditionalMetadata == nil || (*c.AdditionalMetadata)["traceparent"] == "" {
+			c.AdditionalMetadata = injectTraceparent(h.GetContext(), c.AdditionalMetadata)
+		}
 
 		var desiredWorker *string
 

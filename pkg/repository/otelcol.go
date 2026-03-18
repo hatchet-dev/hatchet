@@ -216,7 +216,7 @@ func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRunExternalID(ctx conte
 	// Fetch spans for the requested workflow run and all child workflow runs.
 	// Instead of a slow recursive SQL CTE, we iteratively discover child workflow
 	// run IDs from span attributes (hatchet.workflow_run_id on trigger spans).
-	allRows, err := o.listSpansForWorkflowRunTree(ctx, tenantId, workflowRunExternalID)
+	allRows, err := o.listSpansForWorkflowRunTree(ctx, tenantId, workflowRunExternalID, listSpansOpts{includeTraceIDLookup: true})
 	if err != nil {
 		return nil, err
 	}
@@ -235,10 +235,20 @@ func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRunExternalID(ctx conte
 	return &ListSpansResult{Rows: allRows[offset:end], Total: total}, nil
 }
 
+type listSpansOpts struct {
+	includeTraceIDLookup bool
+}
+
 // listSpansForWorkflowRunTree fetches spans for a workflow run and all child
 // workflow runs, discovering children by inspecting span attributes.
-func (o *otelCollectorRepositoryImpl) listSpansForWorkflowRunTree(ctx context.Context, tenantId uuid.UUID, rootWorkflowRunID uuid.UUID) ([]*OtelSpanRow, error) {
+func (o *otelCollectorRepositoryImpl) listSpansForWorkflowRunTree(ctx context.Context, tenantId uuid.UUID, rootWorkflowRunID uuid.UUID, opts ...listSpansOpts) ([]*OtelSpanRow, error) {
+	cfg := listSpansOpts{}
+	if len(opts) > 0 {
+		cfg = opts[0]
+	}
+
 	var allRows []*OtelSpanRow
+	seenSpanIDs := make(map[string]bool)
 
 	// BFS through workflow run tree
 	queue := []uuid.UUID{rootWorkflowRunID}
@@ -259,6 +269,10 @@ func (o *otelCollectorRepositoryImpl) listSpansForWorkflowRunTree(ctx context.Co
 		}
 
 		for _, r := range rows {
+			if seenSpanIDs[r.SpanID] {
+				continue
+			}
+			seenSpanIDs[r.SpanID] = true
 			allRows = append(allRows, &OtelSpanRow{
 				TraceID: r.TraceID, SpanID: r.SpanID, ParentSpanID: r.ParentSpanID,
 				SpanName: r.SpanName, SpanKind: r.SpanKind, ServiceName: r.ServiceName,
@@ -274,6 +288,48 @@ func (o *otelCollectorRepositoryImpl) listSpansForWorkflowRunTree(ctx context.Co
 				visited[childID] = true
 				queue = append(queue, childID)
 			}
+		}
+	}
+
+	if !cfg.includeTraceIDLookup {
+		return allRows, nil
+	}
+
+	// Second pass: fetch parent/trigger spans by trace_id.
+	// Trigger spans (hatchet.run_workflow, hatchet.push_event) don't have
+	// workflow_run_external_id set, so they're missed by the first query.
+	traceIDs := make(map[string]bool)
+	for _, row := range allRows {
+		traceIDs[row.TraceID] = true
+	}
+
+	if len(traceIDs) > 0 {
+		traceIDList := make([]string, 0, len(traceIDs))
+		for tid := range traceIDs {
+			traceIDList = append(traceIDList, tid)
+		}
+
+		traceRows, err := o.queries.ListSpansByTraceIDs(ctx, o.pool, sqlcv1.ListSpansByTraceIDsParams{
+			Tenantid: tenantId,
+			Traceids: traceIDList,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error listing otel spans by trace_id: %w", err)
+		}
+
+		for _, r := range traceRows {
+			if seenSpanIDs[r.SpanID] {
+				continue
+			}
+			seenSpanIDs[r.SpanID] = true
+			allRows = append(allRows, &OtelSpanRow{
+				TraceID: r.TraceID, SpanID: r.SpanID, ParentSpanID: r.ParentSpanID,
+				SpanName: r.SpanName, SpanKind: r.SpanKind, ServiceName: r.ServiceName,
+				StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
+				StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
+				SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
+				RetryCount: r.RetryCount,
+			})
 		}
 	}
 
