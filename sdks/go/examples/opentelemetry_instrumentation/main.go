@@ -69,11 +69,11 @@ func main() {
 		"otel-send-notification",
 		func(ctx hatchet.Context, input NotifyInput) (NotifyOutput, error) {
 			_, span := tracer.Start(ctx, "notification.render-template")
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(2 * time.Second)
 			span.End()
 
 			_, span = tracer.Start(ctx, fmt.Sprintf("notification.deliver.%s", input.Channel))
-			time.Sleep(20 * time.Millisecond)
+			time.Sleep(3 * time.Second)
 			span.End()
 
 			if input.I == 10 {
@@ -92,11 +92,11 @@ func main() {
 		"otel-other-task",
 		func(ctx hatchet.Context, input NotifyInput) (NotifyOutput, error) {
 			_, span := tracer.Start(ctx, "notification.render-template")
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			span.End()
 
 			_, span = tracer.Start(ctx, fmt.Sprintf("notification.deliver.%s", input.Channel))
-			time.Sleep(20 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 			span.End()
 
 			return NotifyOutput{
@@ -137,11 +137,11 @@ func main() {
 			payCtx, paySpan := tracer.Start(ctx, "payment.process")
 
 			_, tokenSpan := tracer.Start(payCtx, "payment.tokenize-card")
-			time.Sleep(15 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 			tokenSpan.End()
 
 			_, chargeSpan := tracer.Start(payCtx, "payment.charge")
-			time.Sleep(30 * time.Millisecond)
+			time.Sleep(400 * time.Millisecond)
 			chargeSpan.End()
 
 			paySpan.End()
@@ -158,11 +158,11 @@ func main() {
 		"reserve-inventory",
 		func(ctx hatchet.Context, input OrderInput) (ReserveInventoryOutput, error) {
 			_, span := tracer.Start(ctx, "inventory.check-availability")
-			time.Sleep(6 * time.Millisecond)
+			time.Sleep(2 * time.Second)
 			span.End()
 
 			_, span = tracer.Start(ctx, "inventory.reserve")
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(3 * time.Second)
 			span.End()
 
 			return ReserveInventoryOutput{

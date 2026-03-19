@@ -89,6 +89,10 @@ function getDisplayName(span: OtelSpanTree): string {
   if (!span.spanName.startsWith('hatchet.')) {
     return span.spanName;
   }
+  // O11Y-FIXME: there is a naming consistency issue on the SDKs
+  if (span.spanAttributes?.['hatchet.task_name']) {
+    return span.spanAttributes['hatchet.task_name'];
+  }
   if (span.spanAttributes?.['hatchet.step_name']) {
     return span.spanAttributes['hatchet.step_name'];
   }
