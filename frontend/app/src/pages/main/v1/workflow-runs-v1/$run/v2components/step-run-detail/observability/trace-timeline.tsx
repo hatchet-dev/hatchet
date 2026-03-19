@@ -1139,7 +1139,10 @@ export function TraceTimeline({
                     onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
                     onMouseMove={handleBarMouseMove}
                     onMouseLeave={() => handleBarHover(null)}
-                    onClick={() => onGroupSelect?.(row.group)}
+                    onClick={() => {
+                      expandOnly(row.group.groupId);
+                      onGroupSelect?.(row.group);
+                    }}
                   />
                 </div>
               );
@@ -1204,7 +1207,12 @@ export function TraceTimeline({
                     onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
                     onMouseMove={handleBarMouseMove}
                     onMouseLeave={() => handleBarHover(null)}
-                    onClick={() => onSpanSelect?.(row.span)}
+                    onClick={() => {
+                      if (row.hasChildren) {
+                        expandOnly(row.span.spanId);
+                      }
+                      onSpanSelect?.(row.span);
+                    }}
                   >
                     <div
                       className="absolute inset-0 opacity-40"
@@ -1234,7 +1242,12 @@ export function TraceTimeline({
                   onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
                   onMouseMove={handleBarMouseMove}
                   onMouseLeave={() => handleBarHover(null)}
-                  onClick={() => onSpanSelect?.(row.span)}
+                  onClick={() => {
+                    if (row.hasChildren) {
+                      expandOnly(row.span.spanId);
+                    }
+                    onSpanSelect?.(row.span);
+                  }}
                 />
               </div>
             );
