@@ -22,6 +22,7 @@ export function detectWorkflowDeclarations(
 ): WorkflowDeclaration[] {
   switch (languageId) {
     case 'typescript':
+    case 'typescriptreact':
       return detectTsWorkflowDeclarations(text, fileName);
     case 'python':
       return detectPyWorkflowDeclarations(text);
@@ -69,6 +70,7 @@ function parseWorkflowsForDocument(
 ): ParsedWorkflow[] {
   switch (languageId) {
     case 'typescript':
+    case 'typescriptreact':
       return parseWorkflows(text, fileName);
     case 'python':
       return parsePythonWorkflows(text);
@@ -88,6 +90,7 @@ function parseWorkflowsForDocument(
 function looksLikeHatchetDocument(text: string, languageId: string): boolean {
   switch (languageId) {
     case 'typescript':
+    case 'typescriptreact':
       return (
         text.includes('@hatchet-dev/typescript-sdk') ||
         // Match .workflow( and .workflow<T>(

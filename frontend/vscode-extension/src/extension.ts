@@ -7,7 +7,7 @@ import {
 } from './providers/codelens-provider';
 import type { WorkflowDeclaration, ParsedWorkflow } from './parser/workflow-parser';
 
-const SUPPORTED_LANGUAGES = ['typescript', 'python', 'ruby', 'go'];
+const SUPPORTED_LANGUAGES = ['typescript', 'typescriptreact', 'python', 'ruby', 'go'];
 
 let codeLensProvider: HatchetCodeLensProvider | undefined;
 

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ParsedTask, ParsedWorkflow, WorkflowDeclaration } from '../parser/workflow-parser';
+import { isWithinWorkspace } from '../utils/workspace';
 
 /**
  * Queries the running language server for all cross-file references to a
@@ -103,19 +104,6 @@ export class LspAnalyzer {
       usedFallback: false,
     };
   }
-}
-
-// ─── Workspace guard ─────────────────────────────────────────────────────────
-
-/**
- * Return true if `uri` is under one of the currently open workspace folders.
- * Prevents acting on LSP-supplied URIs that point outside the workspace.
- */
-function isWithinWorkspace(uri: vscode.Uri): boolean {
-  const folders = vscode.workspace.workspaceFolders;
-  if (!folders || folders.length === 0) return false;
-  const uriStr = uri.toString();
-  return folders.some((f) => uriStr.startsWith(f.uri.toString()));
 }
 
 // ─── Location-level task extraction ──────────────────────────────────────────

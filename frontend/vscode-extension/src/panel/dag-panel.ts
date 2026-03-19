@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import type { DagNode, DagShape } from '../dag-visualizer';
 import type { ParsedTask, ParsedWorkflow, WorkflowDeclaration } from '../parser/workflow-parser';
 import { LspAnalyzer } from '../analysis/lsp-analyzer';
+import { isWithinWorkspace } from '../utils/workspace';
 
 /**
  * Message types sent from the extension host to the webview.
@@ -273,17 +274,6 @@ function buildTaskActions(task: ParsedTask, fileDescription?: string): TaskActio
         : `line ${task.declarationLine + 1}`,
     },
   ];
-}
-
-/**
- * Return true if `uri` is under one of the currently open workspace folders.
- * Used to guard against LSP-supplied URIs that point outside the workspace.
- */
-function isWithinWorkspace(uri: vscode.Uri): boolean {
-  const folders = vscode.workspace.workspaceFolders;
-  if (!folders || folders.length === 0) return false;
-  const uriStr = uri.toString();
-  return folders.some((f) => uriStr.startsWith(f.uri.toString()));
 }
 
 /**
