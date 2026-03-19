@@ -1,0 +1,64 @@
+{
+  "name": "hatchet",
+  "displayName": "Hatchet",
+  "description": "Visualize Hatchet workflow DAGs inline in your editor",
+  "version": "0.1.0",
+  "publisher": "hatchet-dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hatchet-dev/hatchet"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Visualization"],
+  "icon": "assets/icon.png",
+  "activationEvents": ["onLanguage:typescript", "onLanguage:python", "onLanguage:ruby", "onLanguage:go"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hatchet.showDag",
+        "title": "Hatchet: Show Workflow DAG",
+        "icon": "$(graph)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run build:prod",
+    "build": "webpack --mode development",
+    "build:prod": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.webview.json --noEmit",
+    "package": "vsce package --no-dependencies",
+    "publish": "vsce publish --no-dependencies"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "dagre": "^0.8.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "reactflow": "^11.11.4",
+    "tailwind-merge": "^2.6.0",
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/dagre": "^0.7.52",
+    "@types/node": "^20.17.28",
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.5",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "autoprefixer": "^10.4.21",
+    "css-loader": "^7.1.2",
+    "mini-css-extract-plugin": "^2.9.2",
+    "postcss": "^8.5.3",
+    "postcss-loader": "^8.1.1",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
+    "ts-loader": "^9.5.2",
+    "webpack": "^5.99.9",
+    "webpack-cli": "^6.0.1"
+  }
+}
