@@ -375,17 +375,7 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 	triggerOpts, denyUpdateKeys, duplicateKeys, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
-		if errors.Is(err, ErrIdempotencyKeyAlreadyClaimed) && len(denyUpdateKeys) > 0 {
-			updateErr := s.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, s.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
-				Tenantid: tenantId,
-				Keys:     denyUpdateKeys,
-			})
-			if updateErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to update idempotency key deny timestamps: %w", updateErr))
-			}
-		}
-
-		return nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
+		return nil, nil, denyUpdateKeys, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
 	if len(duplicateKeys) > 0 && len(triggerOpts) > 0 {
@@ -414,6 +404,17 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 	tasks, dags, denyUpdateKeys, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
 	if err != nil {
+		if errors.Is(err, ErrIdempotencyKeyAlreadyClaimed) && len(denyUpdateKeys) > 0 {
+			tx.Rollback()
+			updateErr := r.queries.UpdateIdempotencyKeysLastDeniedAt(ctx, r.pool, sqlcv1.UpdateIdempotencyKeysLastDeniedAtParams{
+				Tenantid: tenantId,
+				Keys:     denyUpdateKeys,
+			})
+			if updateErr != nil {
+				err = errors.Join(err, fmt.Errorf("failed to update idempotency key deny timestamps: %w", updateErr))
+			}
+		}
+
 		return nil, nil, err
 	}
 
@@ -2413,6 +2414,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 
 	// each (workflowVersionId, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0, len(opts))
+	allowPartialIdempotency := len(opts) > 0
 
 	for _, workflowVersion := range workflowVersionsByNames {
 		opts, ok := namesToOpts[workflowVersion.WorkflowName]
@@ -2422,6 +2424,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		}
 
 		for _, opt := range opts {
+			allowPartialIdempotency = allowPartialIdempotency && opt.AllowPartialIdempotency
+
 			if opt.IdempotencyKey != nil {
 				keyClaimantPair := KeyClaimantPair{
 					IdempotencyKey:      *opt.IdempotencyKey,
@@ -2453,6 +2457,10 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
 			})
 		}
+	}
+
+	if len(triggerOpts) > 0 && len(duplicateKeys) > 0 && !allowPartialIdempotency {
+		return nil, denyUpdateKeys, duplicateKeys, &IdempotencyKeyAlreadyClaimedError{Keys: duplicateKeys}
 	}
 
 	if len(triggerOpts) == 0 && len(duplicateKeys) > 0 {
