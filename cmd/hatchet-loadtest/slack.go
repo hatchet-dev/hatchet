@@ -45,7 +45,6 @@ func NewSlackSender(s3Bucket string) *SlackSender {
 }
 
 func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl string, avgDuration time.Duration, avgScheduling time.Duration) error {
-	// need to create payload manually because the slack webhook endpoints do not play nicely with the slack go sdk
 	text := fmt.Sprintf(
 		"*(%s)* \n:star:Load test results:star:\nAverage task duration: %s\nAverage task scheduling: %s",
 		time.Now().Format("2006-01-02-15:04:05"),
@@ -78,7 +77,7 @@ func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl stri
 	_, _, err := client.PostMessage(
 		s.Channel,
 		slack.MsgOptionBlocks(blocks...),
-		slack.MsgOptionTS(s.Thread), // 👈 this attaches it to a thread
+		slack.MsgOptionTS(s.Thread),
 	)
 	return err
 }
