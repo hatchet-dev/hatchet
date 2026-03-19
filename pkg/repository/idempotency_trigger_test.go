@@ -510,8 +510,8 @@ func TestTriggerWorkflowIdempotency_ReclaimDoesNotUpdateLastDeniedAt(t *testing.
 	assert.False(t, lastDeniedAt.Valid)
 }
 
-func TestTriggerWorkflowIdempotency_MixedKeysAllowsPartial(t *testing.T) {
-	// Mixed batch: one reclaimable, one running. We should allow the reclaimable run and skip the duplicate.
+func TestTriggerWorkflowIdempotency_MixedKeysRejectsPartialByDefault(t *testing.T) {
+	// Public trigger paths should remain atomic: if any key is still duplicate, reject the whole batch.
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -560,6 +560,77 @@ func TestTriggerWorkflowIdempotency_MixedKeysAllowsPartial(t *testing.T) {
 		},
 		ExternalId:     uuid.New(),
 		IdempotencyKey: &keyRunning,
+	}
+
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{terminalSecond, runningSecond})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrIdempotencyKeyAlreadyClaimed)
+
+	claimedTerminal := getClaimedByExternalId(t, pool, tenantId, keyTerminal)
+	require.NotNil(t, claimedTerminal)
+	assert.Equal(t, terminalFirst.ExternalId, *claimedTerminal)
+
+	claimedRunning := getClaimedByExternalId(t, pool, tenantId, keyRunning)
+	require.NotNil(t, claimedRunning)
+	assert.Equal(t, runningFirst.ExternalId, *claimedRunning)
+
+	lastDeniedAt := getLastDeniedAt(t, pool, tenantId, keyRunning)
+	assert.True(t, lastDeniedAt.Valid)
+	assert.WithinDuration(t, time.Now(), lastDeniedAt.Time, 2*time.Minute)
+}
+
+func TestTriggerWorkflowIdempotency_MixedKeysAllowsPartialWhenEnabled(t *testing.T) {
+	// Internal queued trigger processing may skip duplicates while still creating non-duplicate runs.
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo, cleanupRepo := setupRepositoryWithTTL(t, pool, 30*time.Minute, 1*time.Minute)
+	defer cleanupRepo()
+
+	tenantId := setupTenant(t, repo, pool)
+	wf := createMinimalWorkflow(t, pool, tenantId, "test-workflow")
+
+	ctx := context.Background()
+	keyTerminal := IdempotencyKey("idem-key-terminal-allow-partial")
+	keyRunning := IdempotencyKey("idem-key-running-allow-partial")
+
+	terminalFirst := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &keyTerminal,
+	}
+	_, _, err := repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{terminalFirst})
+	require.NoError(t, err)
+	insertRunStatus(t, pool, tenantId, wf, terminalFirst.ExternalId, sqlcv1.V1ReadableStatusOlapFAILED)
+
+	runningFirst := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:     uuid.New(),
+		IdempotencyKey: &keyRunning,
+	}
+	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{runningFirst})
+	require.NoError(t, err)
+	insertRunStatus(t, pool, tenantId, wf, runningFirst.ExternalId, sqlcv1.V1ReadableStatusOlapRUNNING)
+
+	terminalSecond := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:              uuid.New(),
+		IdempotencyKey:          &keyTerminal,
+		AllowPartialIdempotency: true,
+	}
+	runningSecond := &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName: "test-workflow",
+		},
+		ExternalId:              uuid.New(),
+		IdempotencyKey:          &keyRunning,
+		AllowPartialIdempotency: true,
 	}
 
 	_, _, err = repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*WorkflowNameTriggerOpts{terminalSecond, runningSecond})

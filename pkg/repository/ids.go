@@ -30,6 +30,11 @@ type WorkflowNameTriggerOpts struct {
 	// (optional) The idempotency key to use for debouncing this task
 	IdempotencyKey *IdempotencyKey
 
+	// AllowPartialIdempotency permits duplicate keys in the same batch to be skipped while
+	// still creating any non-duplicate runs. Public trigger APIs should keep this disabled
+	// so bulk requests remain atomic.
+	AllowPartialIdempotency bool
+
 	// Whether to skip the creation of the child workflow
 	ShouldSkip bool
 }
