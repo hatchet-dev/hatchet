@@ -54,7 +54,7 @@ function hasErrorInTree(span: OtelSpanTree): boolean {
 
 function getMarkerColor(marker: SpanMarker): string {
   if (marker.inProgress) {
-    return 'bg-blue-500';
+    return 'bg-yellow-500';
   }
   if (marker.hasErrorInTree) {
     return 'bg-red-500';
@@ -64,7 +64,7 @@ function getMarkerColor(marker: SpanMarker): string {
 
 function getDotColor(marker: SpanMarker): string {
   if (marker.inProgress) {
-    return 'bg-blue-500';
+    return 'bg-yellow-500';
   }
   if (marker.hasErrorInTree) {
     return 'bg-red-500';

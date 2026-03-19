@@ -399,7 +399,7 @@ const barColorsByStatus: Record<string, string> = {
 
 function getBarColor(span: OtelSpanTree): string {
   if (span.inProgress) {
-    return 'bg-blue-500/60';
+    return 'bg-yellow-500/60';
   }
   if (isEngineSpan(span)) {
     return span.statusCode === OtelStatusCode.ERROR
@@ -417,7 +417,7 @@ function getBarColor(span: OtelSpanTree): string {
 
 function getDotColor(span: OtelSpanTree): string {
   if (span.inProgress) {
-    return 'bg-blue-500';
+    return 'bg-yellow-500';
   }
   if (hasErrorInTree(span)) {
     return 'bg-red-500';
@@ -1292,7 +1292,7 @@ export function TraceTimeline({
                       'absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm',
                       !hasAnyInProgress && 'transition-all',
                       row.span.inProgress
-                        ? 'bg-blue-500/20'
+                        ? 'bg-yellow-500/20'
                         : hasErrorInTree(row.span)
                           ? 'bg-red-500/20'
                           : 'bg-green-500/20',
