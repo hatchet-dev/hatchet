@@ -591,6 +591,8 @@ interface TraceTimelineProps {
   onGroupSelect?: (group: SpanGroupInfo) => void;
   visibleRange?: VisibleRange;
   onRangeChange?: (range: VisibleRange) => void;
+  externalCursorPct?: number | null;
+  onCursorPctChange?: (pct: number | null) => void;
 }
 
 export function TraceTimeline({
@@ -606,6 +608,8 @@ export function TraceTimeline({
   onGroupSelect,
   visibleRange,
   onRangeChange,
+  externalCursorPct,
+  onCursorPctChange,
 }: TraceTimelineProps) {
   const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{
@@ -743,62 +747,70 @@ export function TraceTimeline({
     [spanTrees, expandedSet, groupVisibleCounts],
   );
 
-  const { visMinStart, ticks, timelineMaxMs, traceMinStart, traceTotalMs } =
-    useMemo(() => {
-      let minStart = Infinity;
-      let maxEnd = -Infinity;
-      const traverse = (node: OtelSpanTree) => {
-        const start = new Date(node.createdAt).getTime();
-        const end = node.inProgress ? now : start + node.durationNs / 1e6;
-        minStart = Math.min(minStart, start);
-        maxEnd = Math.max(maxEnd, end);
-        if (node.queuedPhase) {
-          const qStart = new Date(node.queuedPhase.createdAt).getTime();
-          const qEnd =
-            isRunning && isQueuedOnlyRoot(node)
-              ? now
-              : qStart + node.queuedPhase.durationNs / 1e6;
-          minStart = Math.min(minStart, qStart);
-          maxEnd = Math.max(maxEnd, qEnd);
-        }
-        node.children?.forEach(traverse);
-      };
-      spanTrees.forEach(traverse);
-
-      const totalDurationMs = maxEnd - minStart;
-
-      const isZoomed =
-        visibleRange &&
-        (visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999);
-
-      if (isZoomed) {
-        const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
-        const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
-        const visDurationMs = visEndMs - visStartMs;
-        const { ticks, maxTick } = computeTimeTicks(visDurationMs);
-        return {
-          visMinStart: visStartMs,
-          ticks,
-          timelineMaxMs: hasLiveProgress
-            ? visDurationMs
-            : Math.max(maxTick, visDurationMs),
-          traceMinStart: minStart,
-          traceTotalMs: totalDurationMs,
-        };
+  const {
+    visMinStart,
+    visOffsetMs,
+    ticks,
+    timelineMaxMs,
+    traceMinStart,
+    traceTotalMs,
+  } = useMemo(() => {
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    const traverse = (node: OtelSpanTree) => {
+      const start = new Date(node.createdAt).getTime();
+      const end = node.inProgress ? now : start + node.durationNs / 1e6;
+      minStart = Math.min(minStart, start);
+      maxEnd = Math.max(maxEnd, end);
+      if (node.queuedPhase) {
+        const qStart = new Date(node.queuedPhase.createdAt).getTime();
+        const qEnd =
+          isRunning && isQueuedOnlyRoot(node)
+            ? now
+            : qStart + node.queuedPhase.durationNs / 1e6;
+        minStart = Math.min(minStart, qStart);
+        maxEnd = Math.max(maxEnd, qEnd);
       }
+      node.children?.forEach(traverse);
+    };
+    spanTrees.forEach(traverse);
 
-      const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
-      const timelineMaxMs = hasLiveProgress
-        ? totalDurationMs
-        : Math.max(maxTick, totalDurationMs);
+    const totalDurationMs = maxEnd - minStart;
+
+    const isZoomed =
+      visibleRange &&
+      (visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999);
+
+    if (isZoomed) {
+      const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
+      const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
+      const visDurationMs = visEndMs - visStartMs;
+      const { ticks, maxTick } = computeTimeTicks(visDurationMs);
       return {
-        visMinStart: minStart,
+        visMinStart: visStartMs,
+        visOffsetMs: visStartMs - minStart,
         ticks,
-        timelineMaxMs,
+        timelineMaxMs: hasLiveProgress
+          ? visDurationMs
+          : Math.max(maxTick, visDurationMs),
         traceMinStart: minStart,
         traceTotalMs: totalDurationMs,
       };
-    }, [spanTrees, visibleRange, now, hasLiveProgress, isRunning]);
+    }
+
+    const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
+    const timelineMaxMs = hasLiveProgress
+      ? totalDurationMs
+      : Math.max(maxTick, totalDurationMs);
+    return {
+      visMinStart: minStart,
+      visOffsetMs: 0,
+      ticks,
+      timelineMaxMs,
+      traceMinStart: minStart,
+      traceTotalMs: totalDurationMs,
+    };
+  }, [spanTrees, visibleRange, now, hasLiveProgress, isRunning]);
 
   const toggleExpand = useCallback(
     (id: string) => {
@@ -838,12 +850,14 @@ export function TraceTimeline({
 
   const timelineValuesRef = useRef({
     visMinStart: 0,
+    visOffsetMs: 0,
     timelineMaxMs: 0,
     traceMinStart: 0,
     traceTotalMs: 0,
   });
   timelineValuesRef.current = {
     visMinStart,
+    visOffsetMs,
     timelineMaxMs,
     traceMinStart,
     traceTotalMs,
@@ -919,6 +933,28 @@ export function TraceTimeline({
 
   const gridHeight = flatRows.length * ROW_HEIGHT;
 
+  const effectiveCursorPct = useMemo(() => {
+    if (cursorPct !== null) {
+      return cursorPct;
+    }
+    if (externalCursorPct == null || timelineMaxMs <= 0) {
+      return null;
+    }
+    const timeMs = traceMinStart + externalCursorPct * traceTotalMs;
+    const localPct = (timeMs - visMinStart) / timelineMaxMs;
+    if (localPct < 0 || localPct > 1) {
+      return null;
+    }
+    return localPct;
+  }, [
+    cursorPct,
+    externalCursorPct,
+    visMinStart,
+    timelineMaxMs,
+    traceMinStart,
+    traceTotalMs,
+  ]);
+
   return (
     <div className="relative flex min-w-0 overflow-hidden" ref={containerRef}>
       <div
@@ -944,7 +980,10 @@ export function TraceTimeline({
                     )}
                   </div>
                 ))}
-                <div style={{ width: CONNECTOR_GAP }} className="shrink-0" />
+                <div
+                  style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
+                  className="shrink-0"
+                />
                 <button
                   className="truncate text-sm text-primary hover:underline"
                   onClick={() =>
@@ -1082,9 +1121,12 @@ export function TraceTimeline({
                     <ChevronRight className="size-3" />
                   )}
                 </button>
-              ) : row.depth > 0 ? (
-                <div style={{ width: CONNECTOR_GAP }} className="shrink-0" />
-              ) : null}
+              ) : (
+                <div
+                  style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
+                  className="shrink-0"
+                />
+              )}
 
               <span
                 className={cn(
@@ -1123,26 +1165,28 @@ export function TraceTimeline({
                 }}
               >
                 <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                  {formatTimeLabel(t)}
+                  {formatTimeLabel(t + visOffsetMs)}
                 </span>
               </div>
             );
           })}
 
-          {cursorPct !== null && !brushRange && (
+          {effectiveCursorPct !== null && !brushRange && (
             <div
               className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
               style={{
-                left: `${cursorPct * 100}%`,
+                left: `${effectiveCursorPct * 100}%`,
                 transform:
-                  cursorPct < 0.05
+                  effectiveCursorPct < 0.05
                     ? 'none'
-                    : cursorPct > 0.95
+                    : effectiveCursorPct > 0.95
                       ? 'translateX(-100%)'
                       : 'translateX(-50%)',
               }}
             >
-              {formatTimeLabel(timelineMaxMs * cursorPct)}
+              {formatTimeLabel(
+                timelineMaxMs * effectiveCursorPct + visOffsetMs,
+              )}
             </div>
           )}
 
@@ -1155,7 +1199,7 @@ export function TraceTimeline({
               }}
             >
               <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
-                {formatTimeLabel(timelineMaxMs * brushRange.lo)}
+                {formatTimeLabel(timelineMaxMs * brushRange.lo + visOffsetMs)}
               </span>
               <div className="flex min-w-1 flex-1 items-center">
                 <svg
@@ -1185,7 +1229,7 @@ export function TraceTimeline({
                 </svg>
               </div>
               <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
-                {formatTimeLabel(timelineMaxMs * brushRange.hi)}
+                {formatTimeLabel(timelineMaxMs * brushRange.hi + visOffsetMs)}
               </span>
             </div>
           )}
@@ -1200,11 +1244,25 @@ export function TraceTimeline({
               return;
             }
             const rect = barsRef.current.getBoundingClientRect();
-            setCursorPct(
-              Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+            const localPct = Math.max(
+              0,
+              Math.min(1, (e.clientX - rect.left) / rect.width),
             );
+            setCursorPct(localPct);
+            if (onCursorPctChange) {
+              const v = timelineValuesRef.current;
+              const timeMs = v.visMinStart + localPct * v.timelineMaxMs;
+              const fullPct =
+                v.traceTotalMs > 0
+                  ? (timeMs - v.traceMinStart) / v.traceTotalMs
+                  : 0;
+              onCursorPctChange(Math.max(0, Math.min(1, fullPct)));
+            }
           }}
-          onMouseLeave={() => setCursorPct(null)}
+          onMouseLeave={() => {
+            setCursorPct(null);
+            onCursorPctChange?.(null);
+          }}
           onPointerDown={handleBarsPointerDown}
           onDoubleClick={handleBarsDoubleClick}
         >
@@ -1393,10 +1451,13 @@ export function TraceTimeline({
             );
           })}
 
-          {cursorPct !== null && !brushRange && (
+          {effectiveCursorPct !== null && !brushRange && (
             <div
               className="pointer-events-none absolute top-0 z-10 w-px bg-foreground/40"
-              style={{ left: `${cursorPct * 100}%`, height: gridHeight }}
+              style={{
+                left: `${effectiveCursorPct * 100}%`,
+                height: gridHeight,
+              }}
             />
           )}
 

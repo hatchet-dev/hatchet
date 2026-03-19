@@ -48,6 +48,9 @@ export function TaskRunTrace({
     endPct: 1,
   });
 
+  const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
+  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
+
   const handleSpanSelect = useCallback((span: OtelSpanTree) => {
     setSelection((prev) =>
       prev?.kind === 'span' && prev.span.spanId === span.spanId
@@ -106,6 +109,8 @@ export function TaskRunTrace({
             onRangeChange={setVisibleRange}
             expandedSpanIds={expandedSpansIds}
             onSpanSelect={handleMinimapSpanSelect}
+            externalHoverPct={timelineHoverPct}
+            onHoverPctChange={setMinimapHoverPct}
           />
         </div>
       </div>
@@ -124,6 +129,8 @@ export function TaskRunTrace({
         onGroupSelect={handleGroupSelect}
         visibleRange={visibleRange}
         onRangeChange={setVisibleRange}
+        externalCursorPct={minimapHoverPct}
+        onCursorPctChange={setTimelineHoverPct}
       />
       {selection?.kind === 'span' && (
         <SpanDetail

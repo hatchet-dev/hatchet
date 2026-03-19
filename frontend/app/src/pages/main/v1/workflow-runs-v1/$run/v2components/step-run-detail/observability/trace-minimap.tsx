@@ -148,6 +148,8 @@ interface TraceMinimapProps {
   onRangeChange: (range: TimeRange) => void;
   expandedSpanIds?: string[];
   onSpanSelect?: (span: OtelSpanTree, ancestorSpanIds: string[]) => void;
+  externalHoverPct?: number | null;
+  onHoverPctChange?: (pct: number | null) => void;
 }
 
 export function TraceMinimap({
@@ -158,6 +160,8 @@ export function TraceMinimap({
   onRangeChange,
   expandedSpanIds,
   onSpanSelect,
+  externalHoverPct,
+  onHoverPctChange,
 }: TraceMinimapProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<DragMode>(null);
@@ -294,9 +298,14 @@ export function TraceMinimap({
         if (!trackRef.current) {
           return;
         }
-        setHoverPct(pctFromEvent(e, trackRef.current));
+        const pct = pctFromEvent(e, trackRef.current);
+        setHoverPct(pct);
+        onHoverPctChange?.(pct);
       }}
-      onMouseLeave={() => setHoverPct(null)}
+      onMouseLeave={() => {
+        setHoverPct(null);
+        onHoverPctChange?.(null);
+      }}
     >
       {/* Event markers */}
       {markers.map((m, i) => (
@@ -363,90 +372,80 @@ export function TraceMinimap({
       >
         {/* Left handle — pinned to left edge of selected region */}
         <div
-          className="pointer-events-auto absolute bottom-0 left-0 top-0 flex w-[17px] flex-col items-center justify-center"
+          className="pointer-events-auto absolute inset-y-[3px] left-0 flex w-[20px] items-center justify-center rounded-full border border-border/40 bg-muted"
           style={{ cursor: 'ew-resize' }}
           onPointerDown={(e) => startDrag('left', e)}
         >
-          <div className="flex h-[6px] items-center justify-center">
-            <div className="h-px w-1.5 bg-border" />
-          </div>
-          <div className="flex flex-1 items-center justify-center rounded-md border border-border/60 bg-muted/80 px-0.5">
-            <svg
-              width="8"
-              height="12"
-              viewBox="0 0 8 12"
-              fill="none"
-              className="text-muted-foreground"
-            >
-              <path
-                d="M5 1L1 6L5 11"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <div className="flex h-[6px] items-center justify-center">
-            <div className="h-px w-1.5 bg-border" />
-          </div>
+          <svg
+            width="6"
+            height="10"
+            viewBox="0 0 6 10"
+            fill="none"
+            className="text-muted-foreground/80"
+          >
+            <path
+              d="M4 1L1 5L4 9"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
 
         {/* Right handle — pinned to right edge of selected region */}
         <div
-          className="pointer-events-auto absolute bottom-0 right-0 top-0 flex w-[17px] flex-col items-center justify-center"
+          className="pointer-events-auto absolute inset-y-[3px] right-0 flex w-[20px] items-center justify-center rounded-full border border-border/40 bg-muted"
           style={{ cursor: 'ew-resize' }}
           onPointerDown={(e) => startDrag('right', e)}
         >
-          <div className="flex h-[6px] items-center justify-center">
-            <div className="h-px w-1.5 bg-border" />
-          </div>
-          <div className="flex flex-1 items-center justify-center rounded-md border border-border/60 bg-muted/80 px-0.5">
-            <svg
-              width="8"
-              height="12"
-              viewBox="0 0 8 12"
-              fill="none"
-              className="text-muted-foreground"
-            >
-              <path
-                d="M3 1L7 6L3 11"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <div className="flex h-[6px] items-center justify-center">
-            <div className="h-px w-1.5 bg-border" />
-          </div>
+          <svg
+            width="6"
+            height="10"
+            viewBox="0 0 6 10"
+            fill="none"
+            className="text-muted-foreground/80"
+          >
+            <path
+              d="M2 1L5 5L2 9"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
       </div>
 
       {/* Hover cursor line + timestamp */}
-      {hoverPct !== null && !dragging && (
-        <>
-          <div
-            className="pointer-events-none absolute inset-y-0 z-[5] w-px bg-foreground/60"
-            style={{ left: `${hoverPct * 100}%` }}
-          />
-          <div
-            className="pointer-events-none absolute top-0.5 z-[7] whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
-            style={{
-              left: `${hoverPct * 100}%`,
-              transform:
-                hoverPct < 0.08
-                  ? 'none'
-                  : hoverPct > 0.92
-                    ? 'translateX(-100%)'
-                    : 'translateX(-50%)',
-            }}
-          >
-            {formatOffset(totalMs * hoverPct)}
-          </div>
-        </>
-      )}
+      {(() => {
+        const activePct = hoverPct ?? externalHoverPct ?? null;
+        if (activePct === null || dragging) {
+          return null;
+        }
+        return (
+          <>
+            <div
+              className="pointer-events-none absolute inset-y-0 z-[5] w-px bg-foreground/60"
+              style={{ left: `${activePct * 100}%` }}
+            />
+            <div
+              className="pointer-events-none absolute top-0.5 z-[7] whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
+              style={{
+                left: `${activePct * 100}%`,
+                transform:
+                  activePct < 0.08
+                    ? 'none'
+                    : activePct > 0.92
+                      ? 'translateX(-100%)'
+                      : 'translateX(-50%)',
+              }}
+            >
+              {formatOffset(totalMs * activePct)}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Drag boundary lines + timestamps */}
       {dragging && (
