@@ -192,7 +192,11 @@ export const TaskRunDetail = ({
       <div className="flex flex-row items-center gap-2">
         <V1StepRunSummary taskRunId={taskRunId} />
       </div>
-      <Tabs value={outerTab} onValueChange={setOuterTab} className="flex h-full flex-col">
+      <Tabs
+        value={outerTab}
+        onValueChange={setOuterTab}
+        className="flex h-full flex-col"
+      >
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
             Overview
@@ -203,7 +207,10 @@ export const TaskRunDetail = ({
         </TabsList>
         <TabsContent value="overview" className="min-h-0 flex-1">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
-            <TaskRunMiniMap onClick={handleMiniMapClick} taskRunId={taskRunId} />
+            <TaskRunMiniMap
+              onClick={handleMiniMapClick}
+              taskRunId={taskRunId}
+            />
           </div>
           <div className="h-4" />
           <Tabs
