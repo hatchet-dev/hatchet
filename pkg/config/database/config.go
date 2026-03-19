@@ -32,9 +32,10 @@ type ConfigFile struct {
 	// PgBouncerURL is an optional connection string for pgbouncer. When set, the main Pool
 	// connects through pgbouncer and a small DirectPool is created using DATABASE_URL for
 	// DDL operations like DETACH PARTITION CONCURRENTLY that cannot run inside a transaction block.
-	PgBouncerURL      string `mapstructure:"pgbouncerUrl" json:"pgbouncerUrl,omitempty" default:""`
-	PgBouncerMaxConns int    `mapstructure:"pgbouncerMaxConns" json:"pgbouncerMaxConns,omitempty" default:"50"`
-	PgBouncerMinConns int    `mapstructure:"pgbouncerMinConns" json:"pgbouncerMinConns,omitempty" default:"1"`
+	PgBouncerURL string `mapstructure:"pgbouncerUrl" json:"pgbouncerUrl,omitempty" default:""`
+
+	DDLPoolMaxConns int `mapstructure:"ddlPoolMaxConns" json:"ddlPoolMaxConns,omitempty" default:"5"`
+	DDLPoolMinConns int `mapstructure:"ddlPoolMinConns" json:"ddlPoolMinConns,omitempty" default:"1"`
 
 	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
 	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
@@ -72,12 +73,9 @@ type Layer struct {
 
 	ReadReplicaPool *pgxpool.Pool
 
-	QueuePool *pgxpool.Pool
-
-	// DirectPool connects directly to PostgreSQL (via DATABASE_URL) for DDL operations
-	// like DETACH PARTITION CONCURRENTLY. Only set when DATABASE_PGBOUNCER_URL is configured;
-	// otherwise nil and callers should fall back to Pool.
-	DirectPool *pgxpool.Pool
+	// DDLPool is meant for DDL-modifying operations like DETACH PARTITION CONCURRENTLY, which
+	// are critical and cannot run in an explicit transaction (and therefor cannot go through pgbouncer when it's configured)
+	DDLPool *pgxpool.Pool
 
 	V1 v1.Repository
 
@@ -100,8 +98,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
 
 	_ = v.BindEnv("pgbouncerUrl", "DATABASE_PGBOUNCER_URL")
-	_ = v.BindEnv("pgbouncerMaxConns", "DATABASE_PGBOUNCER_MAX_CONNS")
-	_ = v.BindEnv("pgbouncerMinConns", "DATABASE_PGBOUNCER_MIN_CONNS")
+	_ = v.BindEnv("ddlPoolMaxConns", "DATABASE_DDL_POOL_MAX_CONNS")
+	_ = v.BindEnv("ddlPoolMinConns", "DATABASE_DDL_POOL_MIN_CONNS")
 
 	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
 	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")

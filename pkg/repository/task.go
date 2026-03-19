@@ -316,7 +316,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const PARTITION_LOCK_OFFSET = 9000000000000000000
 	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, 600000) // 10 minutes
+	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
+	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
+	// so they cannot go through pgbouncer when it's configured.
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.ddlPool, r.l, 600000) // 10 minutes
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction: %w", err)
 	}
@@ -338,7 +341,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -347,7 +350,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -356,7 +359,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
+	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
 		Time:  removeBefore,
 		Valid: true,
 	})
@@ -369,19 +372,16 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		r.l.Warn().Ctx(ctx).Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
-	// Use the direct pool (bypasses pgbouncer) for DDL operations because
-	// DETACH PARTITION CONCURRENTLY cannot run inside a transaction block.
-	ddlPool := r.DDLPool()
-
 	for _, partition := range partitions {
 		r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, ddlPool, r.l, 30*60*1000) // 30 minutes
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
 
 		if err != nil {
 			return err
 		}
 
+		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
 		_, err = conn.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),

@@ -184,10 +184,10 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	repo := &TaskRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:       pgbouncerPool,
-			directPool: directPool,
-			l:          &logger,
-			queries:    queries,
+			pool:    pgbouncerPool,
+			ddlPool: directPool,
+			l:       &logger,
+			queries: queries,
 		},
 		taskRetentionPeriod:   24 * time.Hour, // 1 day retention means 3-day-old partitions get detached
 		maxInternalRetryCount: 3,
