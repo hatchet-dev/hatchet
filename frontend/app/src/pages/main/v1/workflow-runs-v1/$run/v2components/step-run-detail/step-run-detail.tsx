@@ -19,7 +19,12 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import {
+  V1TaskStatus,
+  V1TaskSummary,
+  WorkflowRunStatus,
+  queries,
+} from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
@@ -50,6 +55,7 @@ export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
   V1TaskStatus.FAILED,
   V1TaskStatus.COMPLETED,
+  WorkflowRunStatus.SUCCEEDED,
 ];
 
 const TaskRunPermalinkOrBacklink = ({

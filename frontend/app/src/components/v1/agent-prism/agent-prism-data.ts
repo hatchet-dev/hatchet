@@ -49,9 +49,15 @@ export const getTimelineData = ({
   maxEnd: number;
 }): { durationMs: number; startPercent: number; widthPercent: number } => {
   const startMs = new Date(spanCard.createdAt).getTime();
-  const totalRange = maxEnd - minStart;
   const durationMs = spanCard.durationNs / 1_000_000;
+  const totalRange = maxEnd - minStart;
+
+  if (totalRange <= 0) {
+    return { durationMs, startPercent: 0, widthPercent: 100 };
+  }
+
   const startPercent = ((startMs - minStart) / totalRange) * 100;
   const widthPercent = (durationMs / totalRange) * 100;
+
   return { durationMs, startPercent, widthPercent };
 };
