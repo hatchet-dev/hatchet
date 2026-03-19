@@ -2,6 +2,11 @@
  * Minimal shape for DAG visualization.
  * Mirrors WorkflowRunShapeItemForWorkflowRunDetails from the API,
  * with optional runtime fields for live workflow run decoration.
+ *
+ * IMPORTANT: This file is a vendored copy of the dag-visualizer package source.
+ * If a shared frontend package is ever extracted (e.g. packages/dag-visualizer),
+ * keep this file in sync with the canonical version there — including field names,
+ * which intentionally mirror the API's step/task naming conventions.
  */
 export interface DagNode {
   /** Unique stable ID (variable name from parser, or stepId from API) */
