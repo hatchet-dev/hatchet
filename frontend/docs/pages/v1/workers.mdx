@@ -151,6 +151,23 @@ Start with a slot count that matches the degree of parallelism your worker can s
   you have gone too far.
 </Callout>
 
+### Slot types
+
+Workers manage multiple slot pools. By default, there are two:
+
+- **default** - used by regular tasks declared with `@hatchet.task()` or `workflow.task()`
+- **durable** - used by [durable tasks](/v1/patterns/durable-task-execution) declared with `@hatchet.durable_task()` or `workflow.durable_task()`
+
+This separation prevents deadlocks. Durable tasks spawn child tasks and wait for their results. If both shared the same pool, a durable task could consume all slots while waiting for children that can never run - there would be no slots left.
+
+With separate pools, a durable task waiting for children does not block regular tasks. Children execute in the default pool while the parent waits in the durable pool.
+
+Configure slot counts with the `slots` parameter (for the default pool) and `durable_slots` parameter (for the durable pool) when creating a worker. See the [Python SDK reference](/reference/python/client#worker) or [TypeScript SDK reference](/reference/typescript/client) for details.
+
+<Callout type="info">
+  If you don't use durable tasks, only the default pool matters. The durable pool is allocated but stays unused.
+</Callout>
+
 ## Scaling workers
 
 You can increase throughput in two ways: add more slots to a single worker, or run more worker processes. In most workloads, horizontal scaling (more workers) is the simplest path because each worker brings its own pool of slots and its own resources.
