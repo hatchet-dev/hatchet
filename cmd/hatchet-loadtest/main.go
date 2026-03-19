@@ -36,7 +36,6 @@ type LoadTestConfig struct {
 	RlDurationUnit           string
 	AverageDurationThreshold time.Duration
 	PlotDir                  string
-	SlackWebhookURL          string
 }
 
 func main() {
@@ -86,7 +85,6 @@ func main() {
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
 	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
-	loadtest.Flags().StringVar(&config.SlackWebhookURL, "slackWebhookURL", "", "specifies a Slack webhook URL where plots will be sent after load test is completed. Requires AWS env vars to be set")
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)
 	if err := cmd.Execute(); err != nil {

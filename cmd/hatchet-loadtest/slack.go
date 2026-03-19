@@ -3,20 +3,22 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/slack-go/slack"
 )
 
 type SlackSender struct {
-	s3Client        *s3.Client
-	s3Bucket        string
-	slackWebhookUrl string
+	s3Client *s3.Client
+	s3Bucket string
+	Token    string
+	Channel  string
+	Thread   string
 }
 
 func NewS3Client(ctx context.Context) (*s3.Client, error) {
@@ -31,54 +33,54 @@ func NewS3Client(ctx context.Context) (*s3.Client, error) {
 	return client, nil
 }
 
-func NewSlackSender(s3Bucket string, slackWebhookUrl string) *SlackSender {
+func NewSlackSender(s3Bucket string) *SlackSender {
 	s3Client, _ := NewS3Client(context.Background())
 	return &SlackSender{
-		s3Client:        s3Client,
-		s3Bucket:        s3Bucket,
-		slackWebhookUrl: slackWebhookUrl,
+		s3Client: s3Client,
+		s3Bucket: s3Bucket,
+		Token:    os.Getenv("SLACK_BOT_TOKEN"),
+		Thread:   os.Getenv("SLACK_THREAD_TS"),
+		Channel:  os.Getenv("SLACK_CHANNEL_ID"),
 	}
 }
 
 func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl string, avgDuration time.Duration, avgScheduling time.Duration) error {
 	// need to create payload manually because the slack webhook endpoints do not play nicely with the slack go sdk
-	payload := map[string]interface{}{
-		"blocks": []map[string]interface{}{
-			{
-				"type": "section",
-				"text": map[string]string{
-					"type": "mrkdwn",
-					"text": fmt.Sprintf("*(%s)* \n:star:New load test results:star:\nAverage task duration: %s\nAverage task scheduling: %s", time.Now().Format("2006-01-02-15:04:05"), avgDuration.String(), avgScheduling.String()),
-				},
-			},
-			{
-				"type":      "image",
-				"image_url": schedulingPlotUrl,
-				"alt_text":  "Scheduling test graph",
-			},
-			{
-				"type":      "image",
-				"image_url": durationPlotUrl,
-				"alt_text":  "Duration test graph",
-			},
-		},
-	}
+	text := fmt.Sprintf(
+		"*(%s)* \n:star:Load test results:star:\nAverage task duration: %s\nAverage task scheduling: %s",
+		time.Now().Format("2006-01-02-15:04:05"),
+		avgDuration.String(),
+		avgScheduling.String(),
+	)
 
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal JSON: %w", err)
-	}
+	section := slack.NewSectionBlock(
+		slack.NewTextBlockObject("mrkdwn", text, false, false),
+		nil,
+		nil,
+	)
 
-	resp, err := http.Post(s.slackWebhookUrl, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to send POST request: %w", err)
-	}
-	defer resp.Body.Close()
+	image1 := slack.NewImageBlock(
+		schedulingPlotUrl,
+		"Scheduling test graph",
+		"",
+		nil,
+	)
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("received non-2xx status code: %d", resp.StatusCode)
-	}
-	return nil
+	image2 := slack.NewImageBlock(
+		durationPlotUrl,
+		"Duration test graph",
+		"",
+		nil,
+	)
+
+	blocks := []slack.Block{section, image1, image2}
+	client := slack.New(s.Token)
+	_, _, err := client.PostMessage(
+		s.Channel,
+		slack.MsgOptionBlocks(blocks...),
+		slack.MsgOptionTS(s.Thread), // 👈 this attaches it to a thread
+	)
+	return err
 }
 
 func (s *SlackSender) UploadS3(imageBytes []byte) (*string, error) {

@@ -191,9 +191,9 @@ func do(config LoadTestConfig) error {
 
 	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
-	if config.SlackWebhookURL != "" {
+	if os.Getenv("SLACK_BOT_TOKEN") != "" && os.Getenv("SLACK_CHANNEL_ID") != "" && os.Getenv("SLACK_THREAD_TS") != "" {
 		log.Printf("ℹ️ sending scheduling/duration plots to Slack")
-		slackSender := NewSlackSender("hatchet-staging-loadtest-us-west-2", config.SlackWebhookURL)
+		slackSender := NewSlackSender("hatchet-staging-loadtest-us-west-2")
 		durationBytes, err := finalDurationResult.latencyResult.PlotBytes("duration")
 		if err != nil {
 			log.Printf("❌ failed to generate duration plot: %v ", err)
