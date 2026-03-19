@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
+	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 // CreateScheduledRunTrigger contains the configuration for creating a scheduled run trigger.
@@ -54,12 +55,12 @@ func NewSchedulesClient(
 // Create creates a new scheduled workflow run.
 func (s *SchedulesClient) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
-	ctx, span := tracer.Start(ctx, "hatchet.schedule_workflow",
+	ctx, span := tracer.Start(ctx, hatchetotel.SpanScheduleWorkflow,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
-			attribute.String("instrumentor", "hatchet"),
-			attribute.String("hatchet.workflow_name", workflowName),
-			attribute.String("hatchet.trigger_at", trigger.TriggerAt.Format(time.RFC3339)),
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+			attribute.String(hatchetotel.AttrTriggerAt, trigger.TriggerAt.Format(time.RFC3339)),
 		),
 	)
 	defer span.End()

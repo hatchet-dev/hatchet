@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
+	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 // injectTraceparentToMap serializes the current span's W3C traceparent from ctx
@@ -600,43 +601,66 @@ func (w *Workflow) OnFailure(fn any) {
 
 // Run executes the workflow with the provided input and waits for completion.
 func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
-	workflowRunRef, err := w.RunNoWait(ctx, input, opts...)
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+		),
+	)
+	defer span.End()
+
+	workflowRunRef, err := w.runWorkflowInternal(ctx, otelCtx, span, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := workflowRunRef.v0Workflow.Result()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
 
 	workflowResult, err := result.Results()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
 
+	span.SetStatus(codes.Ok, "")
 	return &WorkflowResult{result: workflowResult, RunId: workflowRunRef.RunId}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
-	// Start OTel span using the underlying context (not the HatchetContext itself)
-	// so that the HatchetContext type assertion still works downstream.
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	otelCtx := ctx
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
 	}
-	otelCtx, span := tracer.Start(otelCtx, "hatchet.run_workflow",
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
-			attribute.String("instrumentor", "hatchet"),
-			attribute.String("hatchet.task_name", w.declaration.Name()),
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
 		),
 	)
 	defer span.End()
 
+	return w.runWorkflowInternal(ctx, otelCtx, span, input, opts...)
+}
+
+// runWorkflowInternal contains the shared logic for Run and RunNoWait.
+// It uses the original ctx for HatchetContext detection and otelCtx for trace propagation.
+func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Context, span trace.Span, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
 	runOpts := &runOpts{}
 	for _, opt := range opts {
 		opt(runOpts)
@@ -687,8 +711,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.String("hatchet.child_workflow_run_id", v0Workflow.RunId()))
-	span.SetStatus(codes.Ok, "")
+	span.SetAttributes(attribute.String(hatchetotel.AttrChildWorkflowRunID, v0Workflow.RunId()))
 
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
@@ -696,12 +719,12 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 // RunMany executes multiple workflow instances with different inputs.
 func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
-	ctx, span := tracer.Start(ctx, "hatchet.run_workflows",
+	ctx, span := tracer.Start(ctx, hatchetotel.SpanRunWorkflows,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
-			attribute.String("instrumentor", "hatchet"),
-			attribute.String("hatchet.task_name", w.declaration.Name()),
-			attribute.Int("hatchet.num_workflows", len(inputs)),
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+			attribute.Int(hatchetotel.AttrNumWorkflows, len(inputs)),
 		),
 	)
 	defer span.End()
