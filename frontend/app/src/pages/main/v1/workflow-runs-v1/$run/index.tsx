@@ -14,6 +14,7 @@ import {
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
+import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import { Badge } from '@/components/v1/ui/badge';
@@ -27,6 +28,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
@@ -35,6 +37,7 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -239,7 +242,13 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
   const executingRef = useRef(false);
   const [activeTab, setActiveTab] = useState('overview');
-  const [focusedTaskRunId, setFocusedTaskRunId] = useState<string | undefined>();
+  const [focusedTaskRunId, setFocusedTaskRunId] = useState<
+    string | undefined
+  >();
+  const { tenantId } = useCurrentTenantId();
+  const { featureFlags, isCloudEnabled } = useCloud(tenantId);
+  const logsEnabled =
+    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -295,6 +304,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     return result;
   }, [taskRuns]);
 
+  const taskExternalIds = useMemo(
+    () => taskRuns.map((t) => t.taskExternalId),
+    [taskRuns],
+  );
+
   if (isLoading || isError || !workflowRun) {
     return null;
   }
@@ -314,7 +328,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           </Badge>
         </div>
         <div className="h-4" />
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="flex h-full flex-col"
+        >
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="overview">
               Overview
@@ -322,6 +340,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             <TabsTrigger variant="underlined" value="observability">
               Observability
             </TabsTrigger>
+            {logsEnabled && (
+              <TabsTrigger variant="underlined" value="logs">
+                Logs
+              </TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="overview" className="min-h-0 flex-1">
             <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
@@ -376,6 +399,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               focusedTaskRunId={focusedTaskRunId}
             />
           </TabsContent>
+          {logsEnabled && (
+            <TabsContent value="logs">
+              <WorkflowRunLogs taskExternalIds={taskExternalIds} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

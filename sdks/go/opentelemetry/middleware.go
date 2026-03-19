@@ -38,7 +38,7 @@ func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc {
 		parentCtx = withHatchetAttributes(parentCtx, attrs)
 
 		// Start span
-		spanCtx, span := tracer.Start(parentCtx, "hatchet.start_step_run",
+		spanCtx, span := tracer.Start(parentCtx, SpanStartStepRun,
 			trace.WithSpanKind(trace.SpanKindConsumer),
 			trace.WithAttributes(attrs...),
 		)

@@ -794,6 +794,8 @@ class DurableContext(Context):
     def invocation_count(self) -> int:
         return self.action.durable_task_invocation_count or 1
 
+    ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
+    ## Keep the signature in sync with the instrumentor wrapper.
     async def _aio_memo(
         self,
         fn: Callable[PMemo, Awaitable[TMemo]],

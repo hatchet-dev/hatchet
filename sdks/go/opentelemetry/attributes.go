@@ -15,36 +15,35 @@ var hatchetAttrsKey = hatchetAttrsKeyType{}
 // hatchetAttributes builds the set of hatchet.* span attributes from a HatchetContext.
 func hatchetAttributes(ctx worker.HatchetContext) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
-		attribute.String("instrumentor", "hatchet"),
-		attribute.String("hatchet.tenant_id", ctx.TenantId()),
-		attribute.String("hatchet.worker_id", ctx.WorkerId()),
-		attribute.String("hatchet.workflow_run_id", ctx.WorkflowRunId()),
-		attribute.String("hatchet.step_run_id", ctx.StepRunId()),
-		attribute.String("hatchet.step_id", ctx.StepId()),
-		attribute.String("hatchet.action_id", ctx.ActionId()),
-		attribute.String("hatchet.action_name", ctx.ActionId()),
-		attribute.String("hatchet.step_name", ctx.StepName()),
-		attribute.Int("hatchet.retry_count", ctx.RetryCount()),
+		attribute.String(AttrInstrumentor, AttrInstrumentorValue),
+		attribute.String(AttrTenantID, ctx.TenantId()),
+		attribute.String(AttrWorkerID, ctx.WorkerId()),
+		attribute.String(AttrWorkflowRunID, ctx.WorkflowRunId()),
+		attribute.String(AttrStepRunID, ctx.StepRunId()),
+		attribute.String(AttrStepID, ctx.StepId()),
+		attribute.String(AttrActionName, ctx.ActionId()),
+		attribute.String(AttrStepName, ctx.StepName()),
+		attribute.Int(AttrRetryCount, ctx.RetryCount()),
 	}
 
 	if wfID := ctx.WorkflowId(); wfID != nil {
-		attrs = append(attrs, attribute.String("hatchet.workflow_id", *wfID))
+		attrs = append(attrs, attribute.String(AttrWorkflowID, *wfID))
 	}
 
 	if wfVersionID := ctx.WorkflowVersionId(); wfVersionID != nil {
-		attrs = append(attrs, attribute.String("hatchet.workflow_version_id", *wfVersionID))
+		attrs = append(attrs, attribute.String(AttrWorkflowVersionID, *wfVersionID))
 	}
 
 	if parentID := ctx.ParentWorkflowRunId(); parentID != nil {
-		attrs = append(attrs, attribute.String("hatchet.parent_workflow_run_id", *parentID))
+		attrs = append(attrs, attribute.String(AttrParentWorkflowRunID, *parentID))
 	}
 
 	if childIdx := ctx.ChildIndex(); childIdx != nil {
-		attrs = append(attrs, attribute.Int("hatchet.child_workflow_index", int(*childIdx)))
+		attrs = append(attrs, attribute.Int(AttrChildWorkflowIndex, int(*childIdx)))
 	}
 
 	if childKey := ctx.ChildKey(); childKey != nil {
-		attrs = append(attrs, attribute.String("hatchet.child_workflow_key", *childKey))
+		attrs = append(attrs, attribute.String(AttrChildWorkflowKey, *childKey))
 	}
 
 	return attrs

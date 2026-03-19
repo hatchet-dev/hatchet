@@ -1,4 +1,4 @@
-package tasks
+package logs
 
 import (
 	"time"
@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -14,17 +15,15 @@ import (
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
-func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineListRequestObject) (gen.V1LogLineListResponseObject, error) {
+func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1TenantLogLineListRequestObject) (gen.V1TenantLogLineListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
-	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/stable/tasks/{task}/logs")
+	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/stable/tenants/{tenant}/logs")
 	defer span.End()
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
-		telemetry.AttributeKV{Key: "task.id", Value: task.ID},
 	)
 
 	var (
@@ -35,6 +34,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		search           *string
 		orderByDirection *string
 		attempt          *int32
+		taskExternalIds  []uuid.UUID
 	)
 
 	if request.Params.Limit != nil {
@@ -69,10 +69,13 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		attempt = &attemptInt32
 	}
 
+	if request.Params.TaskExternalIds != nil {
+		taskExternalIds = append(taskExternalIds, *request.Params.TaskExternalIds...)
+	}
+
 	limitInt := int(limit)
 
 	opts := &v1.ListLogsOpts{
-		TaskExternalIds:  []uuid.UUID{task.ExternalID},
 		Limit:            &limitInt,
 		Since:            since,
 		Until:            until,
@@ -80,6 +83,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		Levels:           levels,
 		OrderByDirection: orderByDirection,
 		Attempt:          attempt,
+		TaskExternalIds:  taskExternalIds,
 	}
 
 	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, opts)
@@ -93,6 +97,12 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		telemetry.AttributeKV{Key: "log_lines.count", Value: len(logLines)},
 	)
 
+	t.config.Analytics.Count(ctx.Request().Context(), analytics.Log, analytics.List, analytics.Properties{
+		"has_search":            search != nil,
+		"has_levels":            len(levels) > 0,
+		"has_task_external_ids": len(taskExternalIds) > 0,
+	})
+
 	rows := make([]gen.V1LogLine, len(logLines))
 
 	for i, log := range logLines {
@@ -103,7 +113,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	currPage := int64(0)
 	nextPage := int64(0)
 
-	return gen.V1LogLineList200JSONResponse(
+	return gen.V1TenantLogLineList200JSONResponse(
 		gen.V1LogLineList{
 			Rows: &rows,
 			Pagination: &gen.PaginationResponse{
