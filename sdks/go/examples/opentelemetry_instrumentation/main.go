@@ -189,7 +189,7 @@ func main() {
 			}
 
 			channels := []string{"email", "sms", "push", "slack", "webhook"}
-			numNotifications := 50
+			numNotifications := 10
 
 			var wg sync.WaitGroup
 			var mu sync.Mutex

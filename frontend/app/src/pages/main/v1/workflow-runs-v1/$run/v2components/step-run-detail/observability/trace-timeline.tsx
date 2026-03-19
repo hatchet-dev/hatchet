@@ -611,6 +611,94 @@ export function TraceTimeline({
     [spanTrees],
   );
 
+  useEffect(() => {
+    if (!spanTrees || spanTrees.length === 0) {
+      return;
+    }
+
+    const summarizeNode = (n: OtelSpanTree) => ({
+      spanId: n.spanId.slice(0, 12),
+      spanName: n.spanName,
+      displayName: getDisplayName(n),
+      source: n.spanAttributes?.['hatchet.span_source'] ?? 'sdk',
+      childCount: n.children.length,
+      inProgress: n.inProgress ?? false,
+      task_name: n.spanAttributes?.['hatchet.task_name'] ?? '',
+      step_name: n.spanAttributes?.['hatchet.step_name'] ?? '',
+    });
+
+    const lines: string[] = [];
+    lines.push(`[group-debug] tree updated — ${spanTrees.length} root(s)`);
+
+    for (const root of spanTrees) {
+      const children = root.children;
+      const items = groupSiblings(children, root.spanId);
+      const groups = items.filter(
+        (i): i is { kind: 'group'; group: SpanGroupInfo } => i.kind === 'group',
+      );
+      const ungrouped = items.filter(
+        (i): i is { kind: 'span'; span: OtelSpanTree } => i.kind === 'span',
+      );
+
+      lines.push(
+        `  root "${getDisplayName(root)}": ${children.length} children → ${groups.length} groups, ${ungrouped.length} ungrouped`,
+      );
+
+      for (const item of items) {
+        if (item.kind === 'group') {
+          const g = item.group;
+          const names = g.spans.map(
+            (s) =>
+              `${s.spanAttributes?.['hatchet.span_source'] === 'engine' ? 'E' : 'S'}:${s.spanId.slice(0, 8)}`,
+          );
+          lines.push(
+            `    group "${g.groupName}" (${g.totalCount} spans) [${names.join(', ')}]`,
+          );
+        } else {
+          const s = item.span;
+          const isEngine =
+            s.spanAttributes?.['hatchet.span_source'] === 'engine';
+          const src = isEngine ? 'E' : 'S';
+          lines.push(
+            `    span "${getDisplayName(s)}" ${src}:${s.spanId.slice(0, 8)} name=${s.spanName} task_name=${s.spanAttributes?.['hatchet.task_name'] ?? ''} step_name=${s.spanAttributes?.['hatchet.step_name'] ?? ''} children=${s.children.length} inProgress=${s.inProgress ?? false}`,
+          );
+        }
+      }
+
+      for (const child of children) {
+        if (child.children.length > GROUP_THRESHOLD) {
+          const childItems = groupSiblings(child.children, child.spanId);
+          const cGroups = childItems.filter(
+            (i): i is { kind: 'group'; group: SpanGroupInfo } =>
+              i.kind === 'group',
+          );
+          const cUngrouped = childItems.filter(
+            (i): i is { kind: 'span'; span: OtelSpanTree } => i.kind === 'span',
+          );
+          lines.push(
+            `    nested "${getDisplayName(child)}": ${child.children.length} children → ${cGroups.length} groups, ${cUngrouped.length} ungrouped`,
+          );
+          for (const ci of childItems) {
+            if (ci.kind === 'group') {
+              lines.push(
+                `      group "${ci.group.groupName}" (${ci.group.totalCount} spans)`,
+              );
+            } else {
+              lines.push(
+                `      span "${getDisplayName(ci.span)}" name=${ci.span.spanName}`,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    console.log(lines.join('\n'));
+    console.table(
+      spanTrees.flatMap((root) => root.children.map(summarizeNode)),
+    );
+  }, [spanTrees]);
+
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!isRunning || !hasAnyInProgress) {

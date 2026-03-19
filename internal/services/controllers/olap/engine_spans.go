@@ -22,10 +22,15 @@ type engineSpanEvent struct {
 	eventType          sqlcv1.V1EventTypeOlap
 	stepReadableID     string
 	additionalMetadata []byte
+	actionID           string
+	displayName        string
 	taskID             int64
 	retryCount         int32
 	externalID         uuid.UUID
 	workflowRunID      uuid.UUID
+	workflowID         uuid.UUID
+	workflowVersionID  uuid.UUID
+	stepID             uuid.UUID
 }
 
 func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantId uuid.UUID, events []engineSpanEvent) {
@@ -96,11 +101,16 @@ func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e *engineSpanE
 	}
 
 	attrs, _ := json.Marshal(map[string]string{
-		"hatchet.span_source":     "engine",
-		"hatchet.step_run_id":     e.externalID.String(),
-		"hatchet.workflow_run_id": e.workflowRunID.String(),
-		"hatchet.step_name":       e.stepReadableID,
-		"hatchet.retry_count":     fmt.Sprintf("%d", e.retryCount),
+		"hatchet.span_source":         "engine",
+		"hatchet.step_run_id":         e.externalID.String(),
+		"hatchet.workflow_run_id":     e.workflowRunID.String(),
+		"hatchet.step_name":           e.stepReadableID,
+		"hatchet.retry_count":         fmt.Sprintf("%d", e.retryCount),
+		"hatchet.action_id":           e.actionID,
+		"hatchet.task_name":           e.stepReadableID,
+		"hatchet.workflow_id":         e.workflowID.String(),
+		"hatchet.workflow_version_id": e.workflowVersionID.String(),
+		"hatchet.step_id":             e.stepID.String(),
 	})
 
 	resourceAttrs, _ := json.Marshal(map[string]string{
@@ -191,11 +201,16 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 		}
 
 		attrs, _ := json.Marshal(map[string]string{
-			"hatchet.span_source":     "engine",
-			"hatchet.step_run_id":     e.externalID.String(),
-			"hatchet.workflow_run_id": e.workflowRunID.String(),
-			"hatchet.step_name":       e.stepReadableID,
-			"hatchet.retry_count":     fmt.Sprintf("%d", e.retryCount),
+			"hatchet.span_source":         "engine",
+			"hatchet.step_run_id":         e.externalID.String(),
+			"hatchet.workflow_run_id":     e.workflowRunID.String(),
+			"hatchet.step_name":           e.stepReadableID,
+			"hatchet.retry_count":         fmt.Sprintf("%d", e.retryCount),
+			"hatchet.action_id":           e.actionID,
+			"hatchet.task_name":           e.stepReadableID,
+			"hatchet.workflow_id":         e.workflowID.String(),
+			"hatchet.workflow_version_id": e.workflowVersionID.String(),
+			"hatchet.step_id":             e.stepID.String(),
 		})
 
 		resourceAttrs, _ := json.Marshal(map[string]string{

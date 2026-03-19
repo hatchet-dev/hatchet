@@ -684,6 +684,11 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			workflowRunID:      taskMeta.WorkflowRunID,
 			stepReadableID:     taskMeta.StepReadableID,
 			additionalMetadata: taskMeta.AdditionalMetadata,
+			actionID:           taskMeta.ActionID,
+			displayName:        taskMeta.DisplayName,
+			workflowID:         taskMeta.WorkflowID,
+			workflowVersionID:  taskMeta.WorkflowVersionID,
+			stepID:             taskMeta.StepID,
 		})
 
 		if msg.WorkerId != nil {

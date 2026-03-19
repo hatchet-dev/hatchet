@@ -91,7 +91,10 @@ function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
   }
 }
 
-function synthesizeInProgressSpans(nodes: OtelSpanTree[]): void {
+function synthesizeInProgressSpans(
+  nodes: OtelSpanTree[],
+  allSpanIds: Set<string>,
+): void {
   const stepRunIds = new Set<string>();
   for (const node of nodes) {
     if (node.spanName === 'hatchet.start_step_run') {
@@ -102,6 +105,19 @@ function synthesizeInProgressSpans(nodes: OtelSpanTree[]): void {
     }
   }
 
+  // Count siblings sharing each parentSpanId. If multiple siblings share
+  // the same missing parent, it's the implicit trace root → keep the span.
+  // If the parent is unique and missing, it's a child-workflow orphan → drop.
+  const parentCounts = new Map<string, number>();
+  for (const node of nodes) {
+    if (node.parentSpanId) {
+      parentCounts.set(
+        node.parentSpanId,
+        (parentCounts.get(node.parentSpanId) ?? 0) + 1,
+      );
+    }
+  }
+
   for (let i = nodes.length - 1; i >= 0; i--) {
     const node = nodes[i];
     if (
@@ -109,6 +125,15 @@ function synthesizeInProgressSpans(nodes: OtelSpanTree[]): void {
       node.spanAttributes?.['hatchet.step_run_id'] &&
       !stepRunIds.has(node.spanAttributes['hatchet.step_run_id'])
     ) {
+      if (
+        node.parentSpanId &&
+        !allSpanIds.has(node.parentSpanId) &&
+        (parentCounts.get(node.parentSpanId) ?? 0) <= 1
+      ) {
+        nodes.splice(i, 1);
+        continue;
+      }
+
       const stepRunId = node.spanAttributes['hatchet.step_run_id'];
       const qEndMs = new Date(node.createdAt).getTime() + node.durationNs / 1e6;
 
@@ -128,7 +153,88 @@ function synthesizeInProgressSpans(nodes: OtelSpanTree[]): void {
   }
 
   for (const node of nodes) {
-    synthesizeInProgressSpans(node.children);
+    synthesizeInProgressSpans(node.children, allSpanIds);
+  }
+}
+
+function buildStepRunIndex(
+  nodes: OtelSpanTree[],
+  index: Map<string, OtelSpanTree>,
+): void {
+  for (const node of nodes) {
+    if (
+      node.spanName === 'hatchet.start_step_run' &&
+      node.spanAttributes?.['hatchet.step_run_id']
+    ) {
+      index.set(node.spanAttributes['hatchet.step_run_id'], node);
+    }
+    buildStepRunIndex(node.children, index);
+  }
+}
+
+function reparentOrphans(rootSpans: OtelSpanTree[]): void {
+  const stepRunIndex = new Map<string, OtelSpanTree>();
+  buildStepRunIndex(rootSpans, stepRunIndex);
+
+  const toRemove = new Set<number>();
+
+  for (let i = 0; i < rootSpans.length; i++) {
+    const orphan = rootSpans[i];
+    if (!orphan.parentSpanId) {
+      continue;
+    }
+
+    const stepRunId = orphan.spanAttributes?.['hatchet.step_run_id'];
+    if (!stepRunId) {
+      continue;
+    }
+
+    const surrogate = stepRunIndex.get(stepRunId);
+    if (surrogate && surrogate.spanId !== orphan.spanId) {
+      surrogate.children.push(orphan);
+      toRemove.add(i);
+    }
+  }
+
+  if (toRemove.size > 0) {
+    for (let i = rootSpans.length - 1; i >= 0; i--) {
+      if (toRemove.has(i)) {
+        rootSpans.splice(i, 1);
+      }
+    }
+  }
+
+  for (const node of rootSpans) {
+    reparentOrphans(node.children);
+  }
+}
+
+// Remove root-level orphan spans whose parent is missing from the span data
+// and not shared by other root siblings (i.e. not the implicit trace root).
+// These are child-workflow engine spans whose run_workflow parent hasn't arrived.
+function suppressOrphanedChildWorkflows(
+  rootSpans: OtelSpanTree[],
+  allSpanIds: Set<string>,
+): void {
+  const parentCounts = new Map<string, number>();
+  for (const node of rootSpans) {
+    if (node.parentSpanId) {
+      parentCounts.set(
+        node.parentSpanId,
+        (parentCounts.get(node.parentSpanId) ?? 0) + 1,
+      );
+    }
+  }
+
+  for (let i = rootSpans.length - 1; i >= 0; i--) {
+    const node = rootSpans[i];
+    if (
+      node.parentSpanId &&
+      !allSpanIds.has(node.parentSpanId) &&
+      (parentCounts.get(node.parentSpanId) ?? 0) <= 1
+    ) {
+      rootSpans.splice(i, 1);
+    }
   }
 }
 
@@ -308,9 +414,13 @@ export const convertOtelSpansToOtelSpanTree = (
 
   invariant(rootSpans.length > 0, 'Must have at least one root span');
 
+  const allSpanIds = new Set(spanMap.keys());
+
   deduplicateStepRunSpans(rootSpans);
   mergeQueuedSpans(rootSpans);
-  synthesizeInProgressSpans(rootSpans);
+  synthesizeInProgressSpans(rootSpans, allSpanIds);
+  reparentOrphans(rootSpans);
+  suppressOrphanedChildWorkflows(rootSpans, allSpanIds);
 
   if (tasks?.length) {
     const parentSpanId =

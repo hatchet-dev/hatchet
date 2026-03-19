@@ -151,23 +151,61 @@ export const Observability = (props: ObservabilityProps) => {
 
   const traces = tracesQuery.data;
 
+  useEffect(() => {
+    if (!traces || traces.length === 0) {
+      return;
+    }
+
+    const engine: RelevantOpenTelemetrySpanProperties[] = [];
+    const sdk: RelevantOpenTelemetrySpanProperties[] = [];
+
+    for (const span of traces) {
+      if (span.spanAttributes?.['hatchet.span_source'] === 'engine') {
+        engine.push(span);
+      } else {
+        sdk.push(span);
+      }
+    }
+
+    const lines: string[] = [];
+    lines.push(
+      `[trace-debug] poll — ${traces.length} spans (${engine.length} engine, ${sdk.length} sdk)`,
+    );
+    for (const s of traces) {
+      const src =
+        s.spanAttributes?.['hatchet.span_source'] === 'engine' ? 'E' : 'S';
+      lines.push(
+        `  ${src} ${s.spanName} task_name=${s.spanAttributes?.['hatchet.task_name'] ?? ''} step_name=${s.spanAttributes?.['hatchet.step_name'] ?? ''} step_run_id=${s.spanAttributes?.['hatchet.step_run_id'] ?? ''} parent=${s.parentSpanId ?? ''} status=${s.statusCode}`,
+      );
+    }
+    console.log(lines.join('\n'));
+  }, [traces]);
+
   const autocompleteContext = useMemo(
     () => buildAutocompleteContext(traces ?? []),
     [traces],
   );
 
   const spanTrees = useMemo(() => {
+    let trees: ReturnType<typeof convertOtelSpansToOtelSpanTree> | null = null;
+
     if (traces && hasAtLeastOneElement(traces)) {
-      return convertOtelSpansToOtelSpanTree(traces, tasks);
+      trees = convertOtelSpansToOtelSpanTree(traces, tasks);
+    } else {
+      const pendingTasks = tasks?.filter(
+        (t) => t.status === 'QUEUED' || t.status === 'RUNNING',
+      );
+      if (pendingTasks && pendingTasks.length > 0) {
+        trees = convertOtelSpansToOtelSpanTree(undefined, pendingTasks);
+      }
     }
-    const pendingTasks = tasks?.filter(
-      (t) => t.status === 'QUEUED' || t.status === 'RUNNING',
-    );
-    if (pendingTasks && pendingTasks.length > 0) {
-      return convertOtelSpansToOtelSpanTree(undefined, pendingTasks);
+
+    if (trees && trees.length > 0) {
+      trees[0].inProgress = isRunning;
     }
-    return null;
-  }, [traces, tasks]);
+
+    return trees;
+  }, [traces, tasks, isRunning]);
 
   const parsedQuery = useMemo(
     () => parseTraceQuery(queryString),

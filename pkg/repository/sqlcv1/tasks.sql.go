@@ -1515,7 +1515,11 @@ SELECT
     workflow_id,
     workflow_run_id,
     additional_metadata,
-    step_readable_id
+    step_readable_id,
+    action_id,
+    display_name,
+    workflow_version_id,
+    step_id
 FROM
     v1_task
 WHERE
@@ -1537,6 +1541,10 @@ type ListTaskMetasRow struct {
 	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
 	AdditionalMetadata []byte             `json:"additional_metadata"`
 	StepReadableID     string             `json:"step_readable_id"`
+	ActionID           string             `json:"action_id"`
+	DisplayName        string             `json:"display_name"`
+	WorkflowVersionID  uuid.UUID          `json:"workflow_version_id"`
+	StepID             uuid.UUID          `json:"step_id"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -1557,6 +1565,10 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.WorkflowRunID,
 			&i.AdditionalMetadata,
 			&i.StepReadableID,
+			&i.ActionID,
+			&i.DisplayName,
+			&i.WorkflowVersionID,
+			&i.StepID,
 		); err != nil {
 			return nil, err
 		}
