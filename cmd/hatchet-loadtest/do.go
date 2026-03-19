@@ -191,7 +191,7 @@ func do(config LoadTestConfig) error {
 
 	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
-	if os.Getenv("SLACK_BOT_TOKEN") != "" && os.Getenv("SLACK_CHANNEL_ID") != "" && os.Getenv("SLACK_THREAD_TS") != "" {
+	if ShouldSendSlack() {
 		log.Printf("ℹ️ sending scheduling/duration plots to Slack")
 		slackSender := NewSlackSender("hatchet-staging-loadtest-us-west-2")
 		durationBytes, err := finalDurationResult.latencyResult.PlotBytes("duration")
@@ -207,6 +207,8 @@ func do(config LoadTestConfig) error {
 			log.Printf("❌ failed to send duration plots to slack: %v ", err)
 		}
 		log.Printf("ℹ️ scheduling/duration successfully plots to Slack")
+	} else {
+		log.Printf("ℹ️ not all environment vars for sending plots to Slack enabled...skipping")
 	}
 	if config.PlotDir != "" {
 		log.Printf("ℹ️ exporting scheduling/duration snapshot data")

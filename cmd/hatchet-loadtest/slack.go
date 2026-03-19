@@ -33,6 +33,14 @@ func NewS3Client(ctx context.Context) (*s3.Client, error) {
 	return client, nil
 }
 
+func ShouldSendSlack() bool {
+	return (os.Getenv("SLACK_BOT_TOKEN") != "" &&
+		os.Getenv("SLACK_THREAD_TS") != "" &&
+		os.Getenv("SLACK_CHANNEL_ID") != "" &&
+		os.Getenv("AWS_ACCESS_KEY_ID") != "" &&
+		os.Getenv("AWS_SECRET_ACCESS_KEY") != "")
+}
+
 func NewSlackSender(s3Bucket string) *SlackSender {
 	s3Client, _ := NewS3Client(context.Background())
 	return &SlackSender{
