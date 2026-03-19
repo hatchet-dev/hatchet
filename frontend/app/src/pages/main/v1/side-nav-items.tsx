@@ -3,6 +3,7 @@ import {
   SideNavChild,
 } from '../../../components/v1/nav/side-nav';
 import { appRoutes } from '@/router';
+import { BiLogOut, BiMoon, BiSun } from 'react-icons/bi';
 import {
   RiPulseAiLine,
   RiFilterLine,
@@ -24,6 +25,9 @@ export function sideNavItems(opts: {
   managedWorkerEnabled?: boolean;
   isCloudEnabled?: boolean;
   logsEnabled?: boolean;
+  onLogout: () => void;
+  onToggleTheme: () => void;
+  currentlyVisibleTheme: 'light' | 'dark';
 }): SideNavSection[] {
   const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
 
@@ -307,6 +311,16 @@ export function sideNavItems(opts: {
             />
           ),
         },
+        {
+          key: 'logout',
+          name: 'Logout',
+          onClick: opts.onLogout,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <BiLogOut
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
       ],
     },
     {
@@ -318,7 +332,8 @@ export function sideNavItems(opts: {
           key: 'tenant-settings',
           name: 'General',
           to: appRoutes.tenantSettingsOverviewRoute.to,
-          activeTo: appRoutes.tenantSettingsIndexRoute.to,
+          displayAsActiveWhenThisRouteIsMatched:
+            appRoutes.tenantSettingsIndexRoute.to,
           activeFuzzy: true,
           prefix: appRoutes.tenantSettingsIndexRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
@@ -327,6 +342,21 @@ export function sideNavItems(opts: {
             />
           ),
           children: settingsChildren,
+        },
+        {
+          key: 'theme',
+          name: `Theme: ${opts.currentlyVisibleTheme === 'dark' ? 'Dark' : 'Light'}`,
+          onClick: opts.onToggleTheme,
+          icon: ({ collapsed }: { collapsed: boolean }) =>
+            opts.currentlyVisibleTheme === 'dark' ? (
+              <BiSun
+                className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+              />
+            ) : (
+              <BiMoon
+                className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+              />
+            ),
         },
       ],
     },

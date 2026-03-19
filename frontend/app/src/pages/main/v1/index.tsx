@@ -1,8 +1,11 @@
 import { SideNav } from '../../../components/v1/nav/side-nav';
 import { sideNavItems } from './side-nav-items';
+import { useTheme } from '@/components/hooks/use-theme';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
 import {
   MembershipsContextType,
   UserContextType,
@@ -10,7 +13,11 @@ import {
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import useCloud from '@/pages/auth/hooks/use-cloud';
-import { useMemo } from 'react';
+import { useUserUniverse } from '@/providers/user-universe';
+import { appRoutes } from '@/router';
+import { useMutation } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { useCallback, useMemo } from 'react';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -21,6 +28,25 @@ function Main() {
   const logsEnabled =
     !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
+  const { toggleTheme, currentlyVisibleTheme } = useTheme();
+  const navigate = useNavigate();
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
+  const { handleApiError } = useApiError({});
+
+  const logoutMutation = useMutation({
+    mutationKey: ['user:update:logout'],
+    mutationFn: async () => {
+      await api.userUpdateLogout();
+    },
+    onSuccess: () => {
+      invalidateUserUniverse();
+      navigate({ to: appRoutes.authLoginRoute.to });
+    },
+    onError: handleApiError,
+  });
+
+  const onLogout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
+
   const navSections = useMemo(
     () =>
       sideNavItems({
@@ -28,8 +54,19 @@ function Main() {
         managedWorkerEnabled,
         isCloudEnabled,
         logsEnabled,
+        onLogout,
+        onToggleTheme: toggleTheme,
+        currentlyVisibleTheme,
       }),
-    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled, logsEnabled],
+    [
+      cloud?.canBill,
+      managedWorkerEnabled,
+      isCloudEnabled,
+      logsEnabled,
+      onLogout,
+      toggleTheme,
+      currentlyVisibleTheme,
+    ],
   );
 
   const childCtx = useContextFromParent({
