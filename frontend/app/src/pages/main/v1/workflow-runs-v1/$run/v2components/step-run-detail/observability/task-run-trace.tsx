@@ -132,6 +132,7 @@ export function TaskRunTrace({
           activeFilters={activeFilters}
           onAddFilter={onAddFilter}
           onRemoveFilter={onRemoveFilter}
+          onSpanSelect={handleSpanSelect}
         />
       )}
       {selection?.kind === 'group' && (

@@ -6,6 +6,7 @@ export type RelevantOpenTelemetrySpanProperties = Pick<
   | 'parentSpanId'
   | 'spanName'
   | 'statusCode'
+  | 'statusMessage'
   | 'durationNs'
   | 'createdAt'
   | 'spanAttributes'

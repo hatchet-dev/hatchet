@@ -6,7 +6,7 @@ import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
 import { PanelRight, X } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 function FilterPlusIcon({ className }: { className?: string }) {
   return (
@@ -87,6 +87,40 @@ function statusConfig(code: string) {
     default:
       return { label: 'Unset', dot: 'bg-slate-500' };
   }
+}
+
+interface ChildError {
+  span: OtelSpanTree;
+  spanName: string;
+  message: string;
+}
+
+function collectChildErrors(node: OtelSpanTree): ChildError[] {
+  const errors: ChildError[] = [];
+  const stack = [...node.children];
+  while (stack.length > 0) {
+    const child = stack.pop()!;
+    if (
+      child.statusCode === OtelStatusCode.ERROR &&
+      child.statusMessage
+    ) {
+      const taskName =
+        child.spanAttributes?.['hatchet.step_name'] ??
+        child.spanAttributes?.['hatchet.task_name'];
+      errors.push({
+        span: child,
+        spanName: taskName ?? child.spanName,
+        message: child.statusMessage,
+      });
+    }
+    stack.push(...child.children);
+  }
+  errors.sort(
+    (a, b) =>
+      new Date(a.span.createdAt).getTime() -
+      new Date(b.span.createdAt).getTime(),
+  );
+  return errors;
 }
 
 const HATCHET_ATTR_PREFIX = 'hatchet.';
@@ -211,12 +245,14 @@ export function SpanDetail({
   activeFilters,
   onAddFilter,
   onRemoveFilter,
+  onSpanSelect,
 }: {
   span: OtelSpanTree;
   onClose: () => void;
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
+  onSpanSelect?: (span: OtelSpanTree) => void;
 }) {
   const status = span.inProgress
     ? { label: 'In Progress', dot: 'bg-blue-500' }
@@ -237,6 +273,13 @@ export function SpanDetail({
       },
     });
   }, [taskRunId, open]);
+
+  const childErrors = useMemo(() => {
+    if (span.statusCode !== OtelStatusCode.ERROR || span.children.length === 0) {
+      return [];
+    }
+    return collectChildErrors(span);
+  }, [span]);
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
@@ -305,6 +348,40 @@ export function SpanDetail({
           </p>
         </div>
       </div>
+
+      {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
+          <span className="text-xs font-medium text-red-400">
+            Error Message
+          </span>
+          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-300">
+            {span.statusMessage}
+          </pre>
+        </div>
+      )}
+
+      {childErrors.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-red-400">
+            {childErrors.length === 1 ? '1 Error' : `${childErrors.length} Errors`} in child spans
+          </h4>
+          {childErrors.map((err, i) => (
+            <button
+              key={i}
+              type="button"
+              className="w-full rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-left transition-colors hover:border-red-500/50 hover:bg-red-500/15"
+              onClick={() => onSpanSelect?.(err.span)}
+            >
+              <span className="text-xs font-medium text-red-400">
+                {err.spanName}
+              </span>
+              <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-300">
+                {err.message}
+              </pre>
+            </button>
+          ))}
+        </div>
+      )}
 
       {(user.length > 0 || hatchet.length > 0) && (
         <div className="flex flex-col gap-3">

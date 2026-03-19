@@ -71,6 +71,7 @@ const pickSpan = (
   parentSpanId: span.parentSpanId,
   spanName: span.spanName,
   statusCode: span.statusCode,
+  statusMessage: span.statusMessage,
   durationNs: span.durationNs,
   createdAt: span.createdAt,
   spanAttributes: span.spanAttributes,

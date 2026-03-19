@@ -24,6 +24,7 @@ type engineSpanEvent struct {
 	additionalMetadata []byte
 	actionID           string
 	displayName        string
+	eventMessage       string
 	taskID             int64
 	retryCount         int32
 	externalID         uuid.UUID
@@ -183,8 +184,20 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 		}
 
 		statusCode := tracev1.Status_STATUS_CODE_OK
+		var statusMessage string
 		if e.eventType != sqlcv1.V1EventTypeOlapFINISHED {
 			statusCode = tracev1.Status_STATUS_CODE_ERROR
+			statusMessage = e.eventMessage
+			if statusMessage == "" {
+				switch e.eventType {
+				case sqlcv1.V1EventTypeOlapCANCELLED:
+					statusMessage = "task cancelled"
+				case sqlcv1.V1EventTypeOlapTIMEDOUT:
+					statusMessage = "task timed out"
+				case sqlcv1.V1EventTypeOlapFAILED:
+					statusMessage = "task failed"
+				}
+			}
 		}
 
 		traceIDBytes, err := hex.DecodeString(traceID)
@@ -227,6 +240,7 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 			StartTimeUnixNano:    safeUint64(startTime.UnixNano()),
 			EndTimeUnixNano:      safeUint64(e.eventTimestamp.UnixNano()),
 			StatusCode:           statusCode,
+			StatusMessage:        statusMessage,
 			Attributes:           attrs,
 			ResourceAttributes:   resourceAttrs,
 			InstrumentationScope: "hatchet-engine",
