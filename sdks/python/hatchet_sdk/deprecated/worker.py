@@ -144,6 +144,12 @@ async def legacy_aio_start(worker: Worker) -> None:
 
         await worker.action_listener_health_check
 
+        if worker.action_runner:
+            await worker.action_runner.wait_for_tasks()
+
+        if durable_action_runner:
+            await durable_action_runner.wait_for_tasks()
+
         try:
             await worker._cleanup_lifespan()
         except Exception:
@@ -198,6 +204,7 @@ def _legacy_run_action_runner(
         return WorkerActionRunLoopManager(
             worker.name + name_suffix,
             action_registry,
+            max_runs,
             max_runs,
             worker.config,
             action_queue,

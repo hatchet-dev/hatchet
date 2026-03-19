@@ -61,9 +61,21 @@ tasks:
   fmt-docs:
     dir: frontend/docs
     cmd: pnpm run prettier:fix && pnpm run prettier:check
+  sync-agent-instructions:
+    desc: Sync agent-instructions MDX files into hatchet-cli skill-assets references
+    cmds:
+      - |
+        src="frontend/docs/pages/agent-instructions"
+        dest="cmd/hatchet-cli/cli/skill-assets/hatchet-cli/references"
+        for f in "$src"/*.mdx; do
+          name=$(basename "$f" .mdx)
+          cp "$f" "$dest/$name.md"
+        done
+
   pre:
     aliases: [fmt]
     cmds:
+      - task: sync-agent-instructions
       - task: fmt-go
       - task: fmt-app
       - task: fmt-docs
@@ -93,6 +105,17 @@ tasks:
   goose-migrate:
     cmds:
       - bash ./hack/dev/migrate.sh
+  migrate-down:
+    desc: "Migrate down to a specific version. Usage: task migrate-down -- 20260223180620 (for v1.0.82)"
+    dotenv: [.env]
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task migrate-down -- <version>"
+          echo "Example: task migrate-down -- 20260223180620  # v1.0.82"
+          exit 1
+        fi
+        go run ./cmd/hatchet-migrate --down {{.CLI_ARGS}}
   seed-dev:
     dotenv: [.env]
     cmds:
@@ -160,11 +183,12 @@ tasks:
       - task: generate-api-server
       - task: generate-api-client
   generate-docs:
-      deps: [venv]
-      dir: frontend/snippets
-      cmds:
-        - 'source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py'
-        - task: fmt
+    deps: [venv]
+    dir: frontend/snippets
+    cmds:
+      - "source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py"
+      - task: fmt
+      - task: sync-agent-instructions
   generate-certs:
     cmds:
       - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
@@ -199,10 +223,26 @@ tasks:
   lint:
     cmds:
       - task: lint-go
+      - task: lint-go-guides
+      - task: lint-python-guides
+      - task: lint-typescript-guides
+      - task: lint-ruby-guides
       - task: lint-app
       - task: lint-docs
   lint-go:
     cmd: golangci-lint run ./... --config .golangci.yml
+  lint-go-guides:
+    dir: sdks/guides/go
+    cmd: golangci-lint run ./... --config .golangci.yml
+  lint-python-guides:
+    dir: sdks/guides/python
+    cmd: poetry run ruff check .
+  lint-typescript-guides:
+    dir: sdks/guides/typescript
+    cmd: pnpm install && pnpm run lint:check
+  lint-ruby-guides:
+    dir: sdks/guides/ruby
+    cmd: bundle install && bundle exec rubocop
   lint-app:
     dir: frontend/app
     cmd: pnpm run lint:check
@@ -228,7 +268,7 @@ tasks:
     cmd: source .venv/bin/activate && pip install pre-commit && pre-commit install
   pre-commit-run:
     deps: [venv]
-    cmd: 'source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files'
+    cmd: "source .venv/bin/activate && pre-commit run --all-files || pre-commit run --all-files"
   docs:
     cmds:
       - |

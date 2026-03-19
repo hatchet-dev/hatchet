@@ -1,5 +1,13 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable max-classes-per-file */
+/**
+ * The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
+ *
+ * There are two types of context classes you'll encounter:
+ *
+ * - Context - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
+ * - DurableContext - An extended context for durable tasks that includes additional methods for durable execution.
+ * @module Context
+ */
+
 import {
   Priority,
   RunOpts,
@@ -7,7 +15,6 @@ import {
   BaseWorkflowDeclaration as WorkflowV1,
 } from '@hatchet/v1/declaration';
 import HatchetError from '@util/errors/hatchet-error';
-import { JsonObject } from '@bufbuild/protobuf';
 import { Action } from '@hatchet/clients/dispatcher/action-listener';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
@@ -15,18 +22,32 @@ import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
-import { OutputType } from '@hatchet/v1/types';
-import { Workflow } from '@hatchet/workflow';
+import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
-import { ContextWorker, NextStep } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
-import { V1Worker } from './worker-internal';
-import { Duration } from '../duration';
+import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
+import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
+import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
+import { createHash } from 'crypto';
+import { z } from 'zod';
+import { InternalWorker } from './worker-internal';
+import { Duration, durationToMs, durationToString } from '../duration';
+import { DurableEvictionManager } from './eviction/eviction-manager';
+import { ActionKey } from './eviction/eviction-cache';
+import { supportsEviction } from './engine-version';
+import { waitForPreEviction } from './deprecated/pre-eviction';
+// TODO remove this once we have a proper next step type
 
 type TriggerData = Record<string, Record<string, any>>;
 
 type ChildRunOpts = RunOpts & { key?: string; sticky?: boolean };
+
+export interface SleepResult {
+  /** The sleep duration in milliseconds. */
+  durationMs: number;
+}
 
 type LogExtra = {
   extra?: any;
@@ -40,6 +61,52 @@ interface ContextData<T, K> {
   triggered_by: string;
   user_data: K;
   step_run_errors: Record<string, string>;
+}
+
+/**
+ * ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
+ */
+export class ContextWorker {
+  private worker: InternalWorker;
+  constructor(worker: InternalWorker) {
+    this.worker = worker;
+  }
+
+  /**
+   * Gets the ID of the worker.
+   * @returns The ID of the worker.
+   */
+  id() {
+    return this.worker.workerId;
+  }
+
+  /**
+   * Checks if the worker has a registered workflow.
+   * @param workflowName - The name of the workflow to check.
+   * @returns True if the workflow is registered, otherwise false.
+   */
+  hasWorkflow(workflowName: string) {
+    return !!this.worker.workflow_registry.find((workflow) =>
+      'id' in workflow ? workflow.id === workflowName : workflow.name === workflowName
+    );
+  }
+
+  /**
+   * Gets the current state of the worker labels.
+   * @returns The labels of the worker.
+   */
+  labels() {
+    return this.worker.labels;
+  }
+
+  /**
+   * Upserts the a set of labels on the worker.
+   * @param labels - The labels to upsert.
+   * @returns A promise that resolves when the labels have been upserted.
+   */
+  upsertLabels(labels: WorkerLabels) {
+    return this.worker.upsertLabels(labels);
+  }
 }
 
 export class Context<T, K = {}> {
@@ -60,7 +127,7 @@ export class Context<T, K = {}> {
   spawnIndex: number = 0;
   streamIndex = 0;
 
-  constructor(action: Action, v1: HatchetClient, worker: V1Worker) {
+  constructor(action: Action, v1: HatchetClient, worker: InternalWorker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;
@@ -88,6 +155,24 @@ export class Context<T, K = {}> {
 
   get cancelled() {
     return this.controller.signal.aborted;
+  }
+
+  protected throwIfCancelled(): void {
+    if (this.abortController.signal.aborted) {
+      throw createAbortError('Operation cancelled by AbortSignal');
+    }
+  }
+
+  /**
+   * Helper for broad `catch` blocks so cancellation isn't accidentally swallowed.
+   *
+   * Example:
+   * ```ts
+   * try { ... } catch (e) { ctx.rethrowIfCancelled(e); ... }
+   * ```
+   */
+  rethrowIfCancelled(err: unknown): void {
+    rethrowIfAborted(err);
   }
 
   async cancel() {
@@ -127,6 +212,7 @@ export class Context<T, K = {}> {
    * @returns A record mapping task names to error messages.
    * @throws A warning if no errors are found (this method should be used in on-failure tasks).
    * @deprecated use ctx.errors() instead
+   * @hidden
    */
   stepRunErrors(): Record<string, string> {
     return this.errors();
@@ -233,6 +319,7 @@ export class Context<T, K = {}> {
    * Gets the ID of the current task run.
    * @returns The task run ID.
    * @deprecated use taskRunExternalId() instead
+   * @hidden
    */
   taskRunId(): string {
     return this.taskRunExternalId();
@@ -251,6 +338,7 @@ export class Context<T, K = {}> {
    * @param message - The message to log.
    * @param level - The log level (optional).
    * @deprecated use ctx.logger.infoger.info, ctx.logger.infoger.debug, ctx.logger.infoger.warn, ctx.logger.infoger.error, ctx.logger.infoger.trace instead
+   * @hidden
    */
   log(message: string, level?: LogLevel, extra?: LogExtra) {
     const { taskRunExternalId } = this.action;
@@ -334,7 +422,7 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.v1._v0.dispatcher.refreshTimeout(incrementBy, taskRunExternalId);
+    await this.v1.dispatcher.refreshTimeout(durationToString(incrementBy), taskRunExternalId);
   }
 
   /**
@@ -343,7 +431,7 @@ export class Context<T, K = {}> {
    * @returns A promise that resolves when the slot has been released.
    */
   async releaseSlot(): Promise<void> {
-    await this.v1._v0.dispatcher.client.releaseSlot({
+    await this.v1.dispatcher.client.releaseSlot({
       taskRunExternalId: this.action.taskRunExternalId,
     });
   }
@@ -364,16 +452,18 @@ export class Context<T, K = {}> {
 
     const index = this._incrementStreamIndex();
 
-    await this.v1._v0.event.putStream(taskRunExternalId, data, index);
+    await this.v1.events.putStream(taskRunExternalId, data, index);
   }
 
-  private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
+  protected spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
+    this.throwIfCancelled();
+
     let workflowName: string;
 
     if (typeof workflow === 'string') {
       workflowName = workflow;
     } else {
-      workflowName = workflow.id;
+      workflowName = workflow.name;
     }
 
     const opts = options || {};
@@ -388,7 +478,7 @@ export class Context<T, K = {}> {
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const finalOpts = {
-      ...options,
+      ...opts,
       parentId: workflowRunId,
       parentTaskRunExternalId: taskRunExternalId,
       childIndex: this.spawnIndex,
@@ -404,7 +494,7 @@ export class Context<T, K = {}> {
   }
 
   private spawn<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P>,
+    workflow: string | WorkflowV1<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ) {
@@ -414,11 +504,12 @@ export class Context<T, K = {}> {
 
   private spawnBulk<Q extends JsonObject, P extends JsonObject>(
     children: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
   ) {
+    this.throwIfCancelled();
     const workflows: Parameters<typeof this.v1.admin.runWorkflows<Q, P>>[0] = children.map(
       (child) => {
         const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
@@ -436,12 +527,16 @@ export class Context<T, K = {}> {
    */
   async bulkRunNoWaitChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    return this.spawnBulk<Q, P>(children);
+    const refs = await this.spawnBulk<Q, P>(children);
+    refs.forEach((ref) => {
+      ref.defaultSignal = this.abortController.signal;
+    });
+    return refs;
   }
 
   /**
@@ -451,7 +546,7 @@ export class Context<T, K = {}> {
    */
   async bulkRunChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
@@ -469,11 +564,14 @@ export class Context<T, K = {}> {
    * @returns The result of the workflow.
    */
   async runChild<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ): Promise<P> {
     const run = await this.spawn(workflow, input, options);
+    // Ensure waiting for the child result aborts when this task is cancelled.
+
+    run.defaultSignal = this.abortController.signal;
     return run.output;
   }
 
@@ -486,11 +584,12 @@ export class Context<T, K = {}> {
    * @returns A reference to the spawned workflow run.
    */
   async runNoWaitChild<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P>,
+    workflow: string | WorkflowV1<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
     const ref = await this.spawn(workflow, input, options);
+    ref.defaultSignal = this.abortController.signal;
     return ref;
   }
 
@@ -552,6 +651,7 @@ export class Context<T, K = {}> {
    * @returns The output of the task.
    * @throws An error if the task output is not found.
    * @deprecated use ctx.parentOutput instead
+   * @hidden
    */
   stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
@@ -567,6 +667,7 @@ export class Context<T, K = {}> {
    * Gets the input data for the current workflow.
    * @returns The input data for the workflow.
    * @deprecated use task input parameter instead
+   * @hidden
    */
   workflowInput(): T {
     return this.input;
@@ -576,6 +677,7 @@ export class Context<T, K = {}> {
    * Gets the name of the current task.
    * @returns The name of the task.
    * @deprecated use ctx.taskName instead
+   * @hidden
    */
   stepName(): string {
     return this.taskName();
@@ -587,14 +689,16 @@ export class Context<T, K = {}> {
    * @param workflows - An array of objects containing the workflow name, input data, and options for each workflow.
    * @returns A list of references to the spawned workflow runs.
    * @deprecated Use bulkRunNoWaitChildren or bulkRunChildren instead.
+   * @hidden
    */
   async spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
     workflows: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
+      workflow: string | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
     const workflowRuns = workflows.map(({ workflow, input, options }) => {
@@ -603,10 +707,10 @@ export class Context<T, K = {}> {
       if (typeof workflow === 'string') {
         workflowName = workflow;
       } else {
-        workflowName = workflow.id;
+        workflowName = workflow.name;
       }
 
-      const name = applyNamespace(workflowName, this.v1.config.namespace);
+      const name = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
 
       const opts = options || {};
       const { sticky } = opts;
@@ -617,11 +721,16 @@ export class Context<T, K = {}> {
         );
       }
 
+      // `signal` must never be sent over the wire.
+      const optsWithoutSignal: Omit<ChildRunOpts, 'signal'> & { signal?: never } = { ...opts };
+
+      delete (optsWithoutSignal as any).signal;
+
       const resp = {
         workflowName: name,
         input,
         options: {
-          ...opts,
+          ...optsWithoutSignal,
           parentId: workflowRunId,
           parentTaskRunExternalId: taskRunExternalId,
           childIndex: this.spawnIndex,
@@ -638,7 +747,7 @@ export class Context<T, K = {}> {
       let resp: WorkflowRunRef<P>[] = [];
       for (let i = 0; i < workflowRuns.length; i += batchSize) {
         const batch = workflowRuns.slice(i, i + batchSize);
-        const batchResp = await this.v1._v0.admin.runWorkflows<Q, P>(batch);
+        const batchResp = await this.v1.admin.runWorkflows<Q, P>(batch);
         resp = resp.concat(batchResp);
       }
 
@@ -646,7 +755,6 @@ export class Context<T, K = {}> {
       resp.forEach((ref, index) => {
         const wf = workflows[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = wf._standalone_task_name;
         }
         res.push(ref);
@@ -666,23 +774,19 @@ export class Context<T, K = {}> {
    * @param options - Additional options for spawning the workflow.
    * @returns A reference to the spawned workflow run.
    * @deprecated Use runChild or runNoWaitChild instead.
+   * @hidden
    */
   async spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
+    this.throwIfCancelled();
     const { workflowRunId, taskRunExternalId } = this.action;
 
-    let workflowName: string = '';
+    const workflowName = typeof workflow === 'string' ? workflow : workflow.name;
 
-    if (typeof workflow === 'string') {
-      workflowName = workflow;
-    } else {
-      workflowName = workflow.id;
-    }
-
-    const name = applyNamespace(workflowName, this.v1.config.namespace);
+    const name = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
 
     const opts = options || {};
     const { sticky } = opts;
@@ -694,7 +798,7 @@ export class Context<T, K = {}> {
     }
 
     try {
-      const resp = await this.v1._v0.admin.runWorkflow<Q, P>(name, input, {
+      const resp = await this.v1.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
         parentTaskRunExternalId: taskRunExternalId,
         childIndex: this.spawnIndex,
@@ -722,17 +826,94 @@ export class Context<T, K = {}> {
   }
 }
 
+/**
+ * DurableContext provides helper methods and useful data to durable tasks at runtime.
+ * It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
+ */
 export class DurableContext<T, K = {}> extends Context<T, K> {
-  waitKey: number = 0;
+  private _durableListener: DurableListenerClient;
+  private _evictionManager: DurableEvictionManager | undefined;
+  private _engineVersion: string | undefined;
+  private _waitKey: number = 0;
+
+  constructor(
+    action: Action,
+    v1: HatchetClient,
+    worker: InternalWorker,
+    durableListener: DurableListenerClient,
+    evictionManager?: DurableEvictionManager,
+    engineVersion?: string
+  ) {
+    super(action, v1, worker);
+    this._durableListener = durableListener;
+    this._evictionManager = evictionManager;
+    this._engineVersion = engineVersion;
+  }
+
+  get supportsEviction(): boolean {
+    return supportsEviction(this._engineVersion);
+  }
+
+  get durableListener(): DurableListenerClient {
+    return this._durableListener;
+  }
+
+  /**
+   * The invocation count for the current durable task. Used for deduplication across replays.
+   */
+  get invocationCount(): number {
+    return this.action.durableTaskInvocationCount ?? 1;
+  }
+
+  private get _actionKey(): ActionKey {
+    return this.action.key;
+  }
+
+  private async withEvictionWait<R>(
+    waitKind: string,
+    resourceId: string,
+    fn: () => Promise<R>
+  ): Promise<R> {
+    this._evictionManager?.markWaiting(this._actionKey, waitKind, resourceId);
+    try {
+      return await fn();
+    } finally {
+      this._evictionManager?.markActive(this._actionKey);
+    }
+  }
 
   /**
    * Pauses execution for the specified duration.
    * Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
    * @param duration - The duration to sleep for.
-   * @returns A promise that resolves when the sleep duration has elapsed.
+   * @returns A promise that resolves with a SleepResult when the sleep duration has elapsed.
    */
-  async sleepFor(duration: Duration, readableDataKey?: string) {
-    return this.waitFor({ sleepFor: duration, readableDataKey });
+  async sleepFor(duration: Duration, readableDataKey?: string): Promise<SleepResult> {
+    const res = await this.waitFor({ sleepFor: duration, readableDataKey });
+
+    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const [firstMatch] = Object.values(matches);
+
+    if (!firstMatch || firstMatch.length === 0) {
+      return { durationMs: durationToMs(duration) };
+    }
+
+    const [sleep] = firstMatch;
+    const sleepDuration: string | undefined = sleep?.sleep_duration;
+
+    if (sleepDuration) {
+      const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
+      const match = sleepDuration.match(DURATION_RE);
+      if (match) {
+        const [, h, m, s] = match;
+        const ms =
+          (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) *
+          1000;
+        return { durationMs: ms };
+      }
+    }
+
+    return { durationMs: durationToMs(duration) };
   }
 
   /**
@@ -742,29 +923,296 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
   async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
-    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+    this.throwIfCancelled();
 
-    // eslint-disable-next-line no-plusplus
-    const key = `waitFor-${this.waitKey++}`;
-    await this.v1._v0.durableListener.registerDurableEvent({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-      sleepConditions: pbConditions.sleepConditions,
-      userEventConditions: pbConditions.userEventConditions,
+    if (!this.supportsEviction) {
+      return this._waitForPreEviction(conditions);
+    }
+
+    const rendered = Render(ConditionAction.CREATE, conditions);
+    const pbConditions = conditionsToPb(rendered, this.v1.config.namespace);
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      {
+        kind: 'waitFor',
+        waitForConditions: {
+          sleepConditions: pbConditions.sleepConditions,
+          userEventConditions: pbConditions.userEventConditions,
+        },
+      }
+    );
+
+    const resourceId =
+      rendered
+        .map((c) => c.base.readableDataKey)
+        .filter(Boolean)
+        .join(',') || `node:${ack.nodeId}`;
+
+    return this.withEvictionWait('waitFor', resourceId, async () => {
+      const result = await this._durableListener.waitForCallback(
+        this.action.taskRunExternalId,
+        this.invocationCount,
+        ack.branchId,
+        ack.nodeId,
+        { signal: this.abortController.signal }
+      );
+      return result.payload || {};
     });
-
-    const listener = this.v1._v0.durableListener.subscribe({
-      taskId: this.action.taskRunExternalId,
-      signalKey: key,
-    });
-
-    const event = await listener.get();
-
-    // Convert event.data from Uint8Array to string if needed
-    const eventData =
-      event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
-
-    const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
-    return res.CREATE;
   }
+
+  /**
+   * Lightweight wrapper for waiting for a user event. Allows for shorthand usage of
+   * `ctx.waitFor` when specifying a user event condition.
+   *
+   * For more complicated conditions, use `ctx.waitFor` directly.
+   *
+   * @param key - The event key to wait for.
+   * @param expression - An optional CEL expression to filter events.
+   * @param payloadSchema - An optional Zod schema to validate and parse the event payload.
+   * @returns The event payload, validated against the schema if provided.
+   */
+  async waitForEvent<T extends z.ZodTypeAny>(
+    key: string,
+    expression?: string,
+    payloadSchema?: T
+  ): Promise<z.infer<T>>;
+  async waitForEvent(key: string, expression?: string): Promise<Record<string, any>>;
+  async waitForEvent(
+    key: string,
+    expression?: string,
+    payloadSchema?: z.ZodTypeAny
+  ): Promise<unknown> {
+    const res = await this.waitFor({ eventKey: key, expression });
+
+    // The engine returns an object like:
+    // {"CREATE": {"signal_key_1": [{"id": ..., "data": {...}}]}}
+    // Since we have a single match, the list will only have one item.
+    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const [firstMatch] = Object.values(matches);
+
+    if (!firstMatch || firstMatch.length === 0) {
+      if (payloadSchema) {
+        return payloadSchema.parse({});
+      }
+      return {};
+    }
+
+    const [rawPayload] = firstMatch;
+
+    if (payloadSchema) {
+      return payloadSchema.parse(rawPayload);
+    }
+
+    return rawPayload;
+  }
+
+  /**
+   * Durably sleep until a specific timestamp.
+   * Uses the memoized `now()` to compute the remaining duration, then delegates to `sleepFor`.
+   *
+   * @param wakeAt - The timestamp to sleep until.
+   * @returns A SleepResult containing the actual duration slept.
+   */
+  async sleepUntil(wakeAt: Date): Promise<SleepResult> {
+    const now = await this.now();
+    const remainingMs = wakeAt.getTime() - now.getTime();
+    return this.sleepFor(`${Math.max(0, Math.ceil(remainingMs / 1000))}s`);
+  }
+
+  /**
+   * Get the current timestamp, memoized across replays. Returns the same Date on every replay of the same task run.
+   * @returns The memoized current timestamp.
+   */
+  async now(): Promise<Date> {
+    const result = await this.memo(async () => {
+      return { ts: new Date().toISOString() };
+    }, ['now']);
+    return new Date(result.ts);
+  }
+
+  private async _waitForPreEviction(
+    conditions: Conditions | Conditions[]
+  ): Promise<Record<string, any>> {
+    const { result, nextWaitKey } = await waitForPreEviction(
+      this._durableListener,
+      this.action.taskRunExternalId,
+      this._waitKey,
+      conditions,
+      this.v1.config.namespace,
+      this.abortController.signal
+    );
+    this._waitKey = nextWaitKey;
+    return result;
+  }
+
+  private _buildTriggerOpts<Q extends JsonObject>(
+    workflow: string | WorkflowV1<Q, any> | TaskWorkflowDeclaration<Q, any>,
+    input?: Q,
+    options?: ChildRunOpts
+  ) {
+    let workflowName: string;
+    if (typeof workflow === 'string') {
+      workflowName = workflow;
+    } else {
+      workflowName = workflow.name;
+    }
+
+    workflowName = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
+
+    const triggerOpts = {
+      name: workflowName,
+      input: JSON.stringify(input || {}),
+      parentId: this.action.workflowRunId,
+      parentTaskRunExternalId: this.action.taskRunExternalId,
+      childIndex: this.spawnIndex,
+      childKey: options?.key,
+      additionalMetadata: options?.additionalMetadata
+        ? JSON.stringify(options.additionalMetadata)
+        : undefined,
+      desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
+      priority: options?.priority,
+      desiredWorkerLabels: {},
+    };
+
+    this.spawnIndex += 1;
+
+    return { workflowName, triggerOpts };
+  }
+
+  /**
+   * Spawns a child workflow through the durable event log, waits for the child to complete.
+   * @param workflow - The workflow to spawn.
+   * @param input - The input data for the child workflow.
+   * @param options - Options for spawning the child workflow.
+   * @returns The result of the child workflow.
+   */
+  async spawnChild<Q extends JsonObject, P extends OutputType>(
+    workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    input?: Q,
+    options?: ChildRunOpts
+  ): Promise<P> {
+    if (!this.supportsEviction) {
+      const { workflowName, opts } = this.spawnOptions(workflow, options);
+      const ref = await this.v1.admin.runWorkflow(workflowName, (input || {}) as Q, opts);
+      ref.defaultSignal = this.abortController.signal;
+      return ref.output as Promise<P>;
+    }
+
+    const results = await this.spawnChildren<Q, P>([
+      { workflow, input: (input || {}) as Q, options },
+    ]);
+    return results[0];
+  }
+
+  /**
+   * Spawns multiple child workflows through the durable event log, waits for all to complete.
+   * @param children - An array of objects containing the workflow, input, and options for each child.
+   * @returns A list of results from the child workflows.
+   */
+  async spawnChildren<Q extends JsonObject, P extends OutputType>(
+    children: Array<{
+      workflow: string | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>;
+      input: Q;
+      options?: ChildRunOpts;
+    }>
+  ): Promise<P[]> {
+    this.throwIfCancelled();
+
+    if (!this.supportsEviction) {
+      const workflows = children.map((c) => {
+        const { workflowName, opts } = this.spawnOptions(c.workflow, c.options);
+        return { workflowName, input: c.input, options: opts };
+      });
+      const refs = await this.v1.admin.runWorkflows(workflows);
+      for (const r of refs) {
+        r.defaultSignal = this.abortController.signal;
+      }
+      return Promise.all(refs.map((r) => r.output)) as Promise<P[]>;
+    }
+
+    const triggerOptsList = children.map((child) => {
+      const { triggerOpts } = this._buildTriggerOpts(child.workflow, child.input, child.options);
+      return triggerOpts;
+    });
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      {
+        kind: 'runChildren',
+        triggerOpts: triggerOptsList,
+      }
+    );
+
+    const results = await Promise.all(
+      ack.runEntries.map((entry) =>
+        this.withEvictionWait('runChild', `workflow:bulk-child`, async () => {
+          const result = await this._durableListener.waitForCallback(
+            this.action.taskRunExternalId,
+            this.invocationCount,
+            entry.branchId,
+            entry.nodeId,
+            { signal: this.abortController.signal }
+          );
+          return (result.payload || {}) as P;
+        })
+      )
+    );
+
+    return results;
+  }
+
+  /**
+   * Memoize a function by storing its result in durable storage. Avoids recomputation on replay.
+   *
+   * @param fn - The async function to compute the value.
+   * @param deps - Dependency values that form the memoization key.
+   * @returns The memoized value, either from durable storage or freshly computed.
+   */
+  private async memo<R>(fn: () => Promise<R>, deps: readonly unknown[]): Promise<R> {
+    this.throwIfCancelled();
+
+    if (!this.supportsEviction) {
+      return fn();
+    }
+
+    const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
+
+    const ack = await this._durableListener.sendEvent(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      {
+        kind: 'memo',
+        memoKey,
+      }
+    );
+
+    if (ack.memoAlreadyExisted && ack.memoResultPayload && ack.memoResultPayload.length > 0) {
+      const serialized = new TextDecoder().decode(ack.memoResultPayload);
+      return JSON.parse(serialized) as R;
+    }
+
+    const result = await fn();
+    const serializedResult = new TextEncoder().encode(JSON.stringify(result));
+
+    await this._durableListener.sendMemoCompletedNotification(
+      this.action.taskRunExternalId,
+      ack.nodeId,
+      ack.branchId,
+      this.invocationCount,
+      memoKey,
+      serializedResult
+    );
+
+    return result;
+  }
+}
+
+function computeMemoKey(taskRunExternalId: string, args: readonly unknown[]): Uint8Array {
+  const h = createHash('sha256');
+  h.update(taskRunExternalId);
+  h.update(JSON.stringify(args));
+  return new Uint8Array(h.digest());
 }

@@ -28,6 +28,7 @@ import {
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
+  runningFilterKey,
   statusKey,
   isCustomTimeRangeKey,
   timeWindowKey,
@@ -40,6 +41,7 @@ import { Column } from '@tanstack/react-table';
 import * as React from 'react';
 
 interface FilterControlProps<TData> {
+  table: Table<TData>;
   column?: Column<TData, any>;
   filter: {
     columnId: string;
@@ -50,7 +52,11 @@ interface FilterControlProps<TData> {
   };
 }
 
-function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
+function FilterControl<TData>({
+  table,
+  column,
+  filter,
+}: FilterControlProps<TData>) {
   const value = column?.getFilterValue();
   const [searchTerm, setSearchTerm] = React.useState('');
   const keyInputRef = React.useRef<HTMLInputElement>(null);
@@ -132,7 +138,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose time range" />
                 </SelectTrigger>
-                <SelectContent className="z-[80]">
+                <SelectContent>
                   <SelectItem value="1h">1 hour</SelectItem>
                   <SelectItem value="6h">6 hours</SelectItem>
                   <SelectItem value="1d">1 day</SelectItem>
@@ -365,36 +371,135 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
           )}
           <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border bg-muted/10 p-2">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((option) => (
-                <div
-                  key={option.value}
-                  className="flex items-center space-x-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
-                >
-                  <Checkbox
-                    id={`${filter.columnId}-${option.value}`}
-                    checked={selectedValues.includes(option.value)}
-                    onCheckedChange={(checked) => {
-                      let newValue;
-                      if (checked) {
-                        newValue = [...selectedValues, option.value];
-                      } else {
-                        newValue = selectedValues.filter(
-                          (v) => v !== option.value,
+              filteredOptions.map((option) => {
+                const isChecked = selectedValues.includes(option.value);
+                const subColumn = option.subFilterColumnId
+                  ? table.getColumn(option.subFilterColumnId)
+                  : undefined;
+                const subValue = subColumn?.getFilterValue() as
+                  | string
+                  | undefined;
+                const allSubValues =
+                  option.subOptions?.map((s) => s.value) || [];
+
+                return (
+                  <React.Fragment key={option.value}>
+                    <div className="flex items-center space-x-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
+                      <Checkbox
+                        id={`${filter.columnId}-${option.value}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          let newValue;
+                          if (checked) {
+                            newValue = [...selectedValues, option.value];
+                            if (subColumn && option.subOptions) {
+                              subColumn.setFilterValue(undefined);
+                            }
+                          } else {
+                            newValue = selectedValues.filter(
+                              (v) => v !== option.value,
+                            );
+                            if (subColumn) {
+                              subColumn.setFilterValue(undefined);
+                            }
+                          }
+                          column?.setFilterValue(
+                            newValue.length > 0 ? newValue : undefined,
+                          );
+                        }}
+                      />
+                      <Label
+                        htmlFor={`${filter.columnId}-${option.value}`}
+                        className="flex-1 cursor-pointer truncate text-sm"
+                      >
+                        {option.label}
+                      </Label>
+                    </div>
+                    {option.subOptions &&
+                      option.subFilterColumnId &&
+                      option.subOptions.map((sub) => {
+                        const otherSub = allSubValues.find(
+                          (v) => v !== sub.value,
                         );
-                      }
-                      column?.setFilterValue(
-                        newValue.length > 0 ? newValue : undefined,
-                      );
-                    }}
-                  />
-                  <Label
-                    htmlFor={`${filter.columnId}-${option.value}`}
-                    className="flex-1 cursor-pointer truncate text-sm"
-                  >
-                    {option.label}
-                  </Label>
-                </div>
-              ))
+                        const subIsChecked =
+                          isChecked &&
+                          (subValue === undefined || subValue === sub.value);
+
+                        return (
+                          <div
+                            key={sub.value}
+                            className="flex items-center space-x-2 rounded-md py-1.5 pl-8 pr-2 hover:bg-muted/50"
+                          >
+                            <Checkbox
+                              id={`${filter.columnId}-${option.value}-${sub.value}`}
+                              checked={subIsChecked}
+                              onCheckedChange={(checked) => {
+                                const subColumnId = option.subFilterColumnId!;
+                                table.setColumnFilters((prev) => {
+                                  const next = prev.filter(
+                                    (f) =>
+                                      f.id !== filter.columnId &&
+                                      f.id !== subColumnId,
+                                  );
+
+                                  if (checked) {
+                                    const newStatuses = isChecked
+                                      ? selectedValues
+                                      : [...selectedValues, option.value];
+                                    next.push({
+                                      id: filter.columnId,
+                                      value: newStatuses,
+                                    });
+                                    if (!isChecked) {
+                                      // Running was off → turn on with just this sub
+                                      next.push({
+                                        id: subColumnId,
+                                        value: sub.value,
+                                      });
+                                    } else if (subValue === otherSub) {
+                                      // other was the only one, now both → ALL (no sub-filter)
+                                    } else if (subValue === undefined) {
+                                      // both already checked → stay ALL
+                                    }
+                                  } else if (subValue === undefined) {
+                                    // both checked, uncheck this → keep other
+                                    next.push({
+                                      id: filter.columnId,
+                                      value: selectedValues,
+                                    });
+                                    next.push({
+                                      id: subColumnId,
+                                      value: otherSub,
+                                    });
+                                  } else {
+                                    // only this was checked, uncheck → remove Running
+                                    const without = selectedValues.filter(
+                                      (v) => v !== option.value,
+                                    );
+                                    if (without.length > 0) {
+                                      next.push({
+                                        id: filter.columnId,
+                                        value: without,
+                                      });
+                                    }
+                                  }
+
+                                  return next;
+                                });
+                              }}
+                            />
+                            <Label
+                              htmlFor={`${filter.columnId}-${option.value}-${sub.value}`}
+                              className="flex-1 cursor-pointer truncate text-xs text-muted-foreground"
+                            >
+                              {sub.label}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                  </React.Fragment>
+                );
+              })
             ) : (
               <div className="py-3 text-center text-xs text-muted-foreground">
                 No options found
@@ -475,6 +580,10 @@ export function DataTableOptions<TData>({
           return false;
         }
 
+        if (f.id === runningFilterKey) {
+          return false;
+        }
+
         if (hiddenFilters.includes(f.id)) {
           return false;
         }
@@ -528,7 +637,7 @@ export function DataTableOptions<TData>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="z-[70] max-h-[32rem] w-96 overflow-y-auto p-0 shadow-lg"
+        className="max-h-[32rem] w-96 overflow-y-auto p-0 shadow-lg"
       >
         <DataTableOptionsContent
           table={table}
@@ -622,6 +731,7 @@ function FiltersContent<TData>({
                   )}
               </div>
               <FilterControl
+                table={table}
                 column={table.getColumn(filter.columnId)}
                 filter={filter}
               />

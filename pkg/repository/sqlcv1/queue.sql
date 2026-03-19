@@ -200,7 +200,8 @@ WITH input AS (
         i.worker_id,
         t.tenant_id,
         t.step_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at,
+        t.is_durable
     FROM
         v1_task t
     JOIN
@@ -226,9 +227,14 @@ WITH input AS (
         t.timeout_at
     FROM
         updated_tasks t
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+    SET
+        evicted_at = NULL,
+        worker_id = EXCLUDED.worker_id,
+        timeout_at = EXCLUDED.timeout_at
+    WHERE v1_task_runtime.evicted_at IS NOT NULL
     -- only return the task ids that were successfully assigned
-    RETURNING task_id, worker_id
+    RETURNING task_id, task_inserted_at, retry_count, worker_id
 ), slot_requests AS (
     SELECT
         t.id,
@@ -268,9 +274,14 @@ WITH input AS (
 )
 SELECT
     asr.task_id,
-    asr.worker_id
+    asr.task_inserted_at,
+    asr.worker_id,
+    ut.is_durable
 FROM
-    assigned_tasks asr;
+    assigned_tasks asr
+JOIN
+    updated_tasks ut ON (asr.task_id, asr.task_inserted_at, asr.retry_count) = (ut.id, ut.inserted_at, ut.retry_count)
+;
 
 -- name: GetDesiredLabels :many
 SELECT
@@ -358,7 +369,8 @@ WITH input AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
 )
 INSERT INTO v1_rate_limited_queue_items (
     requeue_after,
@@ -376,7 +388,8 @@ INSERT INTO v1_rate_limited_queue_items (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     i.requeue_after,
@@ -394,7 +407,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM moved_items
 JOIN input i ON moved_items.id = i.id
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -417,7 +431,8 @@ WITH ready_items AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM
         v1_rate_limited_queue_items
     WHERE
@@ -463,7 +478,8 @@ INSERT INTO v1_queue_item (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     tenant_id,
@@ -480,7 +496,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
 

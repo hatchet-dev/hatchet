@@ -2,13 +2,15 @@ import { cloudApi } from '@/lib/api/api';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
+  OrganizationForUser,
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { useAppContext } from '@/providers/app-context';
+import { useUserUniverse } from '@/providers/user-universe';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
+import invariant from 'tiny-invariant';
 
 /**
  * Hook for organization data and operations
@@ -17,7 +19,11 @@ import { useMemo, useCallback } from 'react';
  * Gets organization data from context, but keeps all mutation logic here.
  */
 export function useOrganizations() {
-  const { organizations: organizationData, isCloudEnabled } = useAppContext();
+  const {
+    organizations: organizationData,
+    isLoaded: isUserUniverseLoaded,
+    isCloudEnabled,
+  } = useUserUniverse();
   const { handleApiError } = useApiError({});
 
   // Re-query for mutations (will revalidate the context)
@@ -30,19 +36,23 @@ export function useOrganizations() {
     enabled: isCloudEnabled,
   });
 
-  const organizations = useMemo(
-    () => organizationData?.rows || [],
-    [organizationData?.rows],
-  );
+  const organizations = useMemo(() => {
+    if (isUserUniverseLoaded && isCloudEnabled) {
+      invariant(organizationData);
+      return organizationData;
+    }
+    return [];
+  }, [isUserUniverseLoaded, organizationData, isCloudEnabled]);
 
-  const getOrganizationForTenant = useCallback(
-    (tenantId: string) => {
-      return organizations.find((org) =>
-        (org.tenants || []).some((tenant) => tenant.id === tenantId),
-      );
-    },
-    [organizations],
-  );
+  const getOrganizationForTenant = useMemo(() => {
+    const tenantIdToOrganization = new Map<string, OrganizationForUser>();
+    organizations.forEach((org) => {
+      org.tenants.forEach((tenant) => {
+        tenantIdToOrganization.set(tenant.id, org);
+      });
+    });
+    return (tenantId: string) => tenantIdToOrganization.get(tenantId);
+  }, [organizations]);
 
   const getOrganizationIdForTenant = useCallback(
     (tenantId: string) => {
@@ -355,7 +365,7 @@ export function useOrganizations() {
     deleteTenantLoading: deleteTenantMutation.isPending,
     updateOrganizationLoading: updateOrganizationMutation.isPending,
     createOrganizationLoading: createOrganizationMutation.isPending,
-    isLoading: organizationListQuery.isLoading,
+    isUserUniverseLoaded,
     error: organizationListQuery.error,
   };
 }

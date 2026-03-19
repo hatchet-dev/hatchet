@@ -39,6 +39,8 @@ type TickerImpl struct {
 	userCronScheduler     gocron.Scheduler
 	userCronSchedulerLock sync.Mutex
 
+	userCronRefreshLock sync.Mutex
+
 	// maps a unique key for the cron schedule to a UUID, because the gocron library depends on uuids
 	// as unique identifiers for scheduled jobs
 	userCronSchedulesToIds map[string]string
@@ -133,10 +135,24 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 func (t *TickerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
+	t.l.Debug().Ctx(ctx).Msgf("starting ticker %s", t.tickerId)
+
+	// initialize the cron schedules, so no need to wait for 15 seconds or
+	// a cron to be created
+	t.refreshCronSchedules(ctx)()
+
+	// add a handler to update the cron schedule on-demand when crons are created
+	cronUpdateHandler := func(task *msgqueue.Message) error {
+		t.refreshCronSchedules(ctx)()
+		return nil
+	}
+	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
+	if err != nil {
+		t.l.Err(err).Ctx(ctx).Msg("Could not subscribe to cron trigger update queue")
+	}
 
 	// register the ticker
-	_, err := t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
+	_, err = t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
 		ID: t.tickerId,
 	})
 
@@ -161,7 +177,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		// crons only have a resolution of 1 minute, so only poll every 15 seconds
 		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
-			t.runPollCronSchedules(ctx),
+			t.refreshCronSchedules(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -173,6 +189,8 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	_, err = t.s.NewJob(
 		// we look ahead every 5 seconds
+		// FIXME: add another queue similar to cron jobs so that tasks scheduled less than 5 seconds
+		// into the future do not take 5 seconds to be triggered
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
 			t.runPollSchedules(ctx),
@@ -224,9 +242,13 @@ func (t *TickerImpl) Start() (func() error, error) {
 	t.userCronScheduler.Start()
 
 	cleanup := func() error {
-		t.l.Debug().Msg("removing ticker")
+		t.l.Debug().Ctx(ctx).Msg("removing ticker")
 
 		cancel()
+
+		if err = queueCleanupFunc(); err != nil {
+			t.l.Err(err).Ctx(ctx).Msg("Could not cleanup cron trigger update queue")
+		}
 
 		if err := t.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
@@ -243,7 +265,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		err = t.repov1.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not delete ticker")
+			t.l.Err(err).Ctx(ctx).Msg("could not delete ticker")
 			return err
 		}
 
@@ -255,7 +277,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
-		t.l.Debug().Msgf("ticker: updating heartbeat")
+		t.l.Debug().Ctx(ctx).Msgf("ticker: updating heartbeat")
 
 		now := time.Now().UTC()
 
@@ -265,7 +287,7 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		})
 
 		if err != nil {
-			t.l.Err(err).Msg("could not update heartbeat")
+			t.l.Err(err).Ctx(ctx).Msg("could not update heartbeat")
 		}
 	}
 }

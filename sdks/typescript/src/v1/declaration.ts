@@ -1,14 +1,19 @@
-/* eslint-disable max-classes-per-file */
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable no-dupe-class-members */
+/**
+ * `Runnables` in the Hatchet TypeScript SDK are things that can be run, namely tasks and workflows. The two main types of runnables you'll encounter are:
+ *
+ * - `WorkflowDeclaration`, returned by `hatchet.workflow(...)`, which lets you define tasks and call `run()`, `schedule()`, `cron()`, etc.
+ * - `TaskWorkflowDeclaration`, returned by `hatchet.task(...)`, which is a single standalone task that exposes the same execution helpers as a workflow.
+ * @module Runnables
+ */
+
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import {
   CronWorkflows,
   ScheduledWorkflows,
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { z } from 'zod';
+import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -19,16 +24,17 @@ import {
   CreateOnSuccessTaskOpts,
   Concurrency,
   DurableTaskFn,
+  WorkerLabelComparator,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
-import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
+import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
+import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
-// eslint-disable-next-line no-shadow
 export enum Priority {
   LOW = 1,
   MEDIUM = 2,
@@ -42,6 +48,7 @@ type AdditionalMetadata = Record<string, string>;
 
 /**
  * Options for running a workflow.
+ * @hidden
  */
 export type RunOpts = {
   /**
@@ -67,16 +74,38 @@ export type RunOpts = {
    * only used if spawned from within a parent task.
    */
   childKey?: string;
+
+  /**
+   * (optional) when running multiple workflows (array input), if true, return
+   * exceptions in the result array instead of throwing. Successes are outputs,
+   * failures are Error instances.
+   */
+  returnExceptions?: boolean;
+
+  /**
+   * (optional) desired worker labels for routing the workflow run to specific workers.
+   */
+  desiredWorkerLabels?: Record<
+    string,
+    {
+      value: string | number;
+      required?: boolean;
+      weight?: number;
+      comparator?: WorkerLabelComparator;
+    }
+  >;
 };
 
 /**
  * Helper type to safely extract output types from task results
+ * @hidden
  */
 export type TaskOutput<O, Key extends string, Fallback> =
   O extends Record<Key, infer Value> ? (Value extends OutputType ? Value : Fallback) : Fallback;
 
 /**
  * Extracts a property from an object type based on task name, or falls back to inferred type
+ * @hidden
  */
 export type TaskOutputType<
   O,
@@ -90,29 +119,48 @@ export type TaskOutputType<
 
 type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
 
+/**
+ * Sticky strategy for workflow scheduling.
+ *
+ * Prefer using `StickyStrategy.SOFT` / `StickyStrategy.HARD` (v1, non-protobuf).
+ * For backwards compatibility, the workflow/task `sticky` field also accepts legacy
+ * protobuf enum values (`0`/`1`) and strings (`'SOFT'`/`'HARD'`).
+ * @internal
+ */
+export const StickyStrategy = {
+  SOFT: 'soft',
+  HARD: 'hard',
+} as const;
+
+export type StickyStrategy = (typeof StickyStrategy)[keyof typeof StickyStrategy];
+
+export type StickyStrategyInput = StickyStrategy | 'SOFT' | 'HARD' | 0 | 1;
 export type CreateBaseWorkflowOpts = {
   /**
    * The name of the workflow.
    */
-  name: WorkflowV0['id'];
+  name: string;
   /**
    * (optional) description of the workflow.
    */
-  description?: WorkflowV0['description'];
+  description?: string;
   /**
    * (optional) version of the workflow.
    */
-  version?: WorkflowV0['version'];
+  version?: string;
   /**
    * (optional) sticky strategy for the workflow.
    */
-  sticky?: WorkflowV0['sticky'];
+  sticky?: StickyStrategyInput;
 
   /**
    * (optional) on config for the workflow.
-   * @deprecated use onCrons and onEvents instead
+   * @alias for onCrons and onEvents
    */
-  on?: WorkflowV0['on'];
+  on?: {
+    cron?: string | string[];
+    event?: string | string[];
+  };
 
   /**
    * (optional) cron config for the workflow.
@@ -153,10 +201,14 @@ export type CreateTaskWorkflowOpts<
 export type CreateDurableTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
-> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>>;
+> = CreateBaseWorkflowOpts &
+  CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>> & {
+    evictionPolicy?: EvictionPolicy;
+  };
 
 /**
  * Options for creating a new workflow.
+ * @hidden
  */
 export type CreateWorkflowOpts = CreateBaseWorkflowOpts & {
   /**
@@ -168,6 +220,7 @@ export type CreateWorkflowOpts = CreateBaseWorkflowOpts & {
 /**
  * Default configuration for all tasks in the workflow.
  * Can be overridden by task-specific options.
+ * @hidden
  */
 export type TaskDefaults = {
   /**
@@ -223,6 +276,7 @@ export type TaskDefaults = {
 
 /**
  * Internal definition of a workflow and its tasks.
+ * @hidden
  */
 export type WorkflowDefinition = CreateWorkflowOpts & {
   /**
@@ -254,6 +308,7 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
  * Represents a workflow that can be executed by Hatchet.
  * @template I The input type for the workflow.
  * @template O The return type of the workflow.
+ * @internal
  */
 export class BaseWorkflowDeclaration<
   I extends InputType = UnknownInputType,
@@ -261,11 +316,13 @@ export class BaseWorkflowDeclaration<
 > {
   /**
    * The Hatchet client instance used to execute the workflow.
+   * @internal
    */
   client: IHatchetClient | undefined;
 
   /**
    * The internal workflow definition.
+   * @internal
    */
   definition: WorkflowDefinition;
 
@@ -273,6 +330,7 @@ export class BaseWorkflowDeclaration<
    * Creates a new workflow instance.
    * @param options The options for creating the workflow.
    * @param client Optional Hatchet client instance.
+   * @internal
    */
   constructor(options: CreateWorkflowOpts, client?: IHatchetClient) {
     this.definition = {
@@ -285,7 +343,7 @@ export class BaseWorkflowDeclaration<
   }
 
   /**
-   * Triggers a workflow run without waiting for completion.
+   * Synchronously trigger a workflow run without waiting for it to complete. This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
    * @param input The input data for the workflow.
    * @param options Optional configuration for this workflow run.
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
@@ -320,8 +378,22 @@ export class BaseWorkflowDeclaration<
       );
     }
 
+    const inheritedSignal = parentRunContext?.signal;
+
+    // Precheck: if we're being called from a cancelled parent task, do not enqueue more work.
+    // The signal is inherited from the parent task's `ctx.abortController.signal`.
+    throwIfAborted(inheritedSignal, {
+      isTrigger: true,
+      context: parentRunContext?.parentTaskRunExternalId
+        ? `task run ${parentRunContext.parentTaskRunExternalId}`
+        : undefined,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
+    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
+
     const runOpts = {
-      ...options,
+      ...(options ?? {}),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
@@ -350,13 +422,14 @@ export class BaseWorkflowDeclaration<
       resp.forEach((ref, index) => {
         const wf = input[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = wf._standalone_task_name;
         }
         if (_standaloneTaskName) {
-          // eslint-disable-next-line no-param-reassign
           ref._standaloneTaskName = _standaloneTaskName;
         }
+        // Ensure result subscriptions inherit cancellation if no signal is provided explicitly.
+
+        ref.defaultSignal = inheritedSignal;
         res.push(ref);
       });
       return res;
@@ -368,6 +441,7 @@ export class BaseWorkflowDeclaration<
       res._standaloneTaskName = _standaloneTaskName;
     }
 
+    res.defaultSignal = inheritedSignal;
     return res;
   }
 
@@ -410,8 +484,31 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    const durableCtx = parentRunContextManager.getContext()?.durableContext;
+    if (durableCtx) {
+      if (Array.isArray(input)) {
+        return durableCtx.spawnChildren(
+          input.map((inp) => ({ workflow: this, input: inp, options }))
+        );
+      }
+      return durableCtx.spawnChild(this, input, options);
+    }
+
     if (Array.isArray(input)) {
       const refs = await this.runNoWait(input, options, _standaloneTaskName);
+      if (options?.returnExceptions) {
+        const settled = await Promise.allSettled(refs.map((ref) => ref.result()));
+        return settled.map((s) => {
+          if (s.status === 'fulfilled') {
+            return s.value;
+          }
+          const { reason } = s;
+          if (reason instanceof Error) {
+            return reason;
+          }
+          return new Error(Array.isArray(reason) ? reason.join('; ') : String(reason));
+        }) as O[];
+      }
       return Promise.all(refs.map((ref) => ref.result()));
     }
 
@@ -432,10 +529,16 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // If called from within a cancelled parent task, do not enqueue scheduled work.
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
     const scheduled = this.client.scheduled.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
     });
 
     return scheduled;
@@ -474,10 +577,16 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // If called from within a cancelled parent task, do not enqueue cron work.
+    throwIfAborted(parentRunContextManager.getContext()?.signal, {
+      isTrigger: true,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
     const cronDef = this.client.crons.create(this.definition.name, {
       expression,
       input: input as JsonObject,
-      ...options,
+      ...(options ?? {}),
       additionalMetadata: options?.additionalMetadata,
       name,
     });
@@ -568,6 +677,7 @@ export class BaseWorkflowDeclaration<
 
   /**
    * @deprecated use definition.name instead
+   * @hidden
    */
   get id() {
     return this.definition.name;
@@ -582,9 +692,48 @@ export class BaseWorkflowDeclaration<
   }
 }
 
+/**
+ * A Hatchet workflow, which lets you define tasks and perform actions on the workflow.
+ *
+ * Workflows in Hatchet represent coordinated units of work that can be triggered,
+ * scheduled, or run on a cron schedule. Each workflow can contain multiple tasks
+ * that can be arranged in dependencies (DAGs), with customized retry behavior,
+ * timeouts, concurrency controls, and more.
+ *
+ * Example:
+ * ```typescript
+ * import { hatchet } from './hatchet-client';
+ *
+ * type MyInput = { name: string };
+ *
+ * const workflow = hatchet.workflow<MyInput>({
+ *   name: 'my-workflow',
+ * });
+ *
+ * workflow.task({
+ *   name: 'greet',
+ *   fn: async (input) => {
+ *     return { message: `Hello, ${input.name}!` };
+ *   },
+ * });
+ *
+ * // Run the workflow
+ * await workflow.run({ name: 'World' });
+ * ```
+ *
+ * Workflows support various execution patterns, including:
+ * - One-time execution with `run()` and `runNoWait()`
+ * - Scheduled execution with `schedule()`
+ * - Cron-based recurring execution with `cron()`
+ * - Bulk execution by passing an array input to `run()` and `runNoWait()`
+ *
+ * Tasks within workflows can be defined with `workflow.task()` or
+ * `workflow.durableTask()` and arranged into complex dependency patterns.
+ */
 export class WorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
+  MiddlewareBefore extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   /**
    * Adds a task to the workflow.
@@ -599,10 +748,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I,
-          ctx: Context<I>
+          input: I & MiddlewareBefore,
+          ctx: Context<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: Context<I>) => void,
+      : (input: I & MiddlewareBefore, ctx: Context<I & MiddlewareBefore>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -658,7 +807,7 @@ export class WorkflowDeclaration<
     }
 
     if (this.definition.onFailure) {
-      this.client?._v0.logger.warn(`onFailure task will override existing onFailure task`);
+      this.client?.logger.warn(`onFailure task will override existing onFailure task`);
     }
 
     this.definition.onFailure = typedOptions;
@@ -693,7 +842,7 @@ export class WorkflowDeclaration<
     }
 
     if (this.definition.onSuccess) {
-      this.client?._v0.logger.warn(`onSuccess task will override existing onSuccess task`);
+      this.client?.logger.warn(`onSuccess task will override existing onSuccess task`);
     }
 
     this.definition.onSuccess = typedOptions;
@@ -713,10 +862,10 @@ export class WorkflowDeclaration<
     Name extends string,
     Fn extends Name extends keyof O
       ? (
-          input: I,
-          ctx: DurableContext<I>
+          input: I & MiddlewareBefore,
+          ctx: DurableContext<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: DurableContext<I>) => void,
+      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -737,13 +886,42 @@ export class WorkflowDeclaration<
   }
 }
 
+/**
+ * A standalone task declaration that can be run like a workflow.
+ *
+ * `TaskWorkflowDeclaration` is returned by `hatchet.task(...)` and wraps a single
+ * task definition while exposing the same execution helpers as workflows, such as
+ * `run()`, `runNoWait()`, `schedule()`, and `cron()` (inherited from
+ * `BaseWorkflowDeclaration`).
+ *
+ * Example:
+ * ```typescript
+ * const greet = hatchet.task<{ name: string }, { message: string }>({
+ *   name: 'greet',
+ *   fn: async (input) => ({ message: `Hello, ${input.name}!` }),
+ * });
+ *
+ * await greet.run({ name: 'World' });
+ * const ref = await greet.runNoWait({ name: 'World' });
+ * ```
+ *
+ * @template I The input type for the standalone task.
+ * @template O The output type returned by the standalone task.
+ * @template GlobalInput - Global input type from the client, merged into all run/schedule/cron input signatures.
+ * @template MiddlewareBefore - Extra fields added to the task fn input by pre-middleware hooks.
+ * @template MiddlewareAfter - Extra fields merged into the task output by post-middleware hooks.
+ */
 export class TaskWorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
+  GlobalInput extends Record<string, any> = {},
+  GlobalOutput extends Record<string, any> = {},
+  _MiddlewareBefore extends Record<string, any> = {},
+  MiddlewareAfter extends Record<string, any> = {},
 > extends BaseWorkflowDeclaration<I, O> {
   _standalone_task_name: string;
 
-  constructor(options: CreateTaskWorkflowOpts<I, O>, client?: IHatchetClient) {
+  constructor(options: CreateTaskWorkflowOpts<any, any>, client?: IHatchetClient) {
     super({ ...options }, client);
 
     this._standalone_task_name = options.name;
@@ -753,34 +931,144 @@ export class TaskWorkflowDeclaration<
     });
   }
 
-  async run(input: I, options?: RunOpts): Promise<O>;
-  async run(input: I[], options?: RunOpts): Promise<O[]>;
-  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
-    // note: typescript is not smart enough to infer that input is an array
+  /**
+   * Triggers a task run and waits for the result.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the task output merged with post-middleware fields.
+   */
+  async runAndWait(
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  /** @hidden */
+  async runAndWait(
+    input: (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  async runAndWait(
+    input: (I & GlobalInput) | (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<
+    (O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+  > {
     return Array.isArray(input)
-      ? super.run(input, options, this._standalone_task_name)
-      : super.run(input, options, this._standalone_task_name);
+      ? (super.runAndWait(input, options, this._standalone_task_name) as Promise<
+          (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+        >)
+      : (super.runAndWait(input, options, this._standalone_task_name) as Promise<
+          O & Resolved<GlobalOutput, MiddlewareAfter>
+        >);
   }
 
   /**
-   * Triggers a workflow run without waiting for completion.
-   * @param input The input data for the workflow.
-   * @param options Optional configuration for this workflow run.
-   * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
-   * @throws Error if the workflow is not bound to a Hatchet client.
+   * Triggers a task run and waits for the result.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the task output merged with post-middleware fields.
    */
-  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>>;
-  async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O>[]>;
-  async runNoWait(
-    input: I | I[],
+  async run(
+    input: I & GlobalInput,
     options?: RunOpts
-  ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
-    // note: typescript is not smart enough to infer that input is an array
+  ): Promise<O & Resolved<GlobalOutput, MiddlewareAfter>>;
+  /** @hidden */
+  async run(
+    input: (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  async run(
+    input: (I & GlobalInput) | (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<
+    (O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+  > {
     return Array.isArray(input)
-      ? super.runNoWait(input, options, this._standalone_task_name)
-      : super.runNoWait(input, options, this._standalone_task_name);
+      ? (super.run(input, options, this._standalone_task_name) as Promise<
+          (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+        >)
+      : (super.run(input, options, this._standalone_task_name) as Promise<
+          O & Resolved<GlobalOutput, MiddlewareAfter>
+        >);
   }
 
+  /**
+   * Triggers a task run without waiting for completion.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A WorkflowRunRef containing the run ID and methods to get results.
+   */
+  async runNoWait(
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>>;
+  async runNoWait(
+    input: (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]>;
+  async runNoWait(
+    input: (I & GlobalInput) | (I & GlobalInput)[],
+    options?: RunOpts
+  ): Promise<
+    | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>
+    | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
+  > {
+    return Array.isArray(input)
+      ? (super.runNoWait(input, options, this._standalone_task_name) as Promise<
+          WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
+        >)
+      : (super.runNoWait(input, options, this._standalone_task_name) as Promise<
+          WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>
+        >);
+  }
+
+  /**
+   * Schedules the task to run at a specific date and time.
+   * @param enqueueAt - The date when the task should be triggered.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   */
+  async schedule(
+    enqueueAt: Date,
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<ScheduledWorkflows> {
+    return super.schedule(enqueueAt, input, options);
+  }
+
+  /**
+   * Schedules the task to run after a specified delay.
+   * @param duration - The delay in seconds before the task should run.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   */
+  async delay(
+    duration: number,
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<ScheduledWorkflows> {
+    return super.delay(duration, input, options);
+  }
+
+  /**
+   * Creates a cron schedule for the task.
+   * @param name - The name of the cron schedule.
+   * @param expression - The cron expression defining the schedule.
+   * @param input - The input data for the task, including global input fields.
+   * @param options - Optional configuration for this task run.
+   * @returns A promise that resolves with the cron workflow details.
+   */
+  async cron(
+    name: string,
+    expression: string,
+    input: I & GlobalInput,
+    options?: RunOpts
+  ): Promise<CronWorkflows> {
+    return super.cron(name, expression, input, options);
+  }
+
+  // Returns the underlying task definition for this declaration.
   get taskDef() {
     return this.definition._tasks[0];
   }
@@ -858,7 +1146,7 @@ export function CreateDurableTaskWorkflow<
 
   // Move the task from tasks to durableTasks
   if (taskWorkflow.definition._tasks.length > 0) {
-    const task = taskWorkflow.definition._tasks[0];
+    const [task] = taskWorkflow.definition._tasks;
     taskWorkflow.definition._tasks = [];
     taskWorkflow.definition._durableTasks.push(task);
   }

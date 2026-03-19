@@ -78,7 +78,7 @@ export interface ListRunsOpts extends RunFilter {
 }
 
 /**
- * RunsClient is used to list and manage runs
+ * The runs client is a client for interacting with task and workflow runs within Hatchet.
  */
 export class RunsClient {
   api: HatchetClient['api'];
@@ -91,10 +91,14 @@ export class RunsClient {
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
 
-    // eslint-disable-next-line no-underscore-dangle
     this.listener = client._listener;
   }
 
+  /**
+   * Gets a task or workflow run by its ID.
+   * @param run - The ID of the run to get.
+   * @returns A promise that resolves to the run.
+   */
   async get<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
 
@@ -102,6 +106,11 @@ export class RunsClient {
     return data;
   }
 
+  /**
+   * Gets the status of a task or workflow run by its ID.
+   * @param run - The ID of the run to get the status of.
+   * @returns A promise that resolves to the status of the run.
+   */
   async get_status<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
 
@@ -109,6 +118,11 @@ export class RunsClient {
     return data;
   }
 
+  /**
+   * Lists all task and workflow runs for the current tenant.
+   * @param opts - The options for the list operation.
+   * @returns A promise that resolves to the list of runs.
+   */
   async list(opts?: Partial<ListRunsOpts>) {
     const normalizedOpts =
       opts?.parentTaskExternalId && !opts?.parentTaskRunExternalId
@@ -121,6 +135,11 @@ export class RunsClient {
     return data;
   }
 
+  /**
+   * Cancels a task or workflow run by its ID.
+   * @param opts - The options for the cancel operation.
+   * @returns A promise that resolves to the cancelled run.
+   */
   async cancel(opts: CancelRunOpts) {
     const filter = await this.prepareFilter(opts.filters || {});
 
@@ -130,6 +149,11 @@ export class RunsClient {
     });
   }
 
+  /**
+   * Replays a task or workflow run by its ID.
+   * @param opts - The options for the replay operation.
+   * @returns A promise that resolves to the replayed run.
+   */
   async replay(opts: ReplayRunOpts) {
     const filter = await this.prepareFilter(opts.filters || {});
     return this.api.v1TaskReplay(this.tenantId, {
@@ -187,10 +211,53 @@ export class RunsClient {
     };
   }
 
+  /**
+   * Restore an evicted durable task so it can resume execution.
+   * @param taskExternalId - The external ID of the evicted task.
+   */
+  async restoreTask(taskExternalId: string) {
+    return this.api.v1TaskRestore(taskExternalId);
+  }
+
+  /**
+   * Fork (reset) a durable task from a specific node, triggering re-execution from that point.
+   * @param taskExternalId - The external ID of the durable task to reset.
+   * @param nodeId - The node ID to replay from.
+   */
+  async branchDurableTask(taskExternalId: string, nodeId: number, branchId: number = 0) {
+    return this.api.v1DurableTaskBranch(this.tenantId, {
+      taskExternalId,
+      nodeId,
+      branchId,
+    });
+  }
+
+  /**
+   * Resolve the task external ID for a workflow run. For runs with multiple tasks,
+   * returns the first task's external ID.
+   * @param workflowRunId - The workflow run ID to look up.
+   * @returns The task external ID.
+   */
+  async getTaskExternalId(workflowRunId: string): Promise<string> {
+    const run = await this.get(workflowRunId);
+    const tasks = run?.tasks;
+
+    if (Array.isArray(tasks) && tasks.length > 0 && tasks[0]?.taskExternalId) {
+      return tasks[0].taskExternalId;
+    }
+
+    throw new Error(`Could not find task external ID for workflow run ${workflowRunId}`);
+  }
+
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
     return new WorkflowRunRef<T>(id, this.listener, this);
   }
 
+  /**
+   * Subscribes to a stream of events for a task or workflow run by its ID.
+   * @param workflowRunId - The ID of the run to subscribe to.
+   * @returns A promise that resolves to the stream of events.
+   */
   async *subscribeToStream(workflowRunId: string): AsyncIterableIterator<string> {
     const ref = this.runRef(workflowRunId);
     const stream = await ref.stream();

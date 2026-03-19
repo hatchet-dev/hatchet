@@ -1,0 +1,74 @@
+<a id="metricsclient"></a>
+
+### Metrics Client
+
+The metrics client is a client for reading metrics out of Hatchet’s metrics API.
+
+#### Methods
+
+<a id="getqueuemetrics"></a>
+
+##### `getQueueMetrics()`
+
+Returns the queue metrics for the current tenant.
+
+Parameters
+
+| Parameter | Type            | Description                  |
+| --------- | --------------- | ---------------------------- |
+| `opts?`   | `RequestParams` | The options for the request. |
+
+Returns
+
+`Promise`\<`TenantStepRunQueueMetrics`\>
+
+The queue metrics for the current tenant.
+
+<a id="gettaskstats"></a>
+
+##### `getTaskStats()`
+
+Get task statistics for the tenant.
+
+Returns
+
+`Promise`\<`TaskStats`\>
+
+A record mapping task names to their statistics.
+
+<a id="gettaskstatusmetrics"></a>
+
+##### `getTaskStatusMetrics()`
+
+Returns aggregate task run counts grouped by status (queued, running, completed, failed, cancelled)
+
+Parameters
+
+| Parameter                             | Type                                                                                                                                                                                           | Description                                                                                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `query`                               | \{ `additional_metadata?`: `string`[]; `parent_task_external_id?`: `string`; `since`: `string`; `triggering_event_external_id?`: `string`; `until?`: `string`; `workflow_ids?`: `string`[]; \} | Filters for the metrics query (e.g. `since`, `until`, `workflow_ids`).                          |
+| `query.additional_metadata?`          | `string`[]                                                                                                                                                                                     | Additional metadata k-v pairs to filter by                                                      |
+| `query.parent_task_external_id?`      | `string`                                                                                                                                                                                       | The parent task's external id **Format** uuid **Min Length** 36 **Max Length** 36               |
+| `query.since?`                        | `string`                                                                                                                                                                                       | The start time to get metrics for **Format** date-time                                          |
+| `query.triggering_event_external_id?` | `string`                                                                                                                                                                                       | The id of the event that triggered the task **Format** uuid **Min Length** 36 **Max Length** 36 |
+| `query.until?`                        | `string`                                                                                                                                                                                       | The end time to get metrics for **Format** date-time                                            |
+| `query.workflow_ids?`                 | `string`[]                                                                                                                                                                                     | The workflow id to find runs for                                                                |
+| `requestParams?`                      | `RequestParams`                                                                                                                                                                                | Optional request-level overrides (headers, signal, etc.).                                       |
+
+Returns
+
+`Promise`\<`TaskStatusMetrics`\>
+
+Counts per status for the matched task runs.
+
+<a id="scrapeprometheusmetrics"></a>
+
+##### `scrapePrometheusMetrics()`
+
+Scrape Prometheus metrics for the tenant.
+
+Returns
+
+`Promise`\<`string`\>
+
+The metrics in Prometheus text format.

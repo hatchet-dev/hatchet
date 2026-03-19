@@ -5,6 +5,7 @@ import { ConsentProvider } from "../context/ConsentContext";
 import CookieConsent from "@/components/ui/cookie-banner";
 import { PostHogProvider } from "@/providers/posthog";
 import { CrossDomainLinkHandler } from "@/components/CrossDomainLinkHandler";
+import { SidebarFolderNav } from "@/components/SidebarFolderNav";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -14,6 +15,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           <CrossDomainLinkHandler>
             <main>
               <CookieConsent />
+              <SidebarFolderNav />
               <Component {...pageProps} />
             </main>
           </CrossDomainLinkHandler>

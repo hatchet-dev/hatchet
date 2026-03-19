@@ -14,26 +14,26 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: "29.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -56,9 +56,9 @@ jobs:
   unit:
     runs-on: ubicloud-standard-8
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
@@ -77,19 +77,19 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -123,20 +123,20 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -212,20 +212,20 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -307,20 +307,20 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -339,6 +339,50 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
+  load-pgbouncer:
+    runs-on: ubicloud-standard-8
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        migrate-strategy: ["latest"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["17-alpine"]
+        optimistic-scheduling: ["true", "false"]
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: "1.25"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 10.16.1
+          run_install: false
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Test
+        run: |
+          # Disable gzip compression for load tests to reduce CPU overhead
+          # Compression adds overhead without benefit for 0kb payloads
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+        env:
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
+          TESTING_MATRIX_PGBOUNCER_ENABLED: "true"
+
   load-online-migrate:
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
@@ -346,13 +390,13 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           fetch-tags: true
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
@@ -381,6 +425,16 @@ jobs:
           docker run --rm --network host \
             -e DATABASE_URL="${{ env.DATABASE_URL }}" \
             ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+
+      - name: Capture old migration version
+        run: |
+          OLD_VERSION=$(docker run --rm --network host \
+            -e PGPASSWORD=hatchet \
+            postgres:17-alpine \
+            psql -h 127.0.0.1 -p 5431 -U hatchet -d hatchet -t -A \
+            -c "SELECT max(version_id) FROM goose_db_version WHERE is_applied = true")
+          echo "Old migration version: $OLD_VERSION"
+          echo "OLD_MIGRATION_VERSION=$OLD_VERSION" >> $GITHUB_ENV
 
       - name: Setup config and seed database
         run: |
@@ -447,6 +501,15 @@ jobs:
           go run ./cmd/hatchet-migrate
           echo "New migrations applied successfully"
 
+      - name: Down migrate to old version then up again
+        run: |
+          echo "Migrating down to old version ${{ env.OLD_MIGRATION_VERSION }}..."
+          go run ./cmd/hatchet-migrate --down ${{ env.OLD_MIGRATION_VERSION }}
+          echo "Down migration successful"
+          echo "Re-applying new migrations..."
+          go run ./cmd/hatchet-migrate
+          echo "Re-migration up successful"
+
       - name: Wait for load test to complete
         run: |
           echo "Waiting for load test container to finish..."
@@ -479,20 +542,20 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -503,31 +566,50 @@ jobs:
       - name: Add go-deadlock dependency
         run: go get github.com/sasha-s/go-deadlock@v0.3.6
 
-      - name: Patch sync imports to use go-deadlock (sed)
+      - name: Patch sync.Mutex/RWMutex to use go-deadlock
         shell: bash
         run: |
           set -euo pipefail
 
-          # Replace ONLY the stdlib "sync" import with an alias that preserves `sync.X` call sites.
-          # - `import "sync"` -> `import sync "github.com/sasha-s/go-deadlock"`
-          # - within import blocks: `"sync"` -> `sync "github.com/sasha-s/go-deadlock"`
-          # NOTE: use `-i''` (no backup) for portability across GNU/BSD sed.
-          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 sed -i'' -E \
-            -e 's/^([[:space:]]*)import[[:space:]]+"sync"[[:space:]]*$/\1import sync "github.com\/sasha-s\/go-deadlock"/' \
-            -e 's/^([[:space:]]*)"sync"[[:space:]]*$/\1sync "github.com\/sasha-s\/go-deadlock"/'
+          # Find only files that actually use sync.Mutex or sync.RWMutex.
+          grep -rl --include='*.go' -E 'sync\.(RW)?Mutex' . | grep -v '/vendor/' > /tmp/mutex_files.txt || true
 
-          # Keep formatting/import grouping consistent after rewriting.
-          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 gofmt -w
+          if [ ! -s /tmp/mutex_files.txt ]; then
+            echo "No files with sync.Mutex or sync.RWMutex found"
+            exit 0
+          fi
 
-          # Evidence in CI logs that rewriting happened (or not).
+          echo "Patching $(wc -l < /tmp/mutex_files.txt) file(s):"
+          cat /tmp/mutex_files.txt
+
+          while IFS= read -r f; do
+            # Rewrite type references. RWMutex first so its 'Mutex' suffix isn't clobbered.
+            sed -i'' -E \
+              -e 's/sync\.RWMutex/deadlocksync.RWMutex/g' \
+              -e 's/sync\.Mutex/deadlocksync.Mutex/g' \
+              "$f"
+
+            # \bsync\. won't match inside "deadlocksync.", so this correctly detects
+            # remaining usages of other sync primitives (WaitGroup, Once, Map, etc.).
+            if grep -qE '\bsync\.' "$f"; then
+              # File still needs the sync package; insert deadlocksync import alongside it.
+              awk '
+                /^\t"sync"$/ { print; print "\tdeadlocksync \"github.com/sasha-s/go-deadlock\""; next }
+                { print }
+              ' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+            else
+              # sync package no longer needed; replace its import with the deadlocksync alias.
+              sed -i'' \
+                -e 's|^\t"sync"$|\tdeadlocksync "github.com/sasha-s/go-deadlock"|' \
+                -e 's|^import "sync"$|import deadlocksync "github.com/sasha-s/go-deadlock"|' \
+                "$f"
+            fi
+          done < /tmp/mutex_files.txt
+
+          xargs gofmt -w < /tmp/mutex_files.txt
+
           echo "Changed Go files (after patch):"
           git diff --name-only -- '*.go' || true
-
-          echo ""
-          echo "Contents of pkg/scheduling/v1/scheduler.go after patch:"
-          echo "----"
-          cat pkg/scheduling/v1/scheduler.go
-          echo "----"
 
       - name: Test (deadlock-instrumented)
         run: |
@@ -554,20 +636,20 @@ jobs:
         pg-version: ["17-alpine"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false

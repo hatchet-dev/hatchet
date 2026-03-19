@@ -5,23 +5,26 @@ import {
   UserEventMatchCondition,
   BaseMatchCondition,
 } from '@hatchet/protoc/v1/shared/condition';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
 import { CreateWorkflowTaskOpts } from '../task';
 import { Action, BaseCondition, Condition } from './base';
 import { ParentCondition } from './parent-condition';
+import { durationToString } from '../client/duration';
 
 export function taskConditionsToPb(
-  task: Omit<CreateWorkflowTaskOpts<any, any>, 'fn'>
+  task: Omit<CreateWorkflowTaskOpts<any, any>, 'fn'>,
+  namespace?: string
 ): TaskConditions {
   const waitForConditions = Render(Action.QUEUE, task.waitFor);
   const cancelIfConditions = Render(Action.CANCEL, task.cancelIf);
   const skipIfConditions = Render(Action.SKIP, task.skipIf);
   const mergedConditions = [...waitForConditions, ...cancelIfConditions, ...skipIfConditions];
 
-  return conditionsToPb(mergedConditions);
+  return conditionsToPb(mergedConditions, namespace);
 }
 
-export function conditionsToPb(conditions: Condition[]): TaskConditions {
+export function conditionsToPb(conditions: Condition[], namespace?: string): TaskConditions {
   const parentOverrideConditions: ParentOverrideMatchCondition[] = [];
   const sleepConditions: SleepMatchCondition[] = [];
   const userEventConditions: UserEventMatchCondition[] = [];
@@ -30,7 +33,7 @@ export function conditionsToPb(conditions: Condition[]): TaskConditions {
     if (condition instanceof SleepCondition) {
       sleepConditions.push({
         base: baseToPb(condition.base),
-        sleepFor: condition.sleepFor,
+        sleepFor: durationToString(condition.sleepFor),
       });
     } else if (condition instanceof UserEventCondition) {
       userEventConditions.push({
@@ -38,7 +41,7 @@ export function conditionsToPb(conditions: Condition[]): TaskConditions {
           ...baseToPb(condition.base),
           expression: condition.expression || '',
         },
-        userEventKey: condition.eventKey,
+        userEventKey: applyNamespace(condition.eventKey, namespace),
       });
     } else if (condition instanceof ParentCondition) {
       parentOverrideConditions.push({

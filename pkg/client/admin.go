@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -17,27 +18,60 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
-
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 type ChildWorkflowOpts struct {
-	ParentId           string
-	ParentTaskRunId    string
-	ChildIndex         int
-	ChildKey           *string
-	DesiredWorkerId    *string
-	AdditionalMetadata *map[string]string
-	Priority           *int32
+	ParentId            string
+	ParentTaskRunId     string
+	ChildIndex          int
+	ChildKey            *string
+	DesiredWorkerId     *string
+	AdditionalMetadata  *map[string]string
+	Priority            *int32
+	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
 
 type WorkflowRun struct {
 	Name    string
 	Input   interface{}
 	Options []RunOptFunc
+}
+
+func taskStatusFromProto(s v1contracts.RunStatus) rest.V1TaskStatus {
+	switch s {
+	case v1contracts.RunStatus_COMPLETED:
+		return rest.V1TaskStatusCOMPLETED
+	case v1contracts.RunStatus_CANCELLED:
+		return rest.V1TaskStatusCANCELLED
+	case v1contracts.RunStatus_FAILED:
+		return rest.V1TaskStatusFAILED
+	case v1contracts.RunStatus_RUNNING:
+		return rest.V1TaskStatusRUNNING
+	default:
+		return rest.V1TaskStatusQUEUED
+	}
+}
+
+type TaskRunDetails struct {
+	ExternalId uuid.UUID
+	ReadableId string
+	Status     rest.V1TaskStatus
+	Output     json.RawMessage
+	Error      *string
+}
+
+type RunDetails struct {
+	ExternalId         uuid.UUID
+	Status             rest.V1TaskStatus
+	Input              json.RawMessage
+	AdditionalMetadata json.RawMessage
+	TaskRuns           map[string]*TaskRunDetails
+	Done               bool
 }
 
 type AdminClient interface {
@@ -59,6 +93,8 @@ type AdminClient interface {
 	RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error)
 
 	PutRateLimit(key string, opts *types.RateLimitOpts) error
+
+	GetRunDetails(ctx context.Context, externalId uuid.UUID) (*RunDetails, error)
 }
 
 type DedupeViolationErr struct {
@@ -216,10 +252,10 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	return nil
 }
 
-type RunOptFunc func(*admincontracts.TriggerWorkflowRequest) error
+type RunOptFunc func(*v1contracts.TriggerWorkflowRequest) error
 
 func WithRunMetadata(metadata interface{}) RunOptFunc {
-	return func(r *admincontracts.TriggerWorkflowRequest) error {
+	return func(r *v1contracts.TriggerWorkflowRequest) error {
 		metadataBytes, err := json.Marshal(metadata)
 		if err != nil {
 			return err
@@ -234,11 +270,53 @@ func WithRunMetadata(metadata interface{}) RunOptFunc {
 }
 
 func WithPriority(priority int32) RunOptFunc {
-	return func(r *admincontracts.TriggerWorkflowRequest) error {
+	return func(r *v1contracts.TriggerWorkflowRequest) error {
 		r.Priority = &priority
 
 		return nil
 	}
+}
+
+func WithDesiredWorkerLabels(labels map[string]*types.DesiredWorkerLabel) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		r.DesiredWorkerLabels = desiredWorkerLabelsToProto(labels)
+
+		return nil
+	}
+}
+
+func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map[string]*admincontracts.DesiredWorkerLabels {
+	if labels == nil {
+		return nil
+	}
+
+	result := make(map[string]*admincontracts.DesiredWorkerLabels, len(labels))
+
+	for key, label := range labels {
+		proto := &admincontracts.DesiredWorkerLabels{
+			Required: &label.Required,
+			Weight:   &label.Weight,
+		}
+
+		if label.Comparator != nil {
+			comparator := admincontracts.WorkerLabelComparator(*label.Comparator)
+			proto.Comparator = &comparator
+		}
+
+		switch v := label.Value.(type) {
+		case string:
+			proto.StrValue = &v
+		case int:
+			intVal := int32(v) // nolint: gosec
+			proto.IntValue = &intVal
+		case int32:
+			proto.IntValue = &v
+		}
+
+		result[key] = proto
+	}
+
+	return result
 }
 
 // func WithSticky(sticky bool) RunOptFunc {
@@ -258,7 +336,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 
 	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
-	request := &admincontracts.TriggerWorkflowRequest{
+	request := &v1contracts.TriggerWorkflowRequest{
 		Name:  workflowName,
 		Input: string(inputBytes),
 	}
@@ -296,7 +374,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 
 func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
 
-	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
+	triggerWorkflowRequests := make([]*v1contracts.TriggerWorkflowRequest, len(workflows))
 
 	for i, workflow := range workflows {
 		inputBytes, err := json.Marshal(workflow.Input)
@@ -305,7 +383,7 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 		}
 
 		workflowName := client.ApplyNamespace(workflow.Name, &a.namespace)
-		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
+		triggerWorkflowRequests[i] = &v1contracts.TriggerWorkflowRequest{
 			Name:  workflowName,
 			Input: string(inputBytes),
 		}
@@ -351,7 +429,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	metadata := string(metadataBytes)
 
-	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &v1contracts.TriggerWorkflowRequest{
 		Name:                    workflowName,
 		Input:                   string(inputBytes),
 		ParentId:                &opts.ParentId,
@@ -361,6 +439,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		DesiredWorkerId:         opts.DesiredWorkerId,
 		AdditionalMetadata:      &metadata,
 		Priority:                opts.Priority,
+		DesiredWorkerLabels:     desiredWorkerLabelsToProto(opts.DesiredWorkerLabels),
 	})
 
 	if err != nil {
@@ -385,7 +464,7 @@ type RunChildWorkflowsOpts struct {
 
 func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error) {
 
-	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
+	triggerWorkflowRequests := make([]*v1contracts.TriggerWorkflowRequest, len(workflows))
 
 	for i, workflow := range workflows {
 		if workflow.Opts == nil {
@@ -413,7 +492,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 
 		metadata := string(metadataBytes)
 
-		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
+		triggerWorkflowRequests[i] = &v1contracts.TriggerWorkflowRequest{
 			Name:                    workflowName,
 			Input:                   string(inputBytes),
 			ParentId:                &workflow.Opts.ParentId,
@@ -423,6 +502,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			DesiredWorkerId:         workflow.Opts.DesiredWorkerId,
 			AdditionalMetadata:      &metadata,
 			Priority:                workflow.Opts.Priority,
+			DesiredWorkerLabels:     desiredWorkerLabelsToProto(workflow.Opts.DesiredWorkerLabels),
 		}
 
 	}
@@ -467,6 +547,46 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 	}
 
 	return nil
+}
+
+func (a *adminClientImpl) GetRunDetails(ctx context.Context, externalId uuid.UUID) (*RunDetails, error) {
+	resp, err := a.v1Client.GetRunDetails(a.ctx.newContext(ctx), &v1contracts.GetRunDetailsRequest{
+		ExternalId: externalId.String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not get run details: %w", err)
+	}
+
+	taskRuns := make(map[string]*TaskRunDetails, len(resp.GetTaskRuns()))
+	for readableId, detail := range resp.GetTaskRuns() {
+		var errStr *string
+		if detail.Error != nil {
+			errStr = detail.Error
+		}
+
+		externalId, err := uuid.Parse(detail.ExternalId)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse task run external id: %w", err)
+		}
+
+		taskRuns[readableId] = &TaskRunDetails{
+			ExternalId: externalId,
+			ReadableId: detail.GetReadableId(),
+			Status:     taskStatusFromProto(detail.GetStatus()),
+			Output:     detail.GetOutput(),
+			Error:      errStr,
+		}
+	}
+
+	return &RunDetails{
+		ExternalId:         externalId,
+		Status:             taskStatusFromProto(resp.GetStatus()),
+		Input:              resp.GetInput(),
+		AdditionalMetadata: resp.GetAdditionalMetadata(),
+		TaskRuns:           taskRuns,
+		Done:               resp.GetDone(),
+	}, nil
 }
 
 func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {

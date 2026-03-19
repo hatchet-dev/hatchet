@@ -1,4 +1,4 @@
-import { StickyStrategy } from '@hatchet-dev/typescript-sdk/protoc/workflows';
+import { StickyStrategy } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 import { child } from '../child_workflows/workflow';
 

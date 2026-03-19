@@ -7,7 +7,6 @@ async function main() {
   });
   // !!
 
-  // eslint-disable-next-line no-console
   console.log(res.reverse.Transformed);
 }
 

@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -21,6 +22,13 @@ func (w *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1Webh
 	if err != nil {
 		return gen.V1WebhookDelete400JSONResponse(apierrors.NewAPIErrors("failed to delete webhook")), nil
 	}
+
+	w.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.Webhook, analytics.Delete,
+		webhook.Name,
+		nil,
+	)
 
 	transformed := transformers.ToV1Webhook(webhook)
 

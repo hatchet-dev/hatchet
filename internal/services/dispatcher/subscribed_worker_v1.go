@@ -23,6 +23,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	task *v1.V1TaskWithPayload,
+	durableInvocationCount *int32,
 ) error {
 	if ctx.Err() != nil {
 		return fmt.Errorf("context done before starting task: %w", ctx.Err())
@@ -37,7 +38,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount, durableInvocationCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -56,32 +57,6 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	}
 
 	return nil
-}
-
-func (worker *subscribedWorker) incBacklogSize(delta int64) bool {
-	worker.backlogSizeMu.Lock()
-	defer worker.backlogSizeMu.Unlock()
-
-	if worker.backlogSize+delta > worker.maxBacklogSize {
-		return false
-	}
-
-	worker.backlogSize += delta
-
-	return true
-}
-
-func (worker *subscribedWorker) decBacklogSize(delta int64) int64 {
-	worker.backlogSizeMu.Lock()
-	defer worker.backlogSizeMu.Unlock()
-
-	worker.backlogSize -= delta
-
-	if worker.backlogSize < 0 {
-		worker.backlogSize = 0
-	}
-
-	return worker.backlogSize
 }
 
 func (worker *subscribedWorker) sendToWorker(
@@ -120,12 +95,10 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	incSuccess := worker.incBacklogSize(1)
-
-	if !incSuccess {
-		err := fmt.Errorf("worker backlog size exceeded max of %d", worker.maxBacklogSize)
+	if !worker.sendLock.Acquire() {
+		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "worker backlog size exceeded max")
+		span.SetStatus(codes.Error, "flow control is active")
 		return err
 	}
 
@@ -133,10 +106,8 @@ func (worker *subscribedWorker) sendToWorker(
 
 	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
 
-	worker.sendMu.Lock()
-	defer worker.sendMu.Unlock()
-
-	lockSpan.End()
+	defer worker.sendLock.Release()
+	defer lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
 		Key:   "lock.duration_ms",
@@ -152,8 +123,6 @@ func (worker *subscribedWorker) sendToWorker(
 
 	go func() {
 		defer close(sentCh)
-		defer worker.decBacklogSize(1)
-
 		err = worker.stream.SendMsg(msg)
 
 		if err != nil {
@@ -189,14 +158,13 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, retryCount)
+	action := populateAssignedAction(tenantId, task, retryCount, nil)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
 	sentCh := make(chan error, 1)
-	incSuccess := worker.incBacklogSize(1)
-
-	if !incSuccess {
+	acquiredLock := worker.sendLock.Acquire()
+	if !acquiredLock {
 		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 			task.TenantID,
 			tasktypesv1.CreateMonitoringEventPayload{
@@ -205,7 +173,7 @@ func (worker *subscribedWorker) CancelTask(
 				WorkerId:       &worker.workerId,
 				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
 				EventTimestamp: time.Now().UTC(),
-				EventMessage:   "Worker backlog size exceeded",
+				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.timeout),
 			},
 		)
 		if err != nil {
@@ -222,10 +190,7 @@ func (worker *subscribedWorker) CancelTask(
 
 	go func() {
 		defer close(sentCh)
-		defer worker.decBacklogSize(1)
-
-		worker.sendMu.Lock()
-		defer worker.sendMu.Unlock()
+		defer worker.sendLock.Release()
 
 		sentCh <- worker.stream.Send(action)
 	}()
@@ -243,24 +208,25 @@ func (worker *subscribedWorker) CancelTask(
 	return nil
 }
 
-func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32, invocationCount *int32) *contracts.AssignedAction {
 	workflowId := task.WorkflowID.String()
 	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
-		TenantId:          tenantID.String(),
-		JobId:             task.StepID.String(), // FIXME
-		JobName:           task.StepReadableID,
-		JobRunId:          task.ExternalID.String(), // FIXME
-		TaskId:            task.StepID.String(),
-		TaskRunExternalId: task.ExternalID.String(),
-		ActionId:          task.ActionID,
-		TaskName:          task.StepReadableID,
-		WorkflowRunId:     task.WorkflowRunID.String(),
-		RetryCount:        retryCount,
-		Priority:          task.Priority.Int32,
-		WorkflowId:        &workflowId,
-		WorkflowVersionId: &workflowVersionId,
+		TenantId:                   tenantID.String(),
+		JobId:                      task.StepID.String(), // FIXME
+		JobName:                    task.StepReadableID,
+		JobRunId:                   task.ExternalID.String(), // FIXME
+		TaskId:                     task.StepID.String(),
+		TaskRunExternalId:          task.ExternalID.String(),
+		ActionId:                   task.ActionID,
+		TaskName:                   task.StepReadableID,
+		WorkflowRunId:              task.WorkflowRunID.String(),
+		RetryCount:                 retryCount,
+		Priority:                   task.Priority.Int32,
+		WorkflowId:                 &workflowId,
+		WorkflowVersionId:          &workflowVersionId,
+		DurableTaskInvocationCount: invocationCount,
 	}
 
 	if task.AdditionalMetadata != nil {

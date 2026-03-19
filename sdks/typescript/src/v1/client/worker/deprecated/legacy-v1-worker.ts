@@ -3,18 +3,17 @@
  * instead of `slotConfig`. Used when connected to pre-slot-config engines.
  */
 
-/* eslint-disable no-underscore-dangle */
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { HatchetClient } from '@hatchet/v1';
-import { V1Worker } from '../worker-internal';
+import { InternalWorker } from '../worker-internal';
 import { legacyGetActionListener } from './legacy-registration';
 
-export class LegacyV1Worker extends V1Worker {
+export class LegacyV1Worker extends InternalWorker {
   private _legacySlotCount: number;
 
   constructor(
     client: HatchetClient,
-    options: ConstructorParameters<typeof V1Worker>[1],
+    options: ConstructorParameters<typeof InternalWorker>[1],
     legacySlots: number
   ) {
     super(client, options);
@@ -25,7 +24,7 @@ export class LegacyV1Worker extends V1Worker {
    * Override registration to use the legacy `slots` proto field.
    */
   protected override async createListener(): Promise<ActionListener> {
-    return legacyGetActionListener(this.client._v0.dispatcher, {
+    return legacyGetActionListener(this.client.dispatcher, {
       workerName: this.name,
       services: ['default'],
       actions: Object.keys(this.action_registry),

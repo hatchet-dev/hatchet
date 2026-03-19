@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -51,8 +52,13 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *sqlcv1.Tenant, input *i
 		return nil, err
 	}
 
-	// call the client method
-	res, err := p.method(client.AuthContext(ctx, tok.Token), c, input)
+	grpcCtx := client.AuthContext(ctx, tok.Token)
+
+	if source := analytics.SourceFromContext(ctx); source != "" {
+		grpcCtx = client.WithMetadata(grpcCtx, analytics.SourceMetadataKey, string(source))
+	}
+
+	res, err := p.method(grpcCtx, c, input)
 
 	if err != nil {
 		return nil, err

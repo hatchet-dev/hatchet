@@ -93,10 +93,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     toolbarFilters,
     tableRows,
     numPages,
-    isRunsLoading,
     isRunsFetching,
     isStatusCountsFetching,
-    isStatusCountsLoading,
     isQueueMetricsLoading,
     isRefetching,
     runStatusCounts,
@@ -194,8 +192,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     return () => clearInterval(interval);
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const hasLoaded = !isRunsLoading && !isStatusCountsLoading;
-  const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
+  const isFetching = isRunsFetching || isStatusCountsFetching;
 
   const leftActions = [
     ...(!hideCounts
@@ -260,7 +257,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
               <p className="text-lg font-semibold">No runs found</p>
               <div className="w-fit">
                 <DocsButton
-                  doc={docsPages.home['your-first-task']}
+                  doc={docsPages.v1.quickstart}
                   label={'Learn more about tasks'}
                 />
               </div>

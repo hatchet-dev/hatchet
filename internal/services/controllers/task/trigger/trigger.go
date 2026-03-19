@@ -74,7 +74,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
-			tw.l.Warn().Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromEvents. Not retrying")
+			tw.l.Warn().Ctx(ctx).Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromEvents. Not retrying")
 
 			return nil
 		}
@@ -104,7 +104,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 	// we log the error
 	// FIXME: we need a mechanism to DLQ these failed signals
 	if err := eg.Wait(); err != nil {
-		tw.l.Error().Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromEvents")
+		tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromEvents")
 	}
 
 	return nil
@@ -129,7 +129,7 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
-			tw.l.Warn().Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromWorkflowNames. Not retrying")
+			tw.l.Warn().Ctx(ctx).Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromWorkflowNames. Not retrying")
 
 			return nil
 		}
@@ -137,21 +137,19 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 		return fmt.Errorf("could not trigger workflows from names: %w", err)
 	}
 
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		return tw.signaler.SignalTasksCreated(ctx, tenantId, tasks)
-	})
-
-	eg.Go(func() error {
-		return tw.signaler.SignalDAGsCreated(ctx, tenantId, dags)
-	})
-
 	// signaling errors do not result in a failure, since we have already written the tasks to the database, but
 	// we log the error
 	// FIXME: we need a mechanism to DLQ these failed signals
-	if err := eg.Wait(); err != nil {
-		tw.l.Error().Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromWorkflowNames")
+	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
+		tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromWorkflowNames")
+	}
+
+	return nil
+}
+
+func (tw *TriggerWriter) SignalCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload, dags []*v1.DAGWithData) error {
+	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
+		tw.l.Error().Err(err).Msg("failed to signal created tasks and DAGs in SignalCreated")
 	}
 
 	return nil

@@ -9,16 +9,16 @@ describe('Tenants: create', () => {
       .click();
     cy.get('[data-cy="new-tenant"]').click();
 
-    // Authenticated layout redirects users without memberships to onboarding/create-tenant.
-    cy.location('pathname', { timeout: 5000 }).should(
-      'include',
-      '/onboarding/create-tenant',
-    );
+    cy.get('[role="dialog"]', { timeout: 5000 }).should('exist');
 
     const tenantName = `CypressTenant${String(ts).slice(-6)}`;
-    cy.get('input#name').filter(':visible').first().clear().type(tenantName);
+    cy.get('[role="dialog"] #tenant-name')
+      .filter(':visible')
+      .first()
+      .clear()
+      .type(tenantName);
     cy.intercept('POST', '/api/v1/tenants').as('createTenant');
-    cy.contains('button', 'Create Tenant').click();
+    cy.get('[role="dialog"] button[type="submit"]').click();
     cy.wait('@createTenant').its('response.statusCode').should('eq', 200);
 
     cy.location('pathname', { timeout: 30000 }).should(

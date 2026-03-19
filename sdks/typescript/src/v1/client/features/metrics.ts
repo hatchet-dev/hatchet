@@ -1,3 +1,4 @@
+import { TaskStats } from '@hatchet/clients/rest/generated/data-contracts';
 import { HatchetClient } from '../client';
 
 export type TaskStatusMetrics = {
@@ -9,7 +10,7 @@ export type TaskStatusMetrics = {
 };
 
 /**
- * MetricsClient is used to get metrics for workflows
+ * The metrics client is a client for reading metrics out of Hatchet’s metrics API.
  */
 export class MetricsClient {
   tenantId: string;
@@ -21,11 +22,10 @@ export class MetricsClient {
   }
 
   /**
-   * Get task/run status metrics for a tenant.
-   *
-   * This backs the dashboard "runs list" status count badges.
-   *
-   * Endpoint: GET /api/v1/stable/tenants/{tenant}/task-metrics
+   * Returns aggregate task run counts grouped by status (queued, running, completed, failed, cancelled)
+   * @param query - Filters for the metrics query (e.g. `since`, `until`, `workflow_ids`).
+   * @param requestParams - Optional request-level overrides (headers, signal, etc.).
+   * @returns Counts per status for the matched task runs.
    */
   async getTaskStatusMetrics(
     query: Parameters<typeof this.api.v1TaskListStatusMetrics>[1],
@@ -41,8 +41,31 @@ export class MetricsClient {
     );
   }
 
+  /**
+   * Returns the queue metrics for the current tenant.
+   * @param opts - The options for the request.
+   * @returns The queue metrics for the current tenant.
+   */
   async getQueueMetrics(opts?: Parameters<typeof this.api.tenantGetStepRunQueueMetrics>[1]) {
     const { data } = await this.api.tenantGetStepRunQueueMetrics(this.tenantId, opts);
+    return data;
+  }
+
+  /**
+   * Scrape Prometheus metrics for the tenant.
+   * @returns The metrics in Prometheus text format.
+   */
+  async scrapePrometheusMetrics(): Promise<string> {
+    const { data } = await this.api.tenantGetPrometheusMetrics(this.tenantId);
+    return data;
+  }
+
+  /**
+   * Get task statistics for the tenant.
+   * @returns A record mapping task names to their statistics.
+   */
+  async getTaskStats(): Promise<TaskStats> {
+    const { data } = await this.api.tenantGetTaskStats(this.tenantId);
     return data;
   }
 }

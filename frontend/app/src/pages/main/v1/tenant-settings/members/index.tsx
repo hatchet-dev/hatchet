@@ -1,5 +1,4 @@
 import { ChangePasswordDialog } from './components/change-password-dialog';
-import { CreateInviteForm } from './components/create-invite-form';
 import { DeleteInviteForm } from './components/delete-invite-form';
 import { InviteActions } from './components/invites-columns';
 import { MemberActions } from './components/members-columns';
@@ -14,7 +13,6 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
-  CreateTenantInviteRequest,
   TenantInvite,
   TenantMember,
   TenantMemberRole,
@@ -22,6 +20,7 @@ import api, {
   UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
+import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
 import { capitalize } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -298,7 +297,6 @@ function UpdateMember({
 
 function InvitesList() {
   const { tenantId } = useCurrentTenantId();
-  const [showCreateInviteModal, setShowCreateInviteModal] = useState(false);
   const [updateInvite, setUpdateInvite] = useState<TenantInvite | null>(null);
   const [deleteInvite, setDeleteInvite] = useState<TenantInvite | null>(null);
 
@@ -355,8 +353,10 @@ function InvitesList() {
           Invites
         </h3>
         <Button
-          key="create-invite"
-          onClick={() => setShowCreateInviteModal(true)}
+          key="create-tenant-invite"
+          onClick={() =>
+            globalEmitter.emit('create-tenant-invite', { tenantId })
+          }
         >
           Create Invite
         </Button>
@@ -371,16 +371,6 @@ function InvitesList() {
         <div className="py-8 text-center text-sm text-muted-foreground">
           No invites found. Create an invite to add new members to your tenant.
         </div>
-      )}
-      {showCreateInviteModal && (
-        <CreateInvite
-          showCreateInviteModal={showCreateInviteModal}
-          setShowCreateInviteModal={setShowCreateInviteModal}
-          onSuccess={() => {
-            setShowCreateInviteModal(false);
-            listInvitesQuery.refetch();
-          }}
-        />
       )}
       {updateInvite && (
         <UpdateInvite
@@ -406,49 +396,6 @@ function InvitesList() {
   );
 }
 
-function CreateInvite({
-  showCreateInviteModal,
-  setShowCreateInviteModal,
-  onSuccess,
-}: {
-  showCreateInviteModal: boolean;
-  setShowCreateInviteModal: (show: boolean) => void;
-  onSuccess: () => void;
-}) {
-  const { tenantId } = useCurrentTenantId();
-  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({
-    setFieldErrors: setFieldErrors,
-  });
-
-  const organizationId = getOrganizationIdForTenant(tenantId);
-
-  const createMutation = useMutation({
-    mutationKey: ['tenant-invite:create', tenantId],
-    mutationFn: async (data: CreateTenantInviteRequest) => {
-      await api.tenantInviteCreate(tenantId, data);
-    },
-    onSuccess: onSuccess,
-    onError: handleApiError,
-  });
-
-  return (
-    <Dialog
-      open={showCreateInviteModal}
-      onOpenChange={setShowCreateInviteModal}
-    >
-      <CreateInviteForm
-        isLoading={createMutation.isPending}
-        onSubmit={createMutation.mutate}
-        fieldErrors={fieldErrors}
-        isCloudEnabled={isCloudEnabled}
-        organizationId={organizationId}
-      />
-    </Dialog>
-  );
-}
-
 function UpdateInvite({
   tenantInvite,
   setShowTenantInvite,
@@ -459,6 +406,7 @@ function UpdateInvite({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
+  const { isCloudEnabled } = useOrganizations();
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
@@ -481,6 +429,7 @@ function UpdateInvite({
         isLoading={updateMutation.isPending}
         onSubmit={updateMutation.mutate}
         fieldErrors={fieldErrors}
+        isCloudEnabled={isCloudEnabled}
       />
     </Dialog>
   );

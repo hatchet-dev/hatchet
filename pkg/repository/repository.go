@@ -21,6 +21,7 @@ type TaskOperationLimits struct {
 type Repository interface {
 	APIToken() APITokenRepository
 	Dispatcher() DispatcherRepository
+	DurableEvents() DurableEventsRepository
 	Health() HealthRepository
 	MessageQueue() MessageQueueRepository
 	RateLimit() RateLimitRepository
@@ -59,6 +60,7 @@ type Repository interface {
 type repositoryImpl struct {
 	apiToken          APITokenRepository
 	dispatcher        DispatcherRepository
+	durableEvents     DurableEventsRepository
 	health            HealthRepository
 	messageQueue      MessageQueueRepository
 	rateLimit         RateLimitRepository
@@ -92,6 +94,7 @@ type repositoryImpl struct {
 
 func NewRepository(
 	pool *pgxpool.Pool,
+	directPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
@@ -105,13 +108,14 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, directPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	impl := &repositoryImpl{
 		apiToken:          newAPITokenRepository(shared, cacheDuration),
 		dispatcher:        newDispatcherRepository(shared),
+		durableEvents:     newDurableEventsRepository(shared),
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),
@@ -164,6 +168,10 @@ func (r *repositoryImpl) APIToken() APITokenRepository {
 
 func (r *repositoryImpl) Dispatcher() DispatcherRepository {
 	return r.dispatcher
+}
+
+func (r *repositoryImpl) DurableEvents() DurableEventsRepository {
+	return r.durableEvents
 }
 
 func (r *repositoryImpl) Health() HealthRepository {

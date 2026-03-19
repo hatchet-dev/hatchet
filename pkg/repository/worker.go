@@ -74,6 +74,11 @@ type UpsertWorkerLabelOpts struct {
 	StrValue *string
 }
 
+type DurableTaskDispatcherLookup struct {
+	DispatcherId *uuid.UUID
+	IsEvicted    bool
+}
+
 type WorkerRepository interface {
 	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, error)
 	GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
@@ -89,7 +94,7 @@ type WorkerRepository interface {
 	GetWorkerWorkflowsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
-	ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error)
+	ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow, error)
 
 	// ListWorkerSlotConfigs returns slot config for workers.
 	ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
@@ -122,6 +127,10 @@ type WorkerRepository interface {
 	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
 	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error)
+
+	UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error
+
+	GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]DurableTaskDispatcherLookup, error)
 }
 
 type workerRepository struct {
@@ -299,8 +308,20 @@ func (w *workerRepository) GetWorkerWorkflowsByWorkerId(ctx context.Context, ten
 	})
 }
 
-func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.ListWorkerLabelsRow, error) {
-	return w.queries.ListWorkerLabels(ctx, w.pool, workerId)
+func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow, error) {
+	labels, err := w.queries.ListWorkerLabels(ctx, w.pool, workerIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list worker labels: %w", err)
+	}
+
+	workerIdToLabels := make(map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow)
+
+	for _, label := range labels {
+		workerIdToLabels[label.WorkerId] = append(workerIdToLabels[label.WorkerId], label)
+	}
+
+	return workerIdToLabels, nil
 }
 
 func (w *workerRepository) ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
@@ -754,4 +775,48 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 	}
 
 	return workerIdToDispatcherId, workerIdsWithoutDispatchers, nil
+}
+
+func (w *workerRepository) UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error {
+	_, err := w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, w.pool, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
+		Workerid:     workerId,
+		Dispatcherid: dispatcherId,
+		Tenantid:     tenantId,
+	})
+
+	return err
+}
+
+func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]DurableTaskDispatcherLookup, error) {
+	taskIds := make([]int64, len(idInsertedAtTuples))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(idInsertedAtTuples))
+
+	for i, tuple := range idInsertedAtTuples {
+		taskIds[i] = tuple.ID
+		taskInsertedAts[i] = tuple.InsertedAt
+	}
+
+	rows, err := w.queries.ListDurableTaskDispatcherIdsForTasks(ctx, w.pool, sqlcv1.ListDurableTaskDispatcherIdsForTasksParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get durable dispatcher ids for tasks: %w", err)
+	}
+
+	taskIdToDispatcherInfo := make(map[IdInsertedAt]DurableTaskDispatcherLookup)
+
+	for _, row := range rows {
+		taskIdToDispatcherInfo[IdInsertedAt{
+			ID:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+		}] = DurableTaskDispatcherLookup{
+			DispatcherId: row.DurableTaskDispatcherId,
+			IsEvicted:    row.EvictedAt.Valid,
+		}
+	}
+
+	return taskIdToDispatcherInfo, nil
 }

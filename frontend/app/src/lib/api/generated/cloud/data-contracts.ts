@@ -39,7 +39,6 @@ export enum TemplateOptions {
 }
 
 export enum AutoscalingTargetKind {
-  PORTER = "PORTER",
   FLY = "FLY",
 }
 
@@ -146,7 +145,6 @@ export interface ManagedWorker {
   metadata: APIResourceMeta;
   name: string;
   buildConfig?: ManagedWorkerBuildConfig;
-  isIac: boolean;
   directSecrets: ManagedWorkerSecret[];
   globalSecrets: ManagedWorkerSecret[];
   runtimeConfigs?: ManagedWorkerRuntimeConfig[];
@@ -256,7 +254,6 @@ export interface CreateManagedWorkerRequest {
   name: string;
   buildConfig: CreateManagedWorkerBuildConfigRequest;
   secrets?: CreateManagedWorkerSecretRequest;
-  isIac: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
 
@@ -264,7 +261,6 @@ export interface UpdateManagedWorkerRequest {
   name?: string;
   buildConfig?: CreateManagedWorkerBuildConfigRequest;
   secrets?: UpdateManagedWorkerSecretRequest;
-  isIac?: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
 
@@ -358,6 +354,20 @@ export interface TenantPaymentMethod {
 }
 
 export type TenantPaymentMethodList = TenantPaymentMethod[];
+
+export interface TenantCreditBalance {
+  /** The Stripe customer balance in cents. Negative means customer credit. */
+  balanceCents: number;
+  /** ISO currency code for the Stripe customer balance. */
+  currency: string;
+  /** Human-readable description for the active credit balance, if available. */
+  description?: string;
+  /**
+   * The timestamp at which the current credit balance is scheduled to expire.
+   * @format date-time
+   */
+  expiresAt?: string;
+}
 
 export interface SubscriptionPlan {
   /** The code of the plan. */

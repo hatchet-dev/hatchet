@@ -119,7 +119,6 @@ updateTenants:
     tags:
       - Tenant
 
-
 tenantAlertingSettings:
   get:
     x-resources: ["tenant"]

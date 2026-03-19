@@ -1,7 +1,15 @@
 import type { SearchSuggestion } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
+import { V1LogLineLevel } from '@/lib/api';
 
 export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
+
+export const LOG_LEVEL_TO_API: Record<LogLevel, V1LogLineLevel> = {
+  error: V1LogLineLevel.ERROR,
+  warn: V1LogLineLevel.WARN,
+  info: V1LogLineLevel.INFO,
+  debug: V1LogLineLevel.DEBUG,
+};
 
 export const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
   error: 'bg-red-500',

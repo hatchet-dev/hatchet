@@ -25,7 +25,7 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 	// if we get a unique violation, it means we tried to create a duplicate idempotency key, which means this
 	// run has already been processed, so we should just return
 	if err != nil && errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-		t.l.Info().Msgf("idempotency key for scheduled workflow %s already exists, skipping", scheduledWorkflowId)
+		t.l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", scheduledWorkflowId)
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("could not create idempotency key: %w", err)

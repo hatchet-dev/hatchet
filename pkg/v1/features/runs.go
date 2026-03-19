@@ -30,6 +30,10 @@ type RunsClient interface {
 	// Deprecated: Use Get instead.
 	GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error)
 
+	// GetV1Details retrieves detailed information about a workflow run via gRPC,
+	// including task-level output, errors, and status.
+	GetV1Details(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error)
+
 	// List retrieves a collection of workflow runs based on the provided parameters.
 	List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error)
 
@@ -104,6 +108,15 @@ func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1
 	)
 }
 
+// Deprecated: GetV1Details is part of the old generics-based v1 Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+//
+// GetV1Details retrieves detailed information about a workflow run via gRPC,
+// including task-level output, errors, and status.
+func (r *runsClientImpl) GetV1Details(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error) {
+	return r.v0Client.Admin().GetRunDetails(ctx, runId)
+}
+
 // Deprecated: List is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
@@ -162,10 +175,10 @@ func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId st
 	go func() {
 		defer func() {
 			close(ch)
-			r.l.Debug().Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
+			r.l.Debug().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
 		}()
 
-		r.l.Debug().Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
+		r.l.Debug().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
 
 		err := r.v0Client.Subscribe().Stream(ctx, workflowRunId, func(event client.StreamEvent) error {
 			select {
@@ -176,7 +189,7 @@ func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId st
 			return nil
 		})
 		if err != nil {
-			r.l.Error().Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
+			r.l.Error().Ctx(ctx).Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
 			return
 		}
 	}()

@@ -95,6 +95,9 @@ describe('Create Tenant: redirect to invites', () => {
           .click();
       });
 
+    // Wait for the navigation after sign in to complete
+    cy.location('pathname', { timeout: 30000 }).should('not.eq', '/auth/login');
+
     // Step 5: Try to navigate to create-tenant page
     // The user should be redirected to invites page
     cy.visit('/onboarding/create-tenant', { failOnStatusCode: false });
@@ -106,13 +109,13 @@ describe('Create Tenant: redirect to invites', () => {
     );
 
     // Verify the invite is displayed
-    cy.contains(`You got an invitation to join ${tenantName}`).should(
+    cy.contains(`invited to join the ${tenantName} tenant`).should(
       'be.visible',
     );
 
     // Step 7: Accept the invite to clean up (prevent affecting other tests)
     cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
-    cy.contains(`You got an invitation to join ${tenantName}`)
+    cy.contains(`invited to join the ${tenantName} tenant`)
       .parent()
       .contains('button', 'Accept')
       .should('be.visible')

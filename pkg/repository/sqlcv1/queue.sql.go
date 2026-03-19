@@ -427,7 +427,7 @@ func (q *Queries) ListActionsForWorkers(ctx context.Context, db DBTX, arg ListAc
 
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
-    id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count
+    id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label
 FROM
     v1_queue_item qi
 WHERE
@@ -484,6 +484,7 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 			&i.Sticky,
 			&i.DesiredWorkerID,
 			&i.RetryCount,
+			&i.DesiredWorkerLabel,
 		); err != nil {
 			return nil, err
 		}
@@ -503,7 +504,7 @@ WITH input AS (
         UNNEST($4::integer[]) AS retry_count
 )
 SELECT
-    qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count
+    qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count, qi.desired_worker_label
 FROM
     v1_queue_item qi
 WHERE
@@ -549,6 +550,7 @@ func (q *Queries) ListQueueItemsForTasks(ctx context.Context, db DBTX, arg ListQ
 			&i.Sticky,
 			&i.DesiredWorkerID,
 			&i.RetryCount,
+			&i.DesiredWorkerLabel,
 		); err != nil {
 			return nil, err
 		}
@@ -614,7 +616,8 @@ WITH input AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
 )
 INSERT INTO v1_rate_limited_queue_items (
     requeue_after,
@@ -632,7 +635,8 @@ INSERT INTO v1_rate_limited_queue_items (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     i.requeue_after,
@@ -650,7 +654,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM moved_items
 JOIN input i ON moved_items.id = i.id
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -739,7 +744,8 @@ WITH ready_items AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM
         v1_rate_limited_queue_items
     WHERE
@@ -785,7 +791,8 @@ INSERT INTO v1_queue_item (
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 )
 SELECT
     tenant_id,
@@ -802,7 +809,8 @@ SELECT
     priority,
     sticky,
     desired_worker_id,
-    retry_count
+    retry_count,
+    desired_worker_label
 FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
 `
@@ -868,7 +876,8 @@ WITH input AS (
         i.worker_id,
         t.tenant_id,
         t.step_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at,
+        t.is_durable
     FROM
         v1_task t
     JOIN
@@ -894,9 +903,14 @@ WITH input AS (
         t.timeout_at
     FROM
         updated_tasks t
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+    SET
+        evicted_at = NULL,
+        worker_id = EXCLUDED.worker_id,
+        timeout_at = EXCLUDED.timeout_at
+    WHERE v1_task_runtime.evicted_at IS NOT NULL
     -- only return the task ids that were successfully assigned
-    RETURNING task_id, worker_id
+    RETURNING task_id, task_inserted_at, retry_count, worker_id
 ), slot_requests AS (
     SELECT
         t.id,
@@ -936,9 +950,13 @@ WITH input AS (
 )
 SELECT
     asr.task_id,
-    asr.worker_id
+    asr.task_inserted_at,
+    asr.worker_id,
+    ut.is_durable
 FROM
     assigned_tasks asr
+JOIN
+    updated_tasks ut ON (asr.task_id, asr.task_inserted_at, asr.retry_count) = (ut.id, ut.inserted_at, ut.retry_count)
 `
 
 type UpdateTasksToAssignedParams struct {
@@ -950,8 +968,10 @@ type UpdateTasksToAssignedParams struct {
 }
 
 type UpdateTasksToAssignedRow struct {
-	TaskID   int64      `json:"task_id"`
-	WorkerID *uuid.UUID `json:"worker_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	WorkerID       *uuid.UUID         `json:"worker_id"`
+	IsDurable      pgtype.Bool        `json:"is_durable"`
 }
 
 func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg UpdateTasksToAssignedParams) ([]*UpdateTasksToAssignedRow, error) {
@@ -969,7 +989,12 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 	var items []*UpdateTasksToAssignedRow
 	for rows.Next() {
 		var i UpdateTasksToAssignedRow
-		if err := rows.Scan(&i.TaskID, &i.WorkerID); err != nil {
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.WorkerID,
+			&i.IsDurable,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

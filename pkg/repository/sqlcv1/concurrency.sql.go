@@ -443,6 +443,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
@@ -657,6 +659,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
@@ -946,24 +950,16 @@ WITH locked_workflow_concurrency_slots AS (
     ORDER BY strategy_id, workflow_version_id, workflow_run_id
     FOR UPDATE
 ), eligible_running_slots AS (
-    SELECT wsc.sort_id, wsc.tenant_id, wsc.workflow_id, wsc.workflow_version_id, wsc.workflow_run_id, wsc.strategy_id, wsc.completed_child_strategy_ids, wsc.child_strategy_ids, wsc.priority, wsc.key, wsc.is_filled
+    SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled, rn
     FROM (
-        SELECT DISTINCT key
+        SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled,
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id DESC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = $1::uuid
             AND strategy_id = $2::bigint
-    ) distinct_keys
-    JOIN LATERAL (
-        SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
-        FROM locked_workflow_concurrency_slots wcs_all
-        WHERE
-            wcs_all.key = distinct_keys.key
-            AND wcs_all.tenant_id = $1::uuid
-            AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.sort_id DESC
-        LIMIT $3::int
-    ) wsc ON true
+    ) ranked
+    WHERE rn <= $3::int
 ), slots_to_run AS (
     SELECT
         sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
@@ -1031,24 +1027,16 @@ WITH locked_workflow_concurrency_slots AS (
     ORDER BY strategy_id, workflow_version_id, workflow_run_id
     FOR UPDATE
 ), eligible_running_slots AS (
-    SELECT wsc.sort_id, wsc.tenant_id, wsc.workflow_id, wsc.workflow_version_id, wsc.workflow_run_id, wsc.strategy_id, wsc.completed_child_strategy_ids, wsc.child_strategy_ids, wsc.priority, wsc.key, wsc.is_filled
+    SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled, rn
     FROM (
-        SELECT DISTINCT key
+        SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled,
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = $1::uuid
             AND strategy_id = $2::bigint
-    ) distinct_keys
-    JOIN LATERAL (
-        SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
-        FROM locked_workflow_concurrency_slots wcs_all
-        WHERE
-            wcs_all.key = distinct_keys.key
-            AND wcs_all.tenant_id = $1::uuid
-            AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.sort_id ASC
-        LIMIT $3::int
-    ) wsc ON true
+    ) ranked
+    WHERE rn <= $3::int
 ), slots_to_run AS (
     SELECT
         sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled

@@ -27,11 +27,38 @@ from examples.dependency_injection.worker import (
     async_task_with_dependencies,
     di_workflow,
     durable_async_task_with_dependencies,
-    durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
+    task_with_type_aliases,
 )
 from examples.dict_input.worker import say_hello_unsafely
-from examples.durable.worker import durable_workflow, wait_for_sleep_twice
+from examples.durable.worker import (
+    durable_sleep_event_spawn,
+    durable_with_bulk_spawn,
+    durable_with_spawn,
+    durable_workflow,
+    spawn_child_task,
+    wait_for_sleep_twice,
+    dag_child_workflow,
+    durable_spawn_dag,
+    durable_non_determinism,
+    durable_replay_reset,
+    memo_task,
+    memo_now_caching,
+)
+from examples.durable_event.worker import (
+    durable_event_task,
+    durable_event_task_with_filter,
+)
+from examples.durable_eviction.worker import (
+    bulk_child_task as eviction_bulk_child_task,
+    child_task as eviction_child_task,
+    evictable_child_bulk_spawn,
+    evictable_child_spawn,
+    evictable_sleep,
+    evictable_wait_for_event,
+    multiple_eviction,
+    non_evictable_sleep,
+)
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
@@ -103,13 +130,33 @@ def main() -> None:
             return_exceptions_task,
             exception_parsing_workflow,
             wait_for_sleep_twice,
+            spawn_child_task,
+            durable_with_spawn,
+            durable_with_bulk_spawn,
+            durable_sleep_event_spawn,
+            durable_event_task,
+            durable_event_task_with_filter,
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_sync_task_with_dependencies,
+            task_with_type_aliases,
             say_hello,
             say_hello_unsafely,
             serde_workflow,
+            durable_spawn_dag,
+            dag_child_workflow,
+            durable_non_determinism,
+            durable_replay_reset,
+            memo_task,
+            evictable_sleep,
+            evictable_wait_for_event,
+            evictable_child_spawn,
+            evictable_child_bulk_spawn,
+            multiple_eviction,
+            non_evictable_sleep,
+            eviction_child_task,
+            eviction_bulk_child_task,
+            memo_now_caching,
         ],
         lifespan=lifespan,
     )

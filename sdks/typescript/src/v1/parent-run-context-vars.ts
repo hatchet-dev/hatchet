@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
+import { DurableContext } from './client/worker/context';
 
 export interface ParentRunContext {
   parentId: string;
@@ -8,6 +9,18 @@ export interface ParentRunContext {
   parentTaskRunExternalId: string;
   desiredWorkerId: string;
   childIndex?: number;
+
+  /**
+   * (optional) AbortSignal inherited by nested `run()` calls.
+   * Used to cancel local "wait for result" subscriptions when the parent task is cancelled.
+   */
+  signal?: AbortSignal;
+
+  /**
+   * Present when the current task is running in durable mode.
+   * Used by child `run()` calls to route through `spawnChild` instead of a fresh trigger.
+   */
+  durableContext?: DurableContext<unknown, unknown>;
 }
 
 export class ParentRunContextManager {
@@ -15,6 +28,15 @@ export class ParentRunContextManager {
 
   constructor() {
     this.storage = new AsyncLocalStorage<ParentRunContext>();
+  }
+
+  runWithContext<T>(opts: ParentRunContext, fn: () => T): T {
+    return this.storage.run(
+      {
+        ...opts,
+      },
+      fn
+    );
   }
 
   setContext(opts: ParentRunContext): void {

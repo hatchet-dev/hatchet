@@ -49,6 +49,7 @@ from hatchet_sdk.clients.events import (
     EventClient,
     PushEventOptions,
 )
+from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
 from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
@@ -268,13 +269,42 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             self._wrap_async_run_workflows,
         )
 
+        wrap_function_wrapper(
+            hatchet_sdk,
+            "context.context.DurableContext.aio_wait_for",
+            self._wrap_aio_wait_for,
+        )
+
+        wrap_function_wrapper(
+            hatchet_sdk,
+            "context.context.DurableContext._spawn_children_no_wait",
+            self._wrap_spawn_children_no_wait,
+        )
+
+        wrap_function_wrapper(
+            hatchet_sdk,
+            "context.context.DurableContext.aio_memo",
+            self._wrap_aio_memo,
+        )
+
     def extract_bound_args(
         self,
         wrapped_func: Callable[..., Any],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> list[Any]:
-        sig = inspect.signature(wrapped_func)
+        try:
+            import annotationlib
+
+            # Python 3.14+ with PEP 749 can fail evaluating annotations lazily,
+            # so use Format.STRING to avoid resolving type hints.
+            sig = inspect.signature(
+                wrapped_func,
+                annotation_format=annotationlib.Format.STRING,
+            )
+        except Exception:
+            # Fallback for Python < 3.14 where annotation_format is not supported
+            sig = inspect.signature(wrapped_func)
 
         bound_args = sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
@@ -432,17 +462,17 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_run_workflow(
         self,
         wrapped: Callable[
-            [str, JSONSerializableMapping, TriggerWorkflowOptions],
+            [str, str | None, TriggerWorkflowOptions],
             WorkflowRunRef,
         ],
         instance: AdminClient,
-        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions],
-        kwargs: dict[str, str | JSONSerializableMapping | TriggerWorkflowOptions],
+        args: tuple[str, str | None, TriggerWorkflowOptions],
+        kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
+        payload = cast(str | None, params[1])
         options = cast(
             TriggerWorkflowOptions,
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
@@ -450,7 +480,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.ACTION_PAYLOAD: payload,
             OTelAttribute.PARENT_ID: options.parent_id,
             OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
             OTelAttribute.CHILD_INDEX: options.child_index,
@@ -490,17 +520,17 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_async_run_workflow(
         self,
         wrapped: Callable[
-            [str, JSONSerializableMapping, TriggerWorkflowOptions],
+            [str, str | None, TriggerWorkflowOptions],
             Coroutine[None, None, WorkflowRunRef],
         ],
         instance: AdminClient,
-        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions],
-        kwargs: dict[str, str | JSONSerializableMapping | TriggerWorkflowOptions],
+        args: tuple[str, str | None, TriggerWorkflowOptions],
+        kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
+        payload = cast(str | None, params[1])
         options = cast(
             TriggerWorkflowOptions,
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
@@ -508,7 +538,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.ACTION_PAYLOAD: payload,
             OTelAttribute.PARENT_ID: options.parent_id,
             OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
             OTelAttribute.CHILD_INDEX: options.child_index,
@@ -558,7 +588,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [
                 str,
                 list[datetime | timestamp_pb2.Timestamp],
-                JSONSerializableMapping,
+                str | None,
                 ScheduleTriggerWorkflowOptions,
             ],
             v0_workflow_protos.WorkflowVersion,
@@ -567,14 +597,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[
             str,
             list[datetime | timestamp_pb2.Timestamp],
-            JSONSerializableMapping,
+            str | None,
             ScheduleTriggerWorkflowOptions,
         ],
         kwargs: dict[
             str,
             str
+            | None
             | list[datetime | timestamp_pb2.Timestamp]
-            | JSONSerializableMapping
             | ScheduleTriggerWorkflowOptions,
         ],
     ) -> v0_workflow_protos.WorkflowVersion:
@@ -582,7 +612,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         workflow_name = cast(str, params[0])
         schedules = cast(list[datetime | timestamp_pb2.Timestamp], params[1])
-        input = cast(JSONSerializableMapping, params[2])
+        input = cast(str | None, params[2])
         options = cast(
             ScheduleTriggerWorkflowOptions,
             params[3] if len(params) > 3 else ScheduleTriggerWorkflowOptions(),
@@ -593,7 +623,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.RUN_AT_TIMESTAMPS: json.dumps(
                 [self._ts_to_iso(ts) for ts in schedules]
             ),
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(input, default=str),
+            OTelAttribute.ACTION_PAYLOAD: input,
             OTelAttribute.PARENT_ID: options.parent_id,
             OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
             OTelAttribute.CHILD_INDEX: options.child_index,
@@ -713,6 +743,141 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(workflow_run_configs_with_meta)
 
+    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
+    async def _wrap_aio_wait_for(
+        self,
+        wrapped: Callable[..., Coroutine[None, None, dict[str, Any]]],
+        instance: DurableContext,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        params = self.extract_bound_args(wrapped, args, kwargs)
+
+        signal_key = cast(str, params[0])
+        conditions = params[1:]
+
+        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
+
+        attributes: dict[OTelAttribute, str | int | None] = {
+            OTelAttribute.SIGNAL_KEY: signal_key,
+            OTelAttribute.NUM_CONDITIONS: len(conditions),
+            OTelAttribute.STEP_RUN_ID: instance.step_run_id,
+        }
+
+        with self._tracer.start_as_current_span(
+            "hatchet.durable.wait_for",
+            attributes={
+                f"hatchet.{k.value}": v
+                for k, v in attributes.items()
+                if v is not None and k not in self.config.otel.excluded_attributes
+            },
+            context=traceparent,
+            kind=SpanKind.INTERNAL,
+        ) as span:
+            try:
+                return await wrapped(*args, **kwargs)
+            except Exception as e:
+                span.set_status(StatusCode.ERROR, str(e))
+                raise
+
+    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
+    async def _wrap_spawn_children_no_wait(
+        self,
+        wrapped: Callable[..., Coroutine[None, None, list[DurableSpawnResult]]],
+        instance: DurableContext,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> list[DurableSpawnResult]:
+        params = self.extract_bound_args(wrapped, args, kwargs)
+
+        configs = cast(list[WorkflowRunTriggerConfig], params[0])
+
+        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
+
+        if len(configs) == 1:
+            config = configs[0]
+            span_name = "hatchet.run_workflow"
+            span_attributes = {
+                f"hatchet.{k.value}": v
+                for k, v in {
+                    OTelAttribute.WORKFLOW_NAME: config.workflow_name,
+                    OTelAttribute.ACTION_PAYLOAD: config.input,
+                    OTelAttribute.PARENT_ID: config.options.parent_id,
+                    OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
+                    OTelAttribute.CHILD_INDEX: config.options.child_index,
+                    OTelAttribute.CHILD_KEY: config.options.child_key,
+                    OTelAttribute.NAMESPACE: config.options.namespace,
+                    OTelAttribute.ADDITIONAL_METADATA: json.dumps(
+                        config.options.additional_metadata, default=str
+                    ),
+                    OTelAttribute.PRIORITY: config.options.priority,
+                    OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
+                    OTelAttribute.STICKY: config.options.sticky,
+                    OTelAttribute.KEY: config.options.key,
+                }.items()
+                if v
+                and k not in self.config.otel.excluded_attributes
+                and v != "{}"
+                and v != "[]"
+            }
+        else:
+            unique_workflow_names = {c.workflow_name for c in configs}
+            span_name = "hatchet.run_workflows"
+            span_attributes = {
+                "hatchet.num_workflows": len(configs),
+                "hatchet.unique_workflow_names": json.dumps(
+                    unique_workflow_names, default=str
+                ),
+            }
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=span_attributes,
+            context=traceparent,
+            kind=SpanKind.PRODUCER,
+        ) as span:
+            try:
+                return await wrapped(*args, **kwargs)
+            except Exception as e:
+                span.set_status(StatusCode.ERROR, str(e))
+                raise
+
+    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
+    async def _wrap_aio_memo(
+        self,
+        wrapped: Callable[..., Coroutine[None, None, Any]],
+        instance: DurableContext,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        params = self.extract_bound_args(wrapped, args, kwargs)
+
+        fn = params[0]
+        fn_name = getattr(fn, "__name__", str(fn))
+
+        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
+
+        attributes = {
+            OTelAttribute.MEMO_FN_NAME: fn_name,
+            OTelAttribute.STEP_RUN_ID: instance.step_run_id,
+        }
+
+        with self._tracer.start_as_current_span(
+            f"hatchet.durable.memo.{fn_name}",
+            attributes={
+                f"hatchet.{k.value}": v
+                for k, v in attributes.items()
+                if v is not None and k not in self.config.otel.excluded_attributes
+            },
+            context=traceparent,
+            kind=SpanKind.INTERNAL,
+        ) as span:
+            try:
+                return await wrapped(*args, **kwargs)
+            except Exception as e:
+                span.set_status(StatusCode.ERROR, str(e))
+                raise
+
     def _uninstrument(self, **kwargs: InstrumentKwargs) -> None:
         self.tracer_provider = NoOpTracerProvider()
         self.meter_provider = NoOpMeterProvider()
@@ -726,3 +891,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         unwrap(hatchet_sdk, "clients.admin.AdminClient.schedule_workflow")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.run_workflows")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.aio_run_workflows")
+        unwrap(hatchet_sdk, "context.context.DurableContext.aio_wait_for")
+        unwrap(hatchet_sdk, "context.context.DurableContext._spawn_children_no_wait")
+        unwrap(hatchet_sdk, "context.context.DurableContext.aio_memo")

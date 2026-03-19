@@ -13,7 +13,6 @@ on:
       - main
     paths:
       - "sdks/typescript/**"
-
 defaults:
   run:
     working-directory: ./sdks/typescript
@@ -23,7 +22,7 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
@@ -36,7 +35,7 @@ jobs:
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
@@ -56,7 +55,7 @@ jobs:
     runs-on: ubicloud-standard-4
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
@@ -69,7 +68,7 @@ jobs:
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
@@ -84,27 +83,27 @@ jobs:
 
   test-e2e:
     runs-on: ubicloud-standard-4
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Sync Submodule Branch
         shell: bash
         run: |
           ./branch-sync.sh
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: "25.1"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
@@ -121,7 +120,7 @@ jobs:
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
@@ -150,11 +149,15 @@ jobs:
           export SERVER_AUTH_COOKIE_DOMAIN=localhost
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+          export SERVER_LOGGER_LEVEL=info
+          export SERVER_LOGGER_FORMAT=console
+          export DATABASE_LOGGER_LEVEL=warn
+          export DATABASE_LOGGER_FORMAT=console
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
+          go run ./cmd/hatchet-engine --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/engine.log &
+          go run ./cmd/hatchet-api --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/api.log &
 
           sleep 30
       - name: E2E tests
@@ -164,8 +167,220 @@ jobs:
 
           cd sdks/typescript
           export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
+          export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
           export NODE_TLS_REJECT_UNAUTHORIZED=0
           pnpm test:e2e
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: sdk-typescript-engine-logs
+          path: engine.log
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: sdk-typescript-api-logs
+          path: api.log
+
+  old-engine-new-sdk:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
+
+      - name: Determine latest stable release tag
+        working-directory: .
+        run: |
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "ERROR: No stable release tag found"
+            exit 1
+          fi
+          echo "Latest stable tag: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Pull release images
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml pull hatchet-migrate hatchet-admin hatchet-engine hatchet-api
+
+      - name: Run migrations
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm hatchet-migrate
+
+      - name: Setup config and seed database
+        working-directory: .
+        run: |
+          mkdir -p generated
+          docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm \
+            hatchet-admin /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+
+      - name: Generate API token
+        working-directory: .
+        run: |
+          TOKEN=$(docker compose -f docker-compose.yml -f docker-compose.release.yml run -T --rm \
+            hatchet-admin /hatchet/hatchet-admin token create --config /hatchet/generated --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)
+          echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Start engine and API
+        working-directory: .
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.release.yml up -d hatchet-engine hatchet-api
+          sleep 30
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.16.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=old-engine-new-sdk-ts-${SHORT_SHA}" >> $GITHUB_ENV
+
+      - name: Run e2e tests
+        env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        run: |
+          echo "Testing current SDK against engine ${{ env.LATEST_TAG }}"
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          pnpm test:e2e
+
+      - name: Collect engine logs
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-engine > /tmp/engine.log 2>&1 || true
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
+          path: /tmp/engine.log
+
+      - name: Collect API logs
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-api > /tmp/api.log 2>&1 || true
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
+          path: /tmp/api.log
+
+      - name: Teardown
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml down
+
+  new-engine-old-sdk:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: "1.25"
+
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
+
+      - name: Run migrations
+        working-directory: .
+        run: |
+          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          go run ./cmd/hatchet-migrate
+
+      - name: Setup and start engine
+        working-directory: .
+        run: |
+          export SEED_DEVELOPMENT=true
+          export SERVER_PORT=8080
+          export SERVER_URL=http://localhost:8080
+          export SERVER_AUTH_COOKIE_DOMAIN=localhost
+          export SERVER_AUTH_COOKIE_INSECURE=true
+          export SERVER_DEFAULT_ENGINE_VERSION=V1
+          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+
+          go run ./cmd/hatchet-admin quickstart
+
+          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
+          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
+
+          sleep 30
+
+      - name: Generate API token
+        working-directory: .
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=${{ github.workspace }}/certs/ca.cert" >> $GITHUB_ENV
+
+      - name: Clone main SDK source
+        run: |
+          git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.16.1
+
+      - name: Install old SDK dependencies
+        working-directory: /tmp/old-sdk/sdks/typescript
+        run: pnpm install
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=new-engine-old-sdk-ts-${SHORT_SHA}" >> $GITHUB_ENV
+
+      - name: Run e2e tests against new engine
+        working-directory: /tmp/old-sdk/sdks/typescript
+        run: |
+          echo "Testing main SDK against current engine"
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          pnpm test:e2e
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
+          path: engine.log
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
+          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4
@@ -173,16 +388,16 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
       - name: Install pnpm
         run: npm install -g pnpm@10.16.1
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: "20.x"
+          node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
 
       - name: Get pnpm store directory
@@ -191,7 +406,7 @@ jobs:
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}

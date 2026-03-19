@@ -3,6 +3,8 @@ package msgqueue
 // Message ID constants for tenant messages
 const (
 	MsgIDCancelTasks                  = "cancel-tasks"
+	MsgIDDurableCallbackCompleted     = "durable-callback-completed"
+	MsgIDDurableRestoreTask           = "durable-restore-task"
 	MsgIDCELEvaluationFailure         = "cel-evaluation-failure"
 	MsgIDCheckTenantQueue             = "check-tenant-queue"
 	MsgIDNewWorker                    = "new-worker"
@@ -25,4 +27,7 @@ const (
 	MsgIDUserEvent                    = "user-event"
 	MsgIDWorkflowRunFinished          = "workflow-run-finished"
 	MsgIDWorkflowRunFinishedCandidate = "workflow-run-finished-candidate"
+	MsgIDCronCreate                   = "cron-create"
+	MsgIDCronUpdate                   = "cron-update"
+	MsgIDCronDelete                   = "cron-delete"
 )

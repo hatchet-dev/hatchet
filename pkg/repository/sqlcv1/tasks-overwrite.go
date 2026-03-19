@@ -11,45 +11,42 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
-    FROM
-        (
-            SELECT
-                unnest($1::uuid[]) AS tenant_id,
-                unnest($2::text[]) AS queue,
-                unnest($3::text[]) AS action_id,
-                unnest($4::uuid[]) AS step_id,
-                unnest($5::text[]) AS step_readable_id,
-                unnest($6::uuid[]) AS workflow_id,
-                unnest($7::text[]) AS schedule_timeout,
-                unnest($8::text[]) AS step_timeout,
-                unnest($9::integer[]) AS priority,
-                unnest(cast($10::text[] as v1_sticky_strategy[])) AS sticky,
-                unnest($11::uuid[]) AS desired_worker_id,
-                unnest($12::uuid[]) AS external_id,
-                unnest($13::text[]) AS display_name,
-                unnest($14::jsonb[]) AS input,
-                unnest($15::integer[]) AS retry_count,
-                unnest($16::jsonb[]) AS additional_metadata,
-				unnest(cast($17::text[] as v1_task_initial_state[])) AS initial_state,
-                -- NOTE: these are nullable, so sqlc doesn't support casting to a type
-                unnest($18::bigint[]) AS dag_id,
-                unnest($19::timestamptz[]) AS dag_inserted_at,
-				unnest_nd_1d($20::bigint[][]) AS concurrency_parent_strategy_ids,
-				unnest_nd_1d($21::bigint[][]) AS concurrency_strategy_ids,
-				unnest_nd_1d($22::text[][]) AS concurrency_keys,
-				unnest($23::text[]) AS initial_state_reason,
-				unnest($24::uuid[]) AS parent_task_external_id,
-				unnest($25::bigint[]) AS parent_task_id,
-				unnest($26::timestamptz[]) AS parent_task_inserted_at,
-				unnest($27::integer[]) AS child_index,
-				unnest($28::text[]) AS child_key,
-				unnest($29::bigint[]) AS step_index,
-				unnest($30::double precision[]) AS retry_backoff_factor,
-				unnest($31::integer[]) AS retry_max_backoff,
-				unnest($32::uuid[]) AS workflow_version_id,
-				unnest($33::uuid[]) AS workflow_run_id
-        ) AS subquery
+        unnest($1::uuid[]) AS tenant_id,
+        unnest($2::text[]) AS queue,
+        unnest($3::text[]) AS action_id,
+        unnest($4::uuid[]) AS step_id,
+        unnest($5::text[]) AS step_readable_id,
+        unnest($6::uuid[]) AS workflow_id,
+        unnest($7::text[]) AS schedule_timeout,
+        unnest($8::text[]) AS step_timeout,
+        unnest($9::integer[]) AS priority,
+        unnest(cast($10::text[] as v1_sticky_strategy[])) AS sticky,
+        unnest($11::uuid[]) AS desired_worker_id,
+        unnest($12::uuid[]) AS external_id,
+        unnest($13::text[]) AS display_name,
+        unnest($14::jsonb[]) AS input,
+        unnest($15::integer[]) AS retry_count,
+        unnest($16::jsonb[]) AS additional_metadata,
+        unnest(cast($17::text[] as v1_task_initial_state[])) AS initial_state,
+        -- NOTE: these are nullable, so sqlc doesn't support casting to a type
+        unnest($18::bigint[]) AS dag_id,
+        unnest($19::timestamptz[]) AS dag_inserted_at,
+        unnest_nd_1d($20::bigint[][]) AS concurrency_parent_strategy_ids,
+        unnest_nd_1d($21::bigint[][]) AS concurrency_strategy_ids,
+        unnest_nd_1d($22::text[][]) AS concurrency_keys,
+        unnest($23::text[]) AS initial_state_reason,
+        unnest($24::uuid[]) AS parent_task_external_id,
+        unnest($25::bigint[]) AS parent_task_id,
+        unnest($26::timestamptz[]) AS parent_task_inserted_at,
+        unnest($27::integer[]) AS child_index,
+        unnest($28::text[]) AS child_key,
+        unnest($29::bigint[]) AS step_index,
+        unnest($30::double precision[]) AS retry_backoff_factor,
+        unnest($31::integer[]) AS retry_max_backoff,
+        unnest($32::uuid[]) AS workflow_version_id,
+        unnest($33::uuid[]) AS workflow_run_id,
+        unnest($34::boolean[]) AS is_durable,
+		unnest($35::jsonb[]) AS desired_worker_label
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -84,7 +81,9 @@ INSERT INTO v1_task (
 	retry_backoff_factor,
 	retry_max_backoff,
 	workflow_version_id,
-	workflow_run_id
+	workflow_run_id,
+	is_durable,
+	desired_worker_label
 )
 SELECT
     i.tenant_id,
@@ -119,11 +118,13 @@ SELECT
 	i.retry_backoff_factor,
 	i.retry_max_backoff,
 	i.workflow_version_id,
-	i.workflow_run_id
+	i.workflow_run_id,
+	i.is_durable,
+	i.desired_worker_label
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label
 `
 
 type CreateTasksParams struct {
@@ -153,7 +154,7 @@ type CreateTasksParams struct {
 	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
 	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
-	ParentTaskExternalIds        []uuid.UUID          `json:"parentTaskExternalIds"`
+	ParentTaskExternalIds        []*uuid.UUID         `json:"parentTaskExternalIds"`
 	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
 	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
 	ChildIndex                   []pgtype.Int8        `json:"childIndex"`
@@ -163,6 +164,8 @@ type CreateTasksParams struct {
 	RetryMaxBackoff              []pgtype.Int4        `json:"retryMaxBackoff"`
 	WorkflowVersionIds           []uuid.UUID          `json:"workflowVersionIds"`
 	WorkflowRunIds               []uuid.UUID          `json:"workflowRunIds"`
+	IsDurables                   []bool               `json:"isDurables"`
+	DesiredWorkerLabels          [][]byte             `json:"desiredWorkerLabels"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -213,6 +216,8 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.RetryMaxBackoff,
 		arg.WorkflowVersionIds,
 		arg.WorkflowRunIds,
+		arg.IsDurables,
+		arg.DesiredWorkerLabels,
 	)
 	if err != nil {
 		return nil, err
@@ -259,6 +264,8 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.RetryMaxBackoff,
 			&i.WorkflowVersionID,
 			&i.WorkflowRunID,
+			&i.IsDurable,
+			&i.DesiredWorkerLabel,
 		); err != nil {
 			return nil, err
 		}
@@ -394,17 +401,12 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 const replayTasks = `-- name: ReplayTasks :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, input, initial_state, concurrency_keys, initial_state_reason
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-				unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::jsonb[]) AS input,
-                unnest(cast($4::text[] as v1_task_initial_state[])) AS initial_state,
-				unnest_nd_1d($5::text[][]) AS concurrency_keys,
-				unnest($6::text[]) AS initial_state_reason
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::jsonb[]) AS input,
+        unnest(cast($4::text[] as v1_task_initial_state[])) AS initial_state,
+        unnest_nd_1d($5::text[][]) AS concurrency_keys,
+        unnest($6::text[]) AS initial_state_reason
 )
 UPDATE
     v1_task
@@ -500,17 +502,12 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 const createTaskExpressionEvals = `-- name: CreateTaskExpressionEvals :exec
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, key, value_str, value_int, kind
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::text[]) AS key,
-                unnest($4::text[]) AS value_str,
-				unnest($5::integer[]) AS value_int,
-                unnest(cast($6::text[] as "StepExpressionKind"[])) AS kind
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::text[]) AS key,
+        unnest($4::text[]) AS value_str,
+        unnest($5::integer[]) AS value_int,
+        unnest(cast($6::text[] as "StepExpressionKind"[])) AS kind
 )
 INSERT INTO v1_task_expression_eval (
     key,
@@ -559,14 +556,9 @@ func (q *Queries) CreateTaskExpressionEvals(ctx context.Context, db DBTX, arg Cr
 const lockParentConcurrencySlots = `-- name: LockParentConcurrencySlots :batchexec
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
 ), concurrency_slots_to_delete AS (
     SELECT
         task_id, task_inserted_at, task_retry_count, parent_strategy_id, workflow_version_id, workflow_run_id
@@ -591,14 +583,9 @@ FOR UPDATE
 const releaseConcurrencySlots = `-- name: ReleaseConcurrencySlots :batchexec
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
 ), concurrency_slots_to_delete AS (
     SELECT
         task_id, task_inserted_at, task_retry_count
@@ -619,14 +606,9 @@ WHERE
 const releaseQueueItems = `-- name: ReleaseQueueItems :batchexec
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
 ), queue_items_to_delete AS (
     SELECT
         task_id, task_inserted_at, retry_count
@@ -647,14 +629,9 @@ WHERE
 const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
 ), rate_limited_items_to_delete AS (
     SELECT
         task_id, task_inserted_at, retry_count
@@ -675,14 +652,9 @@ WHERE
 const releaseRetryQueueItems = `-- name: ReleaseRetryQueueItems :batchexec
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
 ), retry_queue_items_to_delete AS (
     SELECT
         task_id, task_inserted_at, task_retry_count
@@ -708,14 +680,9 @@ WHERE
 const releaseTasks = `-- name: ReleaseTasks :batchmany
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
 ), runtimes_to_delete AS (
     SELECT
         task_id,
@@ -841,6 +808,109 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 		return nil, err
 	}
 
+	return items, nil
+}
+
+const restoreEvictedTasks = `-- name: RestoreEvictedTasks :many
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), evicted_runtimes AS (
+    SELECT
+        r.task_id,
+        r.task_inserted_at,
+        r.retry_count
+    FROM
+        v1_task_runtime r
+    JOIN
+        input i ON r.task_id = i.task_id
+            AND r.task_inserted_at = i.task_inserted_at
+            AND r.retry_count = i.retry_count
+    WHERE
+        r.tenant_id = $4::uuid
+        AND r.evicted_at IS NOT NULL
+    ORDER BY r.task_id, r.task_inserted_at, r.retry_count
+    FOR UPDATE
+), selected_tasks AS (
+    SELECT
+        t.*
+    FROM
+        v1_task t
+    JOIN
+        evicted_runtimes er ON t.id = er.task_id AND t.inserted_at = er.task_inserted_at
+), inserted_qi AS (
+    INSERT INTO v1_queue_item (
+        tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id,
+        workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority,
+        sticky, desired_worker_id, retry_count
+    )
+    SELECT
+        t.tenant_id, t.queue, t.id, t.inserted_at, t.external_id, t.action_id, t.step_id,
+        t.workflow_id, t.workflow_run_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
+        t.step_timeout, 4, t.sticky, t.desired_worker_id, t.retry_count
+    FROM
+        selected_tasks t
+    ON CONFLICT DO NOTHING
+    RETURNING task_id, task_inserted_at
+)
+SELECT
+    st.id AS task_id,
+    st.inserted_at AS task_inserted_at,
+    st.retry_count,
+    (iq.task_id IS NOT NULL) AS queued,
+    st.queue
+FROM
+    selected_tasks st
+LEFT JOIN
+    inserted_qi iq ON st.id = iq.task_id AND st.inserted_at = iq.task_inserted_at
+`
+
+type RestoreEvictedTasksParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+type RestoreEvictedTasksRow struct {
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	Queue          string             `json:"queue"`
+	TaskID         int64              `json:"task_id"`
+	RetryCount     int32              `json:"retry_count"`
+	Queued         bool               `json:"queued"`
+}
+
+func (q *Queries) RestoreEvictedTasks(ctx context.Context, db DBTX, arg RestoreEvictedTasksParams) ([]*RestoreEvictedTasksRow, error) {
+	rows, err := db.Query(ctx, restoreEvictedTasks,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RestoreEvictedTasksRow
+	for rows.Next() {
+		var i RestoreEvictedTasksRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.Queued,
+			&i.Queue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 

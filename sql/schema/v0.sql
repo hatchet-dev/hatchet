@@ -863,6 +863,7 @@ CREATE TABLE "Worker" (
     "os" TEXT,
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
+    "durableTaskDispatcherId" UUID,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -1018,7 +1019,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "name" TEXT,
     "id" UUID NOT NULL,
     "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT',
-    "priority" INTEGER NOT NULL DEFAULT 1
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT "WorkflowTriggerCronRef_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1535,6 +1537,9 @@ CREATE UNIQUE INDEX "WorkflowTriggerEventRef_parentId_eventKey_key" ON "Workflow
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerScheduledRef_id_key" ON "WorkflowTriggerScheduledRef" ("id" ASC);
+
+-- CreateIndex
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "ix_WorkflowTriggerScheduledRef_triggerAt_tickerId" ON "WorkflowTriggerScheduledRef" ("triggerAt", "tickerId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerScheduledRef_parentId_parentStepRunId_childK_key" ON "WorkflowTriggerScheduledRef" (

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"sync"
 	"time"
@@ -121,7 +122,7 @@ func (q *Queuer) queue(ctx context.Context) {
 func (q *Queuer) loopQueue(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 
-	q.l.Debug().Msgf("starting queue loop for tenant %s and queue %s with limit %d", q.tenantId, q.queueName, q.limit)
+	q.l.Debug().Ctx(ctx).Msgf("starting queue loop for tenant %s and queue %s with limit %d", q.tenantId, q.queueName, q.limit)
 
 	for {
 		var carrier map[string]string
@@ -133,7 +134,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case carrier = <-q.notifyQueueCh:
 		}
 
-		q.l.Debug().Msgf("queue loop tick for tenant %s and queue %s", q.tenantId, q.queueName)
+		q.l.Debug().Ctx(ctx).Msgf("queue loop tick for tenant %s and queue %s", q.tenantId, q.queueName)
 
 		prometheus.QueueInvocations.Inc()
 		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
@@ -153,7 +154,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
 
 			if err != nil {
-				q.l.Error().Err(err).Msg("error requeuing rate limited items")
+				q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
 			}
 		}
 
@@ -162,11 +163,11 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Err(err).Msg("error refilling queue")
+			q.l.Error().Ctx(ctx).Err(err).Msg("error refilling queue")
 			continue
 		}
 
-		q.l.Debug().Int("refilled_items", len(qis)).Msgf("refilled queue for tenant %s and queue %s", q.tenantId, q.queueName)
+		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msgf("refilled queue for tenant %s and queue %s", q.tenantId, q.queueName)
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
@@ -180,7 +181,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			q.l.Error().Err(err).Msg("error getting rate limits")
+			q.l.Error().Ctx(ctx).Err(err).Msg("error getting rate limits")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -194,9 +195,22 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint = time.Now()
 
 		stepIds := make([]uuid.UUID, 0, len(qis))
+		taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
 		for _, qi := range qis {
 			stepIds = append(stepIds, qi.StepID)
+
+			if len(qi.DesiredWorkerLabel) > 0 {
+				var desiredLabels []*sqlcv1.GetDesiredLabelsRow
+
+				err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
+
+				if err != nil {
+					q.l.Error().Ctx(ctx).Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
+				}
+
+				taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
+			}
 		}
 
 		labels, err := q.repo.GetDesiredLabels(ctx, nil, stepIds)
@@ -204,7 +218,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Err(err).Msg("error getting desired labels")
+			q.l.Error().Ctx(ctx).Err(err).Msg("error getting desired labels")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -218,7 +232,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Err(err).Msg("error getting step slot requests")
+			q.l.Error().Ctx(ctx).Err(err).Msg("error getting step slot requests")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -227,7 +241,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		getSlotRequestsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -253,7 +267,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
-					q.l.Warn().Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
+					q.l.Warn().Ctx(ctx).Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
 				}
 
 				if numFlushed > 0 {
@@ -300,7 +314,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		elapsed := time.Since(start)
 
 		if elapsed > 100*time.Millisecond {
-			q.l.Warn().Dur(
+			q.l.Warn().Ctx(ctx).Dur(
 				"refill_time", refillTime,
 			).Dur(
 				"rate_limit_time", rateLimitTime,
@@ -326,13 +340,13 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			}
 
 			if startingQiLength != processedQiLength {
-				q.l.Error().Int("starting", startingQiLength).Int("processed", processedQiLength).Msg("queue items processed mismatch")
+				q.l.Error().Ctx(ctx).Int("starting", startingQiLength).Int("processed", processedQiLength).Msg("queue items processed mismatch")
 			}
 
 			countMu.Unlock()
 
 			if sinceStart := time.Since(originalStart); sinceStart > 100*time.Millisecond {
-				q.l.Warn().Dur(
+				q.l.Warn().Ctx(ctx).Dur(
 					"duration", sinceStart,
 				).Msgf("queue %s took longer than 100ms to process and flush %d items", q.queueName, len(prevQis))
 			}
@@ -468,7 +482,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	begin := time.Now()
 
-	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
+	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
 	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
 		return 0
@@ -526,7 +540,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	succeeded, failed, err = q.repo.MarkQueueItemsProcessed(ctx, opts)
 
 	if err != nil {
-		q.l.Error().Err(err).Msg("error marking queue items processed")
+		q.l.Error().Ctx(ctx).Err(err).Msg("error marking queue items processed")
 
 		nackIds := make([]int, 0, len(r.assigned))
 
@@ -575,10 +589,10 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	chWriteDuration := time.Since(checkpoint)
 
-	q.l.Debug().Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
+	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	if time.Since(begin) > 100*time.Millisecond {
-		q.l.Warn().Dur(
+		q.l.Warn().Ctx(ctx).Dur(
 			"write_duration", writeDuration,
 		).Dur(
 			"nack_duration", nackDuration,
@@ -605,9 +619,22 @@ func (q *Queuer) runOptimisticQueue(
 	}
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
+	taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
 	for _, qi := range qis {
 		stepIds = append(stepIds, qi.StepID)
+
+		if len(qi.DesiredWorkerLabel) > 0 {
+			var desiredLabels []*sqlcv1.GetDesiredLabelsRow
+
+			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
+
+			if err != nil {
+				q.l.Error().Ctx(ctx).Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
+			}
+
+			taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
+		}
 	}
 
 	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
@@ -621,7 +648,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
@@ -652,7 +679,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	ctx, span := telemetry.NewSpan(ctx, "Queuer.flushToDatabaseOptimistic")
 	defer span.End()
 
-	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
+	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
 	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
 		return nil, nil, nil
@@ -710,7 +737,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	succeeded, failed, err = q.optimistic.MarkQueueItemsProcessed(ctx, tx, q.tenantId, opts)
 
 	if err != nil {
-		q.l.Error().Err(err).Msg("error marking queue items processed")
+		q.l.Error().Ctx(ctx).Err(err).Msg("error marking queue items processed")
 
 		nackIds := make([]int, 0, len(r.assigned))
 
@@ -762,10 +789,10 @@ func (q *Queuer) flushToDatabaseOptimistic(
 
 	chWriteDuration := time.Since(checkpoint)
 
-	q.l.Debug().Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
+	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	if time.Since(begin) > 100*time.Millisecond {
-		q.l.Warn().Dur(
+		q.l.Warn().Ctx(ctx).Dur(
 			"write_duration", writeDuration,
 		).Dur(
 			"nack_duration", nackDuration,

@@ -1,9 +1,10 @@
 import { ConfigLoader } from './config-loader';
 
-fdescribe('ConfigLoader', () => {
+describe('ConfigLoader', () => {
   beforeEach(() => {
     process.env.HATCHET_CLIENT_TOKEN =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef';
+    process.env.HATCHET_CLIENT_TLS_STRATEGY = 'tls';
     process.env.HATCHET_CLIENT_TLS_CERT_FILE = 'TLS_CERT_FILE';
     process.env.HATCHET_CLIENT_TLS_KEY_FILE = 'TLS_KEY_FILE';
     process.env.HATCHET_CLIENT_TLS_ROOT_CA_FILE = 'TLS_ROOT_CA_FILE';

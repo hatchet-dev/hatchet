@@ -12,6 +12,80 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getLogLinePointMetrics = `-- name: GetLogLinePointMetrics :many
+SELECT
+    DATE_BIN(
+        COALESCE($1::INTERVAL, '1 minute'),
+        created_at,
+        TIMESTAMPTZ '1970-01-01 00:00:00+00'
+    )::TIMESTAMPTZ AS minute_bucket,
+    COUNT(*) FILTER (WHERE level = 'DEBUG') AS debug_count,
+    COUNT(*) FILTER (WHERE level = 'INFO')  AS info_count,
+    COUNT(*) FILTER (WHERE level = 'WARN')  AS warn_count,
+    COUNT(*) FILTER (WHERE level = 'ERROR') AS error_count
+FROM v1_log_line
+WHERE
+    tenant_id = $2::UUID
+    AND created_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+    AND ($5::TEXT IS NULL OR message ILIKE CONCAT('%', $5::TEXT, '%'))
+    AND ($6::v1_log_line_level[] IS NULL OR level = ANY($6::v1_log_line_level[]))
+    AND ($7::BIGINT[] IS NULL OR task_id = ANY($7::BIGINT[]))
+GROUP BY minute_bucket
+ORDER BY minute_bucket
+`
+
+type GetLogLinePointMetricsParams struct {
+	Interval      pgtype.Interval    `json:"interval"`
+	Tenantid      uuid.UUID          `json:"tenantid"`
+	Createdafter  pgtype.Timestamptz `json:"createdafter"`
+	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
+	Search        pgtype.Text        `json:"search"`
+	Levels        []V1LogLineLevel   `json:"levels"`
+	TaskIds       []int64            `json:"taskIds"`
+}
+
+type GetLogLinePointMetricsRow struct {
+	MinuteBucket pgtype.Timestamptz `json:"minute_bucket"`
+	DebugCount   int64              `json:"debug_count"`
+	InfoCount    int64              `json:"info_count"`
+	WarnCount    int64              `json:"warn_count"`
+	ErrorCount   int64              `json:"error_count"`
+}
+
+func (q *Queries) GetLogLinePointMetrics(ctx context.Context, db DBTX, arg GetLogLinePointMetricsParams) ([]*GetLogLinePointMetricsRow, error) {
+	rows, err := db.Query(ctx, getLogLinePointMetrics,
+		arg.Interval,
+		arg.Tenantid,
+		arg.Createdafter,
+		arg.Createdbefore,
+		arg.Search,
+		arg.Levels,
+		arg.TaskIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetLogLinePointMetricsRow
+	for rows.Next() {
+		var i GetLogLinePointMetricsRow
+		if err := rows.Scan(
+			&i.MinuteBucket,
+			&i.DebugCount,
+			&i.InfoCount,
+			&i.WarnCount,
+			&i.ErrorCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type InsertLogLineParams struct {
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
@@ -29,24 +103,22 @@ FROM
     v1_log_line l
 WHERE
     l.tenant_id = $1::UUID
-    AND l.task_id = $2::BIGINT
-    AND l.task_inserted_at = $3::TIMESTAMPTZ
-    AND ($4::TEXT IS NULL OR l.message ILIKE CONCAT('%', $4::TEXT, '%'))
-    AND ($5::TIMESTAMPTZ IS NULL OR l.created_at > $5::TIMESTAMPTZ)
-    AND ($6::TIMESTAMPTZ IS NULL OR l.created_at < $6::TIMESTAMPTZ)
-    AND ($7::v1_log_line_level[] IS NULL OR l.level = ANY($7::v1_log_line_level[]))
-    AND ($8::INTEGER IS NULL OR l.retry_count = ($8::INTEGER - 1))
+    AND ($2::BIGINT[] IS NULL OR l.task_id = ANY($2::BIGINT[]))
+    AND ($3::TEXT IS NULL OR l.message ILIKE CONCAT('%', $3::TEXT, '%'))
+    AND ($4::TIMESTAMPTZ IS NULL OR l.created_at > $4::TIMESTAMPTZ)
+    AND ($5::TIMESTAMPTZ IS NULL OR l.created_at < $5::TIMESTAMPTZ)
+    AND ($6::v1_log_line_level[] IS NULL OR l.level = ANY($6::v1_log_line_level[]))
+    AND ($7::INTEGER IS NULL OR l.retry_count = ($7::INTEGER - 1))
 ORDER BY
-    CASE WHEN $9::TEXT = 'DESC' THEN l.created_at END DESC,
-    CASE WHEN $9::TEXT = 'ASC' THEN l.created_at END ASC
-LIMIT COALESCE($11::BIGINT, 1000)
-OFFSET COALESCE($10::BIGINT, 0)
+    CASE WHEN $8::TEXT = 'DESC' THEN l.created_at END DESC,
+    CASE WHEN $8::TEXT = 'ASC' THEN l.created_at END ASC
+LIMIT COALESCE($10::BIGINT, 1000)
+OFFSET COALESCE($9::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
 	Tenantid         uuid.UUID          `json:"tenantid"`
-	Taskid           int64              `json:"taskid"`
-	Taskinsertedat   pgtype.Timestamptz `json:"taskinsertedat"`
+	TaskIds          []int64            `json:"taskIds"`
 	Search           pgtype.Text        `json:"search"`
 	Since            pgtype.Timestamptz `json:"since"`
 	Until            pgtype.Timestamptz `json:"until"`
@@ -60,8 +132,7 @@ type ListLogLinesParams struct {
 func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesParams) ([]*V1LogLine, error) {
 	rows, err := db.Query(ctx, listLogLines,
 		arg.Tenantid,
-		arg.Taskid,
-		arg.Taskinsertedat,
+		arg.TaskIds,
 		arg.Search,
 		arg.Since,
 		arg.Until,

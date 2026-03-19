@@ -185,9 +185,9 @@ type ConfigFileRuntime struct {
 	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
 	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
 
-	// GRPCWorkerStreamMaxBacklogSize is the maximum number of messages that can be queued for a worker before we start rejecting new
-	// messages. Default is 20.
-	GRPCWorkerStreamMaxBacklogSize int `mapstructure:"grpcWorkerStreamMaxBacklogSize" json:"grpcWorkerStreamMaxBacklogSize,omitempty" default:"20"`
+	// GRPCWorkerMaxLockAcquisitionTime is the maximum amount of time the dispatcher will wait while attempting
+	// to send a messages to a worker. If it waits longer, the request will be rejected. Default is 250ms
+	GRPCMaxWorkerLockAcquisitionTime time.Duration `mapstructure:"grpcWorkerMaxLockAcquisitionTime" json:"grpcWorkerMaxLockAcquisitionTime,omitempty" default:"250ms"`
 
 	// GRPCStaticStreamWindowSize sets the static stream window size for the grpc server. This can help with performance
 	// with overloaded workers and large messages. Default is 10MB.
@@ -298,6 +298,10 @@ type ConfigFileRuntime struct {
 
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
+
+	// StreamEventBufferTimeout is the timeout duration for the stream event buffer in the dispatcher.
+	// This controls how long the buffer waits for out-of-order events before flushing them.
+	StreamEventBufferTimeout time.Duration `mapstructure:"streamEventBufferTimeout" json:"streamEventBufferTimeout,omitempty" default:"5s"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -343,7 +347,10 @@ type SentryConfigFile struct {
 }
 
 type AnalyticsConfigFile struct {
-	Posthog PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+	Posthog                PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+	AggregateEnabled       bool              `mapstructure:"aggregateEnabled" json:"aggregateEnabled,omitempty" default:"false"`
+	AggregateFlushInterval string            `mapstructure:"aggregateFlushInterval" json:"aggregateFlushInterval,omitempty" default:"60m"`
+	AggregateMaxKeys       int               `mapstructure:"aggregateMaxKeys" json:"aggregateMaxKeys,omitempty" default:"500"`
 }
 
 type PosthogConfigFile struct {
@@ -533,9 +540,11 @@ type SMTPEmailConfigAuthBasic struct {
 }
 type CustomAuthenticator interface {
 	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
-	Authenticate(c echo.Context) error
+	Authenticate(c echo.Context, r *middleware.RouteInfo) error
+
 	// Authorize is called to authorize for endpoints that support the customAuth security scheme
 	Authorize(c echo.Context, r *middleware.RouteInfo) error
+
 	// CookieAuthorizerHook is called as part of cookie authorization
 	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
 }
@@ -552,6 +561,11 @@ type AuthConfig struct {
 	JWTManager token.JWTManager
 
 	CustomAuthenticator CustomAuthenticator
+
+	// Operations listed here bypass the tenant RBAC check. Use this for
+	// extension operations (e.g. cloud) that handle their own authorization
+	// in handlers. OSS operations in rbac.yaml are still fully checked.
+	AllowedOperations []string
 }
 
 type PylonConfig struct {
@@ -670,7 +684,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
-	_ = v.BindEnv("runtime.grpcWorkerStreamMaxBacklogSize", "SERVER_GRPC_WORKER_STREAM_MAX_BACKLOG_SIZE")
+	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTime", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME")
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
@@ -746,6 +760,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
 	_ = v.BindEnv("analytics.posthog.feApiHost", "SERVER_ANALYTICS_POSTHOG_FE_API_HOST")
 	_ = v.BindEnv("analytics.posthog.feApiKey", "SERVER_ANALYTICS_POSTHOG_FE_API_KEY")
+	_ = v.BindEnv("analytics.aggregateEnabled", "SERVER_ANALYTICS_AGGREGATE_ENABLED")
+	_ = v.BindEnv("analytics.aggregateFlushInterval", "SERVER_ANALYTICS_AGGREGATE_FLUSH_INTERVAL")
+	_ = v.BindEnv("analytics.aggregateMaxKeys", "SERVER_ANALYTICS_AGGREGATE_MAX_KEYS")
 
 	// pylon options
 	_ = v.BindEnv("pylon.enabled", "SERVER_PYLON_ENABLED")
@@ -905,6 +922,7 @@ func BindAllEnv(v *viper.Viper) {
 
 	// dispatcher options
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
+	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")

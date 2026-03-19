@@ -1,9 +1,12 @@
-import { ConcurrencyLimitStrategy } from '@hatchet/protoc/v1/workflows';
-import { CreateStep } from '@hatchet/step';
+import { ConcurrencyLimitStrategy, RateLimitDuration } from '@hatchet/protoc/v1/workflows';
 import { Conditions } from './conditions';
 import { Duration } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
 import { Context, DurableContext } from './client/worker/context';
+import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
+import { WorkerLabelComparator } from '../protoc/v1/shared/trigger';
+
+export { ConcurrencyLimitStrategy, WorkerLabelComparator };
 
 /**
  * Options for configuring the concurrency for a task.
@@ -86,7 +89,7 @@ export type CreateBaseTaskOpts<
   /**
    * @deprecated use executionTimeout instead
    */
-  timeout?: CreateStep<I, O>['timeout'];
+  timeout?: Duration;
 
   /**
    * (optional) execution timeout duration for the task after it starts running
@@ -109,19 +112,29 @@ export type CreateBaseTaskOpts<
    *
    * default: 0
    */
-  retries?: CreateStep<I, O>['retries'];
+  retries?: number;
 
   /**
    * (optional) backoff strategy configuration for retries.
    * - factor: Base of the exponential backoff (base ^ retry count)
    * - maxSeconds: Maximum backoff duration in seconds
    */
-  backoff?: CreateStep<I, O>['backoff'];
+  backoff?: {
+    factor?: number | undefined;
+    maxSeconds?: number | undefined;
+  };
 
   /**
    * (optional) rate limits for the task.
    */
-  rateLimits?: CreateStep<I, O>['rate_limits'];
+  rateLimits?: {
+    units: string | number;
+    key?: string;
+    staticKey?: string;
+    dynamicKey?: string;
+    limit?: string | number;
+    duration?: RateLimitDuration;
+  }[];
 
   /**
    * (optional) worker labels for task routing and scheduling.
@@ -131,7 +144,15 @@ export type CreateBaseTaskOpts<
    * - weight: Priority weight for worker selection
    * - comparator: Custom comparison logic for label matching
    */
-  desiredWorkerLabels?: CreateStep<I, O>['worker_labels'];
+  desiredWorkerLabels?: Record<
+    string,
+    {
+      value: string | number;
+      required?: boolean;
+      weight?: number;
+      comparator?: WorkerLabelComparator;
+    }
+  >;
 
   /**
    * (optional) the concurrency options for the task
@@ -218,7 +239,13 @@ export type CreateWorkflowDurableTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
-> = CreateWorkflowTaskOpts<I, O, C>;
+> = CreateWorkflowTaskOpts<I, O, C> & {
+  /**
+   * Eviction policy for the durable task. Controls TTL-based eviction and capacity-based eviction.
+   * Defaults to the built-in eviction policy when omitted or `undefined`.
+   */
+  evictionPolicy?: EvictionPolicy;
+};
 
 /**
  * Options for configuring the onSuccess task that is invoked when a task succeeds.

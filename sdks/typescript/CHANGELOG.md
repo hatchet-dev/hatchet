@@ -5,6 +5,77 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.2] - 2026-03-17
+
+### Added
+
+- Added `getTaskStats` and `scrapePrometheusMetrics` methods to the metrics client.
+
+## [1.17.1] - 2026-03-17
+
+### Changed
+
+- Updates the `DurableTaskRunAckEntryResult` interface to include `workflowRunExternalId` field, to enable spawning children from durable tasks fire-and-forget style.
+
+## [1.17.0] - 2026-03-16
+
+### Added
+
+- Added a `DurableContext.waitForEvent` helper which returns the payload of the awaited event.
+- Added an `EvictionPolicy`, which allows durable tasks to be evicted from the worker when idle.
+
+### Changed
+
+- Makes a bunch of internal-facing changes for new durable execution features
+
+## [1.16.0] - 2026-03-11
+
+### Added
+
+- Added logs client for retrieving task run logs.
+
+## [1.15.2] - 2026-03-06
+
+### Fixed
+
+- `waitFor` and task conditions (e.g. user event keys) are correctly namespaced when using a non-default namespace.
+- Cron expressions now support an optional leading seconds field (6-part expressions), e.g. `30 * * * * *` to trigger at 30 seconds past every minute.
+
+## [1.15.1] - 2026-03-04
+
+### Fixed
+
+- Fix npm publish so the package includes compiled JavaScript at the correct paths.
+
+## [1.15.0] - 2026-03-03
+
+### Added
+
+- Adds a `desiredWorkerLabels` option to `RunOpts` to allow dynamically routing task runs to a specific worker at trigger time
+
+## [1.14.0] - 2026-02-28
+
+### Deprecated
+
+- v0 SDK is now deprecated. Migrate to the v1 API for ongoing support.
+
+### Added
+
+- Internal legacy transformer for backwards compatibility with existing v0 workflows and workers.
+
+## [1.13.1] - 2026-02-27
+
+### Changed
+
+- Updated internal dependencies to address security advisories.
+
+## [1.13.0] - 2026-02-23
+
+### Added
+
+- Introduced client middleware support with composable `before`/`after` hooks to customize request handling and response processing.
+- Added middleware examples and recipes to demonstrate practical client-side patterns.
+
 ## [1.12.1] - 2026-02-18
 
 ### Fixed
@@ -17,13 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Webhooks client for managing incoming webhooks: create, list, get, update, and delete methods for webhooks, so external systems (e.g. GitHub, Stripe) can trigger workflows via HTTP.
 
-
 ## [1.11.0] - 2026-02-05
 
 ### Internal Only
 
 - Updated gRPC/REST contract field names to lowerCamelCase for consistency across SDKs.
-
 
 ## [1.11.0] - 2026-02-04
 

@@ -72,6 +72,17 @@ func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskS
 	return resp.JSON200, nil
 }
 
+// GetDetails retrieves detailed information about a workflow run via gRPC,
+// including task-level output, errors, and status.
+func (r *RunsClient) GetDetails(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error) {
+	resp, err := r.v0Client.Admin().GetRunDetails(ctx, runId)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow run details")
+	}
+
+	return resp, nil
+}
+
 // List retrieves a collection of workflow runs based on the provided parameters.
 func (r *RunsClient) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1TaskSummaryList, error) {
 	resp, err := r.api.V1WorkflowRunListWithResponse(
@@ -145,10 +156,10 @@ func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string
 	go func() {
 		defer func() {
 			close(ch)
-			r.l.Info().Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
+			r.l.Info().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
 		}()
 
-		r.l.Info().Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
+		r.l.Info().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
 
 		err := r.v0Client.Subscribe().Stream(ctx, workflowRunId, func(event client.StreamEvent) error {
 			select {
@@ -159,7 +170,7 @@ func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string
 			return nil
 		})
 		if err != nil {
-			r.l.Error().Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
+			r.l.Error().Ctx(ctx).Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
 		}
 	}()
 

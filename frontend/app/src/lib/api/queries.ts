@@ -6,7 +6,7 @@ import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
-type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
+type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
@@ -20,6 +20,9 @@ type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
 type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
 export type V1LogLineListQuery = Parameters<typeof api.v1LogLineList>[1];
+export type V1TenantLogLineListQuery = Parameters<
+  typeof api.v1TenantLogLineList
+>[1];
 type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v1TaskGetPointMetrics
 >[1];
@@ -31,6 +34,10 @@ export const queries = createQueryKeyStore({
     billing: (tenant: string) => ({
       queryKey: ['billing-state:get', tenant],
       queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+    }),
+    creditBalance: (tenant: string) => ({
+      queryKey: ['credit-balance:get', tenant],
+      queryFn: async () => (await cloudApi.tenantCreditBalanceGet(tenant)).data,
     }),
 
     paymentMethods: (tenant: string) => ({
@@ -130,10 +137,6 @@ export const queries = createQueryKeyStore({
     current: {
       queryKey: ['user:get'],
       queryFn: async () => (await api.userGetCurrent()).data,
-    },
-    listTenantMemberships: {
-      queryKey: ['tenant-memberships:list'],
-      queryFn: async () => (await api.tenantMembershipsList()).data,
     },
     listInvites: {
       queryKey: ['user:list:tenant-invites'],
@@ -383,7 +386,7 @@ export const queries = createQueryKeyStore({
     }),
     getLogs: (stepRun: string, query: ListLogLineQuery) => ({
       queryKey: ['log-lines:list', stepRun],
-      queryFn: async () => (await api.logLineList(stepRun, query)).data,
+      queryFn: async () => (await api.v1LogLineList(stepRun, query)).data,
     }),
     getSchema: (tenant: string, stepRun: string) => ({
       queryKey: ['step-run:get:schema', stepRun],

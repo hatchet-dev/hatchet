@@ -13,60 +13,68 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// runPollCronSchedules acquires a list of cron schedules from the database and schedules any which are not
+// refreshCronSchedules acquires a list of cron schedules from the database and schedules any which are not
 // already scheduled. This job runs in "singleton" mode, meaning that only one instance of this job will run at
 // a time.
-func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
+func (t *TickerImpl) refreshCronSchedules(ctx context.Context) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
+		// prevent multiple refreshes from running simultaneously
+		if t.userCronRefreshLock.TryLock() {
+			defer t.userCronRefreshLock.Unlock()
 
-		t.l.Debug().Msgf("ticker: polling cron schedules")
+			t.l.Debug().Ctx(ctx).Msgf("ticker: polling cron schedules")
 
-		crons, err := t.repov1.Ticker().PollCronSchedules(ctx, t.tickerId)
+			crons, err := t.repov1.Ticker().PollCronSchedules(ctx, t.tickerId)
 
-		if err != nil {
-			t.l.Err(err).Msg("could not poll cron schedules")
-			return
-		}
-
-		// guard access to the userCronScheduler and userCronSchedulesToIds
-		t.userCronSchedulerLock.Lock()
-		defer t.userCronSchedulerLock.Unlock()
-
-		newCronKeys := make(map[string]bool)
-
-		for _, cron := range crons {
-			cronKey := getCronKey(cron)
-
-			newCronKeys[cronKey] = true
-
-			t.l.Debug().Msgf("ticker: handling cron %s", cronKey)
-
-			// if the cron is already scheduled, skip
-			if _, ok := t.userCronSchedulesToIds[cronKey]; ok {
-				continue
+			if err != nil {
+				t.l.Err(err).Ctx(ctx).Msg("could not poll cron schedules")
+				return
 			}
 
-			// if the cron is not scheduled, schedule it
-			if err := t.handleScheduleCron(ctx, cron); err != nil {
-				t.l.Err(err).Msg("could not schedule cron")
-			}
-		}
+			// guard access to the userCronScheduler and userCronSchedulesToIds
+			t.userCronSchedulerLock.Lock()
+			defer t.userCronSchedulerLock.Unlock()
 
-		// cancel any crons that are no longer assigned to this ticker
-		for key := range t.userCronSchedulesToIds {
-			if _, ok := newCronKeys[key]; !ok {
-				if err := t.handleCancelCron(ctx, key); err != nil {
-					t.l.Err(err).Msg("could not cancel cron")
+			newCronKeys := make(map[string]bool)
+
+			for _, cron := range crons {
+				cronKey := getCronKey(cron)
+
+				newCronKeys[cronKey] = true
+
+				t.l.Debug().Ctx(ctx).Msgf("ticker: handling cron %s", cronKey)
+
+				// if the cron is already scheduled, skip
+				if _, ok := t.userCronSchedulesToIds[cronKey]; ok {
+					continue
+				}
+
+				// if the cron is not scheduled, schedule it
+				if err := t.handleScheduleCron(ctx, cron); err != nil {
+					t.l.Err(err).Ctx(ctx).Msg("could not schedule cron")
 				}
 			}
+
+			// cancel any crons that are no longer assigned to this ticker
+			for key := range t.userCronSchedulesToIds {
+				if _, ok := newCronKeys[key]; !ok {
+					if err := t.handleCancelCron(ctx, key); err != nil {
+						t.l.Err(err).Ctx(ctx).Msg("could not cancel cron")
+					}
+				}
+			}
+
+		} else {
+			t.l.Debug().Ctx(ctx).Msgf("ticker: skipping cron refresh")
 		}
+
 	}
 }
 
 func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCronSchedulesRow) error {
-	t.l.Debug().Msg("ticker: scheduling cron")
+	t.l.Debug().Ctx(ctx).Msg("ticker: scheduling cron")
 
 	tenantId := cron.TenantId
 	workflowVersionId := cron.WorkflowVersionId
@@ -84,7 +92,8 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 
 	// schedule the cron
 	_, err := t.userCronScheduler.NewJob(
-		gocron.CronJob(cron.Cron, false),
+		// the gocron library accepts either 5 or 6 term crontabs when withSeconds is true
+		gocron.CronJob(cron.Cron, true),
 		gocron.NewTask(
 			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata, &cron.Priority),
 		),
@@ -96,7 +105,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 			deleteCronErr := t.repov1.WorkflowSchedules().DeleteInvalidCron(ctx, cron.ID)
 
 			if deleteCronErr != nil {
-				t.l.Error().Err(deleteCronErr).Msg("could not delete invalid cron from database")
+				t.l.Error().Ctx(ctx).Err(deleteCronErr).Msg("could not delete invalid cron from database")
 			}
 		}
 
@@ -115,25 +124,25 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
+		t.l.Debug().Ctx(ctx).Msgf("ticker: running workflow %s", workflowVersionId)
 
 		workflowVersion, err := t.repov1.Workflows().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 		if err != nil {
-			t.l.Error().Err(err).Msg("could not get workflow version")
+			t.l.Error().Ctx(ctx).Err(err).Msg("could not get workflow version")
 			return
 		}
 
 		err = t.runCronWorkflowV1(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata, priority)
 
 		if err != nil {
-			t.l.Error().Err(err).Msg("could not run cron workflow")
+			t.l.Error().Ctx(ctx).Err(err).Msg("could not run cron workflow")
 		}
 	}
 }
 
 func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
-	t.l.Debug().Msg("ticker: canceling cron")
+	t.l.Debug().Ctx(ctx).Msg("ticker: canceling cron")
 
 	cronUUID, ok := t.userCronSchedulesToIds[key]
 

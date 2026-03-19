@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager, contextmanager
 from typing import Annotated, AsyncGenerator, Generator
+import sys
 
 from pydantic import BaseModel
 
@@ -13,6 +14,46 @@ SYNC_CM_DEPENDENCY_VALUE = "sync_cm_dependency_value"
 ASYNC_CM_DEPENDENCY_VALUE = "async_cm_dependency_value"
 CHAINED_CM_VALUE = "chained_cm_value"
 CHAINED_ASYNC_CM_VALUE = "chained_async_cm_value"
+
+if sys.version_info >= (3, 12):
+    from examples.dependency_injection.dependency_annotations312 import (
+        AsyncDepNoTypeAlias,
+        AsyncDepTypeAlias,
+        SyncDepNoTypeAlias,
+        AsyncDepTypeSyntax,
+        SyncDepTypeAlias,
+        SyncDepTypeSyntax,
+    )
+else:
+    from examples.dependency_injection.dependency_annotations310 import (
+        AsyncDepNoTypeAlias,
+        AsyncDepTypeAlias,
+        SyncDepNoTypeAlias,
+        AsyncDepTypeSyntax,
+        SyncDepTypeAlias,
+        SyncDepTypeSyntax,
+    )
+
+
+@hatchet.task()
+async def task_with_type_aliases(
+    _i: EmptyModel,
+    ctx: Context,
+    async_dep_no_type_alias: AsyncDepNoTypeAlias,
+    async_dep_type_alias: AsyncDepTypeAlias,
+    async_dep_type_syntax: AsyncDepTypeSyntax,
+    sync_dep_no_type_alias: SyncDepNoTypeAlias,
+    sync_dep_type_alias: SyncDepTypeAlias,
+    sync_dep_type_syntax: SyncDepTypeSyntax,
+) -> dict[str, bool]:
+    return {
+        "async_dep_no_type_alias": async_dep_no_type_alias,
+        "async_dep_type_alias": async_dep_type_alias,
+        "async_dep_type_syntax": async_dep_type_syntax,
+        "sync_dep_no_type_alias": sync_dep_no_type_alias,
+        "sync_dep_type_alias": sync_dep_type_alias,
+        "sync_dep_type_syntax": sync_dep_type_syntax,
+    }
 
 
 # > Declare dependencies
@@ -153,27 +194,6 @@ async def durable_async_task_with_dependencies(
     )
 
 
-@hatchet.durable_task()
-def durable_sync_task_with_dependencies(
-    _i: EmptyModel,
-    ctx: DurableContext,
-    async_dep: Annotated[str, Depends(async_dep)],
-    sync_dep: Annotated[str, Depends(sync_dep)],
-    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
-    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
-    chained_dep: Annotated[str, Depends(chained_dep)],
-    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
-) -> Output:
-    return Output(
-        sync_dep=sync_dep,
-        async_dep=async_dep,
-        async_cm_dep=async_cm_dep,
-        sync_cm_dep=sync_cm_dep,
-        chained_dep=chained_dep,
-        chained_async_dep=chained_async_dep,
-    )
-
-
 di_workflow = hatchet.workflow(
     name="dependency-injection-workflow",
 )
@@ -242,27 +262,6 @@ async def wf_durable_async_task_with_dependencies(
     )
 
 
-@di_workflow.durable_task()
-def wf_durable_sync_task_with_dependencies(
-    _i: EmptyModel,
-    ctx: DurableContext,
-    async_dep: Annotated[str, Depends(async_dep)],
-    sync_dep: Annotated[str, Depends(sync_dep)],
-    async_cm_dep: Annotated[str, Depends(async_cm_dep)],
-    sync_cm_dep: Annotated[str, Depends(sync_cm_dep)],
-    chained_dep: Annotated[str, Depends(chained_dep)],
-    chained_async_dep: Annotated[str, Depends(chained_async_dep)],
-) -> Output:
-    return Output(
-        sync_dep=sync_dep,
-        async_dep=async_dep,
-        async_cm_dep=async_cm_dep,
-        sync_cm_dep=sync_cm_dep,
-        chained_dep=chained_dep,
-        chained_async_dep=chained_async_dep,
-    )
-
-
 def main() -> None:
     worker = hatchet.worker(
         "dependency-injection-worker",
@@ -270,8 +269,8 @@ def main() -> None:
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_sync_task_with_dependencies,
             di_workflow,
+            task_with_type_aliases,
         ],
     )
     worker.start()

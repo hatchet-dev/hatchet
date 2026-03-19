@@ -60,7 +60,7 @@ export function DateTimePicker({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="z-[80] w-auto p-0">
+      <PopoverContent className="w-auto p-0">
         <Calendar
           mode="single"
           selected={date}

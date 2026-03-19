@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -17,8 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal/task"
-
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 // WrappedTaskFn represents a task function that can be executed by the Hatchet worker.
@@ -514,7 +512,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 		Input:      inputMap,
 	}
 
-	runOpts := &admincontracts.TriggerWorkflowRequest{}
+	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
 		opt(runOpts)
@@ -554,7 +552,7 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 		Input:     inputMap,
 	}
 
-	runOpts := &admincontracts.TriggerWorkflowRequest{}
+	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
 		opt(runOpts)
@@ -655,7 +653,13 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 				// Call the original function using reflection
 				fnValue := reflect.ValueOf(originalFn)
-				inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
+				inputVal := reflect.ValueOf(input)
+				if !inputVal.IsValid() {
+					// input is a nil interface (e.g. I = any with null input),
+					// use a zero value of the function's expected parameter type
+					inputVal = reflect.Zero(fnValue.Type().In(1))
+				}
+				inputs := []reflect.Value{reflect.ValueOf(ctx), inputVal}
 				results := fnValue.Call(inputs)
 
 				// Handle errors
@@ -689,7 +693,11 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 				// Call the original function using reflection
 				fnValue := reflect.ValueOf(originalFn)
-				inputs := []reflect.Value{reflect.ValueOf(durableCtx), reflect.ValueOf(input)}
+				inputVal := reflect.ValueOf(input)
+				if !inputVal.IsValid() {
+					inputVal = reflect.Zero(fnValue.Type().In(1))
+				}
+				inputs := []reflect.Value{reflect.ValueOf(durableCtx), inputVal}
 				results := fnValue.Call(inputs)
 
 				// Handle errors

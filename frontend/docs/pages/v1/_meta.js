@@ -1,0 +1,123 @@
+export default {
+  "--get-started": {
+    title: "Get Started",
+    type: "separator",
+  },
+  index: "🪓 What is Hatchet?",
+  quickstart: "Quickstart",
+  "using-coding-agents": "Using Coding Agents",
+  "--core-concepts": {
+    title: "Core Concepts",
+    type: "separator",
+  },
+  tasks: "Tasks",
+  workers: "Workers",
+  "running-your-task": "Running Tasks",
+  "durable-workflows-overview": "Intro to Durable Workflows",
+  "--triggers": {
+    title: "Triggers",
+    type: "separator",
+  },
+  "scheduled-runs": "Scheduled Runs",
+  "cron-runs": "Cron Runs",
+  "bulk-run": "Bulk Runs",
+  webhooks: "Webhooks",
+  "external-events": {
+    title: "Event Triggers",
+    theme: { collapsed: true },
+  },
+  "inter-service-triggering": "Inter-Service Triggering",
+  "--reliability": {
+    title: "Reliability",
+    type: "separator",
+  },
+  "retry-policies": "Retry Policies",
+  timeouts: "Timeouts",
+  cancellation: "Cancellation",
+  "bulk-retries-and-cancellations": "Bulk Retries & Cancellations",
+  "--flow-control": {
+    title: "Flow Control",
+    type: "separator",
+  },
+  concurrency: "Concurrency",
+  "rate-limits": "Rate Limits",
+  priority: "Priority",
+  "--durable-workflows-section": {
+    title: "Durable Workflows",
+    type: "separator",
+  },
+  patterns: {
+    title: "Patterns",
+    theme: { collapsed: true },
+  },
+  "child-spawning": "Child Spawning",
+  sleep: "Sleep & Delays",
+  events: "Wait For Events",
+  conditions: "Conditions & Branching",
+  "on-failure": "Error Handling",
+  "task-eviction": "Resource Management",
+  "--workers-section": {
+    title: "Workers",
+    type: "separator",
+  },
+  docker: "Running with Docker",
+  "autoscaling-workers": "Autoscaling Workers",
+  "advanced-assignment": {
+    title: "Advanced Assignment",
+    theme: { collapsed: true },
+  },
+  "--observability": {
+    title: "Observability",
+    type: "separator",
+  },
+  logging: "Logging",
+  opentelemetry: "OpenTelemetry",
+  "worker-healthchecks": "Worker Health Checks",
+  "prometheus-metrics": "Prometheus Metrics",
+  "additional-metadata": "Additional Metadata",
+  "--operations": {
+    title: "Operations",
+    type: "separator",
+  },
+  middleware: "Middleware",
+  streaming: "Streaming",
+  environments: "Environments",
+  troubleshooting: {
+    title: "Troubleshooting",
+    theme: { collapsed: true },
+  },
+  "--evaluate": {
+    title: "Evaluating Hatchet?",
+    type: "separator",
+  },
+  "architecture-and-guarantees": "Architecture & Guarantees",
+  "cloud-vs-oss": "Cloud vs OSS",
+  security: "Security",
+  "region-availability": "Region Availability",
+  uptime: "Uptime",
+  "developer-experience": "Developer Experience",
+  _setup: {
+    display: "hidden",
+  },
+  compute: {
+    title: "Managed Compute",
+    type: "page",
+    display: "hidden",
+  },
+  migrating: {
+    title: "V0 to V1 Upgrade Guide",
+    display: "hidden",
+  },
+  "advanced-tasks": {
+    display: "hidden",
+  },
+  "error-handling": {
+    display: "hidden",
+  },
+  "flow-control": {
+    display: "hidden",
+  },
+  observability: {
+    display: "hidden",
+  },
+};

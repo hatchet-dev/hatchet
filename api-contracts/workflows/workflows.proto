@@ -3,12 +3,13 @@ syntax = "proto3";
 option go_package = "github.com/hatchet-dev/hatchet/internal/services/admin/contracts";
 
 import "google/protobuf/timestamp.proto";
+import "v1/shared/trigger.proto";
 
 // WorkflowService represents a set of RPCs for managing workflows.
 service WorkflowService {
     rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
     rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
-    rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
+    rpc TriggerWorkflow(v1.TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
     rpc BulkTriggerWorkflow(BulkTriggerWorkflowRequest) returns (BulkTriggerWorkflowResponse);
     rpc PutRateLimit(PutRateLimitRequest) returns (PutRateLimitResponse);
 }
@@ -70,41 +71,6 @@ message CreateWorkflowJobOpts {
     repeated CreateWorkflowStepOpts steps = 4; // (required) the job tasks
 }
 
-enum WorkerLabelComparator {
-    EQUAL = 0;
-    NOT_EQUAL = 1;
-    GREATER_THAN = 2;
-    GREATER_THAN_OR_EQUAL = 3;
-    LESS_THAN = 4;
-    LESS_THAN_OR_EQUAL = 5;
-}
-
-message DesiredWorkerLabels {
-    // value of the affinity
-    optional string str_value = 1;
-    optional int32 int_value = 2;
-
-    /**
-    * (optional) Specifies whether the affinity setting is required.
-    * If required, the worker will not accept actions that do not have a truthy affinity setting.
-    *
-    * Defaults to false.
-    */
-    optional bool required = 3;
-
-    /**
-    * (optional) Specifies the comparator for the affinity setting.
-    * If not set, the default is EQUAL.
-    */
-    optional WorkerLabelComparator comparator = 4;
-
-    /**
-    * (optional) Specifies the weight of the affinity setting.
-    * If not set, the default is 100.
-    */
-    optional int32 weight = 5;
-}
-
 // CreateWorkflowStepOpts represents options to create a workflow task.
 message CreateWorkflowStepOpts {
     string readable_id = 1; // (required) the task name
@@ -115,7 +81,7 @@ message CreateWorkflowStepOpts {
     string user_data = 6; // (optional) the custom task user data, assuming string representation of JSON
     int32 retries = 7; // (optional) the number of retries for the task, default 0
     repeated CreateStepRateLimit rate_limits = 8; // (optional) the rate limits for the task
-    map<string, DesiredWorkerLabels> worker_labels = 9; // (optional) the desired worker affinity state for the task
+    map<string, v1.DesiredWorkerLabels> worker_labels = 9; // (optional) the desired worker affinity state for the task
     optional float backoff_factor = 10; // (optional) the retry backoff factor for the task
     optional int32 backoff_max_seconds = 11; // (optional) the maximum backoff time for the task
 }
@@ -192,44 +158,11 @@ message WorkflowTriggerCronRef {
 }
 
 message BulkTriggerWorkflowRequest {
-    repeated TriggerWorkflowRequest workflows = 1;
+    repeated v1.TriggerWorkflowRequest workflows = 1;
 }
 
 message BulkTriggerWorkflowResponse {
     repeated string workflow_run_ids = 1;
-}
-
-message TriggerWorkflowRequest {
-    string name = 1;
-
-    // (optional) the input data for the workflow
-    string input = 2;
-
-    // (optional) the parent workflow run id
-    optional string parent_id = 3;
-
-    // (optional) the parent task external run id
-    optional string parent_task_run_external_id = 4;
-
-    // (optional) the index of the child workflow. if this is set, matches on the index or the
-    // child key will return an existing workflow run if the parent id, parent task run id, and
-    // child index/key match an existing workflow run.
-    optional int32 child_index = 5;
-
-    // (optional) the key for the child. if this is set, matches on the index or the
-    // child key will return an existing workflow run if the parent id, parent task run id, and
-    // child index/key match an existing workflow run.
-    optional string child_key = 6;
-
-    // (optional) additional metadata for the workflow
-    optional string additional_metadata = 7;
-
-    // (optional) desired worker id for the workflow run,
-    // requires the workflow definition to have a sticky strategy
-    optional string desired_worker_id = 8;
-
-    // (optional) override for the priority of the workflow tasks, will set all tasks to this priority
-    optional int32 priority = 9;
 }
 
 message TriggerWorkflowResponse {

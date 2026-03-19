@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -20,7 +21,7 @@ import (
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.UserUpdateGithubOauthCallbackRequestObject) (gen.UserUpdateGithubOauthCallbackResponseObject, error) {
-	isValid, _, err := authn.NewSessionHelpers(u.config).ValidateOAuthState(ctx, "github")
+	isValid, _, err := authn.NewSessionHelpers(u.config.SessionStore).ValidateOAuthState(ctx, "github")
 
 	if err != nil || !isValid {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Could not log in. Please try again and make sure cookies are enabled.")
@@ -54,11 +55,20 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
-	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
+	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, user)
 
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
+
+	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, user.ID)
+	analyticsCtx = context.WithValue(analyticsCtx, analytics.SourceKey, analytics.SourceUI)
+	u.config.Analytics.Enqueue(
+		analyticsCtx,
+		analytics.User, analytics.Login,
+		user.ID.String(),
+		map[string]interface{}{"provider": "github"},
+	)
 
 	return gen.UserUpdateGithubOauthCallback302Response{
 		Headers: gen.UserUpdateGithubOauthCallback302ResponseHeaders{

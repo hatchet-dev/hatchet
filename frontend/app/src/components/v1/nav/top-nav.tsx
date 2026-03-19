@@ -36,6 +36,7 @@ import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -57,7 +58,7 @@ import { RiInformationFill, RiBatteryLowLine } from 'react-icons/ri';
 
 function AccountDropdown({ user }: { user?: User }) {
   const navigate = useNavigate();
-
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const { handleApiError } = useApiError({});
 
   const { toggleTheme, theme } = useTheme();
@@ -71,6 +72,7 @@ function AccountDropdown({ user }: { user?: User }) {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
+      invalidateUserUniverse();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
     onError: handleApiError,
@@ -97,7 +99,7 @@ function AccountDropdown({ user }: { user?: User }) {
             </span>
           </div>
           <ChevronDown className="size-4 shrink-0 opacity-60" />
-          {(pendingInvitesQuery.data ?? 0) > 0 && (
+          {(pendingInvitesQuery.data?.inviteCount ?? 0) > 0 && (
             <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-background bg-blue-500"></div>
           )}
         </Button>
@@ -114,7 +116,7 @@ function AccountDropdown({ user }: { user?: User }) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {(pendingInvitesQuery.data ?? 0) > 0 && (
+        {(pendingInvitesQuery.data?.inviteCount ?? 0) > 0 && (
           <>
             <DropdownMenuItem
               variant="interactive"
@@ -123,7 +125,7 @@ function AccountDropdown({ user }: { user?: User }) {
               }
             >
               <BiEnvelope className="mr-2 size-4" />
-              Invites ({pendingInvitesQuery.data})
+              Invites ({pendingInvitesQuery.data?.inviteCount ?? 0})
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

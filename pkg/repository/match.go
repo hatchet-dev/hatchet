@@ -43,7 +43,13 @@ type ExternalCreateSignalMatchOpts struct {
 
 	SignalExternalId uuid.UUID `validate:"required"`
 
+	SignalTaskExternalId uuid.UUID `validate:"required"`
+
 	SignalKey string `validate:"required"`
+
+	// Optional durable event log entry fields for durable WAIT_FOR
+	DurableEventLogEntryNodeId   *int64
+	DurableEventLogEntryBranchId *int64
 }
 
 type CreateExternalSignalConditionKind string
@@ -106,9 +112,15 @@ type CreateMatchOpts struct {
 
 	SignalTaskInsertedAt pgtype.Timestamptz
 
+	SignalTaskExternalId *uuid.UUID
+
 	SignalExternalId *uuid.UUID
 
 	SignalKey *string
+
+	// Optional durable event log fields for durable WAIT_FOR
+	DurableEventLogEntryNodeId   *int64
+	DurableEventLogEntryBranchId *int64
 }
 
 type EventMatchResults struct {
@@ -117,6 +129,9 @@ type EventMatchResults struct {
 
 	// The list of tasks which were replayed from the matches
 	ReplayedTasks []*V1TaskWithPayload
+
+	// The list of satisfied durable event log entries from matches
+	SatisfiedDurableEventLogEntries []SatisfiedEntry
 }
 
 type GroupMatchCondition struct {
@@ -140,6 +155,16 @@ type GroupMatchCondition struct {
 	Data []byte
 }
 
+type SatisfiedEntry struct {
+	DurableTaskInsertedAt pgtype.Timestamptz
+	Data                  []byte
+	DurableTaskId         int64
+	NodeId                int64
+	BranchId              int64
+	InvocationCount       int32
+	DurableTaskExternalId uuid.UUID
+}
+
 type MatchRepository interface {
 	RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, eventMatches []ExternalCreateSignalMatchOpts) error
 
@@ -157,20 +182,7 @@ func newMatchRepository(s *sharedRepository) MatchRepository {
 	}
 }
 
-func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
-	// TODO: ADD BACK VALIDATION
-	// if err := m.v.Validate(signalMatches); err != nil {
-	// 	return err
-	// }
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
+func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
 	eventMatches := make([]CreateMatchOpts, 0, len(signalMatches))
 
 	for _, signalMatch := range signalMatches {
@@ -183,7 +195,7 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 					return fmt.Errorf("sleep condition requires a duration")
 				}
 
-				c, err := m.durableSleepCondition(
+				c, err := r.durableSleepCondition(
 					ctx,
 					tx,
 					tenantId,
@@ -203,7 +215,7 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 					return fmt.Errorf("user event condition requires a user event key")
 				}
 
-				conditions = append(conditions, m.userEventCondition(
+				conditions = append(conditions, r.userEventCondition(
 					condition.OrGroupId,
 					condition.ReadableDataKey,
 					*condition.UserEventKey,
@@ -218,22 +230,40 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 		signalKey := signalMatch.SignalKey
 
 		eventMatches = append(eventMatches, CreateMatchOpts{
-			Kind:                 sqlcv1.V1MatchKindSIGNAL,
-			Conditions:           conditions,
-			SignalTaskId:         &taskId,
-			SignalTaskInsertedAt: signalMatch.SignalTaskInsertedAt,
-			SignalExternalId:     &externalId,
-			SignalKey:            &signalKey,
+			Kind:                         sqlcv1.V1MatchKindSIGNAL,
+			Conditions:                   conditions,
+			SignalTaskId:                 &taskId,
+			SignalTaskInsertedAt:         signalMatch.SignalTaskInsertedAt,
+			SignalTaskExternalId:         &signalMatch.SignalTaskExternalId,
+			SignalExternalId:             &externalId,
+			SignalKey:                    &signalKey,
+			DurableEventLogEntryNodeId:   signalMatch.DurableEventLogEntryNodeId,
+			DurableEventLogEntryBranchId: signalMatch.DurableEventLogEntryBranchId,
 		})
 	}
 
-	err = m.createEventMatches(ctx, tx, tenantId, eventMatches)
+	return r.createEventMatches(ctx, tx, tenantId, eventMatches)
+}
+
+func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
+	// TODO: ADD BACK VALIDATION
+	// if err := m.v.Validate(signalMatches); err != nil {
+	// 	return err
+	// }
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
 
 	if err != nil {
 		return err
 	}
 
-	if err := commit(ctx); err != nil {
+	defer rollback()
+
+	if err = m.registerSignalMatchConditions(ctx, tx, tenantId, signalMatches); err != nil {
+		return err
+	}
+
+	if err = commit(ctx); err != nil {
 		return err
 	}
 
@@ -327,6 +357,13 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	return res, nil
 }
 
+type DurableTaskNodeIdKey struct {
+	DurableTaskInsertedAt time.Time
+	DurableTaskId         int64
+	NodeId                int64
+	BranchId              int64
+}
+
 func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
 	start := time.Now()
 
@@ -416,7 +453,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			event, ok := idsToEvents[eventId]
 
 			if !ok {
-				m.l.Error().Msgf("event with id %s not found", eventId)
+				m.l.Error().Ctx(ctx).Msgf("event with id %s not found", eventId)
 				continue
 			}
 
@@ -653,6 +690,109 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	res.CreatedTasks = tasks
 
+	durableTaskIds := make([]int64, 0)
+	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+	durableTaskNodeIds := make([]int64, 0)
+	durableTaskBranchIds := make([]int64, 0)
+	payloadsToStore := make([]StorePayloadOpts, 0)
+	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
+
+	for _, match := range satisfiedMatches {
+		durableTaskExternalId := match.SignalTaskExternalID
+		durableTaskId := match.SignalTaskID
+		durableTaskInsertedAt := match.SignalTaskInsertedAt
+		nodeId := match.DurableEventLogEntryNodeID
+		branchId := match.DurableEventLogEntryBranchID
+
+		if nodeId.Valid && durableTaskExternalId != nil {
+
+			key := DurableTaskNodeIdKey{
+				DurableTaskId:         durableTaskId.Int64,
+				DurableTaskInsertedAt: durableTaskInsertedAt.Time,
+				NodeId:                nodeId.Int64,
+				BranchId:              branchId.Int64,
+			}
+
+			cb := SatisfiedEntry{
+				DurableTaskExternalId: *durableTaskExternalId,
+				DurableTaskId:         durableTaskId.Int64,
+				DurableTaskInsertedAt: durableTaskInsertedAt,
+				NodeId:                nodeId.Int64,
+				BranchId:              branchId.Int64,
+				Data:                  match.McAggregatedData,
+			}
+
+			idInsertedAtNodeIdToSatisfiedEntry[key] = cb
+
+			durableTaskIds = append(durableTaskIds, durableTaskId.Int64)
+			durableTaskInsertedAts = append(durableTaskInsertedAts, durableTaskInsertedAt)
+			durableTaskNodeIds = append(durableTaskNodeIds, nodeId.Int64)
+			durableTaskBranchIds = append(durableTaskBranchIds, branchId.Int64)
+		}
+	}
+
+	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
+		Nodeids:                durableTaskNodeIds,
+		Branchids:              durableTaskBranchIds,
+		Durabletaskids:         durableTaskIds,
+		Durabletaskinsertedats: durableTaskInsertedAts,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list satisfied entries: %w", err)
+	}
+
+	satisfiedEntries := make([]SatisfiedEntry, 0)
+
+	for _, cb := range entries {
+		key := DurableTaskNodeIdKey{
+			DurableTaskId:         cb.DurableTaskID,
+			DurableTaskInsertedAt: cb.DurableTaskInsertedAt.Time,
+			NodeId:                cb.NodeID,
+			BranchId:              cb.BranchID,
+		}
+
+		initialEntry, ok := idInsertedAtNodeIdToSatisfiedEntry[key]
+
+		if !ok {
+			m.l.Error().Msgf("no initial entry found for satisfied entry with node id %d, durable task id %d and durable task inserted at %s", cb.NodeID, cb.DurableTaskID, cb.DurableTaskInsertedAt.Time)
+			continue
+		}
+
+		if cb.Kind == sqlcv1.V1DurableEventLogKindRUN {
+			if extracted, extractErr := ExtractOutputFromMatchData(initialEntry.Data); extractErr != nil {
+				m.l.Error().Err(extractErr).Msgf("failed to extract output from RUN_COMPLETED match data for entry %d", cb.NodeID)
+			} else {
+				initialEntry.Data = extracted
+			}
+		}
+
+		initialEntry.InvocationCount = cb.InvocationCount
+
+		if len(initialEntry.Data) > 0 {
+			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
+				Id:         cb.ID,
+				InsertedAt: cb.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+				Payload:    initialEntry.Data,
+				ExternalId: cb.ExternalID,
+				TenantId:   tenantId,
+			})
+		}
+
+		satisfiedEntries = append(satisfiedEntries, initialEntry)
+	}
+
+	if len(payloadsToStore) > 0 {
+		err = m.payloadStore.Store(ctx, tx, payloadsToStore...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store entry result payloads for satisfied entry: %w", err)
+		}
+	}
+
+	res.SatisfiedDurableEventLogEntries = satisfiedEntries
+
 	if len(signalIds) > 0 {
 		// create a SIGNAL_COMPLETED event for any signal
 		taskIds := make([]TaskIdInsertedAtRetryCount, 0, len(satisfiedMatches))
@@ -697,7 +837,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	end := time.Now()
 
 	if end.Sub(start) > 100*time.Millisecond {
-		m.l.Warn().Msgf("processing internal event matches took %s", end.Sub(start))
+		m.l.Warn().Ctx(ctx).Msgf("processing internal event matches took %s", end.Sub(start))
 	}
 
 	return res, nil
@@ -731,14 +871,14 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		ast, issues := m.env.Compile(expr)
 
 		if issues != nil {
-			m.l.Error().Msgf("failed to compile CEL expression: %s", issues.String())
+			m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
 			continue
 		}
 
 		program, err := m.env.Program(ast)
 
 		if err != nil {
-			m.l.Error().Err(err).Msgf("failed to create CEL program: %s", expr)
+			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
 			continue
 		}
 
@@ -762,7 +902,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				err := json.Unmarshal(event.Data, &outputEventData)
 
 				if err != nil {
-					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
+					m.l.Warn().Ctx(ctx).Err(err).Msgf("[0] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 					continue
 				}
 
@@ -770,14 +910,14 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 					err = json.Unmarshal(outputEventData.Output, &outputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield for task %d", outputEventData.TaskId)
+						m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal output event data, output subfield for task %d", outputEventData.TaskId)
 						continue
 					}
 				} else {
 					err = json.Unmarshal(event.Data, &inputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
+						m.l.Warn().Ctx(ctx).Err(err).Msgf("[1] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 						continue
 					}
 				}
@@ -785,7 +925,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				err := json.Unmarshal(event.Data, &inputData)
 
 				if err != nil {
-					m.l.Warn().Err(err).Msgf("failed to unmarshal user event data %s", string(event.Data))
+					m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal user event data %s", string(event.Data))
 					continue
 				}
 			}
@@ -816,7 +956,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				// satisfied and write an error to it. If the relevant conditions have errors, the task
 				// should be created in a failed state.
 				// How should we handle signals?
-				m.l.Warn().Err(err).Msgf("failed to eval CEL program")
+				m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to eval CEL program")
 			}
 
 			if b, ok := out.Value().(bool); ok && b {
@@ -867,7 +1007,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerStepIds := make([]uuid.UUID, len(dagMatches))
 		triggerStepIndices := make([]int64, len(dagMatches))
 		triggerExternalIds := make([]uuid.UUID, len(dagMatches))
-		triggerWorkflowRunIds := make([]uuid.UUID, len(dagMatches))
+		triggerWorkflowRunIds := make([]*uuid.UUID, len(dagMatches))
 		triggerExistingTaskIds := make([]pgtype.Int8, len(dagMatches))
 		triggerExistingTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
 		triggerParentExternalIds := make([]*uuid.UUID, len(dagMatches))
@@ -899,11 +1039,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				triggerExistingTaskIds[i] = pgtype.Int8{}
 			}
 
-			if match.TriggerWorkflowRunId != nil {
-				triggerWorkflowRunIds[i] = *match.TriggerWorkflowRunId
-			} else {
-				triggerWorkflowRunIds[i] = uuid.UUID{}
-			}
+			triggerWorkflowRunIds[i] = match.TriggerWorkflowRunId
 
 			triggerExistingTaskInsertedAts[i] = match.TriggerExistingTaskInsertedAt
 		}
@@ -977,13 +1113,21 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		signalTaskIds := make([]int64, len(signalMatches))
 		signalTaskInsertedAts := make([]pgtype.Timestamptz, len(signalMatches))
 		signalKeys := make([]string, len(signalMatches))
+		durableLogEntryNodeIds := make([]*int64, len(signalMatches))
+		durableLogEntryBranchIds := make([]*int64, len(signalMatches))
+		signalTaskExternalIds := make([]*uuid.UUID, len(signalMatches))
 
 		for i, match := range signalMatches {
 			signalTenantIds[i] = tenantId
 			signalKinds[i] = string(match.Kind)
 			signalTaskIds[i] = *match.SignalTaskId
 			signalTaskInsertedAts[i] = match.SignalTaskInsertedAt
+
+			signalTaskExternalIds[i] = match.SignalTaskExternalId
 			signalKeys[i] = *match.SignalKey
+
+			durableLogEntryNodeIds[i] = match.DurableEventLogEntryNodeId
+			durableLogEntryBranchIds[i] = match.DurableEventLogEntryBranchId
 		}
 
 		// Create matches in the database
@@ -991,11 +1135,14 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForSignalTriggersParams{
-				Tenantids:             signalTenantIds,
-				Kinds:                 signalKinds,
-				Signaltaskids:         signalTaskIds,
-				Signaltaskinsertedats: signalTaskInsertedAts,
-				Signalkeys:            signalKeys,
+				Tenantids:                     signalTenantIds,
+				Kinds:                         signalKinds,
+				Signaltaskids:                 signalTaskIds,
+				Signaltaskinsertedats:         signalTaskInsertedAts,
+				Signaltaskexternalids:         signalTaskExternalIds,
+				Signalkeys:                    signalKeys,
+				Durableeventlogentrynodeids:   durableLogEntryNodeIds,
+				Durableeventlogentrybranchids: durableLogEntryBranchIds,
 			},
 		)
 

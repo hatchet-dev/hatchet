@@ -323,24 +323,16 @@ WITH locked_workflow_concurrency_slots AS (
     ORDER BY strategy_id, workflow_version_id, workflow_run_id
     FOR UPDATE
 ), eligible_running_slots AS (
-    SELECT wsc.*
+    SELECT *
     FROM (
-        SELECT DISTINCT key
+        SELECT *,
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id DESC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = @tenantId::uuid
             AND strategy_id = @strategyId::bigint
-    ) distinct_keys
-    JOIN LATERAL (
-        SELECT *
-        FROM locked_workflow_concurrency_slots wcs_all
-        WHERE
-            wcs_all.key = distinct_keys.key
-            AND wcs_all.tenant_id = @tenantId::uuid
-            AND wcs_all.strategy_id = @strategyId::bigint
-        ORDER BY wcs_all.sort_id DESC
-        LIMIT @maxRuns::int
-    ) wsc ON true
+    ) ranked
+    WHERE rn <= @maxRuns::int
 ), slots_to_run AS (
     SELECT
         *
@@ -482,6 +474,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
@@ -563,24 +557,16 @@ WITH locked_workflow_concurrency_slots AS (
     ORDER BY strategy_id, workflow_version_id, workflow_run_id
     FOR UPDATE
 ), eligible_running_slots AS (
-    SELECT wsc.*
+    SELECT *
     FROM (
-        SELECT DISTINCT key
+        SELECT *,
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = @tenantId::uuid
             AND strategy_id = @strategyId::bigint
-    ) distinct_keys
-    JOIN LATERAL (
-        SELECT *
-        FROM locked_workflow_concurrency_slots wcs_all
-        WHERE
-            wcs_all.key = distinct_keys.key
-            AND wcs_all.tenant_id = @tenantId::uuid
-            AND wcs_all.strategy_id = @strategyId::bigint
-        ORDER BY wcs_all.sort_id ASC
-        LIMIT @maxRuns::int
-    ) wsc ON true
+    ) ranked
+    WHERE rn <= @maxRuns::int
 ), slots_to_run AS (
     SELECT
         *
@@ -722,6 +708,8 @@ WITH slots AS (
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING

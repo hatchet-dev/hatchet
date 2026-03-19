@@ -79,7 +79,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		}
 
 		if outerErr != nil {
-			d.l.Error().Err(outerErr).Msg("failed to handle task assigned bulk message")
+			d.l.Error().Ctx(ctx).Err(outerErr).Msg("failed to handle task assigned bulk message")
 		}
 	}()
 
@@ -119,12 +119,41 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 	}
 
 	// we already have payloads; no lookups necessary. we can just send them to the worker
-	taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
+	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 	taskIds := make([]int64, 0, len(tasks))
 
+	getDurableInvocationCountOpts := make([]v1.IdInsertedAt, 0)
+
 	for _, assigned := range tasks {
-		taskIdToData[assigned.Task.ID] = assigned.Task
+		taskIdToData[assigned.Task.ID] = &V1TaskWithPayloadAndInvocationCount{
+			V1TaskWithPayload: assigned.Task,
+		}
 		taskIds = append(taskIds, assigned.Task.ID)
+
+		if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
+			getDurableInvocationCountOpts = append(getDurableInvocationCountOpts, v1.IdInsertedAt{
+				ID:         assigned.Task.ID,
+				InsertedAt: assigned.Task.InsertedAt,
+			})
+		}
+	}
+
+	if len(getDurableInvocationCountOpts) > 0 {
+		invocationCounts, err := d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, getDurableInvocationCountOpts)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(getDurableInvocationCountOpts))
+		} else {
+			for _, assigned := range tasks {
+				if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
+					count := invocationCounts[v1.IdInsertedAt{
+						ID:         assigned.Task.ID,
+						InsertedAt: assigned.Task.InsertedAt,
+					}]
+					taskIdToData[assigned.Task.ID].InvocationCount = count
+				}
+			}
+		}
 	}
 
 	// this is one of the core differences from handleTaskBulkAssignedTask: we run this synchronously
@@ -139,12 +168,17 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 	return err
 }
 
+type V1TaskWithPayloadAndInvocationCount struct {
+	*v1.V1TaskWithPayload
+	InvocationCount *int32 // only used for durable tasks
+}
+
 func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
 	taskIds []int64,
-) (map[int64]*v1.V1TaskWithPayload, error) {
+) (map[int64]*V1TaskWithPayloadAndInvocationCount, error) {
 	bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, tenantId, taskIds)
 
 	if err != nil {
@@ -152,8 +186,34 @@ func (d *DispatcherImpl) populateTaskData(
 			requeue(task)
 		}
 
-		d.l.Error().Err(err).Msgf("could not bulk list step run data:")
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
 		return nil, err
+	}
+
+	getInvocationCountOpts := make([]v1.IdInsertedAt, 0)
+
+	for _, task := range bulkDatas {
+		if task.IsDurable.Valid && task.IsDurable.Bool {
+			getInvocationCountOpts = append(getInvocationCountOpts, v1.IdInsertedAt{
+				ID:         task.ID,
+				InsertedAt: task.InsertedAt,
+			})
+		}
+	}
+
+	invocationCounts := make(map[v1.IdInsertedAt]*int32)
+
+	if len(getInvocationCountOpts) > 0 {
+		invocationCounts, err = d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, getInvocationCountOpts)
+
+		if err != nil {
+			for _, task := range bulkDatas {
+				requeue(task)
+			}
+
+			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(getInvocationCountOpts))
+			return nil, err
+		}
 	}
 
 	parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, tenantId, bulkDatas)
@@ -163,7 +223,7 @@ func (d *DispatcherImpl) populateTaskData(
 			requeue(task)
 		}
 
-		d.l.Error().Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
 		return nil, err
 	}
 
@@ -189,7 +249,7 @@ func (d *DispatcherImpl) populateTaskData(
 			requeue(task)
 		}
 
-		d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
 		return nil, err
 	}
 
@@ -219,7 +279,7 @@ func (d *DispatcherImpl) populateTaskData(
 				err := json.Unmarshal(input, currInput)
 
 				if err != nil {
-					d.l.Warn().Err(err).Msg("failed to unmarshal input")
+					d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
 					continue
 				}
 			}
@@ -233,7 +293,7 @@ func (d *DispatcherImpl) populateTaskData(
 					err := json.Unmarshal(outputEvent.Output, &outputMap)
 
 					if err != nil {
-						d.l.Warn().Err(err).Msg("failed to unmarshal output")
+						d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
 						continue
 					}
 				}
@@ -252,7 +312,7 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 	}
 
-	taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
+	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
@@ -268,9 +328,17 @@ func (d *DispatcherImpl) populateTaskData(
 			input = task.Input
 		}
 
-		taskIdToData[task.ID] = &v1.V1TaskWithPayload{
-			V1Task:  task,
-			Payload: input,
+		invocationCount := invocationCounts[v1.IdInsertedAt{
+			ID:         task.ID,
+			InsertedAt: task.InsertedAt,
+		}]
+
+		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
+			&v1.V1TaskWithPayload{
+				V1Task:  task,
+				Payload: input,
+			},
+			invocationCount,
 		}
 	}
 
@@ -282,7 +350,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	requeue func(task *sqlcv1.V1Task),
 	tenantId, workerId uuid.UUID,
 	taskIds []int64,
-	tasks map[int64]*v1.V1TaskWithPayload,
+	tasks map[int64]*V1TaskWithPayloadAndInvocationCount,
 ) error {
 	// get the worker for this task
 	workers, err := d.workers.Get(workerId)
@@ -297,7 +365,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 		task, ok := tasks[taskId]
 
 		if !ok {
-			d.l.Error().Msgf("task %d not found in task data map", taskId)
+			d.l.Error().Ctx(ctx).Msgf("task %d not found in task data map", taskId)
 			continue
 		}
 
@@ -312,7 +380,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			var success bool
 
 			for i, w := range workers {
-				err := w.StartTaskFromBulk(ctx, tenantId, task)
+				err := w.StartTaskFromBulk(ctx, tenantId, task.V1TaskWithPayload, task.InvocationCount)
 
 				if err != nil {
 					multiErr = multierror.Append(
@@ -326,24 +394,30 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			}
 
 			if success {
+				var durableInvCount int32
+				if task.InvocationCount != nil {
+					durableInvCount = *task.InvocationCount
+				}
+
 				msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
 					task.TenantID,
 					tasktypesv1.CreateMonitoringEventPayload{
-						TaskId:         task.ID,
-						RetryCount:     task.RetryCount,
-						WorkerId:       &workerId,
-						EventType:      sqlcv1.V1EventTypeOlapSENTTOWORKER,
-						EventTimestamp: time.Now().UTC(),
-						EventMessage:   "Sent task run to the assigned worker",
+						TaskId:                 task.ID,
+						RetryCount:             task.RetryCount,
+						DurableInvocationCount: durableInvCount,
+						WorkerId:               &workerId,
+						EventType:              sqlcv1.V1EventTypeOlapSENTTOWORKER,
+						EventTimestamp:         time.Now().UTC(),
+						EventMessage:           "Sent task run to the assigned worker",
 					},
 				)
 
 				if err != nil {
-					d.l.Error().Err(err).Int64("task_id", task.ID).Msg("could not create monitoring event")
+					d.l.Error().Ctx(ctx).Err(err).Int64("task_id", task.ID).Msg("could not create monitoring event")
 				} else {
 					defer func() {
 						if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-							d.l.Error().Err(err).Msg("could not publish monitoring event")
+							d.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event")
 						}
 					}()
 				}
@@ -455,12 +529,12 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 		task, ok := taskIdsToTasks[msg.TaskId]
 
 		if !ok {
-			d.l.Warn().Msgf("task %d not found", msg.TaskId)
+			d.l.Warn().Ctx(ctx).Msgf("task %d not found", msg.TaskId)
 			continue
 		}
 
 		if !ok {
-			d.l.Warn().Msgf("task %d not found in retry counts", msg.TaskId)
+			d.l.Warn().Ctx(ctx).Msgf("task %d not found in retry counts", msg.TaskId)
 			continue
 		}
 
@@ -477,7 +551,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 			return fmt.Errorf("could not get worker: %w", err)
 		} else if errors.Is(err, ErrWorkerNotFound) {
 			// if the worker is not found, we can ignore this task
-			d.l.Debug().Msgf("worker %s not found, ignoring task", workerId)
+			d.l.Debug().Ctx(ctx).Msgf("worker %s not found, ignoring task", workerId)
 			continue
 		}
 
@@ -486,7 +560,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 				retryCounts, ok := taskIdsToRetryCounts[task.ID]
 
 				if !ok {
-					d.l.Warn().Msgf("task %d not found in retry counts", task.ID)
+					d.l.Warn().Ctx(ctx).Msgf("task %d not found in retry counts", task.ID)
 					continue
 				}
 

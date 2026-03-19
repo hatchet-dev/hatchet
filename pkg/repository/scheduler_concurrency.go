@@ -136,7 +136,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
-
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
 
 	if err != nil {
@@ -298,7 +297,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	}
 
 	if !acquired {
-		c.l.Warn().Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+		c.l.Warn().Ctx(ctx).Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
 
 		return &RunConcurrencyResult{
 			Queued:                    []TaskWithQueue{},
@@ -315,7 +314,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 		acquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if !acquired {
-			c.l.Warn().Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+			c.l.Warn().Ctx(ctx).Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
 
 			return &RunConcurrencyResult{
 				Queued:                    []TaskWithQueue{},
@@ -524,7 +523,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 
 	if !acquired {
 		// Log lock contention issue
-		c.l.Warn().Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+		c.l.Warn().Ctx(ctx).Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
 		// Lock not available, return empty result to avoid blocking
 		return &RunConcurrencyResult{
 			Queued:                    []TaskWithQueue{},
@@ -547,7 +546,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 
 		if !parentAcquired {
 			// Log the event when the parent advisory lock is not acquired
-			c.l.Warn().Msgf("Parent advisory lock not acquired (strategy ID: %d, parent: %d)", strategy.ID, strategy.ParentStrategyID.Int64)
+			c.l.Warn().Ctx(ctx).Msgf("Parent advisory lock not acquired (strategy ID: %d, parent: %d)", strategy.ID, strategy.ParentStrategyID.Int64)
 			// Parent lock not available, return empty result
 			return &RunConcurrencyResult{
 				Queued:                    []TaskWithQueue{},

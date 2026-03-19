@@ -1,0 +1,61 @@
+---
+asIndexPage: true
+---
+
+import { Callout } from "nextra/components";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import Keywords from "@/components/Keywords";
+
+# What is Hatchet?
+
+Hatchet is a developer platform that helps engineering teams build and deploy mission-critical AI agents, durable workflows, and background tasks. It supports applications written in Python, Typescript, Go and Ruby, and can be used as a service through [Hatchet Cloud](https://cloud.onhatchet.run) or [self-hosting](/self-hosting) (we're [open-source and 100% MIT-licensed](https://github.com/hatchet-dev/hatchet)). Hatchet provides a full platform for queuing, automatic retries, real-time monitoring, alerting, and logging.
+
+Unlike a traditional queuing system, Hatchet is built around the concept of durability. Every task and agent invocation is durably persisted in Hatchet, allowing for debugging, retries and replays, and more complex features like [durable workflows](/v1/durable-workflows-overview).
+
+## Using these docs
+
+Every docs page in the user guide uses inline code snippets across all four SDKs which are generated from tested examples:
+
+<LanguageSwitcher />
+
+## Concepts
+
+There are three primary concepts to understand when getting started with Hatchet:
+
+- **[Tasks](/v1/tasks)** — the fundamental unit of work. A task wraps a single function and gives Hatchet everything it needs to schedule, execute, and observe it.
+- **[Workers](/v1/workers)** — long-running processes in your infrastructure that pick up and execute tasks.
+- **[Durable Workflows](/v1/durable-workflows)** — compose multiple tasks into durable pipelines with dependencies, retries, and checkpointing.
+
+All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
+
+## Use cases
+
+While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
+
+- **AI agents** — Hatchet's durability features allow agents to automatically checkpoint their current state and pick up where they left off when faced with unexpected errors. Hatchet's observability features and distributed-first approach are built for debugging long-running agents at scale.
+- **Massive parallelization** - Hatchet is built to handle millions of parallel task executions without overloading your workers. Worker-level slot control allows your workers to only accept the amount of work they can handle, while features like [fairness](/v1/concurrency) and [priorities](/v1/priority) are built to help scale massively parallel ingestion.
+- **Mission-critical workloads** - everything in Hatchet is durable by default. This means that every task, DAG, event or agent invocation is stored in a durable event log and ready to be replayed at some point in the future.
+
+## Self Hosting
+
+If you plan on self-hosting or have requirements for an on-premise deployment, there are some additional considerations:
+
+**Minimal Infra Dependencies** - Hatchet is built on top of PostgreSQL and for simple workloads, [it's all you need](/self-hosting/hatchet-lite).
+
+**Fully Featured Open Source** - Hatchet is 100% MIT licensed, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](/self-hosting) when you need more control.
+
+## Production Readiness
+
+Hatchet has been battle-tested in production environments, processing billions of tasks per month for scale-ups and enterprises across various industries. Our open source offering is deployed over 10k times per month, while Hatchet Cloud supports hundreds of companies running at scale.
+
+> "With Hatchet, we've scaled our indexing workflows effortlessly, reducing failed runs by 50% and doubling our user base in just two weeks!"
+> — Soohoon, Co-Founder @ Greptile
+
+> "Hatchet enables Aevy to process up to 50,000 documents in under an hour through optimized parallel execution, compared to nearly a week with our previous setup."
+> — Ymir, CTO @ Aevy
+
+## Ready to get started?
+
+Get started quickly with the **[Hatchet Cloud Quickstart](/v1/quickstart)** or **[self-hosting](/self-hosting)**.
+
+<Keywords keywords="overview, introduction, concepts, use cases, production readiness, self hosting" />

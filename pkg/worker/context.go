@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
@@ -86,6 +88,8 @@ type HatchetContext interface {
 	RetryCount() int
 
 	ParentOutput(parent create.NamedTask, output interface{}) error
+
+	WasSkipped(parent create.NamedTask) bool
 
 	client() client.Client
 
@@ -252,6 +256,20 @@ func (h *hatchetContext) ParentOutput(parent create.NamedTask, output interface{
 	return fmt.Errorf("parent %s not found in action payload", stepName)
 }
 
+func (h *hatchetContext) WasSkipped(parent create.NamedTask) bool {
+	stepName := parent.GetName()
+
+	if val, ok := h.stepData.Parents[stepName]; ok {
+		if skipped, ok := val["skipped"]; ok {
+			if skippedBool, ok := skipped.(bool); ok {
+				return skippedBool
+			}
+		}
+	}
+
+	return false
+}
+
 // Deprecated: TriggeredByEvent is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) TriggeredByEvent() bool {
@@ -344,11 +362,41 @@ func (h *hatchetContext) Log(message string) {
 		message = string(runes[:10_000])
 	}
 
-	err := h.c.Event().PutLog(h, h.a.StepRunId, message, &infoLevel, &h.a.RetryCount)
+	stepRunId := h.a.StepRunId
+	retryCount := h.a.RetryCount
+	createdAt := timestamppb.Now()
 
-	if err != nil {
-		h.l.Err(err).Msg("could not put log")
-	}
+	go func() {
+		const maxRetries = 3
+		baseDelay := 100 * time.Millisecond
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		var err error
+
+		for attempt := range maxRetries + 1 {
+			if attempt > 0 {
+				delay := baseDelay * time.Duration(1<<(attempt-1))
+
+				select {
+				case <-ctx.Done():
+					h.l.Warn().Err(err).Msg("log delivery timed out, abandoning")
+					return
+				case <-time.After(delay):
+				}
+			}
+
+			err = h.c.Event().PutLogWithTimestamp(ctx, stepRunId, message, &infoLevel, &retryCount, createdAt)
+			if err == nil {
+				return
+			}
+
+			h.l.Warn().Err(err).Msgf("failed to put log (attempt %d/%d)", attempt+1, maxRetries+1)
+		}
+
+		h.l.Err(err).Msg("could not put log after all retries")
+	}()
 }
 
 // Deprecated: ReleaseSlot is an internal method used by the new Go SDK.
@@ -422,10 +470,11 @@ func (h *hatchetContext) IncChildIndex() {
 // Deprecated: SpawnWorkflowOpts is an internal type used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SpawnWorkflowOpts struct {
-	Key                *string
-	Sticky             *bool
-	AdditionalMetadata *map[string]string
-	Priority           *int32
+	Key                 *string
+	Sticky              *bool
+	AdditionalMetadata  *map[string]string
+	Priority            *int32
+	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
@@ -468,13 +517,14 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		workflowName,
 		input,
 		&client.ChildWorkflowOpts{
-			ParentId:           h.WorkflowRunId(),
-			ParentTaskRunId:    h.StepRunId(),
-			ChildIndex:         childIndex,
-			ChildKey:           opts.Key,
-			DesiredWorkerId:    desiredWorker,
-			AdditionalMetadata: opts.AdditionalMetadata,
-			Priority:           opts.Priority,
+			ParentId:            h.WorkflowRunId(),
+			ParentTaskRunId:     h.StepRunId(),
+			ChildIndex:          childIndex,
+			ChildKey:            opts.Key,
+			DesiredWorkerId:     desiredWorker,
+			AdditionalMetadata:  opts.AdditionalMetadata,
+			Priority:            opts.Priority,
+			DesiredWorkerLabels: opts.DesiredWorkerLabels,
 		},
 	)
 
@@ -488,11 +538,12 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 // Deprecated: SpawnWorkflowsOpts is an internal type used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SpawnWorkflowsOpts struct {
-	WorkflowName       string
-	Input              any
-	Key                *string
-	Sticky             *bool
-	AdditionalMetadata *map[string]string
+	WorkflowName        string
+	Input               any
+	Key                 *string
+	Sticky              *bool
+	AdditionalMetadata  *map[string]string
+	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
 
 // Deprecated: SpawnWorkflows is an internal method used by the new Go SDK.
@@ -532,12 +583,13 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			WorkflowName: workflowName,
 			Input:        c.Input,
 			Opts: &client.ChildWorkflowOpts{
-				ParentId:           h.WorkflowRunId(),
-				ParentTaskRunId:    h.StepRunId(),
-				ChildIndex:         childIndex,
-				ChildKey:           c.Key,
-				DesiredWorkerId:    desiredWorker,
-				AdditionalMetadata: c.AdditionalMetadata,
+				ParentId:            h.WorkflowRunId(),
+				ParentTaskRunId:     h.StepRunId(),
+				ChildIndex:          childIndex,
+				ChildKey:            c.Key,
+				DesiredWorkerId:     desiredWorker,
+				AdditionalMetadata:  c.AdditionalMetadata,
+				DesiredWorkerLabels: c.DesiredWorkerLabels,
 			},
 		}
 	}

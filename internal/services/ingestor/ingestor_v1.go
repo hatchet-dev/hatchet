@@ -116,7 +116,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
-				i.l.Error().Err(schedulingErr).Msg("could not run optimistic scheduling")
+				i.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
 			}
 		}
 
@@ -138,7 +138,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 			dispatcherErr := eg.Wait()
 
 			if dispatcherErr != nil {
-				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
+				i.l.Error().Ctx(ctx).Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 		}
 
@@ -168,7 +168,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil {
 			if !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-				i.l.Error().Err(triggerErr).Msg("could not trigger events via gRPC")
+				i.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger events via gRPC")
 			}
 		} else {
 			wasProcessedLocally = true

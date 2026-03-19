@@ -33,12 +33,18 @@ from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
-    DesiredWorkerLabels,
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
-from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk.labels import DesiredWorkerLabel, transform_desired_worker_label
 from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.contextvars import (
+    ctx_durable_context,
+)
+from hatchet_sdk.runnables.eviction import (
+    DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+    EvictionPolicy,
+)
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
@@ -116,17 +122,6 @@ class ComputedTaskParameters(BaseModel):
         )
 
         return self
-
-
-def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
-    value = d.value
-    return DesiredWorkerLabels(
-        str_value=value if not isinstance(value, int) else None,
-        int_value=value if isinstance(value, int) else None,
-        required=d.required,
-        weight=d.weight,
-        comparator=d.comparator,  # type: ignore[arg-type]
-    )
 
 
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
@@ -306,15 +301,20 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
             key=key,
         )
 
-    def _serialize_input(self, input: TWorkflowInput | None) -> JSONSerializableMapping:
-        if not input:
-            return {}
+    def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:
+        return self.config.input_validator.dump_json(
+            input,  # type: ignore[arg-type]
+            context=HATCHET_PYDANTIC_SENTINEL,
+        ).decode("utf-8")
 
+    def _serialize_input_to_dict(
+        self, input: TWorkflowInput | None
+    ) -> JSONSerializableMapping:
         return cast(
             JSONSerializableMapping,
             self.config.input_validator.dump_python(
@@ -323,6 +323,32 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 context=HATCHET_PYDANTIC_SENTINEL,
             ),
         )
+
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["string"] = "string"
+    ) -> str | None: ...
+
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["dict"] = "dict"
+    ) -> JSONSerializableMapping: ...
+
+    def _serialize_input(
+        self,
+        input: TWorkflowInput | None,
+        target: Literal["string"] | Literal["dict"] = "string",
+    ) -> JSONSerializableMapping | str | None:
+        if not input:
+            return None
+
+        if target == "string":
+            return self._serialize_input_to_str(input)
+
+        if target == "dict":
+            return self._serialize_input_to_dict(input)
+
+        raise ValueError(f"Invalid target for input serialization: {target}")
 
     @cached_property
     def id(self) -> str:
@@ -490,7 +516,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return self.client._client.admin.schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=options,
         )
 
@@ -511,7 +537,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=options,
         )
 
@@ -538,7 +564,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="dict"),
             additional_metadata=additional_metadata or {},
             priority=priority,
         )
@@ -566,7 +592,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="dict"),
             additional_metadata=additional_metadata or {},
             priority=priority,
         )
@@ -641,7 +667,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
 
@@ -660,13 +686,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: The result of the workflow execution as a dictionary.
         """
-
-        ref = self.client._client.admin.run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input),
-            options=self._create_options_with_combined_additional_meta(options),
-        )
-
+        ref = self.run_no_wait(input, options)
         return ref.result()
 
     async def aio_run_no_wait(
@@ -683,10 +703,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
-
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=self._serialize_input(input),
+            input=self._serialize_input(input, target="string"),
             options=self._create_options_with_combined_additional_meta(options),
         )
 
@@ -704,13 +723,29 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
         :returns: The result of the workflow execution as a dictionary.
-        """
-        ref = await self.client._client.admin.aio_run_workflow(
-            workflow_name=self.config.name,
-            input=self._serialize_input(input),
-            options=self._create_options_with_combined_additional_meta(options),
-        )
 
+        :raises RuntimeError: If durable child workflow spawning returns no run references.
+        """
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            config = WorkflowRunTriggerConfig(
+                workflow_name=self.config.name,
+                input=self._serialize_input(input, target="string"),
+                options=self._create_options_with_combined_additional_meta(options),
+            )
+            refs = await durable_ctx._spawn_children_no_wait([config])
+            if not refs:
+                raise RuntimeError(
+                    "Failed to spawn durable child workflow: no run references returned"
+                )
+
+            return await durable_ctx._aio_result_for_spawned_child(
+                node_id=refs[0].node_id,
+                branch_id=refs[0].branch_id,
+                workflow_name=refs[0].workflow_name,
+            )
+
+        ref = await self.aio_run_no_wait(input, options)
         return await ref.aio_result()
 
     def _get_result(
@@ -750,10 +785,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
-        refs = self.client._client.admin.run_workflows(
-            workflows=workflows,
-        )
-
+        refs = self.run_many_no_wait(workflows)
         return [self._get_result(ref, return_exceptions) for ref in refs]
 
     @overload
@@ -783,12 +815,25 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
-        refs = await self.client._client.admin.aio_run_workflows(
-            workflows=workflows,
-        )
+        durable_ctx = ctx_durable_context.get()
+        if durable_ctx is not None and durable_ctx._supports_durable_eviction:
+            spawned_refs = await durable_ctx._spawn_children_no_wait(workflows)
+            return await asyncio.gather(
+                *[
+                    durable_ctx._aio_result_for_spawned_child(
+                        node_id=ref.node_id,
+                        branch_id=ref.branch_id,
+                        workflow_name=ref.workflow_name,
+                    )
+                    for ref in spawned_refs
+                ],
+                return_exceptions=return_exceptions,
+            )
 
+        workflow_refs = await self.aio_run_many_no_wait(workflows)
         return await asyncio.gather(
-            *[ref.aio_result() for ref in refs], return_exceptions=return_exceptions
+            *[ref.aio_result() for ref in workflow_refs],
+            return_exceptions=return_exceptions,
         )
 
     def run_many_no_wait(
@@ -820,9 +865,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
         """
-        return await self.client._client.admin.aio_run_workflows(
-            workflows=workflows,
-        )
+        return await self.client._client.admin.aio_run_workflows(workflows=workflows)
 
     def _parse_task_name(
         self,
@@ -941,6 +984,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
+        eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     ) -> Callable[
         [
             Callable[
@@ -982,6 +1026,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
+        :param eviction_policy: An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.
+
         :returns: A decorator which creates a `Task` object.
         """
 
@@ -1020,6 +1066,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                durable_eviction=eviction_policy,
             )
 
             self._durable_tasks.append(task)
@@ -1219,9 +1266,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self.workflow_run_id
 
     async def aio_result(self) -> R:
-        result = await self._wrr.workflow_run_listener.aio_result(
-            self._wrr.workflow_run_id
-        )
+        result = await self._wrr.aio_result()
         return self._s._extract_result(result)
 
     def result(self) -> R:
@@ -1266,11 +1311,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if isinstance(result, BaseException):
             return result
 
-        ## if a task is cancelled, we can get `None` back here
+        # if a task is cancelled, we can get `None` back here
         ## this is a bit of an edge case since both `None` and an empty dict
         ## would cause Pydantic validation errors, but if you were expecting a `dict`
         ## return, then the empty dict would not error and would work correctly
-        output = result.get(self._task.name) or {}
+
+        # Durable child callbacks can return the task payload directly, while
+        # non-durable child runs typically return {task_name: payload}.
+        output = result.get(self._task.name) or result or {}
 
         return cast(
             R,

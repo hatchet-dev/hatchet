@@ -5,15 +5,170 @@ option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/pro
 package v1;
 
 import "v1/shared/condition.proto";
+import "v1/shared/trigger.proto";
 
 service V1Dispatcher {
+    rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse) {}
+
+    // NOTE: deprecated after DurableEventLog is implemented
     rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
-
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
-
 }
 
+message DurableTaskRequestRegisterWorker {
+    string worker_id = 1;
+}
 
+message DurableTaskResponseRegisterWorker {
+    string worker_id = 1;
+}
+
+message DurableEventLogEntryRef {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+}
+
+message DurableTaskRunAckEntry {
+    int64 node_id = 1;
+    int64 branch_id = 2;
+    string workflow_run_external_id = 3;
+}
+
+message DurableTaskEventMemoAckResponse {
+    DurableEventLogEntryRef ref = 1;
+    bool memo_already_existed = 2;
+    optional bytes memo_result_payload = 3;
+}
+
+message DurableTaskEventTriggerRunsAckResponse {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    repeated DurableTaskRunAckEntry run_entries = 3;
+}
+
+message DurableTaskEventWaitForAckResponse {
+    DurableEventLogEntryRef ref = 1;
+}
+
+message DurableTaskEventLogEntryCompletedResponse {
+    DurableEventLogEntryRef ref = 1;
+    bytes payload = 2;
+}
+
+message DurableTaskEvictInvocationRequest {
+    int32 invocation_count = 1;
+    string durable_task_external_id = 2;
+    optional string reason = 3;
+}
+
+// Sent by the server after recording eviction for an evict_invocation request.
+message DurableTaskEvictionAckResponse {
+    int32 invocation_count = 1;
+    string durable_task_external_id = 2;
+}
+
+message DurableTaskAwaitedCompletedEntry {
+    string durable_task_external_id = 1;
+    int64 branch_id = 2;
+    int64 node_id = 3;
+    int32 invocation_count = 4;
+}
+
+// Sent by the server to notify a worker that its invocation is stale and should be cancelled.
+message DurableTaskServerEvictNotice {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    string reason = 3;
+}
+
+message DurableTaskWorkerStatusRequest {
+    string worker_id = 1;
+    repeated DurableTaskAwaitedCompletedEntry waiting_entries = 2;
+}
+
+message DurableTaskCompleteMemoRequest {
+    DurableEventLogEntryRef ref = 1;
+    bytes payload = 2;
+    bytes memo_key = 3;
+}
+
+message DurableTaskMemoRequest {
+    // The invocation_count is a monotonically increasing count that uniquely identifies an "attempt"
+    // at running a durable task. Each time the task is started, it gets a new invocation count (which has)
+    // incremented by one since the previous invocation. This allows the server (and the worker) to have a way of
+    // differentiating between different attempts of the same task running in different places, to prevent race conditions
+    // and other problems from duplication. It also allows for older invocations to be evicted cleanly
+    int32 invocation_count = 1;
+    string durable_task_external_id = 2;
+
+    bytes key = 3;
+
+    // optional payload because we can send a memo request to check if a memo already exists
+    optional bytes payload = 4;
+}
+
+message DurableTaskTriggerRunsRequest {
+    // The invocation_count is a monotonically increasing count that uniquely identifies an "attempt"
+    // at running a durable task. Each time the task is started, it gets a new invocation count (which has)
+    // incremented by one since the previous invocation. This allows the server (and the worker) to have a way of
+    // differentiating between different attempts of the same task running in different places, to prevent race conditions
+    // and other problems from duplication. It also allows for older invocations to be evicted cleanly
+    int32 invocation_count = 1;
+    string durable_task_external_id = 2;
+
+    repeated TriggerWorkflowRequest trigger_opts = 3;
+}
+
+message DurableTaskWaitForRequest {
+    // The invocation_count is a monotonically increasing count that uniquely identifies an "attempt"
+    // at running a durable task. Each time the task is started, it gets a new invocation count (which has)
+    // incremented by one since the previous invocation. This allows the server (and the worker) to have a way of
+    // differentiating between different attempts of the same task running in different places, to prevent race conditions
+    // and other problems from duplication. It also allows for older invocations to be evicted cleanly
+    int32 invocation_count = 1;
+    string durable_task_external_id = 2;
+
+    // Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR
+    optional DurableEventListenerConditions wait_for_conditions = 3;
+}
+
+message DurableTaskRequest {
+    oneof message {
+        DurableTaskRequestRegisterWorker register_worker = 1;
+        DurableTaskMemoRequest memo = 2;
+        DurableTaskTriggerRunsRequest trigger_runs = 3;
+        DurableTaskWaitForRequest wait_for = 4;
+        DurableTaskEvictInvocationRequest evict_invocation = 5;
+        DurableTaskWorkerStatusRequest worker_status = 6;
+        DurableTaskCompleteMemoRequest complete_memo = 7;
+    }
+}
+
+enum DurableTaskErrorType {
+    DURABLE_TASK_ERROR_TYPE_UNSPECIFIED = 0;
+    DURABLE_TASK_ERROR_TYPE_NONDETERMINISM = 1;
+}
+
+message DurableTaskErrorResponse {
+    DurableEventLogEntryRef ref = 1;
+    DurableTaskErrorType error_type = 2;
+    string error_message = 3;
+}
+
+message DurableTaskResponse {
+    oneof message {
+        DurableTaskResponseRegisterWorker register_worker = 1;
+        DurableTaskEventMemoAckResponse memo_ack = 2;
+        DurableTaskEventTriggerRunsAckResponse trigger_runs_ack = 3;
+        DurableTaskEventWaitForAckResponse wait_for_ack = 4;
+        DurableTaskEventLogEntryCompletedResponse entry_completed = 5;
+        DurableTaskErrorResponse error = 6;
+        DurableTaskEvictionAckResponse eviction_ack = 7;
+        DurableTaskServerEvictNotice server_evict = 8;
+    }
+}
 
 message RegisterDurableEventRequest {
     string task_id = 1; // external uuid for the task run

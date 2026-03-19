@@ -1,17 +1,18 @@
 package users
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-
-	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 )
 
 func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequestObject) (gen.UserCreateResponseObject, error) {
@@ -89,7 +90,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		), nil
 	}
 
-	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
+	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, user)
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to save authenticated session")
@@ -97,6 +98,14 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 			apierrors.NewAPIErrors(ErrRegistrationFailed),
 		), nil
 	}
+
+	analyticsCtx := context.WithValue(ctx.Request().Context(), analytics.UserIDKey, user.ID)
+	u.config.Analytics.Enqueue(
+		analyticsCtx,
+		analytics.User, analytics.Create,
+		user.ID.String(),
+		map[string]interface{}{"provider": "basic"},
+	)
 
 	return gen.UserCreate200JSONResponse(
 		*transformers.ToUser(user, false, nil),
