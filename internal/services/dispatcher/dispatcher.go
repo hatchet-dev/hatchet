@@ -44,7 +44,7 @@ type DispatcherImpl struct {
 	repov1                               v1.Repository
 	cache                                cache.Cacheable
 	payloadSizeThreshold                 int
-	defaultMaxWorkerBacklogSize          int64
+	defaultMaxWorkerLockAcquisitionTime  time.Duration
 	workflowRunBufferSize                int
 	streamEventBufferTimeout             time.Duration
 	listenV2StreamKeepaliveInterval      time.Duration
@@ -131,7 +131,7 @@ type DispatcherOpts struct {
 	cache                                cache.Cacheable
 	analytics                            analytics.Analytics
 	payloadSizeThreshold                 int
-	defaultMaxWorkerBacklogSize          int64
+	defaultMaxWorkerLockAcquisitionTime  time.Duration
 	workflowRunBufferSize                int
 	streamEventBufferTimeout             time.Duration
 	listenV2StreamKeepaliveInterval      time.Duration
@@ -286,7 +286,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		a:                                   a,
 		cache:                               opts.cache,
 		payloadSizeThreshold:                opts.payloadSizeThreshold,
-		defaultMaxWorkerBacklogSize:         opts.defaultMaxWorkerBacklogSize,
+		defaultMaxWorkerLockAcquisitionTime: opts.defaultMaxWorkerLockAcquisitionTime,
 		workflowRunBufferSize:               opts.workflowRunBufferSize,
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
