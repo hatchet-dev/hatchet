@@ -399,12 +399,12 @@ const barColorsByStatus: Record<string, string> = {
 
 function getBarColor(span: OtelSpanTree): string {
   if (span.inProgress) {
-    return 'bg-yellow-500/60';
+    return 'bg-yellow-500';
   }
   if (isEngineSpan(span)) {
     return span.statusCode === OtelStatusCode.ERROR
-      ? 'bg-red-500/40'
-      : 'bg-green-500/40';
+      ? 'bg-red-500'
+      : 'bg-green-500';
   }
   if (hasErrorInTree(span)) {
     return 'bg-red-500';
@@ -1252,7 +1252,7 @@ export function TraceTimeline({
                 >
                   <div
                     className={cn(
-                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
+                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px]',
                       !hasAnyInProgress &&
                         !hasAnyLiveQueued &&
                         'transition-all',
@@ -1327,15 +1327,17 @@ export function TraceTimeline({
                 {q && (
                   <div
                     className={cn(
-                      'absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm',
+                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px] border border-dashed',
                       !hasAnyInProgress &&
                         !hasAnyLiveQueued &&
                         'transition-all',
+                      (row.span.inProgress || isQueuedOnlyRoot(row.span)) &&
+                        'animate-pulse',
                       row.span.inProgress
-                        ? 'bg-yellow-500/20'
+                        ? 'border-yellow-500 bg-yellow-500/10'
                         : hasErrorInTree(row.span)
-                          ? 'bg-red-500/20'
-                          : 'bg-green-500/20',
+                          ? 'border-red-500 bg-red-500/10'
+                          : 'border-green-500 bg-green-500/10',
                     )}
                     style={{
                       left: `${qLeftPct}%`,
@@ -1351,24 +1353,17 @@ export function TraceTimeline({
                       }
                       onSpanSelect?.(row.span);
                     }}
-                  >
-                    <div
-                      className="absolute inset-0 opacity-40"
-                      style={{
-                        backgroundImage:
-                          'repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(255,255,255,0.18) 3px, rgba(255,255,255,0.18) 6px)',
-                      }}
-                    />
-                  </div>
+                  />
                 )}
                 {!hideExecutionBar && (
                   <div
                     className={cn(
-                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
+                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px]',
                       getBarColor(row.span),
                       !hasAnyInProgress &&
                         !hasAnyLiveQueued &&
                         'transition-all',
+                      row.span.inProgress && 'animate-pulse',
                       isSelected
                         ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
                         : hoveredRowKey === row.rowKey
