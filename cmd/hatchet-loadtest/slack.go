@@ -77,7 +77,7 @@ func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl stri
 	_, _, err := client.PostMessage(
 		s.Channel,
 		slack.MsgOptionBlocks(blocks...),
-		slack.MsgOptionTS(s.Thread),
+		slack.MsgOptionTS(s.Thread), // 👈 this attaches it to a thread
 	)
 	return err
 }
@@ -108,7 +108,7 @@ func (s *SlackSender) UploadS3(imageBytes []byte) (*string, error) {
 	return &uploadedUrl, nil
 }
 
-func (s *SlackSender) SendToSlack(durationBytes []byte, schedulingBytes []byte, avgDuration time.Duration, avgScheduling time.Duration) error {
+func (s *SlackSender) Send(durationBytes []byte, schedulingBytes []byte, avgDuration time.Duration, avgScheduling time.Duration) error {
 	uploadedDurationFileUrl, err := s.UploadS3(durationBytes)
 	if err != nil {
 		return err

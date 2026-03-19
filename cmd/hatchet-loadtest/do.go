@@ -202,10 +202,11 @@ func do(config LoadTestConfig) error {
 		if err != nil {
 			log.Printf("❌ failed to generate scheduling plot: %v ", err)
 		}
-		err = slackSender.SendToSlack(durationBytes, schedulingBytes, finalDurationResult.avg, finalScheduledResult.avg)
+		err = slackSender.Send(durationBytes, schedulingBytes, finalDurationResult.avg, finalScheduledResult.avg)
 		if err != nil {
 			log.Printf("❌ failed to send duration plots to slack: %v ", err)
 		}
+		log.Printf("ℹ️ scheduling/duration successfully plots to Slack")
 	}
 	if config.PlotDir != "" {
 		log.Printf("ℹ️ exporting scheduling/duration snapshot data")
@@ -217,6 +218,7 @@ func do(config LoadTestConfig) error {
 		if err != nil {
 			return err
 		}
+		log.Printf("ℹ️ exported scheduling/duration snapshot data")
 	}
 	if expected != executed {
 		log.Printf("⚠️ warning: pushed and executed counts do not match: expected=%d got=%d", expected, executed)
