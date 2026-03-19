@@ -1,0 +1,39 @@
+import Keywords from "@/components/Keywords";
+
+# Frequently Asked Questions
+
+This page provides answers to a number of the most common questions we're asked, to help you keep making great use of Hatchet!
+
+## How do I choose how many slots to set on my worker?
+
+The default slot count for workers in Hatchet is 100. In many cases, leaving the default as-is will be perfectly fine, especially when first getting set up with Hatchet.
+
+Over time, you'll likely run into one of two issues: Resource starvation (meaning the worker is using up too much memory, CPU, etc.), or wanting to squeeze more juice out of your workers.
+
+If your workers are resource starved, there are basically two options:
+
+1. Reduce the slot count, so the worker runs less work concurrently. This is a blunt instrument, in the sense that it doesn't let you _tune_ resources to the needs of the workload running on the worker. For instance, if you're using 100% of your memory but only 10% of your CPU, reducing the slot count will likely help the worker stay online, but you'll be significantly under-utilizing CPU. In this case, you can:
+2. Reconfigure the specs of the machine the worker is running on. For instance, in the example above, you might be able to migrate from a CPU-optimized machine to a memory-optimized one, which will give you more efficient resource utilization across the board.
+
+On the other hand, if your workers are underutilizing resources, your options are:
+
+1. Increase the number of slots on them so they can pick up more work. This is especially helpful for heavily I/O bound tasks, which generally are spending most of their time waiting.
+2. Similar to the opposite case of resource starvation, you can scale down the resource requirements of the machine the worker is running on.
+
+<Callout type="info">
+  In general, we recommend not pushing the number of slots on a single worker
+  much past 250-300. At this point, it likely makes sense to scale more
+  horizontally.
+</Callout>
+
+## Why am I seeing missed heartbeats and task reassignments?
+
+Hatchet uses heartbeats to monitor worker health. Workers send a heartbeat every **4 seconds**. If the engine does not receive a heartbeat for **30 seconds**, the engine considers the worker to be inactive, and re-queues its in-flight tasks for other workers to pick up.
+
+There are a number of common reasons a worker might miss heartbeats:
+
+- **Process crash** - the worker process exits unexpectedly (OOM kill, unhandled exception, SIGKILL).
+- **Network disruption** - the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
+- **Resource pressure** - High CPU or memory usage can starve the worker for resources
+
+<Keywords keywords="faq, heartbeat, reassignment, reassign, slots" />
