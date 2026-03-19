@@ -444,19 +444,33 @@ function isQueuedOnlyRoot(span: OtelSpanTree): boolean {
 
 function SpanTooltip({
   row,
+  now,
   style,
 }: {
   row: FlatSpanRow;
+  now: number;
   style: React.CSSProperties;
 }) {
-  const durationMs = row.span.durationNs / 1_000_000;
-  const displayName = getDisplayName(row.span);
-  const ownStatus = statusLabel(row.span.statusCode);
+  const span = row.span;
+  const startMs = new Date(span.createdAt).getTime();
+  const queuedOnly = isQueuedOnlyRoot(span) && span.durationNs <= 0;
+
+  const durationMs = span.inProgress
+    ? Math.max(0, now - startMs)
+    : span.durationNs / 1_000_000;
+
+  const displayName = getDisplayName(span);
+  const ownStatus = statusLabel(span.statusCode);
   const descendantError =
-    row.span.statusCode !== OtelStatusCode.ERROR && hasErrorInTree(row.span);
-  const started = formatTimestamp(row.span.createdAt);
-  const q = row.span.queuedPhase;
-  const queueMs = q ? q.durationNs / 1_000_000 : 0;
+    span.statusCode !== OtelStatusCode.ERROR && hasErrorInTree(span);
+  const started = formatTimestamp(span.createdAt);
+  const q = span.queuedPhase;
+
+  let queueMs = 0;
+  if (q) {
+    const qStartMs = new Date(q.createdAt).getTime();
+    queueMs = queuedOnly ? Math.max(0, now - qStartMs) : q.durationNs / 1e6;
+  }
 
   return (
     <div
@@ -467,9 +481,9 @@ function SpanTooltip({
         <div className="font-mono text-sm font-medium text-foreground">
           {displayName}
         </div>
-        {displayName !== row.span.spanName && (
+        {displayName !== span.spanName && (
           <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-            {row.span.spanName}
+            {span.spanName}
           </div>
         )}
       </div>
@@ -483,23 +497,27 @@ function SpanTooltip({
             </span>
             <span className="text-muted-foreground">Execution</span>
             <span className="font-mono font-medium text-foreground">
-              {formatDurationShort(durationMs)}
+              {queuedOnly ? '–' : formatDurationShort(durationMs)}
             </span>
             <span className="text-muted-foreground">Total</span>
             <span className="font-mono font-medium text-foreground">
-              {formatDurationShort(queueMs + durationMs)}
+              {queuedOnly
+                ? formatDurationShort(queueMs)
+                : formatDurationShort(queueMs + durationMs)}
             </span>
           </>
         ) : (
           <>
             <span className="text-muted-foreground">
-              {isEngineSpan(row.span) &&
-              row.span.spanName === 'hatchet.engine.queued'
+              {isEngineSpan(span) &&
+              span.spanName === 'hatchet.engine.queued'
                 ? 'Queue Time'
                 : 'Duration'}
             </span>
             <span className="font-mono font-medium text-foreground">
-              {formatDurationShort(durationMs)}
+              {span.inProgress
+                ? formatDurationShort(durationMs)
+                : formatDurationShort(durationMs)}
             </span>
           </>
         )}
@@ -509,22 +527,24 @@ function SpanTooltip({
           <span
             className={cn(
               'size-1.5 shrink-0 rounded-full',
-              getDotColor(row.span),
+              getDotColor(span),
             )}
           />
           <span className="font-mono text-foreground">
-            {row.span.inProgress
-              ? 'In Progress'
-              : descendantError
-                ? 'Error (child)'
-                : ownStatus}
+            {queuedOnly
+              ? 'Queued'
+              : span.inProgress
+                ? 'In Progress'
+                : descendantError
+                  ? 'Error (child)'
+                  : ownStatus}
           </span>
         </span>
 
         <span className="text-muted-foreground">Started</span>
         <span className="font-mono text-foreground">{started}</span>
 
-        {isEngineSpan(row.span) && (
+        {isEngineSpan(span) && (
           <>
             <span className="text-muted-foreground">Source</span>
             <span className="font-mono text-foreground">Engine</span>
@@ -1496,6 +1516,7 @@ export function TraceTimeline({
         createPortal(
           <SpanTooltip
             row={hoveredRow}
+            now={now}
             style={{
               position: 'fixed',
               left: Math.min(tooltipPos.x + 12, window.innerWidth - 440),

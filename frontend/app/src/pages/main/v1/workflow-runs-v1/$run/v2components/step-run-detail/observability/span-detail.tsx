@@ -6,7 +6,7 @@ import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
 import { PanelRight, X } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 function FilterPlusIcon({ className }: { className?: string }) {
   return (
@@ -121,6 +121,10 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
       new Date(b.span.createdAt).getTime(),
   );
   return errors;
+}
+
+function isQueuedOnly(span: OtelSpanTree): boolean {
+  return !!span.queuedPhase && span.durationNs <= 0 && !span.inProgress;
 }
 
 const HATCHET_ATTR_PREFIX = 'hatchet.';
@@ -254,9 +258,41 @@ export function SpanDetail({
   onRemoveFilter?: (key: string, value: string) => void;
   onSpanSelect?: (span: OtelSpanTree) => void;
 }) {
-  const status = span.inProgress
-    ? { label: 'In Progress', dot: 'bg-blue-500' }
-    : statusConfig(span.statusCode);
+  const isLive = !!span.inProgress || isQueuedOnly(span);
+
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!isLive) {
+      return;
+    }
+    let raf: number;
+    const tick = () => {
+      setNow(Date.now());
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isLive]);
+
+  const queuedOnly = isQueuedOnly(span);
+  const startMs = new Date(span.createdAt).getTime();
+
+  const durationNs = span.inProgress
+    ? Math.max(0, now - startMs) * 1_000_000
+    : span.durationNs;
+
+  const q = span.queuedPhase;
+  let queueNs = q ? q.durationNs : 0;
+  if (q && queuedOnly) {
+    const qStartMs = new Date(q.createdAt).getTime();
+    queueNs = Math.max(0, now - qStartMs) * 1_000_000;
+  }
+
+  const status = queuedOnly
+    ? { label: 'Queued', dot: 'bg-yellow-500' }
+    : span.inProgress
+      ? { label: 'In Progress', dot: 'bg-blue-500' }
+      : statusConfig(span.statusCode);
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
   const taskRunId = span.spanAttributes?.['hatchet.step_run_id'];
   const { open } = useSidePanel();
@@ -275,7 +311,10 @@ export function SpanDetail({
   }, [taskRunId, open]);
 
   const childErrors = useMemo(() => {
-    if (span.statusCode !== OtelStatusCode.ERROR || span.children.length === 0) {
+    if (
+      span.statusCode !== OtelStatusCode.ERROR ||
+      span.children.length === 0
+    ) {
       return [];
     }
     return collectChildErrors(span);
@@ -312,24 +351,19 @@ export function SpanDetail({
         </div>
       </div>
 
-      <div
-        className={cn(
-          'grid gap-4',
-          span.queuedPhase ? 'grid-cols-4' : 'grid-cols-3',
-        )}
-      >
-        {span.queuedPhase && (
+      <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
+        {q && (
           <div>
             <span className="text-xs text-muted-foreground">Queue Time</span>
             <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-              {formatDuration(span.queuedPhase.durationNs)}
+              {formatDuration(queueNs)}
             </p>
           </div>
         )}
         <div>
           <span className="text-xs text-muted-foreground">Duration</span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {formatDuration(span.durationNs)}
+            {queuedOnly ? '–' : formatDuration(durationNs)}
           </p>
         </div>
         <div>

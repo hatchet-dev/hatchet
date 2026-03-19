@@ -16,6 +16,22 @@ type Selection =
   | { kind: 'span'; span: OtelSpanTree }
   | { kind: 'group'; group: SpanGroupInfo };
 
+function findSpanInTrees(
+  nodes: OtelSpanTree[],
+  spanId: string,
+): OtelSpanTree | undefined {
+  for (const node of nodes) {
+    if (node.spanId === spanId) {
+      return node;
+    }
+    const found = findSpanInTrees(node.children, spanId);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
 export function TaskRunTrace({
   spanTrees,
   isRunning,
@@ -50,6 +66,17 @@ export function TaskRunTrace({
 
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
   const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
+
+  const resolvedSelection = useMemo((): Selection | undefined => {
+    if (!selection) {
+      return undefined;
+    }
+    if (selection.kind === 'group') {
+      return selection;
+    }
+    const fresh = findSpanInTrees(spanTrees, selection.span.spanId);
+    return fresh ? { kind: 'span', span: fresh } : selection;
+  }, [selection, spanTrees]);
 
   const handleSpanSelect = useCallback((span: OtelSpanTree) => {
     setSelection((prev) =>
@@ -121,9 +148,15 @@ export function TaskRunTrace({
         onExpandChange={setExpandedSpansIds}
         groupVisibleCounts={groupVisibleCounts}
         onShowMore={handleShowMore}
-        selectedSpan={selection?.kind === 'span' ? selection.span : undefined}
+        selectedSpan={
+          resolvedSelection?.kind === 'span'
+            ? resolvedSelection.span
+            : undefined
+        }
         selectedGroupId={
-          selection?.kind === 'group' ? selection.group.groupId : undefined
+          resolvedSelection?.kind === 'group'
+            ? resolvedSelection.group.groupId
+            : undefined
         }
         onSpanSelect={handleSpanSelect}
         onGroupSelect={handleGroupSelect}
@@ -132,9 +165,9 @@ export function TaskRunTrace({
         externalCursorPct={minimapHoverPct}
         onCursorPctChange={setTimelineHoverPct}
       />
-      {selection?.kind === 'span' && (
+      {resolvedSelection?.kind === 'span' && (
         <SpanDetail
-          span={selection.span}
+          span={resolvedSelection.span}
           onClose={handleDetailClose}
           activeFilters={activeFilters}
           onAddFilter={onAddFilter}
@@ -142,8 +175,11 @@ export function TaskRunTrace({
           onSpanSelect={handleSpanSelect}
         />
       )}
-      {selection?.kind === 'group' && (
-        <GroupDetail group={selection.group} onClose={handleDetailClose} />
+      {resolvedSelection?.kind === 'group' && (
+        <GroupDetail
+          group={resolvedSelection.group}
+          onClose={handleDetailClose}
+        />
       )}
     </div>
   );
