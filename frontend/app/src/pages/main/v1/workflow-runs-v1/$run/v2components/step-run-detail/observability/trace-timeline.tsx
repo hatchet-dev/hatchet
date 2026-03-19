@@ -509,8 +509,7 @@ function SpanTooltip({
         ) : (
           <>
             <span className="text-muted-foreground">
-              {isEngineSpan(span) &&
-              span.spanName === 'hatchet.engine.queued'
+              {isEngineSpan(span) && span.spanName === 'hatchet.engine.queued'
                 ? 'Queue Time'
                 : 'Duration'}
             </span>
@@ -525,10 +524,7 @@ function SpanTooltip({
         <span className="text-muted-foreground">Status</span>
         <span className="flex items-center gap-1.5">
           <span
-            className={cn(
-              'size-1.5 shrink-0 rounded-full',
-              getDotColor(span),
-            )}
+            className={cn('size-1.5 shrink-0 rounded-full', getDotColor(span))}
           />
           <span className="font-mono text-foreground">
             {queuedOnly
@@ -730,11 +726,7 @@ export function TraceTimeline({
     };
 
     for (const root of spanTrees) {
-      logChildren(
-        root.children,
-        `root "${getDisplayName(root)}"`,
-        '  ',
-      );
+      logChildren(root.children, `root "${getDisplayName(root)}"`, '  ');
     }
 
     console.log(lines.join('\n'));

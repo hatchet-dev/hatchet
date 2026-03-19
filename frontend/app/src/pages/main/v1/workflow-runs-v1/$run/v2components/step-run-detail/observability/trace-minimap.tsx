@@ -471,17 +471,29 @@ export function TraceMinimap({
               {formatOffset(totalMs * visibleRange.startPct)}
             </span>
             <div className="flex min-w-1 flex-1 items-center">
-              <svg width="5" height="6" viewBox="0 0 5 6" className="shrink-0 fill-primary">
+              <svg
+                width="5"
+                height="6"
+                viewBox="0 0 5 6"
+                className="shrink-0 fill-primary"
+              >
                 <path d="M5 0L0 3L5 6Z" />
               </svg>
               <div className="h-px flex-1 bg-primary" />
             </div>
             <span className="shrink-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-medium leading-tight text-primary-foreground">
-              {formatOffset(totalMs * (visibleRange.endPct - visibleRange.startPct))}
+              {formatOffset(
+                totalMs * (visibleRange.endPct - visibleRange.startPct),
+              )}
             </span>
             <div className="flex min-w-1 flex-1 items-center">
               <div className="h-px flex-1 bg-primary" />
-              <svg width="5" height="6" viewBox="0 0 5 6" className="shrink-0 fill-primary">
+              <svg
+                width="5"
+                height="6"
+                viewBox="0 0 5 6"
+                className="shrink-0 fill-primary"
+              >
                 <path d="M0 0L5 3L0 6Z" />
               </svg>
             </div>

@@ -100,10 +100,7 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
   const stack = [...node.children];
   while (stack.length > 0) {
     const child = stack.pop()!;
-    if (
-      child.statusCode === OtelStatusCode.ERROR &&
-      child.statusMessage
-    ) {
+    if (child.statusCode === OtelStatusCode.ERROR && child.statusMessage) {
       const taskName =
         child.spanAttributes?.['hatchet.step_name'] ??
         child.spanAttributes?.['hatchet.task_name'];
@@ -397,7 +394,10 @@ export function SpanDetail({
       {childErrors.length > 0 && (
         <div className="flex flex-col gap-2">
           <h4 className="text-xs font-medium uppercase tracking-wider text-red-400">
-            {childErrors.length === 1 ? '1 Error' : `${childErrors.length} Errors`} in child spans
+            {childErrors.length === 1
+              ? '1 Error'
+              : `${childErrors.length} Errors`}{' '}
+            in child spans
           </h4>
           {childErrors.map((err, i) => (
             <button

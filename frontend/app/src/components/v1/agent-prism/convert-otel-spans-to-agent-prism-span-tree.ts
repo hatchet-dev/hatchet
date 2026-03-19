@@ -253,8 +253,7 @@ function suppressOrphanedChildWorkflows(
       continue;
     }
 
-    const isUniqueOrphan =
-      (parentCounts.get(node.parentSpanId) ?? 0) <= 1;
+    const isUniqueOrphan = (parentCounts.get(node.parentSpanId) ?? 0) <= 1;
     const isOrphanRunWorkflow = node.spanName === 'hatchet.run_workflow';
 
     if (isUniqueOrphan || isOrphanRunWorkflow) {

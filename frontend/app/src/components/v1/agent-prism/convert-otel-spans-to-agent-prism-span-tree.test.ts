@@ -111,15 +111,6 @@ function sdkUserSpan(
   });
 }
 
-function collectChildNames(tree: ReturnType<typeof convertOtelSpansToOtelSpanTree>) {
-  const root = tree[0];
-  return root.children.map((c) => ({
-    name: c.spanAttributes?.['hatchet.step_name'] ?? c.spanName,
-    spanId: c.spanId,
-    childCount: c.children.length,
-  }));
-}
-
 function asNonEmpty(spans: Span[]): [Span, ...Span[]] {
   assert.ok(spans.length > 0, 'spans must not be empty');
   return spans as [Span, ...Span[]];
@@ -157,7 +148,11 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         (c) => c.spanName === 'hatchet.start_step_run',
       );
 
-      assert.strictEqual(stepRuns.length, 1, 'should have exactly one step run');
+      assert.strictEqual(
+        stepRuns.length,
+        1,
+        'should have exactly one step run',
+      );
       assert.ok(
         !stepRuns[0].spanAttributes?.['hatchet.span_source'],
         'surviving span should be SDK (no span_source)',
@@ -247,10 +242,7 @@ describe('convertOtelSpansToOtelSpanTree', () => {
     });
 
     test('synthesizes in-progress span for queued span whose parent exists', () => {
-      const spans = asNonEmpty([
-        rootSpan(),
-        engineQueued('sr1', ROOT),
-      ]);
+      const spans = asNonEmpty([rootSpan(), engineQueued('sr1', ROOT)]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
@@ -271,7 +263,12 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         engineQueued('validate', IMPLICIT_ROOT),
         engineStepRun('validate', IMPLICIT_ROOT),
         engineQueued('reserve', IMPLICIT_ROOT),
-        sdkUserSpan('inv-check', 'missing_sdk_reserve_span', 'inventory.check-availability', 'reserve'),
+        sdkUserSpan(
+          'inv-check',
+          'missing_sdk_reserve_span',
+          'inventory.check-availability',
+          'reserve',
+        ),
       ]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
@@ -282,12 +279,17 @@ describe('convertOtelSpansToOtelSpanTree', () => {
       );
       assert.ok(reserveSpan, 'reserve synthetic span should exist');
       assert.ok(
-        reserveSpan.children.some((c) => c.spanName === 'inventory.check-availability'),
+        reserveSpan.children.some(
+          (c) => c.spanName === 'inventory.check-availability',
+        ),
         'inventory.check-availability should be reparented under reserve',
       );
 
       const rootIds = root.children.map((c) => c.spanId);
-      assert.ok(!rootIds.includes('inv-check'), 'inventory span should not be at root');
+      assert.ok(
+        !rootIds.includes('inv-check'),
+        'inventory span should not be at root',
+      );
     });
   });
 
@@ -298,21 +300,39 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         rootSpan(),
         engineQueued(dagStepRunId, ROOT),
         engineStepRun(dagStepRunId, ROOT),
-        sdkRunWorkflow('rw1', 'nonexistent_sdk_dag_span', 'otel-send-notification', dagStepRunId),
-        sdkRunWorkflow('rw2', 'nonexistent_sdk_dag_span', 'otel-other-task', dagStepRunId),
+        sdkRunWorkflow(
+          'rw1',
+          'nonexistent_sdk_dag_span',
+          'otel-send-notification',
+          dagStepRunId,
+        ),
+        sdkRunWorkflow(
+          'rw2',
+          'nonexistent_sdk_dag_span',
+          'otel-other-task',
+          dagStepRunId,
+        ),
       ]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
 
-      assert.strictEqual(root.children.length, 1, 'root should have 1 child (dag step run)');
+      assert.strictEqual(
+        root.children.length,
+        1,
+        'root should have 1 child (dag step run)',
+      );
 
       const dagSpan = root.children[0];
       assert.strictEqual(
         dagSpan.spanAttributes?.['hatchet.step_run_id'],
         dagStepRunId,
       );
-      assert.strictEqual(dagSpan.children.length, 2, 'dag span should have 2 reparented children');
+      assert.strictEqual(
+        dagSpan.children.length,
+        2,
+        'dag span should have 2 reparented children',
+      );
 
       const childNames = dagSpan.children.map(
         (c) => c.spanAttributes?.['hatchet.task_name'],
@@ -326,7 +346,12 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         rootSpan(),
         engineQueued('sr1', ROOT),
         engineStepRun('sr1', ROOT),
-        sdkUserSpan('user1', 'nonexistent_sdk_step_run', 'notification.render-template', 'sr1'),
+        sdkUserSpan(
+          'user1',
+          'nonexistent_sdk_step_run',
+          'notification.render-template',
+          'sr1',
+        ),
       ]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
@@ -339,7 +364,10 @@ describe('convertOtelSpansToOtelSpanTree', () => {
       const renderTemplate = stepRun.children.find(
         (c) => c.spanName === 'notification.render-template',
       );
-      assert.ok(renderTemplate, 'render-template should be reparented under step run');
+      assert.ok(
+        renderTemplate,
+        'render-template should be reparented under step run',
+      );
     });
   });
 
@@ -434,14 +462,29 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         (c) => c.spanAttributes?.['hatchet.step_run_id'],
       );
 
-      assert.ok(!childStepRunIds.includes('notif1'), 'notif1 should be dropped');
-      assert.ok(!childStepRunIds.includes('notif2'), 'notif2 should be dropped');
-      assert.ok(!childStepRunIds.includes('other-task'), 'other-task should be dropped');
+      assert.ok(
+        !childStepRunIds.includes('notif1'),
+        'notif1 should be dropped',
+      );
+      assert.ok(
+        !childStepRunIds.includes('notif2'),
+        'notif2 should be dropped',
+      );
+      assert.ok(
+        !childStepRunIds.includes('other-task'),
+        'other-task should be dropped',
+      );
 
       assert.ok(childStepRunIds.includes('validate'));
       assert.ok(childStepRunIds.includes('charge'));
-      assert.ok(childStepRunIds.includes('reserve'), 'reserve should be synthesized');
-      assert.ok(childStepRunIds.includes('dag-conf'), 'dag-conf should be synthesized');
+      assert.ok(
+        childStepRunIds.includes('reserve'),
+        'reserve should be synthesized',
+      );
+      assert.ok(
+        childStepRunIds.includes('dag-conf'),
+        'dag-conf should be synthesized',
+      );
     });
 
     test('poll 3: child-workflow engine spans suppressed when parent run_workflow missing', () => {
@@ -452,12 +495,27 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         engineQueued('validate', TRACE_ROOT),
         engineStepRun('validate', TRACE_ROOT),
         sdkStepRun('validate', TRACE_ROOT),
-        sdkUserSpan('schema', 'ssr_validate', 'order.validate.schema', 'validate'),
-        sdkUserSpan('fraud', 'ssr_validate', 'order.validate.fraud-check', 'validate'),
+        sdkUserSpan(
+          'schema',
+          'ssr_validate',
+          'order.validate.schema',
+          'validate',
+        ),
+        sdkUserSpan(
+          'fraud',
+          'ssr_validate',
+          'order.validate.fraud-check',
+          'validate',
+        ),
 
         engineQueued('reserve', TRACE_ROOT),
         engineStepRun('reserve', TRACE_ROOT),
-        sdkUserSpan('inv-check', 'missing_sdk_reserve', 'inventory.check-availability', 'reserve'),
+        sdkUserSpan(
+          'inv-check',
+          'missing_sdk_reserve',
+          'inventory.check-availability',
+          'reserve',
+        ),
 
         engineQueued('charge', TRACE_ROOT),
         engineStepRun('charge', TRACE_ROOT),
@@ -480,14 +538,30 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         (c) => c.spanAttributes?.['hatchet.step_run_id'],
       );
 
-      assert.strictEqual(root.children.length, 4, 'root should have 4 children, not 5');
+      assert.strictEqual(
+        root.children.length,
+        4,
+        'root should have 4 children, not 5',
+      );
       assert.ok(childStepRunIds.includes('validate'));
       assert.ok(childStepRunIds.includes('reserve'));
       assert.ok(childStepRunIds.includes('charge'));
-      assert.ok(childStepRunIds.includes('dag-conf'), 'dag-conf should be synthesized');
-      assert.ok(!childStepRunIds.includes('other-task'), 'other-task should not be at root');
-      assert.ok(!childStepRunIds.includes('notif1'), 'notif1 should not be at root');
-      assert.ok(!childStepRunIds.includes('notif2'), 'notif2 should not be at root');
+      assert.ok(
+        childStepRunIds.includes('dag-conf'),
+        'dag-conf should be synthesized',
+      );
+      assert.ok(
+        !childStepRunIds.includes('other-task'),
+        'other-task should not be at root',
+      );
+      assert.ok(
+        !childStepRunIds.includes('notif1'),
+        'notif1 should not be at root',
+      );
+      assert.ok(
+        !childStepRunIds.includes('notif2'),
+        'notif2 should not be at root',
+      );
     });
 
     test('poll 4: SDK run_workflow spans arrive, reparented under dag engine step_run', () => {
@@ -501,8 +575,18 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         sdkStepRun('reserve', parentSpan),
         engineQueued(dagStepRunId, parentSpan),
         engineStepRun(dagStepRunId, parentSpan),
-        sdkRunWorkflow('rw1', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
-        sdkRunWorkflow('rw2', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
+        sdkRunWorkflow(
+          'rw1',
+          sdkDagSpanId,
+          'otel-send-notification',
+          dagStepRunId,
+        ),
+        sdkRunWorkflow(
+          'rw2',
+          sdkDagSpanId,
+          'otel-send-notification',
+          dagStepRunId,
+        ),
         sdkRunWorkflow('rw3', sdkDagSpanId, 'otel-other-task', dagStepRunId),
         engineQueued('notif1', 'rw1'),
         engineQueued('notif2', 'rw2'),
@@ -512,19 +596,32 @@ describe('convertOtelSpansToOtelSpanTree', () => {
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
 
-      assert.strictEqual(root.children.length, 4, 'root should have 4 children');
+      assert.strictEqual(
+        root.children.length,
+        4,
+        'root should have 4 children',
+      );
 
       const dagSpan = root.children.find(
         (c) => c.spanAttributes?.['hatchet.step_run_id'] === dagStepRunId,
       );
       assert.ok(dagSpan, 'dag-conf should be present');
-      assert.ok(dagSpan.children.length >= 3, 'dag should have run_workflow children');
+      assert.ok(
+        dagSpan.children.length >= 3,
+        'dag should have run_workflow children',
+      );
 
       const rootStepRunIds = root.children.map(
         (c) => c.spanAttributes?.['hatchet.step_run_id'],
       );
-      assert.ok(!rootStepRunIds.includes('notif1'), 'notif1 should not be at root');
-      assert.ok(!rootStepRunIds.includes('notif2'), 'notif2 should not be at root');
+      assert.ok(
+        !rootStepRunIds.includes('notif1'),
+        'notif1 should not be at root',
+      );
+      assert.ok(
+        !rootStepRunIds.includes('notif2'),
+        'notif2 should not be at root',
+      );
     });
 
     test('orphan run_workflow spans suppressed when step_run not yet present', () => {
@@ -536,15 +633,29 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         sdkStepRun('validate', parentSpan),
         sdkStepRun('charge', parentSpan),
         sdkStepRun('reserve', parentSpan),
-        sdkRunWorkflow('rw1', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
-        sdkRunWorkflow('rw2', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
+        sdkRunWorkflow(
+          'rw1',
+          sdkDagSpanId,
+          'otel-send-notification',
+          dagStepRunId,
+        ),
+        sdkRunWorkflow(
+          'rw2',
+          sdkDagSpanId,
+          'otel-send-notification',
+          dagStepRunId,
+        ),
         sdkRunWorkflow('rw3', sdkDagSpanId, 'otel-other-task', dagStepRunId),
       ]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
 
-      assert.strictEqual(root.children.length, 3, 'root should have 3 children (no orphan run_workflows)');
+      assert.strictEqual(
+        root.children.length,
+        3,
+        'root should have 3 children (no orphan run_workflows)',
+      );
 
       const childNames = root.children.map(
         (c) => c.spanAttributes?.['hatchet.step_run_id'],
@@ -565,21 +676,37 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         sdkStepRun('reserve', parentSpan),
         engineQueued(dagStepRunId, parentSpan),
         sdkStepRun(dagStepRunId, parentSpan, { spanId: sdkDagSpanId }),
-        sdkRunWorkflow('rw1', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
-        sdkRunWorkflow('rw2', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
+        sdkRunWorkflow(
+          'rw1',
+          sdkDagSpanId,
+          'otel-send-notification',
+          dagStepRunId,
+        ),
+        sdkRunWorkflow(
+          'rw2',
+          sdkDagSpanId,
+          'otel-send-notification',
+          dagStepRunId,
+        ),
         sdkRunWorkflow('rw3', sdkDagSpanId, 'otel-other-task', dagStepRunId),
       ]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
 
-      assert.strictEqual(root.children.length, 4, 'root should have 4 children');
-
-      const dagSpan = root.children.find(
-        (c) => c.spanId === sdkDagSpanId,
+      assert.strictEqual(
+        root.children.length,
+        4,
+        'root should have 4 children',
       );
+
+      const dagSpan = root.children.find((c) => c.spanId === sdkDagSpanId);
       assert.ok(dagSpan, 'SDK dag span should be the surviving one');
-      assert.strictEqual(dagSpan.children.length, 3, 'dag should have 3 run_workflow children');
+      assert.strictEqual(
+        dagSpan.children.length,
+        3,
+        'dag should have 3 run_workflow children',
+      );
     });
   });
 });
