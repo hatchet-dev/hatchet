@@ -5,6 +5,145 @@ import type {
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import invariant from 'tiny-invariant';
 
+// ---------------------------------------------------------------------------
+// Span name & attribute constants
+// ---------------------------------------------------------------------------
+
+const SPAN = {
+  START_STEP_RUN: 'hatchet.start_step_run',
+  ENGINE_QUEUED: 'hatchet.engine.queued',
+  RUN_WORKFLOW: 'hatchet.run_workflow',
+  START_WORKFLOW: 'hatchet.start_workflow',
+} as const;
+
+const ATTR = {
+  STEP_RUN_ID: 'hatchet.step_run_id',
+  STEP_NAME: 'hatchet.step_name',
+  SPAN_SOURCE: 'hatchet.span_source',
+  ACTION_ID: 'hatchet.action_id',
+  WORKFLOW_NAME: 'hatchet.workflow_name',
+  TASK_NAME: 'hatchet.task_name',
+  INSTRUMENTOR: 'instrumentor',
+} as const;
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+function getStepRunId(node: OtelSpanTree): string | undefined {
+  return node.spanAttributes?.[ATTR.STEP_RUN_ID];
+}
+
+function isEngineSpan(node: OtelSpanTree): boolean {
+  return node.spanAttributes?.[ATTR.SPAN_SOURCE] === 'engine';
+}
+
+function removeByPredicate(
+  nodes: OtelSpanTree[],
+  predicate: (node: OtelSpanTree) => boolean,
+): void {
+  let write = 0;
+  for (let read = 0; read < nodes.length; read++) {
+    if (!predicate(nodes[read])) {
+      nodes[write++] = nodes[read];
+    }
+  }
+  nodes.length = write;
+}
+
+function removeBySpanIds(nodes: OtelSpanTree[], ids: Set<string>): void {
+  if (ids.size > 0) {
+    removeByPredicate(nodes, (n) => ids.has(n.spanId));
+  }
+}
+
+function countParents(nodes: OtelSpanTree[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const node of nodes) {
+    if (node.parentSpanId) {
+      counts.set(node.parentSpanId, (counts.get(node.parentSpanId) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+function hasInProgress(nodes: OtelSpanTree[]): boolean {
+  return nodes.some((n) => n.inProgress || hasInProgress(n.children));
+}
+
+// ---------------------------------------------------------------------------
+// Synthetic span factories
+// ---------------------------------------------------------------------------
+
+function makeSyntheticRoot(
+  children: OtelSpanTree[],
+  overrides?: Partial<OtelSpanTree>,
+): OtelSpanTree {
+  let earliestStart = Date.now();
+  for (const child of children) {
+    const t = new Date(child.createdAt).getTime();
+    if (t < earliestStart) {
+      earliestStart = t;
+    }
+  }
+
+  return {
+    spanId: '__synthetic_workflow_start__',
+    parentSpanId: undefined,
+    spanName: SPAN.START_WORKFLOW,
+    statusCode: OtelStatusCode.UNSET,
+    durationNs: 0,
+    createdAt: new Date(earliestStart).toISOString(),
+    spanAttributes: { [ATTR.INSTRUMENTOR]: 'hatchet' },
+    children,
+    inProgress: children.some((s) => s.inProgress),
+    ...overrides,
+  };
+}
+
+function makeQueuedPhase(
+  spanId: string,
+  parentSpanId: string | undefined,
+  durationNs: number,
+  createdAt: string,
+  attrs: Record<string, string>,
+): OtelSpanTree {
+  return {
+    spanId,
+    parentSpanId,
+    spanName: SPAN.ENGINE_QUEUED,
+    statusCode: OtelStatusCode.OK,
+    durationNs,
+    createdAt,
+    spanAttributes: { [ATTR.SPAN_SOURCE]: 'engine', ...attrs },
+    children: [],
+  };
+}
+
+function makeStepRunSpan(
+  spanId: string,
+  parentSpanId: string | undefined,
+  createdAt: string,
+  attrs: Record<string, string>,
+  extra?: Partial<OtelSpanTree>,
+): OtelSpanTree {
+  return {
+    spanId,
+    parentSpanId,
+    spanName: SPAN.START_STEP_RUN,
+    statusCode: OtelStatusCode.UNSET,
+    durationNs: 0,
+    createdAt,
+    spanAttributes: { [ATTR.SPAN_SOURCE]: 'engine', ...attrs },
+    children: [],
+    ...extra,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
 export interface TaskSummaryForSynthesis {
   externalId: string;
   displayName: string;
@@ -13,6 +152,19 @@ export interface TaskSummaryForSynthesis {
   startedAt?: string;
 }
 
+export type WorkflowRunTiming = {
+  createdAt: string;
+  startedAt?: string;
+};
+
+type ConvertOptions = {
+  enableTraceInProgressSynthesis?: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// Tree transforms (each operates on a mutable node list)
+// ---------------------------------------------------------------------------
+
 function deduplicateStepRunSpans(nodes: OtelSpanTree[]): void {
   const byStepRunId = new Map<
     string,
@@ -20,16 +172,16 @@ function deduplicateStepRunSpans(nodes: OtelSpanTree[]): void {
   >();
 
   for (const node of nodes) {
-    if (node.spanName !== 'hatchet.start_step_run') {
+    if (node.spanName !== SPAN.START_STEP_RUN) {
       continue;
     }
-    const stepRunId = node.spanAttributes?.['hatchet.step_run_id'];
+    const stepRunId = getStepRunId(node);
     if (!stepRunId) {
       continue;
     }
 
     const entry = byStepRunId.get(stepRunId) ?? {};
-    if (node.spanAttributes?.['hatchet.span_source'] === 'engine') {
+    if (isEngineSpan(node)) {
       entry.engine = node;
     } else {
       entry.sdk = node;
@@ -43,14 +195,7 @@ function deduplicateStepRunSpans(nodes: OtelSpanTree[]): void {
       toRemove.add(engine.spanId);
     }
   }
-
-  if (toRemove.size > 0) {
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      if (toRemove.has(nodes[i].spanId)) {
-        nodes.splice(i, 1);
-      }
-    }
-  }
+  removeBySpanIds(nodes, toRemove);
 
   for (const node of nodes) {
     deduplicateStepRunSpans(node.children);
@@ -60,30 +205,24 @@ function deduplicateStepRunSpans(nodes: OtelSpanTree[]): void {
 function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
   const queuedByStepRunId = new Map<string, OtelSpanTree>();
   for (const node of nodes) {
-    if (
-      node.spanName === 'hatchet.engine.queued' &&
-      node.spanAttributes?.['hatchet.step_run_id']
-    ) {
-      queuedByStepRunId.set(node.spanAttributes['hatchet.step_run_id'], node);
+    const id = getStepRunId(node);
+    if (node.spanName === SPAN.ENGINE_QUEUED && id) {
+      queuedByStepRunId.set(id, node);
     }
   }
 
   if (queuedByStepRunId.size > 0) {
     const toRemove = new Set<string>();
     for (const node of nodes) {
-      if (node.spanName === 'hatchet.start_step_run') {
-        const stepRunId = node.spanAttributes?.['hatchet.step_run_id'];
+      if (node.spanName === SPAN.START_STEP_RUN) {
+        const stepRunId = getStepRunId(node);
         if (stepRunId && queuedByStepRunId.has(stepRunId)) {
           node.queuedPhase = queuedByStepRunId.get(stepRunId);
           toRemove.add(node.queuedPhase!.spanId);
         }
       }
     }
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      if (toRemove.has(nodes[i].spanId)) {
-        nodes.splice(i, 1);
-      }
-    }
+    removeBySpanIds(nodes, toRemove);
   }
 
   for (const node of nodes) {
@@ -92,79 +231,65 @@ function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
 }
 
 function suppressStandaloneQueuedSpans(nodes: OtelSpanTree[]): void {
-  for (let i = nodes.length - 1; i >= 0; i--) {
-    if (nodes[i].spanName === 'hatchet.engine.queued') {
-      nodes.splice(i, 1);
-      continue;
-    }
+  removeByPredicate(nodes, (n) => n.spanName === SPAN.ENGINE_QUEUED);
 
-    suppressStandaloneQueuedSpans(nodes[i].children);
+  for (const node of nodes) {
+    suppressStandaloneQueuedSpans(node.children);
   }
 }
 
 function synthesizeInProgressSpans(
   nodes: OtelSpanTree[],
-  allSpanIds: Set<string>,
+  spanIdLookup: { has(key: string): boolean },
 ): void {
   const stepRunIds = new Set<string>();
   for (const node of nodes) {
-    if (node.spanName === 'hatchet.start_step_run') {
-      const id = node.spanAttributes?.['hatchet.step_run_id'];
+    if (node.spanName === SPAN.START_STEP_RUN) {
+      const id = getStepRunId(node);
       if (id) {
         stepRunIds.add(id);
       }
     }
   }
 
-  // Count siblings sharing each parentSpanId. If multiple siblings share
-  // the same missing parent, it's the implicit trace root → keep the span.
-  // If the parent is unique and missing, it's a child-workflow orphan → drop.
-  const parentCounts = new Map<string, number>();
-  for (const node of nodes) {
-    if (node.parentSpanId) {
-      parentCounts.set(
-        node.parentSpanId,
-        (parentCounts.get(node.parentSpanId) ?? 0) + 1,
-      );
-    }
-  }
+  const parentCounts = countParents(nodes);
 
-  for (let i = nodes.length - 1; i >= 0; i--) {
-    const node = nodes[i];
+  let write = 0;
+  for (let read = 0; read < nodes.length; read++) {
+    const node = nodes[read];
+    const stepRunId = getStepRunId(node);
+
     if (
-      node.spanName === 'hatchet.engine.queued' &&
-      node.spanAttributes?.['hatchet.step_run_id'] &&
-      !stepRunIds.has(node.spanAttributes['hatchet.step_run_id'])
+      node.spanName !== SPAN.ENGINE_QUEUED ||
+      !stepRunId ||
+      stepRunIds.has(stepRunId)
     ) {
-      if (
-        node.parentSpanId &&
-        !allSpanIds.has(node.parentSpanId) &&
-        (parentCounts.get(node.parentSpanId) ?? 0) <= 1
-      ) {
-        nodes.splice(i, 1);
-        continue;
-      }
-
-      const stepRunId = node.spanAttributes['hatchet.step_run_id'];
-      const qEndMs = new Date(node.createdAt).getTime() + node.durationNs / 1e6;
-
-      nodes[i] = {
-        spanId: `__synthetic_running_${stepRunId}__`,
-        parentSpanId: node.parentSpanId,
-        spanName: 'hatchet.start_step_run',
-        statusCode: OtelStatusCode.UNSET,
-        durationNs: 0,
-        createdAt: new Date(qEndMs).toISOString(),
-        spanAttributes: { ...node.spanAttributes },
-        children: [],
-        queuedPhase: node,
-        inProgress: true,
-      };
+      nodes[write++] = nodes[read];
+      continue;
     }
+
+    if (
+      node.parentSpanId &&
+      !spanIdLookup.has(node.parentSpanId) &&
+      (parentCounts.get(node.parentSpanId) ?? 0) <= 1
+    ) {
+      continue;
+    }
+
+    const qEndMs = new Date(node.createdAt).getTime() + node.durationNs / 1e6;
+
+    nodes[write++] = makeStepRunSpan(
+      `__synthetic_running_${stepRunId}__`,
+      node.parentSpanId,
+      new Date(qEndMs).toISOString(),
+      { ...node.spanAttributes! },
+      { queuedPhase: node, inProgress: true },
+    );
   }
+  nodes.length = write;
 
   for (const node of nodes) {
-    synthesizeInProgressSpans(node.children, allSpanIds);
+    synthesizeInProgressSpans(node.children, spanIdLookup);
   }
 }
 
@@ -173,11 +298,11 @@ function buildStepRunIndex(
   index: Map<string, OtelSpanTree>,
 ): void {
   for (const node of nodes) {
-    if (
-      node.spanName === 'hatchet.start_step_run' &&
-      node.spanAttributes?.['hatchet.step_run_id']
-    ) {
-      index.set(node.spanAttributes['hatchet.step_run_id'], node);
+    if (node.spanName === SPAN.START_STEP_RUN) {
+      const id = getStepRunId(node);
+      if (id) {
+        index.set(id, node);
+      }
     }
     buildStepRunIndex(node.children, index);
   }
@@ -187,32 +312,25 @@ function reparentOrphans(rootSpans: OtelSpanTree[]): void {
   const stepRunIndex = new Map<string, OtelSpanTree>();
   buildStepRunIndex(rootSpans, stepRunIndex);
 
-  const toRemove = new Set<number>();
+  const reparented = new Set<string>();
 
-  for (let i = 0; i < rootSpans.length; i++) {
-    const orphan = rootSpans[i];
+  for (const orphan of rootSpans) {
     if (!orphan.parentSpanId) {
       continue;
     }
-
-    const stepRunId = orphan.spanAttributes?.['hatchet.step_run_id'];
+    const stepRunId = getStepRunId(orphan);
     if (!stepRunId) {
       continue;
     }
-
     const surrogate = stepRunIndex.get(stepRunId);
     if (surrogate && surrogate.spanId !== orphan.spanId) {
       surrogate.children.push(orphan);
-      toRemove.add(i);
+      reparented.add(orphan.spanId);
     }
   }
 
-  if (toRemove.size > 0) {
-    for (let i = rootSpans.length - 1; i >= 0; i--) {
-      if (toRemove.has(i)) {
-        rootSpans.splice(i, 1);
-      }
-    }
+  if (reparented.size > 0) {
+    removeByPredicate(rootSpans, (n) => reparented.has(n.spanId));
   }
 
   for (const node of rootSpans) {
@@ -220,51 +338,33 @@ function reparentOrphans(rootSpans: OtelSpanTree[]): void {
   }
 }
 
-// Remove root-level orphan spans whose parent is missing from the span data.
-// Two cases:
-//   1. Unique missing parent → child-workflow engine span whose run_workflow
-//      parent hasn't arrived yet.
-//   2. hatchet.run_workflow with missing parent → SDK run_workflow spans that
-//      arrived before their dag-confirmation step_run. These are suppressed
-//      even when multiple siblings share the same missing parent, because
-//      they should only appear nested under their step_run. They'll reappear
-//      correctly on the next poll when the step_run span is present.
 function suppressOrphanedChildWorkflows(
   rootSpans: OtelSpanTree[],
-  allSpanIds: Set<string>,
+  allSpanIds: { has(key: string): boolean },
 ): void {
   if (rootSpans.length <= 1) {
     return;
   }
 
-  const parentCounts = new Map<string, number>();
-  for (const node of rootSpans) {
-    if (node.parentSpanId) {
-      parentCounts.set(
-        node.parentSpanId,
-        (parentCounts.get(node.parentSpanId) ?? 0) + 1,
-      );
-    }
-  }
+  const parentCounts = countParents(rootSpans);
 
-  for (let i = rootSpans.length - 1; i >= 0; i--) {
-    const node = rootSpans[i];
+  removeByPredicate(rootSpans, (node) => {
     if (!node.parentSpanId || allSpanIds.has(node.parentSpanId)) {
-      continue;
+      return false;
     }
-
     const isUniqueOrphan = (parentCounts.get(node.parentSpanId) ?? 0) <= 1;
-    const isOrphanRunWorkflow = node.spanName === 'hatchet.run_workflow';
-
-    if (isUniqueOrphan || isOrphanRunWorkflow) {
-      rootSpans.splice(i, 1);
-    }
-  }
+    const isOrphanRunWorkflow = node.spanName === SPAN.RUN_WORKFLOW;
+    return isUniqueOrphan || isOrphanRunWorkflow;
+  });
 }
+
+// ---------------------------------------------------------------------------
+// Task-summary synthesis (tasks without matching spans)
+// ---------------------------------------------------------------------------
 
 function collectTaskIds(nodes: OtelSpanTree[], out: Set<string>): void {
   for (const node of nodes) {
-    const id = node.spanAttributes?.['hatchet.step_run_id'];
+    const id = getStepRunId(node);
     if (id) {
       out.add(id);
     }
@@ -288,13 +388,11 @@ function markRunningTaskSpans(
 
   const walk = (list: OtelSpanTree[]) => {
     for (const node of list) {
-      if (
-        node.spanName === 'hatchet.start_step_run' &&
-        node.spanAttributes?.['hatchet.step_run_id'] &&
-        runningIds.has(node.spanAttributes['hatchet.step_run_id']) &&
-        node.spanAttributes?.['hatchet.span_source'] === 'engine'
-      ) {
-        node.inProgress = true;
+      if (node.spanName === SPAN.START_STEP_RUN && isEngineSpan(node)) {
+        const id = getStepRunId(node);
+        if (id && runningIds.has(id)) {
+          node.inProgress = true;
+        }
       }
       walk(node.children);
     }
@@ -302,20 +400,14 @@ function markRunningTaskSpans(
   walk(nodes);
 }
 
-function stableSortKey(node: OtelSpanTree): number {
-  if (node.queuedPhase) {
-    return new Date(node.queuedPhase.createdAt).getTime();
-  }
-  return new Date(node.createdAt).getTime();
-}
+const MIN_VALID_TIMESTAMP = new Date('2020-01-01').getTime();
 
-function sortChildrenStable(nodes: OtelSpanTree[]): void {
-  nodes.sort((a, b) => stableSortKey(a) - stableSortKey(b));
-  for (const node of nodes) {
-    if (node.children.length > 1) {
-      sortChildrenStable(node.children);
-    }
-  }
+function taskStepAttrs(task: TaskSummaryForSynthesis): Record<string, string> {
+  return {
+    [ATTR.SPAN_SOURCE]: 'engine',
+    [ATTR.STEP_RUN_ID]: task.externalId,
+    [ATTR.STEP_NAME]: task.displayName,
+  };
 }
 
 function synthesizePendingTaskSpans(
@@ -325,8 +417,6 @@ function synthesizePendingTaskSpans(
 ): void {
   const taskIdsWithSpans = new Set<string>();
   collectTaskIds(nodes, taskIdsWithSpans);
-
-  const MIN_VALID_TIMESTAMP = new Date('2020-01-01').getTime();
 
   for (const task of tasks) {
     if (taskIdsWithSpans.has(task.externalId)) {
@@ -341,87 +431,76 @@ function synthesizePendingTaskSpans(
       continue;
     }
 
+    const attrs = taskStepAttrs(task);
+
     if (task.status === 'QUEUED') {
       const nowMs = Date.now();
       const queuedDurationMs = Math.max(0, nowMs - taskCreatedMs);
-      const queuedPhase: OtelSpanTree = {
-        spanId: `__synthetic_queued_phase_${task.externalId}__`,
+      const queuedPhase = makeQueuedPhase(
+        `__synthetic_queued_phase_${task.externalId}__`,
         parentSpanId,
-        spanName: 'hatchet.engine.queued',
-        statusCode: OtelStatusCode.OK,
-        durationNs: queuedDurationMs * 1e6,
-        createdAt: task.createdAt,
-        spanAttributes: {
-          'hatchet.span_source': 'engine',
-          'hatchet.step_run_id': task.externalId,
-          'hatchet.step_name': task.displayName,
-        },
-        children: [],
-      };
+        queuedDurationMs * 1e6,
+        task.createdAt,
+        attrs,
+      );
 
-      nodes.push({
-        spanId: `__synthetic_queuing_${task.externalId}__`,
-        parentSpanId,
-        spanName: 'hatchet.start_step_run',
-        statusCode: OtelStatusCode.UNSET,
-        durationNs: 0,
-        createdAt: new Date(nowMs).toISOString(),
-        spanAttributes: {
-          'hatchet.span_source': 'engine',
-          'hatchet.step_run_id': task.externalId,
-          'hatchet.step_name': task.displayName,
-        },
-        children: [],
-        queuedPhase,
-      });
-    } else if (task.status === 'RUNNING') {
+      nodes.push(
+        makeStepRunSpan(
+          `__synthetic_queuing_${task.externalId}__`,
+          parentSpanId,
+          new Date(nowMs).toISOString(),
+          attrs,
+          { queuedPhase },
+        ),
+      );
+    } else {
       const startedMs = task.startedAt
         ? new Date(task.startedAt).getTime()
         : taskCreatedMs;
 
-      const queuedPhase: OtelSpanTree = {
-        spanId: `__synthetic_queued_phase_${task.externalId}__`,
+      const queuedPhase = makeQueuedPhase(
+        `__synthetic_queued_phase_${task.externalId}__`,
         parentSpanId,
-        spanName: 'hatchet.engine.queued',
-        statusCode: OtelStatusCode.OK,
-        durationNs: Math.max(0, startedMs - taskCreatedMs) * 1e6,
-        createdAt: task.createdAt,
-        spanAttributes: {
-          'hatchet.span_source': 'engine',
-          'hatchet.step_run_id': task.externalId,
-          'hatchet.step_name': task.displayName,
-        },
-        children: [],
-      };
+        Math.max(0, startedMs - taskCreatedMs) * 1e6,
+        task.createdAt,
+        attrs,
+      );
 
-      nodes.push({
-        spanId: `__synthetic_running_${task.externalId}__`,
-        parentSpanId,
-        spanName: 'hatchet.start_step_run',
-        statusCode: OtelStatusCode.UNSET,
-        durationNs: 0,
-        createdAt: new Date(startedMs).toISOString(),
-        spanAttributes: {
-          'hatchet.span_source': 'engine',
-          'hatchet.step_run_id': task.externalId,
-          'hatchet.step_name': task.displayName,
-        },
-        children: [],
-        queuedPhase,
-        inProgress: true,
-      });
+      nodes.push(
+        makeStepRunSpan(
+          `__synthetic_running_${task.externalId}__`,
+          parentSpanId,
+          new Date(startedMs).toISOString(),
+          attrs,
+          { queuedPhase, inProgress: true },
+        ),
+      );
     }
   }
 }
 
-export type WorkflowRunTiming = {
-  createdAt: string;
-  startedAt?: string;
-};
+// ---------------------------------------------------------------------------
+// Sorting
+// ---------------------------------------------------------------------------
 
-type ConvertOptions = {
-  enableTraceInProgressSynthesis?: boolean;
-};
+function sortChildrenStable(nodes: OtelSpanTree[]): void {
+  const keys = new Map<OtelSpanTree, number>();
+  for (const node of nodes) {
+    const src = node.queuedPhase ?? node;
+    keys.set(node, new Date(src.createdAt).getTime());
+  }
+  nodes.sort((a, b) => keys.get(a)! - keys.get(b)!);
+
+  for (const node of nodes) {
+    if (node.children.length > 1) {
+      sortChildrenStable(node.children);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Workflow-level queued phase
+// ---------------------------------------------------------------------------
 
 function attachWorkflowQueuedPhase(
   root: OtelSpanTree,
@@ -454,11 +533,11 @@ function attachWorkflowQueuedPhase(
   root.queuedPhase = {
     spanId: '__synthetic_workflow_queued__',
     parentSpanId: root.spanId,
-    spanName: 'hatchet.engine.queued',
+    spanName: SPAN.ENGINE_QUEUED,
     statusCode: OtelStatusCode.OK,
     durationNs: durationMs * 1e6,
     createdAt: timing.createdAt,
-    spanAttributes: { 'hatchet.span_source': 'engine' },
+    spanAttributes: { [ATTR.SPAN_SOURCE]: 'engine' },
     children: [],
   };
 }
@@ -469,6 +548,141 @@ function computeHasErrorInSubtree(node: OtelSpanTree): boolean {
     node.statusCode === OtelStatusCode.ERROR || childHasError;
   return node.hasErrorInSubtree;
 }
+
+// ---------------------------------------------------------------------------
+// Pipeline: build raw tree from flat spans
+// ---------------------------------------------------------------------------
+
+function buildRawTree(
+  spans: [
+    RelevantOpenTelemetrySpanProperties,
+    ...RelevantOpenTelemetrySpanProperties[],
+  ],
+): { rootSpans: OtelSpanTree[]; spanMap: Map<string, OtelSpanTree> } {
+  const spanMap = new Map<string, OtelSpanTree>();
+
+  for (const span of spans) {
+    spanMap.set(span.spanId, {
+      spanId: span.spanId,
+      parentSpanId: span.parentSpanId,
+      spanName: span.spanName,
+      statusCode: span.statusCode,
+      statusMessage: span.statusMessage,
+      durationNs: span.durationNs,
+      createdAt: span.createdAt,
+      spanAttributes: span.spanAttributes,
+      children: [],
+    });
+  }
+
+  const rootSpans: OtelSpanTree[] = [];
+  for (const span of spans) {
+    const converted = spanMap.get(span.spanId)!;
+    if (span.parentSpanId) {
+      const parent = spanMap.get(span.parentSpanId);
+      if (parent) {
+        parent.children.push(converted);
+      } else {
+        rootSpans.push(converted);
+      }
+    } else {
+      rootSpans.push(converted);
+    }
+  }
+
+  invariant(rootSpans.length > 0, 'Must have at least one root span');
+  return { rootSpans, spanMap };
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline: wrap multiple roots into a single synthetic root
+// ---------------------------------------------------------------------------
+
+function wrapMultipleRoots(
+  rootSpans: OtelSpanTree[],
+  workflowRunTiming?: WorkflowRunTiming,
+): OtelSpanTree[] {
+  if (rootSpans.length <= 1) {
+    if (workflowRunTiming && rootSpans.length > 0) {
+      attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
+    }
+    rootSpans.forEach(computeHasErrorInSubtree);
+    return rootSpans;
+  }
+
+  let earliestStart = Infinity;
+  let latestEnd = -Infinity;
+  for (const s of rootSpans) {
+    const startMs = new Date(s.createdAt).getTime();
+    if (startMs < earliestStart) {
+      earliestStart = startMs;
+    }
+    const endMs = startMs + s.durationNs / 1e6;
+    if (endMs > latestEnd) {
+      latestEnd = endMs;
+    }
+  }
+
+  const hasError = rootSpans.some((s) => s.statusCode === OtelStatusCode.ERROR);
+
+  const actionId = rootSpans
+    .map((s) => s.spanAttributes?.[ATTR.ACTION_ID])
+    .find((id) => id?.includes(':'));
+  const workflowName = actionId ? actionId.split(':')[0] : undefined;
+
+  const syntheticRoot = makeSyntheticRoot(rootSpans, {
+    statusCode: hasError ? OtelStatusCode.ERROR : OtelStatusCode.OK,
+    durationNs: (latestEnd - earliestStart) * 1e6,
+    createdAt: new Date(earliestStart).toISOString(),
+    spanAttributes: {
+      [ATTR.INSTRUMENTOR]: 'hatchet',
+      ...(workflowName && { [ATTR.WORKFLOW_NAME]: workflowName }),
+    },
+    inProgress: hasInProgress(rootSpans),
+  });
+
+  if (workflowRunTiming) {
+    attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
+  }
+
+  computeHasErrorInSubtree(syntheticRoot);
+  return [syntheticRoot];
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline: handle "no spans" path (only task summaries / timing)
+// ---------------------------------------------------------------------------
+
+function buildTreeFromTaskSummaries(
+  tasks: TaskSummaryForSynthesis[] | undefined,
+  workflowRunTiming?: WorkflowRunTiming,
+): OtelSpanTree[] {
+  const rootSpans: OtelSpanTree[] = [];
+
+  if (tasks?.length) {
+    synthesizePendingTaskSpans(rootSpans, tasks, undefined);
+  }
+
+  if (rootSpans.length === 0) {
+    if (workflowRunTiming) {
+      const syntheticRoot = makeSyntheticRoot([], {
+        createdAt: new Date().toISOString(),
+      });
+      attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
+      if (syntheticRoot.queuedPhase) {
+        computeHasErrorInSubtree(syntheticRoot);
+        return [syntheticRoot];
+      }
+    }
+    return [];
+  }
+
+  return wrapMultipleRoots(rootSpans, workflowRunTiming);
+}
+
+// ---------------------------------------------------------------------------
+// Main export
+// ---------------------------------------------------------------------------
 
 export const convertOtelSpansToOtelSpanTree = (
   spans:
@@ -481,109 +695,26 @@ export const convertOtelSpansToOtelSpanTree = (
   workflowRunTiming?: WorkflowRunTiming,
   options?: ConvertOptions,
 ): OtelSpanTree[] => {
+  if (!spans) {
+    return buildTreeFromTaskSummaries(tasks, workflowRunTiming);
+  }
+
   const enableTraceInProgressSynthesis =
     options?.enableTraceInProgressSynthesis ?? true;
 
-  if (!spans) {
-    const rootSpans: OtelSpanTree[] = [];
-    if (tasks?.length) {
-      synthesizePendingTaskSpans(rootSpans, tasks, undefined);
-    }
-    if (rootSpans.length === 0) {
-      if (workflowRunTiming) {
-        const syntheticRoot: OtelSpanTree = {
-          spanId: '__synthetic_workflow_start__',
-          parentSpanId: undefined,
-          spanName: 'hatchet.start_workflow',
-          statusCode: OtelStatusCode.UNSET,
-          durationNs: 0,
-          createdAt: new Date().toISOString(),
-          spanAttributes: { instrumentor: 'hatchet' },
-          children: [],
-        };
-
-        attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
-        if (syntheticRoot.queuedPhase) {
-          computeHasErrorInSubtree(syntheticRoot);
-          return [syntheticRoot];
-        }
-      }
-
-      return [];
-    }
-    if (rootSpans.length > 1) {
-      const earliestStart = Math.min(
-        ...rootSpans.map((s) => new Date(s.createdAt).getTime()),
-      );
-      const syntheticRoot: OtelSpanTree = {
-        spanId: '__synthetic_workflow_start__',
-        parentSpanId: undefined,
-        spanName: 'hatchet.start_workflow',
-        statusCode: OtelStatusCode.UNSET,
-        durationNs: 0,
-        createdAt: new Date(earliestStart).toISOString(),
-        spanAttributes: { instrumentor: 'hatchet' },
-        children: rootSpans,
-        inProgress: rootSpans.some((s) => s.inProgress),
-      };
-      if (workflowRunTiming) {
-        attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
-      }
-      computeHasErrorInSubtree(syntheticRoot);
-      return [syntheticRoot];
-    }
-    if (workflowRunTiming) {
-      attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
-    }
-    rootSpans.forEach(computeHasErrorInSubtree);
-    return rootSpans;
-  }
-
-  const spanMap = new Map<string, OtelSpanTree>();
-  const rootSpans: OtelSpanTree[] = [];
-
-  spans.forEach((span) => {
-    spanMap.set(span.spanId, {
-      spanId: span.spanId,
-      parentSpanId: span.parentSpanId,
-      spanName: span.spanName,
-      statusCode: span.statusCode,
-      statusMessage: span.statusMessage,
-      durationNs: span.durationNs,
-      createdAt: span.createdAt,
-      spanAttributes: span.spanAttributes,
-      children: [],
-    });
-  });
-
-  spans.forEach((span) => {
-    const converted = spanMap.get(span.spanId)!;
-    const parentSpanId = span.parentSpanId;
-    if (parentSpanId) {
-      const parent = spanMap.get(parentSpanId);
-      if (parent) {
-        parent.children.push(converted);
-      } else {
-        rootSpans.push(converted);
-      }
-    } else {
-      rootSpans.push(converted);
-    }
-  });
-
-  invariant(rootSpans.length > 0, 'Must have at least one root span');
-
-  const allSpanIds = new Set(spanMap.keys());
+  const { rootSpans, spanMap } = buildRawTree(spans);
 
   deduplicateStepRunSpans(rootSpans);
   mergeQueuedSpans(rootSpans);
+
   if (enableTraceInProgressSynthesis) {
-    synthesizeInProgressSpans(rootSpans, allSpanIds);
+    synthesizeInProgressSpans(rootSpans, spanMap);
   } else {
     suppressStandaloneQueuedSpans(rootSpans);
   }
+
   reparentOrphans(rootSpans);
-  suppressOrphanedChildWorkflows(rootSpans, allSpanIds);
+  suppressOrphanedChildWorkflows(rootSpans, spanMap);
 
   if (tasks?.length) {
     const parentSpanId =
@@ -596,61 +727,9 @@ export const convertOtelSpansToOtelSpanTree = (
 
   sortChildrenStable(rootSpans);
 
-  const hasInProgress = (nodes: OtelSpanTree[]): boolean =>
-    nodes.some((n) => n.inProgress || hasInProgress(n.children));
-
   if (rootSpans.length === 1 && hasInProgress(rootSpans[0].children)) {
     rootSpans[0].inProgress = true;
   }
 
-  if (rootSpans.length > 1) {
-    const earliestStart = Math.min(
-      ...rootSpans.map((s) => new Date(s.createdAt).getTime()),
-    );
-    const latestEnd = Math.max(
-      ...rootSpans.map(
-        (s) => new Date(s.createdAt).getTime() + s.durationNs / 1e6,
-      ),
-    );
-    const durationNs = (latestEnd - earliestStart) * 1e6;
-
-    const hasError = rootSpans.some(
-      (s) => s.statusCode === OtelStatusCode.ERROR,
-    );
-
-    const actionId = rootSpans
-      .map((s) => s.spanAttributes?.['hatchet.action_id'])
-      .find((id) => id?.includes(':'));
-    const workflowName = actionId ? actionId.split(':')[0] : undefined;
-
-    const anyInProgress = hasInProgress(rootSpans);
-    const syntheticRoot: OtelSpanTree = {
-      spanId: '__synthetic_workflow_start__',
-      parentSpanId: undefined,
-      spanName: 'hatchet.start_workflow',
-      statusCode: hasError ? OtelStatusCode.ERROR : OtelStatusCode.OK,
-      durationNs,
-      createdAt: new Date(earliestStart).toISOString(),
-      spanAttributes: {
-        instrumentor: 'hatchet',
-        ...(workflowName && { 'hatchet.workflow_name': workflowName }),
-      },
-      children: rootSpans,
-      inProgress: anyInProgress,
-    };
-
-    if (workflowRunTiming) {
-      attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
-    }
-
-    computeHasErrorInSubtree(syntheticRoot);
-    return [syntheticRoot];
-  }
-
-  if (workflowRunTiming && rootSpans.length > 0) {
-    attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
-  }
-
-  rootSpans.forEach(computeHasErrorInSubtree);
-  return rootSpans;
+  return wrapMultipleRoots(rootSpans, workflowRunTiming);
 };
