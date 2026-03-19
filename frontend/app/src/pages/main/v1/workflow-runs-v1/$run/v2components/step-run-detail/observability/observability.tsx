@@ -194,7 +194,7 @@ export const Observability = (props: ObservabilityProps) => {
       queryType === 'task'
         ? fetchAllSpansByTask(queryId)
         : fetchAllSpansByWorkflowRun(queryId),
-    refetchInterval: isRunning || inGracePeriod ? 1000 : 10000,
+    refetchInterval: isRunning || inGracePeriod ? 300 : 10000,
   });
 
   const traces = tracesQuery.data;
@@ -204,29 +204,25 @@ export const Observability = (props: ObservabilityProps) => {
     [traces],
   );
 
-  const workflowRunTiming = useMemo(
-    () => {
-      if (!workflowRunCreatedAt) {
-        return undefined;
-      }
+  const workflowRunTiming = useMemo(() => {
+    if (!workflowRunCreatedAt) {
+      return undefined;
+    }
 
-      const normalizedStartedAt =
-        workflowRunStartedAt &&
-        workflowRunStartedAt !== GO_ZERO_TIME &&
-        !Number.isNaN(new Date(workflowRunStartedAt).getTime())
-          ? workflowRunStartedAt
-          : undefined;
+    const normalizedStartedAt =
+      workflowRunStartedAt &&
+      workflowRunStartedAt !== GO_ZERO_TIME &&
+      !Number.isNaN(new Date(workflowRunStartedAt).getTime())
+        ? workflowRunStartedAt
+        : undefined;
 
-      return { createdAt: workflowRunCreatedAt, startedAt: normalizedStartedAt };
-    },
-    [workflowRunCreatedAt, workflowRunStartedAt],
-  );
+    return { createdAt: workflowRunCreatedAt, startedAt: normalizedStartedAt };
+  }, [workflowRunCreatedAt, workflowRunStartedAt]);
 
   const spanTrees = useMemo(() => {
     let trees: ReturnType<typeof convertOtelSpansToOtelSpanTree> | null = null;
     const hasTraceRows = !!(traces && hasAtLeastOneElement(traces));
     const timingForSynthesis = hasTraceRows ? undefined : workflowRunTiming;
-    const tasksForSynthesis = hasTraceRows ? undefined : tasks;
     const convertOptions = {
       enableTraceInProgressSynthesis: !hasTraceRows,
     };
@@ -234,12 +230,12 @@ export const Observability = (props: ObservabilityProps) => {
     if (hasTraceRows) {
       trees = convertOtelSpansToOtelSpanTree(
         traces,
-        tasksForSynthesis,
+        tasks,
         timingForSynthesis,
         convertOptions,
       );
     } else {
-      const pendingTasks = tasksForSynthesis?.filter(
+      const pendingTasks = tasks?.filter(
         (t) => t.status === 'QUEUED' || t.status === 'RUNNING',
       );
       if (pendingTasks && pendingTasks.length > 0) {
@@ -278,8 +274,9 @@ export const Observability = (props: ObservabilityProps) => {
       tasks?.filter((t) => t.status === 'QUEUED' || t.status === 'RUNNING') ??
       [];
     const engineTraceCount =
-      traces?.filter((t) => t.spanAttributes?.['hatchet.span_source'] === 'engine')
-        .length ?? 0;
+      traces?.filter(
+        (t) => t.spanAttributes?.['hatchet.span_source'] === 'engine',
+      ).length ?? 0;
 
     console.log(
       `[trace-debug] input type=${queryType} id=${queryId} traces=${traces?.length ?? 0} engine=${engineTraceCount} tasks=${tasks?.length ?? 0} pending=${pendingTasks.length} isRunning=${isRunning} wrCreated=${workflowRunTiming?.createdAt ?? '-'} wrStarted=${workflowRunTiming?.startedAt ?? '-'}`,

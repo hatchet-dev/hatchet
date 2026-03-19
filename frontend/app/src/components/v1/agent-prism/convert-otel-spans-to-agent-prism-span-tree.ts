@@ -220,9 +220,15 @@ function reparentOrphans(rootSpans: OtelSpanTree[]): void {
   }
 }
 
-// Remove root-level orphan spans whose parent is missing from the span data
-// and not shared by other root siblings (i.e. not the implicit trace root).
-// These are child-workflow engine spans whose run_workflow parent hasn't arrived.
+// Remove root-level orphan spans whose parent is missing from the span data.
+// Two cases:
+//   1. Unique missing parent → child-workflow engine span whose run_workflow
+//      parent hasn't arrived yet.
+//   2. hatchet.run_workflow with missing parent → SDK run_workflow spans that
+//      arrived before their dag-confirmation step_run. These are suppressed
+//      even when multiple siblings share the same missing parent, because
+//      they should only appear nested under their step_run. They'll reappear
+//      correctly on the next poll when the step_run span is present.
 function suppressOrphanedChildWorkflows(
   rootSpans: OtelSpanTree[],
   allSpanIds: Set<string>,
@@ -243,11 +249,15 @@ function suppressOrphanedChildWorkflows(
 
   for (let i = rootSpans.length - 1; i >= 0; i--) {
     const node = rootSpans[i];
-    if (
-      node.parentSpanId &&
-      !allSpanIds.has(node.parentSpanId) &&
-      (parentCounts.get(node.parentSpanId) ?? 0) <= 1
-    ) {
+    if (!node.parentSpanId || allSpanIds.has(node.parentSpanId)) {
+      continue;
+    }
+
+    const isUniqueOrphan =
+      (parentCounts.get(node.parentSpanId) ?? 0) <= 1;
+    const isOrphanRunWorkflow = node.spanName === 'hatchet.run_workflow';
+
+    if (isUniqueOrphan || isOrphanRunWorkflow) {
       rootSpans.splice(i, 1);
     }
   }
@@ -261,6 +271,36 @@ function collectTaskIds(nodes: OtelSpanTree[], out: Set<string>): void {
     }
     collectTaskIds(node.children, out);
   }
+}
+
+function markRunningTaskSpans(
+  nodes: OtelSpanTree[],
+  tasks: TaskSummaryForSynthesis[],
+): void {
+  const runningIds = new Set<string>();
+  for (const task of tasks) {
+    if (task.status === 'RUNNING') {
+      runningIds.add(task.externalId);
+    }
+  }
+  if (runningIds.size === 0) {
+    return;
+  }
+
+  const walk = (list: OtelSpanTree[]) => {
+    for (const node of list) {
+      if (
+        node.spanName === 'hatchet.start_step_run' &&
+        node.spanAttributes?.['hatchet.step_run_id'] &&
+        runningIds.has(node.spanAttributes['hatchet.step_run_id']) &&
+        node.spanAttributes?.['hatchet.span_source'] === 'engine'
+      ) {
+        node.inProgress = true;
+      }
+      walk(node.children);
+    }
+  };
+  walk(nodes);
 }
 
 function stableSortKey(node: OtelSpanTree): number {
@@ -542,6 +582,7 @@ export const convertOtelSpansToOtelSpanTree = (
     const targetNodes =
       rootSpans.length === 1 ? rootSpans[0].children : rootSpans;
     synthesizePendingTaskSpans(targetNodes, tasks, parentSpanId);
+    markRunningTaskSpans(targetNodes, tasks);
   }
 
   sortChildrenStable(rootSpans);

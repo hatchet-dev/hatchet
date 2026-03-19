@@ -114,7 +114,7 @@ export const TaskRunDetail = ({
         return 5000;
       }
 
-      return 1000;
+      return 300;
     },
   });
 

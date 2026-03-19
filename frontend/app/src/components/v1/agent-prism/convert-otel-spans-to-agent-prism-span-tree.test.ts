@@ -527,6 +527,33 @@ describe('convertOtelSpansToOtelSpanTree', () => {
       assert.ok(!rootStepRunIds.includes('notif2'), 'notif2 should not be at root');
     });
 
+    test('orphan run_workflow spans suppressed when step_run not yet present', () => {
+      const dagStepRunId = 'dag-conf';
+      const sdkDagSpanId = 'sdk_dag_span_id';
+
+      const spans = asNonEmpty([
+        rootSpan(),
+        sdkStepRun('validate', parentSpan),
+        sdkStepRun('charge', parentSpan),
+        sdkStepRun('reserve', parentSpan),
+        sdkRunWorkflow('rw1', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
+        sdkRunWorkflow('rw2', sdkDagSpanId, 'otel-send-notification', dagStepRunId),
+        sdkRunWorkflow('rw3', sdkDagSpanId, 'otel-other-task', dagStepRunId),
+      ]);
+
+      const tree = convertOtelSpansToOtelSpanTree(spans);
+      const root = tree[0];
+
+      assert.strictEqual(root.children.length, 3, 'root should have 3 children (no orphan run_workflows)');
+
+      const childNames = root.children.map(
+        (c) => c.spanAttributes?.['hatchet.step_run_id'],
+      );
+      assert.ok(childNames.includes('validate'));
+      assert.ok(childNames.includes('charge'));
+      assert.ok(childNames.includes('reserve'));
+    });
+
     test('final poll: SDK dag-confirmation arrives, tree fully nested and stable', () => {
       const dagStepRunId = 'dag-conf';
       const sdkDagSpanId = 'sdk_dag_span_id';

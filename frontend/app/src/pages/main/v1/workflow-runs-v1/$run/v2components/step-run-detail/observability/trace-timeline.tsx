@@ -75,6 +75,15 @@ function isEngineSpan(span: OtelSpanTree): boolean {
   return span.spanAttributes?.['hatchet.span_source'] === 'engine';
 }
 
+function isEngineSurrogateParent(span: OtelSpanTree): boolean {
+  return (
+    isEngineSpan(span) &&
+    span.spanName === 'hatchet.start_step_run' &&
+    span.children.length > 0 &&
+    span.children.some((c) => !isEngineSpan(c))
+  );
+}
+
 const ENGINE_SPAN_DISPLAY_NAMES: Record<string, string> = {
   'hatchet.engine.queued': 'Queued',
   'hatchet.engine.scheduling': 'Scheduling',
@@ -192,12 +201,12 @@ function flattenTree(
     if (item.kind === 'span') {
       const tree = item.span;
       const hasChildren = tree.children.length > 0;
-      const isExpanded = expandedIds.has(tree.spanId) && hasChildren;
       const stableKey =
         tree.spanName === 'hatchet.start_step_run' &&
         tree.spanAttributes?.['hatchet.step_run_id']
           ? tree.spanAttributes['hatchet.step_run_id']
           : tree.spanId;
+      const isExpanded = expandedIds.has(stableKey) && hasChildren;
 
       rows.push({
         kind: 'span',
@@ -249,12 +258,12 @@ function flattenTree(
           const isLastInGroup =
             spanIdx === visibleSpans.length - 1 && remaining <= 0;
           const hasChildren = span.children.length > 0;
-          const isSpanExpanded = expandedIds.has(span.spanId) && hasChildren;
           const stableKey =
             span.spanName === 'hatchet.start_step_run' &&
             span.spanAttributes?.['hatchet.step_run_id']
               ? span.spanAttributes['hatchet.step_run_id']
               : span.spanId;
+          const isSpanExpanded = expandedIds.has(stableKey) && hasChildren;
 
           rows.push({
             kind: 'span',
@@ -647,18 +656,22 @@ export function TraceTimeline({
     const lines: string[] = [];
     lines.push(`[group-debug] tree updated — ${spanTrees.length} root(s)`);
 
-    for (const root of spanTrees) {
-      const children = root.children;
-      const items = groupSiblings(children, root.spanId);
+    const logChildren = (
+      children: OtelSpanTree[],
+      label: string,
+      indent: string,
+    ) => {
+      const items = groupSiblings(children, label);
       const groups = items.filter(
         (i): i is { kind: 'group'; group: SpanGroupInfo } => i.kind === 'group',
       );
       const ungrouped = items.filter(
         (i): i is { kind: 'span'; span: OtelSpanTree } => i.kind === 'span',
       );
+      const surrogateCount = children.filter(isEngineSurrogateParent).length;
 
       lines.push(
-        `  root "${getDisplayName(root)}": ${children.length} children → ${groups.length} groups, ${ungrouped.length} ungrouped`,
+        `${indent}${label}: ${children.length} children → ${groups.length} groups, ${ungrouped.length} ungrouped${surrogateCount > 0 ? ` (${surrogateCount} surrogate(s))` : ''}`,
       );
 
       for (const item of items) {
@@ -669,45 +682,35 @@ export function TraceTimeline({
               `${s.spanAttributes?.['hatchet.span_source'] === 'engine' ? 'E' : 'S'}:${s.spanId.slice(0, 8)}`,
           );
           lines.push(
-            `    group "${g.groupName}" (${g.totalCount} spans) [${names.join(', ')}]`,
+            `${indent}  group "${g.groupName}" (${g.totalCount} spans) [${names.join(', ')}]`,
           );
         } else {
           const s = item.span;
           const isEngine =
             s.spanAttributes?.['hatchet.span_source'] === 'engine';
           const src = isEngine ? 'E' : 'S';
+          const surr = isEngineSurrogateParent(s) ? ' SURROGATE' : '';
           lines.push(
-            `    span "${getDisplayName(s)}" ${src}:${s.spanId.slice(0, 8)} name=${s.spanName} task_name=${s.spanAttributes?.['hatchet.task_name'] ?? ''} step_name=${s.spanAttributes?.['hatchet.step_name'] ?? ''} children=${s.children.length} inProgress=${s.inProgress ?? false}`,
+            `${indent}  span "${getDisplayName(s)}" ${src}:${s.spanId.slice(0, 8)} children=${s.children.length} inProgress=${s.inProgress ?? false}${surr}`,
           );
-        }
-      }
 
-      for (const child of children) {
-        if (child.children.length > GROUP_THRESHOLD) {
-          const childItems = groupSiblings(child.children, child.spanId);
-          const cGroups = childItems.filter(
-            (i): i is { kind: 'group'; group: SpanGroupInfo } =>
-              i.kind === 'group',
-          );
-          const cUngrouped = childItems.filter(
-            (i): i is { kind: 'span'; span: OtelSpanTree } => i.kind === 'span',
-          );
-          lines.push(
-            `    nested "${getDisplayName(child)}": ${child.children.length} children → ${cGroups.length} groups, ${cUngrouped.length} ungrouped`,
-          );
-          for (const ci of childItems) {
-            if (ci.kind === 'group') {
-              lines.push(
-                `      group "${ci.group.groupName}" (${ci.group.totalCount} spans)`,
-              );
-            } else {
-              lines.push(
-                `      span "${getDisplayName(ci.span)}" name=${ci.span.spanName}`,
-              );
-            }
+          if (s.children.length > GROUP_THRESHOLD) {
+            logChildren(
+              s.children,
+              `nested "${getDisplayName(s)}"`,
+              `${indent}    `,
+            );
           }
         }
       }
+    };
+
+    for (const root of spanTrees) {
+      logChildren(
+        root.children,
+        `root "${getDisplayName(root)}"`,
+        '  ',
+      );
     }
 
     console.log(lines.join('\n'));
@@ -1043,7 +1046,7 @@ export function TraceTimeline({
               style={{ height: ROW_HEIGHT }}
               onClick={() => {
                 if (row.hasChildren) {
-                  expandOnly(row.span.spanId);
+                  expandOnly(row.rowKey);
                 }
                 onSpanSelect?.(row.span);
               }}
@@ -1070,7 +1073,7 @@ export function TraceTimeline({
                   style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleExpand(row.span.spanId);
+                    toggleExpand(row.rowKey);
                   }}
                 >
                   {row.isExpanded ? (
@@ -1349,7 +1352,7 @@ export function TraceTimeline({
                     onMouseLeave={() => handleBarHover(null)}
                     onClick={() => {
                       if (row.hasChildren) {
-                        expandOnly(row.span.spanId);
+                        expandOnly(row.rowKey);
                       }
                       onSpanSelect?.(row.span);
                     }}
@@ -1380,7 +1383,7 @@ export function TraceTimeline({
                     onMouseLeave={() => handleBarHover(null)}
                     onClick={() => {
                       if (row.hasChildren) {
-                        expandOnly(row.span.spanId);
+                        expandOnly(row.rowKey);
                       }
                       onSpanSelect?.(row.span);
                     }}
