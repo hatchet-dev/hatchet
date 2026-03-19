@@ -40,22 +40,26 @@ func NewSlackSender(s3Bucket string, slackWebhookUrl string) *SlackSender {
 	}
 }
 
-func (s *SlackSender) SendMessage(imageUrl string) error {
+func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl string, avgDuration time.Duration, avgScheduling time.Duration) error {
 	// Create the payload
 	payload := map[string]interface{}{
-		"text": imageUrl,
 		"blocks": []map[string]interface{}{
 			{
 				"type": "section",
 				"text": map[string]string{
 					"type": "mrkdwn",
-					"text": fmt.Sprintf("(%s) New load test plot: ", time.Now().Format("2006-01-02-15:04:05")),
+					"text": fmt.Sprintf("*(%s)* \n:star:New load test results:star:\nAverage task duration: %s\nAverage task scheduling: %s", time.Now().Format("2006-01-02-15:04:05"), avgDuration.String(), avgScheduling.String()),
 				},
 			},
 			{
 				"type":      "image",
-				"image_url": imageUrl,
-				"alt_text":  "Load test graph",
+				"image_url": schedulingPlotUrl,
+				"alt_text":  "Scheduling test graph",
+			},
+			{
+				"type":      "image",
+				"image_url": durationPlotUrl,
+				"alt_text":  "Duration test graph",
 			},
 		},
 	}
@@ -100,10 +104,14 @@ func (s *SlackSender) UploadS3(imageBytes []byte) (*string, error) {
 	return &uploadedUrl, nil
 }
 
-func (s *SlackSender) SendToSlack(imageBytes []byte) error {
-	uploadedFileUrl, err := s.UploadS3(imageBytes)
+func (s *SlackSender) SendToSlack(durationBytes []byte, schedulingBytes []byte, avgDuration time.Duration, avgScheduling time.Duration) error {
+	uploadedDurationFileUrl, err := s.UploadS3(durationBytes)
 	if err != nil {
 		return err
 	}
-	return s.SendMessage(*uploadedFileUrl)
+	uploadedSchedulingFileUrl, err := s.UploadS3(schedulingBytes)
+	if err != nil {
+		return err
+	}
+	return s.SendMessage(*uploadedDurationFileUrl, *uploadedSchedulingFileUrl, avgDuration, avgScheduling)
 }
