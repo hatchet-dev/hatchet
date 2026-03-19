@@ -298,6 +298,15 @@ export const TaskRunDetail = ({
           <Observability
             taskRunId={taskRunId}
             isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+            tasks={[
+              {
+                externalId: taskRun.metadata.id,
+                displayName: taskRun.displayName,
+                status: taskRun.status,
+                createdAt: taskRun.metadata.createdAt,
+                startedAt: taskRun.startedAt,
+              },
+            ]}
           />
         </TabsContent>
       </Tabs>

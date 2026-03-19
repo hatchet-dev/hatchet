@@ -367,6 +367,50 @@ describe('convertOtelSpansToOtelSpanTree', () => {
       assert.ok(names.includes('charge'));
     });
 
+    test('real task spans retain queuedPhase but are not synthetic roots', () => {
+      const spans = asNonEmpty([
+        rootSpan(),
+        engineQueued('validate', ROOT),
+        engineStepRun('validate', ROOT),
+      ]);
+
+      const tree = convertOtelSpansToOtelSpanTree(spans);
+      const root = tree[0];
+      const validateSpan = root.children.find(
+        (c) => c.spanAttributes?.['hatchet.step_run_id'] === 'validate',
+      );
+
+      assert.ok(validateSpan, 'validate span should exist');
+      assert.ok(validateSpan.queuedPhase, 'should have queuedPhase');
+      assert.ok(
+        !validateSpan.spanId.startsWith('__synthetic_'),
+        'real task span should not have synthetic spanId',
+      );
+    });
+
+    test('poll transition: trace mode should not surface standalone queued rows', () => {
+      const spans = asNonEmpty([
+        rootSpan(),
+        engineStepRun('validate', parentSpan),
+        engineQueued('reserve', parentSpan),
+        engineQueued('charge', parentSpan),
+      ]);
+
+      const tree = convertOtelSpansToOtelSpanTree(spans, undefined, undefined, {
+        enableTraceInProgressSynthesis: false,
+      });
+      const root = tree[0];
+
+      const queuedRows = root.children.filter(
+        (c) => c.spanName === 'hatchet.engine.queued',
+      );
+      assert.strictEqual(
+        queuedRows.length,
+        0,
+        'trace mode should not render standalone queued rows',
+      );
+    });
+
     test('poll 2: engine + SDK spans, orphan child-workflow queued spans dropped but dag-conf kept', () => {
       const spans = asNonEmpty([
         rootSpan(),

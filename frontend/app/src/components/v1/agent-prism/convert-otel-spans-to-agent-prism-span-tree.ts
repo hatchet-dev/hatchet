@@ -91,6 +91,17 @@ function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
   }
 }
 
+function suppressStandaloneQueuedSpans(nodes: OtelSpanTree[]): void {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (nodes[i].spanName === 'hatchet.engine.queued') {
+      nodes.splice(i, 1);
+      continue;
+    }
+
+    suppressStandaloneQueuedSpans(nodes[i].children);
+  }
+}
+
 function synthesizeInProgressSpans(
   nodes: OtelSpanTree[],
   allSpanIds: Set<string>,
@@ -216,6 +227,10 @@ function suppressOrphanedChildWorkflows(
   rootSpans: OtelSpanTree[],
   allSpanIds: Set<string>,
 ): void {
+  if (rootSpans.length <= 1) {
+    return;
+  }
+
   const parentCounts = new Map<string, number>();
   for (const node of rootSpans) {
     if (node.parentSpanId) {
@@ -288,12 +303,14 @@ function synthesizePendingTaskSpans(
     }
 
     if (task.status === 'QUEUED') {
-      nodes.push({
-        spanId: `__synthetic_queuing_${task.externalId}__`,
+      const nowMs = Date.now();
+      const queuedDurationMs = Math.max(0, nowMs - taskCreatedMs);
+      const queuedPhase: OtelSpanTree = {
+        spanId: `__synthetic_queued_phase_${task.externalId}__`,
         parentSpanId,
-        spanName: 'hatchet.start_step_run',
-        statusCode: OtelStatusCode.UNSET,
-        durationNs: 0,
+        spanName: 'hatchet.engine.queued',
+        statusCode: OtelStatusCode.OK,
+        durationNs: queuedDurationMs * 1e6,
         createdAt: task.createdAt,
         spanAttributes: {
           'hatchet.span_source': 'engine',
@@ -301,7 +318,22 @@ function synthesizePendingTaskSpans(
           'hatchet.step_name': task.displayName,
         },
         children: [],
-        inProgress: true,
+      };
+
+      nodes.push({
+        spanId: `__synthetic_queuing_${task.externalId}__`,
+        parentSpanId,
+        spanName: 'hatchet.start_step_run',
+        statusCode: OtelStatusCode.UNSET,
+        durationNs: 0,
+        createdAt: new Date(nowMs).toISOString(),
+        spanAttributes: {
+          'hatchet.span_source': 'engine',
+          'hatchet.step_run_id': task.externalId,
+          'hatchet.step_name': task.displayName,
+        },
+        children: [],
+        queuedPhase,
       });
     } else if (task.status === 'RUNNING') {
       const startedMs = task.startedAt
@@ -343,6 +375,55 @@ function synthesizePendingTaskSpans(
   }
 }
 
+export type WorkflowRunTiming = {
+  createdAt: string;
+  startedAt?: string;
+};
+
+type ConvertOptions = {
+  enableTraceInProgressSynthesis?: boolean;
+};
+
+function attachWorkflowQueuedPhase(
+  root: OtelSpanTree,
+  timing: WorkflowRunTiming,
+): void {
+  const queueStartMs = new Date(timing.createdAt).getTime();
+  if (Number.isNaN(queueStartMs)) {
+    return;
+  }
+
+  let queueEndMs: number;
+  if (timing.startedAt) {
+    const startedAtMs = new Date(timing.startedAt).getTime();
+    if (!Number.isNaN(startedAtMs) && startedAtMs >= queueStartMs) {
+      queueEndMs = startedAtMs;
+    } else {
+      const rootStartMs = new Date(root.createdAt).getTime();
+      queueEndMs = Number.isNaN(rootStartMs) ? Date.now() : rootStartMs;
+    }
+  } else {
+    const rootStartMs = new Date(root.createdAt).getTime();
+    queueEndMs = Number.isNaN(rootStartMs) ? Date.now() : rootStartMs;
+  }
+
+  const durationMs = queueEndMs - queueStartMs;
+  if (durationMs <= 0) {
+    return;
+  }
+
+  root.queuedPhase = {
+    spanId: '__synthetic_workflow_queued__',
+    parentSpanId: root.spanId,
+    spanName: 'hatchet.engine.queued',
+    statusCode: OtelStatusCode.OK,
+    durationNs: durationMs * 1e6,
+    createdAt: timing.createdAt,
+    spanAttributes: { 'hatchet.span_source': 'engine' },
+    children: [],
+  };
+}
+
 export const convertOtelSpansToOtelSpanTree = (
   spans:
     | [
@@ -351,32 +432,61 @@ export const convertOtelSpansToOtelSpanTree = (
       ]
     | undefined,
   tasks?: TaskSummaryForSynthesis[],
+  workflowRunTiming?: WorkflowRunTiming,
+  options?: ConvertOptions,
 ): OtelSpanTree[] => {
+  const enableTraceInProgressSynthesis =
+    options?.enableTraceInProgressSynthesis ?? true;
+
   if (!spans) {
     const rootSpans: OtelSpanTree[] = [];
     if (tasks?.length) {
       synthesizePendingTaskSpans(rootSpans, tasks, undefined);
     }
     if (rootSpans.length === 0) {
+      if (workflowRunTiming) {
+        const syntheticRoot: OtelSpanTree = {
+          spanId: '__synthetic_workflow_start__',
+          parentSpanId: undefined,
+          spanName: 'hatchet.start_workflow',
+          statusCode: OtelStatusCode.UNSET,
+          durationNs: 0,
+          createdAt: new Date().toISOString(),
+          spanAttributes: { instrumentor: 'hatchet' },
+          children: [],
+          inProgress: true,
+        };
+
+        attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
+        if (syntheticRoot.queuedPhase) {
+          return [syntheticRoot];
+        }
+      }
+
       return [];
     }
     if (rootSpans.length > 1) {
       const earliestStart = Math.min(
         ...rootSpans.map((s) => new Date(s.createdAt).getTime()),
       );
-      return [
-        {
-          spanId: '__synthetic_workflow_start__',
-          parentSpanId: undefined,
-          spanName: 'hatchet.start_workflow',
-          statusCode: OtelStatusCode.UNSET,
-          durationNs: 0,
-          createdAt: new Date(earliestStart).toISOString(),
-          spanAttributes: { instrumentor: 'hatchet' },
-          children: rootSpans,
-          inProgress: true,
-        },
-      ];
+      const syntheticRoot: OtelSpanTree = {
+        spanId: '__synthetic_workflow_start__',
+        parentSpanId: undefined,
+        spanName: 'hatchet.start_workflow',
+        statusCode: OtelStatusCode.UNSET,
+        durationNs: 0,
+        createdAt: new Date(earliestStart).toISOString(),
+        spanAttributes: { instrumentor: 'hatchet' },
+        children: rootSpans,
+        inProgress: true,
+      };
+      if (workflowRunTiming) {
+        attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
+      }
+      return [syntheticRoot];
+    }
+    if (workflowRunTiming) {
+      attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
     }
     return rootSpans;
   }
@@ -418,7 +528,11 @@ export const convertOtelSpansToOtelSpanTree = (
 
   deduplicateStepRunSpans(rootSpans);
   mergeQueuedSpans(rootSpans);
-  synthesizeInProgressSpans(rootSpans, allSpanIds);
+  if (enableTraceInProgressSynthesis) {
+    synthesizeInProgressSpans(rootSpans, allSpanIds);
+  } else {
+    suppressStandaloneQueuedSpans(rootSpans);
+  }
   reparentOrphans(rootSpans);
   suppressOrphanedChildWorkflows(rootSpans, allSpanIds);
 
@@ -475,7 +589,15 @@ export const convertOtelSpansToOtelSpanTree = (
       inProgress: anyInProgress,
     };
 
+    if (workflowRunTiming) {
+      attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
+    }
+
     return [syntheticRoot];
+  }
+
+  if (workflowRunTiming && rootSpans.length > 0) {
+    attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
   }
 
   return rootSpans;

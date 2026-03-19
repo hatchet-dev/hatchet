@@ -425,6 +425,14 @@ function getDotColor(span: OtelSpanTree): string {
   return 'bg-green-500';
 }
 
+function isQueuedOnlyRoot(span: OtelSpanTree): boolean {
+  if (!span.spanId.startsWith('__synthetic_') || !span.queuedPhase) {
+    return false;
+  }
+  const hasRunningChild = span.children.some((c) => c.inProgress);
+  return !hasRunningChild && !span.inProgress;
+}
+
 function SpanTooltip({
   row,
   style,
@@ -611,6 +619,15 @@ export function TraceTimeline({
     [spanTrees],
   );
 
+  const hasAnyLiveQueued = useMemo(
+    () =>
+      (function check(nodes: OtelSpanTree[]): boolean {
+        return nodes.some((n) => isQueuedOnlyRoot(n) || check(n.children));
+      })(spanTrees),
+    [spanTrees],
+  );
+  const hasLiveProgress = hasAnyInProgress || hasAnyLiveQueued;
+
   useEffect(() => {
     if (!spanTrees || spanTrees.length === 0) {
       return;
@@ -701,7 +718,7 @@ export function TraceTimeline({
 
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (!isRunning || !hasAnyInProgress) {
+    if (!isRunning || (!hasAnyInProgress && !hasAnyLiveQueued)) {
       return;
     }
     let raf: number;
@@ -711,7 +728,7 @@ export function TraceTimeline({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [isRunning, hasAnyInProgress]);
+  }, [isRunning, hasAnyInProgress, hasAnyLiveQueued]);
 
   const expandedSet = useMemo(
     () => new Set(expandedSpanIds),
@@ -734,7 +751,10 @@ export function TraceTimeline({
         maxEnd = Math.max(maxEnd, end);
         if (node.queuedPhase) {
           const qStart = new Date(node.queuedPhase.createdAt).getTime();
-          const qEnd = qStart + node.queuedPhase.durationNs / 1e6;
+          const qEnd =
+            isRunning && isQueuedOnlyRoot(node)
+              ? now
+              : qStart + node.queuedPhase.durationNs / 1e6;
           minStart = Math.min(minStart, qStart);
           maxEnd = Math.max(maxEnd, qEnd);
         }
@@ -756,7 +776,7 @@ export function TraceTimeline({
         return {
           visMinStart: visStartMs,
           ticks,
-          timelineMaxMs: hasAnyInProgress
+          timelineMaxMs: hasLiveProgress
             ? visDurationMs
             : Math.max(maxTick, visDurationMs),
           traceMinStart: minStart,
@@ -765,7 +785,7 @@ export function TraceTimeline({
       }
 
       const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
-      const timelineMaxMs = hasAnyInProgress
+      const timelineMaxMs = hasLiveProgress
         ? totalDurationMs
         : Math.max(maxTick, totalDurationMs);
       return {
@@ -775,7 +795,7 @@ export function TraceTimeline({
         traceMinStart: minStart,
         traceTotalMs: totalDurationMs,
       };
-    }, [spanTrees, visibleRange, now, hasAnyInProgress]);
+    }, [spanTrees, visibleRange, now, hasLiveProgress, isRunning]);
 
   const toggleExpand = useCallback(
     (id: string) => {
@@ -1135,17 +1155,29 @@ export function TraceTimeline({
                 {formatTimeLabel(timelineMaxMs * brushRange.lo)}
               </span>
               <div className="flex min-w-1 flex-1 items-center">
-                <svg width="5" height="6" viewBox="0 0 5 6" className="shrink-0 fill-primary">
+                <svg
+                  width="5"
+                  height="6"
+                  viewBox="0 0 5 6"
+                  className="shrink-0 fill-primary"
+                >
                   <path d="M5 0L0 3L5 6Z" />
                 </svg>
                 <div className="h-px flex-1 bg-primary" />
               </div>
               <span className="shrink-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-medium leading-tight text-primary-foreground">
-                {formatTimeLabel(timelineMaxMs * (brushRange.hi - brushRange.lo))}
+                {formatTimeLabel(
+                  timelineMaxMs * (brushRange.hi - brushRange.lo),
+                )}
               </span>
               <div className="flex min-w-1 flex-1 items-center">
                 <div className="h-px flex-1 bg-primary" />
-                <svg width="5" height="6" viewBox="0 0 5 6" className="shrink-0 fill-primary">
+                <svg
+                  width="5"
+                  height="6"
+                  viewBox="0 0 5 6"
+                  className="shrink-0 fill-primary"
+                >
                   <path d="M0 0L5 3L0 6Z" />
                 </svg>
               </div>
@@ -1221,7 +1253,9 @@ export function TraceTimeline({
                   <div
                     className={cn(
                       'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
-                      !hasAnyInProgress && 'transition-all',
+                      !hasAnyInProgress &&
+                        !hasAnyLiveQueued &&
+                        'transition-all',
                       hasErrors ? 'bg-red-500' : 'bg-green-500',
                       isSelected
                         ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
@@ -1250,6 +1284,8 @@ export function TraceTimeline({
             const durationMs = row.span.inProgress
               ? Math.max(0, now - startMs)
               : row.span.durationNs / 1_000_000;
+            const hideExecutionBar =
+              isQueuedOnlyRoot(row.span) && durationMs <= 0;
             const leftPct =
               timelineMaxMs > 0
                 ? ((startMs - visMinStart) / timelineMaxMs) * 100
@@ -1264,10 +1300,12 @@ export function TraceTimeline({
             let qWidthPct = 0;
             if (q) {
               const qStartMs = new Date(q.createdAt).getTime();
+              const qEndMs =
+                isRunning && isQueuedOnlyRoot(row.span) ? now : startMs;
               // FIXME: snapping hides a real gap (typically 0.5–2ms) between queue-end
               // and exec-start. Consider a synthetic "network/dispatch" span to
               // visualize scheduling + worker dispatch latency instead of hiding it.
-              const snappedDurMs = startMs - qStartMs;
+              const snappedDurMs = qEndMs - qStartMs;
               qLeftPct =
                 timelineMaxMs > 0
                   ? ((qStartMs - visMinStart) / timelineMaxMs) * 100
@@ -1290,7 +1328,9 @@ export function TraceTimeline({
                   <div
                     className={cn(
                       'absolute bottom-[10px] top-[10px] cursor-pointer overflow-hidden rounded-l-sm',
-                      !hasAnyInProgress && 'transition-all',
+                      !hasAnyInProgress &&
+                        !hasAnyLiveQueued &&
+                        'transition-all',
                       row.span.inProgress
                         ? 'bg-yellow-500/20'
                         : hasErrorInTree(row.span)
@@ -1321,32 +1361,36 @@ export function TraceTimeline({
                     />
                   </div>
                 )}
-                <div
-                  className={cn(
-                    'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
-                    getBarColor(row.span),
-                    !hasAnyInProgress && 'transition-all',
-                    isSelected
-                      ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
-                      : hoveredRowKey === row.rowKey
-                        ? 'ring-1 ring-foreground/20'
-                        : '',
-                  )}
-                  style={{
-                    left: `${leftPct}%`,
-                    width: `${Math.max(widthPct, 0.3)}%`,
-                    minWidth: 2,
-                  }}
-                  onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
-                  onMouseMove={handleBarMouseMove}
-                  onMouseLeave={() => handleBarHover(null)}
-                  onClick={() => {
-                    if (row.hasChildren) {
-                      expandOnly(row.span.spanId);
-                    }
-                    onSpanSelect?.(row.span);
-                  }}
-                />
+                {!hideExecutionBar && (
+                  <div
+                    className={cn(
+                      'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
+                      getBarColor(row.span),
+                      !hasAnyInProgress &&
+                        !hasAnyLiveQueued &&
+                        'transition-all',
+                      isSelected
+                        ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                        : hoveredRowKey === row.rowKey
+                          ? 'ring-1 ring-foreground/20'
+                          : '',
+                    )}
+                    style={{
+                      left: `${leftPct}%`,
+                      width: `${Math.max(widthPct, 0.3)}%`,
+                      minWidth: 2,
+                    }}
+                    onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
+                    onMouseMove={handleBarMouseMove}
+                    onMouseLeave={() => handleBarHover(null)}
+                    onClick={() => {
+                      if (row.hasChildren) {
+                        expandOnly(row.span.spanId);
+                      }
+                      onSpanSelect?.(row.span);
+                    }}
+                  />
+                )}
               </div>
             );
           })}

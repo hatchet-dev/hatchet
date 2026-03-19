@@ -361,6 +361,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
               tasks={tasksForSynthesis}
+              workflowRunCreatedAt={workflowRun.metadata.createdAt}
+              workflowRunStartedAt={workflowRun.startedAt}
             />
           </TabsContent>
         </Tabs>
