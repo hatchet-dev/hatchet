@@ -32,7 +32,7 @@ function TaskRunLogsContent() {
   const isLogSearchEnabled = true;
 
   return (
-    <div className="my-4 flex flex-col gap-y-2">
+    <div className="my-4 flex flex-col gap-y-2 max-h-[25rem] min-h-[25rem]">
       {isLogSearchEnabled && <LogSearchInput />}
       <LogViewer
         key={queryString}

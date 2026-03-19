@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "outDir": "./out",
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@hatchet-dev/dag-visualizer": ["./src/dag-visualizer/index.ts"]
+    }
+  },
+  "include": [
+    "src/extension.ts",
+    "src/providers/**/*.ts",
+    "src/parser/**/*.ts",
+    "src/panel/**/*.ts",
+    "src/analysis/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "src/webview"]
+}

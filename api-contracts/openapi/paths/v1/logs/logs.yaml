@@ -1,0 +1,178 @@
+listLogs:
+  get:
+    x-resources: ["tenant"]
+    description: Lists log lines for a tenant
+    operationId: v1-tenant-log-line:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The start time to get logs for
+        in: query
+        name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The end time to get logs for
+        in: query
+        name: until
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: A full-text search query to filter for
+        in: query
+        name: search
+        required: false
+        schema:
+          type: string
+      - description: The log level(s) to include
+        in: query
+        name: levels
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1LogLineLevel"
+      - description: The direction to order by
+        in: query
+        name: order_by_direction
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1LogLineOrderByDirection"
+      - description: The attempt number to filter for
+        in: query
+        name: attempt
+        required: false
+        schema:
+          type: integer
+      - description: The task external ID(s) to filter by
+        in: query
+        name: taskExternalIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1LogLineList"
+        description: Successfully listed the logs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List log lines
+    tags:
+      - Log
+
+getLogPointMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get a minute by minute breakdown of log metrics for a tenant
+    operationId: v1-tenant-log-line:get:point-metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The start time to get logs for
+        in: query
+        name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The end time to get logs for
+        in: query
+        name: until
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: A full-text search query to filter for
+        in: query
+        name: search
+        required: false
+        schema:
+          type: string
+      - description: The log level(s) to include
+        in: query
+        name: levels
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1LogLineLevel"
+      - description: The task external ID(s) to filter by
+        in: query
+        name: taskExternalIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1LogsPointMetrics"
+        description: Successfully retrieved the log point metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Get log point metrics
+    tags:
+      - Log

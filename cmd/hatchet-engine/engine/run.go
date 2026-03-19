@@ -152,10 +152,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		return fmt.Errorf("could not create partitioner: %w", err)
 	}
 
-	cleanup.Add(
-		p.Shutdown,
-		"partitioner",
-	)
+	p.AddCleanupMethods(cleanup)
 
 	var h *health.Health
 	healthProbes := sc.HasService("health")
@@ -550,7 +547,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if err != nil {
 		return fmt.Errorf("could not create partitioner: %w", err)
 	}
-	cleanup.Add(p.Shutdown, "partitioner")
+
+	p.AddCleanupMethods(cleanup)
 
 	healthProbes := sc.Runtime.Healthcheck
 	var h *health.Health
