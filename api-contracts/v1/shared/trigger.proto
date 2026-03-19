@@ -74,4 +74,7 @@ message TriggerWorkflowRequest {
 
     // (optional) the desired worker labels for the workflow run, which will be used to determine which workers can pick up the workflow's tasks. if not set, defaults to an empty set of labels, which means any worker can pick up the tasks.
     map<string, DesiredWorkerLabels> desired_worker_labels = 10;
+
+    // (optional) idempotency key for deduplicating workflow runs
+    optional string idempotency_key = 11;
 }

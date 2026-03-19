@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17v1/shared/trigger.proto\x12\x02v1\"\xe8\x01\n\x13\x44\x65siredWorkerLabels\x12\x16\n\tstr_value\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x16\n\tint_value\x18\x02 \x01(\x05H\x01\x88\x01\x01\x12\x15\n\x08required\x18\x03 \x01(\x08H\x02\x88\x01\x01\x12\x32\n\ncomparator\x18\x04 \x01(\x0e\x32\x19.v1.WorkerLabelComparatorH\x03\x88\x01\x01\x12\x13\n\x06weight\x18\x05 \x01(\x05H\x04\x88\x01\x01\x42\x0c\n\n_str_valueB\x0c\n\n_int_valueB\x0b\n\t_requiredB\r\n\x0b_comparatorB\t\n\x07_weight\"\xb2\x04\n\x16TriggerWorkflowRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05input\x18\x02 \x01(\t\x12\x16\n\tparent_id\x18\x03 \x01(\tH\x00\x88\x01\x01\x12(\n\x1bparent_task_run_external_id\x18\x04 \x01(\tH\x01\x88\x01\x01\x12\x18\n\x0b\x63hild_index\x18\x05 \x01(\x05H\x02\x88\x01\x01\x12\x16\n\tchild_key\x18\x06 \x01(\tH\x03\x88\x01\x01\x12 \n\x13\x61\x64\x64itional_metadata\x18\x07 \x01(\tH\x04\x88\x01\x01\x12\x1e\n\x11\x64\x65sired_worker_id\x18\x08 \x01(\tH\x05\x88\x01\x01\x12\x15\n\x08priority\x18\t \x01(\x05H\x06\x88\x01\x01\x12R\n\x15\x64\x65sired_worker_labels\x18\n \x03(\x0b\x32\x33.v1.TriggerWorkflowRequest.DesiredWorkerLabelsEntry\x1aS\n\x18\x44\x65siredWorkerLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b\x32\x17.v1.DesiredWorkerLabels:\x02\x38\x01\x42\x0c\n\n_parent_idB\x1e\n\x1c_parent_task_run_external_idB\x0e\n\x0c_child_indexB\x0c\n\n_child_keyB\x16\n\x14_additional_metadataB\x14\n\x12_desired_worker_idB\x0b\n\t_priority*\x85\x01\n\x15WorkerLabelComparator\x12\t\n\x05\x45QUAL\x10\x00\x12\r\n\tNOT_EQUAL\x10\x01\x12\x10\n\x0cGREATER_THAN\x10\x02\x12\x19\n\x15GREATER_THAN_OR_EQUAL\x10\x03\x12\r\n\tLESS_THAN\x10\x04\x12\x16\n\x12LESS_THAN_OR_EQUAL\x10\x05\x42\x42Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17v1/shared/trigger.proto\x12\x02v1\"\xe8\x01\n\x13\x44\x65siredWorkerLabels\x12\x16\n\tstr_value\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x16\n\tint_value\x18\x02 \x01(\x05H\x01\x88\x01\x01\x12\x15\n\x08required\x18\x03 \x01(\x08H\x02\x88\x01\x01\x12\x32\n\ncomparator\x18\x04 \x01(\x0e\x32\x19.v1.WorkerLabelComparatorH\x03\x88\x01\x01\x12\x13\n\x06weight\x18\x05 \x01(\x05H\x04\x88\x01\x01\x42\x0c\n\n_str_valueB\x0c\n\n_int_valueB\x0b\n\t_requiredB\r\n\x0b_comparatorB\t\n\x07_weight\"\xe4\x04\n\x16TriggerWorkflowRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05input\x18\x02 \x01(\t\x12\x16\n\tparent_id\x18\x03 \x01(\tH\x00\x88\x01\x01\x12(\n\x1bparent_task_run_external_id\x18\x04 \x01(\tH\x01\x88\x01\x01\x12\x18\n\x0b\x63hild_index\x18\x05 \x01(\x05H\x02\x88\x01\x01\x12\x16\n\tchild_key\x18\x06 \x01(\tH\x03\x88\x01\x01\x12 \n\x13\x61\x64\x64itional_metadata\x18\x07 \x01(\tH\x04\x88\x01\x01\x12\x1e\n\x11\x64\x65sired_worker_id\x18\x08 \x01(\tH\x05\x88\x01\x01\x12\x15\n\x08priority\x18\t \x01(\x05H\x06\x88\x01\x01\x12R\n\x15\x64\x65sired_worker_labels\x18\n \x03(\x0b\x32\x33.v1.TriggerWorkflowRequest.DesiredWorkerLabelsEntry\x12\x1c\n\x0fidempotency_key\x18\x0b \x01(\tH\x07\x88\x01\x01\x1aS\n\x18\x44\x65siredWorkerLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b\x32\x17.v1.DesiredWorkerLabels:\x02\x38\x01\x42\x0c\n\n_parent_idB\x1e\n\x1c_parent_task_run_external_idB\x0e\n\x0c_child_indexB\x0c\n\n_child_keyB\x16\n\x14_additional_metadataB\x14\n\x12_desired_worker_idB\x0b\n\t_priorityB\x12\n\x10_idempotency_key*\x85\x01\n\x15WorkerLabelComparator\x12\t\n\x05\x45QUAL\x10\x00\x12\r\n\tNOT_EQUAL\x10\x01\x12\x10\n\x0cGREATER_THAN\x10\x02\x12\x19\n\x15GREATER_THAN_OR_EQUAL\x10\x03\x12\r\n\tLESS_THAN\x10\x04\x12\x16\n\x12LESS_THAN_OR_EQUAL\x10\x05\x42\x42Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,12 +34,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1'
   _globals['_TRIGGERWORKFLOWREQUEST_DESIREDWORKERLABELSENTRY']._loaded_options = None
   _globals['_TRIGGERWORKFLOWREQUEST_DESIREDWORKERLABELSENTRY']._serialized_options = b'8\001'
-  _globals['_WORKERLABELCOMPARATOR']._serialized_start=832
-  _globals['_WORKERLABELCOMPARATOR']._serialized_end=965
+  _globals['_WORKERLABELCOMPARATOR']._serialized_start=882
+  _globals['_WORKERLABELCOMPARATOR']._serialized_end=1015
   _globals['_DESIREDWORKERLABELS']._serialized_start=32
   _globals['_DESIREDWORKERLABELS']._serialized_end=264
   _globals['_TRIGGERWORKFLOWREQUEST']._serialized_start=267
-  _globals['_TRIGGERWORKFLOWREQUEST']._serialized_end=829
-  _globals['_TRIGGERWORKFLOWREQUEST_DESIREDWORKERLABELSENTRY']._serialized_start=611
-  _globals['_TRIGGERWORKFLOWREQUEST_DESIREDWORKERLABELSENTRY']._serialized_end=694
+  _globals['_TRIGGERWORKFLOWREQUEST']._serialized_end=879
+  _globals['_TRIGGERWORKFLOWREQUEST_DESIREDWORKERLABELSENTRY']._serialized_start=641
+  _globals['_TRIGGERWORKFLOWREQUEST_DESIREDWORKERLABELSENTRY']._serialized_end=724
 # @@protoc_insertion_point(module_scope)
