@@ -14,6 +14,7 @@ import {
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
+import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -26,6 +27,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
@@ -34,13 +36,14 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 class StatusError extends Error {
   status: number;
@@ -235,6 +238,10 @@ function ExpandedTaskRun({ id }: { id: string }) {
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
   const executingRef = useRef(false);
+  const { tenantId } = useCurrentTenantId();
+  const { featureFlags, isCloudEnabled } = useCloud(tenantId);
+  const logsEnabled =
+    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -262,7 +269,13 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
+  const { workflowRun, shape, taskRuns, isLoading, isError } =
+    useWorkflowDetails();
+
+  const taskExternalIds = useMemo(
+    () => taskRuns.map((t) => t.taskExternalId),
+    [taskRuns],
+  );
 
   if (isLoading || isError || !workflowRun) {
     return null;
@@ -291,6 +304,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             <TabsTrigger variant="underlined" value="observability">
               Observability
             </TabsTrigger>
+            {logsEnabled && (
+              <TabsTrigger variant="underlined" value="logs">
+                Logs
+              </TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="overview" className="min-h-0 flex-1">
             <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
@@ -341,6 +359,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               onTaskRunClick={handleTaskRunExpand}
             />
           </TabsContent>
+          {logsEnabled && (
+            <TabsContent value="logs">
+              <WorkflowRunLogs taskExternalIds={taskExternalIds} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

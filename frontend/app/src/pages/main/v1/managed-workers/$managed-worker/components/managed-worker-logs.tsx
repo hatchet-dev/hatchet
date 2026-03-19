@@ -160,11 +160,13 @@ export function ManagedWorkerLogs({
           </Button>
         </div>
       </div>
-      <LogViewer
-        logs={mergedLogs}
-        onScrollToBottom={handleBottomReached}
-        onScrollToTop={handleTopReached}
-      />
+      <div className="flex flex-col max-h-[25rem] min-h-[25rem]">
+        <LogViewer
+          logs={mergedLogs}
+          onScrollToBottom={handleBottomReached}
+          onScrollToTop={handleTopReached}
+        />
+      </div>
     </div>
   );
 }
