@@ -146,7 +146,7 @@ export const Observability = (props: ObservabilityProps) => {
       queryType === 'task'
         ? fetchAllSpansByTask(queryId)
         : fetchAllSpansByWorkflowRun(queryId),
-    refetchInterval: isRunning ? 5000 : inGracePeriod ? 5000 : false,
+    refetchInterval: isRunning || inGracePeriod ? 1000 : 10000,
   });
 
   const traces = tracesQuery.data;
