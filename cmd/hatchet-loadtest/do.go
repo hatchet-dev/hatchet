@@ -20,14 +20,14 @@ type LatencyResult struct {
 	snapshots []LatencySnapshot
 }
 
-func (lr *LatencyResult) GeneratePlot(plotPath string) error {
-	bytes, err := lr.PlotLatency()
+func (lr *LatencyResult) GeneratePlot(plotPath string, plotName string) error {
+	bytes, err := lr.PlotBytes(plotName)
 	if err != nil {
 		return err
 	}
 
 	// save to file
-	f, err := os.Create(plotPath)
+	f, err := os.Create(filepath.Join(plotPath, fmt.Sprintf("%s_plot.png", plotName)))
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func (lr *LatencyResult) GeneratePlot(plotPath string) error {
 	return err
 }
 
-func (lr *LatencyResult) PlotLatency() ([]byte, error) {
+func (lr *LatencyResult) PlotBytes(plotName string) ([]byte, error) {
 	if len(lr.snapshots) == 0 {
 		return nil, fmt.Errorf("no snapshots available")
 	}
@@ -56,7 +56,7 @@ func (lr *LatencyResult) PlotLatency() ([]byte, error) {
 
 	p, err := charts.LineRender(
 		[][]float64{yvals},
-		charts.TitleTextOptionFunc("Latency Over Time"),
+		charts.TitleTextOptionFunc(fmt.Sprintf("Task %s (ms)", plotName)),
 		charts.XAxisDataOptionFunc(xvals),
 		charts.LegendLabelsOptionFunc([]string{"Latency"}),
 		charts.HeightOptionFunc(500),
@@ -191,13 +191,33 @@ func do(config LoadTestConfig) error {
 
 	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
+	if config.SlackWebhookURL != "" {
+		log.Printf("ℹ️ sending scheduling/duration plots to Slack")
+		slackSender := NewSlackSender("hatchet-staging-loadtest-us-west-2", config.SlackWebhookURL)
+		durationBytes, err := finalDurationResult.latencyResult.PlotBytes("duration")
+		if err != nil {
+			log.Printf("❌ failed to generate duration plot: %v ", err)
+		}
+		schedulingBytes, err := finalScheduledResult.latencyResult.PlotBytes("scheduling")
+		if err != nil {
+			log.Printf("❌ failed to generate scheduling plot: %v ", err)
+		}
+		err = slackSender.SendToSlack(durationBytes)
+		if err != nil {
+			log.Printf("❌ failed to send duration plot to slack: %v ", err)
+		}
+		err = slackSender.SendToSlack(schedulingBytes)
+		if err != nil {
+			log.Printf("❌ failed to send scheduling plot to slack: %v ", err)
+		}
+	}
 	if config.PlotDir != "" {
 		log.Printf("ℹ️ exporting scheduling/duration snapshot data")
-		err := finalScheduledResult.latencyResult.GeneratePlot(filepath.Join(config.PlotDir, "scheduling_plot.png"))
+		err := finalScheduledResult.latencyResult.GeneratePlot(config.PlotDir, "scheduling")
 		if err != nil {
 			return err
 		}
-		err = finalDurationResult.latencyResult.GeneratePlot(filepath.Join(config.PlotDir, "duration_plot.png"))
+		err = finalDurationResult.latencyResult.GeneratePlot(config.PlotDir, "duration")
 		if err != nil {
 			return err
 		}
