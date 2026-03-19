@@ -1124,29 +1124,35 @@ export function TraceTimeline({
           )}
 
           {brushRange && (
-            <>
-              <div
-                className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
-                style={{
-                  left: `${brushRange.lo * 100}%`,
-                  transform: brushRange.lo < 0.05 ? 'none' : 'translateX(-50%)',
-                }}
-              >
+            <div
+              className="pointer-events-none absolute z-20 flex h-full items-center"
+              style={{
+                left: `${brushRange.lo * 100}%`,
+                width: `${(brushRange.hi - brushRange.lo) * 100}%`,
+              }}
+            >
+              <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
                 {formatTimeLabel(timelineMaxMs * brushRange.lo)}
+              </span>
+              <div className="flex min-w-1 flex-1 items-center">
+                <svg width="5" height="6" viewBox="0 0 5 6" className="shrink-0 fill-primary">
+                  <path d="M5 0L0 3L5 6Z" />
+                </svg>
+                <div className="h-px flex-1 bg-primary" />
               </div>
-              <div
-                className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
-                style={{
-                  left: `${brushRange.hi * 100}%`,
-                  transform:
-                    brushRange.hi > 0.95
-                      ? 'translateX(-100%)'
-                      : 'translateX(-50%)',
-                }}
-              >
+              <span className="shrink-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-medium leading-tight text-primary-foreground">
+                {formatTimeLabel(timelineMaxMs * (brushRange.hi - brushRange.lo))}
+              </span>
+              <div className="flex min-w-1 flex-1 items-center">
+                <div className="h-px flex-1 bg-primary" />
+                <svg width="5" height="6" viewBox="0 0 5 6" className="shrink-0 fill-primary">
+                  <path d="M0 0L5 3L0 6Z" />
+                </svg>
+              </div>
+              <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
                 {formatTimeLabel(timelineMaxMs * brushRange.hi)}
-              </div>
-            </>
+              </span>
+            </div>
           )}
         </div>
 
