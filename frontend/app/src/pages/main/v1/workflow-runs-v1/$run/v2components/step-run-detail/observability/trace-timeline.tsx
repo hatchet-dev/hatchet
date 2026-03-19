@@ -633,57 +633,57 @@ export function TraceTimeline({
 
   const { visMinStart, ticks, timelineMaxMs, traceMinStart, traceTotalMs } =
     useMemo(() => {
-    let minStart = Infinity;
-    let maxEnd = -Infinity;
-    const traverse = (node: OtelSpanTree) => {
-      const start = new Date(node.createdAt).getTime();
-      const end = node.inProgress ? now : start + node.durationNs / 1e6;
-      minStart = Math.min(minStart, start);
-      maxEnd = Math.max(maxEnd, end);
-      if (node.queuedPhase) {
-        const qStart = new Date(node.queuedPhase.createdAt).getTime();
-        const qEnd = qStart + node.queuedPhase.durationNs / 1e6;
-        minStart = Math.min(minStart, qStart);
-        maxEnd = Math.max(maxEnd, qEnd);
+      let minStart = Infinity;
+      let maxEnd = -Infinity;
+      const traverse = (node: OtelSpanTree) => {
+        const start = new Date(node.createdAt).getTime();
+        const end = node.inProgress ? now : start + node.durationNs / 1e6;
+        minStart = Math.min(minStart, start);
+        maxEnd = Math.max(maxEnd, end);
+        if (node.queuedPhase) {
+          const qStart = new Date(node.queuedPhase.createdAt).getTime();
+          const qEnd = qStart + node.queuedPhase.durationNs / 1e6;
+          minStart = Math.min(minStart, qStart);
+          maxEnd = Math.max(maxEnd, qEnd);
+        }
+        node.children?.forEach(traverse);
+      };
+      spanTrees.forEach(traverse);
+
+      const totalDurationMs = maxEnd - minStart;
+
+      const isZoomed =
+        visibleRange &&
+        (visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999);
+
+      if (isZoomed) {
+        const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
+        const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
+        const visDurationMs = visEndMs - visStartMs;
+        const { ticks, maxTick } = computeTimeTicks(visDurationMs);
+        return {
+          visMinStart: visStartMs,
+          ticks,
+          timelineMaxMs: hasAnyInProgress
+            ? visDurationMs
+            : Math.max(maxTick, visDurationMs),
+          traceMinStart: minStart,
+          traceTotalMs: totalDurationMs,
+        };
       }
-      node.children?.forEach(traverse);
-    };
-    spanTrees.forEach(traverse);
 
-    const totalDurationMs = maxEnd - minStart;
-
-    const isZoomed =
-      visibleRange &&
-      (visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999);
-
-    if (isZoomed) {
-      const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
-      const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
-      const visDurationMs = visEndMs - visStartMs;
-      const { ticks, maxTick } = computeTimeTicks(visDurationMs);
+      const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
+      const timelineMaxMs = hasAnyInProgress
+        ? totalDurationMs
+        : Math.max(maxTick, totalDurationMs);
       return {
-        visMinStart: visStartMs,
+        visMinStart: minStart,
         ticks,
-        timelineMaxMs: hasAnyInProgress
-          ? visDurationMs
-          : Math.max(maxTick, visDurationMs),
+        timelineMaxMs,
         traceMinStart: minStart,
         traceTotalMs: totalDurationMs,
       };
-    }
-
-    const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
-    const timelineMaxMs = hasAnyInProgress
-      ? totalDurationMs
-      : Math.max(maxTick, totalDurationMs);
-    return {
-      visMinStart: minStart,
-      ticks,
-      timelineMaxMs,
-      traceMinStart: minStart,
-      traceTotalMs: totalDurationMs,
-    };
-  }, [spanTrees, visibleRange, now, hasAnyInProgress]);
+    }, [spanTrees, visibleRange, now, hasAnyInProgress]);
 
   const toggleExpand = useCallback(
     (id: string) => {
@@ -694,6 +694,15 @@ export function TraceTimeline({
       }
     },
     [expandedSpanIds, onExpandChange],
+  );
+
+  const expandOnly = useCallback(
+    (id: string) => {
+      if (!expandedSet.has(id)) {
+        onExpandChange([...expandedSpanIds, id]);
+      }
+    },
+    [expandedSet, expandedSpanIds, onExpandChange],
   );
 
   const handleBarHover = useCallback(
@@ -742,10 +751,7 @@ export function TraceTimeline({
           return;
         }
         const r = barsRef.current.getBoundingClientRect();
-        const pct = Math.max(
-          0,
-          Math.min(1, (ev.clientX - r.left) / r.width),
-        );
+        const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
         const lo = Math.min(startPct, pct);
         const hi = Math.max(startPct, pct);
         if (hi - lo > 0.005) {
@@ -762,10 +768,7 @@ export function TraceTimeline({
           return;
         }
         const r = barsRef.current.getBoundingClientRect();
-        const pct = Math.max(
-          0,
-          Math.min(1, (ev.clientX - r.left) / r.width),
-        );
+        const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
         const lo = Math.min(startPct, pct);
         const hi = Math.max(startPct, pct);
 
@@ -780,10 +783,7 @@ export function TraceTimeline({
               0,
               (newStartMs - v.traceMinStart) / v.traceTotalMs,
             ),
-            endPct: Math.min(
-              1,
-              (newEndMs - v.traceMinStart) / v.traceTotalMs,
-            ),
+            endPct: Math.min(1, (newEndMs - v.traceMinStart) / v.traceTotalMs),
           });
         }
       };
@@ -858,7 +858,7 @@ export function TraceTimeline({
                 )}
                 style={{ height: ROW_HEIGHT }}
                 onClick={() => {
-                  toggleExpand(row.group.groupId);
+                  expandOnly(row.group.groupId);
                   onGroupSelect?.(row.group);
                 }}
               >
@@ -931,7 +931,7 @@ export function TraceTimeline({
               style={{ height: ROW_HEIGHT }}
               onClick={() => {
                 if (row.hasChildren) {
-                  toggleExpand(row.span.spanId);
+                  expandOnly(row.span.spanId);
                 }
                 onSpanSelect?.(row.span);
               }}
@@ -1037,8 +1037,7 @@ export function TraceTimeline({
                 className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
                 style={{
                   left: `${brushRange.lo * 100}%`,
-                  transform:
-                    brushRange.lo < 0.05 ? 'none' : 'translateX(-50%)',
+                  transform: brushRange.lo < 0.05 ? 'none' : 'translateX(-50%)',
                 }}
               >
                 {formatTimeLabel(timelineMaxMs * brushRange.lo)}
@@ -1069,10 +1068,7 @@ export function TraceTimeline({
             }
             const rect = barsRef.current.getBoundingClientRect();
             setCursorPct(
-              Math.max(
-                0,
-                Math.min(1, (e.clientX - rect.left) / rect.width),
-              ),
+              Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
             );
           }}
           onMouseLeave={() => setCursorPct(null)}
@@ -1143,7 +1139,10 @@ export function TraceTimeline({
                     onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
                     onMouseMove={handleBarMouseMove}
                     onMouseLeave={() => handleBarHover(null)}
-                    onClick={() => onGroupSelect?.(row.group)}
+                    onClick={() => {
+                      expandOnly(row.group.groupId);
+                      onGroupSelect?.(row.group);
+                    }}
                   />
                 </div>
               );
@@ -1208,7 +1207,12 @@ export function TraceTimeline({
                     onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
                     onMouseMove={handleBarMouseMove}
                     onMouseLeave={() => handleBarHover(null)}
-                    onClick={() => onSpanSelect?.(row.span)}
+                    onClick={() => {
+                      if (row.hasChildren) {
+                        expandOnly(row.span.spanId);
+                      }
+                      onSpanSelect?.(row.span);
+                    }}
                   >
                     <div
                       className="absolute inset-0 opacity-40"
@@ -1238,7 +1242,12 @@ export function TraceTimeline({
                   onMouseEnter={(e) => handleBarHover(row.rowKey, e)}
                   onMouseMove={handleBarMouseMove}
                   onMouseLeave={() => handleBarHover(null)}
-                  onClick={() => onSpanSelect?.(row.span)}
+                  onClick={() => {
+                    if (row.hasChildren) {
+                      expandOnly(row.span.spanId);
+                    }
+                    onSpanSelect?.(row.span);
+                  }}
                 />
               </div>
             );
@@ -1289,7 +1298,7 @@ export function TraceTimeline({
             style={{
               position: 'fixed',
               left: Math.min(tooltipPos.x + 12, window.innerWidth - 440),
-              top: Math.max(8, tooltipPos.y - 100),
+              top: tooltipPos.y + 16,
             }}
           />,
           document.body,
@@ -1303,7 +1312,7 @@ export function TraceTimeline({
             style={{
               position: 'fixed',
               left: Math.min(tooltipPos.x + 12, window.innerWidth - 440),
-              top: Math.max(8, tooltipPos.y - 100),
+              top: tooltipPos.y + 16,
             }}
           />,
           document.body,

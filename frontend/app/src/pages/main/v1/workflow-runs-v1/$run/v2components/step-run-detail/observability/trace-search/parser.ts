@@ -1,8 +1,4 @@
-import {
-  SPAN_STATUSES,
-  type ParsedTraceQuery,
-  type SpanStatus,
-} from './types';
+import { SPAN_STATUSES, type ParsedTraceQuery, type SpanStatus } from './types';
 
 export function parseTraceQuery(query: string): ParsedTraceQuery {
   const errors: string[] = [];
