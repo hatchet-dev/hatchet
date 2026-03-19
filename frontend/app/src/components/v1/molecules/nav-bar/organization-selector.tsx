@@ -54,12 +54,14 @@ export function OrganizationSelector({ className }: { className?: string }) {
     if (!organizations) {
       return [];
     }
-    return [...organizations].sort((a, b) => {
-      if (a.isOwner !== b.isOwner) {
-        return a.isOwner ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-    });
+    return [...organizations]
+      .filter((org) => org.tenants.length > 0)
+      .sort((a, b) => {
+        if (a.isOwner !== b.isOwner) {
+          return a.isOwner ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      });
   }, [organizations]);
 
   const handleOrgSelect = useCallback(

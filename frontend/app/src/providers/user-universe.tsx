@@ -30,7 +30,9 @@ type UserUniverse = {
           isLoaded: true;
           organizations: OrganizationForUserList['rows'];
           tenantMemberships: TenantMember[];
-          getOrganizationForTenant: (tenantId: string) => OrganizationForUser;
+          getOrganizationForTenant: (
+            tenantId: string,
+          ) => OrganizationForUser | undefined;
           getTenantWithTenantId: (tenantId: string) => Tenant;
         }
       | {
@@ -225,7 +227,9 @@ export function UserUniverseProvider({
         );
         const getOrganizationForTenant = (tenantId: string) => {
           const organization = tenantIdToOrganization.get(tenantId);
-          invariant(organization);
+          if (!organization) {
+            return undefined;
+          }
           return organization;
         };
 
