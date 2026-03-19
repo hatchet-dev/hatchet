@@ -51,38 +51,36 @@ export class LspAnalyzer {
       return makeFallback();
     }
 
-    const tasks: ParsedTask[] = [];
+    const tasks = (
+      await Promise.all(
+        safeLocations.map(async (location): Promise<ParsedTask | null> => {
+          if (token.isCancellationRequested) return null;
 
-    for (const location of safeLocations) {
-      if (token.isCancellationRequested) break;
+          try {
+            const doc = await vscode.workspace.openTextDocument(location.uri);
+            const refLine = location.range.start.line;
+            const startLine = Math.max(0, refLine - 2);
+            const endLine = Math.min(doc.lineCount - 1, refLine + 30);
 
-      try {
-        const doc = await vscode.workspace.openTextDocument(location.uri);
-        const refLine = location.range.start.line;
-        const startLine = Math.max(0, refLine - 2);
-        const endLine = Math.min(doc.lineCount - 1, refLine + 30);
+            const lines = Array.from(
+              { length: endLine - startLine + 1 },
+              (_, i) => doc.lineAt(startLine + i).text,
+            );
 
-        const lines: string[] = [];
-        for (let i = startLine; i <= endLine; i++) {
-          lines.push(doc.lineAt(i).text);
-        }
-
-        const task = extractTaskAtLocation(
-          lines,
-          refLine - startLine, // offset of reference line within the slice
-          startLine,           // absolute document line of lines[0]
-          decl.varName,
-          doc.languageId,
-          location.uri,
-        );
-
-        if (task) {
-          tasks.push(task);
-        }
-      } catch {
-        // Skip locations that can't be opened
-      }
-    }
+            return extractTaskAtLocation(
+              lines,
+              refLine - startLine, // offset of reference line within the slice
+              startLine,           // absolute document line of lines[0]
+              decl.varName,
+              doc.languageId,
+              location.uri,
+            ) ?? null;
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((t): t is ParsedTask => t !== null);
 
     if (tasks.length === 0) {
       return makeFallback();
@@ -132,9 +130,7 @@ function extractTaskAtLocation(
 ): ParsedTask | undefined {
   switch (languageId) {
     case 'typescript':
-    case 'typescriptreact':
-    case 'javascript':
-    case 'javascriptreact':
+    case 'typescriptreact': // .tsx files are valid in TS SDK projects
       return extractTsTask(lines, refLineOffset, absoluteStartLine, varName, fileUri);
     case 'python':
       return extractPyTask(lines, refLineOffset, absoluteStartLine, varName, fileUri);
@@ -158,9 +154,9 @@ function extractTsTask(
 ): ParsedTask | undefined {
   const refLine = lines[refLineOffset];
 
-  // Match: [const varId = ]varName.task({
+  // Match: [const/let varId = ]varName.task({
   const taskRe = new RegExp(
-    `(?:const\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.task\\s*\\(`,
+    `(?:(?:const|let)\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.task\\s*\\(`,
   );
   const m = taskRe.exec(refLine);
   if (!m) return undefined;
