@@ -1071,7 +1071,12 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	err := tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
+	opts := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
+	for _, opt := range opts {
+		opt.AllowPartialIdempotency = true
+	}
+
+	err := tc.tw.TriggerFromWorkflowNames(ctx, tenantId, opts)
 
 	if errors.Is(err, v1.ErrIdempotencyKeyAlreadyClaimed) {
 		tc.l.Debug().Err(err).Msg("skipping workflow trigger with duplicate idempotency key")
