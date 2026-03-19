@@ -1,4 +1,8 @@
 import { SPAN_STATUSES, type ParsedTraceQuery, type SpanStatus } from './types';
+import {
+  tokenizeFilterQuery,
+  isFilterToken,
+} from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 export function parseTraceQuery(query: string): ParsedTraceQuery {
   const errors: string[] = [];
@@ -6,13 +10,9 @@ export function parseTraceQuery(query: string): ParsedTraceQuery {
   const attributes: [string, string][] = [];
   let status: SpanStatus | undefined;
 
-  const tokenRegex = /(\S+?):(\S+)|(\S+)/g;
-  let match;
-
-  while ((match = tokenRegex.exec(query)) !== null) {
-    const [, key, value, text] = match;
-
-    if (key && value !== undefined) {
+  for (const token of tokenizeFilterQuery(query)) {
+    if (isFilterToken(token)) {
+      const { key, value } = token;
       if (key.toLowerCase() === 'status') {
         const normalized = value.toLowerCase();
         if (SPAN_STATUSES.includes(normalized as SpanStatus)) {
@@ -23,8 +23,8 @@ export function parseTraceQuery(query: string): ParsedTraceQuery {
       } else {
         attributes.push([key, value]);
       }
-    } else if (text) {
-      textParts.push(text);
+    } else {
+      textParts.push(token.text);
     }
   }
 

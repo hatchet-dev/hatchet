@@ -1,4 +1,4 @@
-import type { SearchSuggestion } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
+export type { FilterSuggestion as TraceAutocompleteSuggestion } from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 export const SPAN_STATUSES = ['ok', 'error', 'unset'] as const;
 export type SpanStatus = (typeof SPAN_STATUSES)[number];
@@ -16,15 +16,6 @@ export interface ParsedTraceQuery {
   raw: string;
   isValid: boolean;
   errors: string[];
-}
-
-export interface TraceAutocompleteSuggestion
-  extends SearchSuggestion<'key' | 'value'> {
-  type: 'key' | 'value';
-  label: string;
-  value: string;
-  description?: string;
-  color?: string;
 }
 
 export interface TraceAutocompleteContext {

@@ -1,6 +1,6 @@
-import type { ParsedTraceQuery } from './trace-search/types';
 import type { SpanGroupInfo } from './trace-timeline';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';

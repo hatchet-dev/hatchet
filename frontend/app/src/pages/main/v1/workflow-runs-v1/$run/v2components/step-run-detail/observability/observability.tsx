@@ -1,8 +1,4 @@
 import { TaskRunTrace } from './task-run-trace';
-import { filterSpanTrees } from './trace-search/filter';
-import { parseTraceQuery } from './trace-search/parser';
-import { TraceSearchInput } from './trace-search/trace-search-input';
-import type { TraceAutocompleteContext } from './trace-search/types';
 import {
   convertOtelSpansToOtelSpanTree,
   type TaskSummaryForSynthesis,
@@ -11,6 +7,12 @@ import type {
   OtelSpanTree,
   RelevantOpenTelemetrySpanProperties,
 } from '@/components/v1/agent-prism/span-tree-type';
+import {
+  filterSpanTrees,
+  parseTraceQuery,
+  TraceSearchInput,
+  type TraceAutocompleteContext,
+} from '@/components/v1/cloud/observability/trace-search';
 import { Loading } from '@/components/v1/ui/loading';
 import api from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';

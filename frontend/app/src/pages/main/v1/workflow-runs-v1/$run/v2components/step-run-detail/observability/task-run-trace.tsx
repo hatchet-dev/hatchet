@@ -1,7 +1,5 @@
 import { SpanDetail, GroupDetail } from './span-detail';
 import { TraceMinimap } from './trace-minimap';
-import type { FilteredSpanTree } from './trace-search/filter';
-import type { ParsedTraceQuery } from './trace-search/types';
 import {
   TraceTimeline,
   LABEL_WIDTH,
@@ -10,6 +8,10 @@ import {
 } from './trace-timeline';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import type {
+  FilteredSpanTree,
+  ParsedTraceQuery,
+} from '@/components/v1/cloud/observability/trace-search';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type Selection =

@@ -1,9 +1,15 @@
 import {
   SPAN_STATUSES,
   SPAN_STATUS_COLORS,
-  type TraceAutocompleteSuggestion,
   type TraceAutocompleteContext,
 } from './types';
+import {
+  type FilterSuggestion,
+  type AutocompleteState,
+  applySuggestion as applyFilterSuggestion,
+} from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
+
+export type { AutocompleteMode } from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 const STATUS_DESCRIPTIONS: Record<string, string> = {
   ok: 'Successful spans',
@@ -11,7 +17,7 @@ const STATUS_DESCRIPTIONS: Record<string, string> = {
   unset: 'Spans without explicit status',
 };
 
-const STATIC_FILTER_KEYS: TraceAutocompleteSuggestion[] = [
+const STATIC_FILTER_KEYS: FilterSuggestion[] = [
   {
     type: 'key',
     label: 'status',
@@ -20,24 +26,13 @@ const STATIC_FILTER_KEYS: TraceAutocompleteSuggestion[] = [
   },
 ];
 
-export type AutocompleteMode = 'key' | 'value' | 'none';
-
-export interface AutocompleteState {
-  mode: AutocompleteMode;
-  suggestions: TraceAutocompleteSuggestion[];
-}
-
-function buildFilterKeys(
-  ctx: TraceAutocompleteContext,
-): TraceAutocompleteSuggestion[] {
-  const attrKeys: TraceAutocompleteSuggestion[] = ctx.attributeKeys.map(
-    (key) => ({
-      type: 'key' as const,
-      label: key,
-      value: `${key}:`,
-      description: 'Span attribute',
-    }),
-  );
+function buildFilterKeys(ctx: TraceAutocompleteContext): FilterSuggestion[] {
+  const attrKeys: FilterSuggestion[] = ctx.attributeKeys.map((key) => ({
+    type: 'key' as const,
+    label: key,
+    value: `${key}:`,
+    description: 'Span attribute',
+  }));
   return [...STATIC_FILTER_KEYS, ...attrKeys];
 }
 
@@ -100,26 +95,7 @@ export function getTraceAutocomplete(
 
 export function applyTraceSuggestion(
   query: string,
-  suggestion: TraceAutocompleteSuggestion,
+  suggestion: FilterSuggestion,
 ): string {
-  const trimmed = query.trimEnd();
-  const words = trimmed.split(' ');
-  const lastWord = words.pop() || '';
-
-  if (suggestion.type === 'value') {
-    const prefix = lastWord.slice(0, lastWord.indexOf(':') + 1);
-    words.push(prefix + suggestion.value);
-  } else {
-    const allKeys = [...STATIC_FILTER_KEYS];
-    const isPartialKey = allKeys.some((key) =>
-      key.value.startsWith(lastWord.toLowerCase()),
-    );
-    if (lastWord && (isPartialKey || lastWord.length > 0)) {
-      words.push(suggestion.value);
-    } else {
-      words.push(lastWord, suggestion.value);
-    }
-  }
-
-  return words.filter(Boolean).join(' ');
+  return applyFilterSuggestion(query, suggestion, STATIC_FILTER_KEYS);
 }
