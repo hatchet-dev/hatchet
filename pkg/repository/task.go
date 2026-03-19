@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+    "string"
 	"sync"
 	"time"
 
@@ -2530,9 +2531,13 @@ func (r *sharedRepository) replayTasks(
 
 		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
-		}
+if err != nil {
+    if isPostgresPartitionError(err) {
+        r.l.Warn().Ctx(ctx).Str("step_id", stepId.String()).Err(err).Msg("skipping payload store: no partition exists for this task inserted_at, task is likely too old to replay")
+        continue
+    }
+    return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
+}
 
 		replayResWithPayloads := make([]*V1TaskWithPayload, len(replayRes))
 		for i, task := range replayRes {
@@ -4301,4 +4306,8 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 	}
 
 	return res, nil
+}
+
+func isPostgresPartitionError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "23514")
 }
