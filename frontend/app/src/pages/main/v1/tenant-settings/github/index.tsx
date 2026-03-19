@@ -12,7 +12,7 @@ import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import useCloud from '@/pages/auth/hooks/use-cloud';
+import useCloud from '@/hooks/use-cloud';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import invariant from 'tiny-invariant';

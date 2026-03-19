@@ -13,7 +13,7 @@ import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, {
+import {
   CreateTenantInviteRequest,
   TenantInvite,
   TenantMember,
@@ -22,6 +22,8 @@ import api, {
   UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { capitalize } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -72,7 +74,7 @@ function MembersList() {
   // Check if current user is admin
   const currentUserMember = useMemo(() => {
     return listMembersQuery.data?.rows?.find(
-      (member) => member.user.email === currentUser?.email,
+      (member: TenantMember) => member.user.email === currentUser?.email,
     );
   }, [listMembersQuery.data?.rows, currentUser?.email]);
 
@@ -85,7 +87,7 @@ function MembersList() {
     }
     return (
       listMembersQuery.data?.rows?.filter(
-        (member) => member.role === 'OWNER',
+        (member: TenantMember) => member.role === 'OWNER',
       ) || []
     );
   }, [listMembersQuery.data?.rows, isCloudEnabled]);
@@ -97,7 +99,7 @@ function MembersList() {
     }
     return (
       listMembersQuery.data?.rows?.filter(
-        (member) => member.role !== 'OWNER',
+        (member: TenantMember) => member.role !== 'OWNER',
       ) || []
     );
   }, [listMembersQuery.data?.rows, isCloudEnabled]);
@@ -241,6 +243,7 @@ function UpdateMember({
     setFieldErrors: setFieldErrors,
   });
   const navigate = useNavigate();
+  const tenantApi = useTenantApi();
   // Check if this is a cloud tenant and if we're trying to modify an OWNER
   const isOwnerRole = member.role === 'OWNER';
 
@@ -266,7 +269,7 @@ function UpdateMember({
           'OWNER role management must be done through Organization Settings',
         );
       }
-      await api.tenantMemberUpdate(tenantId, member.metadata.id, data);
+      await tenantApi.tenantMemberUpdate(tenantId, member.metadata.id, data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -421,13 +424,14 @@ function CreateInvite({
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
+  const tenantApi = useTenantApi();
 
   const organizationId = getOrganizationIdForTenant(tenantId);
 
   const createMutation = useMutation({
     mutationKey: ['tenant-invite:create', tenantId],
     mutationFn: async (data: CreateTenantInviteRequest) => {
-      await api.tenantInviteCreate(tenantId, data);
+      await tenantApi.tenantInviteCreate(tenantId, data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -464,11 +468,12 @@ function UpdateInvite({
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
+  const tenantApi = useTenantApi();
 
   const updateMutation = useMutation({
     mutationKey: ['tenant-invite:update', tenantId, tenantInvite],
     mutationFn: async (data: UpdateTenantInviteRequest) => {
-      await api.tenantInviteUpdate(tenantId, tenantInvite.metadata.id, data);
+      await tenantApi.tenantInviteUpdate(tenantId, tenantInvite.metadata.id, data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -497,11 +502,12 @@ function DeleteInvite({
 }) {
   const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
+  const tenantApi = useTenantApi();
 
   const deleteMutation = useMutation({
     mutationKey: ['tenant-invite:delete', tenantId, tenantInvite],
     mutationFn: async () => {
-      await api.tenantInviteDelete(tenantId, tenantInvite.metadata.id);
+      await tenantApi.tenantInviteDelete(tenantId, tenantInvite.metadata.id);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -533,11 +539,12 @@ function ChangePassword({
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
+  const userApi = useUserApi();
 
   const updatePasswordMutation = useMutation({
     mutationKey: ['user:update', tenantId],
     mutationFn: async (data: UserChangePasswordRequest) => {
-      const res = await api.userUpdatePassword(data);
+      const res = await userApi.userUpdatePassword(data);
       return res.data;
     },
     onMutate: () => {

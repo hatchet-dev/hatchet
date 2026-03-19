@@ -1,4 +1,6 @@
-import { cloudApi } from '@/lib/api/api';
+import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
@@ -17,17 +19,27 @@ import { useMemo, useCallback } from 'react';
  * Gets organization data from context, but keeps all mutation logic here.
  */
 export function useOrganizations() {
-  const { organizations: organizationData, isCloudEnabled } = useAppContext();
+  const {
+    organizations: organizationData,
+    isCloudEnabled,
+    isControlPlaneEnabled,
+  } = useAppContext();
   const { handleApiError } = useApiError({});
+  const orgApi = useOrganizationApi();
+  const { isCloudLoading } = useCloud();
+  const { isControlPlaneLoading } = useControlPlane();
 
   // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
     queryKey: ['organization:list'],
     queryFn: async () => {
-      const result = await cloudApi.organizationList();
+      const result = await orgApi.organizationList();
       return result.data;
     },
-    enabled: isCloudEnabled,
+    enabled:
+      (isCloudEnabled || isControlPlaneEnabled) &&
+      !isCloudLoading &&
+      !isControlPlaneLoading,
   });
 
   const organizations = useMemo(
@@ -68,13 +80,13 @@ export function useOrganizations() {
   );
 
   const hasOrganizations = useMemo(() => {
-    return (organizationListQuery.data?.rows?.length || 0) > 0;
-  }, [organizationListQuery.data?.rows]);
+    return organizations.length > 0;
+  }, [organizations]);
 
   const acceptOrgInviteMutation = useMutation({
     mutationKey: ['organization-invite:accept'],
     mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteAccept({
+      await orgApi.organizationInviteAccept({
         id: data.inviteId,
       });
     },
@@ -84,7 +96,7 @@ export function useOrganizations() {
   const rejectOrgInviteMutation = useMutation({
     mutationKey: ['organization-invite:reject'],
     mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteReject({
+      await orgApi.organizationInviteReject({
         id: data.inviteId,
       });
     },
@@ -97,7 +109,7 @@ export function useOrganizations() {
       name: string;
       slug: string;
     }) => {
-      const result = await cloudApi.organizationCreateTenant(
+      const result = await orgApi.organizationCreateTenant(
         data.organizationId,
         {
           name: data.name,
@@ -111,7 +123,7 @@ export function useOrganizations() {
 
   const cancelInviteMutation = useMutation({
     mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteDelete(data.inviteId);
+      await orgApi.organizationInviteDelete(data.inviteId);
     },
     onError: handleApiError,
   });
@@ -150,7 +162,7 @@ export function useOrganizations() {
       if (data.duration != null) {
         body.duration = data.duration;
       }
-      const result = await cloudApi.managementTokenCreate(
+      const result = await orgApi.managementTokenCreate(
         data.organizationId,
         body,
       );
@@ -161,7 +173,7 @@ export function useOrganizations() {
 
   const deleteMemberMutation = useMutation({
     mutationFn: async (data: { memberId: string; email: string }) => {
-      await cloudApi.organizationMemberDelete(data.memberId, {
+      await orgApi.organizationMemberDelete(data.memberId, {
         emails: [data.email],
       });
     },
@@ -170,21 +182,21 @@ export function useOrganizations() {
 
   const deleteTokenMutation = useMutation({
     mutationFn: async (data: { tokenId: string }) => {
-      await cloudApi.managementTokenDelete(data.tokenId);
+      await orgApi.managementTokenDelete(data.tokenId);
     },
     onError: handleApiError,
   });
 
   const deleteTenantMutation = useMutation({
     mutationFn: async (data: { tenantId: string }) => {
-      await cloudApi.organizationTenantDelete(data.tenantId);
+      await orgApi.organizationTenantDelete(data.tenantId);
     },
     onError: handleApiError,
   });
 
   const updateOrganizationMutation = useMutation({
     mutationFn: async (data: { organizationId: string; name: string }) => {
-      const result = await cloudApi.organizationUpdate(data.organizationId, {
+      const result = await orgApi.organizationUpdate(data.organizationId, {
         name: data.name,
       });
       return result.data;
@@ -194,7 +206,7 @@ export function useOrganizations() {
 
   const createOrganizationMutation = useMutation({
     mutationFn: async (data: { name: string }) => {
-      const result = await cloudApi.organizationCreate({
+      const result = await orgApi.organizationCreate({
         name: data.name,
       });
       return result.data;
@@ -333,6 +345,7 @@ export function useOrganizations() {
     organizations,
     organizationData, // From context
     isCloudEnabled,
+    isControlPlaneEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,
     isTenantArchivedInOrg,

@@ -1,5 +1,4 @@
 import { HeroPanel } from '../../auth/components/hero-panel';
-import useCloud from '../../auth/hooks/use-cloud';
 import { TenantCreateForm } from './components/tenant-create-form';
 import { OnboardingFormData } from './types';
 import { Button } from '@/components/v1/ui/button';
@@ -16,9 +15,10 @@ import api, {
   CreateTenantRequest,
   queries,
   Tenant,
+  TenantMember,
   TenantEnvironment,
 } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { useSearchParams } from '@/lib/router-helpers';
@@ -35,14 +35,16 @@ import { useMemo, useState, useEffect } from 'react';
 
 function CreateTenantInner() {
   const [searchParams] = useSearchParams();
-  const { organizationData, isCloudEnabled } = useOrganizations();
-  const { cloud } = useCloud();
+  const { organizationData, isCloudEnabled, isControlPlaneEnabled } =
+    useOrganizations();
+  const orgApi = useOrganizationApi();
   const [showHelp, setShowHelp] = useState(false);
   const { capture } = useAnalytics();
   const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
     usePendingInvites();
 
   const organizationId = searchParams.get('organizationId');
+  const isOrganizationBacked = isCloudEnabled || isControlPlaneEnabled;
 
   // Track page view
   useEffect(() => {
@@ -106,16 +108,22 @@ function CreateTenantInner() {
 
   const existingTenantNames = useMemo(() => {
     return (listMembershipsQuery.data?.rows ?? [])
-      .map((m) => m.tenant?.name)
-      .filter((n): n is string => Boolean(n && n.trim().length > 0));
+      .map((m: TenantMember) => m.tenant?.name)
+      .filter((n: string | undefined): n is string =>
+        Boolean(n && n.trim().length > 0),
+      );
   }, [listMembershipsQuery.data?.rows]);
 
   const createMutation = useMutation({
     mutationKey: ['user:update:login'],
     mutationFn: async (data: CreateTenantRequest) => {
-      // Use cloud API if cloud is enabled and organization is selected
-      if (cloud && selectedOrganizationId) {
-        const result = await cloudApi.organizationCreateTenant(
+      // In cloud/control-plane mode, tenant creation is organization-scoped.
+      if (isOrganizationBacked) {
+        if (!selectedOrganizationId) {
+          throw new Error('Organization is required to create a tenant');
+        }
+
+        const result = await orgApi.organizationCreateTenant(
           selectedOrganizationId,
           {
             name: data.name,
@@ -123,13 +131,13 @@ function CreateTenantInner() {
           },
         );
 
-        return { type: 'cloud', data: result.data };
-      } else {
-        // Use regular API for self-hosted
-        const tenant = await api.tenantCreate(data);
-
-        return { type: 'regular', data: tenant.data };
+        return { type: 'organization', data: result.data };
       }
+
+      // OSS/self-hosted path without organization-scoped create.
+      const tenant = await api.tenantCreate(data);
+
+      return { type: 'regular', data: tenant.data };
     },
     onSuccess: async (result) => {
       await listMembershipsQuery.refetch();
@@ -137,11 +145,11 @@ function CreateTenantInner() {
       // Track tenant creation
       capture('onboarding_tenant_created', {
         tenant_type: result.type,
-        is_cloud: result.type === 'cloud',
+        is_cloud: result.type === 'organization',
       });
 
       setTimeout(() => {
-        if (result.type === 'cloud') {
+        if (result.type === 'organization') {
           const tenant = result.data as OrganizationTenant;
           navigate({
             to: appRoutes.tenantOverviewRoute.to,
@@ -169,7 +177,7 @@ function CreateTenantInner() {
       errors.name = 'Name must be between 1 and 32 characters';
     }
 
-    if (isCloudEnabled && !selectedOrganizationId) {
+    if (isOrganizationBacked && !selectedOrganizationId) {
       errors.organizationId = 'Please select an organization';
     }
 
@@ -205,7 +213,8 @@ function CreateTenantInner() {
     const slug = generateSlug(tenantData.name);
 
     // Build onboarding data object
-    const onboardingData: Record<string, any> = {};
+    const onboardingData: NonNullable<CreateTenantRequest['onboardingData']> =
+      {};
     if (tenantData.referralSource && tenantData.referralSource.trim() !== '') {
       onboardingData.referral_source = tenantData.referralSource;
     }
@@ -311,7 +320,7 @@ function CreateTenantInner() {
               organizationList={organizationData}
               selectedOrganizationId={selectedOrganizationId}
               onOrganizationChange={setSelectedOrganizationId}
-              isCloudEnabled={isCloudEnabled}
+              isCloudEnabled={isOrganizationBacked}
               existingTenantNames={existingTenantNames}
             />
           </div>

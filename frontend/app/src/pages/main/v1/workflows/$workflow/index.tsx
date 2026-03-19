@@ -45,7 +45,7 @@ export default function ExpandedWorkflow() {
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
   const { refetchInterval } = useRefetchInterval();
 
-  const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
+  const params = useParams({ from: appRoutes.tenantWorkflowRoute.id });
 
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
@@ -296,7 +296,7 @@ export default function ExpandedWorkflow() {
 }
 
 function RecentRunsList() {
-  const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
+  const params = useParams({ from: appRoutes.tenantWorkflowRoute.id });
 
   return (
     <RunsProvider

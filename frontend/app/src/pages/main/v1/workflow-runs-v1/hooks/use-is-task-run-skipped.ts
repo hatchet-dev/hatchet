@@ -12,7 +12,7 @@ export const useIsTaskRunSkipped = ({
   taskRunId,
   limit = 50,
 }: UseIsTaskRunSkippedProps) => {
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.id });
   const eventsQuery = useQuery({
     ...queries.v1TaskEvents.list(tenant, { limit, offset: 0 }, taskRunId),
   });

@@ -11,7 +11,7 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
-import useCloud from '@/pages/auth/hooks/use-cloud';
+import useCloud from '@/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';

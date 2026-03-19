@@ -122,7 +122,7 @@ async function fetchDAGRun(id: string) {
 }
 
 export default function Run() {
-  const params = useParams({ from: appRoutes.tenantRunRoute.to });
+  const params = useParams({ from: appRoutes.tenantRunRoute.id });
   const { run } = params;
 
   const taskRunQuery = useQuery({

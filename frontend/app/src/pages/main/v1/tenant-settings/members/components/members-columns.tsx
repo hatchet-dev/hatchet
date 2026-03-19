@@ -1,12 +1,13 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { TenantMember, queries } from '@/lib/api';
+import { TenantMember, queries } from '@/lib/api';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { UserContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import useCloud from '@/pages/auth/hooks/use-cloud';
+import useCloud from '@/hooks/use-cloud';
 import queryClient from '@/query-client';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -27,11 +28,12 @@ export function MemberActions({
   const { tenantId } = useCurrentTenantId();
   const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
+  const tenantApi = useTenantApi();
 
   const deleteMemberMutation = useMutation({
     mutationKey: ['tenant-member:delete', tenantId],
     mutationFn: async (data: { memberId: string }) => {
-      await api.tenantMemberDelete(tenantId, data.memberId);
+      await tenantApi.tenantMemberDelete(tenantId, data.memberId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

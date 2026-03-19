@@ -9,6 +9,9 @@ import (
 func Middleware() middleware.MiddlewareFunc {
 	return func(r *middleware.RouteInfo) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			// TODO-CONTROL-PLANE: this needs to be set based on an env var, and should case on the origin I think...
+			c.Response().Header().Set("Access-Control-Allow-Origin", "*")
+
 			// ensure the Strict-Transport-Security header is set for all
 			// endpoints, as it will help ensure protection against TLS protocol downgrade
 			// attacks and cookie hijacking. The header also ensures that browsers only serve

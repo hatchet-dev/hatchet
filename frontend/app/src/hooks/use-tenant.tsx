@@ -1,12 +1,14 @@
+import useCloud from '@/hooks/use-cloud';
 import api, {
   UpdateTenantRequest,
   Tenant,
   CreateTenantRequest,
   queries,
 } from '@/lib/api';
+import { controlPlaneApi } from '@/lib/api/api';
+import { exchangeTokenQueryOptions } from '@/lib/api/exchange-token';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import { Evaluate } from '@/lib/can/shared/permission.base';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,11 +21,11 @@ type Plan = 'free' | 'starter' | 'growth';
 /**
  * Hook to get current tenant ID from route params
  *
- * @deprecated Prefer using route params directly via `useParams({ from: appRoutes.tenantRoute.to })`
+ * @deprecated Prefer using route params directly via `useParams({ from: appRoutes.tenantRoute.id })`
  * This hook is maintained for backward compatibility during migration.
  */
 export function useCurrentTenantId() {
-  const params = useParams({ from: appRoutes.tenantRoute.to });
+  const params = useParams({ from: appRoutes.tenantRoute.id });
   const tenantId = params.tenant;
 
   return { tenantId };
@@ -54,6 +56,21 @@ export function useTenantDetails() {
       setLastTenant(tenant);
       queryClient.clear();
 
+      // When CP is active, warm up the exchange token for the incoming tenant
+      // immediately after clearing the cache. This runs the queryFn (which
+      // checks localStorage first) so that the first tenant-specific API
+      // request can resolve the token from memory instead of waiting for a
+      // CP round-trip.
+      if (appContext.isControlPlaneEnabled) {
+        queryClient.prefetchQuery(
+          exchangeTokenQueryOptions(tenant.metadata.id, () =>
+            controlPlaneApi
+              .exchangeTokenCreate(tenant.metadata.id)
+              .then((r) => r.data),
+          ),
+        );
+      }
+
       const isOnTenantRoute = Boolean(
         matchRoute({
           to: appRoutes.tenantRoute.to,
@@ -79,15 +96,29 @@ export function useTenantDetails() {
         params: { tenant: tenant.metadata.id },
       });
     },
-    [matchRoute, navigate, setLastTenant, queryClient, tenantParamInPath],
+    [
+      matchRoute,
+      navigate,
+      setLastTenant,
+      queryClient,
+      tenantParamInPath,
+      appContext.isControlPlaneEnabled,
+    ],
   );
 
   // Tenant and membership now come from AppContext
   // No need to compute them here anymore
 
+  // TODO-CONTROL-PLANE: move these mutations to the tenant wrapper
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
     mutationFn: async ({ name }: { name: string }): Promise<Tenant> => {
+      if (appContext.isControlPlaneEnabled) {
+        throw new Error(
+          'Tenant creation requires organization-scoped API in control-plane mode',
+        );
+      }
+
       const tenantData: CreateTenantRequest = {
         name,
         slug: name.toLowerCase().replace(/\s+/g, '-'),

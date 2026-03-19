@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
+	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
@@ -424,6 +425,24 @@ type ConfigFileAuth struct {
 	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
 
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
+
+	ControlPlaneExchangeTokenConfig ConfigFileAuthControlPlaneExchangeToken `mapstructure:"controlPlaneExchangeToken" json:"controlPlaneExchangeToken,omitempty"`
+}
+
+type ConfigFileAuthControlPlaneExchangeToken struct {
+	// important: we only need the public keyset to validate the exchange token; Hatchet instances do not generate the private
+	// keyset
+	JWTPublicKeyset     string `mapstructure:"jwtPublicKeyset" json:"jwtPublicKeyset,omitempty"`
+	JWTPublicKeysetFile string `mapstructure:"jwtPublicKeysetFile" json:"jwtPublicKeysetFile,omitempty"`
+
+	// Issuer is the expected issuer for the exchange token. This should be set to the URL of the control plane instance.
+	Issuer string `mapstructure:"issuer" json:"issuer,omitempty"`
+
+	// Audience is the expected audience for the exchange token. This should be set to the identifier of the API server in the control plane instance.
+	Audience string `mapstructure:"audience" json:"audience,omitempty"`
+
+	// Enabled controls whether the control plane exchange token authentication method is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
 type ConfigFileTenantAlerting struct {
@@ -550,6 +569,8 @@ type AuthConfig struct {
 	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
+
+	ExchangeTokenClient exchangetoken.ExchangeTokenClient
 
 	CustomAuthenticator CustomAuthenticator
 }
@@ -924,4 +945,11 @@ func BindAllEnv(v *viper.Viper) {
 	// OLAP status update options
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
+
+	// exchange token options
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeyset", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
 }

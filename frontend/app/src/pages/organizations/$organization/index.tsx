@@ -39,7 +39,7 @@ import {
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import {
   OrganizationMember,
   ManagementToken,
@@ -70,12 +70,13 @@ import { useState } from 'react';
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams({
-    from: appRoutes.organizationsRoute.to,
+    from: appRoutes.organizationsRoute.id,
   });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { handleUpdateOrganization, updateOrganizationLoading } =
     useOrganizations();
+  const orgApi = useOrganizationApi();
   const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
@@ -151,7 +152,7 @@ export default function OrganizationPage() {
       if (!orgId) {
         throw new Error('Organization ID is required');
       }
-      const result = await cloudApi.organizationGet(orgId);
+      const result = await orgApi.organizationGet(orgId);
       return result.data;
     },
     enabled: !!orgId,
@@ -186,7 +187,7 @@ export default function OrganizationPage() {
       if (!orgId) {
         throw new Error('Organization ID is required');
       }
-      const result = await cloudApi.managementTokenList(orgId);
+      const result = await orgApi.managementTokenList(orgId);
       return result.data;
     },
     enabled: !!orgId,
@@ -199,7 +200,7 @@ export default function OrganizationPage() {
       if (!orgId) {
         throw new Error('Organization ID is required');
       }
-      const result = await cloudApi.organizationInviteList(orgId);
+      const result = await orgApi.organizationInviteList(orgId);
       return result.data;
     },
     enabled: !!orgId,

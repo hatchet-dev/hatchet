@@ -18,7 +18,7 @@ import {
 } from '@/components/v1/ui/select';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
-import api from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
@@ -35,12 +35,11 @@ const schema = z.object({
   referralSource: z.string().optional(),
 });
 
-interface TenantCreateFormProps
-  extends OnboardingStepProps<{
-    name: string;
-    environment: string;
-    referralSource?: string;
-  }> {
+interface TenantCreateFormProps extends OnboardingStepProps<{
+  name: string;
+  environment: string;
+  referralSource?: string;
+}> {
   organizationList?: OrganizationForUserList;
   selectedOrganizationId?: string | null;
   onOrganizationChange?: (organizationId: string) => void;
@@ -65,6 +64,7 @@ export function TenantCreateForm({
   const navigate = useNavigate();
   const { handleCreateOrganization, createOrganizationLoading } =
     useOrganizations();
+  const userApi = useUserApi();
 
   const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
   const [orgName, setOrgName] = useState('');
@@ -72,7 +72,7 @@ export function TenantCreateForm({
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async () => {
-      await api.userUpdateLogout();
+      await userApi.userUpdateLogout();
     },
     onSuccess: () => {
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });

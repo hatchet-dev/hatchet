@@ -2,8 +2,11 @@ import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { queries } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import api, { TenantInvite, TenantMember, queries } from '@/lib/api';
+import { cloudApi, controlPlaneApi } from '@/lib/api/api';
+import { inferControlPlaneEnabled } from '@/lib/api/control-plane-status';
+import type { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { appRoutes } from '@/router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,23 +15,34 @@ import { useEffect } from 'react';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {
-  // Avoid calling cloud-only endpoints (like /management/invites) unless cloud is enabled.
-  // In OSS environments, cloud endpoints can return a 403 and create noisy console logs.
+  // Detect which backend is active. Control plane takes priority over cloud.
+  let isControlPlaneEnabled = false;
   let isCloudEnabled = false;
 
   try {
-    const meta = await cloudApi.metadataGet();
-    // In OSS, the API returns an `errors` field instead of cloud metadata.
-    // @ts-expect-error `errors` may be present in OSS mode
-    isCloudEnabled = !!meta?.data && !meta?.data?.errors;
+    const cpMeta = await controlPlaneApi.metadataGet();
+    isControlPlaneEnabled = inferControlPlaneEnabled(cpMeta?.data);
   } catch {
-    isCloudEnabled = false;
+    isControlPlaneEnabled = false;
   }
 
+  if (!isControlPlaneEnabled) {
+    try {
+      const meta = await cloudApi.metadataGet();
+      isCloudEnabled = inferControlPlaneEnabled(meta?.data);
+    } catch {
+      isCloudEnabled = false;
+    }
+  }
+
+  const hasOrgInvites = isControlPlaneEnabled || isCloudEnabled;
+
   const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
-    api.userListTenantInvites(),
-    isCloudEnabled
-      ? cloudApi
+    isControlPlaneEnabled
+      ? controlPlaneApi.userListTenantInvites()
+      : api.userListTenantInvites(),
+    hasOrgInvites
+      ? (isControlPlaneEnabled ? controlPlaneApi : cloudApi)
           .userListOrganizationInvites()
           .catch(() => ({ data: { rows: [] } }))
       : Promise.resolve({ data: { rows: [] } }),
@@ -36,11 +50,11 @@ export async function loader(_args: { request: Request }) {
 
   const tenantInvites =
     tenantInvitesRes.status === 'fulfilled'
-      ? tenantInvitesRes.value.data.rows || []
+      ? ((tenantInvitesRes.value.data.rows || []) as TenantInvite[])
       : [];
   const orgInvites =
     orgInvitesRes.status === 'fulfilled'
-      ? orgInvitesRes.value.data.rows || []
+      ? ((orgInvitesRes.value.data.rows || []) as OrganizationInvite[])
       : [];
 
   if (tenantInvites.length === 0 && orgInvites.length === 0) {
@@ -61,9 +75,10 @@ export default function Invites() {
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
   const { capture } = useAnalytics();
+  const tenantApi = useTenantApi();
 
   const { tenantInvites, orgInvites } = useLoaderData({
-    from: appRoutes.onboardingInvitesRoute.to,
+    from: appRoutes.onboardingInvitesRoute.id,
   }) as Awaited<ReturnType<typeof loader>>;
 
   // Track invites page view
@@ -97,21 +112,20 @@ export default function Invites() {
       );
 
       const membership = memberships.rows?.find(
-        (m) => m.tenant?.metadata.id === tenantId,
+        (m: TenantMember) => m.tenant?.metadata.id === tenantId,
       );
 
       if (membership?.tenant) {
         setTenant(membership.tenant);
-        capture('onboarding_tenant_invite_accepted', {
-          tenant_id: tenantId,
-        });
-        navigate({
-          to: appRoutes.tenantOverviewRoute.to,
-          params: { tenant: tenantId },
-        });
-      } else {
-        throw new Error('Tenant not found after accepting invite');
       }
+
+      capture('onboarding_tenant_invite_accepted', {
+        tenant_id: tenantId,
+      });
+      navigate({
+        to: appRoutes.tenantOverviewRoute.to,
+        params: { tenant: tenantId },
+      });
     },
     onError: handleApiError,
   });
@@ -119,7 +133,7 @@ export default function Invites() {
   const rejectMutation = useMutation({
     mutationKey: ['tenant-invite:reject'],
     mutationFn: async (data: { invite: string }) => {
-      await api.tenantInviteReject(data);
+      await tenantApi.tenantInviteReject(data);
       return data.invite;
     },
     onSuccess: async (inviteId: string) => {

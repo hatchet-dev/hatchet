@@ -1,6 +1,8 @@
 import { WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi } from './api';
+import api, { cloudApi, controlPlaneApi } from './api';
+import { inferControlPlaneEnabled } from './control-plane-status';
 import { TemplateOptions } from './generated/cloud/data-contracts';
+import queryClient from '@/query-client';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import invariant from 'tiny-invariant';
 
@@ -25,6 +27,21 @@ type V2TaskGetPointMetricsQuery = Parameters<
 >[1];
 type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
 type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
+
+async function isCpEnabled(): Promise<boolean> {
+  const cpMeta = await queryClient.fetchQuery({
+    queryKey: ['control-plane-metadata:get'],
+    queryFn: async () => {
+      try {
+        return await controlPlaneApi.metadataGet();
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 1000 * 60,
+  });
+  return inferControlPlaneEnabled(cpMeta?.data);
+}
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -129,15 +146,42 @@ export const queries = createQueryKeyStore({
   user: {
     current: {
       queryKey: ['user:get'],
-      queryFn: async () => (await api.userGetCurrent()).data,
+      queryFn: async () => {
+        const cpMeta = await queryClient.fetchQuery({
+          queryKey: ['control-plane-metadata:get'],
+          queryFn: async () => {
+            try {
+              return await controlPlaneApi.metadataGet();
+            } catch {
+              return null;
+            }
+          },
+          staleTime: 1000 * 60,
+        });
+        const isControlPlaneEnabled = inferControlPlaneEnabled(cpMeta?.data);
+        if (isControlPlaneEnabled) {
+          return (await controlPlaneApi.cloudUserGetCurrent()).data;
+        }
+        return (await api.userGetCurrent()).data;
+      },
     },
     listTenantMemberships: {
       queryKey: ['tenant-memberships:list'],
-      queryFn: async () => (await api.tenantMembershipsList()).data,
+      queryFn: async () => {
+        if (await isCpEnabled()) {
+          return (await controlPlaneApi.tenantMembershipsList()).data;
+        }
+        return (await api.tenantMembershipsList()).data;
+      },
     },
     listInvites: {
       queryKey: ['user:list:tenant-invites'],
-      queryFn: async () => (await api.userListTenantInvites()).data,
+      queryFn: async () => {
+        if (await isCpEnabled()) {
+          return (await controlPlaneApi.userListTenantInvites()).data;
+        }
+        return (await api.userListTenantInvites()).data;
+      },
     },
   },
   alertingSettings: {
@@ -155,7 +199,12 @@ export const queries = createQueryKeyStore({
   members: {
     list: (tenant: string) => ({
       queryKey: ['tenant-member:list', tenant],
-      queryFn: async () => (await api.tenantMemberList(tenant)).data,
+      queryFn: async () => {
+        if (await isCpEnabled()) {
+          return (await controlPlaneApi.tenantMemberList(tenant)).data;
+        }
+        return (await api.tenantMemberList(tenant)).data;
+      },
     }),
   },
   tokens: {
@@ -185,7 +234,12 @@ export const queries = createQueryKeyStore({
   invites: {
     list: (tenant: string) => ({
       queryKey: ['tenant-invite:list', tenant],
-      queryFn: async () => (await api.tenantInviteList(tenant)).data,
+      queryFn: async () => {
+        if (await isCpEnabled()) {
+          return (await controlPlaneApi.tenantInviteList(tenant)).data;
+        }
+        return (await api.tenantInviteList(tenant)).data;
+      },
     }),
   },
   workflows: {

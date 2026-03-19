@@ -5,12 +5,20 @@ import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { useCallback, useMemo } from 'react';
 
+type ApiErrorsLike = { errors?: unknown };
+
+function isCloudMetadata(value: unknown): value is APICloudMetadata | ApiErrorsLike {
+  return !!value && typeof value === 'object';
+}
+
 export default function useCloud(tenantId?: string) {
   const { handleApiError } = useApiError({});
 
-  const checkIsCloudEnabled = useCallback((cloudMeta: APICloudMetadata) => {
-    // @ts-expect-error errors is returned when this is oss
-    return !!cloudMeta && !cloudMeta?.errors;
+  const checkIsCloudEnabled = useCallback((cloudMeta: unknown) => {
+    if (!isCloudMetadata(cloudMeta)) {
+      return false;
+    }
+    return !('errors' in cloudMeta) || !cloudMeta.errors;
   }, []);
 
   const cloudMetaQuery = useQuery({
@@ -52,9 +60,11 @@ export default function useCloud(tenantId?: string) {
     retry: false,
     enabled: isCloudEnabled && !!tenantId,
     queryFn: async () => {
+      if (!tenantId) {
+        return null;
+      }
       try {
-        // tenantId is guaranteed by `enabled`
-        return await cloudApi.featureFlagsList(tenantId as string);
+        return await cloudApi.featureFlagsList(tenantId);
       } catch (e) {
         return null;
       }

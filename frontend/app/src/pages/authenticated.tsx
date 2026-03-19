@@ -4,9 +4,9 @@ import TopNav from '@/components/v1/nav/top-nav.tsx';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { queries, User } from '@/lib/api';
+import { queries, User } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
-import { lastTenantAtom } from '@/lib/atoms';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useContextFromParent } from '@/lib/outlet';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
@@ -19,7 +19,6 @@ import {
   useNavigate,
 } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
-import { useAtom } from 'jotai';
 import { lazy, Suspense, useEffect } from 'react';
 
 const DevtoolsFooter = import.meta.env.DEV
@@ -33,7 +32,7 @@ function AuthenticatedInner() {
     error: userError,
     isLoading: isUserLoading,
   } = useCurrentUser();
-  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
+  const userApi = useUserApi();
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],
@@ -45,7 +44,6 @@ function AuthenticatedInner() {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const pathname = location.pathname;
   const matchRoute = useMatchRoute();
   const isAuthPage =
     Boolean(matchRoute({ to: appRoutes.authLoginRoute.to })) ||
@@ -73,7 +71,7 @@ function AuthenticatedInner() {
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async () => {
-      await api.userUpdateLogout();
+      await userApi.userUpdateLogout();
     },
     onSuccess: () => {
       navigate({ to: appRoutes.authLoginRoute.to });
@@ -101,20 +99,53 @@ function AuthenticatedInner() {
   });
 
   useEffect(() => {
+    console.log('[Authenticated] render state', {
+      path: window.location.pathname,
+      isUserLoading,
+      hasCurrentUser: Boolean(currentUser),
+      userErrorStatus: (userError as AxiosError | null | undefined)?.status,
+      membershipsCount: listMembershipsQuery.data?.rows?.length,
+      pendingInvites: pendingInvitesQuery.data,
+      isPendingInvitesLoading,
+      isAuthPage,
+      isTenantPage,
+      isOrganizationsPage,
+      isOnboardingPage,
+      tenantId: tenant?.metadata.id,
+    });
+  }, [
+    isUserLoading,
+    currentUser,
+    userError,
+    listMembershipsQuery.data?.rows?.length,
+    pendingInvitesQuery.data,
+    isPendingInvitesLoading,
+    isAuthPage,
+    isTenantPage,
+    isOrganizationsPage,
+    isOnboardingPage,
+    tenant?.metadata.id,
+  ]);
+
+  useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
+    const isRootPath = location.pathname === '/';
 
     // Skip all redirects for organization pages
     if (isOrganizationsPage) {
+      console.log('[Authenticated] skip redirects on organizations page');
       return;
     }
 
     // If we definitively have no user, always go to login.
     if (!isUserLoading && !currentUser && !isAuthPage) {
+      console.log('[Authenticated] redirect -> login (no current user)');
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      console.log('[Authenticated] redirect -> login (401/403 user query)');
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
@@ -124,6 +155,9 @@ function AuthenticatedInner() {
       !currentUser.emailVerified &&
       !isOnboardingVerifyEmailPage
     ) {
+      console.log(
+        '[Authenticated] redirect -> onboarding verify (email not verified)',
+      );
       navigate({ to: appRoutes.onboardingVerifyRoute.to, replace: true });
       return;
     }
@@ -133,6 +167,9 @@ function AuthenticatedInner() {
       pendingInvitesQuery.data > 0 &&
       !isOnboardingInvitesPage
     ) {
+      console.log(
+        '[Authenticated] redirect -> onboarding invites (pending invites)',
+      );
       navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
       return;
     }
@@ -142,59 +179,33 @@ function AuthenticatedInner() {
       listMembershipsQuery.data?.rows?.length === 0 &&
       !isOnboardingPage
     ) {
+      console.log(
+        '[Authenticated] redirect -> onboarding create tenant (no memberships)',
+      );
       navigate({ to: appRoutes.onboardingCreateTenantRoute.to, replace: true });
       return;
     }
 
-    // If user has memberships and we're at the bare root, go to their first tenant
-    if (
-      pathname === '/' &&
-      listMembershipsQuery.data?.rows &&
-      listMembershipsQuery.data.rows.length > 0
-    ) {
-      const memberships = listMembershipsQuery.data.rows;
-      const lastTenantId = lastTenant?.metadata.id;
+    if (isRootPath && !isUserLoading && currentUser) {
+      const firstMembershipTenantId =
+        listMembershipsQuery.data?.rows?.[0]?.tenant?.metadata.id;
 
-      const lastTenantInMemberships = lastTenantId
-        ? memberships.find((m) => m.tenant?.metadata.id === lastTenantId)
-            ?.tenant
-        : undefined;
-
-      // If the cached tenant isn't in the current user's memberships (e.g. user switched),
-      // clear it so we don't keep trying to use a stale tenant.
-      if (lastTenantId && !lastTenantInMemberships) {
-        setLastTenant(undefined);
-      }
-
-      const targetTenant = lastTenantInMemberships ?? memberships[0].tenant;
-
-      if (targetTenant) {
-        // Check if tenant has workflows to decide where to redirect
-        api
-          .workflowList(targetTenant.metadata.id, { limit: 1 })
-          .then((response) => {
-            const hasWorkflows =
-              response.data.rows && response.data.rows.length > 0;
-
-            navigate({
-              to: hasWorkflows
-                ? appRoutes.tenantRunsRoute.to
-                : appRoutes.tenantOverviewRoute.to,
-              params: { tenant: targetTenant.metadata.id },
-              replace: true,
-            });
-          })
-          .catch(() => {
-            // On error, default to runs page
-            navigate({
-              to: appRoutes.tenantRunsRoute.to,
-              params: { tenant: targetTenant.metadata.id },
-              replace: true,
-            });
-          });
+      if (firstMembershipTenantId) {
+        console.log('[Authenticated] redirect -> tenant runs (root path)', {
+          tenant: firstMembershipTenantId,
+        });
+        navigate({
+          to: appRoutes.tenantRunsRoute.to,
+          params: { tenant: firstMembershipTenantId },
+          replace: true,
+        });
+        return;
       }
     }
+
+    console.log('[Authenticated] no redirect');
   }, [
+    location.pathname,
     tenant?.metadata.id,
     currentUser,
     pendingInvitesQuery.data,
@@ -204,18 +215,16 @@ function AuthenticatedInner() {
     userError,
     isUserLoading,
     navigate,
-    lastTenant,
-    pathname,
     isOrganizationsPage,
     isOnboardingVerifyEmailPage,
     isOnboardingInvitesPage,
     isOnboardingPage,
     isAuthPage,
-    setLastTenant,
   ]);
 
   useEffect(() => {
     if (userError && !isAuthPage) {
+      console.log('[Authenticated] fallback redirect -> login (userError)');
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
     }
   }, [isAuthPage, navigate, userError]);

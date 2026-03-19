@@ -18,7 +18,14 @@ export default function ErrorBoundary({ error }: ErrorComponentProps) {
   const status = getErrorStatus(error);
   const statusText = getErrorStatusText(error);
 
-  console.error(error);
+  console.error('[ErrorBoundary] caught error', {
+    type: error?.constructor?.name,
+    status,
+    statusText,
+    isResponse: error instanceof Response,
+    isAxios: typeof error === 'object' && error !== null && 'isAxiosError' in error,
+    error,
+  });
 
   if (
     error instanceof TypeError &&

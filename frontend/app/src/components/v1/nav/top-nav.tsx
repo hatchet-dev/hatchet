@@ -30,12 +30,13 @@ import {
 import { Separator } from '@/components/v1/ui/separator';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
-import api, { TenantMember, User } from '@/lib/api';
+import { TenantMember, User } from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -64,11 +65,12 @@ function AccountDropdown({ user }: { user?: User }) {
 
   // Check for pending invites to show the Invites menu item
   const { pendingInvitesQuery } = usePendingInvites();
+  const userApi = useUserApi();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async () => {
-      await api.userUpdateLogout();
+      await userApi.userUpdateLogout();
     },
     onSuccess: () => {
       navigate({ to: appRoutes.authLoginRoute.to });
@@ -275,10 +277,13 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
     setStoredCollapsed(!storedCollapsed);
   };
 
-  const { isCloudEnabled } = useCloud();
+  const { isCloudEnabled, isControlPlaneEnabled, hasOrganizations } =
+    useOrganizations();
   const { tenant } = useTenantDetails();
   const showTenantSwitcher =
     !!user && tenantMemberships?.length > 0 && !!tenant;
+  const showOrganizationSelector =
+    isCloudEnabled || isControlPlaneEnabled || hasOrganizations;
 
   return (
     <header className="z-50 h-16 w-full  bg-background">
@@ -305,7 +310,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
 
         <div className="flex ml-auto items-center justify-end gap-2">
           {showTenantSwitcher &&
-            (isCloudEnabled ? (
+            (showOrganizationSelector ? (
               <OrganizationSelector memberships={tenantMemberships} />
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
@@ -398,7 +403,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
             }
           />
           {showTenantSwitcher &&
-            (isCloudEnabled ? (
+            (showOrganizationSelector ? (
               <OrganizationSelector memberships={tenantMemberships} />
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />

@@ -2,6 +2,16 @@ import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 import api, { queries } from '@/lib/api';
+import { controlPlaneApi } from '@/lib/api/api';
+import {
+  inferControlPlaneEnabled,
+  readStoredControlPlaneEnabled,
+  writeStoredControlPlaneEnabled,
+} from '@/lib/api/control-plane-status';
+import {
+  exchangeTokenQueryOptions,
+  type TenantTokenData,
+} from '@/lib/api/exchange-token';
 import queryClient from '@/query-client';
 import {
   RouterProvider,
@@ -15,6 +25,11 @@ import { Outlet } from '@tanstack/react-router';
 import { FC } from 'react';
 import { validate } from 'uuid';
 
+function LoggedNotFound({ scope }: { scope: string }) {
+  console.log('[router][not-found]', { scope, path: window.location.pathname });
+  return <NotFound />;
+}
+
 const rootRoute = createRootRoute({
   component: Root,
   errorComponent: (props) => (
@@ -24,7 +39,7 @@ const rootRoute = createRootRoute({
   ),
   notFoundComponent: () => (
     <Root>
-      <NotFound />
+      <LoggedNotFound scope="root" />
     </Root>
   ),
 });
@@ -91,16 +106,22 @@ const organizationsRoute = createRoute({
 
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  id: 'authenticated',
   component: lazyRouteComponent(
     () => import('./pages/authenticated'),
     'default',
   ),
-  notFoundComponent: () => <NotFound />,
+  notFoundComponent: () => <LoggedNotFound scope="authenticated" />,
+});
+
+const authenticatedIndexRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: '/',
+  component: () => null,
 });
 
 const onboardingCreateTenantRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-tenant'),
@@ -136,33 +157,138 @@ const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants/$tenant',
   loader: async ({ params }) => {
-    // Ensure the tenant in the URL is one the user actually has access to.
-    // If not, throw a 403 so the global error boundary can show a friendly message.
-    const memberships = await queryClient.fetchQuery({
-      ...queries.user.listTenantMemberships,
-      retry: false,
+    console.log('[router][tenantRoute.loader] start', {
+      tenant: params.tenant,
     });
+    let memberships: unknown = null;
 
-    const hasAccess = Boolean(
-      memberships?.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
-    );
-
-    if (!hasAccess) {
-      throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+    try {
+      memberships = await queryClient.fetchQuery({
+        ...queries.user.listTenantMemberships,
+        retry: false,
+      });
+    } catch {
+      memberships = null;
     }
 
-    // Optionally warm the tenant details cache, since most tenant pages expect it.
-    // If this fails for any reason, let the error boundary handle it.
-    await queryClient.fetchQuery({
-      queryKey: ['tenant:get', params.tenant],
-      queryFn: async () => (await api.tenantGet(params.tenant)).data,
-      retry: false,
+    const rows = Array.isArray((memberships as { rows?: unknown[] } | null)?.rows)
+      ? ((memberships as { rows?: { tenant?: { metadata?: { id?: string } } }[] }).rows ?? [])
+      : [];
+
+    const hasAccessViaMembership = rows.some(
+      (membership) => membership.tenant?.metadata?.id === params.tenant,
+    );
+    console.log('[router][tenantRoute.loader] memberships', {
+      tenant: params.tenant,
+      rowCount: rows.length,
+      hasAccessViaMembership,
     });
 
+    const resolveControlPlaneEnabled = async () => {
+      const stored = readStoredControlPlaneEnabled();
+      if (stored !== null) {
+        return stored;
+      }
+
+      const cpMeta = await queryClient.fetchQuery({
+        queryKey: ['control-plane-metadata:get'],
+        queryFn: async () => {
+          try {
+            return await controlPlaneApi.metadataGet();
+          } catch {
+            return null;
+          }
+        },
+        staleTime: 1000 * 60,
+      });
+
+      const enabled = inferControlPlaneEnabled(cpMeta?.data);
+      writeStoredControlPlaneEnabled(enabled);
+      return enabled;
+    };
+
+    const isControlPlaneEnabled = await resolveControlPlaneEnabled();
+
+    if (!hasAccessViaMembership) {
+      console.log('[router][tenantRoute.loader] cp fallback', {
+        tenant: params.tenant,
+        isControlPlaneEnabled,
+      });
+      if (!isControlPlaneEnabled) {
+        throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+      }
+
+      try {
+        await queryClient.fetchQuery(
+          exchangeTokenQueryOptions(params.tenant, () =>
+            controlPlaneApi
+              .exchangeTokenCreate(params.tenant)
+              .then((result) => result.data as TenantTokenData),
+          ),
+        );
+        console.log('[router][tenantRoute.loader] exchange token warmed', {
+          tenant: params.tenant,
+        });
+      } catch {
+        console.log('[router][tenantRoute.loader] exchange token failed', {
+          tenant: params.tenant,
+        });
+        throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+      }
+
+      return null;
+    }
+
+    if (isControlPlaneEnabled) {
+      // In CP mode, avoid direct tenant:get warm against the OSS endpoint.
+      // Warm exchange token instead so subsequent tenant-scoped requests are authenticated.
+      try {
+        await queryClient.fetchQuery(
+          exchangeTokenQueryOptions(params.tenant, () =>
+            controlPlaneApi
+              .exchangeTokenCreate(params.tenant)
+              .then((result) => result.data as TenantTokenData),
+          ),
+        );
+        console.log('[router][tenantRoute.loader] exchange token warmed', {
+          tenant: params.tenant,
+        });
+      } catch {
+        console.log('[router][tenantRoute.loader] exchange token failed', {
+          tenant: params.tenant,
+        });
+      }
+
+      console.log('[router][tenantRoute.loader] done', {
+        tenant: params.tenant,
+      });
+      return null;
+    }
+
+    // Non-CP mode: warm tenant details cache non-fatally.
+    try {
+      await queryClient.fetchQuery({
+        queryKey: ['tenant:get', params.tenant],
+        queryFn: async () => (await api.tenantGet(params.tenant)).data,
+        retry: false,
+      });
+      console.log('[router][tenantRoute.loader] tenant:get warmed', {
+        tenant: params.tenant,
+      });
+    } catch {
+      // Non-fatal
+      console.log('[router][tenantRoute.loader] tenant:get failed (non-fatal)', {
+        tenant: params.tenant,
+      });
+    }
+
+    console.log('[router][tenantRoute.loader] done', {
+      tenant: params.tenant,
+    });
     return null;
   },
   component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
-  notFoundComponent: () => <NotFound />,
+  notFoundComponent: () => <LoggedNotFound scope="tenant" />,
 });
 
 const tenantIndexRedirectRoute = createRoute({
@@ -559,6 +685,7 @@ const routeTree = rootRoute.addChildren([
   onboardingVerifyRoute,
   organizationsRoute,
   authenticatedRoute.addChildren([
+    authenticatedIndexRoute,
     onboardingCreateTenantRoute,
     onboardingInvitesRoute,
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
@@ -588,6 +715,7 @@ export const appRoutes = {
   onboardingVerifyRoute,
   organizationsRoute,
   authenticatedRoute,
+  authenticatedIndexRoute,
   onboardingCreateTenantRoute,
   onboardingInvitesRoute,
   tenantRoute,

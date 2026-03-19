@@ -8,7 +8,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { OrganizationMemberRoleType } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
@@ -42,6 +42,7 @@ export function InviteMemberModal({
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
+  const orgApi = useOrganizationApi();
 
   const {
     register,
@@ -57,7 +58,7 @@ export function InviteMemberModal({
 
   const inviteMemberMutation = useMutation({
     mutationFn: async (data: { email: string }) => {
-      const result = await cloudApi.organizationInviteCreate(organizationId, {
+      const result = await orgApi.organizationInviteCreate(organizationId, {
         inviteeEmail: data.email,
         role: OrganizationMemberRoleType.OWNER,
       });

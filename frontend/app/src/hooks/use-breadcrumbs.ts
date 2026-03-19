@@ -1,5 +1,6 @@
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { generateBreadcrumbs, BreadcrumbItem } from '@/lib/breadcrumbs';
+import { appRoutes } from '@/router';
 import { useLocation, useParams, useRouterState } from '@tanstack/react-router';
 
 export function useBreadcrumbs(): BreadcrumbItem[] {
@@ -28,7 +29,7 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
   // When on a 404 page under /tenants/:tenant/*, the matches will only include
   // the tenant route itself, not any child routes
   const isOnTenantRoute = routerState.matches.some(
-    (match) => match.routeId === '/tenants/$tenant',
+    (match) => match.routeId === appRoutes.tenantRoute.id,
   );
 
   const pathSegments = location.pathname.split('/').filter(Boolean);

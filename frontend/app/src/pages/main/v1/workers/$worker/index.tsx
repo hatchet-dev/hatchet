@@ -110,7 +110,7 @@ export default function WorkerDetail() {
   const { refetchInterval } = useRefetchInterval();
   const [showAllActions, setShowAllActions] = useState(false);
 
-  const params = useParams({ from: appRoutes.tenantWorkerRoute.to });
+  const params = useParams({ from: appRoutes.tenantWorkerRoute.id });
 
   const workerQuery = useQuery({
     ...queries.workers.get(params.worker),

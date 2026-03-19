@@ -1,18 +1,24 @@
-import api from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
-import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
+import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useQuery } from '@tanstack/react-query';
 
 export const usePendingInvites = () => {
   const { isCloudEnabled, isCloudLoading } = useCloud();
+  const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
+  const orgApi = useOrganizationApi();
+  const tenantApi = useTenantApi();
+  const hasOrgInvites = isCloudEnabled || isControlPlaneEnabled;
 
   const query = useQuery({
-    queryKey: ['pending-invites', isCloudEnabled],
+    queryKey: ['pending-invites', isCloudEnabled, isControlPlaneEnabled],
+    enabled: !isCloudLoading && !isControlPlaneLoading,
     queryFn: async () => {
       const [tenantInvites, orgInvites] = await Promise.allSettled([
-        api.userListTenantInvites(),
-        isCloudEnabled
-          ? cloudApi.userListOrganizationInvites()
+        tenantApi.userListTenantInvites(),
+        hasOrgInvites
+          ? orgApi.userListOrganizationInvites()
           : Promise.resolve({ data: { rows: [] } }),
       ]);
 
@@ -32,6 +38,6 @@ export const usePendingInvites = () => {
 
   return {
     pendingInvitesQuery: query,
-    isLoading: isCloudLoading || query.isLoading,
+    isLoading: isCloudLoading || isControlPlaneLoading || query.isLoading,
   };
 };

@@ -9,8 +9,8 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import useCloud from '@/pages/auth/hooks/use-cloud';
-import { useMemo } from 'react';
+import useCloud from '@/hooks/use-cloud';
+import { useEffect, useMemo } from 'react';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -32,6 +32,25 @@ function Main() {
     user,
     memberships,
   });
+
+  useEffect(() => {
+    console.log('[MainV1] render', {
+      path: window.location.pathname,
+      tenantId,
+      hasUser: Boolean(user),
+      membershipsCount: memberships?.length,
+      canBill: cloud?.canBill,
+      managedWorkerEnabled,
+      navSectionCount: navSections.length,
+    });
+  }, [
+    tenantId,
+    user,
+    memberships?.length,
+    cloud?.canBill,
+    managedWorkerEnabled,
+    navSections.length,
+  ]);
 
   return (
     <ThreeColumnLayout

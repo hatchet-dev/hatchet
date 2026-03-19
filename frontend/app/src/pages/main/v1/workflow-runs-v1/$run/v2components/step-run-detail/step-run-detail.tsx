@@ -59,7 +59,7 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.id });
 
   if (showViewTaskRunButton) {
     return (

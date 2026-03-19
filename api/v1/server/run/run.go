@@ -209,6 +209,21 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	g := e.Group("")
 
+	// TODO-CONTROL-PLANE: add casing here, temporary allow all OPTIONS requests
+	g.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if c.Request().Method == http.MethodOptions {
+				c.Response().Header().Set("Access-Control-Allow-Origin", "*")
+				c.Response().Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+				c.Response().Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-exchange-token")
+
+				return c.NoContent(http.StatusOK)
+			}
+
+			return next(c)
+		}
+	})
+
 	if _, err := t.registerSpec(g, oaspec); err != nil {
 		return nil, err
 	}
@@ -653,6 +668,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return nil, err
 	}
 	mw.Use(headers.Middleware())
+
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)

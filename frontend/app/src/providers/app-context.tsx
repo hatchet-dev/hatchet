@@ -1,8 +1,9 @@
-import { queries, Tenant, User } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { queries, Tenant, TenantMember, User } from '@/lib/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { lastTenantAtom } from '@/lib/atoms';
-import useCloud from '@/pages/auth/hooks/use-cloud';
+import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
@@ -43,6 +44,7 @@ interface AppContextValue {
   organizations: OrganizationForUserList | undefined;
   isOrganizationsLoading: boolean;
   isCloudEnabled: boolean;
+  isControlPlaneEnabled: boolean;
 
   // Helper to get organization for current tenant
   getCurrentOrganization: () =>
@@ -57,7 +59,9 @@ interface AppContextProviderProps {
 }
 
 export function AppContextProvider({ children }: AppContextProviderProps) {
-  const { isCloudEnabled } = useCloud();
+  const { isCloudEnabled, isCloudLoading } = useCloud();
+  const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
+  const orgApi = useOrganizationApi();
 
   // Get tenant ID from route params (following TanStack Router best practices)
   // This replaces the old useCurrentTenantId pattern
@@ -65,7 +69,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const tenantId = params.tenant || lastTenant?.metadata.id;
 
-  // Fetch current user
+  // Fetch current user (routes to control plane when enabled via queries.user.current)
   const currentUserQuery = useQuery({
     ...queries.user.current,
     retry: false,
@@ -76,14 +80,17 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     ...queries.user.listTenantMemberships,
   });
 
-  // Fetch organizations (cloud only)
+  // Fetch organizations (cloud or control plane)
   const organizationsQuery = useQuery({
     queryKey: ['organization:list'],
     queryFn: async () => {
-      const result = await cloudApi.organizationList();
+      const result = await orgApi.organizationList();
       return result.data;
     },
-    enabled: isCloudEnabled,
+    enabled:
+      (isCloudEnabled || isControlPlaneEnabled) &&
+      !isCloudLoading &&
+      !isControlPlaneLoading,
   });
 
   // Compute current membership and tenant
@@ -93,7 +100,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     }
 
     return membershipsQuery.data.rows.find(
-      (m) => m.tenant?.metadata.id === tenantId,
+      (m: TenantMember) => m.tenant?.metadata.id === tenantId,
     );
   }, [tenantId, membershipsQuery.data?.rows]);
 
@@ -138,6 +145,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       organizations: organizationsQuery.data,
       isOrganizationsLoading: organizationsQuery.isLoading,
       isCloudEnabled,
+      isControlPlaneEnabled,
 
       // Helpers
       getCurrentOrganization,
@@ -154,9 +162,45 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       organizationsQuery.data,
       organizationsQuery.isLoading,
       isCloudEnabled,
+      isControlPlaneEnabled,
       getCurrentOrganization,
     ],
   );
+
+  useEffect(() => {
+    console.log('[AppContext] state', {
+      path: window.location.pathname,
+      tenantId,
+      tenantFromMembership: tenant?.metadata.id,
+      membershipRole: membership?.role,
+      lastTenantId: lastTenant?.metadata.id,
+      isUserLoading: currentUserQuery.isLoading,
+      hasUser: Boolean(currentUserQuery.data),
+      membershipsCount: membershipsQuery.data?.rows?.length,
+      isMembershipsLoading: membershipsQuery.isLoading,
+      isCloudEnabled,
+      isCloudLoading,
+      isControlPlaneEnabled,
+      isControlPlaneLoading,
+      isOrganizationsLoading: organizationsQuery.isLoading,
+      organizationsCount: organizationsQuery.data?.rows?.length,
+    });
+  }, [
+    tenantId,
+    tenant?.metadata.id,
+    membership?.role,
+    lastTenant?.metadata.id,
+    currentUserQuery.isLoading,
+    currentUserQuery.data,
+    membershipsQuery.data?.rows?.length,
+    membershipsQuery.isLoading,
+    isCloudEnabled,
+    isCloudLoading,
+    isControlPlaneEnabled,
+    isControlPlaneLoading,
+    organizationsQuery.isLoading,
+    organizationsQuery.data?.rows?.length,
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

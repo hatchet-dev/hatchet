@@ -2,7 +2,7 @@ import { ErrorPageLayout } from './layout';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import api from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { getOptionalStringParam } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
@@ -15,11 +15,12 @@ export function TenantForbidden() {
   const tenant = getOptionalStringParam(params, 'tenant');
 
   const { currentUser } = useCurrentUser();
+  const userApi = useUserApi();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async () => {
-      await api.userUpdateLogout();
+      await userApi.userUpdateLogout();
     },
     onSuccess: () => {
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });

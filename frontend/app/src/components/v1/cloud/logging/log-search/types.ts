@@ -19,8 +19,9 @@ export interface ParsedLogQuery {
   errors: string[];
 }
 
-export interface AutocompleteSuggestion
-  extends SearchSuggestion<'key' | 'value'> {
+export interface AutocompleteSuggestion extends SearchSuggestion<
+  'key' | 'value'
+> {
   type: 'key' | 'value';
   label: string;
   value: string;

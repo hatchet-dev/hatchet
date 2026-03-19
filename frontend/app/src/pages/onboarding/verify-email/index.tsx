@@ -34,7 +34,7 @@ export async function loader({ request }: { request: Request }) {
 
 function VerifyEmailInner() {
   const res = useLoaderData({
-    from: appRoutes.onboardingVerifyRoute.to,
+    from: appRoutes.onboardingVerifyRoute.id,
   }) as Awaited<ReturnType<typeof loader>>;
   const { capture } = useAnalytics();
 
