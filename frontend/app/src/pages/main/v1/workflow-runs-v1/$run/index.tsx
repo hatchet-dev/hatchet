@@ -41,7 +41,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 class StatusError extends Error {
   status: number;
@@ -74,9 +74,11 @@ function statusToBadgeVariant(status: V1TaskStatus) {
 const GraphView = ({
   shape,
   handleTaskRunExpand,
+  onMiniMapClick,
 }: {
   shape: WorkflowRunShapeForWorkflowRunDetails;
   handleTaskRunExpand: (stepRunId: string) => void;
+  onMiniMapClick: (stepRunId: string) => void;
 }) => {
   const [view] = useAtom(preferredWorkflowRunViewAtom);
 
@@ -89,7 +91,7 @@ const GraphView = ({
     <JobMiniMap
       onClick={(stepRunId) => {
         if (stepRunId) {
-          handleTaskRunExpand(stepRunId);
+          onMiniMapClick(stepRunId);
         }
       }}
     />
@@ -236,6 +238,8 @@ function ExpandedTaskRun({ id }: { id: string }) {
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
   const executingRef = useRef(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [focusedTaskRunId, setFocusedTaskRunId] = useState<string | undefined>();
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -262,6 +266,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     },
     [open],
   );
+
+  const handleMiniMapClick = useCallback((taskRunId: string) => {
+    setFocusedTaskRunId(taskRunId);
+    setActiveTab('observability');
+  }, []);
 
   const { workflowRun, shape, taskRuns, isLoading, isError } =
     useWorkflowDetails();
@@ -305,7 +314,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           </Badge>
         </div>
         <div className="h-4" />
-        <Tabs defaultValue="overview" className="flex h-full flex-col">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="overview">
               Overview
@@ -319,6 +328,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               <GraphView
                 shape={shape}
                 handleTaskRunExpand={handleTaskRunExpand}
+                onMiniMapClick={handleMiniMapClick}
               />
               <ViewToggle />
             </div>
@@ -363,6 +373,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               tasks={tasksForSynthesis}
               workflowRunCreatedAt={workflowRun.metadata.createdAt}
               workflowRunStartedAt={workflowRun.startedAt}
+              focusedTaskRunId={focusedTaskRunId}
             />
           </TabsContent>
         </Tabs>

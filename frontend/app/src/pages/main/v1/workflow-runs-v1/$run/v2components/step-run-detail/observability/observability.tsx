@@ -128,6 +128,7 @@ type ObservabilityProps = {
   tasks?: TaskSummaryForSynthesis[];
   workflowRunCreatedAt?: string;
   workflowRunStartedAt?: string;
+  focusedTaskRunId?: string;
 } & (
   | { taskRunId: string; workflowRunExternalId?: never }
   | { taskRunId?: never; workflowRunExternalId: string }
@@ -166,8 +167,13 @@ function buildAutocompleteContext(
 }
 
 export const Observability = (props: ObservabilityProps) => {
-  const { isRunning, tasks, workflowRunCreatedAt, workflowRunStartedAt } =
-    props;
+  const {
+    isRunning,
+    tasks,
+    workflowRunCreatedAt,
+    workflowRunStartedAt,
+    focusedTaskRunId,
+  } = props;
 
   const queryId = props.taskRunId ?? props.workflowRunExternalId;
   const queryType = props.taskRunId ? 'task' : 'workflow-run';
@@ -350,6 +356,7 @@ export const Observability = (props: ObservabilityProps) => {
         activeFilters={parsedQuery}
         onAddFilter={handleAddFilter}
         onRemoveFilter={handleRemoveFilter}
+        focusedTaskRunId={focusedTaskRunId}
       />
     </div>
   );

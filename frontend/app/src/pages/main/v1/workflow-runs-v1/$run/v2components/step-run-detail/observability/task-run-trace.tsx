@@ -10,7 +10,7 @@ import {
 } from './trace-timeline';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type Selection =
   | { kind: 'span'; span: OtelSpanTree }
@@ -32,18 +32,71 @@ function findSpanInTrees(
   return undefined;
 }
 
+function getStableKey(span: OtelSpanTree): string {
+  return span.spanName === 'hatchet.start_step_run' &&
+    span.spanAttributes?.['hatchet.step_run_id']
+    ? span.spanAttributes['hatchet.step_run_id']
+    : span.spanId;
+}
+
+function findSpanByTaskRunId(
+  nodes: OtelSpanTree[],
+  taskRunId: string,
+  ancestorKeys: string[] = [],
+): { span: OtelSpanTree; ancestorKeys: string[] } | undefined {
+  for (const node of nodes) {
+    const key = getStableKey(node);
+    if (
+      key === taskRunId ||
+      node.spanAttributes?.['hatchet.step_run_id'] === taskRunId
+    ) {
+      return { span: node, ancestorKeys };
+    }
+    const found = findSpanByTaskRunId(node.children, taskRunId, [
+      ...ancestorKeys,
+      key,
+    ]);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+function collectAncestorKeys(
+  nodes: OtelSpanTree[],
+  targetSpanId: string,
+  ancestorKeys: string[] = [],
+): string[] | undefined {
+  for (const node of nodes) {
+    if (node.spanId === targetSpanId) {
+      return ancestorKeys;
+    }
+    const found = collectAncestorKeys(node.children, targetSpanId, [
+      ...ancestorKeys,
+      getStableKey(node),
+    ]);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
 export function TaskRunTrace({
   spanTrees,
   isRunning,
   activeFilters,
   onAddFilter,
   onRemoveFilter,
+  focusedTaskRunId,
 }: {
   spanTrees: FilteredSpanTree[];
   isRunning?: boolean;
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
+  focusedTaskRunId?: string;
 }) {
   const { minStart, maxEnd } = useMemo(
     () => findTimeRange(spanTrees),
@@ -67,6 +120,27 @@ export function TaskRunTrace({
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
   const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
 
+  const lastFocusedRef = useRef<string | undefined>();
+  useEffect(() => {
+    if (!focusedTaskRunId || focusedTaskRunId === lastFocusedRef.current) {
+      return;
+    }
+    const result = findSpanByTaskRunId(spanTrees, focusedTaskRunId);
+    if (!result) {
+      return;
+    }
+    lastFocusedRef.current = focusedTaskRunId;
+    setExpandedSpansIds((prev) => {
+      const set = new Set(prev);
+      for (const id of result.ancestorKeys) {
+        set.add(id);
+      }
+      set.add(getStableKey(result.span));
+      return Array.from(set);
+    });
+    setSelection({ kind: 'span', span: result.span });
+  }, [focusedTaskRunId, spanTrees]);
+
   const resolvedSelection = useMemo((): Selection | undefined => {
     if (!selection) {
       return undefined;
@@ -78,27 +152,42 @@ export function TaskRunTrace({
     return fresh ? { kind: 'span', span: fresh } : selection;
   }, [selection, spanTrees]);
 
-  const handleSpanSelect = useCallback((span: OtelSpanTree) => {
-    setSelection((prev) =>
-      prev?.kind === 'span' && prev.span.spanId === span.spanId
-        ? undefined
-        : { kind: 'span', span },
-    );
-  }, []);
-
-  const handleMinimapSpanSelect = useCallback(
-    (span: OtelSpanTree, ancestorSpanIds: string[]) => {
+  const expandAncestors = useCallback(
+    (span: OtelSpanTree) => {
+      const ancestors = collectAncestorKeys(spanTrees, span.spanId);
+      if (!ancestors) {
+        return;
+      }
       setExpandedSpansIds((prev) => {
         const set = new Set(prev);
-        for (const id of ancestorSpanIds) {
+        for (const id of ancestors) {
           set.add(id);
         }
-        set.add(span.spanId);
+        set.add(getStableKey(span));
         return Array.from(set);
       });
+    },
+    [spanTrees],
+  );
+
+  const handleSpanSelect = useCallback(
+    (span: OtelSpanTree) => {
+      expandAncestors(span);
+      setSelection((prev) =>
+        prev?.kind === 'span' && prev.span.spanId === span.spanId
+          ? undefined
+          : { kind: 'span', span },
+      );
+    },
+    [expandAncestors],
+  );
+
+  const handleMinimapSpanSelect = useCallback(
+    (span: OtelSpanTree, _ancestorSpanIds: string[]) => {
+      expandAncestors(span);
       setSelection({ kind: 'span', span });
     },
-    [],
+    [expandAncestors],
   );
 
   const handleGroupSelect = useCallback((group: SpanGroupInfo) => {
