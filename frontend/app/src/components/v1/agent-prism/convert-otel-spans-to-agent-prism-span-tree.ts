@@ -67,10 +67,6 @@ function countParents(nodes: OtelSpanTree[]): Map<string, number> {
   return counts;
 }
 
-function hasInProgress(nodes: OtelSpanTree[]): boolean {
-  return nodes.some((n) => n.inProgress || hasInProgress(n.children));
-}
-
 // ---------------------------------------------------------------------------
 // Synthetic span factories
 // ---------------------------------------------------------------------------
@@ -96,7 +92,6 @@ function makeSyntheticRoot(
     createdAt: new Date(earliestStart).toISOString(),
     spanAttributes: { [ATTR.INSTRUMENTOR]: 'hatchet' },
     children,
-    inProgress: children.some((s) => s.inProgress),
     ...overrides,
   };
 }
@@ -312,30 +307,42 @@ function reparentOrphans(rootSpans: OtelSpanTree[]): void {
   const stepRunIndex = new Map<string, OtelSpanTree>();
   buildStepRunIndex(rootSpans, stepRunIndex);
 
-  const reparented = new Set<string>();
+  const ancestorIds = new Set<string>();
 
-  for (const orphan of rootSpans) {
-    if (!orphan.parentSpanId) {
-      continue;
-    }
-    const stepRunId = getStepRunId(orphan);
-    if (!stepRunId) {
-      continue;
-    }
-    const surrogate = stepRunIndex.get(stepRunId);
-    if (surrogate && surrogate.spanId !== orphan.spanId) {
-      surrogate.children.push(orphan);
-      reparented.add(orphan.spanId);
-    }
-  }
+  const reparentLevel = (nodes: OtelSpanTree[]) => {
+    const reparented = new Set<string>();
 
-  if (reparented.size > 0) {
-    removeByPredicate(rootSpans, (n) => reparented.has(n.spanId));
-  }
+    for (const orphan of nodes) {
+      if (!orphan.parentSpanId) {
+        continue;
+      }
+      const stepRunId = getStepRunId(orphan);
+      if (!stepRunId) {
+        continue;
+      }
+      const surrogate = stepRunIndex.get(stepRunId);
+      if (
+        surrogate &&
+        surrogate.spanId !== orphan.spanId &&
+        !ancestorIds.has(surrogate.spanId)
+      ) {
+        surrogate.children.push(orphan);
+        reparented.add(orphan.spanId);
+      }
+    }
 
-  for (const node of rootSpans) {
-    reparentOrphans(node.children);
-  }
+    if (reparented.size > 0) {
+      removeByPredicate(nodes, (n) => reparented.has(n.spanId));
+    }
+
+    for (const node of nodes) {
+      ancestorIds.add(node.spanId);
+      reparentLevel(node.children);
+      ancestorIds.delete(node.spanId);
+    }
+  };
+
+  reparentLevel(rootSpans);
 }
 
 function suppressOrphanedChildWorkflows(
@@ -484,12 +491,11 @@ function synthesizePendingTaskSpans(
 // ---------------------------------------------------------------------------
 
 function sortChildrenStable(nodes: OtelSpanTree[]): void {
-  const keys = new Map<OtelSpanTree, number>();
-  for (const node of nodes) {
-    const src = node.queuedPhase ?? node;
-    keys.set(node, new Date(src.createdAt).getTime());
-  }
-  nodes.sort((a, b) => keys.get(a)! - keys.get(b)!);
+  nodes.sort((a, b) => {
+    const aKey = (a.queuedPhase ?? a).createdAt;
+    const bKey = (b.queuedPhase ?? b).createdAt;
+    return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+  });
 
   for (const node of nodes) {
     if (node.children.length > 1) {
@@ -542,11 +548,20 @@ function attachWorkflowQueuedPhase(
   };
 }
 
-function computeHasErrorInSubtree(node: OtelSpanTree): boolean {
-  const childHasError = node.children.some(computeHasErrorInSubtree);
+function computeSubtreeFlags(node: OtelSpanTree): boolean {
+  let childHasError = false;
+  let childHasInProgress = false;
+  for (const child of node.children) {
+    if (computeSubtreeFlags(child)) {
+      childHasInProgress = true;
+    }
+    if (child.hasErrorInSubtree) {
+      childHasError = true;
+    }
+  }
   node.hasErrorInSubtree =
     node.statusCode === OtelStatusCode.ERROR || childHasError;
-  return node.hasErrorInSubtree;
+  return node.inProgress === true || childHasInProgress;
 }
 
 // ---------------------------------------------------------------------------
@@ -606,7 +621,11 @@ function wrapMultipleRoots(
     if (workflowRunTiming && rootSpans.length > 0) {
       attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
     }
-    rootSpans.forEach(computeHasErrorInSubtree);
+    for (const root of rootSpans) {
+      if (computeSubtreeFlags(root)) {
+        root.inProgress = true;
+      }
+    }
     return rootSpans;
   }
 
@@ -638,14 +657,15 @@ function wrapMultipleRoots(
       [ATTR.INSTRUMENTOR]: 'hatchet',
       ...(workflowName && { [ATTR.WORKFLOW_NAME]: workflowName }),
     },
-    inProgress: hasInProgress(rootSpans),
   });
 
   if (workflowRunTiming) {
     attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
   }
 
-  computeHasErrorInSubtree(syntheticRoot);
+  if (computeSubtreeFlags(syntheticRoot)) {
+    syntheticRoot.inProgress = true;
+  }
   return [syntheticRoot];
 }
 
@@ -670,7 +690,7 @@ function buildTreeFromTaskSummaries(
       });
       attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
       if (syntheticRoot.queuedPhase) {
-        computeHasErrorInSubtree(syntheticRoot);
+        computeSubtreeFlags(syntheticRoot);
         return [syntheticRoot];
       }
     }
@@ -726,10 +746,6 @@ export const convertOtelSpansToOtelSpanTree = (
   }
 
   sortChildrenStable(rootSpans);
-
-  if (rootSpans.length === 1 && hasInProgress(rootSpans[0].children)) {
-    rootSpans[0].inProgress = true;
-  }
 
   return wrapMultipleRoots(rootSpans, workflowRunTiming);
 };
