@@ -122,9 +122,11 @@ Once the worker starts, you will see logs confirming it is connected:
 
 ## Slots
 
-Every worker has a fixed number of **slots** that control how many tasks it can run concurrently, which can be configured with the `slots` option on the worker. For instance, if `slots` is set to 5, the worker will run up to five tasks concurrently at any time. Any additional tasks wait in the queue until a slot opens up.
+Every worker has a fixed number of **slots** that control how many tasks it can run concurrently, which can be configured with the `slots` option on the worker. For instance, if `slots` is set to 5, the worker will run up to five tasks concurrently at any time. Any additional tasks wait in the queue until a slot opens up. Slots are a **local** limit. They protect the individual worker from attempting to run more tasks concurrently than desired, which can help control resource usage by the worker.
 
-Slots are a **local** limit. They protect the individual worker from attempting to run more tasks concurrently than desired, which can help control resource usage by the worker.
+The default slot count for workers in Hatchet is 100. In many cases, leaving the default as-is will be perfectly fine, especially when first getting set up with Hatchet.
+
+{/\* todo-docs: move these to some kind of FAQ section / appendix on workers
 
 ### Choosing a slot count
 
@@ -156,6 +158,6 @@ There are a number of common reasons a worker might miss heartbeats:
 
 - **Process crash** - the worker process exits unexpectedly (OOM kill, unhandled exception, SIGKILL).
 - **Network disruption** - the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
-- **Resource pressure** - High CPU or memory usage can starve the worker for resources
+- **Resource pressure** - High CPU or memory usage can starve the worker for resources \*/}
 
 <Keywords keywords="worker, slots, registration, concurrency, horizontal scaling, autoscaling" />

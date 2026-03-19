@@ -16,7 +16,7 @@ This means that if you run a durable task to a midway point and the worker it's 
 
 ## Core Assumptions
 
-The core assumption of durable execution in Hatchet is that durable tasks only do one of two things: They can _wait for something, such as a [sleep to complete](/v1/sleep) or an [event to be received](/v1/events), or they can [_spawn child tasks_](/v1/child-spawning). These operations can also be composed, such that you can have a durable task wait for _either_ a sleep to complete _or_ an event to be pushed, whichever comes first, for instance. You can achieve this behavior by using [or groups](/v1/patterns/durable-task-execution#or-groups).
+The core assumption of durable execution in Hatchet is that durable tasks only do one of two things: They can _wait for something, such as a [sleep to complete](/v1/sleep) or an [event to be received](/v1/events), or they can [\_spawn child tasks_](/v1/child-spawning). These operations can also be composed, such that you can have a durable task wait for _either_ a sleep to complete _or_ an event to be pushed, whichever comes first, for instance. You can achieve this behavior by using [or groups](/v1/patterns/durable-task-execution#or-groups).
 
 ## Example Uses
 
