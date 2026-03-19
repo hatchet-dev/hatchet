@@ -96,6 +96,11 @@ export default {
   "region-availability": "Region Availability",
   uptime: "Uptime",
   "developer-experience": "Developer Experience",
+  "--troubleshooting": {
+    title: "Troubleshooting",
+    type: "separator",
+  },
+  faq: "Frequently Asked Questions",
   _setup: {
     display: "hidden",
   },
