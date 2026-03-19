@@ -6,11 +6,13 @@ import Keywords from "@/components/Keywords";
 
 # Tasks
 
-The fundamental unit of work in Hatchet is a **task**. At its most basic level, a task is just a function. You can invoke a task on its own (a "standalone" task), or compose tasks into a larger [workflow](/v1/workflows), which we'll discuss in more detail later on in the documentation.
+The fundamental unit of work in Hatchet is a **task**. At its most basic level, a task is just a function. You can invoke a task on its own (a "standalone" task), compose tasks into a [DAG workflow](/v1/workflows), or use [durable task composition](/v1/child-spawning) to spawn child tasks at runtime.
+
+Every task you invoke is **durable** - Hatchet persists it, its state, and its results even after it finishes running.
 
 ## Defining a task
 
-All that's needed to define a task in Hatchet is a function and a name (only required in some SDKs). At the most basic level, a task is a function that accepts some [input](#input-and-output), and a [context](#the-context-object).
+A task needs a name and a function. The function accepts an [input](#input-and-output) and a [context](#the-context-object).
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -39,7 +41,7 @@ You can refer to the [examples above](#defining-a-task) to see how to provide va
 
 ## The context object
 
-In addition to input and output payloads, every task receives a **context**. The context provides Hatchet-related information that might be useful to the execution of the task at runtime. For instance, you might access the `workflow_run_id`, the `task_run_id`, or the `retry_count` from the context and have your task's application logic do something with those values.
+In addition to input and output payloads, every task receives a **context**. The context provides Hatchet-related information that might be useful to the execution of the task at runtime. For instance, you might access the workflow run ID, the task run ID, or the retry count from the context and have your task's application logic do something with those values.
 
 The context also provides helper methods for interacting with a number of Hatchet's features, such as [managing cancellations](/v1/cancellation), [refreshing timeouts](/v1/timeouts#refreshing-timeouts), [pushing stream events](/v1/streaming#pushing-stream-events) and more.
 
@@ -64,32 +66,19 @@ The context also provides helper methods for interacting with a number of Hatche
 
 ## Configuration
 
-You can configure tasks to handle common problems in queueing systems. Here are a few common examples, with a solution via task configuration:
+Tasks can be configured to handle common problems in distributed systems. For example, you might want to automatically retry a task when an external API returns a transient error, or limit how many instances of a task run at the same time to avoid overwhelming a downstream service.
 
-### I want my task to retry if it fails
-
-You can retry tasks automatically on failure by configuring a [retry policy](/v1/retry-policies) on your task. This will tell Hatchet to retry your task up to the number of times you've allowed until it succeeds.
-
-### I want to limit my customers to one running task at a time
-
-You can utilize Hatchet's [concurrency](/v1/concurrency) features to define the behavior you'd like, depending on the needs of your application. For instance, if you have a customer performing some action and you'd like to process those actions one at a time, you might use a `GROUP_ROUND_ROBIN` strategy. If you'd like any in-progress work to be cancelled when a new task for that customer comes in, you can use `CANCEL_IN_PROGRESS`. And similarly, if you'd like to drop any new work on the floor if a task is already running for that customer, you can use `CANCEL_NEWEST`.
-
-### I want my tasks to fail if they take too long
-
-Hatchet supports a number of [timeout](/v1/timeouts) features, which allow your tasks to fail after a specified amount of time either in the queue or running.
-
-### I have a machine learning model loaded on a specific worker, and I need a task to run on _that_ worker
-
-You can route tasks to workers using [worker affinity](/v1/advanced-assignment/worker-affinity), which assigns tasks to workers based on matching labels. This can be done declaratively by providing the labels when the task is created, or dynamically at runtime.
-
-<Callout type="info">
-  Note that this is not an exhaustive list of the configuration options
-  available for tasks, but instead is a set of a few examples which cover a
-  number of common situations
-</Callout>
+| Concept                                                    | What it does                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------- |
+| [Retries](/v1/retry-policies)                              | Retry the task on failure, with optional backoff.          |
+| [Timeouts](/v1/timeouts)                                   | Limit how long a task may wait to be scheduled or to run.  |
+| [Concurrency](/v1/concurrency)                             | Distribute load fairly between your customers.             |
+| [Rate limits](/v1/rate-limits)                             | Throttle task execution over a time window.                |
+| [Priority](/v1/priority)                                   | Influence scheduling order relative to other queued tasks. |
+| [Worker affinity](/v1/advanced-assignment/worker-affinity) | Prefer or require specific workers for this task.          |
 
 ## How tasks execute on workers
 
-Tasks don't run on their own. [Workers](/v1/workers) execute them. A worker is a long-running process that registers one or more tasks with Hatchet. When you trigger a task, Hatchet places it in a queue and assigns it to an available worker that has registered that task. When a task completes, the Hatchet SDK running on the worker sends the result of the task back to the Hatchet Engine, so the engine can mark the task as a success or failure, display the results, and so on.
+Tasks don't run on their own. [Workers](/v1/workers) execute them. A worker is a long-running process that registers one or more tasks with Hatchet. When you trigger a task, Hatchet places it in a queue and assigns it to an available worker that has registered that task. When a task completes, the Hatchet SDK running on the worker sends the result back to Hatchet, which marks the task as a success or failure, displays the results, and so on.
 
 <Keywords keywords="task, workflow, input, output" />
