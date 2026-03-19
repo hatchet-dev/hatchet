@@ -24,7 +24,7 @@ func NewS3Client(ctx context.Context) (*s3.Client, error) {
 		config.WithRegion("us-west-2"),
 	)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	client := s3.NewFromConfig(cfg)
@@ -41,7 +41,7 @@ func NewSlackSender(s3Bucket string, slackWebhookUrl string) *SlackSender {
 }
 
 func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl string, avgDuration time.Duration, avgScheduling time.Duration) error {
-	// Create the payload
+	// need to create payload manually because the slack webhook endpoints do not play nicely with the slack go sdk
 	payload := map[string]interface{}{
 		"blocks": []map[string]interface{}{
 			{
@@ -63,7 +63,7 @@ func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl stri
 			},
 		},
 	}
-	// Convert payload to JSON
+
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
@@ -92,12 +92,15 @@ func (s *SlackSender) UploadS3(imageBytes []byte) (*string, error) {
 		return nil, err
 	}
 	presigner := s3.NewPresignClient(s.s3Client)
-	req, err := presigner.PresignGetObject(context.Background(), &s3.GetObjectInput{
-		Bucket: &s.s3Bucket,
-		Key:    &key,
-	})
+	req, err := presigner.PresignGetObject(context.Background(),
+		&s3.GetObjectInput{
+			Bucket: &s.s3Bucket,
+			Key:    &key,
+		},
+		s3.WithPresignExpires(time.Hour*24*7),
+	)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	uploadedUrl := req.URL
