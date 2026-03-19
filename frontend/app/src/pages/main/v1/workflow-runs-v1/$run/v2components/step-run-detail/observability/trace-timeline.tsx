@@ -990,11 +990,11 @@ export function TraceTimeline({
                     'truncate text-sm leading-tight',
                     isSelected
                       ? 'font-medium text-foreground'
-                      : 'text-foreground',
+                      : 'text-muted-foreground',
                   )}
-                  title={row.group.groupName}
+                  title={`batch: ${row.group.groupName} (${row.group.totalCount.toLocaleString()} spans)`}
                 >
-                  {row.group.groupName}
+                  batch: {row.group.groupName}
                 </span>
                 <span className="ml-1.5 shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                   {row.group.totalCount.toLocaleString()}
@@ -1216,7 +1216,7 @@ export function TraceTimeline({
                     className={cn(
                       'absolute bottom-[10px] top-[10px] cursor-pointer rounded-sm',
                       !hasAnyInProgress && 'transition-all',
-                      hasErrors ? 'bg-red-500/30' : 'bg-green-500/30',
+                      hasErrors ? 'bg-red-500' : 'bg-green-500',
                       isSelected
                         ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
                         : hoveredRowKey === row.rowKey
