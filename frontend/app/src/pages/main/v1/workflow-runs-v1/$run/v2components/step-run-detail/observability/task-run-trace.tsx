@@ -1,3 +1,4 @@
+import { TraceMinimap } from './minimap/trace-minimap';
 import { SpanDetail, GroupDetail } from './span-detail';
 import {
   TraceTimeline,
@@ -5,7 +6,6 @@ import {
   type VisibleRange,
 } from './timeline/trace-timeline';
 import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
-import { TraceMinimap } from './trace-minimap';
 import { getStableKey } from './utils/span-tree-utils';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';

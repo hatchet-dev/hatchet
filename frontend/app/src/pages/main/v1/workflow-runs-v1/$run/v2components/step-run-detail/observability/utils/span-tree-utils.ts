@@ -84,6 +84,10 @@ export function getSpanColor(span: OtelSpanTree): string {
   return 'bg-green-500';
 }
 
+export function isQueuedEngineSpan(span: OtelSpanTree): boolean {
+  return isEngineSpan(span) && span.spanName === 'hatchet.engine.queued';
+}
+
 export function statusLabel(code: string): string {
   switch (code) {
     case OtelStatusCode.OK:
@@ -93,6 +97,22 @@ export function statusLabel(code: string): string {
     default:
       return 'Unset';
   }
+}
+
+export function effectiveStatusLabel(
+  span: OtelSpanTree,
+  queuedOnly: boolean,
+): string {
+  if (queuedOnly) {
+    return 'Queued';
+  }
+  if (span.inProgress) {
+    return 'In Progress';
+  }
+  if (span.statusCode !== OtelStatusCode.ERROR && hasErrorInTree(span)) {
+    return 'Error (child)';
+  }
+  return statusLabel(span.statusCode);
 }
 
 export function getBarColor(span: OtelSpanTree): string {

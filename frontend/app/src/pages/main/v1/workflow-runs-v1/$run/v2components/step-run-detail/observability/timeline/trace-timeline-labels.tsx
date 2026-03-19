@@ -8,9 +8,103 @@ import {
   type SpanGroupInfo,
 } from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown, AlertCircle } from 'lucide-react';
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
+
+function ConnectorLines({
+  depth,
+  connectorFlags,
+  isLastChild,
+}: {
+  depth: number;
+  connectorFlags: boolean[];
+  isLastChild?: boolean;
+}) {
+  return (
+    <>
+      {Array.from({ length: depth }).map((_, i) => {
+        const isOwnLevel = i === depth - 1;
+        const showLine =
+          isLastChild !== undefined && isOwnLevel
+            ? connectorFlags[i] || !isLastChild
+            : connectorFlags[i];
+        return (
+          <div
+            key={i}
+            className="flex shrink-0 items-center justify-center"
+            style={{ width: CONNECTOR_WIDTH, height: ROW_HEIGHT }}
+          >
+            {showLine && <div className="h-full w-px bg-border" />}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function ExpandToggle({
+  isExpanded,
+  hasChildren = true,
+  onToggle,
+}: {
+  isExpanded: boolean;
+  hasChildren?: boolean;
+  onToggle: () => void;
+}) {
+  if (!hasChildren) {
+    return (
+      <div
+        style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
+        className="shrink-0"
+      />
+    );
+  }
+  return (
+    <button
+      className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+      style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+    >
+      {isExpanded ? (
+        <ChevronDown className="size-3" />
+      ) : (
+        <ChevronRight className="size-3" />
+      )}
+    </button>
+  );
+}
+
+function LabelRow({
+  selected,
+  dimmed,
+  onClick,
+  children,
+}: {
+  selected?: boolean;
+  dimmed?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center px-2',
+        onClick && 'cursor-pointer rounded-l transition-colors',
+        selected ? 'bg-primary/8' : onClick && 'hover:bg-muted/50',
+        dimmed && 'opacity-40',
+      )}
+      style={{ height: ROW_HEIGHT }}
+      onClick={onClick}
+    >
+      {children}
+    </div>
+  );
+}
 
 interface TimelineLabelsProps {
   flatRows: FlatRow[];
@@ -38,28 +132,19 @@ export const TimelineLabels = memo(function TimelineLabels({
       {flatRows.map((row) => {
         if (row.kind === 'show-more') {
           return (
-            <div
-              key={row.rowKey}
-              className="flex shrink-0 items-center px-2"
-              style={{ height: ROW_HEIGHT }}
-            >
-              {Array.from({ length: row.depth }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex shrink-0 items-center justify-center"
-                  style={{ width: CONNECTOR_WIDTH, height: ROW_HEIGHT }}
-                >
-                  {row.connectorFlags[i] && (
-                    <div className="h-full w-px bg-border" />
-                  )}
-                </div>
-              ))}
+            <LabelRow key={row.rowKey}>
+              <ConnectorLines
+                depth={row.depth}
+                connectorFlags={row.connectorFlags}
+              />
               <div
                 style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
                 className="shrink-0"
               />
-              <button
-                className="truncate text-sm text-primary hover:underline"
+              <Button
+                variant="link"
+                size="xs"
+                className="truncate text-sm"
                 onClick={() =>
                   onShowMore(row.groupId, row.currentVisible + SHOW_MORE_BATCH)
                 }
@@ -67,57 +152,31 @@ export const TimelineLabels = memo(function TimelineLabels({
                 Show {Math.min(row.remaining, SHOW_MORE_BATCH)} more
                 {row.remaining > SHOW_MORE_BATCH &&
                   ` (${row.remaining.toLocaleString()} remaining)`}
-              </button>
-            </div>
+              </Button>
+            </LabelRow>
           );
         }
 
         if (row.kind === 'group') {
           const isSelected = selectedGroupId === row.group.groupId;
           return (
-            <div
+            <LabelRow
               key={row.rowKey}
-              className={cn(
-                'flex shrink-0 cursor-pointer items-center rounded-l px-2 transition-colors',
-                isSelected ? 'bg-primary/8' : 'hover:bg-muted/50',
-              )}
-              style={{ height: ROW_HEIGHT }}
+              selected={isSelected}
               onClick={() => {
                 expandOnly(row.group.groupId);
                 onGroupSelect?.(row.group);
               }}
             >
-              {Array.from({ length: row.depth }).map((_, i) => {
-                const isOwnLevel = i === row.depth - 1;
-                const showLine = isOwnLevel
-                  ? row.connectorFlags[i] || !row.isLastChild
-                  : row.connectorFlags[i];
-                return (
-                  <div
-                    key={i}
-                    className="flex shrink-0 items-center justify-center"
-                    style={{ width: CONNECTOR_WIDTH, height: ROW_HEIGHT }}
-                  >
-                    {showLine && <div className="h-full w-px bg-border" />}
-                  </div>
-                );
-              })}
-
-              <button
-                className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleExpand(row.group.groupId);
-                }}
-              >
-                {row.isExpanded ? (
-                  <ChevronDown className="size-3" />
-                ) : (
-                  <ChevronRight className="size-3" />
-                )}
-              </button>
-
+              <ConnectorLines
+                depth={row.depth}
+                connectorFlags={row.connectorFlags}
+                isLastChild={row.isLastChild}
+              />
+              <ExpandToggle
+                isExpanded={row.isExpanded}
+                onToggle={() => toggleExpand(row.group.groupId)}
+              />
               <span
                 className={cn(
                   'truncate text-sm leading-tight',
@@ -138,23 +197,18 @@ export const TimelineLabels = memo(function TimelineLabels({
                   {row.group.errorCount.toLocaleString()}
                 </span>
               )}
-            </div>
+            </LabelRow>
           );
         }
 
         const isSelected = selectedSpan?.spanId === row.span.spanId;
-        const isDimmed = !row.matchesFilter;
         const displayName = getDisplayName(row.span);
 
         return (
-          <div
+          <LabelRow
             key={row.rowKey}
-            className={cn(
-              'flex shrink-0 cursor-pointer items-center rounded-l px-2 transition-colors',
-              isSelected ? 'bg-primary/8' : 'hover:bg-muted/50',
-              isDimmed && 'opacity-40',
-            )}
-            style={{ height: ROW_HEIGHT }}
+            selected={isSelected}
+            dimmed={!row.matchesFilter}
             onClick={() => {
               if (row.hasChildren) {
                 expandOnly(row.rowKey);
@@ -162,44 +216,16 @@ export const TimelineLabels = memo(function TimelineLabels({
               onSpanSelect?.(row.span);
             }}
           >
-            {Array.from({ length: row.depth }).map((_, i) => {
-              const isOwnLevel = i === row.depth - 1;
-              const showLine = isOwnLevel
-                ? row.connectorFlags[i] || !row.isLastChild
-                : row.connectorFlags[i];
-              return (
-                <div
-                  key={i}
-                  className="flex shrink-0 items-center justify-center"
-                  style={{ width: CONNECTOR_WIDTH, height: ROW_HEIGHT }}
-                >
-                  {showLine && <div className="h-full w-px bg-border" />}
-                </div>
-              );
-            })}
-
-            {row.hasChildren ? (
-              <button
-                className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleExpand(row.rowKey);
-                }}
-              >
-                {row.isExpanded ? (
-                  <ChevronDown className="size-3" />
-                ) : (
-                  <ChevronRight className="size-3" />
-                )}
-              </button>
-            ) : (
-              <div
-                style={{ width: CONNECTOR_WIDTH + CONNECTOR_GAP }}
-                className="shrink-0"
-              />
-            )}
-
+            <ConnectorLines
+              depth={row.depth}
+              connectorFlags={row.connectorFlags}
+              isLastChild={row.isLastChild}
+            />
+            <ExpandToggle
+              isExpanded={row.isExpanded}
+              hasChildren={row.hasChildren}
+              onToggle={() => toggleExpand(row.rowKey)}
+            />
             <span
               className={cn(
                 'truncate text-sm leading-tight',
@@ -218,7 +244,7 @@ export const TimelineLabels = memo(function TimelineLabels({
                 engine
               </span>
             )}
-          </div>
+          </LabelRow>
         );
       })}
     </>

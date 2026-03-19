@@ -10,6 +10,18 @@ const INITIAL_GROUP_VISIBLE = 20;
 
 export type VisibleRange = { startPct: number; endPct: number };
 
+function getCreatedAtMs(span: OtelSpanTree): number {
+  return new Date(span.createdAt).getTime();
+}
+
+function byCreatedAtAsc(a: OtelSpanTree, b: OtelSpanTree): number {
+  return getCreatedAtMs(a) - getCreatedAtMs(b);
+}
+
+function getMatchesFilter(span: OtelSpanTree): boolean {
+  return (span as { matchesFilter?: boolean }).matchesFilter ?? true;
+}
+
 export const ROW_HEIGHT = 40;
 export const CONNECTOR_WIDTH = 12;
 export const CONNECTOR_GAP = 8;
@@ -95,27 +107,16 @@ export function groupSiblings(
 
       const errors = siblings.filter((s) => hasErrorInTree(s));
       const nonErrors = siblings.filter((s) => !hasErrorInTree(s));
-      errors.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      );
-      nonErrors.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      );
+      errors.sort(byCreatedAtAsc);
+      nonErrors.sort(byCreatedAtAsc);
       const sorted = [...errors, ...nonErrors];
 
       let earliestStartMs = Infinity;
       let latestEndMs = -Infinity;
       for (const s of sorted) {
-        const t = new Date(s.createdAt).getTime();
-        if (t < earliestStartMs) {
-          earliestStartMs = t;
-        }
-        const end = t + s.durationNs / 1e6;
-        if (end > latestEndMs) {
-          latestEndMs = end;
-        }
+        const t = getCreatedAtMs(s);
+        earliestStartMs = Math.min(earliestStartMs, t);
+        latestEndMs = Math.max(latestEndMs, t + s.durationNs / 1e6);
       }
 
       result.push({
@@ -147,40 +148,47 @@ export function flattenTree(
   const rows: FlatRow[] = [];
   const items = groupSiblings(trees, parentSpanId);
 
+  function pushSpanRow(
+    span: OtelSpanTree,
+    rowDepth: number,
+    isLastChild: boolean,
+    flags: boolean[],
+  ) {
+    const hasChildren = span.children.length > 0;
+    const stableKey = getStableKey(span);
+    const isExpanded = expandedIds.has(stableKey) && hasChildren;
+
+    rows.push({
+      kind: 'span',
+      rowKey: stableKey,
+      span,
+      depth: rowDepth,
+      isLastChild,
+      connectorFlags: [...flags],
+      hasChildren,
+      isExpanded,
+      matchesFilter: getMatchesFilter(span),
+    });
+
+    if (isExpanded) {
+      rows.push(
+        ...flattenTree(
+          span.children,
+          expandedIds,
+          groupVisibleCounts,
+          rowDepth + 1,
+          [...flags, !isLastChild],
+          span.spanId,
+        ),
+      );
+    }
+  }
+
   items.forEach((item, idx) => {
     const isLast = idx === items.length - 1;
 
     if (item.kind === 'span') {
-      const tree = item.span;
-      const hasChildren = tree.children.length > 0;
-      const stableKey = getStableKey(tree);
-      const isExpanded = expandedIds.has(stableKey) && hasChildren;
-
-      rows.push({
-        kind: 'span',
-        rowKey: stableKey,
-        span: tree,
-        depth,
-        isLastChild: isLast,
-        connectorFlags: [...connectorFlags],
-        hasChildren,
-        isExpanded,
-        matchesFilter:
-          (tree as { matchesFilter?: boolean }).matchesFilter ?? true,
-      });
-
-      if (isExpanded) {
-        rows.push(
-          ...flattenTree(
-            tree.children,
-            expandedIds,
-            groupVisibleCounts,
-            depth + 1,
-            [...connectorFlags, !isLast],
-            tree.spanId,
-          ),
-        );
-      }
+      pushSpanRow(item.span, depth, isLast, connectorFlags);
     } else {
       const { group } = item;
       const isExpanded = expandedIds.has(group.groupId);
@@ -201,39 +209,12 @@ export function flattenTree(
         const clamped = Math.min(visibleCount, group.spans.length);
         const visibleSpans = group.spans.slice(0, clamped);
         const remaining = group.totalCount - clamped;
+        const childFlags = [...connectorFlags, !isLast];
 
         visibleSpans.forEach((span, spanIdx) => {
           const isLastInGroup =
             spanIdx === visibleSpans.length - 1 && remaining <= 0;
-          const hasChildren = span.children.length > 0;
-          const stableKey = getStableKey(span);
-          const isSpanExpanded = expandedIds.has(stableKey) && hasChildren;
-
-          rows.push({
-            kind: 'span',
-            rowKey: stableKey,
-            span,
-            depth: depth + 1,
-            isLastChild: isLastInGroup,
-            connectorFlags: [...connectorFlags, !isLast],
-            hasChildren,
-            isExpanded: isSpanExpanded,
-            matchesFilter:
-              (span as { matchesFilter?: boolean }).matchesFilter ?? true,
-          });
-
-          if (isSpanExpanded) {
-            rows.push(
-              ...flattenTree(
-                span.children,
-                expandedIds,
-                groupVisibleCounts,
-                depth + 2,
-                [...connectorFlags, !isLast, !isLastInGroup],
-                span.spanId,
-              ),
-            );
-          }
+          pushSpanRow(span, depth + 1, isLastInGroup, childFlags);
         });
 
         if (remaining > 0) {
@@ -244,7 +225,7 @@ export function flattenTree(
             remaining,
             currentVisible: clamped,
             depth: depth + 1,
-            connectorFlags: [...connectorFlags, !isLast],
+            connectorFlags: childFlags,
           });
         }
       }
