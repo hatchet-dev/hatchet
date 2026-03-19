@@ -861,6 +861,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("additionalLoggers.pgxStats.level", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL")
 	_ = v.BindEnv("additionalLoggers.pgxStats.format", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT")
 
+	// engine OTel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
@@ -868,6 +869,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.collectorAuth", "SERVER_OTEL_COLLECTOR_AUTH")
 	_ = v.BindEnv("otel.metricsEnabled", "SERVER_OTEL_METRICS_ENABLED")
 
+	// Hatchet O11y options
 	_ = v.BindEnv("hatchetO11y.enabled", "SERVER_HATCHET_O11Y_ENABLED")
 	_ = v.BindEnv("hatchetO11y.maxBatchSize", "SERVER_HATCHET_O11Y_MAX_BATCH_SIZE")
 
