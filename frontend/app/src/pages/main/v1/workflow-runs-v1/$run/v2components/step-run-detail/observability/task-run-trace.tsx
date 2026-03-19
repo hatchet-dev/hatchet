@@ -1,11 +1,12 @@
 import { SpanDetail, GroupDetail } from './span-detail';
-import { TraceMinimap } from './trace-minimap';
 import {
   TraceTimeline,
   LABEL_WIDTH,
   type VisibleRange,
-  type SpanGroupInfo,
-} from './trace-timeline';
+} from './timeline/trace-timeline';
+import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
+import { TraceMinimap } from './trace-minimap';
+import { getStableKey } from './utils/span-tree-utils';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import type {
@@ -32,13 +33,6 @@ function findSpanInTrees(
     }
   }
   return undefined;
-}
-
-function getStableKey(span: OtelSpanTree): string {
-  return span.spanName === 'hatchet.start_step_run' &&
-    span.spanAttributes?.['hatchet.step_run_id']
-    ? span.spanAttributes['hatchet.step_run_id']
-    : span.spanId;
 }
 
 function findSpanByTaskRunId(
@@ -105,8 +99,8 @@ export function TaskRunTrace({
     [spanTrees],
   );
 
-  const [expandedSpansIds, setExpandedSpansIds] = useState<string[]>(() =>
-    spanTrees.map((s) => s.spanId),
+  const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(
+    () => new Set(spanTrees.map((s) => s.spanId)),
   );
 
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
@@ -133,12 +127,12 @@ export function TaskRunTrace({
     }
     lastFocusedRef.current = focusedTaskRunId;
     setExpandedSpansIds((prev) => {
-      const set = new Set(prev);
+      const next = new Set(prev);
       for (const id of result.ancestorKeys) {
-        set.add(id);
+        next.add(id);
       }
-      set.add(getStableKey(result.span));
-      return Array.from(set);
+      next.add(getStableKey(result.span));
+      return next;
     });
     setSelection({ kind: 'span', span: result.span });
   }, [focusedTaskRunId, spanTrees]);
@@ -161,12 +155,12 @@ export function TaskRunTrace({
         return;
       }
       setExpandedSpansIds((prev) => {
-        const set = new Set(prev);
+        const next = new Set(prev);
         for (const id of ancestors) {
-          set.add(id);
+          next.add(id);
         }
-        set.add(getStableKey(span));
-        return Array.from(set);
+        next.add(getStableKey(span));
+        return next;
       });
     },
     [spanTrees],

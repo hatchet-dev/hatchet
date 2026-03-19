@@ -16,4 +16,5 @@ export type OtelSpanTree = RelevantOpenTelemetrySpanProperties & {
   children: OtelSpanTree[];
   queuedPhase?: OtelSpanTree;
   inProgress?: boolean;
+  hasErrorInSubtree?: boolean;
 };

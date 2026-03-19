@@ -1,3 +1,9 @@
+import { formatDuration } from './utils/format-utils';
+import {
+  getDisplayName,
+  getSpanColor,
+  hasErrorInTree,
+} from './utils/span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
@@ -28,75 +34,6 @@ type DragState = {
   anchorPct?: number;
 };
 
-function getHatchetDisplayName(span: OtelSpanTree): string {
-  if (!span.spanName.startsWith('hatchet.')) {
-    return span.spanName;
-  }
-  if (span.spanAttributes?.['hatchet.step_name']) {
-    return span.spanAttributes['hatchet.step_name'];
-  }
-  if (span.spanAttributes?.['hatchet.workflow_name']) {
-    return span.spanAttributes['hatchet.workflow_name'];
-  }
-  const actionId = span.spanAttributes?.['hatchet.action_id'];
-  if (actionId?.includes(':')) {
-    return actionId.split(':')[0];
-  }
-  return span.spanName;
-}
-
-function hasErrorInTree(span: OtelSpanTree): boolean {
-  if (span.statusCode === OtelStatusCode.ERROR) {
-    return true;
-  }
-  return span.children.some(hasErrorInTree);
-}
-
-function getMarkerColor(marker: SpanMarker): string {
-  if (marker.inProgress) {
-    return 'bg-yellow-500';
-  }
-  if (marker.hasErrorInTree) {
-    return 'bg-red-500';
-  }
-  return 'bg-green-500';
-}
-
-function getDotColor(marker: SpanMarker): string {
-  if (marker.inProgress) {
-    return 'bg-yellow-500';
-  }
-  if (marker.hasErrorInTree) {
-    return 'bg-red-500';
-  }
-  return 'bg-green-500';
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1) {
-    return '<1ms';
-  }
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
-  }
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function formatOffset(ms: number): string {
-  if (ms <= 0) {
-    return '0ms';
-  }
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
-  }
-  if (ms < 60000) {
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  return s > 0 ? `${m}m${s}s` : `${m}m`;
-}
-
 function collectSpanMarkers(
   trees: OtelSpanTree[],
   minMs: number,
@@ -117,7 +54,7 @@ function collectSpanMarkers(
       statusCode: node.statusCode,
       hasErrorInTree: hasErrorInTree(node),
       inProgress: !!node.inProgress,
-      spanName: getHatchetDisplayName(node),
+      spanName: getDisplayName(node),
       durationMs: node.durationNs / 1_000_000,
       visible: parentVisible,
       span: node,
@@ -146,7 +83,7 @@ interface TraceMinimapProps {
   maxMs: number;
   visibleRange: TimeRange;
   onRangeChange: (range: TimeRange) => void;
-  expandedSpanIds?: string[];
+  expandedSpanIds?: Set<string>;
   onSpanSelect?: (span: OtelSpanTree, ancestorSpanIds: string[]) => void;
   externalHoverPct?: number | null;
   onHoverPctChange?: (pct: number | null) => void;
@@ -174,13 +111,11 @@ export function TraceMinimap({
   } | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
 
-  const expandedSet = useMemo(
-    () => (expandedSpanIds ? new Set(expandedSpanIds) : undefined),
-    [expandedSpanIds],
-  );
-
   const totalMs = maxMs - minMs;
-  const markers = collectSpanMarkers(spanTrees, minMs, totalMs, expandedSet);
+  const markers = useMemo(
+    () => collectSpanMarkers(spanTrees, minMs, totalMs, expandedSpanIds),
+    [spanTrees, minMs, totalMs, expandedSpanIds],
+  );
 
   const startDrag = useCallback(
     (mode: DragMode, e: React.PointerEvent, anchorPct?: number) => {
@@ -307,7 +242,6 @@ export function TraceMinimap({
         onHoverPctChange?.(null);
       }}
     >
-      {/* Event markers */}
       {markers.map((m, i) => (
         <div
           key={i}
@@ -338,11 +272,10 @@ export function TraceMinimap({
             setTooltipPos(null);
           }}
         >
-          <div className={cn('flex-1 rounded-full', getMarkerColor(m))} />
+          <div className={cn('flex-1 rounded-full', getSpanColor(m.span))} />
         </div>
       ))}
 
-      {/* Left dim overlay */}
       {dragging !== 'brush' && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-[1] bg-background/70"
@@ -350,7 +283,6 @@ export function TraceMinimap({
         />
       )}
 
-      {/* Right dim overlay */}
       {dragging !== 'brush' && (
         <div
           className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-background/70"
@@ -358,7 +290,6 @@ export function TraceMinimap({
         />
       )}
 
-      {/* Selected region with handles inside — visible on hover or while dragging */}
       <div
         className={cn(
           'pointer-events-none absolute inset-y-0 z-[3] transition-opacity duration-150',
@@ -370,7 +301,6 @@ export function TraceMinimap({
         )}
         style={{ left: `${sPct}%`, right: `${100 - ePct}%` }}
       >
-        {/* Left handle — pinned to left edge of selected region */}
         <div
           className="pointer-events-auto absolute inset-y-[3px] left-0 flex w-[20px] items-center justify-center rounded-full border border-border/40 bg-muted"
           style={{ cursor: 'ew-resize' }}
@@ -393,7 +323,6 @@ export function TraceMinimap({
           </svg>
         </div>
 
-        {/* Right handle — pinned to right edge of selected region */}
         <div
           className="pointer-events-auto absolute inset-y-[3px] right-0 flex w-[20px] items-center justify-center rounded-full border border-border/40 bg-muted"
           style={{ cursor: 'ew-resize' }}
@@ -417,7 +346,6 @@ export function TraceMinimap({
         </div>
       </div>
 
-      {/* Hover cursor line + timestamp */}
       {(() => {
         const activePct = hoverPct ?? externalHoverPct ?? null;
         if (activePct === null || dragging) {
@@ -441,13 +369,12 @@ export function TraceMinimap({
                       : 'translateX(-50%)',
               }}
             >
-              {formatOffset(totalMs * activePct)}
+              {formatDuration(totalMs * activePct)}
             </div>
           </>
         );
       })()}
 
-      {/* Drag boundary lines + timestamps */}
       {dragging && (
         <>
           <div
@@ -468,7 +395,7 @@ export function TraceMinimap({
             }}
           >
             <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
-              {formatOffset(totalMs * visibleRange.startPct)}
+              {formatDuration(totalMs * visibleRange.startPct)}
             </span>
             <div className="flex min-w-1 flex-1 items-center">
               <svg
@@ -482,7 +409,7 @@ export function TraceMinimap({
               <div className="h-px flex-1 bg-primary" />
             </div>
             <span className="shrink-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-medium leading-tight text-primary-foreground">
-              {formatOffset(
+              {formatDuration(
                 totalMs * (visibleRange.endPct - visibleRange.startPct),
               )}
             </span>
@@ -498,16 +425,14 @@ export function TraceMinimap({
               </svg>
             </div>
             <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
-              {formatOffset(totalMs * visibleRange.endPct)}
+              {formatDuration(totalMs * visibleRange.endPct)}
             </span>
           </div>
         </>
       )}
 
-      {/* Inner shadow */}
       <div className="pointer-events-none absolute inset-0 z-[4] rounded-[inherit] shadow-[inset_0px_7px_10px_0px_rgba(0,0,0,0.01),inset_0px_1px_3px_0px_rgba(0,0,0,0.01)]" />
 
-      {/* Hover tooltip via portal */}
       {hoveredMarker &&
         tooltipPos &&
         !dragging &&
@@ -529,7 +454,7 @@ export function TraceMinimap({
               <span
                 className={cn(
                   'size-2 shrink-0 rounded-full',
-                  getDotColor(hoveredMarker),
+                  getSpanColor(hoveredMarker.span),
                 )}
               />
               <span className="flex-1 font-mono text-xs text-muted-foreground">

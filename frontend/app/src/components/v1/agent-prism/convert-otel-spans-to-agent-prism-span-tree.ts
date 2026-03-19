@@ -463,6 +463,13 @@ function attachWorkflowQueuedPhase(
   };
 }
 
+function computeHasErrorInSubtree(node: OtelSpanTree): boolean {
+  const childHasError = node.children.some(computeHasErrorInSubtree);
+  node.hasErrorInSubtree =
+    node.statusCode === OtelStatusCode.ERROR || childHasError;
+  return node.hasErrorInSubtree;
+}
+
 export const convertOtelSpansToOtelSpanTree = (
   spans:
     | [
@@ -493,11 +500,11 @@ export const convertOtelSpansToOtelSpanTree = (
           createdAt: new Date().toISOString(),
           spanAttributes: { instrumentor: 'hatchet' },
           children: [],
-          inProgress: true,
         };
 
         attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
         if (syntheticRoot.queuedPhase) {
+          computeHasErrorInSubtree(syntheticRoot);
           return [syntheticRoot];
         }
       }
@@ -517,16 +524,18 @@ export const convertOtelSpansToOtelSpanTree = (
         createdAt: new Date(earliestStart).toISOString(),
         spanAttributes: { instrumentor: 'hatchet' },
         children: rootSpans,
-        inProgress: true,
+        inProgress: rootSpans.some((s) => s.inProgress),
       };
       if (workflowRunTiming) {
         attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
       }
+      computeHasErrorInSubtree(syntheticRoot);
       return [syntheticRoot];
     }
     if (workflowRunTiming) {
       attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
     }
+    rootSpans.forEach(computeHasErrorInSubtree);
     return rootSpans;
   }
 
@@ -634,6 +643,7 @@ export const convertOtelSpansToOtelSpanTree = (
       attachWorkflowQueuedPhase(syntheticRoot, workflowRunTiming);
     }
 
+    computeHasErrorInSubtree(syntheticRoot);
     return [syntheticRoot];
   }
 
@@ -641,5 +651,6 @@ export const convertOtelSpansToOtelSpanTree = (
     attachWorkflowQueuedPhase(rootSpans[0], workflowRunTiming);
   }
 
+  rootSpans.forEach(computeHasErrorInSubtree);
   return rootSpans;
 };

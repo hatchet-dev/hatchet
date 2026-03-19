@@ -1,12 +1,10 @@
 import { TaskRunTrace } from './task-run-trace';
+import { isQueuedOnlyRoot } from './utils/span-tree-utils';
 import {
   convertOtelSpansToOtelSpanTree,
   type TaskSummaryForSynthesis,
 } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
-import type {
-  OtelSpanTree,
-  RelevantOpenTelemetrySpanProperties,
-} from '@/components/v1/agent-prism/span-tree-type';
+import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
 import {
   filterSpanTrees,
   parseTraceQuery,
@@ -16,51 +14,10 @@ import {
 import { Loading } from '@/components/v1/ui/loading';
 import api from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
-}
-
-function countTreeNodes(nodes: OtelSpanTree[] | null): number {
-  if (!nodes) {
-    return 0;
-  }
-  let count = 0;
-  const stack = [...nodes];
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    count += 1;
-    if (node.queuedPhase) {
-      stack.push(node.queuedPhase);
-    }
-    if (node.children.length > 0) {
-      stack.push(...node.children);
-    }
-  }
-  return count;
-}
-
-function summarizeRoots(nodes: OtelSpanTree[] | null): string {
-  if (!nodes || nodes.length === 0) {
-    return '-';
-  }
-  return nodes
-    .map((n) => {
-      const queuedMs = n.queuedPhase
-        ? Math.round(n.queuedPhase.durationNs / 1e6)
-        : 0;
-      return `${n.spanName}[queuedMs=${queuedMs},children=${n.children.length}]`;
-    })
-    .join(',');
-}
-
-function isQueuedOnlyRoot(node: OtelSpanTree): boolean {
-  if (!node.spanId.startsWith('__synthetic_') || !node.queuedPhase) {
-    return false;
-  }
-  const hasRunningChild = node.children.some((c) => c.inProgress);
-  return !hasRunningChild;
 }
 
 const PAGE_SIZE = 200;
@@ -79,48 +36,43 @@ const pickSpan = (
   spanAttributes: span.spanAttributes,
 });
 
-async function fetchAllSpansByTask(
-  taskExternalId: string,
+type PaginatedFetcher = (
+  id: string,
+  params: { offset: number; limit: number },
+) => Promise<{
+  data: {
+    rows?: RelevantOpenTelemetrySpanProperties[];
+    pagination?: { num_pages?: number; current_page?: number };
+  };
+}>;
+
+const MAX_PAGES = 50;
+
+async function fetchAllSpansPaginated(
+  apiFn: PaginatedFetcher,
+  id: string,
 ): Promise<RelevantOpenTelemetrySpanProperties[]> {
   const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
   let currentPage = 0;
   let numPages = 1;
+  let iterations = 0;
 
   do {
-    const res = await api.v1TaskGetTrace(taskExternalId, {
+    const res = await apiFn(id, {
       offset: currentPage * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
 
     const rows = res.data.rows ?? [];
+    if (rows.length === 0) {
+      break;
+    }
     allSpans.push(...rows.map(pickSpan));
 
     numPages = res.data.pagination?.num_pages ?? 1;
     currentPage = res.data.pagination?.current_page ?? 1;
-  } while (currentPage < numPages);
-
-  return allSpans;
-}
-
-async function fetchAllSpansByWorkflowRun(
-  workflowRunExternalId: string,
-): Promise<RelevantOpenTelemetrySpanProperties[]> {
-  const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
-  let currentPage = 0;
-  let numPages = 1;
-
-  do {
-    const res = await api.v1WorkflowRunGetTrace(workflowRunExternalId, {
-      offset: currentPage * PAGE_SIZE,
-      limit: PAGE_SIZE,
-    });
-
-    const rows = res.data.rows ?? [];
-    allSpans.push(...rows.map(pickSpan));
-
-    numPages = res.data.pagination?.num_pages ?? 1;
-    currentPage = res.data.pagination?.current_page ?? 1;
-  } while (currentPage < numPages);
+    iterations++;
+  } while (currentPage < numPages && iterations < MAX_PAGES);
 
   return allSpans;
 }
@@ -182,27 +134,24 @@ export const Observability = (props: ObservabilityProps) => {
 
   const [queryString, setQueryString] = useState('');
 
-  const completedAtRef = useRef<number | null>(null);
+  const GRACE_PERIOD_MS = 15_000;
+  const [inGracePeriod, setInGracePeriod] = useState(false);
   useEffect(() => {
     if (isRunning) {
-      completedAtRef.current = null;
-    } else if (!completedAtRef.current) {
-      completedAtRef.current = Date.now();
+      setInGracePeriod(false);
+      return;
     }
+    setInGracePeriod(true);
+    const timer = setTimeout(() => setInGracePeriod(false), GRACE_PERIOD_MS);
+    return () => clearTimeout(timer);
   }, [isRunning]);
-
-  const GRACE_PERIOD_MS = 15_000;
-  const inGracePeriod =
-    !isRunning &&
-    completedAtRef.current !== null &&
-    Date.now() - completedAtRef.current < GRACE_PERIOD_MS;
 
   const tracesQuery = useQuery({
     queryKey: [queryType + ':trace', queryId],
     queryFn: () =>
       queryType === 'task'
-        ? fetchAllSpansByTask(queryId)
-        : fetchAllSpansByWorkflowRun(queryId),
+        ? fetchAllSpansPaginated(api.v1TaskGetTrace, queryId)
+        : fetchAllSpansPaginated(api.v1WorkflowRunGetTrace, queryId),
     refetchInterval: isRunning || inGracePeriod ? 300 : 10000,
   });
 
@@ -277,26 +226,6 @@ export const Observability = (props: ObservabilityProps) => {
     }
     return filterSpanTrees(spanTrees, parsedQuery);
   }, [spanTrees, parsedQuery]);
-
-  useEffect(() => {
-    const pendingTasks =
-      tasks?.filter((t) => t.status === 'QUEUED' || t.status === 'RUNNING') ??
-      [];
-    const engineTraceCount =
-      traces?.filter(
-        (t) => t.spanAttributes?.['hatchet.span_source'] === 'engine',
-      ).length ?? 0;
-
-    console.log(
-      `[trace-debug] input type=${queryType} id=${queryId} traces=${traces?.length ?? 0} engine=${engineTraceCount} tasks=${tasks?.length ?? 0} pending=${pendingTasks.length} isRunning=${isRunning} wrCreated=${workflowRunTiming?.createdAt ?? '-'} wrStarted=${workflowRunTiming?.startedAt ?? '-'}`,
-    );
-  }, [queryId, queryType, traces, tasks, isRunning, workflowRunTiming]);
-
-  useEffect(() => {
-    console.log(
-      `[trace-debug] trees spanRoots=${spanTrees?.length ?? 0} spanNodes=${countTreeNodes(spanTrees)} filteredRoots=${filteredTrees?.length ?? 0} filteredNodes=${countTreeNodes(filteredTrees)} query="${queryString}" roots=${summarizeRoots(spanTrees)}`,
-    );
-  }, [spanTrees, filteredTrees, queryString]);
 
   const handleAddFilter = useCallback((key: string, value: string) => {
     const token = `${key}:${value}`;

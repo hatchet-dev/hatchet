@@ -1,92 +1,44 @@
-import type { SpanGroupInfo } from './trace-timeline';
+import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
+import { formatDuration, formatTimestamp } from './utils/format-utils';
+import { isQueuedOnly, statusLabel } from './utils/span-tree-utils';
+import { useLiveClock } from './utils/use-live-clock';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
-import { PanelRight, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Filter, Minus, PanelRight, Plus, X } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
 
-function FilterPlusIcon({ className }: { className?: string }) {
+function FilterWithBadgeIcon({
+  className,
+  variant,
+}: {
+  className?: string;
+  variant: 'plus' | 'minus';
+}) {
+  const Badge = variant === 'plus' ? Plus : Minus;
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      {/* funnel */}
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-      {/* plus badge */}
-      <line x1="19" y1="15" x2="19" y2="21" />
-      <line x1="16" y1="18" x2="22" y2="18" />
-    </svg>
+    <span className={cn('relative inline-flex size-3.5', className)}>
+      <Filter className="size-full" />
+      <Badge
+        className="pointer-events-none absolute -bottom-0.5 -right-0.5 size-2.5"
+        strokeWidth={2.5}
+        aria-hidden
+      />
+    </span>
   );
 }
 
-function FilterMinusIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      {/* funnel */}
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-      {/* minus badge */}
-      <line x1="16" y1="18" x2="22" y2="18" />
-    </svg>
-  );
-}
-
-function formatDuration(ns: number): string {
-  const ms = ns / 1_000_000;
-  if (ms < 1) {
-    return `${(ns / 1_000).toFixed(1)}µs`;
+function statusDotColor(code: string): string {
+  if (code === OtelStatusCode.ERROR) {
+    return 'bg-red-500';
   }
-  if (ms < 1000) {
-    return `${ms.toFixed(ms < 10 ? 2 : 1)}ms`;
+  if (code === OtelStatusCode.OK) {
+    return 'bg-green-500';
   }
-  if (ms < 60_000) {
-    return `${(ms / 1000).toFixed(2)}s`;
-  }
-  const m = Math.floor(ms / 60_000);
-  const s = ((ms % 60_000) / 1000).toFixed(1);
-  return `${m}m ${s}s`;
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
-}
-
-function statusConfig(code: string) {
-  switch (code) {
-    case OtelStatusCode.OK:
-      return { label: 'OK', dot: 'bg-green-500' };
-    case OtelStatusCode.ERROR:
-      return { label: 'Error', dot: 'bg-red-500' };
-    default:
-      return { label: 'Unset', dot: 'bg-slate-500' };
-  }
+  return 'bg-slate-500';
 }
 
 interface ChildError {
@@ -118,10 +70,6 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
       new Date(b.span.createdAt).getTime(),
   );
   return errors;
-}
-
-function isQueuedOnly(span: OtelSpanTree): boolean {
-  return !!span.queuedPhase && span.durationNs <= 0 && !span.inProgress;
 }
 
 const HATCHET_ATTR_PREFIX = 'hatchet.';
@@ -222,9 +170,9 @@ function AttrTable({
                           }
                         >
                           {active ? (
-                            <FilterMinusIcon className="size-3.5" />
+                            <FilterWithBadgeIcon variant="minus" />
                           ) : (
-                            <FilterPlusIcon className="size-3.5" />
+                            <FilterWithBadgeIcon variant="plus" />
                           )}
                         </Button>
                       )}
@@ -256,22 +204,9 @@ export function SpanDetail({
   onSpanSelect?: (span: OtelSpanTree) => void;
 }) {
   const isLive = !!span.inProgress || isQueuedOnly(span);
+  const now = useLiveClock(isLive);
 
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!isLive) {
-      return;
-    }
-    let raf: number;
-    const tick = () => {
-      setNow(Date.now());
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [isLive]);
-
-  const queuedOnly = isQueuedOnly(span);
+  const queuedOnlySpan = isQueuedOnly(span);
   const startMs = new Date(span.createdAt).getTime();
 
   const durationNs = span.inProgress
@@ -280,16 +215,19 @@ export function SpanDetail({
 
   const q = span.queuedPhase;
   let queueNs = q ? q.durationNs : 0;
-  if (q && queuedOnly) {
+  if (q && queuedOnlySpan) {
     const qStartMs = new Date(q.createdAt).getTime();
     queueNs = Math.max(0, now - qStartMs) * 1_000_000;
   }
 
-  const status = queuedOnly
+  const status = queuedOnlySpan
     ? { label: 'Queued', dot: 'bg-yellow-500' }
     : span.inProgress
       ? { label: 'In Progress', dot: 'bg-blue-500' }
-      : statusConfig(span.statusCode);
+      : {
+          label: statusLabel(span.statusCode),
+          dot: statusDotColor(span.statusCode),
+        };
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
   const taskRunId = span.spanAttributes?.['hatchet.step_run_id'];
   const { open } = useSidePanel();
@@ -339,12 +277,17 @@ export function SpanDetail({
               View Task Run
             </Button>
           )}
-          <button
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="size-8 shrink-0 text-muted-foreground"
             onClick={onClose}
-            className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            hoverText="Close"
+            aria-label="Close panel"
           >
             <X className="size-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -353,14 +296,16 @@ export function SpanDetail({
           <div>
             <span className="text-xs text-muted-foreground">Queue Time</span>
             <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-              {formatDuration(queueNs)}
+              {formatDuration(queueNs, { unit: 'ns', precise: true })}
             </p>
           </div>
         )}
         <div>
           <span className="text-xs text-muted-foreground">Duration</span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {queuedOnly ? '–' : formatDuration(durationNs)}
+            {queuedOnlySpan
+              ? '–'
+              : formatDuration(durationNs, { unit: 'ns', precise: true })}
           </p>
         </div>
         <div>
@@ -439,21 +384,6 @@ export function SpanDetail({
   );
 }
 
-function formatDurationMs(ms: number): string {
-  if (ms < 1) {
-    return '<1ms';
-  }
-  if (ms < 1000) {
-    return `${ms.toFixed(ms < 10 ? 2 : 1)}ms`;
-  }
-  if (ms < 60_000) {
-    return `${(ms / 1000).toFixed(2)}s`;
-  }
-  const m = Math.floor(ms / 60_000);
-  const s = ((ms % 60_000) / 1000).toFixed(1);
-  return `${m}m ${s}s`;
-}
-
 export function GroupDetail({
   group,
   onClose,
@@ -484,37 +414,42 @@ export function GroupDetail({
             )}
           </p>
         </div>
-        <button
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="size-8 shrink-0 text-muted-foreground"
           onClick={onClose}
-          className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          hoverText="Close"
+          aria-label="Close panel"
         >
           <X className="size-4" />
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
         <div>
           <span className="text-xs text-muted-foreground">Time Range</span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {formatDurationMs(timeRangeMs)}
+            {formatDuration(timeRangeMs, { precise: true })}
           </p>
         </div>
         <div>
           <span className="text-xs text-muted-foreground">Avg Duration</span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {formatDurationMs(avgMs)}
+            {formatDuration(avgMs, { precise: true })}
           </p>
         </div>
         <div>
           <span className="text-xs text-muted-foreground">Min Duration</span>
           <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatDurationMs(minMs)}
+            {formatDuration(minMs, { precise: true })}
           </p>
         </div>
         <div>
           <span className="text-xs text-muted-foreground">Max Duration</span>
           <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatDurationMs(maxMs)}
+            {formatDuration(maxMs, { precise: true })}
           </p>
         </div>
       </div>
