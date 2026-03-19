@@ -6,9 +6,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 )
 
-func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen.MonitoringPostRunProbeRequestObject) (gen.MonitoringPostRunProbeResponseObject, error) {
+func (m *MonitoringService) MonitoringPostRunProbe(c echo.Context, request gen.MonitoringPostRunProbeRequestObject) (gen.MonitoringPostRunProbeResponseObject, error) {
+	ctx := c.Request().Context()
+
 	if !m.enabled {
-		m.l.Error().Msg("monitoring is not enabled")
+		m.l.Error().Ctx(ctx).Msg("monitoring is not enabled")
 		return gen.MonitoringPostRunProbe403JSONResponse{}, nil
 	}
 

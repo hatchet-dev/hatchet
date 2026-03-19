@@ -19,16 +19,17 @@ type AuthZ struct {
 	l      *zerolog.Logger
 }
 
-func NewAuthZ(config *server.ServerConfig) *AuthZ {
+func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 	rbacAuthorizer, err := rbac.NewAuthorizer()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
 		rbac:   rbacAuthorizer,
-	}
+	}, nil
 }
 
 func (a *AuthZ) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
@@ -66,8 +67,10 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
 	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 
+	ctx := c.Request().Context()
+
 	if err := a.ensureVerifiedEmail(c, r); err != nil {
-		a.l.Debug().Err(err).Msgf("error ensuring verified email")
+		a.l.Debug().Ctx(ctx).Err(err).Msgf("error ensuring verified email")
 		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
 	}
 
@@ -76,7 +79,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		user, ok := c.Get("user").(*sqlcv1.User)
 
 		if !ok {
-			a.l.Debug().Msgf("user not found in context")
+			a.l.Debug().Ctx(ctx).Msgf("user not found in context")
 
 			return unauthorized
 		}
@@ -85,13 +88,13 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
 
 		if err != nil {
-			a.l.Debug().Err(err).Msgf("error getting tenant member")
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
 
 			return unauthorized
 		}
 
 		if tenantMember == nil {
-			a.l.Debug().Msgf("user is not a member of the tenant")
+			a.l.Debug().Ctx(ctx).Msgf("user is not a member of the tenant")
 
 			return unauthorized
 		}
@@ -101,7 +104,7 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 
 		// authorize tenant operations
 		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
-			a.l.Debug().Err(err).Msgf("error authorizing tenant operations")
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error authorizing tenant operations")
 
 			return unauthorized
 		}
@@ -163,6 +166,10 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 }
 
 func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRole, r *middleware.RouteInfo) error {
+	// if the operation is in the allowed operations, skip the RBAC check this is needed for extensions
+	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) {
+		return nil
+	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
 	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {

@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@6ca151fd1bfcfd6fe0c4eb6837eb0584d0134a0c # v1.290.0
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -94,7 +94,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@6ca151fd1bfcfd6fe0c4eb6837eb0584d0134a0c # v1.290.0
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -125,7 +125,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@6ca151fd1bfcfd6fe0c4eb6837eb0584d0134a0c # v1.290.0
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -205,23 +205,297 @@ jobs:
 
       - name: Upload worker logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-worker-logs
           path: ./sdks/ruby/examples/worker.log
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-engine-logs
           path: engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-api-logs
+          path: api.log
+
+  old-engine-new-sdk:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
+
+      - name: Determine latest stable release tag
+        working-directory: .
+        run: |
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "ERROR: No stable release tag found"
+            exit 1
+          fi
+          echo "Latest stable tag: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Pull release images
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml pull hatchet-migrate hatchet-admin hatchet-engine hatchet-api
+
+      - name: Run migrations
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm hatchet-migrate
+
+      - name: Setup config and seed database
+        working-directory: .
+        run: |
+          mkdir -p generated
+          docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm \
+            hatchet-admin /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+
+      - name: Generate API token
+        working-directory: .
+        run: |
+          TOKEN=$(docker compose -f docker-compose.yml -f docker-compose.release.yml run -T --rm \
+            hatchet-admin /hatchet/hatchet-admin token create --config /hatchet/generated --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)
+          echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Start engine and API
+        working-directory: .
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.release.yml up -d hatchet-engine hatchet-api
+          sleep 30
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ./sdks/ruby/src
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=old-engine-new-sdk-rb-${SHORT_SHA}" >> $GITHUB_ENV
+
+      - name: Run unit tests
+        env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
+        run: |
+          echo "Testing current SDK against engine ${{ env.LATEST_TAG }}"
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          bundle exec rspec --format documentation --tag ~integration
+
+      - name: Run integration tests
+        env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
+        run: bundle exec rspec spec/integration/ --format documentation --tag integration
+
+      - name: Set up Ruby for examples
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ./sdks/ruby/examples
+
+      - name: Start example worker
+        working-directory: ./sdks/ruby/examples
+        env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
+        run: bundle exec ruby worker.rb > worker.log 2>&1 &
+
+      - name: Wait for worker health
+        working-directory: .
+        run: |
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:8001/health > /dev/null 2>&1; then
+              echo "Worker is healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Worker failed to start within 60s"
+          cat ./sdks/ruby/examples/worker.log || true
+          exit 1
+
+      - name: Run e2e tests
+        working-directory: ./sdks/ruby/examples
+        env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
+        run: bundle exec rspec -f d --fail-fast
+
+      - name: Upload worker logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-worker-logs
+          path: ./sdks/ruby/examples/worker.log
+
+      - name: Collect engine logs
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-engine > /tmp/engine.log 2>&1 || true
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
+          path: /tmp/engine.log
+
+      - name: Collect API logs
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-api > /tmp/api.log 2>&1 || true
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
+          path: /tmp/api.log
+
+      - name: Teardown
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml down
+
+  new-engine-old-sdk:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: "1.25"
+
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
+
+      - name: Run migrations
+        working-directory: .
+        run: |
+          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          go run ./cmd/hatchet-migrate
+
+      - name: Setup and start engine
+        working-directory: .
+        run: |
+          export SEED_DEVELOPMENT=true
+          export SERVER_PORT=8080
+          export SERVER_URL=http://localhost:8080
+          export SERVER_AUTH_COOKIE_DOMAIN=localhost
+          export SERVER_AUTH_COOKIE_INSECURE=true
+          export SERVER_DEFAULT_ENGINE_VERSION=V1
+          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+
+          go run ./cmd/hatchet-admin quickstart
+
+          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
+          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
+
+          sleep 30
+
+      - name: Generate API token
+        working-directory: .
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=${{ github.workspace }}/certs/ca.cert" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=true" >> $GITHUB_ENV
+
+      - name: Clone main SDK source
+        working-directory: .
+        run: |
+          git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
+
+      - name: Set up Ruby for old SDK
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: /tmp/old-sdk/sdks/ruby/src
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=new-engine-old-sdk-rb-${SHORT_SHA}" >> $GITHUB_ENV
+
+      - name: Run unit tests
+        working-directory: /tmp/old-sdk/sdks/ruby/src
+        run: |
+          echo "Testing main SDK against current engine"
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          bundle exec rspec --format documentation --tag ~integration
+
+      - name: Run integration tests
+        working-directory: /tmp/old-sdk/sdks/ruby/src
+        run: bundle exec rspec spec/integration/ --format documentation --tag integration
+
+      - name: Set up Ruby for old examples
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: /tmp/old-sdk/sdks/ruby/examples
+
+      - name: Start example worker
+        working-directory: /tmp/old-sdk/sdks/ruby/examples
+        run: bundle exec ruby worker.rb > worker.log 2>&1 &
+
+      - name: Wait for worker health
+        working-directory: .
+        run: |
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:8001/health > /dev/null 2>&1; then
+              echo "Worker is healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Worker failed to start within 60s"
+          cat /tmp/old-sdk/sdks/ruby/examples/worker.log || true
+          exit 1
+
+      - name: Run e2e tests
+        working-directory: /tmp/old-sdk/sdks/ruby/examples
+        run: bundle exec rspec -f d --fail-fast
+
+      - name: Upload worker logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-worker-logs
+          path: /tmp/old-sdk/sdks/ruby/examples/worker.log
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
+          path: engine.log
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
           path: api.log
 
   publish:
@@ -238,7 +512,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@6ca151fd1bfcfd6fe0c4eb6837eb0584d0134a0c # v1.290.0
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
         with:
           ruby-version: "3.2"
           bundler-cache: true

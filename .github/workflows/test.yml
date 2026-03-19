@@ -33,7 +33,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -89,7 +89,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -136,7 +136,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -225,7 +225,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -320,7 +320,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -363,7 +363,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -425,6 +425,16 @@ jobs:
           docker run --rm --network host \
             -e DATABASE_URL="${{ env.DATABASE_URL }}" \
             ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
+
+      - name: Capture old migration version
+        run: |
+          OLD_VERSION=$(docker run --rm --network host \
+            -e PGPASSWORD=hatchet \
+            postgres:17-alpine \
+            psql -h 127.0.0.1 -p 5431 -U hatchet -d hatchet -t -A \
+            -c "SELECT max(version_id) FROM goose_db_version WHERE is_applied = true")
+          echo "Old migration version: $OLD_VERSION"
+          echo "OLD_MIGRATION_VERSION=$OLD_VERSION" >> $GITHUB_ENV
 
       - name: Setup config and seed database
         run: |
@@ -491,6 +501,15 @@ jobs:
           go run ./cmd/hatchet-migrate
           echo "New migrations applied successfully"
 
+      - name: Down migrate to old version then up again
+        run: |
+          echo "Migrating down to old version ${{ env.OLD_MIGRATION_VERSION }}..."
+          go run ./cmd/hatchet-migrate --down ${{ env.OLD_MIGRATION_VERSION }}
+          echo "Down migration successful"
+          echo "Re-applying new migrations..."
+          go run ./cmd/hatchet-migrate
+          echo "Re-migration up successful"
+
       - name: Wait for load test to complete
         run: |
           echo "Waiting for load test container to finish..."
@@ -536,7 +555,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false
@@ -547,31 +566,50 @@ jobs:
       - name: Add go-deadlock dependency
         run: go get github.com/sasha-s/go-deadlock@v0.3.6
 
-      - name: Patch sync imports to use go-deadlock (sed)
+      - name: Patch sync.Mutex/RWMutex to use go-deadlock
         shell: bash
         run: |
           set -euo pipefail
 
-          # Replace ONLY the stdlib "sync" import with an alias that preserves `sync.X` call sites.
-          # - `import "sync"` -> `import sync "github.com/sasha-s/go-deadlock"`
-          # - within import blocks: `"sync"` -> `sync "github.com/sasha-s/go-deadlock"`
-          # NOTE: use `-i''` (no backup) for portability across GNU/BSD sed.
-          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 sed -i'' -E \
-            -e 's/^([[:space:]]*)import[[:space:]]+"sync"[[:space:]]*$/\1import sync "github.com\/sasha-s\/go-deadlock"/' \
-            -e 's/^([[:space:]]*)"sync"[[:space:]]*$/\1sync "github.com\/sasha-s\/go-deadlock"/'
+          # Find only files that actually use sync.Mutex or sync.RWMutex.
+          grep -rl --include='*.go' -E 'sync\.(RW)?Mutex' . | grep -v '/vendor/' > /tmp/mutex_files.txt || true
 
-          # Keep formatting/import grouping consistent after rewriting.
-          find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 gofmt -w
+          if [ ! -s /tmp/mutex_files.txt ]; then
+            echo "No files with sync.Mutex or sync.RWMutex found"
+            exit 0
+          fi
 
-          # Evidence in CI logs that rewriting happened (or not).
+          echo "Patching $(wc -l < /tmp/mutex_files.txt) file(s):"
+          cat /tmp/mutex_files.txt
+
+          while IFS= read -r f; do
+            # Rewrite type references. RWMutex first so its 'Mutex' suffix isn't clobbered.
+            sed -i'' -E \
+              -e 's/sync\.RWMutex/deadlocksync.RWMutex/g' \
+              -e 's/sync\.Mutex/deadlocksync.Mutex/g' \
+              "$f"
+
+            # \bsync\. won't match inside "deadlocksync.", so this correctly detects
+            # remaining usages of other sync primitives (WaitGroup, Once, Map, etc.).
+            if grep -qE '\bsync\.' "$f"; then
+              # File still needs the sync package; insert deadlocksync import alongside it.
+              awk '
+                /^\t"sync"$/ { print; print "\tdeadlocksync \"github.com/sasha-s/go-deadlock\""; next }
+                { print }
+              ' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+            else
+              # sync package no longer needed; replace its import with the deadlocksync alias.
+              sed -i'' \
+                -e 's|^\t"sync"$|\tdeadlocksync "github.com/sasha-s/go-deadlock"|' \
+                -e 's|^import "sync"$|import deadlocksync "github.com/sasha-s/go-deadlock"|' \
+                "$f"
+            fi
+          done < /tmp/mutex_files.txt
+
+          xargs gofmt -w < /tmp/mutex_files.txt
+
           echo "Changed Go files (after patch):"
           git diff --name-only -- '*.go' || true
-
-          echo ""
-          echo "Contents of pkg/scheduling/v1/scheduler.go after patch:"
-          echo "----"
-          cat pkg/scheduling/v1/scheduler.go
-          echo "----"
 
       - name: Test (deadlock-instrumented)
         run: |
@@ -611,7 +649,7 @@ jobs:
           go-version: "1.25"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10.16.1
           run_install: false

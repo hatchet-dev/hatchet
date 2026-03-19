@@ -22,6 +22,7 @@ export const TaskRunColumn = {
   workflow: 'Workflow',
   parentTaskExternalId: 'Parent Task External ID',
   flattenDAGs: 'Flatten DAGs',
+  runningFilter: 'Running Filter',
   createdAt: 'Created At',
   startedAt: 'Started At',
   finishedAt: 'Finished At',
@@ -46,6 +47,7 @@ export const createdAfterKey = 'createdAfter';
 export const finishedBeforeKey = 'finishedBefore';
 export const isCustomTimeRangeKey = 'isCustomTimeRange';
 export const timeWindowKey = 'timeWindow';
+export const runningFilterKey: TaskRunColumnKeys = 'runningFilter';
 
 export const columns: (
   tenantId: string,
@@ -145,6 +147,7 @@ export const columns: (
         className="items-center justify-center px-2 text-center"
         status={row.original.status}
         errorMessage={row.original.errorMessage}
+        isEvicted={row.original.isEvicted}
       />
     ),
     enableSorting: false,
@@ -195,6 +198,18 @@ export const columns: (
       <DataTableColumnHeader
         column={column}
         title={TaskRunColumn.flattenDAGs}
+      />
+    ),
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: runningFilterKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.runningFilter}
       />
     ),
     cell: () => null,

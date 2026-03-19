@@ -193,7 +193,7 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 			Valid:                              true,
 			WorkflowTriggerScheduledRefMethods: sqlcv1.WorkflowTriggerScheduledRefMethodsAPI,
 		},
-		Priority: sqlchelpers.ToInt(priority),
+		Priority: sqlchelpers.ToInt(&priority),
 	}
 
 	created, err := w.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, w.pool, createParams)
@@ -553,7 +553,7 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 			Valid:                         true,
 			WorkflowTriggerCronRefMethods: sqlcv1.WorkflowTriggerCronRefMethodsAPI,
 		},
-		Priority: sqlchelpers.ToInt(priority),
+		Priority: sqlchelpers.ToInt(&priority),
 	}
 
 	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)

@@ -6,12 +6,12 @@ import (
 
 func (oc *OLAPControllerImpl) runAnalyze(ctx context.Context) func() {
 	return func() {
-		oc.l.Debug().Msgf("analyze: running analyze on partitioned tables")
+		oc.l.Debug().Ctx(ctx).Msgf("analyze: running analyze on partitioned tables")
 
 		err := oc.repo.OLAP().AnalyzeOLAPTables(ctx)
 
 		if err != nil {
-			oc.l.Error().Err(err).Msg("could not analyze OLAP tables")
+			oc.l.Error().Ctx(ctx).Err(err).Msg("could not analyze OLAP tables")
 		}
 	}
 }

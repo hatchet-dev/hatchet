@@ -19,23 +19,11 @@ func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.U
 	}
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		eg := &errgroup.Group{}
-
-		eg.Go(func() error {
-			return s.signaler.SignalTasksCreated(ctx, tenantId, tasks)
-		})
-
-		eg.Go(func() error {
-			return s.signaler.SignalDAGsCreated(ctx, tenantId, dags)
-		})
-
-		innerErr := eg.Wait()
-
-		if innerErr != nil {
-			s.l.Error().Err(innerErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
+		if signalErr := s.signaler.SignalCreated(bgCtx, tenantId, tasks, dags); signalErr != nil {
+			s.l.Error().Ctx(bgCtx).Err(signalErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
 		}
 	}()
 
@@ -70,17 +58,13 @@ func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenan
 		})
 
 		eg.Go(func() error {
-			return s.signaler.SignalTasksCreated(ctx, tenantId, eventRes.Tasks)
-		})
-
-		eg.Go(func() error {
-			return s.signaler.SignalDAGsCreated(ctx, tenantId, eventRes.Dags)
+			return s.signaler.SignalCreated(ctx, tenantId, eventRes.Tasks, eventRes.Dags)
 		})
 
 		innerErr := eg.Wait()
 
 		if innerErr != nil {
-			s.l.Error().Err(innerErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
+			s.l.Error().Ctx(ctx).Err(innerErr).Msgf("failed to signal optimistic scheduling results for tenant %s", tenantId)
 		}
 	}()
 

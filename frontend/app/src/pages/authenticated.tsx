@@ -1,5 +1,8 @@
+import { getCloudMetadataQuery } from './auth/hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
+import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
+import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
 import {
@@ -10,10 +13,12 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
-import { usePendingInvites } from '@/hooks/use-pending-invites';
+import {
+  pendingInvitesQuery,
+  usePendingInvites,
+} from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
@@ -21,9 +26,11 @@ import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import {
+  useLoaderData,
   useLocation,
   useMatchRoute,
   useNavigate,
@@ -35,6 +42,18 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 const DevtoolsFooter = import.meta.env.DEV
   ? lazy(() => import('../devtools.tsx'))
   : null;
+
+export async function loader(_args: { request: Request }) {
+  const { isCloudEnabled, ...meta } = await queryClient.fetchQuery(
+    getCloudMetadataQuery,
+  );
+
+  await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
+  return {
+    inactivityLogoutMs:
+      'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
+  };
+}
 
 function AuthenticatedInner() {
   const { tenant } = useTenantDetails();
@@ -48,14 +67,14 @@ function AuthenticatedInner() {
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
+  const [inviteModalTenantId, setInviteModalTenantId] = useState<
+    string | undefined
+  >();
+  const [orgInviteModal, setOrgInviteModal] = useState<
+    { organizationId: string; organizationName: string } | undefined
+  >();
 
-  const { data: cloudMetadata } = useQuery({
-    queryKey: ['metadata'],
-    queryFn: async () => {
-      const res = await cloudApi.metadataGet();
-      return res.data;
-    },
-  });
+  const loaderData = useLoaderData({ from: '/' });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -99,14 +118,13 @@ function AuthenticatedInner() {
   });
 
   useInactivityDetection({
-    timeoutMs: cloudMetadata?.inactivityLogoutMs || -1,
+    timeoutMs: loaderData.inactivityLogoutMs,
     onInactive: () => {
       logoutMutation.mutate();
     },
   });
 
-  const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
-    usePendingInvites();
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const {
     isCloudEnabled,
@@ -148,9 +166,13 @@ function AuthenticatedInner() {
       return;
     }
 
+    const pendingInvites = pendingInvitesQuery.isSuccess
+      ? pendingInvitesQuery.data
+      : null;
+
     if (
-      pendingInvitesQuery.data &&
-      pendingInvitesQuery.data > 0 &&
+      pendingInvites &&
+      pendingInvites.inviteCount > 0 &&
       !isOnboardingInvitesPage
     ) {
       navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
@@ -158,7 +180,9 @@ function AuthenticatedInner() {
     }
 
     const okayToMakeOnboardingRedirectDecisions =
-      !isPendingInvitesLoading && !isOnboardingPage && isUserUniverseLoaded;
+      pendingInvitesQuery.isSuccess &&
+      !isOnboardingPage &&
+      isUserUniverseLoaded;
 
     if (okayToMakeOnboardingRedirectDecisions) {
       const shouldHaveAnOrganizationButDoesnt =
@@ -228,8 +252,7 @@ function AuthenticatedInner() {
   }, [
     tenant?.metadata.id,
     currentUser,
-    pendingInvitesQuery.data,
-    isPendingInvitesLoading,
+    pendingInvitesQuery,
     tenantMemberships,
     tenant?.version,
     userError,
@@ -256,10 +279,29 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
+      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
         setDefaultOrganizationId(defaultOrganizationId);
         setNewTenantModalOpen(true);
       }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
+        setInviteModalTenantId(tenantId);
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on(
+        'create-organization-invite',
+        ({ organizationId, organizationName }) => {
+          setOrgInviteModal({ organizationId, organizationName });
+        },
+      ),
     [],
   );
 
@@ -314,6 +356,31 @@ function AuthenticatedInner() {
             </div>
           </DialogContent>
         </Dialog>
+        {inviteModalTenantId && (
+          <CreateTenantInviteModal
+            tenantId={inviteModalTenantId}
+            onClose={() => setInviteModalTenantId(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('tenant-invite-created', {
+                tenantId: inviteModalTenantId,
+                invite,
+              });
+            }}
+          />
+        )}
+        {orgInviteModal && (
+          <OrganizationInviteMemberModal
+            organizationId={orgInviteModal.organizationId}
+            organizationName={orgInviteModal.organizationName}
+            onClose={() => setOrgInviteModal(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('organization-invite-created', {
+                organizationId: orgInviteModal.organizationId,
+                invite,
+              });
+            }}
+          />
+        )}
       </SupportChat>
     </PostHogProvider>
   );

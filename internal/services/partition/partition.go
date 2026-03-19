@@ -9,6 +9,8 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/cleanup"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -75,29 +77,27 @@ func (p *Partition) GetSchedulerPartitionId() string {
 	return p.schedulerPartitionId
 }
 
-func (p *Partition) Shutdown() error {
-	err := p.controllerCron.Shutdown()
+func (p *Partition) AddCleanupMethods(cleanup *cleanup.Cleanup) {
+	cleanup.Add(
+		p.controllerCron.Shutdown,
+		"partitioner controller cron",
+	)
+	cleanup.Add(
+		p.workerCron.Shutdown,
+		"partitioner worker cron",
+	)
+	cleanup.Add(
+		p.schedulerCron.Shutdown,
+		"partitioner scheduler cron",
+	)
 
-	if err != nil {
-		return fmt.Errorf("could not shutdown controller cron: %w", err)
-	}
-
-	err = p.workerCron.Shutdown()
-
-	if err != nil {
-		return fmt.Errorf("could not shutdown worker cron: %w", err)
-	}
-
-	err = p.schedulerCron.Shutdown()
-
-	if err != nil {
-		return fmt.Errorf("could not shutdown scheduler cron: %w", err)
-	}
-
-	// wait for heartbeat timeout duration
-	time.Sleep(heartbeatTimeout)
-
-	return nil
+	cleanup.Add(
+		func() error {
+			time.Sleep(heartbeatTimeout)
+			return nil
+		},
+		"partitioner heartbeat timeout",
+	)
 }
 
 func (p *Partition) StartControllerPartition(ctx context.Context) (func() error, error) {
@@ -170,6 +170,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 
 func (p *Partition) GetInternalTenantForController(ctx context.Context) (*sqlcv1.Tenant, error) {
 	ctx, span := telemetry.NewSpan(ctx, "Partition.GetInternalTenantForController")
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "controller_partition.id", Value: p.controllerPartitionId})
 	defer span.End()
 
 	return p.repo.GetInternalTenantForController(ctx, p.GetControllerPartitionId())
@@ -190,7 +191,7 @@ func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context, majorVers
 func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.controllerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on controller partition")
+			p.l.Warn().Ctx(ctx).Str("controller_partition_id", p.controllerPartitionId).Msg("could not acquire lock on controller partition")
 			return
 		}
 
@@ -199,15 +200,16 @@ func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() 
 		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
-		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		ctx, span := telemetry.NewSpan(ctx, "run-controller-partition-heartbeat")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "controller_partition.id", Value: p.controllerPartitionId})
 		defer span.End()
 
-		p.l.Debug().Msg("running controller partition heartbeat")
+		p.l.Debug().Ctx(ctx).Str("controller_partition_id", p.controllerPartitionId).Msg("running controller partition heartbeat")
 
 		partitionId, err := p.repo.UpdateControllerPartitionHeartbeat(ctx, p.GetControllerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Str("controller_partition_id", p.controllerPartitionId).Msg("could not heartbeat partition")
 			return
 		}
 
@@ -288,7 +290,7 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.schedulerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on scheduler partition")
+			p.l.Warn().Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("could not acquire lock on scheduler partition")
 			return
 		}
 
@@ -297,15 +299,16 @@ func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
-		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		ctx, span := telemetry.NewSpan(ctx, "run-scheduler-partition-heartbeat")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "scheduler_partition.id", Value: p.schedulerPartitionId})
 		defer span.End()
 
-		p.l.Debug().Msg("running scheduler partition heartbeat")
+		p.l.Debug().Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("running scheduler partition heartbeat")
 
 		partitionId, err := p.repo.UpdateSchedulerPartitionHeartbeat(ctx, p.GetSchedulerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("could not heartbeat partition")
 			return
 		}
 
@@ -386,7 +389,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.workerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on worker partition")
+			p.l.Warn().Ctx(ctx).Str("worker_partition_id", p.workerPartitionId).Msg("could not acquire lock on worker partition")
 			return
 		}
 
@@ -395,15 +398,16 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
-		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		ctx, span := telemetry.NewSpan(ctx, "run-worker-partition-heartbeat")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "worker_partition.id", Value: p.workerPartitionId})
 		defer span.End()
 
-		p.l.Debug().Msg("running worker partition heartbeat")
+		p.l.Debug().Ctx(ctx).Str("worker_partition_id", p.workerPartitionId).Msg("running worker partition heartbeat")
 
 		partitionId, err := p.repo.UpdateWorkerPartitionHeartbeat(ctx, p.GetWorkerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Str("worker_partition_id", p.workerPartitionId).Msg("could not heartbeat partition")
 			return
 		}
 

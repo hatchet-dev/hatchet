@@ -10,6 +10,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/hatchet-dev/hatchet/pkg/cleanup"
+
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
@@ -83,65 +85,47 @@ func init() {
 }
 
 func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
+
 	serverCleanup, server, err := cf.CreateServerFromConfig(version)
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
 
 	var l = server.Logger
+	cleanup := cleanup.New(l)
 
-	teardown, err := RunWithConfig(ctx, server)
+	err = RunWithConfig(ctx, server, &cleanup)
+	cleanup.Add(serverCleanup, "server")
+	cleanup.Add(server.Disconnect, "database")
 
 	if err != nil {
 		return fmt.Errorf("could not run with config: %w", err)
 	}
 
-	teardown = append(teardown, Teardown{
-		Name: "server",
-		Fn: func() error {
-			return serverCleanup()
-		},
-	})
-
-	teardown = append(teardown, Teardown{
-		Name: "database",
-		Fn: func() error {
-			return server.Disconnect()
-		},
-	})
-
 	time.Sleep(server.Runtime.ShutdownWait)
 
 	l.Debug().Msgf("interrupt received, shutting down")
 
-	l.Debug().Msgf("waiting for all other services to gracefully exit...")
-	for i, t := range teardown {
-		l.Debug().Msgf("shutting down %s (%d/%d)", t.Name, i+1, len(teardown))
-		err := t.Fn()
-
-		if err != nil {
-			return fmt.Errorf("could not teardown %s: %w", t.Name, err)
-		}
-		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.Name, i+1, len(teardown))
+	err = cleanup.Run()
+	if err != nil {
+		return err
 	}
-	l.Debug().Msgf("all services have successfully gracefully exited")
 
 	l.Debug().Msgf("successfully shutdown")
 
 	return nil
 }
 
-func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
+func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api")
 
 	if isV1 {
-		return runV1Config(ctx, sc)
+		return runV1Config(ctx, sc, cleanup)
 	}
-
-	return runV0Config(ctx, sc)
+	return runV0Config(ctx, sc, cleanup)
 }
 
-func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
+func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
@@ -152,39 +136,36 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not initialize tracer: %w", err)
+		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
-	teardown := []Teardown{}
-
 	if sc.Prometheus.Enabled {
-		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
+		cleanup.Add(
+			startPrometheus(l, sc.Prometheus),
+			"prometheus",
+		)
 	}
 
 	p, err := partition.NewPartition(l, sc.V1.Tenant())
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create partitioner: %w", err)
+		return fmt.Errorf("could not create partitioner: %w", err)
 	}
 
-	teardown = append(teardown, Teardown{
-		Name: "partitioner",
-		Fn:   p.Shutdown,
-	})
+	p.AddCleanupMethods(cleanup)
 
 	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
-		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
+		cleanupHealth, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
-			return nil, fmt.Errorf("could not start health: %w", err)
+			return fmt.Errorf("could not start health: %w", err)
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "health",
-			Fn:   cleanup,
-		})
+		cleanup.Add(
+			cleanupHealth,
+			"health",
+		)
 	}
 
 	var localScheduler *schedulerv1.Scheduler
@@ -194,24 +175,24 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("retention") || sc.HasService("ticker") {
 		partitionCleanup, err := p.StartControllerPartition(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+			return fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "controller partition",
-			Fn:   partitionCleanup,
-		})
+		cleanup.Add(
+			partitionCleanup,
+			"controller partition",
+		)
 
 		schedulePartitionCleanup, err := p.StartSchedulerPartition(ctx)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
+			return fmt.Errorf("could not create create scheduler partition: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "scheduler partition",
-			Fn:   schedulePartitionCleanup,
-		})
+		cleanup.Add(
+			schedulePartitionCleanup,
+			"scheduler partition",
+		)
 
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
@@ -224,19 +205,19 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+			return fmt.Errorf("could not create scheduler (v1): %w", err)
 		}
 
-		cleanup, err := sv1.Start()
+		cleanupScheduler, err := sv1.Start()
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+			return fmt.Errorf("could not start scheduler (v1): %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "schedulerv1",
-			Fn:   cleanup,
-		})
+		cleanup.Add(
+			cleanupScheduler,
+			"schedulerv1",
+		)
 
 		localScheduler = sv1
 	}
@@ -250,17 +231,17 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create ticker: %w", err)
+			return fmt.Errorf("could not create ticker: %w", err)
 		}
 
-		cleanup, err := t.Start()
+		cleanupTicker, err := t.Start()
 		if err != nil {
-			return nil, fmt.Errorf("could not start ticker: %w", err)
+			return fmt.Errorf("could not start ticker: %w", err)
 		}
-		teardown = append(teardown, Teardown{
-			Name: "ticker",
-			Fn:   cleanup,
-		})
+		cleanup.Add(
+			cleanupTicker,
+			"ticker",
+		)
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
@@ -276,19 +257,19 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create tasks controller: %w", err)
+			return fmt.Errorf("could not create tasks controller: %w", err)
 		}
 
 		cleanupTasks, err := tasks.Start()
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start tasks controller: %w", err)
+			return fmt.Errorf("could not start tasks controller: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "tasks controller",
-			Fn:   cleanupTasks,
-		})
+		cleanup.Add(
+			cleanupTasks,
+			"tasks controller",
+		)
 
 		sizeLimits := v1.StatusUpdateBatchSizeLimits{
 			Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
@@ -309,19 +290,19 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create olap controller: %w", err)
+			return fmt.Errorf("could not create olap controller: %w", err)
 		}
 
 		cleanupOlap, err := olap.Start()
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start olap controller: %w", err)
+			return fmt.Errorf("could not start olap controller: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "olap controller",
-			Fn:   cleanupOlap,
-		})
+		cleanup.Add(
+			cleanupOlap,
+			"olap controller",
+		)
 	}
 
 	if sc.HasService("retention") {
@@ -336,17 +317,18 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create retention controller: %w", err)
+			return fmt.Errorf("could not create retention controller: %w", err)
 		}
 
 		cleanupRetention, err := rc.Start()
 		if err != nil {
-			return nil, fmt.Errorf("could not start retention controller: %w", err)
+			return fmt.Errorf("could not start retention controller: %w", err)
 		}
-		teardown = append(teardown, Teardown{
-			Name: "retention controller",
-			Fn:   cleanupRetention,
-		})
+
+		cleanup.Add(
+			cleanupRetention,
+			"retention controller",
+		)
 	}
 
 	if sc.HasService("grpc") {
@@ -360,30 +342,35 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
-			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithDefaultMaxWorkerLockAcquisitionTime(sc.Runtime.GRPCMaxWorkerLockAcquisitionTime),
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
+			dispatcher.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create dispatcher: %w", err)
+			return fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		dispatcherCleanup, err := d.Start()
 		if err != nil {
-			return nil, fmt.Errorf("could not start dispatcher: %w", err)
+			return fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
 		dv1, err := dispatcherv1.NewDispatcherService(
 			dispatcherv1.WithRepository(sc.V1),
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
+			dispatcherv1.WithDispatcherId(d.DispatcherId()),
+			dispatcherv1.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
+			return fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
+
+		d.SetDurableCallbackHandler(dv1.DeliverDurableEventLogEntryCompletion)
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
@@ -395,10 +382,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			ingestor.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create ingestor: %w", err)
+			return fmt.Errorf("could not create ingestor: %w", err)
 		}
 
 		adminSvc, err := admin.NewAdminService(
@@ -409,9 +397,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			admin.WithAnalytics(sc.Analytics),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("could not create admin service: %w", err)
+			return fmt.Errorf("could not create admin service: %w", err)
 		}
 
 		adminv1Svc, err := adminv1.NewAdminService(
@@ -426,7 +415,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
 		oc, err := otelcol.NewOTelCollector(
@@ -435,7 +424,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create otel collector: %w", err)
+			return fmt.Errorf("could not create otel collector: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -462,15 +451,15 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpcOpts...,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("could not create grpc server: %w", err)
+			return fmt.Errorf("could not create grpc server: %w", err)
 		}
 
 		grpcServerCleanup, err := s.Start()
 		if err != nil {
-			return nil, fmt.Errorf("could not start grpc server: %w", err)
+			return fmt.Errorf("could not start grpc server: %w", err)
 		}
 
-		cleanup := func() error {
+		cleanupGrpcApi := func() error {
 			g := new(errgroup.Group)
 
 			g.Go(func() error {
@@ -511,18 +500,18 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "grpc",
-			Fn:   cleanup,
-		})
+		cleanup.Add(
+			cleanupGrpcApi,
+			"grpc",
+		)
 	}
 
-	teardown = append(teardown, Teardown{
-		Name: "telemetry",
-		Fn: func() error {
+	cleanup.Add(
+		func() error {
 			return shutdown(ctx)
 		},
-	})
+		"telemetry",
+	)
 
 	l.Debug().Msgf("engine has started")
 
@@ -532,10 +521,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		h.SetShuttingDown(true)
 	}
 
-	return teardown, nil
+	return nil
 }
 
-func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
+func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
@@ -546,25 +535,20 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not initialize tracer: %w", err)
+		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
-	teardown := []Teardown{}
-
 	if sc.Prometheus.Enabled {
-		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
+		cleanup.Add(startPrometheus(l, sc.Prometheus), "prometheus")
 	}
 
 	p, err := partition.NewPartition(l, sc.V1.Tenant())
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create partitioner: %w", err)
+		return fmt.Errorf("could not create partitioner: %w", err)
 	}
 
-	teardown = append(teardown, Teardown{
-		Name: "partitioner",
-		Fn:   p.Shutdown,
-	})
+	p.AddCleanupMethods(cleanup)
 
 	healthProbes := sc.Runtime.Healthcheck
 	var h *health.Health
@@ -572,29 +556,22 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
 
-		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
+		clean, err := h.Start(sc.Runtime.HealthcheckPort)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start health: %w", err)
+			return fmt.Errorf("could not start health: %w", err)
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "health",
-			Fn:   cleanup,
-		})
+		cleanup.Add(clean, "health")
 	}
 
 	if sc.HasService("all") || sc.HasService("controllers") {
 		partitionCleanup, err := p.StartControllerPartition(ctx)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+			return fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "controller partition",
-			Fn:   partitionCleanup,
-		})
+		cleanup.Add(partitionCleanup, "partition controller")
 
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
@@ -604,19 +581,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create ticker: %w", err)
+			return fmt.Errorf("could not create ticker: %w", err)
 		}
 
-		cleanup, err := t.Start()
+		clean, err := t.Start()
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start ticker: %w", err)
+			return fmt.Errorf("could not start ticker: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "ticker",
-			Fn:   cleanup,
-		})
+		cleanup.Add(clean, "ticker")
 
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
@@ -629,19 +603,18 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create retention controller: %w", err)
+			return fmt.Errorf("could not create retention controller: %w", err)
 		}
 
 		cleanupRetention, err := rc.Start()
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start retention controller: %w", err)
+			return fmt.Errorf("could not start retention controller: %w", err)
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "retention controller",
-			Fn:   cleanupRetention,
-		})
+		cleanup.Add(
+			cleanupRetention,
+			"retention controller",
+		)
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
 			tasks, err := task.New(
@@ -658,19 +631,18 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			)
 
 			if err != nil {
-				return nil, fmt.Errorf("could not create tasks controller: %w", err)
+				return fmt.Errorf("could not create tasks controller: %w", err)
 			}
 
 			cleanupTasks, err := tasks.Start()
 
 			if err != nil {
-				return nil, fmt.Errorf("could not start tasks controller: %w", err)
+				return fmt.Errorf("could not start tasks controller: %w", err)
 			}
-
-			teardown = append(teardown, Teardown{
-				Name: "tasks controller",
-				Fn:   cleanupTasks,
-			})
+			cleanup.Add(
+				cleanupTasks,
+				"task controller",
+			)
 		}
 
 		if isControllerActive(sc.PausedControllers, OLAPController) {
@@ -694,31 +666,30 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			)
 
 			if err != nil {
-				return nil, fmt.Errorf("could not create olap controller: %w", err)
+				return fmt.Errorf("could not create olap controller: %w", err)
 			}
 
 			cleanupOlap, err := olap.Start()
 
 			if err != nil {
-				return nil, fmt.Errorf("could not start olap controller: %w", err)
+				return fmt.Errorf("could not start olap controller: %w", err)
 			}
 
-			teardown = append(teardown, Teardown{
-				Name: "olap controller",
-				Fn:   cleanupOlap,
-			})
+			cleanup.Add(
+				cleanupOlap,
+				"olap controller",
+			)
 		}
 
-		cleanup1, err := p.StartTenantWorkerPartition(ctx)
+		cleanupTenantWorkerPartition, err := p.StartTenantWorkerPartition(ctx)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+			return fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "tenant worker partition",
-			Fn:   cleanup1,
-		})
+		cleanup.Add(
+			cleanupTenantWorkerPartition,
+			"tenant worker partition",
+		)
 
 		if sc.OpenTelemetry.MetricsEnabled && sc.OpenTelemetry.CollectorURL != "" {
 			mc, err := metricscontroller.New(
@@ -729,18 +700,17 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				metricscontroller.WithIntervals(sc.CronOperations),
 			)
 			if err != nil {
-				return nil, fmt.Errorf("could not create metrics collector: %w", err)
+				return fmt.Errorf("could not create metrics collector: %w", err)
 			}
 
 			cleanupMetrics, err := mc.Start()
 			if err != nil {
-				return nil, fmt.Errorf("could not start metrics collector: %w", err)
+				return fmt.Errorf("could not start metrics collector: %w", err)
 			}
-
-			teardown = append(teardown, Teardown{
-				Name: "metrics collector",
-				Fn:   cleanupMetrics,
-			})
+			cleanup.Add(
+				cleanupMetrics,
+				"metrics collector",
+			)
 
 			l.Info().Msg("metrics collector started")
 		}
@@ -752,13 +722,13 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		partitionCleanup, err := p.StartSchedulerPartition(ctx)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
+			return fmt.Errorf("could not create create scheduler partition: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "scheduler partition",
-			Fn:   partitionCleanup,
-		})
+		cleanup.Add(
+			partitionCleanup,
+			"scheduler partition",
+		)
 
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
@@ -771,19 +741,19 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+			return fmt.Errorf("could not create scheduler (v1): %w", err)
 		}
 
-		cleanup, err := sv1.Start()
+		schedulerCleanup, err := sv1.Start()
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+			return fmt.Errorf("could not start scheduler (v1): %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			Name: "schedulerv1",
-			Fn:   cleanup,
-		})
+		cleanup.Add(
+			schedulerCleanup,
+			"schedulerv1",
+		)
 
 		localScheduler = sv1
 	}
@@ -799,31 +769,36 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
-			dispatcher.WithDefaultMaxWorkerBacklogSize(int64(sc.Runtime.GRPCWorkerStreamMaxBacklogSize)),
+			dispatcher.WithDefaultMaxWorkerLockAcquisitionTime(sc.Runtime.GRPCMaxWorkerLockAcquisitionTime),
 			dispatcher.WithWorkflowRunBufferSize(sc.Runtime.WorkflowRunBufferSize),
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
+			dispatcher.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create dispatcher: %w", err)
+			return fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		dispatcherCleanup, err := d.Start()
 
 		if err != nil {
-			return nil, fmt.Errorf("could not start dispatcher: %w", err)
+			return fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
 		dv1, err := dispatcherv1.NewDispatcherService(
 			dispatcherv1.WithRepository(sc.V1),
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
+			dispatcherv1.WithDispatcherId(d.DispatcherId()),
+			dispatcherv1.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
+			return fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
+
+		d.SetDurableCallbackHandler(dv1.DeliverDurableEventLogEntryCompletion)
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
@@ -835,10 +810,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			ingestor.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create ingestor: %w", err)
+			return fmt.Errorf("could not create ingestor: %w", err)
 		}
 
 		adminSvc, err := admin.NewAdminService(
@@ -849,10 +825,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			admin.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create admin service: %w", err)
+			return fmt.Errorf("could not create admin service: %w", err)
 		}
 
 		adminv1Svc, err := adminv1.NewAdminService(
@@ -867,7 +844,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
 		oc, err := otelcol.NewOTelCollector(
@@ -876,7 +853,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create otel collector: %w", err)
+			return fmt.Errorf("could not create otel collector: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -903,15 +880,15 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpcOpts...,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("could not create grpc server: %w", err)
+			return fmt.Errorf("could not create grpc server: %w", err)
 		}
 
 		grpcServerCleanup, err := s.Start()
 		if err != nil {
-			return nil, fmt.Errorf("could not start grpc server: %w", err)
+			return fmt.Errorf("could not start grpc server: %w", err)
 		}
 
-		cleanup := func() error {
+		grpcApiCleanup := func() error {
 			g := new(errgroup.Group)
 
 			g.Go(func() error {
@@ -951,19 +928,18 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 			return nil
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "grpc",
-			Fn:   cleanup,
-		})
+		cleanup.Add(
+			grpcApiCleanup,
+			"grpc",
+		)
 	}
 
-	teardown = append(teardown, Teardown{
-		Name: "telemetry",
-		Fn: func() error {
+	cleanup.Add(
+		func() error {
 			return shutdown(ctx)
 		},
-	})
+		"telemetry",
+	)
 
 	l.Debug().Msgf("engine has started")
 
@@ -973,10 +949,10 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		h.SetShuttingDown(true)
 	}
 
-	return teardown, nil
+	return nil
 }
 
-func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown {
+func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) func() error {
 	mux := http.NewServeMux()
 	mux.Handle(c.Path, promhttp.Handler())
 
@@ -993,19 +969,16 @@ func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown 
 
 	l.Info().Msgf("Prometheus server started on %s", c.Address)
 
-	return Teardown{
-		Name: "prometheus",
-		Fn: func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
+	return func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-			if err := srv.Shutdown(ctx); err != nil {
-				return fmt.Errorf("failed to shutdown prometheus server: %w", err)
-			}
+		if err := srv.Shutdown(ctx); err != nil {
+			return fmt.Errorf("failed to shutdown prometheus server: %w", err)
+		}
 
-			l.Info().Msg("Prometheus server shutdown gracefully")
-			return nil
-		},
+		l.Info().Msg("Prometheus server shutdown gracefully")
+		return nil
 	}
 }
 

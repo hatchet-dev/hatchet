@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/docker/docker/client"
+	dockercontext "github.com/docker/go-sdk/context"
 )
 
 type DockerDriverOpt func(*DockerDriverOpts) error
@@ -36,11 +37,21 @@ func NewDockerDriver(ctx context.Context, optFns ...DockerDriverOpt) (*DockerDri
 }
 
 func (d *DockerDriver) init() error {
-	apiClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	clientOpts := []client.Opt{
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	}
+
+	// Resolve Docker host from the current Docker context.
+	// This respects DOCKER_HOST, DOCKER_CONTEXT, and the active context in ~/.docker/config.json.
+	if host, err := dockercontext.CurrentDockerHost(); err == nil && host != "" {
+		clientOpts = append(clientOpts, client.WithHost(host))
+	}
+
+	apiClient, err := client.NewClientWithOpts(clientOpts...)
 	if err != nil {
 		return fmt.Errorf("could not create docker client: %w", err)
 	}
-	defer apiClient.Close()
 
 	d.apiClient = apiClient
 

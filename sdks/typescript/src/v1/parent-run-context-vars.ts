@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
+import { DurableContext } from './client/worker/context';
 
 export interface ParentRunContext {
   parentId: string;
@@ -14,6 +15,12 @@ export interface ParentRunContext {
    * Used to cancel local "wait for result" subscriptions when the parent task is cancelled.
    */
   signal?: AbortSignal;
+
+  /**
+   * Present when the current task is running in durable mode.
+   * Used by child `run()` calls to route through `spawnChild` instead of a fresh trigger.
+   */
+  durableContext?: DurableContext<unknown, unknown>;
 }
 
 export class ParentRunContextManager {

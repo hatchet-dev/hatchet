@@ -12,7 +12,8 @@
     "./src/v1/client/features/schedules.ts",
     "./src/v1/client/features/workers.ts",
     "./src/v1/client/features/workflows.ts",
-    "./src/v1/client/features/webhooks.ts"
+    "./src/v1/client/features/webhooks.ts",
+    "./src/v1/client/features/logs.ts"
   ],
   "entryPointStrategy": "expand",
   "out": "/tmp/hatchet-typescript/docs/gen",

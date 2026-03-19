@@ -5,6 +5,35 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.2] - 2026-03-17
+
+### Added
+
+- Added `getTaskStats` and `scrapePrometheusMetrics` methods to the metrics client.
+
+## [1.17.1] - 2026-03-17
+
+### Changed
+
+- Updates the `DurableTaskRunAckEntryResult` interface to include `workflowRunExternalId` field, to enable spawning children from durable tasks fire-and-forget style.
+
+## [1.17.0] - 2026-03-16
+
+### Added
+
+- Added a `DurableContext.waitForEvent` helper which returns the payload of the awaited event.
+- Added an `EvictionPolicy`, which allows durable tasks to be evicted from the worker when idle.
+
+### Changed
+
+- Makes a bunch of internal-facing changes for new durable execution features
+
+## [1.16.0] - 2026-03-11
+
+### Added
+
+- Added logs client for retrieving task run logs.
+
 ## [1.15.2] - 2026-03-06
 
 ### Fixed
@@ -59,13 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Webhooks client for managing incoming webhooks: create, list, get, update, and delete methods for webhooks, so external systems (e.g. GitHub, Stripe) can trigger workflows via HTTP.
 
-
 ## [1.11.0] - 2026-02-05
 
 ### Internal Only
 
 - Updated gRPC/REST contract field names to lowerCamelCase for consistency across SDKs.
-
 
 ## [1.11.0] - 2026-02-04
 

@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,10 +12,14 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type AuthN struct {
@@ -109,16 +114,18 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 func (a *AuthN) handleNoAuth(c echo.Context) error {
 	store := a.config.SessionStore
 
+	ctx := c.Request().Context()
+
 	session, err := store.Get(c.Request(), store.GetName())
 
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error getting session")
+		a.l.Debug().Ctx(ctx).Err(err).Msg("error getting session")
 
 		return redirect.GetRedirectWithError(c, a.l, err, "Could not log in. Please try again and make sure cookies are enabled.")
 	}
 
 	if auth, ok := session.Values["authenticated"].(bool); ok && auth {
-		a.l.Debug().Msgf("user was authenticated when no security schemes permit auth")
+		a.l.Debug().Ctx(ctx).Msgf("user was authenticated when no security schemes permit auth")
 
 		return redirect.GetRedirectNoError(c, a.config.Runtime.ServerURL)
 	}
@@ -135,11 +142,12 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	store := a.config.SessionStore
 
 	session, err := store.Get(c.Request(), store.GetName())
+	ctx := c.Request().Context()
 	if err != nil {
 		err = a.helpers.SaveUnauthenticated(c)
 
 		if err != nil {
-			a.l.Error().Err(err).Msg("error saving unauthenticated session")
+			a.l.Error().Ctx(ctx).Err(err).Msg("error saving unauthenticated session")
 			return fmt.Errorf("error saving unauthenticated session")
 		}
 
@@ -150,7 +158,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		// if the session is new, make sure we write a Set-Cookie header to the response
 		if session.IsNew {
 			if saveErr := a.helpers.SaveNewSession(c, session); saveErr != nil {
-				a.l.Error().Err(saveErr).Msg("error saving unauthenticated session")
+				a.l.Error().Ctx(ctx).Err(saveErr).Msg("error saving unauthenticated session")
 				return fmt.Errorf("error saving unauthenticated session")
 			}
 
@@ -164,7 +172,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	userID, ok := session.Values["user_id"].(string)
 
 	if !ok {
-		a.l.Debug().Msgf("could not cast user_id to string")
+		a.l.Debug().Ctx(ctx).Msgf("could not cast user_id to string")
 
 		return forbidden
 	}
@@ -172,14 +180,14 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	userIdUUID, err := uuid.Parse(userID)
 
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error parsing user id uuid from session")
+		a.l.Debug().Ctx(ctx).Err(err).Msg("error parsing user id uuid from session")
 
 		return forbidden
 	}
 
 	user, err := a.config.V1.User().GetUserByID(c.Request().Context(), userIdUUID)
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error getting user by id")
+		a.l.Debug().Ctx(ctx).Err(err).Msg("error getting user by id")
 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return forbidden
@@ -188,9 +196,16 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return fmt.Errorf("error getting user by id: %w", err)
 	}
 
-	// set the user and session in context
 	c.Set("user", user)
 	c.Set("session", session)
+
+	ctx = context.WithValue(ctx, analytics.UserIDKey, userIdUUID)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceUI)
+
+	span := trace.SpanFromContext(ctx)
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "user.id", Value: userIdUUID})
+
+	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
 }
@@ -200,10 +215,11 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// a tenant id must exist in the context in order for the bearer auth to succeed, since
 	// these tokens are tenant-scoped
+	ctx := c.Request().Context()
 	queriedTenant, ok := c.Get("tenant").(*sqlcv1.Tenant)
 
 	if !ok {
-		a.l.Debug().Msgf("tenant not found in context")
+		a.l.Debug().Ctx(ctx).Msgf("tenant not found in context")
 
 		return fmt.Errorf("tenant not found in context")
 	}
@@ -211,16 +227,16 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	token, err := getBearerTokenFromRequest(c.Request())
 
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error getting bearer token from request")
+		a.l.Debug().Ctx(ctx).Err(err).Msg("error getting bearer token from request")
 
 		return forbidden
 	}
 
 	// Validate the token.
-	tenantId, _, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
+	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
 
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error validating tenant token")
+		a.l.Debug().Ctx(ctx).Err(err).Msg("error validating tenant token")
 
 		return forbidden
 	}
@@ -228,10 +244,23 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	// Verify that the tenant id which exists in the context is the same as the tenant id
 	// in the token.
 	if queriedTenant.ID != tenantId {
-		a.l.Debug().Msgf("tenant id in token does not match tenant id in context")
+		a.l.Debug().Ctx(ctx).Msgf("tenant id in token does not match tenant id in context")
 
 		return forbidden
 	}
+
+	c.Set(string(analytics.APITokenIDKey), tokenUUID)
+
+	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
+	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
+
+	span := trace.SpanFromContext(ctx)
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+	)
+
+	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
 }
