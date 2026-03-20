@@ -24,9 +24,9 @@ const pickSpan = (
   spanAttributes: span.spanAttributes,
 });
 
-async function fetchAllSpansByTask(
+async function fetchSpans(
   tenantId: string,
-  taskExternalId: string,
+  runExternalId: string,
 ): Promise<RelevantOpenTelemetrySpanProperties[]> {
   const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
   let currentPage = 0;
@@ -34,32 +34,7 @@ async function fetchAllSpansByTask(
 
   do {
     const res = await api.v1WorkflowRunGetTrace(tenantId, {
-      runExternalId: taskExternalId,
-      offset: currentPage * PAGE_SIZE,
-      limit: PAGE_SIZE,
-    });
-
-    const rows = res.data.rows ?? [];
-    allSpans.push(...rows.map(pickSpan));
-
-    numPages = res.data.pagination?.num_pages ?? 1;
-    currentPage = res.data.pagination?.current_page ?? 1;
-  } while (currentPage < numPages);
-
-  return allSpans;
-}
-
-async function fetchAllSpansByWorkflowRun(
-  tenantId: string,
-  workflowRunExternalId: string,
-): Promise<RelevantOpenTelemetrySpanProperties[]> {
-  const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
-  let currentPage = 0;
-  let numPages = 1;
-
-  do {
-    const res = await api.v1WorkflowRunGetTrace(tenantId, {
-      runExternalId: workflowRunExternalId,
+      runExternalId: runExternalId,
       offset: currentPage * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
@@ -86,15 +61,11 @@ export const Observability = (props: ObservabilityProps) => {
   const { isRunning } = props;
 
   const queryId = props.taskRunId ?? props.workflowRunExternalId;
-  const queryType = props.taskRunId ? 'task' : 'workflow-run';
   const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
   const tracesQuery = useQuery({
-    queryKey: [tenant, queryType + ':trace', queryId],
-    queryFn: () =>
-      queryType === 'task'
-        ? fetchAllSpansByTask(tenant, queryId)
-        : fetchAllSpansByWorkflowRun(tenant, queryId),
+    queryKey: [tenant, queryId],
+    queryFn: () => fetchSpans(tenant, queryId),
     refetchInterval: isRunning ? 5000 : false,
   });
 
