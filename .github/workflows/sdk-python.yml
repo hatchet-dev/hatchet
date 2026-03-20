@@ -177,7 +177,7 @@ jobs:
 
       - name: Start Docker dependencies
         working-directory: .
-        run: docker compose up -d
+        run: SERVER_OBSERVABILITY_ENABLED=true docker compose up -d
 
       - name: Determine latest stable release tag
         working-directory: .
