@@ -79,12 +79,7 @@ export function PlanSelector({
     [activePlanAmountCents],
   );
 
-  const visiblePlans = useMemo(() => {
-    return sortedPlans?.filter(
-      (plan) =>
-        plan.planCode !== activePlanCode && plan.planCode !== upcomingPlanCode,
-    );
-  }, [sortedPlans, activePlanCode, upcomingPlanCode]);
+  const visiblePlans = sortedPlans;
 
   if (plansQuery.isLoading) {
     return (
@@ -96,18 +91,24 @@ export function PlanSelector({
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {visiblePlans?.map((plan) => (
-        <PlanCard
-          key={plan.planCode}
-          name={plan.name}
-          price={formatCurrency(plan.amountCents, plan.period)}
-          showAnnual={showAnnual}
-          featureGroups={plan.featureGroups}
-          isUpgrade={isUpgrade(plan)}
-          isLoading={loading === plan.planCode}
-          onSelect={() => onSelectPlan(plan)}
-        />
-      ))}
+      {visiblePlans?.map((plan) => {
+        const isActive = plan.planCode === activePlanCode;
+        const isUpcoming = plan.planCode === upcomingPlanCode;
+        return (
+          <PlanCard
+            key={plan.planCode}
+            name={plan.name}
+            price={formatCurrency(plan.amountCents, plan.period)}
+            showAnnual={showAnnual}
+            featureGroups={plan.featureGroups}
+            isUpgrade={isUpgrade(plan)}
+            isActive={isActive}
+            isUpcoming={isUpcoming}
+            isLoading={loading === plan.planCode}
+            onSelect={() => onSelectPlan(plan)}
+          />
+        );
+      })}
       <PlanCard
         name="Enterprise"
         description="Have technical or compliance requirements?"
@@ -133,6 +134,8 @@ function PlanCard({
   featureGroups,
   enterpriseHighlights,
   isUpgrade,
+  isActive,
+  isUpcoming,
   isLoading,
   onSelect,
   buttonLabel,
@@ -144,6 +147,8 @@ function PlanCard({
   featureGroups?: SubscriptionPlanFeatureGroup[];
   enterpriseHighlights?: string[];
   isUpgrade?: boolean;
+  isActive?: boolean;
+  isUpcoming?: boolean;
   isLoading?: boolean;
   onSelect: () => void;
   buttonLabel?: string;
@@ -151,7 +156,9 @@ function PlanCard({
   return (
     <Card
       variant="light"
-      className="bg-transparent ring-1 ring-border/50 border-none flex flex-col"
+      className={`bg-transparent ring-1 border-none flex flex-col ${
+        isActive ? 'ring-primary' : 'ring-border/50'
+      }`}
     >
       <CardHeader className="p-4 border-b border-border/50">
         <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
@@ -233,14 +240,24 @@ function PlanCard({
         )}
 
         <Button
-          variant={isUpgrade ? 'default' : 'outline'}
+          variant={
+            isActive || isUpcoming
+              ? 'outline'
+              : isUpgrade
+                ? 'default'
+                : 'outline'
+          }
           size="sm"
-          disabled={isLoading}
+          disabled={isActive || isUpcoming || isLoading}
           onClick={onSelect}
           className="w-full mt-auto"
         >
           {isLoading ? (
             <Spinner />
+          ) : isActive ? (
+            'Current Plan'
+          ) : isUpcoming ? (
+            'Upcoming Plan'
           ) : (
             buttonLabel || (isUpgrade ? 'Upgrade' : 'Downgrade')
           )}
