@@ -52,14 +52,12 @@ You also can create event filters by using the `filters` clients on the SDKs:
 </UniversalTabs>
 
 <Callout type="warning">
-  Note the `scope` argument to the filter. When you create a filter, it must be
-  given a `scope` which will be used by Hatchet internally to look it up. When
-  you push events that you want filtered, you **must provide a `scope` with
-  those events that matches the scope sent with the filter**. If you do not, the
-  filter will not apply.
+  Note the `scope` argument to the filter is required **both when creating a
+  filter, and when pushing events**. If the scope on filter creation does not
+  match the scope provided when pushing events, the filter will not apply.
 </Callout>
 
-Then, push an event that uses the filter to determine whether or not to run. For instance, this run will be skipped, since the payload does not match the expression:
+Then, push an event that uses the filter to determine whether to run. For instance, this run will be skipped, since the payload does not match the expression:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
