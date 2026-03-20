@@ -264,7 +264,7 @@ jobs:
       - name: Run e2e tests
         env:
           HATCHET_CLIENT_TLS_STRATEGY: none
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "false"
           NODE_TLS_REJECT_UNAUTHORIZED: "0"
         run: |
           echo "Testing current SDK against engine ${{ env.LATEST_TAG }}"
