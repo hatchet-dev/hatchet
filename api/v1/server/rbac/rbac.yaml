@@ -141,6 +141,6 @@ roles:
       - WorkflowCronDelete
       - WorkflowCronGet
       - WorkflowCronUpdate
-      - V1WorkflowRunGetTrace
+      - V1ObservabilityGetTrace
       - V1TenantLogLineList
       - V1TenantLogLineGetPointMetrics
