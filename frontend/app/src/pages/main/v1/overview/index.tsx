@@ -10,23 +10,14 @@ import {
 } from './components/learn-workflow-section';
 import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
-import { Button } from '@/components/v1/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { Spinner } from '@/components/v1/ui/loading';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { appRoutes } from '@/router';
+
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const EXPIRES_IN_OPTIONS = {
@@ -40,14 +31,6 @@ export default function Overview() {
   const { currentUser } = useCurrentUser();
   const navigate = useNavigate();
   const { capture } = useAnalytics();
-  const { welcome } = useSearch({ from: '/tenants/$tenant/overview' });
-  const [showWelcome, setShowWelcome] = useState(!!welcome);
-
-  const plansQuery = useQuery({
-    ...queries.cloud.subscriptionPlans(),
-    enabled: showWelcome,
-  });
-  const freeLimits = plansQuery.data?.freeLimits;
   const [tokenName, setTokenName] = useState('');
   const [hasEditedTokenName, setHasEditedTokenName] = useState(false);
   const [expiresIn, setExpiresIn] = useState(EXPIRES_IN_OPTIONS['100 years']);
@@ -268,84 +251,6 @@ export default function Overview() {
         token={generatedToken}
       />
 
-      <Dialog
-        open={showWelcome}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowWelcome(false);
-            navigate({
-              to: appRoutes.tenantOverviewRoute.to,
-              params: { tenant: tenantId! },
-              search: { welcome: false },
-              replace: true,
-            });
-          }
-        }}
-      >
-        <DialogContent className="max-w-md text-center">
-          <div className="flex flex-col items-center gap-5">
-            <HatchetLogo variant="mark" className="h-8 w-8" />
-            <div className="space-y-2">
-              <DialogTitle className="text-center text-xl">
-                Welcome to Hatchet
-              </DialogTitle>
-              <DialogDescription className="text-center text-sm text-muted-foreground">
-                You&apos;re on the free plan with generous limits to get
-                started. We&apos;ll let you know when you&apos;re getting close.
-              </DialogDescription>
-            </div>
-            <ul className="w-full text-left text-sm space-y-2 rounded-md border border-border/50 bg-muted/30 p-4">
-              {plansQuery.isLoading ? (
-                <li className="flex justify-center py-2">
-                  <Spinner />
-                </li>
-              ) : (
-                freeLimits?.map((fl) => (
-                  <li key={fl.featureId} className="flex justify-between">
-                    <span className="text-muted-foreground">{fl.name}</span>
-                    <span className="font-medium">
-                      {fl.limit.toLocaleString()}
-                    </span>
-                  </li>
-                ))
-              )}
-            </ul>
-            <p className="text-xs text-muted-foreground">
-              You can upgrade anytime from Billing & Limits in your tenant
-              settings.
-            </p>
-            <div className="flex w-full flex-col gap-2">
-              <Button
-                className="w-full"
-                onClick={() => {
-                  setShowWelcome(false);
-                  navigate({
-                    to: appRoutes.tenantOverviewRoute.to,
-                    params: { tenant: tenantId! },
-                    search: { welcome: false },
-                    replace: true,
-                  });
-                }}
-              >
-                Get Started
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={() => {
-                  setShowWelcome(false);
-                  navigate({
-                    to: '/tenants/$tenant/tenant-settings/billing-and-limits',
-                    params: { tenant: tenantId! },
-                  });
-                }}
-              >
-                Explore Plans
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

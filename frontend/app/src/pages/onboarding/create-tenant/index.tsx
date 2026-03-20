@@ -38,7 +38,6 @@ export default function CreateTenant() {
               navigate({
                 to: appRoutes.tenantOverviewRoute.to,
                 params: { tenant: tenantId },
-                search: result.type === 'cloud' ? { welcome: true } : {},
               });
             }}
           />
