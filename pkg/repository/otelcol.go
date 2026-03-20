@@ -185,8 +185,8 @@ func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Conte
 		Tenantid:              tenantId,
 		TaskRunExternalId:     taskRunExternalID,
 		WorkflowRunExternalId: workflowRunExternalId,
-		Spanoffset:            0,
-		Spanlimit:             10000,
+		Spanoffset:            offset,
+		Spanlimit:             limit,
 	})
 
 	if err != nil {
@@ -215,18 +215,7 @@ func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Conte
 		})
 	}
 
-	total := int64(len(allRows))
-
-	if offset >= total {
-		return &ListSpansResult{Rows: nil, Total: total}, nil
-	}
-
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-
-	return &ListSpansResult{Rows: allRows[offset:end], Total: total}, nil
+	return &ListSpansResult{Rows: allRows, Total: int64(len(allRows))}, nil
 }
 
 func extractServiceName(resourceAttrsJSON json.RawMessage) string {
