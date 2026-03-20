@@ -62,7 +62,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   >(undefined);
 
   const { tenantId } = useCurrentTenantId();
-  const { tenant } = useTenantDetails();
+  const { tenant, billing } = useTenantDetails();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
   const creditBalanceQuery = useQuery({
@@ -437,7 +437,13 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               activePlanAmountCents={activePlanAmountCents}
               upcomingPlanCode={upcomingPlanCode}
               showAnnual={showAnnual}
-              onSelectPlan={(plan) => setChangeConfirmOpen(plan)}
+              onSelectPlan={(plan) => {
+                if (!billing?.hasPaymentMethods) {
+                  subscriptionMutation.mutate({ plan_code: plan.planCode });
+                } else {
+                  setChangeConfirmOpen(plan);
+                }
+              }}
               enterpriseContactUrl={enterpriseContactUrl}
               loading={loading}
             />
