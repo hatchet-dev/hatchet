@@ -19,6 +19,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request 
 	// fixme: this is a hack to figure out if the run belongs to a task or a dag without going to the OLAP db
 	tasks, err := t.config.V1.Tasks().FlattenExternalIds(ctx.Request().Context(), tenant.ID, []uuid.UUID{request.Params.RunExternalId})
 
+	if err != nil {
+		return nil, err
+	}
+
 	isDag := len(tasks) > 1
 
 	var taskRunExternalID, workflowRunExternalId *uuid.UUID

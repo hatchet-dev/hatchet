@@ -138,7 +138,7 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 
 		startTime := time.Unix(0, int64(sd.StartTimeUnixNano)) //nolint:gosec
 
-		tenantIds[i] = sd.TenantID
+		tenantIds[i] = tenantId
 		traceIds[i] = sd.TraceID
 		spanIds[i] = sd.SpanID
 		parentSpanIds[i] = parentSpanID

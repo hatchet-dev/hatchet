@@ -90,7 +90,7 @@ export const Observability = (props: ObservabilityProps) => {
   const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
   const tracesQuery = useQuery({
-    queryKey: [queryType + ':trace', queryId],
+    queryKey: [tenant, queryType + ':trace', queryId],
     queryFn: () =>
       queryType === 'task'
         ? fetchAllSpansByTask(tenant, queryId)
