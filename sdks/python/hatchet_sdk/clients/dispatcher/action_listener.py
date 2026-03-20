@@ -212,6 +212,17 @@ class ActionListener:
 
                     assigned_action = result.data
 
+                    # Skip keepalive messages — they only exist to prevent
+                    # L7 proxies from killing idle streams.
+                    action_type = convert_proto_enum_to_python(
+                        assigned_action.action_type,
+                        ActionType,
+                        ActionTypeProto,
+                    )
+
+                    if action_type is None or action_type == ActionType.STREAM_KEEPALIVE:
+                        continue
+
                     try:
                         action_payload = (
                             ActionPayload()
@@ -236,11 +247,7 @@ class ActionListener:
                         step_run_id=assigned_action.task_run_external_id,
                         action_id=assigned_action.action_id,
                         action_payload=action_payload,
-                        action_type=convert_proto_enum_to_python(
-                            assigned_action.action_type,
-                            ActionType,
-                            ActionTypeProto,
-                        ),
+                        action_type=action_type,
                         retry_count=assigned_action.retry_count,
                         additional_metadata=parse_additional_metadata(
                             assigned_action.additional_metadata

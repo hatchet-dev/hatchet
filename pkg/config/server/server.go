@@ -302,6 +302,13 @@ type ConfigFileRuntime struct {
 	// StreamEventBufferTimeout is the timeout duration for the stream event buffer in the dispatcher.
 	// This controls how long the buffer waits for out-of-order events before flushing them.
 	StreamEventBufferTimeout time.Duration `mapstructure:"streamEventBufferTimeout" json:"streamEventBufferTimeout,omitempty" default:"5s"`
+
+	// ListenV2StreamKeepaliveInterval controls how often a no-op STREAM_KEEPALIVE
+	// message is sent on idle ListenV2 streams. This prevents L7 proxies (e.g., Envoy
+	// on Azure Container Apps) from killing the stream due to stream_idle_timeout.
+	// Set to 0 to disable (default). Recommended: 120s for Azure Container Apps (4-min timeout).
+	// Worker liveness is NOT affected — it is still determined by the separate Heartbeat RPC.
+	ListenV2StreamKeepaliveInterval time.Duration `mapstructure:"listenV2StreamKeepaliveInterval" json:"listenV2StreamKeepaliveInterval,omitempty" default:"0s"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -923,6 +930,7 @@ func BindAllEnv(v *viper.Viper) {
 	// dispatcher options
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
+	_ = v.BindEnv("runtime.listenV2StreamKeepaliveInterval", "SERVER_LISTENV2_STREAM_KEEPALIVE_INTERVAL")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
