@@ -19,50 +19,52 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
+from hatchet_sdk.clients.rest.models.otel_span_kind import OtelSpanKind
+from hatchet_sdk.clients.rest.models.otel_status_code import OtelStatusCode
 from typing import Optional, Set
 from typing_extensions import Self
 
 
-class V1LogLine(BaseModel):
+class OtelSpan(BaseModel):
     """
-    V1LogLine
+    OtelSpan
     """  # noqa: E501
 
-    created_at: datetime = Field(
-        description="The creation date of the log line.", alias="createdAt"
+    trace_id: StrictStr = Field(alias="traceId")
+    span_id: StrictStr = Field(alias="spanId")
+    parent_span_id: Optional[StrictStr] = Field(default=None, alias="parentSpanId")
+    span_name: StrictStr = Field(alias="spanName")
+    span_kind: OtelSpanKind = Field(alias="spanKind")
+    service_name: StrictStr = Field(alias="serviceName")
+    status_code: OtelStatusCode = Field(alias="statusCode")
+    status_message: Optional[StrictStr] = Field(default=None, alias="statusMessage")
+    duration_ns: StrictInt = Field(alias="durationNs")
+    created_at: datetime = Field(alias="createdAt")
+    resource_attributes: Optional[Dict[str, StrictStr]] = Field(
+        default=None, alias="resourceAttributes"
     )
-    message: StrictStr = Field(description="The log message.")
-    metadata: Dict[str, Any] = Field(description="The log metadata.")
-    task_external_id: Optional[
-        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
-    ] = Field(
-        default=None,
-        description="The external ID of the task associated with the log line.",
-        alias="taskExternalId",
+    span_attributes: Optional[Dict[str, StrictStr]] = Field(
+        default=None, alias="spanAttributes"
     )
-    task_display_name: Optional[StrictStr] = Field(
-        default=None,
-        description="The display name of the task associated with the log line.",
-        alias="taskDisplayName",
-    )
-    retry_count: Optional[StrictInt] = Field(
-        default=None, description="The retry count of the log line.", alias="retryCount"
-    )
-    attempt: Optional[StrictInt] = Field(
-        default=None, description="The attempt number of the log line."
-    )
-    level: Optional[V1LogLineLevel] = Field(default=None, description="The log level.")
+    scope_name: Optional[StrictStr] = Field(default=None, alias="scopeName")
+    scope_version: Optional[StrictStr] = Field(default=None, alias="scopeVersion")
+    retry_count: StrictInt = Field(alias="retryCount")
     __properties: ClassVar[List[str]] = [
+        "traceId",
+        "spanId",
+        "parentSpanId",
+        "spanName",
+        "spanKind",
+        "serviceName",
+        "statusCode",
+        "statusMessage",
+        "durationNs",
         "createdAt",
-        "message",
-        "metadata",
-        "taskExternalId",
-        "taskDisplayName",
+        "resourceAttributes",
+        "spanAttributes",
+        "scopeName",
+        "scopeVersion",
         "retryCount",
-        "attempt",
-        "level",
     ]
 
     model_config = ConfigDict(
@@ -82,7 +84,7 @@ class V1LogLine(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of V1LogLine from a JSON string"""
+        """Create an instance of OtelSpan from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -106,7 +108,7 @@ class V1LogLine(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of V1LogLine from a dict"""
+        """Create an instance of OtelSpan from a dict"""
         if obj is None:
             return None
 
@@ -115,14 +117,21 @@ class V1LogLine(BaseModel):
 
         _obj = cls.model_validate(
             {
+                "traceId": obj.get("traceId"),
+                "spanId": obj.get("spanId"),
+                "parentSpanId": obj.get("parentSpanId"),
+                "spanName": obj.get("spanName"),
+                "spanKind": obj.get("spanKind"),
+                "serviceName": obj.get("serviceName"),
+                "statusCode": obj.get("statusCode"),
+                "statusMessage": obj.get("statusMessage"),
+                "durationNs": obj.get("durationNs"),
                 "createdAt": obj.get("createdAt"),
-                "message": obj.get("message"),
-                "metadata": obj.get("metadata"),
-                "taskExternalId": obj.get("taskExternalId"),
-                "taskDisplayName": obj.get("taskDisplayName"),
+                "resourceAttributes": obj.get("resourceAttributes"),
+                "spanAttributes": obj.get("spanAttributes"),
+                "scopeName": obj.get("scopeName"),
+                "scopeVersion": obj.get("scopeVersion"),
                 "retryCount": obj.get("retryCount"),
-                "attempt": obj.get("attempt"),
-                "level": obj.get("level"),
             }
         )
         return _obj

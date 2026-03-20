@@ -115,10 +115,29 @@ def save_results(input: EmptyModel, ctx: Context) -> SaveResultsOutput:
     return SaveResultsOutput(saved=True)
 
 
+@hatchet.task()
+def otel_simple_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    """Simple task that creates a custom child span."""
+    tracer = get_tracer("otel-test")
+    with tracer.start_as_current_span("custom.child.span") as span:
+        span.set_attribute("test.marker", "hello")
+        time.sleep(0.01)
+    return {"status": "ok"}
+
+
+@hatchet.task(retries=1)
+def otel_retry_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    """Task that fails on first attempt and succeeds on retry."""
+    retry_count = ctx.retry_count
+    if retry_count == 0:
+        raise RuntimeError("intentional failure on first attempt")
+    return {"status": "ok", "retry_count": str(retry_count)}
+
+
 def main() -> None:
     worker = hatchet.worker(
         "otel-pipeline-worker",
-        workflows=[otel_workflow],
+        workflows=[otel_workflow, otel_simple_task, otel_retry_task],
     )
     worker.start()
 
