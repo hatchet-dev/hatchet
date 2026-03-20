@@ -23,6 +23,7 @@ interface PlanSelectorProps {
   onSelectPlan: (plan: SubscriptionPlan) => void;
   enterpriseContactUrl: string;
   loading?: string;
+  selectLabel?: string;
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -41,6 +42,7 @@ export function PlanSelector({
   onSelectPlan,
   enterpriseContactUrl,
   loading,
+  selectLabel,
 }: PlanSelectorProps) {
   const plansQuery = useQuery({
     ...queries.cloud.subscriptionPlans(),
@@ -106,6 +108,7 @@ export function PlanSelector({
             isUpcoming={isUpcoming}
             isLoading={loading === plan.planCode}
             onSelect={() => onSelectPlan(plan)}
+            selectLabel={selectLabel}
           />
         );
       })}
@@ -139,6 +142,7 @@ function PlanCard({
   isLoading,
   onSelect,
   buttonLabel,
+  selectLabel,
 }: {
   name: string;
   price?: string;
@@ -152,6 +156,7 @@ function PlanCard({
   isLoading?: boolean;
   onSelect: () => void;
   buttonLabel?: string;
+  selectLabel?: string;
 }) {
   return (
     <Card
@@ -259,7 +264,7 @@ function PlanCard({
           ) : isUpcoming ? (
             'Upcoming Plan'
           ) : (
-            buttonLabel || (isUpgrade ? 'Upgrade' : 'Downgrade')
+            buttonLabel || selectLabel || (isUpgrade ? 'Upgrade' : 'Downgrade')
           )}
         </Button>
       </CardContent>

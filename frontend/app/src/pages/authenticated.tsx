@@ -18,7 +18,7 @@ import {
   usePendingInvites,
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { User } from '@/lib/api';
+import api, { User, queries } from '@/lib/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
@@ -347,9 +347,17 @@ function AuthenticatedInner() {
                     result.type === 'cloud'
                       ? result.tenant.id
                       : result.tenant.metadata.id;
+
+                  if (result.type === 'cloud') {
+                    queryClient.prefetchQuery(
+                      queries.cloud.subscriptionPlans(),
+                    );
+                  }
+
                   navigate({
                     to: appRoutes.tenantOverviewRoute.to,
                     params: { tenant: tenantId },
+                    search: result.type === 'cloud' ? { welcome: true } : {},
                   });
                 }}
               />

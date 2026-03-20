@@ -452,8 +452,22 @@ export interface SubscriptionPlan {
   featureGroups?: SubscriptionPlanFeatureGroup[];
 }
 
+export interface SubscriptionPlanFreeLimit {
+  /** The feature identifier. */
+  featureId: string;
+  /** Human-readable name of the limit. */
+  name: string;
+  /**
+   * The daily limit value.
+   * @format int64
+   */
+  limit: number;
+}
+
 export interface SubscriptionPlanList {
   plans: SubscriptionPlan[];
+  /** Abbreviated daily limits for the free plan. */
+  freeLimits: SubscriptionPlanFreeLimit[];
 }
 
 export interface UpdateTenantSubscriptionRequest {
