@@ -182,6 +182,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
     manualSorting,
     manualFiltering,
     manualPagination: true,
+    enableMultiSort: false,
     getRowId,
   });
 

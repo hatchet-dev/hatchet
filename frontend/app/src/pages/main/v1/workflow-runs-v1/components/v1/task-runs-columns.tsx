@@ -134,7 +134,7 @@ export const columns: (
         );
       }
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: false,
   },
   {
@@ -177,7 +177,7 @@ export const columns: (
       );
     },
     show: false,
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {
@@ -236,7 +236,7 @@ export const columns: (
         </div>
       );
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {
@@ -259,7 +259,7 @@ export const columns: (
         </div>
       );
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {
@@ -280,7 +280,7 @@ export const columns: (
 
       return <div className="whitespace-nowrap">{finishedAt}</div>;
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {
@@ -302,7 +302,7 @@ export const columns: (
         />
       );
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {

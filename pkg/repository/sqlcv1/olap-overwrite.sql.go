@@ -3,6 +3,7 @@ package sqlcv1
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -365,6 +366,252 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 	for rows.Next() {
 		var i ListTasksOlapRow
 		if err := rows.Scan(&i.ID, &i.InsertedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// buildListTasksQuery builds a dynamic SQL query for listing tasks with a configurable ORDER BY clause.
+// The orderBy and orderDir parameters are validated against whitelists to prevent SQL injection.
+// For startedAt/finishedAt/duration, LATERAL joins are used to compute values once per row.
+func buildListTasksQuery(orderBy, orderDir string) string {
+	direction := "DESC"
+	if strings.EqualFold(orderDir, "asc") {
+		direction = "ASC"
+	}
+
+	needsTimes := orderBy == "startedAt" || orderBy == "finishedAt" || orderBy == "duration"
+
+	lateralJoins := ""
+	if needsTimes {
+		lateralJoins = `
+LEFT JOIN LATERAL (
+    SELECT MAX(e.event_timestamp) AS started_at
+    FROM v1_task_events_olap e
+    WHERE e.task_id = t.id AND e.tenant_id = t.tenant_id
+      AND e.task_inserted_at = t.inserted_at AND e.event_type = 'STARTED'
+) _st ON TRUE
+LEFT JOIN LATERAL (
+    SELECT MAX(e.event_timestamp) AS finished_at
+    FROM v1_task_events_olap e
+    WHERE e.task_id = t.id AND e.tenant_id = t.tenant_id
+      AND e.task_inserted_at = t.inserted_at
+      AND e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+) _fin ON TRUE`
+	}
+
+	orderExpr := "t.inserted_at"
+	nullable := false
+
+	switch orderBy {
+	case "createdAt":
+		orderExpr = "t.inserted_at"
+	case "taskName":
+		orderExpr = "t.display_name"
+	case "workflow":
+		orderExpr = "t.workflow_id"
+	case "startedAt":
+		orderExpr = "_st.started_at"
+		nullable = true
+	case "finishedAt":
+		orderExpr = "_fin.finished_at"
+		nullable = true
+	case "duration":
+		orderExpr = "(_fin.finished_at - _st.started_at)"
+		nullable = true
+	default:
+		orderExpr = "t.inserted_at"
+	}
+
+	nullsClause := ""
+	if nullable {
+		if direction == "DESC" {
+			nullsClause = " NULLS LAST"
+		} else {
+			nullsClause = " NULLS FIRST"
+		}
+	}
+
+	orderClause := fmt.Sprintf("ORDER BY %s %s%s, t.inserted_at %s, t.id %s", orderExpr, direction, nullsClause, direction, direction)
+
+	return fmt.Sprintf(`SELECT
+    t.id,
+    t.inserted_at
+FROM
+    v1_tasks_olap t%s
+WHERE
+    t.tenant_id = $1::uuid
+    AND t.inserted_at >= $2::timestamptz
+    AND t.readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR t.inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR t.workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR t.latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(t.additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (t.id, t.inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+%s
+LIMIT $10::integer
+OFFSET $9::integer`, lateralJoins, orderClause)
+}
+
+// ListTasksOlapWithSort executes a dynamic query for listing tasks with configurable sorting.
+func (q *Queries) ListTasksOlapWithSort(ctx context.Context, db DBTX, arg ListTasksOlapParams, orderBy, orderDir string) ([]*ListTasksOlapRow, error) {
+	query := buildListTasksQuery(orderBy, orderDir)
+	rows, err := db.Query(ctx, query,
+		arg.Tenantid,
+		arg.Since,
+		arg.Statuses,
+		arg.Until,
+		arg.WorkflowIds,
+		arg.WorkerId,
+		arg.Keys,
+		arg.Values,
+		arg.Taskoffset,
+		arg.Tasklimit,
+		arg.TriggeringEventExternalId,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTasksOlapRow
+	for rows.Next() {
+		var i ListTasksOlapRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// buildFetchWorkflowRunIdsQuery builds a dynamic SQL query for fetching workflow run IDs with a configurable ORDER BY clause.
+// Only "createdAt" is supported as a sort field; all other values fall back to "inserted_at".
+func buildFetchWorkflowRunIdsQuery(orderBy, orderDir string) string {
+	orderByColumn := "inserted_at"
+	// Only createdAt is supported for workflow runs; all others fall back to inserted_at.
+	if orderBy == "createdAt" {
+		orderByColumn = "inserted_at"
+	}
+
+	direction := "DESC"
+	if strings.EqualFold(orderDir, "asc") {
+		direction = "ASC"
+	}
+
+	orderClause := fmt.Sprintf("ORDER BY %s %s, id %s", orderByColumn, direction, direction)
+
+	return fmt.Sprintf(`SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND inserted_at >= $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+%s
+LIMIT $9::integer
+OFFSET $8::integer`, orderClause)
+}
+
+// FetchWorkflowRunIdsWithSort executes a dynamic query for fetching workflow run IDs with configurable sorting.
+func (q *Queries) FetchWorkflowRunIdsWithSort(ctx context.Context, db DBTX, arg FetchWorkflowRunIdsParams, orderBy, orderDir string) ([]*FetchWorkflowRunIdsRow, error) {
+	query := buildFetchWorkflowRunIdsQuery(orderBy, orderDir)
+	rows, err := db.Query(ctx, query,
+		arg.Tenantid,
+		arg.Statuses,
+		arg.WorkflowIds,
+		arg.Since,
+		arg.Until,
+		arg.Keys,
+		arg.Values,
+		arg.Listworkflowrunsoffset,
+		arg.Listworkflowrunslimit,
+		arg.ParentTaskExternalId,
+		arg.TriggeringEventExternalId,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FetchWorkflowRunIdsRow
+	for rows.Next() {
+		var i FetchWorkflowRunIdsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.Kind,
+			&i.ExternalID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

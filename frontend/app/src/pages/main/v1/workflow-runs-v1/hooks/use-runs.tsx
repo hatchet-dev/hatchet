@@ -8,7 +8,7 @@ import {
   V1TaskStatus,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { RowSelectionState } from '@tanstack/react-table';
+import { RowSelectionState, SortingState } from '@tanstack/react-table';
 import { useCallback, useMemo, useState } from 'react';
 
 type UseRunsProps = {
@@ -25,6 +25,7 @@ type UseRunsProps = {
   triggeringEventExternalId?: string | undefined;
   onlyTasks: boolean;
   disablePagination?: boolean;
+  sorting?: SortingState;
 };
 
 export const useRuns = ({
@@ -41,6 +42,7 @@ export const useRuns = ({
   triggeringEventExternalId,
   onlyTasks,
   disablePagination = false,
+  sorting,
 }: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
@@ -76,6 +78,20 @@ export const useRuns = ({
       triggering_event_external_id: triggeringEventExternalId,
       include_payloads: false,
       running_filter: runningFilter,
+      order_by_field:
+        sorting && sorting.length > 0
+          ? (sorting[0].id as
+              | 'createdAt'
+              | 'taskName'
+              | 'workflow'
+              | 'startedAt'
+              | 'finishedAt'
+              | 'duration')
+          : undefined,
+      order_by_direction:
+        sorting && sorting.length > 0
+          ? (sorting[0].desc ? 'desc' : 'asc')
+          : undefined,
     }),
     refetchInterval:
       Object.keys(rowSelection).length > 0 ? false : refetchInterval,

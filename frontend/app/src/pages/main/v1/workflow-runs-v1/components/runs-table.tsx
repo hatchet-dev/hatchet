@@ -106,6 +106,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     rowSelection,
     showTriggerWorkflow,
     showQueueMetrics,
+    sorting,
     display: { hideMetrics, hideCounts, hideColumnToggle, hiddenFilters },
     actions: {
       refetchRuns,
@@ -117,6 +118,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       setRowSelection,
       setShowTriggerWorkflow,
       setShowQueueMetrics,
+      setSorting,
     },
   } = useRunsContext();
 
@@ -281,6 +283,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
           pagination={pagination}
           setPagination={setPagination}
           onSetPageSize={setPageSize}
+          sorting={sorting}
+          setSorting={setSorting}
           rowSelection={rowSelection}
           setRowSelection={setRowSelection}
           pageCount={numPages}

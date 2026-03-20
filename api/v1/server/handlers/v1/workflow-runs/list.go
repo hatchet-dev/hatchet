@@ -166,6 +166,13 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
+	if request.Params.OrderByField != nil {
+		opts.OrderBy = string(*request.Params.OrderByField)
+	}
+	if request.Params.OrderByDirection != nil {
+		opts.OrderDirection = string(*request.Params.OrderByDirection)
+	}
+
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
 		tenantId,
@@ -308,6 +315,13 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.TriggeringEventExternalId != nil {
 		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
+	}
+
+	if request.Params.OrderByField != nil {
+		opts.OrderBy = string(*request.Params.OrderByField)
+	}
+	if request.Params.OrderByDirection != nil {
+		opts.OrderDirection = string(*request.Params.OrderByDirection)
 	}
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
