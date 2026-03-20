@@ -20,9 +20,9 @@ WITH inputs AS (
         UNNEST($3::BYTEA[]) AS span_id,
         UNNEST($4::TEXT[]) AS parent_span_id,
         UNNEST($5::TEXT[]) AS span_name,
-        UNNEST($6::v1_otel_span_kind[]) AS span_kind,
+        UNNEST(CAST($6::TEXT[] AS v1_otel_span_kind[])) AS span_kind,
         UNNEST($7::TEXT[]) AS service_name,
-        UNNEST($8::v1_otel_status_code[]) AS status_code,
+        UNNEST(CAST($8::TEXT[] AS v1_otel_status_code[])) AS status_code,
         UNNEST($9::TEXT[]) AS status_message,
         UNNEST($10::BIGINT[]) AS duration_ns,
         UNNEST($11::JSONB[]) AS resource_attributes,
@@ -84,9 +84,9 @@ type InsertOtelSpansParams struct {
 	Spanids                [][]byte             `json:"spanids"`
 	Parentspanids          []string             `json:"parentspanids"`
 	Spannames              []string             `json:"spannames"`
-	Spankinds              []V1OtelSpanKind     `json:"spankinds"`
+	Spankinds              []string             `json:"spankinds"`
 	Servicenames           []string             `json:"servicenames"`
-	Statuscodes            []V1OtelStatusCode   `json:"statuscodes"`
+	Statuscodes            []string             `json:"statuscodes"`
 	Statusmessages         []string             `json:"statusmessages"`
 	Durationnss            []int64              `json:"durationnss"`
 	Resourceattributes     [][]byte             `json:"resourceattributes"`

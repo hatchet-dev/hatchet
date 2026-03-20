@@ -96,9 +96,9 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 	spanIds := make([][]byte, len(opts.Spans))
 	parentSpanIds := make([]string, len(opts.Spans))
 	spanNames := make([]string, len(opts.Spans))
-	spanKinds := make([]sqlcv1.V1OtelSpanKind, len(opts.Spans))
+	spanKinds := make([]string, len(opts.Spans))
 	serviceNames := make([]string, len(opts.Spans))
-	statusCodes := make([]sqlcv1.V1OtelStatusCode, len(opts.Spans))
+	statusCodes := make([]string, len(opts.Spans))
 	statusMessages := make([]string, len(opts.Spans))
 	durations := make([]int64, len(opts.Spans))
 	resourceAttrs := make([][]byte, len(opts.Spans))
@@ -143,9 +143,9 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		spanIds[i] = sd.SpanID
 		parentSpanIds[i] = parentSpanID
 		spanNames[i] = sd.Name
-		spanKinds[i] = protoSpanKindToDB(sd.Kind)
+		spanKinds[i] = string(protoSpanKindToDB(sd.Kind))
 		serviceNames[i] = extractServiceName(resourceAttr)
-		statusCodes[i] = protoStatusCodeToDB(sd.StatusCode)
+		statusCodes[i] = string(protoStatusCodeToDB(sd.StatusCode))
 		statusMessages[i] = sd.StatusMessage
 		durations[i] = int64(sd.EndTimeUnixNano - sd.StartTimeUnixNano)
 		resourceAttrs[i] = resourceAttr
