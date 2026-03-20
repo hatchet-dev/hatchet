@@ -13,9 +13,7 @@ from examples.opentelemetry_instrumentation.worker import (
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_otel_spans_created_on_task_run(
-    hatchet: Hatchet, on_demand_worker: Popen[Any]
-) -> None:
+async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
     ref = await otel_simple_task.aio_run_no_wait(
@@ -69,7 +67,7 @@ async def test_otel_spans_created_on_task_run(
 
 # @pytest.mark.asyncio(loop_scope="session")
 # async def test_otel_traces_on_retry(
-#     hatchet: Hatchet, on_demand_worker: Popen[Any]
+#     hatchet: Hatchet
 # ) -> None:
 #     """Verify that traces are produced for both the failed attempt and the retry."""
 #     ref = await otel_retry_task.aio_run_no_wait(
