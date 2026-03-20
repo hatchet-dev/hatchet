@@ -68,8 +68,9 @@ end
 
 def main
   worker = HATCHET.worker(
-    name: "webhook-worker",
+    "webhook-worker",
     workflows: [
+      WEBHOOK_TASK,
       HANDLE_STRIPE_PAYMENT,
       HANDLE_GITHUB_PR,
       HANDLE_SLACK_MENTION,
