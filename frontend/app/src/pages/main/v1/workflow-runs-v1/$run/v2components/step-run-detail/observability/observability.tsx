@@ -39,7 +39,7 @@ export const Observability = (props: ObservabilityProps) => {
   const tracesQuery = useQuery({
     queryKey: [tenant, runExternalId],
     queryFn: async () => {
-      const res = await api.v1WorkflowRunGetTrace(tenant, {
+      const res = await api.v1ObservabilityGetTrace(tenant, {
         run_external_id: runExternalId,
         limit: 1_000, // arbitrary limit that allows a lot of spans to come back. if we're fetching more than this, it's probably an issue
       });
