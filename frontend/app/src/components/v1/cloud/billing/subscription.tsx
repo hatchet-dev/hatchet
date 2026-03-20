@@ -442,12 +442,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               enterpriseContactUrl={enterpriseContactUrl}
               loading={loading}
             />
-
-            <p className="text-xs text-muted-foreground mt-4">
-              * Subscription fee billed upfront{' '}
-              {showAnnual ? 'yearly' : 'monthly'}, overages billed at the end of
-              each month for usage in that month.
-            </p>
           </>
         )}
       </div>

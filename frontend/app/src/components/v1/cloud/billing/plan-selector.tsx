@@ -49,15 +49,22 @@ export function PlanSelector({
   const plans = plansQuery.data?.plans;
 
   const sortedPlans = useMemo(() => {
-    return plans
-      ?.filter(
-        (v) =>
-          !v.legacy &&
-          v.planCode !== 'free' &&
-          (showAnnual
-            ? v.period?.includes('yearly')
-            : v.period?.includes('monthly')),
-      )
+    const nonLegacy = plans?.filter((v) => !v.legacy && v.planCode !== 'free');
+
+    const hasYearlyVariant = (planCode: string) =>
+      nonLegacy?.some(
+        (p) =>
+          p.planCode.startsWith(planCode.split('_')[0]) &&
+          p.period?.includes('yearly'),
+      );
+
+    return nonLegacy
+      ?.filter((v) => {
+        if (showAnnual) {
+          return v.period?.includes('yearly') || !hasYearlyVariant(v.planCode);
+        }
+        return v.period?.includes('monthly') || !v.period;
+      })
       .sort((a, b) => a.amountCents - b.amountCents);
   }, [plans, showAnnual]);
 
@@ -159,8 +166,13 @@ function PlanCard({
                 {price}
               </span>
               <span className="text-xs text-muted-foreground ml-1">
-                / mo billed {showAnnual ? 'yearly' : 'monthly'}*
+                / mo {!showAnnual ? ' + usage' : ''}
               </span>
+              {showAnnual && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  billed yearly + usage billed monthly
+                </p>
+              )}
             </>
           ) : (
             <span className="text-sm text-muted-foreground">{description}</span>
