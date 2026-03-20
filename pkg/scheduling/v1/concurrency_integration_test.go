@@ -213,6 +213,212 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 	})
 }
 
+// --- Workflow concurrency slot cleanup regression test ---
+
+// TestConcurrency_WorkflowSlotsCleanedUpAfterRelease verifies that when tasks with
+// chained concurrency strategies (CANCEL_IN_PROGRESS → GROUP_ROUND_ROBIN) are released
+// via ReleaseTasks, the workflow-level concurrency slots for BOTH parent strategies are
+// cleaned up even when relevant_tasks_for_dags returns 0 rows.
+//
+// This is a regression test for a bug where the CARDINALITY check in
+// cleanup_workflow_concurrency_slots blocked cleanup when no DAG tasks existed
+// (COUNT(relevant_tasks_for_dags)=0 made CARDINALITY <= 0 always false).
+//
+// To exercise the DAG code path in cleanup_workflow_concurrency_slots (where the bug
+// lives), the test creates DAGs so that v1_lookup_table maps workflow_run_id → dag_id.
+// It then deletes v1_dag_to_task links before releasing, simulating the state after
+// partition GC where the DAG entry exists but its tasks are unreachable.
+func TestConcurrency_WorkflowSlotsCleanedUpAfterRelease(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		requireSchedulerSchema(t, ctx, conf)
+
+		r := conf.V1
+		queries := sqlcv1.New()
+
+		tenantId := uuid.New()
+		_, err := r.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: "wf-slot-cleanup-test",
+			Slug: fmt.Sprintf("wf-slot-cleanup-test-%s", tenantId.String()),
+		})
+		require.NoError(t, err)
+
+		desc := "test workflow for slot cleanup after release"
+		cancelInProgress := "CANCEL_IN_PROGRESS"
+		groupRR := "GROUP_ROUND_ROBIN"
+		var maxRunsCIP int32 = 5
+		var maxRunsGRR int32 = 5
+
+		wfVersion, err := r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "slot-cleanup-test",
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{
+					ReadableId: "my-task",
+					Action:     "test:run",
+				},
+			},
+			Concurrency: []repo.CreateConcurrencyOpts{
+				{
+					MaxRuns:       &maxRunsCIP,
+					LimitStrategy: &cancelInProgress,
+					Expression:    "input.assignment_id",
+				},
+				{
+					MaxRuns:       &maxRunsGRR,
+					LimitStrategy: &groupRR,
+					Expression:    "input.org_id",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		workflowId := wfVersion.WorkflowVersion.WorkflowId
+		workflowVersionId := wfVersion.WorkflowVersion.ID
+
+		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+		require.Len(t, strategies, 2, "expected 2 step concurrency strategies")
+
+		sort.Slice(strategies, func(i, j int) bool {
+			return strategies[i].ID < strategies[j].ID
+		})
+
+		stratCIP := strategies[0]
+		stratGRR := strategies[1]
+
+		require.Equal(t, sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS, stratCIP.Strategy)
+		require.Equal(t, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN, stratGRR.Strategy)
+
+		stepId := stratCIP.StepID
+
+		numTasks := 3
+
+		// Pre-generate workflow_run_ids (one per task, as each task is its own workflow run).
+		workflowRunIds := make([]uuid.UUID, numTasks)
+		for i := 0; i < numTasks; i++ {
+			workflowRunIds[i] = uuid.New()
+		}
+
+		// Create DAGs so that v1_lookup_table maps each workflow_run_id → dag_id.
+		// This forces cleanup_workflow_concurrency_slots through the DAG code path
+		// (final_concurrency_slots_for_dags) rather than the task path.
+		dagParams := sqlcv1.CreateDAGsParams{
+			Tenantids:             make([]uuid.UUID, numTasks),
+			Externalids:           make([]uuid.UUID, numTasks),
+			Displaynames:          make([]string, numTasks),
+			Workflowids:           make([]uuid.UUID, numTasks),
+			Workflowversionids:    make([]uuid.UUID, numTasks),
+			Parenttaskexternalids: make([]uuid.UUID, numTasks),
+		}
+		for i := 0; i < numTasks; i++ {
+			dagParams.Tenantids[i] = tenantId
+			dagParams.Externalids[i] = workflowRunIds[i]
+			dagParams.Displaynames[i] = fmt.Sprintf("dag-%d", i)
+			dagParams.Workflowids[i] = workflowId
+			dagParams.Workflowversionids[i] = workflowVersionId
+			dagParams.Parenttaskexternalids[i] = uuid.Nil
+		}
+		dags, err := queries.CreateDAGs(ctx, conf.Pool, dagParams)
+		require.NoError(t, err)
+		require.Len(t, dags, numTasks)
+
+		// Create tasks with dag_id set so that v1_dag_to_task links are created.
+		taskParams := newCreateTasksParams(numTasks)
+		for i := 0; i < numTasks; i++ {
+			taskParams.Tenantids[i] = tenantId
+			taskParams.Queues[i] = "default"
+			taskParams.Actionids[i] = "test:run"
+			taskParams.Stepids[i] = stepId
+			taskParams.Stepreadableids[i] = "my-task"
+			taskParams.Workflowids[i] = workflowId
+			taskParams.Scheduletimeouts[i] = "5m"
+			taskParams.Priorities[i] = 1
+			taskParams.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
+			taskParams.Externalids[i] = uuid.New()
+			taskParams.Displaynames[i] = fmt.Sprintf("task-%d", i)
+			taskParams.Inputs[i] = []byte(fmt.Sprintf(`{"assignment_id": "%d", "org_id": "org-1"}`, i))
+			taskParams.Additionalmetadatas[i] = []byte(`{}`)
+			taskParams.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+			taskParams.Concurrencyparentstrategyids[i] = []pgtype.Int8{stratCIP.ParentStrategyID, stratGRR.ParentStrategyID}
+			taskParams.ConcurrencyStrategyIds[i] = []int64{stratCIP.ID, stratGRR.ID}
+			taskParams.ConcurrencyKeys[i] = []string{fmt.Sprintf("%d", i), "org-1"}
+			taskParams.WorkflowVersionIds[i] = workflowVersionId
+			taskParams.WorkflowRunIds[i] = workflowRunIds[i]
+			taskParams.Dagids[i] = pgtype.Int8{Int64: dags[i].ID, Valid: true}
+			taskParams.Daginsertedats[i] = dags[i].InsertedAt
+		}
+
+		tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
+		require.NoError(t, err)
+		require.Len(t, tasks, numTasks)
+
+		concurrencyRepo := r.Scheduler().Concurrency()
+
+		// Run CANCEL_IN_PROGRESS: all 3 pass (unique assignment_ids, maxRuns=5)
+		res1, err := concurrencyRepo.RunConcurrencyStrategy(ctx, tenantId, stratCIP)
+		require.NoError(t, err)
+		require.Len(t, res1.NextConcurrencyStrategies, numTasks, "all tasks should advance to GROUP_ROUND_ROBIN")
+
+		// Run GROUP_ROUND_ROBIN: all 3 pass (maxRuns=5)
+		res2, err := concurrencyRepo.RunConcurrencyStrategy(ctx, tenantId, stratGRR)
+		require.NoError(t, err)
+		require.Len(t, res2.Queued, numTasks, "all tasks should be queued")
+
+		countWfSlots := func(strategyId int64) int {
+			var count int
+			err := conf.Pool.QueryRow(ctx,
+				`SELECT COUNT(*) FROM v1_workflow_concurrency_slot WHERE strategy_id = $1`,
+				strategyId,
+			).Scan(&count)
+			require.NoError(t, err)
+			return count
+		}
+
+		cipParentId := stratCIP.ParentStrategyID.Int64
+		grrParentId := stratGRR.ParentStrategyID.Int64
+
+		require.Greater(t, countWfSlots(cipParentId), 0, "CIP workflow slots should exist before release")
+		require.Greater(t, countWfSlots(grrParentId), 0, "GRR workflow slots should exist before release")
+
+		// Delete v1_dag_to_task links to simulate partition GC. After this,
+		// relevant_tasks_for_dags will return 0 rows for each workflow_run_id,
+		// which is the exact scenario that triggers the CARDINALITY bug.
+		for _, dag := range dags {
+			_, err := conf.Pool.Exec(ctx,
+				`DELETE FROM v1_dag_to_task WHERE dag_id = $1 AND dag_inserted_at = $2`,
+				dag.ID, dag.InsertedAt)
+			require.NoError(t, err)
+		}
+
+		// Release tasks via the production path (ReleaseTasks deletes step-level
+		// concurrency slots, which fires the after-delete trigger that calls
+		// cleanup_workflow_concurrency_slots).
+		releaseParams := sqlcv1.ReleaseTasksParams{
+			Taskids:         make([]int64, numTasks),
+			Taskinsertedats: make([]pgtype.Timestamptz, numTasks),
+			Retrycounts:     make([]int32, numTasks),
+		}
+		for i, task := range tasks {
+			releaseParams.Taskids[i] = task.ID
+			releaseParams.Taskinsertedats[i] = task.InsertedAt
+			releaseParams.Retrycounts[i] = 0
+		}
+
+		released, err := queries.ReleaseTasks(ctx, conf.Pool, releaseParams)
+		require.NoError(t, err)
+		require.Len(t, released, numTasks, "all tasks should be released")
+
+		require.Equal(t, 0, countWfSlots(cipParentId), "CIP workflow concurrency slots should be cleaned up after release")
+		require.Equal(t, 0, countWfSlots(grrParentId), "GRR workflow concurrency slots should be cleaned up after release")
+
+		return nil
+	})
+}
+
 // --- Chained strategy regression test ---
 
 // TestConcurrency_ChainedStrategiesDoNotContaminate verifies that when two concurrency
