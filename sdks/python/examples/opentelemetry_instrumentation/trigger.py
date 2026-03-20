@@ -1,16 +1,6 @@
-"""
-Trigger the OTelDataPipeline workflow.
-
-Make sure the worker is already running:
-    poetry run python -m examples.opentelemetry_instrumentation.hatchet.worker
-
-Then run this:
-    poetry run python -m examples.opentelemetry_instrumentation.hatchet.trigger
-"""
-
 from opentelemetry.trace import get_tracer
 
-from examples.opentelemetry_instrumentation.hatchet.worker import otel_workflow
+from examples.opentelemetry_instrumentation.worker import otel_workflow
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
