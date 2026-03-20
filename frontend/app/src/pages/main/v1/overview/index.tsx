@@ -40,8 +40,8 @@ export default function Overview() {
   const { currentUser } = useCurrentUser();
   const navigate = useNavigate();
   const { capture } = useAnalytics();
-  const search = useSearch({ strict: false }) as { welcome?: boolean };
-  const [showWelcome, setShowWelcome] = useState(!!search.welcome);
+  const { welcome } = useSearch({ from: '/tenants/$tenant/overview' });
+  const [showWelcome, setShowWelcome] = useState(!!welcome);
 
   const plansQuery = useQuery({
     ...queries.cloud.subscriptionPlans(),
@@ -276,7 +276,7 @@ export default function Overview() {
             navigate({
               to: appRoutes.tenantOverviewRoute.to,
               params: { tenant: tenantId! },
-              search: {},
+              search: { welcome: false },
               replace: true,
             });
           }
@@ -322,7 +322,7 @@ export default function Overview() {
                   navigate({
                     to: appRoutes.tenantOverviewRoute.to,
                     params: { tenant: tenantId! },
-                    search: {},
+                    search: { welcome: false },
                     replace: true,
                   });
                 }}

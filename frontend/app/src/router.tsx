@@ -286,6 +286,9 @@ const tenantWorkflowRoute = createRoute({
 const tenantOverviewRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'overview',
+  validateSearch: (search: Record<string, unknown>) => ({
+    welcome: search.welcome === true || search.welcome === 'true' || false,
+  }),
   component: lazyRouteComponent(
     () => import('./pages/main/v1/overview/index.tsx'),
     'default',
