@@ -14,6 +14,7 @@ import {
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
+import { StandardSchemaV1 } from './standard-schema';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
@@ -186,11 +187,13 @@ export type CreateBaseWorkflowOpts = {
   defaultFilters?: DefaultFilter[];
 
   /**
-   * (optional) Zod schema for the workflow input.
-   * When provided, a JSON Schema is generated and sent to the Hatchet backend, which
-   * can be used on the dashboard for autocomplete.
+   * (optional) Schema for the workflow input.
+   * Accepts any Standard Schema v1 compliant schema (Zod v3.24+, Zod v4, Valibot,
+   * ArkType, etc.) or a classic Zod schema.
+   * When a Zod schema is provided, a JSON Schema is generated and sent to the Hatchet
+   * backend for dashboard autocomplete.
    */
-  inputValidator?: z.ZodType<any>;
+  inputValidator?: z.ZodType<any> | StandardSchemaV1;
 };
 
 export type CreateTaskWorkflowOpts<
