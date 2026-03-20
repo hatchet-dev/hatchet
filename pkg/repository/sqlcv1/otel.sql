@@ -83,7 +83,7 @@ WITH candidate_traces AS (
 )
 
 SELECT *
-FROM candidate_traces
+FROM v1_otel_trace
 WHERE trace_id = (SELECT trace_id FROM trace_id)
 ORDER BY start_time ASC
 OFFSET COALESCE(@spanOffset::BIGINT, 0)
