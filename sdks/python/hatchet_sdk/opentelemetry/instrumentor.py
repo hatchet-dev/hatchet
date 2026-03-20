@@ -108,12 +108,11 @@ class _HatchetSpanExporter(SpanExporter):
 
 def _is_grpc_unimplemented(exc: Exception) -> bool:
     try:
-        import grpc
-
         if isinstance(exc, grpc.RpcError):
             return exc.code() == grpc.StatusCode.UNIMPLEMENTED
     except ImportError:
         pass
+
     return "UNIMPLEMENTED" in str(exc)
 
 
