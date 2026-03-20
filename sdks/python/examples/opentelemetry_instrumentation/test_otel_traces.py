@@ -60,7 +60,10 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     assert attrs.get("hatchet.tenant_id") == hatchet.config.tenant_id
     assert attrs.get("hatchet.workflow_run_id") == ref.workflow_run_id
     assert attrs.get("hatchet.step_run_id") == ref.workflow_run_id
-    assert attrs.get("hatchet.step_name") == otel_simple_task.name
+    assert (
+        hatchet.config.apply_namespace(attrs.get("hatchet.step_name"))
+        == otel_simple_task.name
+    )
 
     assert attrs.get("instrumentor") == "hatchet"
 
@@ -85,7 +88,9 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     assert run_workflow_span.span_attributes
 
     assert (
-        run_workflow_span.span_attributes.get("hatchet.workflow_name")
+        hatchet.config.apply_namespace(
+            run_workflow_span.span_attributes.get("hatchet.workflow_name")
+        )
         == otel_simple_task.name
     )
 
@@ -130,7 +135,10 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     attrs = step_run_spans[0].span_attributes
     assert attrs
     assert attrs.get("hatchet.tenant_id") == hatchet.config.tenant_id
-    assert attrs.get("hatchet.step_name") == otel_simple_task.name
+    assert (
+        hatchet.config.apply_namespace(attrs.get("hatchet.step_name"))
+        == otel_simple_task.name
+    )
     assert attrs.get("instrumentor") == "hatchet"
 
     child_spans = [s for s in spans if s.span_name == "custom.child.span"]
@@ -177,7 +185,9 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     assert len(run_workflow_spans) == 1
     assert run_workflow_spans[0].span_attributes
     assert (
-        run_workflow_spans[0].span_attributes.get("hatchet.workflow_name")
+        hatchet.config.apply_namespace(
+            run_workflow_spans[0].span_attributes.get("hatchet.workflow_name")
+        )
         == otel_workflow.name
     )
 
@@ -205,7 +215,10 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
     parent_span = step_run_spans[0]
     assert parent_span.span_attributes
     assert (
-        parent_span.span_attributes.get("hatchet.step_name") == otel_spawn_parent.name
+        hatchet.config.apply_namespace(
+            parent_span.span_attributes.get("hatchet.step_name")
+        )
+        == otel_spawn_parent.name
     )
 
     spawn_spans = [s for s in spans if s.span_name == "spawn.child"]
