@@ -5,7 +5,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -15,7 +14,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request 
 	}
 
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
 	limit := int64(1000)
 	offset := int64(0)
@@ -36,9 +34,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request 
 		offset = 0
 	}
 
-	workflowRunExternalID := rawWorkflowRun.WorkflowRun.ExternalID
-
-	result, err := t.config.V1.OTelCollector().ListSpansByRunExternalID(ctx.Request().Context(), tenant.ID, &workflowRunExternalID, nil, offset, limit)
+	result, err := t.config.V1.OTelCollector().ListSpansByRunExternalID(ctx.Request().Context(), tenant.ID, &request.Params.RunExternalId, nil, offset, limit)
 	if err != nil {
 		return nil, err
 	}

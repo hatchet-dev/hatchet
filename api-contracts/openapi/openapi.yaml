@@ -29,8 +29,6 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTaskEvents"
   /api/v1/stable/tasks/{task}/logs:
     $ref: "./paths/v1/tasks/tasks.yaml#/listLogs"
-  /api/v1/stable/tasks/{task}/trace:
-    $ref: "./paths/v1/tasks/tasks.yaml#/getTrace"
   /api/v1/stable/tenants/{tenant}/tasks/cancel:
     $ref: "./paths/v1/tasks/tasks.yaml#/cancelTasks"
   /api/v1/stable/tenants/{tenant}/logs:
@@ -59,7 +57,7 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunStatus"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/task-events:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listTaskEventsForWorkflowRun"
-  /api/v1/stable/workflow-runs/{v1-workflow-run}/trace:
+  /api/v1/stable/traces:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunTrace"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getTimings"

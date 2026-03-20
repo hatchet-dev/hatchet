@@ -487,13 +487,13 @@ trigger:
 
 getWorkflowRunTrace:
   get:
-    x-resources: ["tenant", "v1-workflow-run"]
+    x-resources: ["tenant"]
     description: Get OTel trace for a workflow run
-    operationId: v1-workflow-run:get:trace
+    operationId: v1-workflow-run:get-trace
     parameters:
-      - description: The workflow run id
-        in: path
-        name: v1-workflow-run
+      - description: The workflow run external id
+        in: query
+        name: runExternalId
         required: true
         schema:
           type: string
