@@ -3380,8 +3380,8 @@ type V1OperationIntervalSettings struct {
 
 type V1OtelTrace struct {
 	TenantID              uuid.UUID          `json:"tenant_id"`
-	TraceID               string             `json:"trace_id"`
-	SpanID                string             `json:"span_id"`
+	TraceID               []byte             `json:"trace_id"`
+	SpanID                []byte             `json:"span_id"`
 	ParentSpanID          pgtype.Text        `json:"parent_span_id"`
 	SpanName              string             `json:"span_name"`
 	SpanKind              V1OtelSpanKind     `json:"span_kind"`

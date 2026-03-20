@@ -38,7 +38,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request 
 
 	workflowRunExternalID := rawWorkflowRun.WorkflowRun.ExternalID
 
-	result, err := t.config.V1.OTelCollector().ListSpansByWorkflowRunExternalID(ctx.Request().Context(), tenant.ID, workflowRunExternalID, offset, limit)
+	result, err := t.config.V1.OTelCollector().ListSpansByRunExternalID(ctx.Request().Context(), tenant.ID, &workflowRunExternalID, nil, offset, limit)
 	if err != nil {
 		return nil, err
 	}

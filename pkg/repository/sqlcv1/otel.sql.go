@@ -12,86 +12,125 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countSpansByTaskExternalID = `-- name: CountSpansByTaskExternalID :one
-SELECT COUNT(*) FROM v1_otel_trace
-WHERE tenant_id = $1::UUID
-AND task_run_external_id = $2::UUID
-AND retry_count = (
-    SELECT MAX(retry_count) FROM v1_otel_trace
-    WHERE tenant_id = $1::UUID
-    AND task_run_external_id = $2::UUID
+const insertOtelSpans = `-- name: InsertOtelSpans :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BYTEA[]) AS trace_id,
+        UNNEST($3::BYTEA[]) AS span_id,
+        UNNEST($4::TEXT[]) AS parent_span_id,
+        UNNEST($5::TEXT[]) AS span_name,
+        UNNEST($6::v1_otel_span_kind[]) AS span_kind,
+        UNNEST($7::TEXT[]) AS service_name,
+        UNNEST($8::v1_otel_status_code[]) AS status_code,
+        UNNEST($9::TEXT[]) AS status_message,
+        UNNEST($10::BIGINT[]) AS duration_ns,
+        UNNEST($11::JSONB[]) AS resource_attributes,
+        UNNEST($12::JSONB[]) AS span_attributes,
+        UNNEST($13::TEXT[]) AS scope_name,
+        UNNEST($14::TEXT[]) AS scope_version,
+        UNNEST($15::UUID[]) AS task_run_external_id,
+        UNNEST($16::UUID[]) AS workflow_run_external_id,
+        UNNEST($17::INT[]) AS retry_count,
+        UNNEST($18::TIMESTAMPTZ[]) AS start_time
 )
-`
 
-type CountSpansByTaskExternalIDParams struct {
-	Tenantid       uuid.UUID `json:"tenantid"`
-	Taskexternalid uuid.UUID `json:"taskexternalid"`
-}
-
-func (q *Queries) CountSpansByTaskExternalID(ctx context.Context, db DBTX, arg CountSpansByTaskExternalIDParams) (int64, error) {
-	row := db.QueryRow(ctx, countSpansByTaskExternalID, arg.Tenantid, arg.Taskexternalid)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countSpansByWorkflowRunExternalID = `-- name: CountSpansByWorkflowRunExternalID :one
-SELECT COUNT(*) FROM v1_otel_trace
-WHERE tenant_id = $1::UUID
-AND workflow_run_external_id = $2::UUID
-AND (
-    task_run_external_id IS NULL
-    OR (task_run_external_id, retry_count) IN (
-        SELECT task_run_external_id, MAX(retry_count)
-        FROM v1_otel_trace
-        WHERE tenant_id = $1::UUID
-        AND workflow_run_external_id = $2::UUID
-        AND task_run_external_id IS NOT NULL
-        GROUP BY task_run_external_id
-    )
+INSERT INTO v1_otel_trace (
+    tenant_id,
+    trace_id,
+    span_id,
+    parent_span_id,
+    span_name,
+    span_kind,
+    service_name,
+    status_code,
+    status_message,
+    duration_ns,
+    resource_attributes,
+    span_attributes,
+    scope_name,
+    scope_version,
+    task_run_external_id,
+    workflow_run_external_id,
+    retry_count,
+    start_time
 )
+SELECT
+    tenant_id,
+    trace_id,
+    span_id,
+    NULLIF(parent_span_id, '') AS parent_span_id,
+    span_name,
+    span_kind,
+    service_name,
+    status_code,
+    NULLIF(status_message, '') AS status_message,
+    duration_ns,
+    NULLIF(resource_attributes, '{}'::JSONB) AS resource_attributes,
+    NULLIF(span_attributes, '{}'::JSONB) AS span_attributes,
+    NULLIF(scope_name, '') AS scope_name,
+    NULLIF(scope_version, '') AS scope_version,
+    NULLIF(task_run_external_id::TEXT, '00000000-0000-0000-0000-000000000000')::UUID AS task_run_external_id,
+    NULLIF(workflow_run_external_id::TEXT, '00000000-0000-0000-0000-000000000000')::UUID AS workflow_run_external_id,
+    retry_count,
+    start_time
+FROM inputs
+ON CONFLICT (tenant_id, trace_id, start_time, span_id) DO NOTHING
 `
-
-type CountSpansByWorkflowRunExternalIDParams struct {
-	Tenantid              uuid.UUID `json:"tenantid"`
-	Workflowrunexternalid uuid.UUID `json:"workflowrunexternalid"`
-}
-
-func (q *Queries) CountSpansByWorkflowRunExternalID(ctx context.Context, db DBTX, arg CountSpansByWorkflowRunExternalIDParams) (int64, error) {
-	row := db.QueryRow(ctx, countSpansByWorkflowRunExternalID, arg.Tenantid, arg.Workflowrunexternalid)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
 
 type InsertOtelSpansParams struct {
-	TenantID              uuid.UUID          `json:"tenant_id"`
-	TraceID               string             `json:"trace_id"`
-	SpanID                string             `json:"span_id"`
-	ParentSpanID          pgtype.Text        `json:"parent_span_id"`
-	SpanName              string             `json:"span_name"`
-	SpanKind              V1OtelSpanKind     `json:"span_kind"`
-	ServiceName           string             `json:"service_name"`
-	StatusCode            V1OtelStatusCode   `json:"status_code"`
-	StatusMessage         pgtype.Text        `json:"status_message"`
-	DurationNs            int64              `json:"duration_ns"`
-	ResourceAttributes    []byte             `json:"resource_attributes"`
-	SpanAttributes        []byte             `json:"span_attributes"`
-	ScopeName             pgtype.Text        `json:"scope_name"`
-	ScopeVersion          pgtype.Text        `json:"scope_version"`
-	TaskRunExternalID     *uuid.UUID         `json:"task_run_external_id"`
-	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
-	RetryCount            int32              `json:"retry_count"`
-	StartTime             pgtype.Timestamptz `json:"start_time"`
+	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Traceids               [][]byte             `json:"traceids"`
+	Spanids                [][]byte             `json:"spanids"`
+	Parentspanids          []string             `json:"parentspanids"`
+	Spannames              []string             `json:"spannames"`
+	Spankinds              []V1OtelSpanKind     `json:"spankinds"`
+	Servicenames           []string             `json:"servicenames"`
+	Statuscodes            []V1OtelStatusCode   `json:"statuscodes"`
+	Statusmessages         []string             `json:"statusmessages"`
+	Durationnss            []int64              `json:"durationnss"`
+	Resourceattributes     [][]byte             `json:"resourceattributes"`
+	Spanattributes         [][]byte             `json:"spanattributes"`
+	Scopenames             []string             `json:"scopenames"`
+	Scopeversions          []string             `json:"scopeversions"`
+	Taskrunexternalids     []uuid.UUID          `json:"taskrunexternalids"`
+	Workflowrunexternalids []uuid.UUID          `json:"workflowrunexternalids"`
+	Retrycounts            []int32              `json:"retrycounts"`
+	Starttimes             []pgtype.Timestamptz `json:"starttimes"`
 }
 
-const listSpansByTaskExternalID = `-- name: ListSpansByTaskExternalID :many
+func (q *Queries) InsertOtelSpans(ctx context.Context, db DBTX, arg InsertOtelSpansParams) error {
+	_, err := db.Exec(ctx, insertOtelSpans,
+		arg.Tenantids,
+		arg.Traceids,
+		arg.Spanids,
+		arg.Parentspanids,
+		arg.Spannames,
+		arg.Spankinds,
+		arg.Servicenames,
+		arg.Statuscodes,
+		arg.Statusmessages,
+		arg.Durationnss,
+		arg.Resourceattributes,
+		arg.Spanattributes,
+		arg.Scopenames,
+		arg.Scopeversions,
+		arg.Taskrunexternalids,
+		arg.Workflowrunexternalids,
+		arg.Retrycounts,
+		arg.Starttimes,
+	)
+	return err
+}
+
+const listSpansByExternalID = `-- name: ListSpansByExternalID :many
 WITH candidate_traces AS (
     SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
     FROM v1_otel_trace
     WHERE
         tenant_id = $3::UUID
-        AND task_run_external_id = $4::UUID
+        AND ($4::UUID IS NULL OR task_run_external_id = $4::UUID)
+        AND ($5::UUID IS NULL OR workflow_run_external_id = $5::UUID)
 ), max_retry_count AS (
     SELECT MAX(retry_count) AS retry_count
     FROM candidate_traces
@@ -110,19 +149,21 @@ OFFSET COALESCE($1::BIGINT, 0)
 LIMIT COALESCE($2::BIGINT, 1000)
 `
 
-type ListSpansByTaskExternalIDParams struct {
-	Spanoffset     int64     `json:"spanoffset"`
-	Spanlimit      int64     `json:"spanlimit"`
-	Tenantid       uuid.UUID `json:"tenantid"`
-	Taskexternalid uuid.UUID `json:"taskexternalid"`
+type ListSpansByExternalIDParams struct {
+	Spanoffset            int64      `json:"spanoffset"`
+	Spanlimit             int64      `json:"spanlimit"`
+	Tenantid              uuid.UUID  `json:"tenantid"`
+	TaskRunExternalId     *uuid.UUID `json:"taskRunExternalId"`
+	WorkflowRunExternalId *uuid.UUID `json:"workflowRunExternalId"`
 }
 
-func (q *Queries) ListSpansByTaskExternalID(ctx context.Context, db DBTX, arg ListSpansByTaskExternalIDParams) ([]*V1OtelTrace, error) {
-	rows, err := db.Query(ctx, listSpansByTaskExternalID,
+func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSpansByExternalIDParams) ([]*V1OtelTrace, error) {
+	rows, err := db.Query(ctx, listSpansByExternalID,
 		arg.Spanoffset,
 		arg.Spanlimit,
 		arg.Tenantid,
-		arg.Taskexternalid,
+		arg.TaskRunExternalId,
+		arg.WorkflowRunExternalId,
 	)
 	if err != nil {
 		return nil, err
@@ -180,8 +221,8 @@ type ListSpansByTraceIDsParams struct {
 }
 
 type ListSpansByTraceIDsRow struct {
-	TraceID            string             `json:"trace_id"`
-	SpanID             string             `json:"span_id"`
+	TraceID            []byte             `json:"trace_id"`
+	SpanID             []byte             `json:"span_id"`
 	ParentSpanID       pgtype.Text        `json:"parent_span_id"`
 	SpanName           string             `json:"span_name"`
 	SpanKind           V1OtelSpanKind     `json:"span_kind"`
@@ -206,97 +247,6 @@ func (q *Queries) ListSpansByTraceIDs(ctx context.Context, db DBTX, arg ListSpan
 	var items []*ListSpansByTraceIDsRow
 	for rows.Next() {
 		var i ListSpansByTraceIDsRow
-		if err := rows.Scan(
-			&i.TraceID,
-			&i.SpanID,
-			&i.ParentSpanID,
-			&i.SpanName,
-			&i.SpanKind,
-			&i.ServiceName,
-			&i.StatusCode,
-			&i.StatusMessage,
-			&i.DurationNs,
-			&i.StartTime,
-			&i.ResourceAttributes,
-			&i.SpanAttributes,
-			&i.ScopeName,
-			&i.ScopeVersion,
-			&i.RetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSpansByWorkflowRunExternalID = `-- name: ListSpansByWorkflowRunExternalID :many
-SELECT
-    trace_id, span_id, parent_span_id, span_name, span_kind,
-    service_name, status_code, status_message, duration_ns, start_time,
-    resource_attributes, span_attributes, scope_name, scope_version,
-    retry_count
-FROM v1_otel_trace
-WHERE tenant_id = $1::UUID
-AND workflow_run_external_id = $2::UUID
-AND (
-    task_run_external_id IS NULL
-    OR (task_run_external_id, retry_count) IN (
-        SELECT task_run_external_id, MAX(retry_count)
-        FROM v1_otel_trace
-        WHERE tenant_id = $1::UUID
-        AND workflow_run_external_id = $2::UUID
-        AND task_run_external_id IS NOT NULL
-        GROUP BY task_run_external_id
-    )
-)
-ORDER BY start_time ASC
-OFFSET COALESCE($3::BIGINT, 0)
-LIMIT COALESCE($4::BIGINT, 1000)
-`
-
-type ListSpansByWorkflowRunExternalIDParams struct {
-	Tenantid              uuid.UUID `json:"tenantid"`
-	Workflowrunexternalid uuid.UUID `json:"workflowrunexternalid"`
-	Spanoffset            int64     `json:"spanoffset"`
-	Spanlimit             int64     `json:"spanlimit"`
-}
-
-type ListSpansByWorkflowRunExternalIDRow struct {
-	TraceID            string             `json:"trace_id"`
-	SpanID             string             `json:"span_id"`
-	ParentSpanID       pgtype.Text        `json:"parent_span_id"`
-	SpanName           string             `json:"span_name"`
-	SpanKind           V1OtelSpanKind     `json:"span_kind"`
-	ServiceName        string             `json:"service_name"`
-	StatusCode         V1OtelStatusCode   `json:"status_code"`
-	StatusMessage      pgtype.Text        `json:"status_message"`
-	DurationNs         int64              `json:"duration_ns"`
-	StartTime          pgtype.Timestamptz `json:"start_time"`
-	ResourceAttributes []byte             `json:"resource_attributes"`
-	SpanAttributes     []byte             `json:"span_attributes"`
-	ScopeName          pgtype.Text        `json:"scope_name"`
-	ScopeVersion       pgtype.Text        `json:"scope_version"`
-	RetryCount         int32              `json:"retry_count"`
-}
-
-func (q *Queries) ListSpansByWorkflowRunExternalID(ctx context.Context, db DBTX, arg ListSpansByWorkflowRunExternalIDParams) ([]*ListSpansByWorkflowRunExternalIDRow, error) {
-	rows, err := db.Query(ctx, listSpansByWorkflowRunExternalID,
-		arg.Tenantid,
-		arg.Workflowrunexternalid,
-		arg.Spanoffset,
-		arg.Spanlimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListSpansByWorkflowRunExternalIDRow
-	for rows.Next() {
-		var i ListSpansByWorkflowRunExternalIDRow
 		if err := rows.Scan(
 			&i.TraceID,
 			&i.SpanID,

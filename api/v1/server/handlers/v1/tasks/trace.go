@@ -34,7 +34,7 @@ func (t *TasksService) V1TaskGetTrace(ctx echo.Context, request gen.V1TaskGetTra
 		offset = 0
 	}
 
-	result, err := t.config.V1.OTelCollector().ListSpansByTaskExternalID(ctx.Request().Context(), task.TenantID, task.ExternalID, offset, limit)
+	result, err := t.config.V1.OTelCollector().ListSpansByRunExternalID(ctx.Request().Context(), task.TenantID, &task.ExternalID, nil, offset, limit)
 	if err != nil {
 		return nil, err
 	}
