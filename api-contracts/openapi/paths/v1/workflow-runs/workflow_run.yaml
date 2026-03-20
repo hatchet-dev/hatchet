@@ -491,6 +491,15 @@ getWorkflowRunTrace:
     description: Get OTel trace for a workflow run
     operationId: v1-workflow-run:get-trace
     parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
       - description: The workflow run external id
         in: query
         name: runExternalId

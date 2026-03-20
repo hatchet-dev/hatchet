@@ -704,10 +704,11 @@ export class Api<
    * @tags Workflow Runs
    * @name V1WorkflowRunGetTrace
    * @summary Get OTel trace
-   * @request GET:/api/v1/stable/traces
+   * @request GET:/api/v1/stable/tenants/{tenant}/traces
    * @secure
    */
   v1WorkflowRunGetTrace = (
+    tenant: string,
     query: {
       /**
        * The workflow run external id
@@ -730,7 +731,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<OtelSpanList, APIErrors>({
-      path: `/api/v1/stable/traces`,
+      path: `/api/v1/stable/tenants/${tenant}/traces`,
       method: "GET",
       query: query,
       secure: true,
