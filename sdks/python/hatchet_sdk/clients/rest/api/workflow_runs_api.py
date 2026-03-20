@@ -2239,13 +2239,19 @@ class WorkflowRunsApi:
     @validate_call
     def v1_workflow_run_get_trace(
         self,
-        v1_workflow_run: Annotated[
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        run_external_id: Annotated[
             str,
             Field(
                 min_length=36,
                 strict=True,
                 max_length=36,
-                description="The workflow run id",
+                description="The workflow run external id",
             ),
         ],
         offset: Annotated[
@@ -2270,8 +2276,10 @@ class WorkflowRunsApi:
 
         Get OTel trace for a workflow run
 
-        :param v1_workflow_run: The workflow run id (required)
-        :type v1_workflow_run: str
+        :param tenant: The tenant id (required)
+        :type tenant: str
+        :param run_external_id: The workflow run external id (required)
+        :type run_external_id: str
         :param offset: The number to skip
         :type offset: int
         :param limit: The number to limit by
@@ -2299,7 +2307,8 @@ class WorkflowRunsApi:
         """  # noqa: E501
 
         _param = self._v1_workflow_run_get_trace_serialize(
-            v1_workflow_run=v1_workflow_run,
+            tenant=tenant,
+            run_external_id=run_external_id,
             offset=offset,
             limit=limit,
             _request_auth=_request_auth,
@@ -2326,13 +2335,19 @@ class WorkflowRunsApi:
     @validate_call
     def v1_workflow_run_get_trace_with_http_info(
         self,
-        v1_workflow_run: Annotated[
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        run_external_id: Annotated[
             str,
             Field(
                 min_length=36,
                 strict=True,
                 max_length=36,
-                description="The workflow run id",
+                description="The workflow run external id",
             ),
         ],
         offset: Annotated[
@@ -2357,8 +2372,10 @@ class WorkflowRunsApi:
 
         Get OTel trace for a workflow run
 
-        :param v1_workflow_run: The workflow run id (required)
-        :type v1_workflow_run: str
+        :param tenant: The tenant id (required)
+        :type tenant: str
+        :param run_external_id: The workflow run external id (required)
+        :type run_external_id: str
         :param offset: The number to skip
         :type offset: int
         :param limit: The number to limit by
@@ -2386,7 +2403,8 @@ class WorkflowRunsApi:
         """  # noqa: E501
 
         _param = self._v1_workflow_run_get_trace_serialize(
-            v1_workflow_run=v1_workflow_run,
+            tenant=tenant,
+            run_external_id=run_external_id,
             offset=offset,
             limit=limit,
             _request_auth=_request_auth,
@@ -2413,13 +2431,19 @@ class WorkflowRunsApi:
     @validate_call
     def v1_workflow_run_get_trace_without_preload_content(
         self,
-        v1_workflow_run: Annotated[
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        run_external_id: Annotated[
             str,
             Field(
                 min_length=36,
                 strict=True,
                 max_length=36,
-                description="The workflow run id",
+                description="The workflow run external id",
             ),
         ],
         offset: Annotated[
@@ -2444,8 +2468,10 @@ class WorkflowRunsApi:
 
         Get OTel trace for a workflow run
 
-        :param v1_workflow_run: The workflow run id (required)
-        :type v1_workflow_run: str
+        :param tenant: The tenant id (required)
+        :type tenant: str
+        :param run_external_id: The workflow run external id (required)
+        :type run_external_id: str
         :param offset: The number to skip
         :type offset: int
         :param limit: The number to limit by
@@ -2473,7 +2499,8 @@ class WorkflowRunsApi:
         """  # noqa: E501
 
         _param = self._v1_workflow_run_get_trace_serialize(
-            v1_workflow_run=v1_workflow_run,
+            tenant=tenant,
+            run_external_id=run_external_id,
             offset=offset,
             limit=limit,
             _request_auth=_request_auth,
@@ -2495,7 +2522,8 @@ class WorkflowRunsApi:
 
     def _v1_workflow_run_get_trace_serialize(
         self,
-        v1_workflow_run,
+        tenant,
+        run_external_id,
         offset,
         limit,
         _request_auth,
@@ -2518,9 +2546,13 @@ class WorkflowRunsApi:
         _body_params: Optional[bytes] = None
 
         # process the path parameters
-        if v1_workflow_run is not None:
-            _path_params["v1-workflow-run"] = v1_workflow_run
+        if tenant is not None:
+            _path_params["tenant"] = tenant
         # process the query parameters
+        if run_external_id is not None:
+
+            _query_params.append(("runExternalId", run_external_id))
+
         if offset is not None:
 
             _query_params.append(("offset", offset))
@@ -2544,7 +2576,7 @@ class WorkflowRunsApi:
 
         return self.api_client.param_serialize(
             method="GET",
-            resource_path="/api/v1/stable/workflow-runs/{v1-workflow-run}/trace",
+            resource_path="/api/v1/stable/tenants/{tenant}/traces",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
