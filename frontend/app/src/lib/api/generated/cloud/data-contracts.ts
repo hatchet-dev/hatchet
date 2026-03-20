@@ -47,6 +47,21 @@ export enum CouponFrequency {
   Recurring = "recurring",
 }
 
+export enum SubscriptionPeriod {
+  Monthly = "monthly",
+  Yearly = "yearly",
+}
+
+export enum SubscriptionPlanCode {
+  Free = "free",
+  Starter = "starter",
+  Growth = "growth",
+  Payg = "payg",
+  Team = "team",
+  Business = "business",
+  Dedicated = "dedicated",
+}
+
 export enum ManagedWorkerRegion {
   Ams = "ams",
   Arn = "arn",
@@ -379,14 +394,16 @@ export interface SubscriptionPlan {
   /** The price of the plan. */
   amountCents: number;
   /** The period of the plan. */
-  period?: string;
+  period?: SubscriptionPeriod;
+  /** Whether this is a legacy plan no longer offered to new customers. */
+  legacy?: boolean;
 }
 
 export interface UpdateTenantSubscriptionRequest {
   /** The code of the plan. */
-  plan: string;
+  plan: SubscriptionPlanCode;
   /** The period of the plan. */
-  period?: string;
+  period?: SubscriptionPeriod;
 }
 
 export type UpdateTenantSubscriptionResponse =
@@ -403,9 +420,9 @@ export interface CheckoutURLResponse {
 
 export interface TenantSubscription {
   /** The plan code associated with the tenant subscription. */
-  plan: string;
+  plan: SubscriptionPlanCode;
   /** The period associated with the tenant subscription. */
-  period?: string;
+  period?: SubscriptionPeriod;
   /**
    * The start date of the tenant subscription.
    * @format date-time
@@ -699,6 +716,10 @@ export interface OrganizationTenant {
    * @format uuid
    */
   id: string;
+  /** Name of the tenant */
+  name?: string;
+  /** Slug of the tenant */
+  slug?: string;
   /** Status of the tenant */
   status: TenantStatusType;
   /**

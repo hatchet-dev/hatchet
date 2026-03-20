@@ -11,12 +11,20 @@ import {
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
   TenantSubscription,
   SubscriptionPlan,
+  SubscriptionPlanCode,
+  SubscriptionPeriod,
   Coupon,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
@@ -110,8 +118,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
       const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
-        plan,
-        period,
+        plan: plan as SubscriptionPlanCode,
+        period: period as SubscriptionPeriod,
       });
       return response.data;
     },
@@ -159,7 +167,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     return plans
       ?.filter(
         (v) =>
-          v.planCode === 'free' ||
+          !v.legacy &&
+          v.planCode !== 'free' &&
           (showAnnual
             ? v.period?.includes('yearly')
             : v.period?.includes('monthly')),
@@ -173,15 +182,16 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         return true;
       }
 
-      const activePlan = sortedPlans?.find(
-        (p) => p.planCode === activePlanCode,
-      );
+      const activePlan = plans?.find((p) => p.planCode === activePlanCode);
 
       const activeAmount = activePlan?.amountCents || 0;
 
-      return plan.amountCents > activeAmount;
+      return (
+        plan.amountCents > activeAmount ||
+        (plan.amountCents === 0 && activeAmount === 0)
+      );
     },
-    [active, activePlanCode, sortedPlans],
+    [active, activePlanCode, plans],
   );
 
   const formattedEndDate = useMemo(() => {
@@ -200,8 +210,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     if (!active?.plan) {
       return null;
     }
-    return sortedPlans?.find((p) => p.planCode === activePlanCode);
-  }, [active, activePlanCode, sortedPlans]);
+    return plans?.find((p) => p.planCode === activePlanCode);
+  }, [active, activePlanCode, plans]);
 
   const enterpriseContactUrl = useMemo(() => {
     const baseUrl = 'https://cal.com/team/hatchet/website-demo';
@@ -317,7 +327,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   <CardHeader className="pb-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <CardTitle className="text-2xl mb-1">
+                        {currentPlanDetails.legacy && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="queued">Legacy</Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="right">
+                                You're on the legacy plan which is no longer
+                                offered. Please, contact us if you have any
+                                questions.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        <CardTitle className="text-2xl mb-1 flex items-center gap-2">
                           {currentPlanDetails.name}
                         </CardTitle>
                         <div className="text-3xl font-bold mb-2">
