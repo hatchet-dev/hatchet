@@ -54,8 +54,7 @@ func NewSlackSender(s3Bucket string) *SlackSender {
 
 func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl string, avgDuration time.Duration, avgScheduling time.Duration) error {
 	text := fmt.Sprintf(
-		"*(%s)* \n:star:Load test results:star:\nAverage task duration: %s\nAverage task scheduling: %s",
-		time.Now().Format("2006-01-02-15:04:05"),
+		":star:Load test results:star:\nAverage task duration: %s\nAverage task scheduling: %s",
 		avgDuration.String(),
 		avgScheduling.String(),
 	)
@@ -90,9 +89,9 @@ func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl stri
 	return err
 }
 
-func (s *SlackSender) UploadS3(imageBytes []byte) (*string, error) {
-	key := fmt.Sprintf("%s-%s", "loadtest-plot", time.Now().Format("20060102150405"))
-	_, err := s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
+func (s *SlackSender) UploadS3(imageBytes []byte, plotKey string) (*string, error) {
+	key := fmt.Sprintf("%s-%s-%s", "loadtest-plot", plotKey, time.Now().Format("20060102150405"))
+	_, err := s.s3Client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(s.s3Bucket),
 		Key:    &key,
 		Body:   bytes.NewReader(imageBytes),
@@ -117,11 +116,11 @@ func (s *SlackSender) UploadS3(imageBytes []byte) (*string, error) {
 }
 
 func (s *SlackSender) Send(durationBytes []byte, schedulingBytes []byte, avgDuration time.Duration, avgScheduling time.Duration) error {
-	uploadedDurationFileUrl, err := s.UploadS3(durationBytes)
+	uploadedDurationFileUrl, err := s.UploadS3(durationBytes, "duration")
 	if err != nil {
 		return err
 	}
-	uploadedSchedulingFileUrl, err := s.UploadS3(schedulingBytes)
+	uploadedSchedulingFileUrl, err := s.UploadS3(schedulingBytes, "scheduling")
 	if err != nil {
 		return err
 	}
