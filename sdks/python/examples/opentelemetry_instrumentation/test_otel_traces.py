@@ -70,11 +70,6 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     assert child_attrs.get("test.marker") == "hello"
     assert child_attrs.get("input.message") == message
 
-    print("\n\n")
-    for s in spans:
-        print(s.model_dump_json(indent=2))
-        print()
-
     run_workflow_spans = [s for s in spans if s.span_name == "hatchet.run_workflow"]
 
     assert len(run_workflow_spans) == 1
