@@ -414,20 +414,20 @@ function AuthenticatedInner() {
             }
           }}
         >
-          <DialogContent className="max-w-md text-center">
-            <div className="flex flex-col items-center gap-5">
-              <HatchetLogo variant="mark" className="h-8 w-8" />
+          <DialogContent className="max-w-lg text-center">
+            <div className="flex flex-col items-center gap-6">
+              <HatchetLogo variant="mark" className="h-10 w-10" />
               <div className="space-y-2">
-                <DialogTitle className="text-center text-xl">
+                <DialogTitle className="text-center text-2xl">
                   Welcome to Hatchet
                 </DialogTitle>
-                <DialogDescription className="text-center text-sm text-muted-foreground">
+                <DialogDescription className="text-center text-base text-muted-foreground">
                   You&apos;re on the free plan with generous limits to get
                   started. We&apos;ll let you know when you&apos;re getting
                   close.
                 </DialogDescription>
               </div>
-              <ul className="w-full text-left text-sm space-y-2 rounded-md border border-border/50 bg-muted/30 p-4">
+              <ul className="w-full text-left text-base space-y-2.5 rounded-md border border-border/50 bg-muted/30 p-5">
                 {welcomePlansQuery.isLoading ? (
                   <li className="flex justify-center py-2">
                     <Spinner />
@@ -443,7 +443,7 @@ function AuthenticatedInner() {
                   ))
                 )}
               </ul>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 You can upgrade anytime from Billing &amp; Limits in your tenant
                 settings.
               </p>
@@ -471,7 +471,7 @@ function AuthenticatedInner() {
                     }
                   }}
                 >
-                  Explore Plans
+                  Upgrade to Pay as you Go to remove limits
                 </Button>
               </div>
             </div>
