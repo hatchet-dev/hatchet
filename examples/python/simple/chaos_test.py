@@ -12,7 +12,7 @@ from pathlib import Path
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 FAILURE_LOG = Path(__file__).parent / "failures.log"
 
@@ -72,7 +72,7 @@ def start_worker(suffix: str = "") -> tuple[Any, threading.Thread]:
         workflows=[simple, simple_durable],
         slots=10,
     )
-    worker.handle_kill = False  # Prevent sys.exit on shutdown
+    worker._handle_kill = False  # Prevent sys.exit on shutdown
 
     # Restore default signal handlers so Ctrl+C raises KeyboardInterrupt
     signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -128,12 +128,12 @@ def main() -> None:
                 time.sleep(1)
                 print(f"\n--- Triggering tasks (tick {tick + 1}/5) ---")
                 try:
-                    ref = simple.run_no_wait()
+                    ref = simple.run(wait_for_result=False)
                     print(f"Task triggered: {ref}")
                 except Exception as e:
                     log_failure(f"task trigger (tick {tick + 1}/5)", e)
                 try:
-                    ref = simple_durable.run_no_wait()
+                    ref = simple_durable.run(wait_for_result=False)
                     print(f"Durable task triggered: {ref}")
                 except Exception as e:
                     log_failure(f"durable task trigger (tick {tick + 1}/5)", e)

@@ -8,7 +8,7 @@ try:
 except ImportError:
     from mock_scraper import mock_scrape
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 scrape_wf = hatchet.workflow(name="ScrapeUrl")
 process_wf = hatchet.workflow(name="ProcessContent")
@@ -20,6 +20,8 @@ async def scrape_url(input: dict, ctx: Context) -> dict:
     return mock_scrape(input["url"])
 
 
+
+
 # > Step 02 Process Content
 @process_wf.task()
 async def process_content(input: dict, ctx: Context) -> dict:
@@ -28,6 +30,8 @@ async def process_content(input: dict, ctx: Context) -> dict:
     summary = content[:200].strip()
     word_count = len(content.split())
     return {"summary": summary, "word_count": word_count, "links": links}
+
+
 
 
 # > Step 03 Cron Workflow
@@ -50,6 +54,8 @@ async def scheduled_scrape(input: EmptyModel, ctx: Context) -> dict:
     return {"refreshed": len(results), "results": results}
 
 
+
+
 # > Step 04 Rate Limited Scrape
 SCRAPE_RATE_LIMIT_KEY = "scrape-rate-limit"
 
@@ -63,6 +69,8 @@ rate_limited_wf = hatchet.workflow(name="RateLimitedScrape")
 )
 async def rate_limited_scrape(input: dict, ctx: Context) -> dict:
     return mock_scrape(input["url"])
+
+
 
 
 def main() -> None:

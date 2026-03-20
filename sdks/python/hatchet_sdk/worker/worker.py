@@ -30,6 +30,7 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
+from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
 from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -74,59 +75,259 @@ class Worker:
         name: str,
         config: ClientConfig,
         slot_config: dict[str, int],
-        labels: dict[str, str | int] | None = None,
+        labels: dict[str, str | int] | list[WorkerLabel] | None = None,
         debug: bool = False,
-        owned_loop: bool = True,
         handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
     ) -> None:
-        self.config = config
-        self.name = self.config.apply_namespace(name)
-        self.slot_config = slot_config
+        self._config = config
+        self._name = self._config.apply_namespace(name)
+        self._slot_config = slot_config
         self._slots = slot_config.get("default", 0)
         self._durable_slots = slot_config.get("durable", 0)
-        self.debug = debug
-        self.labels = labels or {}
-        self.handle_kill = handle_kill
-        self.owned_loop = owned_loop
+        self._debug = debug
 
-        self.action_registry: dict[str, Task[Any, Any]] = {}
+        _warn_if_dict_worker_labels(labels, stacklevel=3)
+        if isinstance(labels, dict):
+            self._labels: list[WorkerLabel] = [
+                WorkerLabel(key=k, value=v) for k, v in labels.items()
+            ]
+        else:
+            self._labels = labels or []
 
-        self.killing: bool = False
+        self._handle_kill = handle_kill
+
+        self._action_registry: dict[str, Task[Any, Any]] = {}
+
+        self._killing: bool = False
         self._status: WorkerStatus = WorkerStatus.INITIALIZED
 
-        self.action_listener_process: BaseProcess | None = None
-        self.durable_action_listener_process: BaseProcess | None = None
+        self._action_listener_process: BaseProcess | None = None
+        self._durable_action_listener_process: BaseProcess | None = None
 
-        self.action_listener_health_check: asyncio.Task[None]
+        self._action_listener_health_check: asyncio.Task[None]
 
-        self.action_runner: WorkerActionRunLoopManager | None = None
+        self._action_runner: WorkerActionRunLoopManager | None = None
         self._legacy_durable_action_runner: WorkerActionRunLoopManager | None = None
         self._engine_version: str | None = None
 
-        self.ctx = multiprocessing.get_context("spawn")
+        self._ctx = multiprocessing.get_context("spawn")
 
-        self.action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
-        self.event_queue: Queue[ActionEvent] = self.ctx.Queue()
-        self.durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
-        self.durable_event_queue: Queue[ActionEvent] | None = None
+        self._action_queue: Queue[Action | STOP_LOOP_TYPE] = self._ctx.Queue()
+        self._event_queue: Queue[ActionEvent] = self._ctx.Queue()
+        self._durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
+        self._durable_event_queue: Queue[ActionEvent] | None = None
 
-        self.loop: asyncio.AbstractEventLoop | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
-        self.client = Client(config=self.config, debug=self.debug)
+        self._client = Client(config=self._config, debug=self._debug)
 
         self._setup_signal_handlers()
 
-        self.lifespan = lifespan
-        self.lifespan_stack: AsyncExitStack | None = None
+        self._lifespan = lifespan
+        self._lifespan_stack: AsyncExitStack | None = None
         self._lifespan_cleanup_complete: asyncio.Event | None = None
+        self._workflows = workflows or []
 
-        self.register_workflows(workflows or [])
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def config(self) -> ClientConfig:
+        warn(
+            "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._config
+
+    @property
+    def slot_config(self) -> dict[str, int]:
+        warn(
+            "The slot_config property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._slot_config
+
+    @property
+    def debug(self) -> bool:
+        warn(
+            "The debug property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._debug
+
+    @property
+    def labels(self) -> dict[str, str | int]:
+        warn(
+            "The labels property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return {
+            label.key: label.value for label in self._labels if label.key is not None
+        }
+
+    @property
+    def handle_kill(self) -> bool:
+        warn(
+            "The handle_kill property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._handle_kill
+
+    @property
+    def owned_loop(self) -> bool:
+        warn(
+            "The owned_loop property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return True
+
+    @property
+    def action_registry(self) -> "dict[str, Task[Any, Any]]":
+        warn(
+            "The action_registry property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._action_registry
+
+    @property
+    def killing(self) -> bool:
+        warn(
+            "The killing property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._killing
+
+    @property
+    def action_listener_process(self) -> "BaseProcess | None":
+        warn(
+            "The action_listener_process property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._action_listener_process
+
+    @property
+    def durable_action_listener_process(self) -> "BaseProcess | None":
+        warn(
+            "The durable_action_listener_process property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._durable_action_listener_process
+
+    @property
+    def action_listener_health_check(self) -> "asyncio.Task[None]":
+        warn(
+            "The action_listener_health_check property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._action_listener_health_check
+
+    @property
+    def action_runner(self) -> "WorkerActionRunLoopManager | None":
+        warn(
+            "The action_runner property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._action_runner
+
+    @property
+    def ctx(self) -> "multiprocessing.context.SpawnContext":
+        warn(
+            "The ctx property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._ctx
+
+    @property
+    def action_queue(self) -> "Queue[Action | STOP_LOOP_TYPE]":
+        warn(
+            "The action_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._action_queue
+
+    @property
+    def event_queue(self) -> "Queue[ActionEvent]":
+        warn(
+            "The event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._event_queue
+
+    @property
+    def durable_action_queue(self) -> "Queue[Action | STOP_LOOP_TYPE] | None":
+        warn(
+            "The durable_action_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._durable_action_queue
+
+    @property
+    def durable_event_queue(self) -> "Queue[ActionEvent] | None":
+        warn(
+            "The durable_event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._durable_event_queue
+
+    @property
+    def loop(self) -> "asyncio.AbstractEventLoop | None":
+        warn(
+            "The loop property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._loop
+
+    @property
+    def client(self) -> Client:
+        warn(
+            "The client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._client
+
+    @property
+    def lifespan(self) -> "LifespanFn | None":
+        warn(
+            "The lifespan property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._lifespan
+
+    @property
+    def lifespan_stack(self) -> "AsyncExitStack | None":
+        warn(
+            "The lifespan_stack property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._lifespan_stack
 
     def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
-            self.client.admin.put_workflow(opts)
+            self._client.admin.put_workflow(opts)
         except Exception:
             logger.exception(f"failed to register workflow: {opts.name}")
             sys.exit(1)
@@ -137,7 +338,7 @@ class Worker:
             raise ValueError(msg)
 
         try:
-            self.client.admin.put_workflow(workflow.to_proto())
+            self._client.admin.put_workflow(workflow.to_proto())
         except Exception:
             logger.exception(f"failed to register workflow: {workflow.name}")
             sys.exit(1)
@@ -145,7 +346,7 @@ class Worker:
         for step in workflow.tasks:
             action_name = workflow._create_action_name(step)
 
-            self.action_registry[action_name] = step
+            self._action_registry[action_name] = step
 
     def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
         for workflow in workflows:
@@ -184,33 +385,43 @@ class Worker:
             pass
 
         logger.debug("creating new event loop")
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
 
-    def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
-        if not self.action_registry:
+    def start(self, options: WorkerStartOptions | None = None) -> None:
+        self.register_workflows(self._workflows)
+
+        if options is not None:
+            warn(
+                "Passing WorkerStartOptions is deprecated and will be removed in version 2.0.0.",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+
+        options = options or WorkerStartOptions()
+        if not self._action_registry:
             raise ValueError(
                 "no actions registered, register workflows before starting worker"
             )
 
         if options.loop is not None:
             warn(
-                "Passing a custom event loop is deprecated and will be removed in the future. This option no longer has any effect",
+                "Passing a custom event loop is deprecated and will be removed in version 2.0.0. This option no longer has any effect",
                 DeprecationWarning,
                 stacklevel=1,
             )
 
         self._setup_loop()
 
-        if not self.loop:
+        if not self._loop:
             raise RuntimeError("event loop not set, cannot start worker")
 
-        asyncio.run_coroutine_threadsafe(self._aio_start(), self.loop)
+        asyncio.run_coroutine_threadsafe(self._aio_start(), self._loop)
 
         # start the loop and wait until its closed
-        self.loop.run_forever()
+        self._loop.run_forever()
 
-        if self.handle_kill:
+        if self._handle_kill:
             sys.exit(0)
 
     def _emit_legacy_slot_deprecation(self) -> None:
@@ -275,7 +486,7 @@ class Worker:
 
         self._status = WorkerStatus.STARTING
 
-        if len(self.action_registry.keys()) == 0:
+        if len(self._action_registry.keys()) == 0:
             raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
@@ -290,35 +501,35 @@ class Worker:
         self._check_eviction_support(engine_version)
 
         lifespan_context = None
-        if self.lifespan:
+        if self._lifespan:
             try:
                 lifespan_context = await self._setup_lifespan()
             except LifespanSetupError as e:
                 logger.exception("lifespan setup failed")
-                if self.loop:
-                    self.loop.stop()
+                if self._loop:
+                    self._loop.stop()
                 raise e
 
         # Healthcheck server is started inside the spawned action-listener process
         # (non-durable preferred) to avoid being affected by the main worker loop.
-        healthcheck_port = self.config.healthcheck.port
-        enable_health_server = self.config.healthcheck.enabled
+        healthcheck_port = self._config.healthcheck.port
+        enable_health_server = self._config.healthcheck.enabled
 
-        self.action_listener_process = self._start_action_listener(
+        self._action_listener_process = self._start_action_listener(
             enable_health_server=enable_health_server,
             healthcheck_port=healthcheck_port,
         )
-        self.action_runner = self._run_action_runner(lifespan_context=lifespan_context)
+        self._action_runner = self._run_action_runner(lifespan_context=lifespan_context)
 
-        if self.loop:
+        if self._loop:
             self._lifespan_cleanup_complete = asyncio.Event()
-            self.action_listener_health_check = self.loop.create_task(
+            self._action_listener_health_check = self._loop.create_task(
                 self._check_listener_health()
             )
 
-            await self.action_listener_health_check
+            await self._action_listener_health_check
 
-            await self.action_runner.wait_for_tasks()
+            await self._action_runner.wait_for_tasks()
 
             try:
                 await self._cleanup_lifespan()
@@ -331,19 +542,19 @@ class Worker:
         self, lifespan_context: Any | None
     ) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
-        if self.loop:
+        if self._loop:
             return WorkerActionRunLoopManager(
                 self.name,
-                self.action_registry,
-                sum(self.slot_config.values()),
+                self._action_registry,
+                sum(self._slot_config.values()),
                 self.slot_config.get(SlotType.DURABLE.value, 0),
-                self.config,
-                self.action_queue,
-                self.event_queue,
-                self.loop,
-                self.handle_kill,
-                self.client.debug,
-                self.labels,
+                self._config,
+                self._action_queue,
+                self._event_queue,
+                self._loop,
+                self._handle_kill,
+                self._client.debug,
+                self._labels,
                 lifespan_context,
                 engine_version=self._engine_version,
             )
@@ -351,15 +562,15 @@ class Worker:
         raise RuntimeError("event loop not set, cannot start action runner")
 
     async def _setup_lifespan(self) -> Any:
-        if self.lifespan is None:
+        if self._lifespan is None:
             return None
 
-        self.lifespan_stack = AsyncExitStack()
+        self._lifespan_stack = AsyncExitStack()
 
         try:
-            lifespan_gen = self.lifespan()
+            lifespan_gen = self._lifespan()
             context = await anext(lifespan_gen)
-            await self.lifespan_stack.enter_async_context(
+            await self._lifespan_stack.enter_async_context(
                 _create_async_context_manager(lifespan_gen)
             )
             return context
@@ -370,9 +581,9 @@ class Worker:
 
     async def _cleanup_lifespan(self) -> None:
         try:
-            if self.lifespan_stack is not None:
-                stack = self.lifespan_stack
-                self.lifespan_stack = None
+            if self._lifespan_stack is not None:
+                stack = self._lifespan_stack
+                self._lifespan_stack = None
                 await stack.aclose()
         except Exception as e:
             logger.exception("error during lifespan cleanup")
@@ -385,18 +596,18 @@ class Worker:
         healthcheck_port: int = 8001,
     ) -> multiprocessing.context.SpawnProcess:
         try:
-            process = self.ctx.Process(
+            process = self._ctx.Process(
                 target=worker_action_listener_process,
                 args=(
                     self.name,
-                    list(self.action_registry.keys()),
-                    self.slot_config,
-                    self.config,
-                    self.action_queue,
-                    self.event_queue,
-                    self.handle_kill,
-                    self.client.debug,
-                    self.labels,
+                    list(self._action_registry.keys()),
+                    self._slot_config,
+                    self._config,
+                    self._action_queue,
+                    self._event_queue,
+                    self._handle_kill,
+                    self._client.debug,
+                    self._labels,
                 ),
             )
             process.start()
@@ -410,23 +621,24 @@ class Worker:
     async def _check_listener_health(self) -> None:
         logger.debug("starting action listener health check...")
         try:
-            while not self.killing:
+            while not self._killing:
                 if (
-                    not self.action_listener_process
-                    or not self.action_listener_process.is_alive()
+                    not self._action_listener_process
+                    or not self._action_listener_process.is_alive()
                 ):
                     logger.debug("child action listener process killed...")
                     self._status = WorkerStatus.UNHEALTHY
-                    if self.loop:
-                        self.loop.create_task(self.exit_gracefully())
+                    if self._loop:
+                        self._loop.create_task(self.exit_gracefully())
                     break
 
                 if (
-                    self.config.terminate_worker_after_num_tasks
-                    and task_count.value >= self.config.terminate_worker_after_num_tasks
+                    self._config.terminate_worker_after_num_tasks
+                    and task_count.value
+                    >= self._config.terminate_worker_after_num_tasks
                 ):
-                    if self.loop:
-                        self.loop.create_task(self.exit_gracefully())
+                    if self._loop:
+                        self._loop.create_task(self.exit_gracefully())
                     break
 
                 self._status = WorkerStatus.HEALTHY
@@ -439,7 +651,7 @@ class Worker:
             signal.SIGTERM,
             (
                 self._handle_force_quit_signal
-                if self.config.force_shutdown_on_shutdown_signal
+                if self._config.force_shutdown_on_shutdown_signal
                 else self._handle_exit_signal
             ),
         )
@@ -447,7 +659,7 @@ class Worker:
             signal.SIGINT,
             (
                 self._handle_force_quit_signal
-                if self.config.force_shutdown_on_shutdown_signal
+                if self._config.force_shutdown_on_shutdown_signal
                 else self._handle_exit_signal
             ),
         )
@@ -456,21 +668,21 @@ class Worker:
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
-        if self.loop:
-            self.loop.create_task(self.exit_gracefully())
+        if self._loop:
+            self._loop.create_task(self.exit_gracefully())
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
         signal_received = signal.Signals(signum).name
         logger.info(f"received {signal_received}...")
-        if self.loop:
-            self.loop.create_task(self._exit_forcefully())
+        if self._loop:
+            self._loop.create_task(self._exit_forcefully())
 
     def _close_queues(self) -> None:
         queues: list[Queue[Any] | None] = [
-            self.action_queue,
-            self.event_queue,
-            self.durable_action_queue,
-            self.durable_event_queue,
+            self._action_queue,
+            self._event_queue,
+            self._durable_action_queue,
+            self._durable_event_queue,
         ]
 
         for queue in queues:
@@ -484,8 +696,8 @@ class Worker:
 
     def _terminate_processes(self) -> None:
         for process in [
-            self.action_listener_process,
-            self.durable_action_listener_process,
+            self._action_listener_process,
+            self._durable_action_listener_process,
         ]:
             if process is not None and process.pid is not None:
                 try:
@@ -502,32 +714,32 @@ class Worker:
 
     async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
-        self.killing = True
+        self._killing = True
 
-        if self.action_runner is not None:
-            self.action_runner.cleanup()
+        if self._action_runner is not None:
+            self._action_runner.cleanup()
 
         # Also clean up the durable action runner (legacy mode)
         if self._legacy_durable_action_runner is not None:
             self._legacy_durable_action_runner.cleanup()
 
-        await self.action_listener_health_check
+        await self._action_listener_health_check
 
         self._close_queues()
 
     async def exit_gracefully(self) -> None:
         logger.debug(f"gracefully stopping worker: {self.name}")
 
-        if self.killing:
+        if self._killing:
             return await self._exit_forcefully()
 
-        self.killing = True
+        self._killing = True
 
-        if self.action_runner:
+        if self._action_runner:
             # TODO-DURABLE: we nee to ensure that the worker is paused before calling this in all SDKs
-            await self.action_runner.evict_all_waiting_durable_runs()
-            await self.action_runner.wait_for_tasks()
-            await self.action_runner.exit_gracefully()
+            await self._action_runner.evict_all_waiting_durable_runs()
+            await self._action_runner.wait_for_tasks()
+            await self._action_runner.exit_gracefully()
 
         # Also clean up the durable action runner (legacy mode)
         if self._legacy_durable_action_runner:
@@ -535,14 +747,14 @@ class Worker:
             await self._legacy_durable_action_runner.wait_for_tasks()
             await self._legacy_durable_action_runner.exit_gracefully()
 
-        if self.action_listener_process and self.action_listener_process.is_alive():
-            self.action_listener_process.kill()
+        if self._action_listener_process and self._action_listener_process.is_alive():
+            self._action_listener_process.kill()
 
         if (
-            self.durable_action_listener_process
-            and self.durable_action_listener_process.is_alive()
+            self._durable_action_listener_process
+            and self._durable_action_listener_process.is_alive()
         ):
-            self.durable_action_listener_process.kill()
+            self._durable_action_listener_process.kill()
 
         try:
             await self._cleanup_lifespan()
@@ -553,13 +765,13 @@ class Worker:
 
         if self._lifespan_cleanup_complete is not None:
             await self._lifespan_cleanup_complete.wait()
-        if self.loop and self.owned_loop:
-            self.loop.stop()
+        if self._loop:
+            self._loop.stop()
 
         logger.info("👋")
 
     async def _exit_forcefully(self) -> None:
-        self.killing = True
+        self._killing = True
 
         logger.debug(f"forcefully stopping worker: {self.name}")
 

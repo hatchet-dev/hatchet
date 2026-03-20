@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 02 Schedule One Time

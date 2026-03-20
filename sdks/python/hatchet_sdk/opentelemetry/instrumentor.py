@@ -33,26 +33,24 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
 import inspect
 from datetime import datetime
 
-from google.protobuf import timestamp_pb2
-
 import hatchet_sdk
 from hatchet_sdk import ClientConfig
 from hatchet_sdk.clients.admin import (
     AdminClient,
     ScheduleTriggerWorkflowOptions,
-    TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.events import (
     BulkPushEventOptions,
     BulkPushEventWithMetadata,
+    Event,
     EventClient,
     PushEventOptions,
 )
 from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
-from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -345,11 +343,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_cancel_action(
         self,
-        wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
+        wrapped: Callable[[Action], Coroutine[None, None, None]],
         instance: Runner,
         args: tuple[Action],
         kwargs: Any,
-    ) -> Exception | None:
+    ) -> None:
         action = args[0]
 
         with self._tracer.start_as_current_span(
@@ -364,14 +362,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_push_event(
         self,
-        wrapped: Callable[[str, dict[str, Any], PushEventOptions], Event],
+        wrapped: Callable[[str, JSONSerializableMapping, PushEventOptions], Event],
         instance: EventClient,
         args: tuple[
             str,
-            dict[str, Any],
+            JSONSerializableMapping,
             PushEventOptions,
         ],
-        kwargs: dict[str, str | dict[str, Any] | PushEventOptions],
+        kwargs: dict[str, str | JSONSerializableMapping | PushEventOptions],
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
@@ -418,19 +416,21 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_bulk_push_event(
         self,
         wrapped: Callable[
-            [list[BulkPushEventWithMetadata], BulkPushEventOptions], list[Event]
+            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None], list[Event]
         ],
         instance: EventClient,
         args: tuple[
             list[BulkPushEventWithMetadata],
-            BulkPushEventOptions,
+            BulkPushEventOptions | None,
         ],
-        kwargs: dict[str, list[BulkPushEventWithMetadata] | BulkPushEventOptions],
+        kwargs: dict[
+            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
+        ],
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
-        options = cast(BulkPushEventOptions, params[1])
+        options = cast(BulkPushEventOptions | None, params[1])
 
         num_bulk_events = len(bulk_events)
         unique_event_keys = {event.key for event in bulk_events}
@@ -574,20 +574,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(workflow_name, payload, options)
 
-    def _ts_to_iso(self, ts: datetime | timestamp_pb2.Timestamp) -> str:
-        if isinstance(ts, datetime):
-            return ts.isoformat()
-        if isinstance(ts, timestamp_pb2.Timestamp):
-            return ts.ToJsonString()
-        raise TypeError(f"Unsupported type for timestamp conversion: {type(ts)}")
-
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_schedule_workflow(
         self,
         wrapped: Callable[
             [
                 str,
-                list[datetime | timestamp_pb2.Timestamp],
+                list[datetime],
                 str | None,
                 ScheduleTriggerWorkflowOptions,
             ],
@@ -596,22 +589,19 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         instance: AdminClient,
         args: tuple[
             str,
-            list[datetime | timestamp_pb2.Timestamp],
+            list[datetime],
             str | None,
             ScheduleTriggerWorkflowOptions,
         ],
         kwargs: dict[
             str,
-            str
-            | None
-            | list[datetime | timestamp_pb2.Timestamp]
-            | ScheduleTriggerWorkflowOptions,
+            str | None | list[datetime] | ScheduleTriggerWorkflowOptions,
         ],
     ) -> v0_workflow_protos.WorkflowVersion:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
-        schedules = cast(list[datetime | timestamp_pb2.Timestamp], params[1])
+        schedules = cast(list[datetime], params[1])
         input = cast(str | None, params[2])
         options = cast(
             ScheduleTriggerWorkflowOptions,
@@ -621,7 +611,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.RUN_AT_TIMESTAMPS: json.dumps(
-                [self._ts_to_iso(ts) for ts in schedules]
+                [ts.isoformat() for ts in schedules]
             ),
             OTelAttribute.ACTION_PAYLOAD: input,
             OTelAttribute.PARENT_ID: options.parent_id,

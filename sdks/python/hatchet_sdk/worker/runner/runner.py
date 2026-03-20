@@ -59,6 +59,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TaskPayloadForInternalUse, TWorkflowInput
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.action_listener_process import ActionEvent
@@ -91,7 +92,7 @@ class Runner:
         durable_slots: int,
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
-        labels: dict[str, str | int] | None,
+        labels: list[WorkerLabel],
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
         engine_version: str | None = None,
@@ -158,8 +159,9 @@ class Runner:
         self.durable_eviction_manager: DurableEvictionManager | None = None
 
         self.worker_context = WorkerContext(
-            labels=labels or {}, client=Client(config=config).dispatcher
+            labels=labels, client=Client(config=config).dispatcher
         )
+        self.worker_labels = labels
 
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
@@ -282,7 +284,7 @@ class Runner:
                 return
 
             try:
-                output = self.serialize_output(t.validators.step_output, output)
+                output = self.serialize_output(t._validators.step_output, output)
 
                 self.event_queue.put(
                     ActionEvent(
@@ -344,7 +346,7 @@ class Runner:
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
-                if task.is_async_function:
+                if task._is_async_function:
                     return await task.aio_call(ctx, dependencies)
 
                 pfunc = functools.partial(
@@ -486,6 +488,7 @@ class Runner:
         task: Task[Any, Any],
         is_durable: bool = True,
     ) -> Context | DurableContext:
+
         ctx = (
             DurableContext(
                 action=action,
@@ -502,6 +505,7 @@ class Runner:
                 workflow_name=task.workflow.name,
                 durable_eviction_manager=self.durable_eviction_manager,
                 engine_version=self.engine_version,
+                worker_labels=self.worker_labels,
             )
             if is_durable
             else Context(
@@ -517,6 +521,7 @@ class Runner:
                 max_attempts=task.retries + 1,
                 task_name=task.name,
                 workflow_name=task.workflow.name,
+                worker_labels=self.worker_labels,
             )
         )
 
@@ -535,7 +540,7 @@ class Runner:
             context = self.create_context(
                 action=action,
                 task=action_func,
-                is_durable=True if action_func.is_durable else False,  # noqa: SIM210
+                is_durable=True if action_func._is_durable else False,  # noqa: SIM210
             )
 
             self.contexts[action.key] = context

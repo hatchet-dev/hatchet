@@ -8,7 +8,7 @@ try:
 except ImportError:
     from embedding_service import get_embedding_service
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Define Workflow
@@ -31,6 +31,8 @@ async def ingest(input: DocInput, ctx: Context) -> dict[str, Any]:
 # > Step 03 Chunk Task
 def _chunk_content(content: str, chunk_size: int = 100) -> list[str]:
     return [content[i : i + chunk_size] for i in range(0, len(content), chunk_size)]
+
+
 
 
 # > Step 04 Embed Task

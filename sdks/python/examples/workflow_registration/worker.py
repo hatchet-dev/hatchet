@@ -2,7 +2,7 @@
 
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 wf_one = hatchet.workflow(name="wf_one")
 wf_two = hatchet.workflow(name="wf_two")

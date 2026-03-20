@@ -1,5 +1,6 @@
 import time
 from typing import TYPE_CHECKING, Any
+from warnings import warn
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
@@ -20,19 +21,58 @@ class WorkflowRunRef:
         workflow_run_event_listener: RunEventListenerClient,
         admin_client: "AdminClient",
     ):
-        self.workflow_run_id = workflow_run_id
-        self.workflow_run_listener = workflow_run_listener
-        self.workflow_run_event_listener = workflow_run_event_listener
-        self.admin_client = admin_client
+        self._workflow_run_id = workflow_run_id
+        self._workflow_run_listener = workflow_run_listener
+        self._workflow_run_event_listener = workflow_run_event_listener
+        self._admin_client = admin_client
 
     def __str__(self) -> str:
         return self.workflow_run_id
 
+    @property
+    def workflow_run_id(self) -> str:
+        return self._workflow_run_id
+
+    @property
+    def workflow_run_listener(self) -> PooledWorkflowRunListener:
+        warn(
+            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_listener
+
+    @property
+    def workflow_run_event_listener(self) -> RunEventListenerClient:
+        warn(
+            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_event_listener
+
+    @property
+    def admin_client(self) -> "AdminClient":
+        warn(
+            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._admin_client
+
+    def _stream(self) -> RunEventListener:
+        warn(
+            "The _stream method is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.runs.subscribe_to_stream` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_event_listener.stream(self.workflow_run_id)
+
     def stream(self) -> RunEventListener:
-        return self.workflow_run_event_listener.stream(self.workflow_run_id)
+        return self._stream()
 
     async def aio_result(self) -> dict[str, Any]:
-        return await self.workflow_run_listener.aio_result(self.workflow_run_id)
+        return await self._workflow_run_listener.aio_result(self.workflow_run_id)
 
     def _safely_get_action_name(self, action_id: str | None) -> str | None:
         if not action_id:
@@ -50,7 +90,7 @@ class WorkflowRunRef:
 
         while True:
             try:
-                details = self.admin_client.get_details(self.workflow_run_id)
+                details = self._admin_client.get_details(self.workflow_run_id)
             except Exception as e:
                 retries += 1
 

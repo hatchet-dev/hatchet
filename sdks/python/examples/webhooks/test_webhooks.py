@@ -37,7 +37,7 @@ TEST_HMAC_SIGNATURE_HEADER = "X-Signature"
 TEST_HMAC_SECRET = "test_hmac_secret"
 
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 @pytest.fixture

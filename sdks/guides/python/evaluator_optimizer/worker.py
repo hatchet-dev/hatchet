@@ -5,7 +5,7 @@ try:
 except ImportError:
     from mock_llm import mock_evaluate, mock_generate
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 generator_wf = hatchet.workflow(name="GenerateDraft")
 evaluator_wf = hatchet.workflow(name="EvaluateDraft")
@@ -17,7 +17,7 @@ async def generate_draft(input: dict, ctx: Context) -> dict:
     prompt = (
         f"Improve this draft.\n\nDraft: {input['previous_draft']}\nFeedback: {input['feedback']}"
         if input.get("feedback")
-        else f"Write a social media post about \"{input['topic']}\" for {input['audience']}. Under 100 words."
+        else f'Write a social media post about "{input["topic"]}" for {input["audience"]}. Under 100 words.'
     )
     return {"draft": mock_generate(prompt)}
 
@@ -25,6 +25,8 @@ async def generate_draft(input: dict, ctx: Context) -> dict:
 @evaluator_wf.task()
 async def evaluate_draft(input: dict, ctx: Context) -> dict:
     return mock_evaluate(input["draft"])
+
+
 # !!
 
 
@@ -56,6 +58,8 @@ async def evaluator_optimizer(input: EmptyModel, ctx: DurableContext) -> dict:
         feedback = evaluation["feedback"]
 
     return {"draft": draft, "iterations": max_iterations, "score": -1}
+
+
 # !!
 
 

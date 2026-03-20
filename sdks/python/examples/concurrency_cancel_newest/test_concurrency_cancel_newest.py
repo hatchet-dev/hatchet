@@ -8,34 +8,32 @@ from examples.concurrency_cancel_newest.worker import (
     WorkflowInput,
     concurrency_cancel_newest_workflow,
 )
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions, V1TaskStatus
+from hatchet_sdk import Hatchet, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
-    to_run = await concurrency_cancel_newest_workflow.aio_run_no_wait(
+    to_run = await concurrency_cancel_newest_workflow.aio_run(
         WorkflowInput(group="A"),
-        options=TriggerWorkflowOptions(
-            additional_metadata={
-                "test_run_id": test_run_id,
-            },
-        ),
+        additional_metadata={
+            "test_run_id": test_run_id,
+        },
+        wait_for_result=False,
     )
     await asyncio.sleep(1)
 
-    to_cancel = await concurrency_cancel_newest_workflow.aio_run_many_no_wait(
+    to_cancel = await concurrency_cancel_newest_workflow.aio_run_many(
         [
             concurrency_cancel_newest_workflow.create_bulk_run_item(
                 input=WorkflowInput(group="A"),
-                options=TriggerWorkflowOptions(
-                    additional_metadata={
-                        "test_run_id": test_run_id,
-                    },
-                ),
+                additional_metadata={
+                    "test_run_id": test_run_id,
+                },
             )
             for _ in range(10)
-        ]
+        ],
+        wait_for_result=False,
     )
 
     await to_run.aio_result()

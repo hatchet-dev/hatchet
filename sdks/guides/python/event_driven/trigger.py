@@ -1,6 +1,6 @@
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 03 Push Event

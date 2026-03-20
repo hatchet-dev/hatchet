@@ -1,7 +1,7 @@
 from hatchet_sdk import Context, Hatchet
 from pydantic import BaseModel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Define Event Task
@@ -29,6 +29,8 @@ async def process_event(input: EventInput, ctx: Context) -> dict:
 def push_order_event():
     """Push an event to trigger the workflow. Use the same key as on_events."""
     hatchet.event.push("order:created", {"message": "Order #1234", "source": "webhook"})
+
+
 # !!
 
 

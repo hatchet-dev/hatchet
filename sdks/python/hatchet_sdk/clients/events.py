@@ -1,10 +1,12 @@
 import asyncio
 import datetime
 import json
+import warnings
+from datetime import timezone
 from typing import cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -29,7 +31,17 @@ from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.trigger import (
+    BulkPushEventOptions as BulkPushEventOptions,
+)
+from hatchet_sdk.types.trigger import (
+    BulkPushEventWithMetadata as BulkPushEventWithMetadata,
+)
+from hatchet_sdk.types.trigger import (
+    PushEventOptions as PushEventOptions,
+)
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
@@ -41,25 +53,6 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
     return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
 
 
-class PushEventOptions(BaseModel):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    namespace: str | None = None
-    priority: int | None = None
-    scope: str | None = None
-
-
-class BulkPushEventOptions(BaseModel):
-    namespace: str | None = None
-
-
-class BulkPushEventWithMetadata(BaseModel):
-    key: str
-    payload: JSONSerializableMapping = Field(default_factory=dict)
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | None = None
-    scope: str | None = None
-
-
 class Event(BaseModel):
     tenant_id: str
     event_id: str
@@ -68,6 +61,7 @@ class Event(BaseModel):
     event_timestamp: timestamp_pb2.Timestamp
     additional_metadata: str | None = None
     scope: str | None = None
+    seen_at: datetime.datetime
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -94,6 +88,7 @@ class Event(BaseModel):
             event_timestamp=proto.event_timestamp,
             additional_metadata=additional_metadata,
             scope=scope,
+            seen_at=proto.event_timestamp.ToDatetime(tzinfo=timezone.utc),
         )
 
 
@@ -118,15 +113,24 @@ class EventClient(BaseRestClient):
         event_key: str,
         payload: JSONSerializableMapping,
         options: PushEventOptions = PushEventOptions(),
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        scope: str | None = None,
     ) -> Event:
         return await asyncio.to_thread(
-            self.push, event_key=event_key, payload=payload, options=options
+            self.push,
+            event_key=event_key,
+            payload=payload,
+            options=options,
+            additional_metadata=additional_metadata,
+            priority=priority,
+            scope=scope,
         )
 
     async def aio_bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions = BulkPushEventOptions(),
+        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
         return await asyncio.to_thread(self.bulk_push, events=events, options=options)
 
@@ -135,8 +139,20 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions = PushEventOptions(),
+        options: PushEventOptions | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        scope: str | None = None,
     ) -> Event:
+        if options is not None:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = PushEventOptions()
+
         namespace = options.namespace or self.namespace
         namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
         push_event = tenacity_retry(
@@ -144,7 +160,7 @@ class EventClient(BaseRestClient):
         )
 
         try:
-            meta_bytes = json.dumps(options.additional_metadata)
+            meta_bytes = json.dumps(additional_metadata or options.additional_metadata)
         except Exception as e:
             raise ValueError("Error encoding meta") from e
 
@@ -158,13 +174,13 @@ class EventClient(BaseRestClient):
             payload=payload_str,
             event_timestamp=proto_timestamp_now(),
             additional_metadata=meta_bytes,
-            priority=options.priority,
-            scope=options.scope,
+            priority=priority or options.priority,
+            scope=scope or options.scope,
         )
 
         response = cast(
             EventProto,
-            push_event(request, metadata=get_metadata(self.token)),
+            push_event(request, metadata=create_authorization_header(self.token)),
         )
         return Event.from_proto(response)
 
@@ -201,8 +217,17 @@ class EventClient(BaseRestClient):
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions = BulkPushEventOptions(),
+        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
+        if options:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = BulkPushEventOptions()
+
         namespace = options.namespace or self.namespace
         bulk_push = tenacity_retry(
             self.events_service_client.BulkPush, self.client_config.tenacity
@@ -216,7 +241,7 @@ class EventClient(BaseRestClient):
 
         response = cast(
             EventsProto,
-            bulk_push(bulk_request, metadata=get_metadata(self.token)),
+            bulk_push(bulk_request, metadata=create_authorization_header(self.token)),
         )
         return [Event.from_proto(event) for event in response.events]
 
@@ -242,7 +267,7 @@ class EventClient(BaseRestClient):
             task_retry_count=task_retry_count,
         )
 
-        put_log(request, metadata=get_metadata(self.token))
+        put_log(request, metadata=create_authorization_header(self.token))
 
     def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         put_stream_event = tenacity_retry(
@@ -263,7 +288,7 @@ class EventClient(BaseRestClient):
         )
 
         try:
-            put_stream_event(request, metadata=get_metadata(self.token))
+            put_stream_event(request, metadata=create_authorization_header(self.token))
         except Exception:
             raise
 

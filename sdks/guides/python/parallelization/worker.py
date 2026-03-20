@@ -7,7 +7,7 @@ try:
 except ImportError:
     from mock_llm import mock_evaluate, mock_generate_content, mock_safety_check
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 content_wf = hatchet.workflow(name="GenerateContent")
 safety_wf = hatchet.workflow(name="SafetyCheck")
@@ -28,6 +28,8 @@ async def safety_check(input: dict, ctx: Context) -> dict:
 @evaluator_wf.task()
 async def evaluate_content(input: dict, ctx: Context) -> dict:
     return mock_evaluate(input["content"])
+
+
 # !!
 
 
@@ -42,6 +44,8 @@ async def sectioning_task(input: EmptyModel, ctx: DurableContext) -> dict:
     if not safety_result["safe"]:
         return {"blocked": True, "reason": safety_result["reason"]}
     return {"blocked": False, "content": content_result["content"]}
+
+
 # !!
 
 
@@ -58,6 +62,8 @@ async def voting_task(input: EmptyModel, ctx: DurableContext) -> dict:
     avg_score = sum(v["score"] for v in votes) / len(votes)
 
     return {"approved": approvals >= 2, "average_score": avg_score, "votes": len(votes)}
+
+
 # !!
 
 

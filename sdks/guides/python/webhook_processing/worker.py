@@ -1,7 +1,7 @@
 from hatchet_sdk import Context, Hatchet
 from pydantic import BaseModel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Define Webhook Task
@@ -27,6 +27,8 @@ def process_webhook(input: WebhookPayload, ctx: Context) -> dict:
 def forward_webhook_to_hatchet(event_key: str, payload: dict) -> None:
     """Call this from your webhook endpoint to trigger the task."""
     hatchet.event.push(event_key, payload)
+
+
 # forward_webhook_to_hatchet("webhook:stripe", {"event_id": "evt_123", "type": "payment", "data": {...}})
 # !!
 
@@ -36,6 +38,8 @@ def _validate_and_process(input: WebhookPayload) -> dict:
     if not input.event_id:
         raise ValueError("event_id required for deduplication")
     return {"processed": input.event_id, "type": input.type}
+
+
 # !!
 
 

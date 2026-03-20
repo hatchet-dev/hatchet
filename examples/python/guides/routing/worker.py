@@ -5,13 +5,15 @@ try:
 except ImportError:
     from mock_classifier import mock_classify, mock_reply
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Classify Task
 @hatchet.durable_task(name="ClassifyMessage")
 async def classify_message(input: EmptyModel, ctx: DurableContext) -> dict:
     return {"category": mock_classify(input["message"])}
+
+
 
 
 # > Step 02 Specialist Tasks
@@ -30,6 +32,8 @@ async def handle_default(input: EmptyModel, ctx: DurableContext) -> dict:
     return {"response": mock_reply(input["message"], "other"), "category": "other"}
 
 
+
+
 # > Step 03 Router Task
 @hatchet.durable_task(name="MessageRouter", execution_timeout="2m")
 async def message_router(input: EmptyModel, ctx: DurableContext) -> dict:
@@ -40,6 +44,8 @@ async def message_router(input: EmptyModel, ctx: DurableContext) -> dict:
     if classification["category"] == "sales":
         return await handle_sales.aio_run({"message": input["message"]})
     return await handle_default.aio_run({"message": input["message"]})
+
+
 
 
 def main() -> None:

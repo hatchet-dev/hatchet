@@ -3,7 +3,7 @@ from typing import Any
 from hatchet_sdk import Context, Hatchet
 from pydantic import BaseModel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Step 01 Define Parent Task
