@@ -56,6 +56,15 @@ describe('AdminClient workflow name normalization', () => {
     );
   });
 
+  it('runWorkflow forwards idempotencyKey', async () => {
+    const admin = createMockAdmin();
+    await admin.runWorkflow('my-workflow', {}, { idempotencyKey: 'idem-1' });
+
+    expect(admin.workflowsGrpc.triggerWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'idem-1' })
+    );
+  });
+
   it('runWorkflows lowercases workflow names in batch', async () => {
     const admin = createMockAdmin();
     await admin.runWorkflows([
@@ -68,6 +77,31 @@ describe('AdminClient workflow name normalization', () => {
         workflows: expect.arrayContaining([
           expect.objectContaining({ name: 'workflowone' }),
           expect.objectContaining({ name: 'workflowtwo' }),
+        ]),
+      })
+    );
+  });
+
+  it('runWorkflows forwards idempotencyKey in batch', async () => {
+    const admin = createMockAdmin();
+    await admin.runWorkflows([
+      {
+        workflowName: 'WorkflowOne',
+        input: {},
+        options: { idempotencyKey: 'idem-batch-1' },
+      },
+      {
+        workflowName: 'WorkflowTwo',
+        input: {},
+        options: { idempotencyKey: 'idem-batch-2' },
+      },
+    ]);
+
+    expect(admin.workflowsGrpc.bulkTriggerWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflows: expect.arrayContaining([
+          expect.objectContaining({ idempotencyKey: 'idem-batch-1' }),
+          expect.objectContaining({ idempotencyKey: 'idem-batch-2' }),
         ]),
       })
     );
