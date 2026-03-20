@@ -279,11 +279,14 @@ func (q *Queries) GetUserSession(ctx context.Context, db DBTX, id uuid.UUID) (*U
 
 const listTenantMemberships = `-- name: ListTenantMemberships :many
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role
+    "TenantMember".id, "TenantMember"."createdAt", "TenantMember"."updatedAt", "TenantMember"."tenantId", "TenantMember"."userId", "TenantMember".role
 FROM
     "TenantMember"
+JOIN
+    "Tenant" ON "TenantMember"."tenantId" = "Tenant"."id"
 WHERE
-    "userId" = $1::uuid
+    "TenantMember"."userId" = $1::uuid
+    AND "Tenant"."deletedAt" IS NULL
 `
 
 func (q *Queries) ListTenantMemberships(ctx context.Context, db DBTX, userid uuid.UUID) ([]*TenantMember, error) {
