@@ -125,19 +125,10 @@ def otel_simple_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"status": "ok"}
 
 
-@hatchet.task(retries=1)
-def otel_retry_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    """Task that fails on first attempt and succeeds on retry."""
-    retry_count = ctx.retry_count
-    if retry_count == 0:
-        raise RuntimeError("intentional failure on first attempt")
-    return {"status": "ok", "retry_count": str(retry_count)}
-
-
 def main() -> None:
     worker = hatchet.worker(
         "otel-pipeline-worker",
-        workflows=[otel_workflow, otel_simple_task, otel_retry_task],
+        workflows=[otel_workflow, otel_simple_task],
     )
     worker.start()
 
