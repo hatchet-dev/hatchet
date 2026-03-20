@@ -1,6 +1,6 @@
 import json
-import time
 from collections.abc import Callable, Collection, Coroutine, Sequence
+from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 from typing import Any, cast
 
@@ -41,7 +41,6 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     ) from e
 
 import inspect
-from datetime import datetime
 
 from google.protobuf import timestamp_pb2
 
@@ -71,7 +70,7 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 hatchet_sdk_version = version("hatchet-sdk")
 
 
-_RETRY_AFTER_SECONDS = 5 * 60
+_RETRY_AFTER = timedelta(minutes=5)
 
 
 class _HatchetSpanExporter(SpanExporter):
@@ -82,19 +81,19 @@ class _HatchetSpanExporter(SpanExporter):
 
     def __init__(self, inner: SpanExporter) -> None:
         self._inner = inner
-        self._retry_at: float = 0
+        self._retry_at: datetime | None = None
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        if self._retry_at and time.monotonic() < self._retry_at:
+        if self._retry_at and datetime.now(timezone.utc) < self._retry_at:
             return SpanExportResult.SUCCESS
 
         try:
             result = self._inner.export(spans)
-            self._retry_at = 0
+            self._retry_at = None
             return result
         except Exception as exc:
             if _is_grpc_unimplemented(exc):
-                self._retry_at = time.monotonic() + _RETRY_AFTER_SECONDS
+                self._retry_at = datetime.now(timezone.utc) + _RETRY_AFTER
                 return SpanExportResult.SUCCESS
             raise
 
