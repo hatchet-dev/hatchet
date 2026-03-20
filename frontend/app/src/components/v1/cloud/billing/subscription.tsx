@@ -245,28 +245,19 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               variant="outline"
               disabled={portalLoading}
             >
-              {portalLoading ? <Spinner /> : 'Visit Billing Portal'}
+              {portalLoading ? <Spinner /> : 'Manage Billing'}
             </Button>
           </div>
         ) : (
           <>
-            <div className="flex flex-row items-center justify-between">
-              <h3 className="flex flex-row items-center gap-2 text-xl font-semibold leading-tight text-foreground">
-                Subscription
-                {coupons?.map((coupon, i) => (
-                  <Badge key={`c${i}`} variant="successful">
-                    {coupon.name} coupon applied
-                  </Badge>
-                ))}
-              </h3>
-              <Button
-                onClick={manageClicked}
-                variant="outline"
-                disabled={portalLoading}
-              >
-                {portalLoading ? <Spinner /> : 'Visit Billing Portal'}
-              </Button>
-            </div>
+            <h3 className="flex flex-row items-center gap-2 text-xl font-semibold leading-tight text-foreground">
+              Subscription
+              {coupons?.map((coupon, i) => (
+                <Badge key={`c${i}`} variant="successful">
+                  {coupon.name} coupon applied
+                </Badge>
+              ))}
+            </h3>
 
             <Separator className="my-4" />
 
@@ -307,10 +298,18 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 variant="light"
                 className="mb-6 bg-transparent ring-1 ring-border/50 border-none"
               >
-                <CardHeader className="p-4 border-b border-border/50">
+                <CardHeader className="p-4 border-b border-border/50 flex flex-row items-center justify-between">
                   <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
                     Current Plan
                   </CardTitle>
+                  <Button
+                    onClick={manageClicked}
+                    variant="outline"
+                    size="sm"
+                    disabled={portalLoading}
+                  >
+                    {portalLoading ? <Spinner /> : 'Manage Billing'}
+                  </Button>
                 </CardHeader>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
