@@ -1,3 +1,4 @@
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
@@ -8,6 +9,7 @@ import {
 import { Spinner } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
 import {
+  Coupon,
   SubscriptionPlan,
   SubscriptionPlanFeatureGroup,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -24,6 +26,7 @@ interface PlanSelectorProps {
   enterpriseContactUrl: string;
   loading?: string;
   selectLabel?: string;
+  coupons?: Coupon[];
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -32,6 +35,26 @@ function formatCurrency(cents: number, period?: string) {
     style: 'currency',
     currency: 'USD',
   }).format(monthly);
+}
+
+function applyCoupon(amountCents: number, coupon: Coupon): number {
+  if (coupon.percent) {
+    return Math.round(amountCents * (1 - coupon.percent / 100));
+  }
+  if (coupon.amount_cents) {
+    return Math.max(0, amountCents - coupon.amount_cents);
+  }
+  return amountCents;
+}
+
+function couponLabel(coupon: Coupon): string {
+  if (coupon.percent) {
+    return `${coupon.percent}% off`;
+  }
+  if (coupon.amount_cents) {
+    return `${formatCurrency(coupon.amount_cents)} off`;
+  }
+  return coupon.name;
 }
 
 export function PlanSelector({
@@ -43,7 +66,9 @@ export function PlanSelector({
   enterpriseContactUrl,
   loading,
   selectLabel,
+  coupons,
 }: PlanSelectorProps) {
+  const activeCoupon = coupons?.[0];
   const plansQuery = useQuery({
     ...queries.cloud.subscriptionPlans(),
   });
@@ -96,11 +121,25 @@ export function PlanSelector({
       {visiblePlans?.map((plan) => {
         const isActive = plan.planCode === activePlanCode;
         const isUpcoming = plan.planCode === upcomingPlanCode;
+        const hasCoupon = activeCoupon && plan.amountCents > 0;
+        const discountedCents = hasCoupon
+          ? applyCoupon(plan.amountCents, activeCoupon)
+          : plan.amountCents;
         return (
           <PlanCard
             key={plan.planCode}
             name={plan.name}
-            price={formatCurrency(plan.amountCents, plan.period)}
+            price={formatCurrency(discountedCents, plan.period)}
+            originalPrice={
+              hasCoupon && discountedCents !== plan.amountCents
+                ? formatCurrency(plan.amountCents, plan.period)
+                : undefined
+            }
+            couponBadge={
+              hasCoupon && discountedCents !== plan.amountCents
+                ? couponLabel(activeCoupon)
+                : undefined
+            }
             showAnnual={showAnnual}
             featureGroups={plan.featureGroups}
             isUpgrade={isUpgrade(plan)}
@@ -132,6 +171,8 @@ export function PlanSelector({
 function PlanCard({
   name,
   price,
+  originalPrice,
+  couponBadge,
   showAnnual,
   description,
   featureGroups,
@@ -146,6 +187,8 @@ function PlanCard({
 }: {
   name: string;
   price?: string;
+  originalPrice?: string;
+  couponBadge?: string;
   showAnnual?: boolean;
   description?: string;
   featureGroups?: SubscriptionPlanFeatureGroup[];
@@ -174,12 +217,25 @@ function PlanCard({
         <div>
           {price ? (
             <>
+              {originalPrice && (
+                <span className="text-sm text-muted-foreground line-through mr-2">
+                  {originalPrice}
+                </span>
+              )}
               <span className="text-xl font-semibold text-foreground">
                 {price}
               </span>
               <span className="text-xs text-muted-foreground ml-1">
                 / mo {!showAnnual ? ' + usage' : ''}
               </span>
+              {couponBadge && (
+                <Badge
+                  variant="successful"
+                  className="ml-2 text-[10px] align-middle"
+                >
+                  {couponBadge}
+                </Badge>
+              )}
               {showAnnual && (
                 <p className="text-xs text-muted-foreground mt-1">
                   billed yearly + usage billed monthly

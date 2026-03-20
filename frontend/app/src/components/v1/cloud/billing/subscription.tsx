@@ -446,6 +446,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               }}
               enterpriseContactUrl={enterpriseContactUrl}
               loading={loading}
+              coupons={coupons}
             />
           </>
         )}
