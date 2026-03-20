@@ -1,15 +1,17 @@
+import { PlanSelector } from './plan-selector';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
-  CardDescription,
+  CardContent,
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
 import {
   Tooltip,
@@ -30,7 +32,7 @@ import {
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
   active?: TenantSubscription;
@@ -39,14 +41,20 @@ interface SubscriptionProps {
   coupons?: Coupon[];
 }
 
+function formatCurrency(cents: number, period?: string) {
+  const monthly = period === 'yearly' ? cents / 100 / 12 : cents / 100;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(monthly);
+}
+
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
   upcoming,
   plans,
   coupons,
 }) => {
-  // Implement the logic for the Subscription component here
-
   const [loading, setLoading] = useState<string>();
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
   const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
@@ -64,7 +72,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const creditBalance = useMemo(() => {
     const balanceCents = creditBalanceQuery.data?.balanceCents ?? 0;
 
-    // Stripe customer balance is negative when the customer has credits.
     if (balanceCents >= 0) {
       return null;
     }
@@ -124,13 +131,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       return response.data;
     },
     onSuccess: async (data) => {
-      // Check if response is a CheckoutURLResponse
       if (data && 'checkoutUrl' in data) {
         window.location.href = data.checkoutUrl;
         return;
       }
 
-      // Otherwise it's a TenantSubscription, so invalidate queries
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
@@ -163,36 +168,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     return [upcoming.plan, upcoming.period].filter((x) => !!x).join('_');
   }, [upcoming]);
 
-  const sortedPlans = useMemo(() => {
-    return plans
-      ?.filter(
-        (v) =>
-          !v.legacy &&
-          v.planCode !== 'free' &&
-          (showAnnual
-            ? v.period?.includes('yearly')
-            : v.period?.includes('monthly')),
-      )
-      .sort((a, b) => a.amountCents - b.amountCents);
-  }, [plans, showAnnual]);
-
-  const isUpgrade = useCallback(
-    (plan: SubscriptionPlan) => {
-      if (!active) {
-        return true;
-      }
-
-      const activePlan = plans?.find((p) => p.planCode === activePlanCode);
-
-      const activeAmount = activePlan?.amountCents || 0;
-
-      return (
-        plan.amountCents > activeAmount ||
-        (plan.amountCents === 0 && activeAmount === 0)
-      );
-    },
-    [active, activePlanCode, plans],
-  );
+  const activePlanAmountCents = useMemo(() => {
+    const activePlan = plans?.find((p) => p.planCode === activePlanCode);
+    return activePlan?.amountCents;
+  }, [plans, activePlanCode]);
 
   const formattedEndDate = useMemo(() => {
     if (!active?.endsAt) {
@@ -224,18 +203,18 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     return `${baseUrl}?notes=${encodeURIComponent(notes)}`;
   }, [tenant, tenantId]);
 
-  // Check if user is on dedicated plan
   const isDedicatedPlan = active?.plan === 'dedicated';
 
   return (
     <>
       <ConfirmDialog
         isOpen={!!isChangeConfirmOpen}
-        title={'Confirm Change Plan'}
+        title={'Confirm Plan Change'}
         submitVariant="default"
         description={
           <>
-            Are you sure you'd like to change to {isChangeConfirmOpen?.name}{' '}
+            Are you sure you'd like to change to the{' '}
+            <span className="font-semibold">{isChangeConfirmOpen?.name}</span>{' '}
             plan?
             <br />
             <br />
@@ -254,7 +233,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         onCancel={() => setChangeConfirmOpen(undefined)}
         isLoading={!!loading}
       />
-      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+      <div>
         {isDedicatedPlan ? (
           <div className="flex flex-row items-center justify-between">
             <p className="text-xl font-semibold leading-tight text-foreground">
@@ -271,7 +251,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         ) : (
           <>
             <div className="flex flex-row items-center justify-between">
-              <h3 className="flex flex-row gap-2 text-xl font-semibold leading-tight text-foreground">
+              <h3 className="flex flex-row items-center gap-2 text-xl font-semibold leading-tight text-foreground">
                 Subscription
                 {coupons?.map((coupon, i) => (
                   <Badge key={`c${i}`} variant="successful">
@@ -279,7 +259,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   </Badge>
                 ))}
               </h3>
-
               <Button
                 onClick={manageClicked}
                 variant="outline"
@@ -289,25 +268,30 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </Button>
             </div>
 
+            <Separator className="my-4" />
+
             {creditBalance && (
-              <Card className="mt-4 border-2 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/20">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between gap-4">
+              <Card
+                variant="light"
+                className="mb-6 bg-transparent ring-1 ring-emerald-500/30 border-none"
+              >
+                <CardHeader className="p-4">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base">
+                      <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
                         Available Credit
                       </CardTitle>
-                      <CardDescription className="mt-1 text-sm">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         {creditBalance.description ||
                           'Applied to upcoming invoices.'}
-                      </CardDescription>
+                      </p>
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-semibold text-foreground whitespace-nowrap">
                         {creditBalance.amount}
                       </div>
                       {creditBalance.expires && (
-                        <p className="mt-1 text-sm text-muted-foreground whitespace-nowrap">
+                        <p className="mt-1 text-xs text-muted-foreground whitespace-nowrap">
                           Expires{' '}
                           <RelativeDate date={creditBalance.expires} future />
                         </p>
@@ -317,16 +301,24 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 </CardHeader>
               </Card>
             )}
-            {/* Current Subscription Section */}
+
             {currentPlanDetails && (
-              <div className="mt-6 mb-6">
-                <h4 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
-                  Current Subscription
-                </h4>
-                <Card className="border-2 border-primary/20 bg-card">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+              <Card
+                variant="light"
+                className="mb-6 bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardHeader className="p-4 border-b border-border/50">
+                  <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+                    Current Plan
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-semibold text-foreground">
+                          {currentPlanDetails.name}
+                        </span>
                         {currentPlanDetails.legacy && (
                           <TooltipProvider>
                             <Tooltip>
@@ -334,54 +326,49 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                                 <Badge variant="queued">Legacy</Badge>
                               </TooltipTrigger>
                               <TooltipContent side="right">
-                                You're on the legacy plan which is no longer
-                                offered. Please, contact us if you have any
-                                questions.
+                                You're on a legacy plan which is no longer
+                                offered. Contact us if you have any questions.
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         )}
-                        <CardTitle className="text-2xl mb-1 flex items-center gap-2">
-                          {currentPlanDetails.name}
-                        </CardTitle>
-                        <div className="text-3xl font-bold mb-2">
-                          {new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: 'USD',
-                          }).format(
-                            currentPlanDetails.amountCents /
-                              100 /
-                              (currentPlanDetails.period === 'yearly' ? 12 : 1),
-                          )}{' '}
-                          <span className="text-base font-normal text-muted-foreground">
-                            per month
-                          </span>
-                        </div>
-                        {formattedEndDate && (
-                          <p className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span>📅</span>
-                            Your service will end on {formattedEndDate}.
-                          </p>
-                        )}
                       </div>
+                      {formattedEndDate && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Service ends on {formattedEndDate}
+                        </p>
+                      )}
                     </div>
-                  </CardHeader>
-                </Card>
-              </div>
+                    <div className="text-right">
+                      <span className="text-2xl font-bold text-foreground">
+                        {formatCurrency(
+                          currentPlanDetails.amountCents,
+                          currentPlanDetails.period,
+                        )}
+                      </span>
+                      <span className="text-sm text-muted-foreground ml-1">
+                        / month
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
-            {/* Upcoming Subscription Section */}
             {upcoming && upcoming.plan && (
-              <div className="mb-6">
-                <Card className="border-2 border-orange-500/30 bg-orange-50 dark:bg-orange-950/20">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="inProgress">Scheduled Change</Badge>
-                        </div>
-                        <CardTitle className="text-lg mb-1">
-                          Switching to{' '}
+              <Card
+                variant="light"
+                className="mb-6 bg-transparent ring-1 ring-yellow-500/30 border-none"
+              >
+                <CardHeader className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="inProgress">Scheduled Change</Badge>
+                      </div>
+                      <p className="text-sm text-foreground">
+                        Switching to{' '}
+                        <span className="font-semibold">
                           {plans?.find(
                             (p) =>
                               p.planCode ===
@@ -389,31 +376,31 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                                 .filter((x) => !!x)
                                 .join('_'),
                           )?.name || upcoming.plan}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          This change will take effect on{' '}
-                          {new Date(upcoming.startedAt).toLocaleDateString(
-                            'en-US',
-                            {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            },
-                          )}
-                        </p>
-                      </div>
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Takes effect on{' '}
+                        {new Date(upcoming.startedAt).toLocaleDateString(
+                          'en-US',
+                          {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          },
+                        )}
+                      </p>
                     </div>
-                  </CardHeader>
-                </Card>
-              </div>
+                  </div>
+                </CardHeader>
+              </Card>
             )}
 
-            <div className="flex flex-row justify-between items-center mb-4">
-              <p className="text-gray-700 dark:text-gray-300">
-                For plan details, please visit{' '}
+            <div className="flex flex-row items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">
+                For plan details, visit{' '}
                 <a
                   href="https://hatchet.run/pricing"
-                  className="underline"
+                  className="text-primary/70 hover:text-primary hover:underline"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -422,14 +409,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 or{' '}
                 <a
                   href="https://hatchet.run/office-hours"
-                  className="underline"
+                  className="text-primary/70 hover:text-primary hover:underline"
                 >
                   contact us
                 </a>{' '}
-                if you have custom requirements.
+                for custom requirements.
               </p>
 
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-2 items-center shrink-0 ml-4">
                 <Switch
                   id="sa"
                   checked={showAnnual}
@@ -438,80 +425,28 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   }}
                 />
                 <Label htmlFor="sa" className="text-sm whitespace-nowrap">
-                  Annual Billing{' '}
+                  Annual Billing
                   <Badge variant="inProgress" className="ml-2">
                     Save up to 20%
                   </Badge>
                 </Label>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedPlans
-                ?.filter(
-                  (plan) =>
-                    plan.planCode !== activePlanCode &&
-                    plan.planCode !== upcomingPlanCode,
-                )
-                .map((plan, i) => (
-                  <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
-                    <CardHeader>
-                      <CardTitle className="tracking-wide text-sm">
-                        {plan.name}
-                      </CardTitle>
-                      <CardDescription className="py-4">
-                        {new Intl.NumberFormat('en-US', {
-                          style: 'currency',
-                          currency: 'USD',
-                        }).format(
-                          plan.amountCents /
-                            100 /
-                            (plan.period === 'yearly' ? 12 : 1),
-                        )}{' '}
-                        per month billed {plan.period}*
-                      </CardDescription>
-                      <CardDescription>
-                        <Button
-                          disabled={loading === plan.planCode}
-                          variant="default"
-                          onClick={() => setChangeConfirmOpen(plan)}
-                        >
-                          {loading === plan.planCode ? (
-                            <Spinner />
-                          ) : isUpgrade(plan) ? (
-                            'Upgrade'
-                          ) : (
-                            'Downgrade'
-                          )}
-                        </Button>
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                ))}
-              <Card className="bg-muted/30 gap-4 flex-col flex">
-                <CardHeader>
-                  <CardTitle className="tracking-wide text-sm">
-                    Enterprise
-                  </CardTitle>
-                  <CardDescription className="py-4">
-                    Custom pricing
-                  </CardDescription>
-                  <CardDescription>
-                    <Button
-                      variant="default"
-                      onClick={() =>
-                        window.open(enterpriseContactUrl, '_blank')
-                      }
-                    >
-                      Contact Us
-                    </Button>
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </div>
-            <p className="text-sm text-gray-500 mt-4">
-              * subscription fee billed upfront{' '}
+
+            <PlanSelector
+              activePlanCode={activePlanCode}
+              activePlanAmountCents={activePlanAmountCents}
+              upcomingPlanCode={upcomingPlanCode}
+              showAnnual={showAnnual}
+              onSelectPlan={(plan) => setChangeConfirmOpen(plan)}
+              enterpriseContactUrl={enterpriseContactUrl}
+              loading={loading}
+            />
+
+            <p className="text-xs text-muted-foreground mt-4">
+              * Subscription fee billed upfront{' '}
               {showAnnual ? 'yearly' : 'monthly'}, overages billed at the end of
-              each month for usage in that month
+              each month for usage in that month.
             </p>
           </>
         )}

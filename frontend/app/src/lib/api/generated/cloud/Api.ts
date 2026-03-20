@@ -48,6 +48,7 @@ import {
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
+  SubscriptionPlanList,
   TenantBillingState,
   TenantCreditBalance,
   TenantPaymentMethodList,
@@ -737,6 +738,23 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description List all available subscription plans and their features
+   *
+   * @tags Billing
+   * @name SubscriptionPlansList
+   * @summary List subscription plans
+   * @request GET:/api/v1/billing/plans
+   * @secure
+   */
+  subscriptionPlansList = (params: RequestParams = {}) =>
+    this.request<SubscriptionPlanList, APIErrors>({
+      path: `/api/v1/billing/plans`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
   /**

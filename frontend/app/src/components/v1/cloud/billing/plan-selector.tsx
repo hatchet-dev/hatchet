@@ -1,0 +1,239 @@
+import { Button } from '@/components/v1/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
+import { Spinner } from '@/components/v1/ui/loading';
+import { queries } from '@/lib/api';
+import {
+  SubscriptionPlan,
+  SubscriptionPlanFeatureGroup,
+} from '@/lib/api/generated/cloud/data-contracts';
+import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
+
+interface PlanSelectorProps {
+  activePlanCode: string;
+  activePlanAmountCents?: number;
+  upcomingPlanCode: string | null;
+  showAnnual: boolean;
+  onSelectPlan: (plan: SubscriptionPlan) => void;
+  enterpriseContactUrl: string;
+  loading?: string;
+}
+
+function formatCurrency(cents: number, period?: string) {
+  const monthly = period === 'yearly' ? cents / 100 / 12 : cents / 100;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(monthly);
+}
+
+export function PlanSelector({
+  activePlanCode,
+  activePlanAmountCents,
+  upcomingPlanCode,
+  showAnnual,
+  onSelectPlan,
+  enterpriseContactUrl,
+  loading,
+}: PlanSelectorProps) {
+  const plansQuery = useQuery({
+    ...queries.cloud.subscriptionPlans(),
+  });
+
+  const plans = plansQuery.data?.plans;
+
+  const sortedPlans = useMemo(() => {
+    return plans
+      ?.filter(
+        (v) =>
+          !v.legacy &&
+          v.planCode !== 'free' &&
+          (showAnnual
+            ? v.period?.includes('yearly')
+            : v.period?.includes('monthly')),
+      )
+      .sort((a, b) => a.amountCents - b.amountCents);
+  }, [plans, showAnnual]);
+
+  const isUpgrade = useCallback(
+    (plan: SubscriptionPlan) => {
+      const activeAmount = activePlanAmountCents ?? 0;
+      return (
+        plan.amountCents > activeAmount ||
+        (plan.amountCents === 0 && activeAmount === 0)
+      );
+    },
+    [activePlanAmountCents],
+  );
+
+  const visiblePlans = useMemo(() => {
+    return sortedPlans?.filter(
+      (plan) =>
+        plan.planCode !== activePlanCode && plan.planCode !== upcomingPlanCode,
+    );
+  }, [sortedPlans, activePlanCode, upcomingPlanCode]);
+
+  if (plansQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {visiblePlans?.map((plan) => (
+        <PlanCard
+          key={plan.planCode}
+          name={plan.name}
+          price={formatCurrency(plan.amountCents, plan.period)}
+          showAnnual={showAnnual}
+          featureGroups={plan.featureGroups}
+          isUpgrade={isUpgrade(plan)}
+          isLoading={loading === plan.planCode}
+          onSelect={() => onSelectPlan(plan)}
+        />
+      ))}
+      <PlanCard
+        name="Enterprise"
+        description="Have technical or compliance requirements?"
+        enterpriseHighlights={[
+          '100M+ runs per month',
+          'Custom SLAs & uptime guarantees',
+          'Dedicated support & onboarding',
+          'SSO / SAML & audit logging',
+          'Bring your own cloud',
+        ]}
+        onSelect={() => window.open(enterpriseContactUrl, '_blank')}
+        buttonLabel="Contact Us"
+      />
+    </div>
+  );
+}
+
+function PlanCard({
+  name,
+  price,
+  showAnnual,
+  description,
+  featureGroups,
+  enterpriseHighlights,
+  isUpgrade,
+  isLoading,
+  onSelect,
+  buttonLabel,
+}: {
+  name: string;
+  price?: string;
+  showAnnual?: boolean;
+  description?: string;
+  featureGroups?: SubscriptionPlanFeatureGroup[];
+  enterpriseHighlights?: string[];
+  isUpgrade?: boolean;
+  isLoading?: boolean;
+  onSelect: () => void;
+  buttonLabel?: string;
+}) {
+  return (
+    <Card
+      variant="light"
+      className="bg-transparent ring-1 ring-border/50 border-none flex flex-col"
+    >
+      <CardHeader className="p-4 border-b border-border/50">
+        <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+          {name}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 flex flex-col flex-1 gap-4">
+        <div>
+          {price ? (
+            <>
+              <span className="text-xl font-semibold text-foreground">
+                {price}
+              </span>
+              <span className="text-xs text-muted-foreground ml-1">
+                / mo billed {showAnnual ? 'yearly' : 'monthly'}*
+              </span>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">{description}</span>
+          )}
+        </div>
+
+        {enterpriseHighlights && enterpriseHighlights.length > 0 && (
+          <ul className="space-y-1.5 flex-1">
+            {enterpriseHighlights.map((item) => (
+              <li key={item} className="flex items-start gap-2 text-sm">
+                <CheckIcon className="size-3.5 mt-0.5 shrink-0 text-primary" />
+                <span className="text-foreground">{item}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {featureGroups && featureGroups.length > 0 && (
+          <div className="space-y-3 flex-1">
+            {featureGroups.map((group) => (
+              <div key={group.name}>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                  {group.name}
+                </p>
+                <ul className="space-y-1.5">
+                  {group.features.map((f) => (
+                    <li
+                      key={f.featureId}
+                      className={`flex items-start gap-2 text-sm ${!f.included ? 'opacity-40' : ''}`}
+                    >
+                      {f.included ? (
+                        <CheckIcon className="size-3.5 mt-0.5 shrink-0 text-primary" />
+                      ) : (
+                        <Cross2Icon className="size-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                      )}
+                      <span>
+                        <span
+                          className={
+                            f.included
+                              ? 'text-foreground'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {f.display?.primaryText ?? f.name}
+                        </span>
+                        {f.included && f.display?.secondaryText && (
+                          <span className="text-muted-foreground text-xs block">
+                            {f.display.secondaryText}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Button
+          variant={isUpgrade ? 'default' : 'outline'}
+          size="sm"
+          disabled={isLoading}
+          onClick={onSelect}
+          className="w-full mt-auto"
+        >
+          {isLoading ? (
+            <Spinner />
+          ) : (
+            buttonLabel || (isUpgrade ? 'Upgrade' : 'Downgrade')
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}

@@ -384,6 +384,57 @@ export interface TenantCreditBalance {
   expiresAt?: string;
 }
 
+export interface SubscriptionPlanFeatureDisplay {
+  /** Main display text for this feature (e.g. "100,000 task runs"). */
+  primaryText: string;
+  /** Secondary display text (e.g. "then $10 per 1,000,000 task runs"). */
+  secondaryText?: string;
+}
+
+export interface SubscriptionPlanFeatureOverage {
+  /**
+   * Price per billing units of overage usage.
+   * @format double
+   */
+  price: number;
+  /**
+   * Number of units per price increment.
+   * @format int64
+   */
+  billingUnits: number;
+  /** How overage is charged (e.g. "pay_per_use", "prepaid"). */
+  usageModel: string;
+}
+
+export interface SubscriptionPlanFeature {
+  /** The identifier of the feature. */
+  featureId: string;
+  /** Human-readable name of the feature. */
+  name: string;
+  /** The type of the feature (e.g. "boolean", "single_use", "continuous_use"). */
+  featureType: string;
+  /** Whether this feature is part of this plan. False for features added for cross-plan comparison. */
+  included: boolean;
+  /**
+   * The included usage for this feature in the plan.
+   * @format int64
+   */
+  includedUsage: number;
+  /** Whether this feature has unlimited usage. */
+  unlimited: boolean;
+  /** Overage pricing details, if applicable. */
+  overage?: SubscriptionPlanFeatureOverage;
+  /** Pre-formatted display text for this feature. */
+  display?: SubscriptionPlanFeatureDisplay;
+}
+
+export interface SubscriptionPlanFeatureGroup {
+  /** The name of the feature group (e.g. "Usage", "Infrastructure"). */
+  name: string;
+  /** The features in this group. */
+  features: SubscriptionPlanFeature[];
+}
+
 export interface SubscriptionPlan {
   /** The code of the plan. */
   planCode: string;
@@ -395,8 +446,14 @@ export interface SubscriptionPlan {
   amountCents: number;
   /** The period of the plan. */
   period?: SubscriptionPeriod;
-  /** Whether this is a legacy plan no longer offered to new customers. */
+  /** Whether this is a legacy plan and is no longer offered to new customers. */
   legacy?: boolean;
+  /** The features included in this plan, organized by group. */
+  featureGroups?: SubscriptionPlanFeatureGroup[];
+}
+
+export interface SubscriptionPlanList {
+  plans: SubscriptionPlan[];
 }
 
 export interface UpdateTenantSubscriptionRequest {
