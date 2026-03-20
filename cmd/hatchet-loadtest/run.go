@@ -3,19 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	v0Client "github.com/hatchet-dev/hatchet/pkg/client" //nolint
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	gosdk "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"math/rand/v2"
 	"sync"
 	"time"
-
-	"github.com/hatchet-dev/hatchet/pkg/client/create"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
-	"github.com/hatchet-dev/hatchet/pkg/v1/features"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
-	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-	v0worker "github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 type stepOneOutput struct {
@@ -28,13 +22,11 @@ type executionEvent struct {
 }
 
 func run(ctx context.Context, config LoadTestConfig, executions chan<- executionEvent) (int64, int64) {
-	hatchet, err := v1.NewHatchetClient(
-		v1.Config{
-			Namespace: config.Namespace,
-			Logger:    &l,
-		},
+	//nolint
+	client, err := gosdk.NewClient(
+		v0Client.WithNamespace(config.Namespace),
+		v0Client.WithLogger(&l),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +36,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 	var uniques int64
 	var executed []int64
 
-	step := func(ctx v0worker.HatchetContext, input Event) (any, error) {
+	step := func(ctx gosdk.Context, input Event) (any, error) {
 		took := time.Since(input.CreatedAt)
 		l.Info().Msgf("executing %d took %s", input.ID, took)
 
@@ -83,7 +75,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 
 	// put the rate limits
 	for i := range config.RlKeys {
-		err = hatchet.RateLimits().Upsert(
+		err = client.RateLimits().Upsert(
 			features.CreateRatelimitOpts{
 				// FIXME: namespace?
 				Key:      "rl-key-" + fmt.Sprintf("%d", i),
@@ -97,7 +89,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 		}
 	}
 
-	workflows := []workflow.WorkflowBase{}
+	workflows := []gosdk.WorkflowBase{}
 
 	for i := range config.EventFanout {
 		var concurrencyOpt []types.Concurrency
@@ -115,25 +107,20 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 			}
 		}
 
-		loadtest := factory.NewWorkflow[Event, stepOneOutput](
-			create.WorkflowCreateOpts[Event]{
-				Name: fmt.Sprintf("load-test-%d", i),
-				OnEvents: []string{
-					"load-test:event",
-				},
-				Concurrency: concurrencyOpt,
-			},
-			hatchet,
+		loadtest := client.NewWorkflow(
+			fmt.Sprintf("load-test-%d", i),
+			gosdk.WithWorkflowEvents("load-test:event"),
+			gosdk.WithWorkflowConcurrency(concurrencyOpt...),
 		)
 
-		var prevTask *task.TaskDeclaration[Event]
+		var prevTask *gosdk.Task
 
 		for j := range config.DagSteps {
-			var parents []create.NamedTask
+			var parents []*gosdk.Task
 
 			if prevTask != nil {
 				parentTask := prevTask
-				parents = []create.NamedTask{
+				parents = []*gosdk.Task{
 					parentTask,
 				}
 			}
@@ -151,26 +138,22 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 				}
 			}
 
-			prevTask = loadtest.Task(
-				create.WorkflowTask[Event, stepOneOutput]{
-					Name:       fmt.Sprintf("step-%d", j),
-					Parents:    parents,
-					RateLimits: rateLimits,
-				},
+			prevTask = loadtest.NewTask(
+				fmt.Sprintf("step-%d", j),
 				step,
+				gosdk.WithParents(parents...),
+				gosdk.WithRateLimits(rateLimits...),
 			)
 		}
 
 		workflows = append(workflows, loadtest)
 	}
 
-	worker, err := hatchet.Worker(
-		worker.WorkerOpts{
-			Name:      "load-test-worker",
-			Workflows: workflows,
-			Slots:     config.Slots,
-			Logger:    &l,
-		},
+	worker, err := client.NewWorker(
+		"load-test-worker",
+		gosdk.WithWorkflows(workflows...),
+		gosdk.WithSlots(config.Slots),
+		gosdk.WithLogger(&l),
 	)
 
 	if err != nil {
