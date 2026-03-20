@@ -15,4 +15,11 @@ export default {
   "batch-processing": "Batch Processing",
   "document-processing": "Document Processing",
   "web-scraping": "Web Scraping",
+  "--webhooks": {
+    title: "Webhooks",
+    type: "separator",
+  },
+  "webhooks-stripe": "Stripe",
+  "webhooks-github": "GitHub",
+  "webhooks-slack": "Slack",
 };
