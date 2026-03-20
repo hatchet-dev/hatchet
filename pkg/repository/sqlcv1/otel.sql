@@ -33,19 +33,25 @@ AND retry_count = (
 );
 
 -- name: ListSpansByTaskExternalID :many
-SELECT
-    trace_id, span_id, parent_span_id, span_name, span_kind,
-    service_name, status_code, status_message, duration_ns, start_time,
-    resource_attributes, span_attributes, scope_name, scope_version,
-    retry_count
-FROM v1_otel_trace
-WHERE tenant_id = @tenantId::UUID
-AND task_run_external_id = @taskExternalId::UUID
-AND retry_count = (
-    SELECT MAX(retry_count) FROM v1_otel_trace
-    WHERE tenant_id = @tenantId::UUID
-    AND task_run_external_id = @taskExternalId::UUID
+WITH candidate_traces AS (
+    SELECT *
+    FROM v1_otel_trace
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND task_run_external_id = @taskExternalId::UUID
+), max_retry_count AS (
+    SELECT MAX(retry_count) AS retry_count
+    FROM candidate_traces
+), trace_id AS (
+    SELECT DISTINCT trace_id
+    FROM candidate_traces
+    WHERE retry_count = (SELECT retry_count FROM max_retry_count)
+    LIMIT 1 -- shouldn't need this, there should only be one trace_id per task_run_external_id, but just in case
 )
+
+SELECT *
+FROM v1_otel_trace
+WHERE trace_id = (SELECT trace_id FROM trace_id)
 ORDER BY start_time ASC
 OFFSET COALESCE(@spanOffset::BIGINT, 0)
 LIMIT COALESCE(@spanLimit::BIGINT, 1000);

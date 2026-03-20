@@ -86,64 +86,54 @@ type InsertOtelSpansParams struct {
 }
 
 const listSpansByTaskExternalID = `-- name: ListSpansByTaskExternalID :many
-SELECT
-    trace_id, span_id, parent_span_id, span_name, span_kind,
-    service_name, status_code, status_message, duration_ns, start_time,
-    resource_attributes, span_attributes, scope_name, scope_version,
-    retry_count
-FROM v1_otel_trace
-WHERE tenant_id = $1::UUID
-AND task_run_external_id = $2::UUID
-AND retry_count = (
-    SELECT MAX(retry_count) FROM v1_otel_trace
-    WHERE tenant_id = $1::UUID
-    AND task_run_external_id = $2::UUID
+WITH candidate_traces AS (
+    SELECT id, tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
+    FROM v1_otel_trace
+    WHERE
+        tenant_id = $3::UUID
+        AND task_run_external_id = $4::UUID
+), max_retry_count AS (
+    SELECT MAX(retry_count) AS retry_count
+    FROM candidate_traces
+), trace_id AS (
+    SELECT DISTINCT trace_id
+    FROM candidate_traces
+    WHERE retry_count = (SELECT retry_count FROM max_retry_count)
+    LIMIT 1 -- shouldn't need this, there should only be one trace_id per task_run_external_id, but just in case
 )
+
+SELECT id, tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
+FROM v1_otel_trace
+WHERE trace_id = (SELECT trace_id FROM trace_id)
 ORDER BY start_time ASC
-OFFSET COALESCE($3::BIGINT, 0)
-LIMIT COALESCE($4::BIGINT, 1000)
+OFFSET COALESCE($1::BIGINT, 0)
+LIMIT COALESCE($2::BIGINT, 1000)
 `
 
 type ListSpansByTaskExternalIDParams struct {
-	Tenantid       uuid.UUID `json:"tenantid"`
-	Taskexternalid uuid.UUID `json:"taskexternalid"`
 	Spanoffset     int64     `json:"spanoffset"`
 	Spanlimit      int64     `json:"spanlimit"`
+	Tenantid       uuid.UUID `json:"tenantid"`
+	Taskexternalid uuid.UUID `json:"taskexternalid"`
 }
 
-type ListSpansByTaskExternalIDRow struct {
-	TraceID            string             `json:"trace_id"`
-	SpanID             string             `json:"span_id"`
-	ParentSpanID       pgtype.Text        `json:"parent_span_id"`
-	SpanName           string             `json:"span_name"`
-	SpanKind           V1OtelSpanKind     `json:"span_kind"`
-	ServiceName        string             `json:"service_name"`
-	StatusCode         V1OtelStatusCode   `json:"status_code"`
-	StatusMessage      pgtype.Text        `json:"status_message"`
-	DurationNs         int64              `json:"duration_ns"`
-	StartTime          pgtype.Timestamptz `json:"start_time"`
-	ResourceAttributes []byte             `json:"resource_attributes"`
-	SpanAttributes     []byte             `json:"span_attributes"`
-	ScopeName          pgtype.Text        `json:"scope_name"`
-	ScopeVersion       pgtype.Text        `json:"scope_version"`
-	RetryCount         int32              `json:"retry_count"`
-}
-
-func (q *Queries) ListSpansByTaskExternalID(ctx context.Context, db DBTX, arg ListSpansByTaskExternalIDParams) ([]*ListSpansByTaskExternalIDRow, error) {
+func (q *Queries) ListSpansByTaskExternalID(ctx context.Context, db DBTX, arg ListSpansByTaskExternalIDParams) ([]*V1OtelTrace, error) {
 	rows, err := db.Query(ctx, listSpansByTaskExternalID,
-		arg.Tenantid,
-		arg.Taskexternalid,
 		arg.Spanoffset,
 		arg.Spanlimit,
+		arg.Tenantid,
+		arg.Taskexternalid,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListSpansByTaskExternalIDRow
+	var items []*V1OtelTrace
 	for rows.Next() {
-		var i ListSpansByTaskExternalIDRow
+		var i V1OtelTrace
 		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
 			&i.TraceID,
 			&i.SpanID,
 			&i.ParentSpanID,
@@ -153,12 +143,14 @@ func (q *Queries) ListSpansByTaskExternalID(ctx context.Context, db DBTX, arg Li
 			&i.StatusCode,
 			&i.StatusMessage,
 			&i.DurationNs,
-			&i.StartTime,
 			&i.ResourceAttributes,
 			&i.SpanAttributes,
 			&i.ScopeName,
 			&i.ScopeVersion,
+			&i.TaskRunExternalID,
+			&i.WorkflowRunExternalID,
 			&i.RetryCount,
+			&i.StartTime,
 		); err != nil {
 			return nil, err
 		}

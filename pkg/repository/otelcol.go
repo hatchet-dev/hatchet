@@ -160,6 +160,7 @@ func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Cont
 		Spanoffset:     0,
 		Spanlimit:      10000,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("error listing otel spans: %w", err)
 	}
@@ -185,25 +186,12 @@ func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Cont
 		}
 	}
 
-	for _, childID := range childWorkflowRunIDs {
-		childRows, err := o.listSpansForWorkflowRunTree(ctx, tenantId, childID)
-		if err != nil {
-			return nil, err
-		}
-		// Deduplicate: old data may have trigger spans in both task and child queries
-		for _, cr := range childRows {
-			if !seenSpanIDs[cr.SpanID] {
-				seenSpanIDs[cr.SpanID] = true
-				allRows = append(allRows, cr)
-			}
-		}
-	}
-
 	total := int64(len(allRows))
 
 	if offset >= total {
 		return &ListSpansResult{Rows: nil, Total: total}, nil
 	}
+
 	end := offset + limit
 	if end > total {
 		end = total
