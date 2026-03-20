@@ -81,6 +81,12 @@ COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
 COPY /hack/db/atlas-apply.sh ./atlas-apply.sh
 RUN chmod +x ./atlas-apply.sh
 
+# Create non-root user for Kubernetes Pod Security Standards compliance.
+# Image defaults to root for backward compatibility. To run as non-root,
+# set securityContext.runAsUser: 1000 in your Kubernetes pod spec or
+# pass --user 1000 to docker run.
+RUN addgroup -S hatchet && adduser -S -G hatchet -H -s /sbin/nologin -u 1000 hatchet
+
 EXPOSE 8080
 
 CMD ["/bin/sh", "-c", "/hatchet/hatchet-${SERVER_TARGET}"]
