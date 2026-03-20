@@ -2375,8 +2375,8 @@ CREATE TYPE v1_otel_status_code AS ENUM ('UNSET', 'OK', 'ERROR');
 
 CREATE TABLE v1_otel_trace (
     tenant_id       UUID NOT NULL,
-    trace_id        TEXT NOT NULL,
-    span_id         TEXT NOT NULL,
+    trace_id        BYTEA NOT NULL,
+    span_id         BYTEA NOT NULL,
     parent_span_id  TEXT,
     span_name       TEXT NOT NULL,
     span_kind       v1_otel_span_kind NOT NULL DEFAULT 'UNSPECIFIED',
