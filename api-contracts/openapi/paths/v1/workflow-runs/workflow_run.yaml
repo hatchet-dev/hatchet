@@ -502,7 +502,7 @@ getWorkflowRunTrace:
           maxLength: 36
       - description: The workflow run external id
         in: query
-        name: runExternalId
+        name: run_external_id
         required: true
         schema:
           type: string

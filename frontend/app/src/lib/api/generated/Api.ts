@@ -716,7 +716,7 @@ export class Api<
        * @minLength 36
        * @maxLength 36
        */
-      runExternalId: string;
+      run_external_id: string;
       /**
        * The number to skip
        * @format int64

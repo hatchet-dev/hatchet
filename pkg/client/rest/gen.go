@@ -2694,7 +2694,7 @@ type V1TaskGetPointMetricsParams struct {
 // V1WorkflowRunGetTraceParams defines parameters for V1WorkflowRunGetTrace.
 type V1WorkflowRunGetTraceParams struct {
 	// RunExternalId The workflow run external id
-	RunExternalId openapi_types.UUID `form:"runExternalId" json:"runExternalId"`
+	RunExternalId openapi_types.UUID `form:"run_external_id" json:"run_external_id"`
 
 	// Offset The number to skip
 	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
@@ -8063,7 +8063,7 @@ func NewV1WorkflowRunGetTraceRequest(server string, tenant openapi_types.UUID, p
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "runExternalId", runtime.ParamLocationQuery, params.RunExternalId); err != nil {
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "run_external_id", runtime.ParamLocationQuery, params.RunExternalId); err != nil {
 			return nil, err
 		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 			return nil, err

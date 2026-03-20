@@ -2551,7 +2551,7 @@ class WorkflowRunsApi:
         # process the query parameters
         if run_external_id is not None:
 
-            _query_params.append(("runExternalId", run_external_id))
+            _query_params.append(("run_external_id", run_external_id))
 
         if offset is not None:
 
