@@ -2,7 +2,9 @@ import { TaskRunTrace } from './task-run-trace';
 import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
 import { Loading } from '@/components/v1/ui/loading';
 import api from '@/lib/api/api';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
@@ -23,6 +25,7 @@ const pickSpan = (
 });
 
 async function fetchAllSpansByTask(
+  tenantId: string,
   taskExternalId: string,
 ): Promise<RelevantOpenTelemetrySpanProperties[]> {
   const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
@@ -30,7 +33,8 @@ async function fetchAllSpansByTask(
   let numPages = 1;
 
   do {
-    const res = await api.v1TaskGetTrace(taskExternalId, {
+    const res = await api.v1WorkflowRunGetTrace(tenantId, {
+      runExternalId: taskExternalId,
       offset: currentPage * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
@@ -46,6 +50,7 @@ async function fetchAllSpansByTask(
 }
 
 async function fetchAllSpansByWorkflowRun(
+  tenantId: string,
   workflowRunExternalId: string,
 ): Promise<RelevantOpenTelemetrySpanProperties[]> {
   const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
@@ -53,7 +58,8 @@ async function fetchAllSpansByWorkflowRun(
   let numPages = 1;
 
   do {
-    const res = await api.v1WorkflowRunGetTrace(workflowRunExternalId, {
+    const res = await api.v1WorkflowRunGetTrace(tenantId, {
+      runExternalId: workflowRunExternalId,
       offset: currentPage * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
@@ -81,13 +87,14 @@ export const Observability = (props: ObservabilityProps) => {
 
   const queryId = props.taskRunId ?? props.workflowRunExternalId;
   const queryType = props.taskRunId ? 'task' : 'workflow-run';
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
   const tracesQuery = useQuery({
     queryKey: [queryType + ':trace', queryId],
     queryFn: () =>
       queryType === 'task'
-        ? fetchAllSpansByTask(queryId)
-        : fetchAllSpansByWorkflowRun(queryId),
+        ? fetchAllSpansByTask(tenant, queryId)
+        : fetchAllSpansByWorkflowRun(tenant, queryId),
     refetchInterval: isRunning ? 5000 : false,
   });
 
