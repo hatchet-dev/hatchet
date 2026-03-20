@@ -113,6 +113,28 @@ listWorkflowRuns:
         required: false
         schema:
           $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
+      - description: The field to sort results by
+        in: query
+        name: order_by_field
+        required: false
+        schema:
+          type: string
+          enum:
+            - createdAt
+            - taskName
+            - workflow
+            - startedAt
+            - finishedAt
+            - duration
+      - description: The direction to sort results
+        in: query
+        name: order_by_direction
+        required: false
+        schema:
+          type: string
+          enum:
+            - asc
+            - desc
     responses:
       "200":
         content:

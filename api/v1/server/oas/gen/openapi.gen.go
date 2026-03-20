@@ -626,6 +626,26 @@ type EventOrderByDirection string
 // EventOrderByField defines model for EventOrderByField.
 type EventOrderByField string
 
+// V1TaskOrderByField defines the sortable fields for task runs.
+type V1TaskOrderByField string
+
+const (
+	V1TaskOrderByFieldCreatedAt  V1TaskOrderByField = "createdAt"
+	V1TaskOrderByFieldTaskName   V1TaskOrderByField = "taskName"
+	V1TaskOrderByFieldWorkflow   V1TaskOrderByField = "workflow"
+	V1TaskOrderByFieldStartedAt  V1TaskOrderByField = "startedAt"
+	V1TaskOrderByFieldFinishedAt V1TaskOrderByField = "finishedAt"
+	V1TaskOrderByFieldDuration   V1TaskOrderByField = "duration"
+)
+
+// V1TaskOrderByDirection defines the sort direction.
+type V1TaskOrderByDirection string
+
+const (
+	V1TaskOrderByDirectionAsc  V1TaskOrderByDirection = "asc"
+	V1TaskOrderByDirectionDesc V1TaskOrderByDirection = "desc"
+)
+
 // EventSearch defines model for EventSearch.
 type EventSearch = string
 
@@ -2700,6 +2720,12 @@ type V1WorkflowRunListParams struct {
 
 	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
 	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+
+	// OrderByField The field to sort by
+	OrderByField *V1TaskOrderByField `form:"order_by_field,omitempty" json:"order_by_field,omitempty"`
+
+	// OrderByDirection The direction to sort by
+	OrderByDirection *V1TaskOrderByDirection `form:"order_by_direction,omitempty" json:"order_by_direction,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -4929,6 +4955,20 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunList(ctx echo.Context) error {
 	err = runtime.BindQueryParameter("form", true, false, "running_filter", ctx.QueryParams(), &params.RunningFilter)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter running_filter: %s", err))
+	}
+
+	// ------------- Optional query parameter "order_by_field" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "order_by_field", ctx.QueryParams(), &params.OrderByField)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter order_by_field: %s", err))
+	}
+
+	// ------------- Optional query parameter "order_by_direction" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "order_by_direction", ctx.QueryParams(), &params.OrderByDirection)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter order_by_direction: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments

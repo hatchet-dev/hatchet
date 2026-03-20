@@ -53,6 +53,10 @@ type ListTaskRunOpts struct {
 	Offset int64
 
 	IncludePayloads bool
+
+	OrderBy        string
+
+	OrderDirection string
 }
 
 type ListWorkflowRunOpts struct {
@@ -77,6 +81,10 @@ type ListWorkflowRunOpts struct {
 	TriggeringEventExternalId *uuid.UUID
 
 	IncludePayloads bool
+
+	OrderBy        string
+
+	OrderDirection string
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -741,7 +749,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 
 	g.Go(func() error {
 		var err error
-		rows, err = r.queries.ListTasksOlap(gctx, tx, params)
+		rows, err = r.queries.ListTasksOlapWithSort(gctx, tx, params, opts.OrderBy, opts.OrderDirection)
 		return err
 	})
 
@@ -1086,7 +1094,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		return nil
 	})
 
-	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
+	workflowRunIds, err = r.queries.FetchWorkflowRunIdsWithSort(ctx, tx, params, opts.OrderBy, opts.OrderDirection)
 	if err != nil {
 		return nil, 0, err
 	}

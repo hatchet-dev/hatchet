@@ -504,6 +504,10 @@ export class Api<
       include_payloads?: boolean;
       /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
       running_filter?: V1RunningFilter;
+      /** The field to sort results by */
+      order_by_field?: "createdAt" | "taskName" | "workflow" | "startedAt" | "finishedAt" | "duration";
+      /** The direction to sort results */
+      order_by_direction?: "asc" | "desc";
     },
     params: RequestParams = {},
   ) =>

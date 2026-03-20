@@ -8,7 +8,12 @@ import { useRuns } from './use-runs';
 import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import {
+  OnChangeFn,
+  RowSelectionState,
+  SortingState,
+  VisibilityState,
+} from '@tanstack/react-table';
 import { PaginationState, Updater } from '@tanstack/react-table';
 import { createContext, useContext, useMemo, useState } from 'react';
 
@@ -51,6 +56,7 @@ type RunsContextType = {
     setRowSelection: (updater: Updater<RowSelectionState>) => void;
     setShowTriggerWorkflow: (trigger: boolean) => void;
     setShowQueueMetrics: (show: boolean) => void;
+    setSorting: OnChangeFn<SortingState>;
   };
   filters: ReturnType<typeof useRunsTableFilters>;
   toolbarFilters: ReturnType<typeof useToolbarFilters>;
@@ -74,6 +80,7 @@ type RunsContextType = {
   rowSelection: RowSelectionState;
   showTriggerWorkflow: boolean;
   showQueueMetrics: boolean;
+  sorting: SortingState;
 };
 
 const RunsContext = createContext<RunsContextType | null>(null);
@@ -93,6 +100,9 @@ export const RunsProvider = ({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [showQueueMetrics, setShowQueueMetrics] = useState(false);
   const [showTriggerWorkflow, setShowTriggerWorkflow] = useState(false);
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'createdAt', desc: true },
+  ]);
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     ...initColumnVisibility,
@@ -156,6 +166,7 @@ export const RunsProvider = ({
     parentTaskExternalId,
     triggeringEventExternalId,
     onlyTasks: !!workerId || flattenDAGs,
+    sorting,
   });
 
   const actionModalParams = useMemo(
@@ -212,6 +223,7 @@ export const RunsProvider = ({
       rowSelection,
       showTriggerWorkflow,
       showQueueMetrics,
+      sorting,
       display: {
         hideMetrics,
         hideCounts,
@@ -233,6 +245,7 @@ export const RunsProvider = ({
         setRowSelection,
         setShowQueueMetrics,
         setShowTriggerWorkflow,
+        setSorting,
       },
     }),
     [
@@ -275,6 +288,8 @@ export const RunsProvider = ({
       setColumnVisibility,
       rowSelection,
       showTriggerWorkflow,
+      sorting,
+      setSorting,
     ],
   );
 
