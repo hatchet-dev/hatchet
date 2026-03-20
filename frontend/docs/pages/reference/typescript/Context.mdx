@@ -465,6 +465,16 @@ Extends
 
 #### Methods
 
+<a id="sleepresult"></a>
+
+#### SleepResult
+
+The result returned by `sleepFor()` and `sleepUntil()`.
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `durationMs` | `number` | The sleep duration in milliseconds. |
+
 <a id="sleepfor"></a>
 
 ##### `sleepFor()`
@@ -481,9 +491,63 @@ Parameters
 
 Returns
 
-`Promise`\<`Record`\<`string`, `any`\>\>
+`Promise`\<[`SleepResult`](#sleepresult)\>
 
-A promise that resolves when the sleep duration has elapsed.
+A promise that resolves with a SleepResult when the sleep duration has elapsed.
+
+<a id="sleepuntil"></a>
+
+##### `sleepUntil()`
+
+Pauses execution until a specific timestamp.
+
+Parameters
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `wakeAt` | `Date` | The timestamp to sleep until. |
+
+Returns
+
+`Promise`\<[`SleepResult`](#sleepresult)\>
+
+A SleepResult containing the actual duration slept.
+
+<a id="waitforevent"></a>
+
+##### `waitForEvent()`
+
+Waits for a user event with the specified key.
+
+Parameters
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | `string` | The event key to wait for. |
+| `expression?` | `string` | An optional CEL expression to filter events. |
+| `payloadSchema?` | `z.ZodTypeAny` | An optional Zod schema to validate and parse the event payload. |
+
+Returns
+
+`Promise`\<`Record`\<`string`, `any`\>\> or `Promise`\<`z.infer<T>`\> if a schema is provided.
+
+The event payload, validated against the schema if one was provided.
+
+<a id="now"></a>
+
+##### `now()`
+
+Returns the current timestamp, memoized across replays.
+
+Returns
+
+`Promise`\<`Date`\>
+
+The memoized current timestamp.
+
+Throws
+
+[`NonDeterminismError`](#nondeterminismerror) if the checkpoint sequence differs from the original execution during replay.
 
 <a id="waitfor"></a>
 
@@ -503,3 +567,31 @@ Returns
 `Promise`\<`Record`\<`string`, `any`\>\>
 
 A promise that resolves with the event that satisfied the conditions.
+
+Throws
+
+[`NonDeterminismError`](#nondeterminismerror) if the wait conditions differ from the original execution during replay.
+
+---
+
+<a id="nondeterminismerror"></a>
+
+### NonDeterminismError
+
+Thrown when a durable task's execution path during replay differs from the original execution. Import from `@hatchet-dev/typescript-sdk/v1`.
+
+This error occurs when Hatchet detects that checkpoint operations (like `sleepFor`, `waitFor`, or `spawnChild`) are being called with different arguments or in a different order than they were during the original task execution.
+
+#### Properties
+
+| Property          | Type     | Description                                            |
+| ----------------- | -------- | ------------------------------------------------------ |
+| `taskExternalId`  | `string` | The ID of the affected task run.                       |
+| `invocationCount` | `number` | Which invocation of the task detected the error.       |
+| `nodeId`          | `number` | The checkpoint position where the mismatch was found.  |
+
+#### Handling NonDeterminismError
+
+You can catch this error in a try/catch block to implement custom recovery logic. Import `NonDeterminismError` from `@hatchet-dev/typescript-sdk/v1` and use `instanceof` to detect it.
+
+See [Determinism Requirements](/v1/durable-task-execution#determinism-requirements) for best practices on writing deterministic durable tasks.

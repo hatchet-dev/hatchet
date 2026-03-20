@@ -19,9 +19,13 @@ This is what makes durable tasks fundamentally different from regular tasks: a r
 ```mermaid
 graph LR
     QUEUED -->|Assigned to worker| RUNNING
-    RUNNING -->|Hits SleepFor / WaitForEvent| EVICTED
+    RUNNING -->|Hits SleepFor / WaitForEvent| EVICTED[RUNNING<br/>evicted]
     EVICTED -->|Wait completes or event arrives| QUEUED
 ```
+
+<Callout type="info">
+  When a task is evicted, its API status remains `RUNNING` but with `isEvicted: true`. You can filter evicted tasks using the `running_filter` parameter set to `EVICTED`, or filter for tasks actively executing on a worker with `ON_WORKER`.
+</Callout>
 
 1. **Task reaches a wait.** The durable task calls `SleepFor`, `WaitForEvent`, or `WaitFor`.
 2. **Checkpoint is written.** Hatchet records the current progress in the durable event log.
@@ -40,6 +44,49 @@ This is especially important for:
 - **Long waits** — Tasks that sleep for hours or days should not hold slots.
 - **Human-in-the-loop** — Waiting for a human to approve or respond could take minutes or weeks. Eviction ensures no resources are held in the meantime.
 - **Large fan-outs** — A parent task that spawns thousands of children and waits for results can release its slot while the children run, preventing deadlocks where the parent holds resources that the children need.
+
+### Configuring eviction policies
+
+Durable tasks are evicted after waiting for a default duration of 15 minutes. You can customize this by passing an eviction policy when defining the task.
+
+There are three levers:
+
+**TTL (Time-To-Live)**: How long a task waits before becoming eligible for eviction. When the TTL expires, Hatchet evicts the task, frees the slot, and automatically resumes when the wait condition is satisfied. Shorter TTLs free slots faster but cause more eviction overhead.
+
+**Capacity-based eviction**: Whether Hatchet can evict this task when worker slots are under pressure. Set `allow_capacity_eviction=False` (Python) or `allowCapacityEviction: false` (TypeScript) for critical tasks that should not be interrupted. These tasks keep their slot until their wait completes normally.
+
+**Priority**: When multiple tasks are candidates for capacity-based eviction, tasks with lower priority values are evicted first. Use this to protect important tasks relative to less critical ones.
+
+<Callout type="info">
+To prevent a task from ever being evicted, set `ttl` to `None` (Python) or `undefined` (TypeScript) and disable capacity eviction. This is useful for tasks holding critical state that cannot be checkpointed, but the task will consume a slot for the entire wait duration.
+</Callout>
+
+### EvictionPolicy reference
+
+<UniversalTabs items={["Python", "TypeScript"]} optionKey="sdk">
+<Tabs.Tab title="Python">
+
+Pass an `eviction_policy` to the `durable_task` decorator:
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ttl` | `timedelta \| None` | `15 minutes` | Maximum wait duration before TTL-based eviction. Set to `None` to disable. |
+| `priority` | `int` | `0` | Lower values are evicted first under capacity pressure. |
+| `allow_capacity_eviction` | `bool` | `True` | Whether the task can be evicted under slot pressure. |
+
+</Tabs.Tab>
+<Tabs.Tab title="TypeScript">
+
+Pass an `evictionPolicy` to `hatchet.durableTask()`:
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ttl` | `Duration \| undefined` | `'15m'` | Maximum wait duration before TTL-based eviction. Set to `undefined` to disable. |
+| `priority` | `number` | `0` | Lower values are evicted first under capacity pressure. |
+| `allowCapacityEviction` | `boolean` | `true` | Whether the task can be evicted under slot pressure. |
+
+</Tabs.Tab>
+</UniversalTabs>
 
 ### Separate slot pools
 

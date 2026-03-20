@@ -174,9 +174,28 @@ Parameters:
 | `backoff_max_seconds`         | `int \| None`                                                         | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                                                                                                             | `None`                  |
 | `default_filters`             | `list[DefaultFilter] \| None`                                         | A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.                                             | `None`                  |
 | `default_additional_metadata` | `JSONSerializableMapping \| None`                                     | A dictionary of additional metadata to attach to each run of this task by default.                                                                                                                                                                               | `None`                  |
+| `eviction_policy`             | `EvictionPolicy \| None`                                              | Eviction policy for durable tasks. Controls when idle durable tasks can be evicted from the worker. Set to `None` to disable eviction entirely. See [EvictionPolicy](#evictionpolicy) for details.                                                              | `EvictionPolicy(ttl=timedelta(minutes=15), allow_capacity_eviction=True, priority=0)` |
 
 Returns:
 
 | Type                                                                                                                                                                                                                                               | Description                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `Callable[[Callable[Concatenate[EmptyModel, DurableContext, P], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[Concatenate[TWorkflowInput, DurableContext, P], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
+
+## Types
+
+### EvictionPolicy
+
+Eviction policy for durable tasks. Controls when idle durable tasks can be evicted from the worker to free up durable slots.
+
+Durable tasks hold a "durable slot" on the worker while they are waiting (e.g., during `ctx.aio_wait_for(...)` or waiting for a workflow run result). When there are many idle durable tasks, the eviction policy determines which ones can be evicted to make room for new tasks.
+
+| Attribute                  | Type               | Description                                                                                                                        | Default                  |
+| -------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `ttl`                      | `timedelta \| None` | Maximum continuous waiting duration before the task becomes eligible for TTL-based eviction. Set to `None` to disable TTL eviction. | `timedelta(minutes=15)` |
+| `allow_capacity_eviction`  | `bool`             | Whether this task may be evicted when the worker is under durable-slot pressure.                                                   | `True`                   |
+| `priority`                 | `int`              | Eviction priority. Lower values are evicted first when multiple tasks are eligible.                                                | `0`                      |
+
+Import path: `from hatchet_sdk.runnables.eviction import EvictionPolicy`
+
+Pass an `EvictionPolicy` instance to the `eviction_policy` parameter of `@hatchet.durable_task()`. Set `eviction_policy=None` to disable eviction entirely. See [Resource Management](/v1/task-eviction) for a conceptual overview.

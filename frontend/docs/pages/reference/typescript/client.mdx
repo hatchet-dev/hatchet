@@ -322,6 +322,8 @@ Parameters
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | `options` | `CreateDurableTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Durable task configuration options |
 
+The `CreateDurableTaskWorkflowOpts` type includes an optional `evictionPolicy` parameter to control when the task can be evicted from a worker slot while waiting. See [`EvictionPolicy`](#evictionpolicy) for details.
+
 Returns
 
 [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
@@ -341,6 +343,22 @@ Returns
 [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance with inferred types
+
+<a id="evictionpolicy"></a>
+
+#### `EvictionPolicy`
+
+Controls when a durable task can be evicted from a worker slot while waiting. Import from `@hatchet-dev/typescript-sdk/v1`.
+
+Parameters:
+
+| Name                    | Type                    | Description                                                                                              | Default  |
+| ----------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- | -------- |
+| `ttl`                   | `Duration \| undefined` | Maximum wait duration before the task becomes eligible for TTL-based eviction. Set to `undefined` to disable. | `'15m'`  |
+| `priority`              | `number`                | Eviction priority. Lower values are evicted first when capacity pressure requires evicting tasks.         | `0`      |
+| `allowCapacityEviction` | `boolean`               | Whether this task can be evicted under slot pressure. Set to `false` to prevent capacity-based eviction.  | `true`   |
+
+See [Configuring Eviction Policies](/v1/task-eviction#configuring-eviction-policies) for usage details.
 
 <a id="run"></a>
 
