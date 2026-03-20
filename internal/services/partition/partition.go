@@ -90,6 +90,14 @@ func (p *Partition) AddCleanupMethods(cleanup *cleanup.Cleanup) {
 		p.schedulerCron.Shutdown,
 		"partitioner scheduler cron",
 	)
+
+	cleanup.Add(
+		func() error {
+			time.Sleep(heartbeatTimeout)
+			return nil
+		},
+		"partitioner heartbeat timeout",
+	)
 }
 
 func (p *Partition) StartControllerPartition(ctx context.Context) (func() error, error) {
