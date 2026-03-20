@@ -13,7 +13,7 @@ export default {
   tasks: "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "durable-workflows-overview": "Intro to Durable Workflows",
+  "durable-execution": "Durable Execution",
   "--triggers": {
     title: "Triggers",
     type: "separator",
@@ -96,6 +96,11 @@ export default {
   "region-availability": "Region Availability",
   uptime: "Uptime",
   "developer-experience": "Developer Experience",
+  "--troubleshooting": {
+    title: "Troubleshooting",
+    type: "separator",
+  },
+  faq: "Frequently Asked Questions",
   _setup: {
     display: "hidden",
   },
