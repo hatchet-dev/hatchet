@@ -142,7 +142,7 @@ WITH candidate_traces AS (
 )
 
 SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
-FROM v1_otel_trace
+FROM candidate_traces
 WHERE trace_id = (SELECT trace_id FROM trace_id)
 ORDER BY start_time ASC
 OFFSET COALESCE($1::BIGINT, 0)
@@ -157,7 +157,28 @@ type ListSpansByExternalIDParams struct {
 	WorkflowRunExternalId *uuid.UUID `json:"workflowRunExternalId"`
 }
 
-func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSpansByExternalIDParams) ([]*V1OtelTrace, error) {
+type ListSpansByExternalIDRow struct {
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	TraceID               []byte             `json:"trace_id"`
+	SpanID                []byte             `json:"span_id"`
+	ParentSpanID          pgtype.Text        `json:"parent_span_id"`
+	SpanName              string             `json:"span_name"`
+	SpanKind              V1OtelSpanKind     `json:"span_kind"`
+	ServiceName           string             `json:"service_name"`
+	StatusCode            V1OtelStatusCode   `json:"status_code"`
+	StatusMessage         pgtype.Text        `json:"status_message"`
+	DurationNs            int64              `json:"duration_ns"`
+	ResourceAttributes    []byte             `json:"resource_attributes"`
+	SpanAttributes        []byte             `json:"span_attributes"`
+	ScopeName             pgtype.Text        `json:"scope_name"`
+	ScopeVersion          pgtype.Text        `json:"scope_version"`
+	TaskRunExternalID     *uuid.UUID         `json:"task_run_external_id"`
+	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
+	RetryCount            int32              `json:"retry_count"`
+	StartTime             pgtype.Timestamptz `json:"start_time"`
+}
+
+func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSpansByExternalIDParams) ([]*ListSpansByExternalIDRow, error) {
 	rows, err := db.Query(ctx, listSpansByExternalID,
 		arg.Spanoffset,
 		arg.Spanlimit,
@@ -169,9 +190,9 @@ func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSp
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1OtelTrace
+	var items []*ListSpansByExternalIDRow
 	for rows.Next() {
-		var i V1OtelTrace
+		var i ListSpansByExternalIDRow
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.TraceID,
