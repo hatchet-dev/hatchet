@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 from typing import Any, cast
 
+import grpc
+
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -344,24 +346,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         endpoint = self.config.host_port
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
+        credentials: grpc.ChannelCredentials | None = None
 
-        exporter_kwargs: dict[str, Any] = {
-            "endpoint": endpoint,
-            "headers": headers,
-        }
-
-        if insecure:
-            exporter_kwargs["insecure"] = True
-        elif self.config.tls_config.root_ca_file:
-            import grpc
-
+        if self.config.tls_config.root_ca_file:
             with open(self.config.tls_config.root_ca_file, "rb") as f:
                 root_certs = f.read()
-            exporter_kwargs["credentials"] = grpc.ssl_channel_credentials(
-                root_certificates=root_certs
-            )
 
-        otlp_exporter = OTLPSpanExporter(**exporter_kwargs)
+            credentials = grpc.ssl_channel_credentials(root_certificates=root_certs)
+
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=endpoint,
+            headers=headers,
+            insecure=insecure,
+            credentials=credentials,
+        )
 
         self.tracer_provider.add_span_processor(
             _HatchetAttributeSpanProcessor(
