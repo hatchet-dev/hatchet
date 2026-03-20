@@ -4,6 +4,8 @@ from pydantic import BaseModel
 
 from opentelemetry.trace import StatusCode, get_tracer
 
+from typing import Any
+
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
@@ -129,10 +131,21 @@ def otel_simple_task(input: SimpleOtelTaskInput, _: Context) -> dict[str, str]:
     return {"status": "ok"}
 
 
+@hatchet.task(name="OtelSpawnParent")
+async def otel_spawn_parent(input: SimpleOtelTaskInput, ctx: Context) -> dict[str, Any]:
+    tracer = get_tracer("otel-test")
+    with tracer.start_as_current_span("spawn.child") as span:
+        span.set_attribute("parent.message", input.message)
+        result = await otel_simple_task.aio_run(
+            input=SimpleOtelTaskInput(message=input.message),
+        )
+    return {"child_result": result}
+
+
 def main() -> None:
     worker = hatchet.worker(
         "otel-pipeline-worker",
-        workflows=[otel_workflow, otel_simple_task],
+        workflows=[otel_workflow, otel_simple_task, otel_spawn_parent],
     )
     worker.start()
 
