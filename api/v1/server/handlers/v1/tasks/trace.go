@@ -9,7 +9,7 @@ import (
 )
 
 func (t *TasksService) V1TaskGetTrace(ctx echo.Context, request gen.V1TaskGetTraceRequestObject) (gen.V1TaskGetTraceResponseObject, error) {
-	if !t.config.HatchetO11y.Enabled {
+	if !t.config.Observability.Enabled {
 		return gen.V1TaskGetTrace200JSONResponse(gen.OtelSpanList{}), nil
 	}
 

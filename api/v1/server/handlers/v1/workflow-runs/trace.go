@@ -10,7 +10,7 @@ import (
 )
 
 func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request gen.V1WorkflowRunGetTraceRequestObject) (gen.V1WorkflowRunGetTraceResponseObject, error) {
-	if !t.config.HatchetO11y.Enabled {
+	if !t.config.Observability.Enabled {
 		return gen.V1WorkflowRunGetTrace200JSONResponse(gen.OtelSpanList{}), nil
 	}
 
