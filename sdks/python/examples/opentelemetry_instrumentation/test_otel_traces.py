@@ -8,7 +8,9 @@ from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from examples.opentelemetry_instrumentation.worker import (
     otel_simple_task,
+    SimpleOtelTaskInput,
 )
+from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 
 def poll_for_trace(hatchet: Hatchet, run_id: str) -> list[OtelSpan]:
@@ -28,8 +30,11 @@ def poll_for_trace(hatchet: Hatchet, run_id: str) -> list[OtelSpan]:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
+    message = "Hello, OpenTelemetry!"
+    HatchetInstrumentor().instrument()
 
     ref = await otel_simple_task.aio_run_no_wait(
+        input=SimpleOtelTaskInput(message=message),
         options=TriggerWorkflowOptions(
             additional_metadata={"test_run_id": test_run_id},
         ),
@@ -46,15 +51,10 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
 
     assert attrs
 
-    tenant_id_attr = attrs.get("hatchet.tenant_id")
-    workflow_run_id_attr = attrs.get("hatchet.workflow_run_id")
-    step_run_id_attr = attrs.get("hatchet.step_run_id")
-    step_name_attr = attrs.get("hatchet.step_name")
-
-    assert tenant_id_attr == hatchet.config.tenant_id
-    assert workflow_run_id_attr == ref.workflow_run_id
-    assert step_run_id_attr == ref.workflow_run_id
-    assert step_name_attr == otel_simple_task.name
+    assert attrs.get("hatchet.tenant_id") == hatchet.config.tenant_id
+    assert attrs.get("hatchet.workflow_run_id") == ref.workflow_run_id
+    assert attrs.get("hatchet.step_run_id") == ref.workflow_run_id
+    assert attrs.get("hatchet.step_name") == otel_simple_task.name
 
     assert attrs.get("instrumentor") == "hatchet"
 
@@ -68,3 +68,22 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
 
     assert child_attrs["hatchet.step_run_id"] == attrs["hatchet.step_run_id"]
     assert child_attrs.get("test.marker") == "hello"
+    assert child_attrs.get("input.message") == message
+
+    print("\n\n")
+    for s in spans:
+        print(s.model_dump_json(indent=2))
+        print()
+
+    run_workflow_spans = [s for s in spans if s.span_name == "hatchet.run_workflow"]
+
+    assert len(run_workflow_spans) == 1
+
+    run_workflow_span = run_workflow_spans[0]
+
+    assert run_workflow_span.span_attributes
+
+    assert (
+        run_workflow_span.span_attributes.get("hatchet.workflow_name")
+        == otel_simple_task.name
+    )

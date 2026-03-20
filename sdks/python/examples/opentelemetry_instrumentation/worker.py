@@ -115,12 +115,16 @@ def save_results(input: EmptyModel, ctx: Context) -> SaveResultsOutput:
     return SaveResultsOutput(saved=True)
 
 
-@hatchet.task()
-def otel_simple_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    """Simple task that creates a custom child span."""
+class SimpleOtelTaskInput(BaseModel):
+    message: str
+
+
+@hatchet.task(on_events=["otel:test-event"], input_validator=SimpleOtelTaskInput)
+def otel_simple_task(input: SimpleOtelTaskInput, _: Context) -> dict[str, str]:
     tracer = get_tracer("otel-test")
     with tracer.start_as_current_span("custom.child.span") as span:
         span.set_attribute("test.marker", "hello")
+        span.set_attribute("input.message", input.message)
         time.sleep(0.01)
     return {"status": "ok"}
 
