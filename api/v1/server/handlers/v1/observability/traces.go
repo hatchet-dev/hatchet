@@ -1,4 +1,4 @@
-package workflowruns
+package observability
 
 import (
 	"github.com/google/uuid"
@@ -9,9 +9,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request gen.V1WorkflowRunGetTraceRequestObject) (gen.V1WorkflowRunGetTraceResponseObject, error) {
+func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, request gen.V1ObservabilityGetTraceRequestObject) (gen.V1ObservabilityGetTraceResponseObject, error) {
 	if !t.config.Observability.Enabled {
-		return gen.V1WorkflowRunGetTrace200JSONResponse(gen.OtelSpanList{}), nil
+		return gen.V1ObservabilityGetTrace200JSONResponse(gen.OtelSpanList{}), nil
 	}
 
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
@@ -57,5 +57,5 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTrace(ctx echo.Context, request 
 		return nil, err
 	}
 
-	return gen.V1WorkflowRunGetTrace200JSONResponse(transformers.ToV1OtelSpanList(result.Rows, nil, limit, offset, result.Total)), nil
+	return gen.V1ObservabilityGetTrace200JSONResponse(transformers.ToV1OtelSpanList(result.Rows, nil, limit, offset, result.Total)), nil
 }

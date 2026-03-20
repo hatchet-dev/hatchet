@@ -701,13 +701,13 @@ export class Api<
   /**
    * @description Get OTel trace for a workflow run
    *
-   * @tags Workflow Runs
-   * @name V1WorkflowRunGetTrace
+   * @tags Observability
+   * @name V1ObservabilityGetTrace
    * @summary Get OTel trace
    * @request GET:/api/v1/stable/tenants/{tenant}/traces
    * @secure
    */
-  v1WorkflowRunGetTrace = (
+  v1ObservabilityGetTrace = (
     tenant: string,
     query: {
       /**
@@ -718,12 +718,12 @@ export class Api<
        */
       run_external_id: string;
       /**
-       * The number to skip
+       * The number of spans to skip
        * @format int64
        */
       offset?: number;
       /**
-       * The number to limit by
+       * The number of spans to limit by
        * @format int64
        */
       limit?: number;

@@ -2691,15 +2691,15 @@ type V1TaskGetPointMetricsParams struct {
 	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
 }
 
-// V1WorkflowRunGetTraceParams defines parameters for V1WorkflowRunGetTrace.
-type V1WorkflowRunGetTraceParams struct {
+// V1ObservabilityGetTraceParams defines parameters for V1ObservabilityGetTrace.
+type V1ObservabilityGetTraceParams struct {
 	// RunExternalId The workflow run external id
 	RunExternalId openapi_types.UUID `form:"run_external_id" json:"run_external_id"`
 
-	// Offset The number to skip
+	// Offset The number of spans to skip
 	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
 
-	// Limit The number to limit by
+	// Limit The number of spans to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
@@ -3448,8 +3448,8 @@ type ClientInterface interface {
 
 	V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1WorkflowRunGetTrace request
-	V1WorkflowRunGetTrace(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1ObservabilityGetTrace request
+	V1ObservabilityGetTrace(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WebhookList request
 	V1WebhookList(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4328,8 +4328,8 @@ func (c *Client) V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, bo
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WorkflowRunGetTrace(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WorkflowRunGetTraceRequest(c.Server, tenant, params)
+func (c *Client) V1ObservabilityGetTrace(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ObservabilityGetTraceRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8034,8 +8034,8 @@ func NewV1TaskReplayRequestWithBody(server string, tenant openapi_types.UUID, co
 	return req, nil
 }
 
-// NewV1WorkflowRunGetTraceRequest generates requests for V1WorkflowRunGetTrace
-func NewV1WorkflowRunGetTraceRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunGetTraceParams) (*http.Request, error) {
+// NewV1ObservabilityGetTraceRequest generates requests for V1ObservabilityGetTrace
+func NewV1ObservabilityGetTraceRequest(server string, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -13873,8 +13873,8 @@ type ClientWithResponsesInterface interface {
 
 	V1TaskReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
 
-	// V1WorkflowRunGetTraceWithResponse request
-	V1WorkflowRunGetTraceWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunGetTraceParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetTraceResponse, error)
+	// V1ObservabilityGetTraceWithResponse request
+	V1ObservabilityGetTraceWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*V1ObservabilityGetTraceResponse, error)
 
 	// V1WebhookListWithResponse request
 	V1WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*V1WebhookListResponse, error)
@@ -15094,17 +15094,16 @@ func (r V1TaskReplayResponse) StatusCode() int {
 	return 0
 }
 
-type V1WorkflowRunGetTraceResponse struct {
+type V1ObservabilityGetTraceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *OtelSpanList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1WorkflowRunGetTraceResponse) Status() string {
+func (r V1ObservabilityGetTraceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -15112,7 +15111,7 @@ func (r V1WorkflowRunGetTraceResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1WorkflowRunGetTraceResponse) StatusCode() int {
+func (r V1ObservabilityGetTraceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17972,13 +17971,13 @@ func (c *ClientWithResponses) V1TaskReplayWithResponse(ctx context.Context, tena
 	return ParseV1TaskReplayResponse(rsp)
 }
 
-// V1WorkflowRunGetTraceWithResponse request returning *V1WorkflowRunGetTraceResponse
-func (c *ClientWithResponses) V1WorkflowRunGetTraceWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunGetTraceParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetTraceResponse, error) {
-	rsp, err := c.V1WorkflowRunGetTrace(ctx, tenant, params, reqEditors...)
+// V1ObservabilityGetTraceWithResponse request returning *V1ObservabilityGetTraceResponse
+func (c *ClientWithResponses) V1ObservabilityGetTraceWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*V1ObservabilityGetTraceResponse, error) {
+	rsp, err := c.V1ObservabilityGetTrace(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1WorkflowRunGetTraceResponse(rsp)
+	return ParseV1ObservabilityGetTraceResponse(rsp)
 }
 
 // V1WebhookListWithResponse request returning *V1WebhookListResponse
@@ -20598,15 +20597,15 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 	return response, nil
 }
 
-// ParseV1WorkflowRunGetTraceResponse parses an HTTP response from a V1WorkflowRunGetTraceWithResponse call
-func ParseV1WorkflowRunGetTraceResponse(rsp *http.Response) (*V1WorkflowRunGetTraceResponse, error) {
+// ParseV1ObservabilityGetTraceResponse parses an HTTP response from a V1ObservabilityGetTraceWithResponse call
+func ParseV1ObservabilityGetTraceResponse(rsp *http.Response) (*V1ObservabilityGetTraceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1WorkflowRunGetTraceResponse{
+	response := &V1ObservabilityGetTraceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -20632,13 +20631,6 @@ func ParseV1WorkflowRunGetTraceResponse(rsp *http.Response) (*V1WorkflowRunGetTr
 			return nil, err
 		}
 		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 
