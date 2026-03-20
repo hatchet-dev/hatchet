@@ -61,7 +61,7 @@ export const handleGitHubPR = hatchet.task({
   fn: async (input: GitHubPRInput) => {
     const repo = input.repository.full_name;
     const prNumber = input.pull_request.number;
-    const title = input.pull_request.title;
+    const { title } = input.pull_request;
     console.log(`PR #${prNumber} opened on ${repo}: ${title}`);
     return { repo, pr: prNumber };
   },
@@ -124,7 +124,7 @@ export const handleSlackInteraction = hatchet.task({
     event: 'slack:interaction:block_actions',
   },
   fn: async (input: SlackInteractionInput) => {
-    const action = input.actions[0];
+    const [action] = input.actions;
     console.log(`${input.user.username} clicked button: ${action.action_id}`);
     return { action: action.action_id };
   },

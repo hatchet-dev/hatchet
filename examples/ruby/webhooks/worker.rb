@@ -2,7 +2,17 @@
 
 require "hatchet-sdk"
 
-HATCHET = Hatchet::Client.new unless defined?(HATCHET)
+HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
+
+WEBHOOK_TASK = HATCHET.task(
+  name: "webhook",
+  on_events: ["webhook:test"]
+) do |input, ctx|
+  {
+    "type" => input["type"],
+    "message" => input["message"]
+  }
+end
 
 # > Stripe webhook task
 HANDLE_STRIPE_PAYMENT = HATCHET.task(
