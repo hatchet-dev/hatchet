@@ -30,9 +30,7 @@ export default function CreateTenant() {
                   : result.tenant.metadata.id;
 
               if (result.type === 'cloud') {
-                queryClient.prefetchQuery(
-                  queries.cloud.subscriptionPlans(),
-                );
+                queryClient.prefetchQuery(queries.cloud.subscriptionPlans());
               }
 
               navigate({

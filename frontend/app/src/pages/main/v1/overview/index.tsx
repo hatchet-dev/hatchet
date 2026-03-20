@@ -15,7 +15,6 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -250,7 +249,6 @@ export default function Overview() {
         onOpenChange={setShowTokenDialog}
         token={generatedToken}
       />
-
     </div>
   );
 }

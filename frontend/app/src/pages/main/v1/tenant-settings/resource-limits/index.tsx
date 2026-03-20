@@ -69,9 +69,7 @@ export default function ResourceLimits() {
       {
         columnLabel: 'Alarm Value',
         cellRenderer: (limit: TenantResourceLimit) => (
-          <span className="tabular-nums">
-            {limit.alarmValue || 'N/A'}
-          </span>
+          <span className="tabular-nums">{limit.alarmValue || 'N/A'}</span>
         ),
       },
       {
