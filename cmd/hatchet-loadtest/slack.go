@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 )
 
@@ -89,8 +90,8 @@ func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl stri
 	return err
 }
 
-func (s *SlackSender) UploadS3(imageBytes []byte, plotKey string) (*string, error) {
-	key := fmt.Sprintf("%s-%s-%s", "loadtest-plot", plotKey, time.Now().Format("20060102150405"))
+func (s *SlackSender) UploadS3(imageBytes []byte) (*string, error) {
+	key := fmt.Sprintf("%s-%s-%s", "loadtest-plot", uuid.New(), time.Now().Format("20060102150405"))
 	_, err := s.s3Client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(s.s3Bucket),
 		Key:    &key,
@@ -116,11 +117,11 @@ func (s *SlackSender) UploadS3(imageBytes []byte, plotKey string) (*string, erro
 }
 
 func (s *SlackSender) Send(durationBytes []byte, schedulingBytes []byte, avgDuration time.Duration, avgScheduling time.Duration) error {
-	uploadedDurationFileUrl, err := s.UploadS3(durationBytes, "duration")
+	uploadedDurationFileUrl, err := s.UploadS3(durationBytes)
 	if err != nil {
 		return err
 	}
-	uploadedSchedulingFileUrl, err := s.UploadS3(schedulingBytes, "scheduling")
+	uploadedSchedulingFileUrl, err := s.UploadS3(schedulingBytes)
 	if err != nil {
 		return err
 	}
