@@ -87,7 +87,7 @@ type InsertOtelSpansParams struct {
 
 const listSpansByTaskExternalID = `-- name: ListSpansByTaskExternalID :many
 WITH candidate_traces AS (
-    SELECT id, tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
+    SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
     FROM v1_otel_trace
     WHERE
         tenant_id = $3::UUID
@@ -102,7 +102,7 @@ WITH candidate_traces AS (
     LIMIT 1 -- shouldn't need this, there should only be one trace_id per task_run_external_id, but just in case
 )
 
-SELECT id, tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
+SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
 FROM v1_otel_trace
 WHERE trace_id = (SELECT trace_id FROM trace_id)
 ORDER BY start_time ASC
@@ -132,7 +132,6 @@ func (q *Queries) ListSpansByTaskExternalID(ctx context.Context, db DBTX, arg Li
 	for rows.Next() {
 		var i V1OtelTrace
 		if err := rows.Scan(
-			&i.ID,
 			&i.TenantID,
 			&i.TraceID,
 			&i.SpanID,
