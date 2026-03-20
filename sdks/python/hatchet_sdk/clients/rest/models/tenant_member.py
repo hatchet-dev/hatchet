@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant import Tenant
 from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
@@ -36,9 +36,7 @@ class TenantMember(BaseModel):
         description="The user associated with this tenant member."
     )
     role: TenantMemberRole = Field(description="The role of the user in the tenant.")
-    tenant: Optional[Tenant] = Field(
-        default=None, description="The tenant associated with this tenant member."
-    )
+    tenant: Tenant = Field(description="The tenant associated with this tenant member.")
     __properties: ClassVar[List[str]] = ["metadata", "user", "role", "tenant"]
 
     model_config = ConfigDict(

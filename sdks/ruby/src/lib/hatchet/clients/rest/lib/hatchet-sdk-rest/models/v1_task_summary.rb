@@ -78,6 +78,9 @@ module HatchetSdkRest
     # The timestamp the task run finished.
     attr_accessor :finished_at
 
+    # Whether the task has been evicted from a worker (still counts as RUNNING).
+    attr_accessor :is_evicted
+
     # The timestamp the task run started.
     attr_accessor :started_at
 
@@ -141,6 +144,7 @@ module HatchetSdkRest
         :'duration' => :'duration',
         :'error_message' => :'errorMessage',
         :'finished_at' => :'finishedAt',
+        :'is_evicted' => :'isEvicted',
         :'started_at' => :'startedAt',
         :'step_id' => :'stepId',
         :'workflow_name' => :'workflowName',
@@ -185,6 +189,7 @@ module HatchetSdkRest
         :'duration' => :'Integer',
         :'error_message' => :'String',
         :'finished_at' => :'Time',
+        :'is_evicted' => :'Boolean',
         :'started_at' => :'Time',
         :'step_id' => :'String',
         :'workflow_name' => :'String',
@@ -332,6 +337,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'finished_at')
         self.finished_at = attributes[:'finished_at']
+      end
+
+      if attributes.key?(:'is_evicted')
+        self.is_evicted = attributes[:'is_evicted']
       end
 
       if attributes.key?(:'started_at')
@@ -675,6 +684,7 @@ module HatchetSdkRest
           duration == o.duration &&
           error_message == o.error_message &&
           finished_at == o.finished_at &&
+          is_evicted == o.is_evicted &&
           started_at == o.started_at &&
           step_id == o.step_id &&
           workflow_name == o.workflow_name &&
@@ -692,7 +702,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, created_at, display_name, input, num_spawned_children, output, status, task_external_id, task_id, task_inserted_at, tenant_id, type, workflow_id, workflow_run_external_id, action_id, retry_count, attempt, additional_metadata, children, duration, error_message, finished_at, started_at, step_id, workflow_name, workflow_version_id, workflow_config, parent_task_external_id].hash
+      [metadata, created_at, display_name, input, num_spawned_children, output, status, task_external_id, task_id, task_inserted_at, tenant_id, type, workflow_id, workflow_run_external_id, action_id, retry_count, attempt, additional_metadata, children, duration, error_message, finished_at, is_evicted, started_at, step_id, workflow_name, workflow_version_id, workflow_config, parent_task_external_id].hash
     end
 
     # Builds the object from hash

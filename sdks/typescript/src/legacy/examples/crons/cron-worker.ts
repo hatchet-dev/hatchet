@@ -17,9 +17,7 @@ export const simpleCronWorkflow: Workflow = {
   steps: [
     {
       name: 'what-time-is-it',
-      run: (ctx) => {
-        return { time: new Date().toISOString() };
-      },
+      run: (ctx) => ({ time: new Date().toISOString() }),
     },
   ],
   // ,

@@ -4,15 +4,11 @@ import { hatchet } from '../hatchet-client';
 // Mirrors `sdks/python/examples/simple/worker.py` outputs for e2e.
 export const helloWorld = hatchet.task({
   name: 'hello-world',
-  fn: async (_input: InputType) => {
-    return { result: 'Hello, world!' };
-  },
+  fn: async (_input: InputType) => ({ result: 'Hello, world!' }),
 });
 
 export const helloWorldDurable = hatchet.durableTask({
   name: 'hello-world-durable',
   executionTimeout: '10m',
-  fn: async (_input: InputType) => {
-    return { result: 'Hello, world!' };
-  },
+  fn: async (_input: InputType) => ({ result: 'Hello, world!' }),
 });

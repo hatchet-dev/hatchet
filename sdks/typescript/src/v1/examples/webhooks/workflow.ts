@@ -12,7 +12,5 @@ export const webhookWorkflow = hatchet.workflow<WebhookInput>({
 
 webhookWorkflow.task({
   name: 'webhook-task',
-  fn: async (input: WebhookInput) => {
-    return input;
-  },
+  fn: async (input: WebhookInput) => input,
 });

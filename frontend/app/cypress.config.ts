@@ -46,6 +46,7 @@ export default defineConfig({
     defaultCommandTimeout: 15000,
     requestTimeout: 15000,
     responseTimeout: 30000,
+    experimentalRunAllSpecs: true,
     setupNodeEvents(_on, config) {
       return config;
     },

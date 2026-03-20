@@ -1323,7 +1323,7 @@ export interface TenantMember {
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
   /** The tenant associated with this tenant member. */
-  tenant?: Tenant;
+  tenant: Tenant;
 }
 
 export interface UserTenantMembershipsList {

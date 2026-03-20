@@ -19,22 +19,16 @@ describe('middleware-e2e', () => {
       { first: number; second: number },
       { extra: number }
     >().withMiddleware({
-      before: (input) => {
-        return { ...input, dependency: `dep-${input.first}-${input.second}` };
-      },
-      after: (output) => {
-        return { ...output, additionalData: 42 };
-      },
+      before: (input) => ({ ...input, dependency: `dep-${input.first}-${input.second}` }),
+      after: (output) => ({ ...output, additionalData: 42 }),
     });
 
     const task = client.task<{ message: string }, { message: string; extra: number }>({
       name: 'middleware-e2e-single',
-      fn: (input) => {
-        return {
-          message: `${input.message}:${input.dependency}`,
-          extra: input.first + input.second,
-        };
-      },
+      fn: (input) => ({
+        message: `${input.message}:${input.dependency}`,
+        extra: input.first + input.second,
+      }),
     });
 
     worker = await startWorker({
@@ -57,21 +51,15 @@ describe('middleware-e2e', () => {
 
   it('should strip fields not included in middleware return when input is not spread', async () => {
     const client = HatchetClient.init<{ first: number; second: number }>().withMiddleware({
-      before: (input) => {
-        return { dependency: `dep-${input.first}-${input.second}` };
-      },
-      after: (output) => {
-        return { additionalData: 99 };
-      },
+      before: (input) => ({ dependency: `dep-${input.first}-${input.second}` }),
+      after: (output) => ({ additionalData: 99 }),
     });
 
     const task = client.task<{}, { result: string }>({
       name: 'middleware-e2e-no-spread',
-      fn: (input) => {
-        return {
-          result: input.dependency,
-        };
-      },
+      fn: (input) => ({
+        result: input.dependency,
+      }),
     });
 
     worker = await startWorker({
@@ -90,29 +78,19 @@ describe('middleware-e2e', () => {
   it('should chain multiple withMiddleware calls with accumulated context', async () => {
     const client = HatchetClient.init<{ value: number }>()
       .withMiddleware({
-        before: (input) => {
-          return { ...input, doubled: input.value * 2 };
-        },
-        after: (output) => {
-          return { ...output, postFirst: true };
-        },
+        before: (input) => ({ ...input, doubled: input.value * 2 }),
+        after: (output) => ({ ...output, postFirst: true }),
       })
       .withMiddleware({
-        before: (input) => {
-          return { ...input, quadrupled: input.doubled * 2 };
-        },
-        after: (output) => {
-          return { ...output, postSecond: true };
-        },
+        before: (input) => ({ ...input, quadrupled: input.doubled * 2 }),
+        after: (output) => ({ ...output, postSecond: true }),
       });
 
     const task = client.task<{}, { result: number }>({
       name: 'middleware-e2e-chained',
-      fn: (input) => {
-        return {
-          result: input.quadrupled,
-        };
-      },
+      fn: (input) => ({
+        result: input.quadrupled,
+      }),
     });
 
     worker = await startWorker({

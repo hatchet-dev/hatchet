@@ -14,47 +14,13 @@ require 'date'
 require 'time'
 
 module HatchetSdkRest
-  class TenantMember
-    attr_accessor :metadata
-
-    # The user associated with this tenant member.
-    attr_accessor :user
-
-    # The role of the user in the tenant.
-    attr_accessor :role
-
-    # The tenant associated with this tenant member.
-    attr_accessor :tenant
-
-    class EnumAttributeValidator
-      attr_reader :datatype
-      attr_reader :allowable_values
-
-      def initialize(datatype, allowable_values)
-        @allowable_values = allowable_values.map do |value|
-          case datatype.to_s
-          when /Integer/i
-            value.to_i
-          when /Float/i
-            value.to_f
-          else
-            value
-          end
-        end
-      end
-
-      def valid?(value)
-        !value || allowable_values.include?(value)
-      end
-    end
+  class V1RestoreTaskResponse
+    attr_accessor :requeued
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'metadata' => :'metadata',
-        :'user' => :'user',
-        :'role' => :'role',
-        :'tenant' => :'tenant'
+        :'requeued' => :'requeued'
       }
     end
 
@@ -71,10 +37,7 @@ module HatchetSdkRest
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'metadata' => :'APIResourceMeta',
-        :'user' => :'UserTenantPublic',
-        :'role' => :'TenantMemberRole',
-        :'tenant' => :'Tenant'
+        :'requeued' => :'Boolean'
       }
     end
 
@@ -88,40 +51,22 @@ module HatchetSdkRest
     # @param [Hash] attributes Model attributes in the form of hash
     def initialize(attributes = {})
       if (!attributes.is_a?(Hash))
-        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::TenantMember` initialize method"
+        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::V1RestoreTaskResponse` initialize method"
       end
 
       # check to see if the attribute exists and convert string to symbol for hash key
       acceptable_attribute_map = self.class.acceptable_attribute_map
       attributes = attributes.each_with_object({}) { |(k, v), h|
         if (!acceptable_attribute_map.key?(k.to_sym))
-          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::TenantMember`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
+          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::V1RestoreTaskResponse`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
         end
         h[k.to_sym] = v
       }
 
-      if attributes.key?(:'metadata')
-        self.metadata = attributes[:'metadata']
+      if attributes.key?(:'requeued')
+        self.requeued = attributes[:'requeued']
       else
-        self.metadata = nil
-      end
-
-      if attributes.key?(:'user')
-        self.user = attributes[:'user']
-      else
-        self.user = nil
-      end
-
-      if attributes.key?(:'role')
-        self.role = attributes[:'role']
-      else
-        self.role = nil
-      end
-
-      if attributes.key?(:'tenant')
-        self.tenant = attributes[:'tenant']
-      else
-        self.tenant = nil
+        self.requeued = nil
       end
     end
 
@@ -130,20 +75,8 @@ module HatchetSdkRest
     def list_invalid_properties
       warn '[DEPRECATED] the `list_invalid_properties` method is obsolete'
       invalid_properties = Array.new
-      if @metadata.nil?
-        invalid_properties.push('invalid value for "metadata", metadata cannot be nil.')
-      end
-
-      if @user.nil?
-        invalid_properties.push('invalid value for "user", user cannot be nil.')
-      end
-
-      if @role.nil?
-        invalid_properties.push('invalid value for "role", role cannot be nil.')
-      end
-
-      if @tenant.nil?
-        invalid_properties.push('invalid value for "tenant", tenant cannot be nil.')
+      if @requeued.nil?
+        invalid_properties.push('invalid value for "requeued", requeued cannot be nil.')
       end
 
       invalid_properties
@@ -153,51 +86,18 @@ module HatchetSdkRest
     # @return true if the model is valid
     def valid?
       warn '[DEPRECATED] the `valid?` method is obsolete'
-      return false if @metadata.nil?
-      return false if @user.nil?
-      return false if @role.nil?
-      return false if @tenant.nil?
+      return false if @requeued.nil?
       true
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] metadata Value to be assigned
-    def metadata=(metadata)
-      if metadata.nil?
-        fail ArgumentError, 'metadata cannot be nil'
+    # @param [Object] requeued Value to be assigned
+    def requeued=(requeued)
+      if requeued.nil?
+        fail ArgumentError, 'requeued cannot be nil'
       end
 
-      @metadata = metadata
-    end
-
-    # Custom attribute writer method with validation
-    # @param [Object] user Value to be assigned
-    def user=(user)
-      if user.nil?
-        fail ArgumentError, 'user cannot be nil'
-      end
-
-      @user = user
-    end
-
-    # Custom attribute writer method with validation
-    # @param [Object] role Value to be assigned
-    def role=(role)
-      if role.nil?
-        fail ArgumentError, 'role cannot be nil'
-      end
-
-      @role = role
-    end
-
-    # Custom attribute writer method with validation
-    # @param [Object] tenant Value to be assigned
-    def tenant=(tenant)
-      if tenant.nil?
-        fail ArgumentError, 'tenant cannot be nil'
-      end
-
-      @tenant = tenant
+      @requeued = requeued
     end
 
     # Checks equality by comparing each attribute.
@@ -205,10 +105,7 @@ module HatchetSdkRest
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          metadata == o.metadata &&
-          user == o.user &&
-          role == o.role &&
-          tenant == o.tenant
+          requeued == o.requeued
     end
 
     # @see the `==` method
@@ -220,7 +117,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, user, role, tenant].hash
+      [requeued].hash
     end
 
     # Builds the object from hash

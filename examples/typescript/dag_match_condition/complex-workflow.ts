@@ -11,11 +11,9 @@ export const taskConditionWorkflow = hatchet.workflow({
 // > Add base task
 const start = taskConditionWorkflow.task({
   name: 'start',
-  fn: () => {
-    return {
-      randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+  fn: () => ({
+    randomNumber: Math.floor(Math.random() * 100) + 1,
+  }),
 });
 
 // > Add wait for sleep
@@ -23,11 +21,9 @@ const waitForSleep = taskConditionWorkflow.task({
   name: 'waitForSleep',
   parents: [start],
   waitFor: [new SleepCondition('10s')],
-  fn: () => {
-    return {
-      randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+  fn: () => ({
+    randomNumber: Math.floor(Math.random() * 100) + 1,
+  }),
 });
 
 // > Add skip on event
@@ -36,11 +32,9 @@ const skipOnEvent = taskConditionWorkflow.task({
   parents: [start],
   waitFor: [new SleepCondition('10s')],
   skipIf: [new UserEventCondition('skip_on_event:skip', 'true')],
-  fn: () => {
-    return {
-      randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+  fn: () => ({
+    randomNumber: Math.floor(Math.random() * 100) + 1,
+  }),
 });
 
 // > Add branching
@@ -48,22 +42,18 @@ const leftBranch = taskConditionWorkflow.task({
   name: 'leftBranch',
   parents: [waitForSleep],
   skipIf: [new ParentCondition(waitForSleep, 'output.randomNumber > 50')],
-  fn: () => {
-    return {
-      randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+  fn: () => ({
+    randomNumber: Math.floor(Math.random() * 100) + 1,
+  }),
 });
 
 const rightBranch = taskConditionWorkflow.task({
   name: 'rightBranch',
   parents: [waitForSleep],
   skipIf: [new ParentCondition(waitForSleep, 'output.randomNumber <= 50')],
-  fn: () => {
-    return {
-      randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+  fn: () => ({
+    randomNumber: Math.floor(Math.random() * 100) + 1,
+  }),
 });
 
 // > Add wait for event
@@ -71,11 +61,9 @@ const waitForEvent = taskConditionWorkflow.task({
   name: 'waitForEvent',
   parents: [start],
   waitFor: [Or(new SleepCondition('1m'), new UserEventCondition('wait_for_event:start', 'true'))],
-  fn: () => {
-    return {
-      randomNumber: Math.floor(Math.random() * 100) + 1,
-    };
-  },
+  fn: () => ({
+    randomNumber: Math.floor(Math.random() * 100) + 1,
+  }),
 });
 
 // > Add sum

@@ -12,11 +12,9 @@ export type SimpleInputWithZod = z.infer<typeof SimpleInputSchema>;
 export const simpleWithZod = hatchet.task({
   name: 'simple-with-zod',
   retries: 3,
-  fn: async (input: SimpleInputWithZod) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
+  fn: async (input: SimpleInputWithZod) => ({
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
   inputValidator: SimpleInputSchema,
 });
 

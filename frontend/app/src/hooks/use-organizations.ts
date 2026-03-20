@@ -2,7 +2,6 @@ import { cloudApi } from '@/lib/api/api';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
-  OrganizationForUser,
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -23,6 +22,7 @@ export function useOrganizations() {
     organizations: organizationData,
     isLoaded: isUserUniverseLoaded,
     isCloudEnabled,
+    getOrganizationForTenant: getOrganizationForTenantAfterUniverseLoaded,
   } = useUserUniverse();
   const { handleApiError } = useApiError({});
 
@@ -44,15 +44,19 @@ export function useOrganizations() {
     return [];
   }, [isUserUniverseLoaded, organizationData, isCloudEnabled]);
 
-  const getOrganizationForTenant = useMemo(() => {
-    const tenantIdToOrganization = new Map<string, OrganizationForUser>();
-    organizations.forEach((org) => {
-      org.tenants.forEach((tenant) => {
-        tenantIdToOrganization.set(tenant.id, org);
-      });
-    });
-    return (tenantId: string) => tenantIdToOrganization.get(tenantId);
-  }, [organizations]);
+  const getOrganizationForTenant = useCallback(
+    (tenantId: string) => {
+      if (isCloudEnabled && isUserUniverseLoaded) {
+        return getOrganizationForTenantAfterUniverseLoaded(tenantId);
+      }
+      return undefined;
+    },
+    [
+      getOrganizationForTenantAfterUniverseLoaded,
+      isUserUniverseLoaded,
+      isCloudEnabled,
+    ],
+  );
 
   const getOrganizationIdForTenant = useCallback(
     (tenantId: string) => {

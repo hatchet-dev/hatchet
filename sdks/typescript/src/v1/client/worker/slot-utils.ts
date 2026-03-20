@@ -87,12 +87,12 @@ function getRequiredSlotTypes(
 
   for (const wf of workflows) {
     if (wf instanceof BaseWorkflowDeclaration) {
-      const tasks = wf.definition['_tasks'] as Array<{ slotRequests?: Record<string, number> }>;
+      const tasks = wf.definition._tasks as Array<{ slotRequests?: Record<string, number> }>;
       for (const task of tasks) {
         addFromRequests(task.slotRequests, SlotType.Default);
       }
 
-      const durableTasks = wf.definition['_durableTasks'] as Array<unknown>;
+      const durableTasks = wf.definition._durableTasks as Array<unknown>;
       if (durableTasks.length > 0) {
         required.add(SlotType.Durable);
       }
