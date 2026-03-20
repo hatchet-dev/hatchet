@@ -131,7 +131,7 @@ def otel_simple_task(input: SimpleOtelTaskInput, _: Context) -> dict[str, str]:
     return {"status": "ok"}
 
 
-@hatchet.task(name="OtelSpawnParent", input_validator=SimpleOtelTaskInput)
+@hatchet.task(input_validator=SimpleOtelTaskInput)
 async def otel_spawn_parent(input: SimpleOtelTaskInput, ctx: Context) -> dict[str, Any]:
     tracer = get_tracer("otel-test")
     with tracer.start_as_current_span("spawn.child") as span:

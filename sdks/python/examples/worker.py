@@ -82,6 +82,7 @@ from examples.webhooks.worker import webhook
 from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
     otel_simple_task,
+    otel_spawn_parent,
 )
 from hatchet_sdk import Hatchet
 
@@ -162,6 +163,7 @@ def main() -> None:
             eviction_bulk_child_task,
             memo_now_caching,
             otel_simple_task,
+            otel_spawn_parent,
             otel_workflow,
         ],
         lifespan=lifespan,

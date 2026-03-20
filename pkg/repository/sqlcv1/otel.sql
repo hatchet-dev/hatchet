@@ -88,15 +88,3 @@ WHERE trace_id = (SELECT trace_id FROM trace_id)
 ORDER BY start_time ASC
 OFFSET COALESCE(@spanOffset::BIGINT, 0)
 LIMIT COALESCE(@spanLimit::BIGINT, 1000);
-
--- name: ListSpansByTraceIDs :many
-SELECT
-    trace_id, span_id, parent_span_id, span_name, span_kind,
-    service_name, status_code, status_message, duration_ns, start_time,
-    resource_attributes, span_attributes, scope_name, scope_version,
-    retry_count
-FROM v1_otel_trace
-WHERE tenant_id = @tenantId::UUID
-AND trace_id = ANY(@traceIds::TEXT[])
-ORDER BY start_time ASC
-LIMIT 10000;
