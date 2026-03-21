@@ -246,3 +246,33 @@ func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSp
 	}
 	return items, nil
 }
+
+const lookUpTraceId = `-- name: LookUpTraceId :one
+WITH candidate_traces AS (
+    SELECT tenant_id, external_id, retry_count, trace_id, start_time
+    FROM v1_otel_trace_lookup_table
+    WHERE
+        tenant_id = $1::UUID
+        AND external_id = $2::UUID
+), max_retry_count AS (
+    SELECT MAX(retry_count) AS retry_count
+    FROM candidate_traces
+)
+
+SELECT DISTINCT trace_id
+FROM candidate_traces
+WHERE retry_count = (SELECT retry_count FROM max_retry_count)
+LIMIT 1
+`
+
+type LookUpTraceIdParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Externalid uuid.UUID `json:"externalid"`
+}
+
+func (q *Queries) LookUpTraceId(ctx context.Context, db DBTX, arg LookUpTraceIdParams) ([]byte, error) {
+	row := db.QueryRow(ctx, lookUpTraceId, arg.Tenantid, arg.Externalid)
+	var trace_id []byte
+	err := row.Scan(&trace_id)
+	return trace_id, err
+}

@@ -90,6 +90,25 @@ FROM inputs
 ON CONFLICT (tenant_id, external_id, retry_count, start_time) DO NOTHING
 ;
 
+-- name: LookUpTraceId :one
+WITH candidate_traces AS (
+    SELECT *
+    FROM v1_otel_trace_lookup_table
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND external_id = @externalId::UUID
+), max_retry_count AS (
+    SELECT MAX(retry_count) AS retry_count
+    FROM candidate_traces
+)
+
+SELECT DISTINCT trace_id
+FROM candidate_traces
+WHERE retry_count = (SELECT retry_count FROM max_retry_count)
+LIMIT 1
+;
+
+
 -- name: ListSpansByExternalID :many
 WITH candidate_traces AS (
     SELECT *
