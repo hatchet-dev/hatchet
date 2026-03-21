@@ -40,7 +40,7 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 		return nil, err
 	}
 
-	result, err := t.config.V1.OTelCollector().ListSpansByRunExternalID(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
+	result, err := t.config.V1.OTelCollector().ListSpansByTraceId(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
 	if err != nil {
 		return nil, err
 	}
