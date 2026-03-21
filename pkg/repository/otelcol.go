@@ -182,6 +182,40 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 	if err != nil {
 		return fmt.Errorf("error inserting otel spans: %w", err)
 	}
+
+	lookupTenantIds := make([]uuid.UUID, 0)
+	lookupExternalIds := make([]uuid.UUID, 0)
+	lookupRetryCounts := make([]int32, 0)
+	lookupTraceIds := make([][]byte, 0)
+	lookupStartTimes := make([]pgtype.Timestamptz, 0)
+
+	for _, span := range opts.Spans {
+		if span.TaskRunExternalID != nil {
+			lookupTenantIds = append(lookupTenantIds, tenantId)
+			lookupRetryCounts = append(lookupRetryCounts, span.RetryCount)
+			lookupTraceIds = append(lookupTraceIds, span.TraceID)
+			lookupStartTimes = append(lookupStartTimes, pgtype.Timestamptz{Time: time.Unix(0, int64(span.StartTimeUnixNano)), Valid: true})
+			lookupExternalIds = append(lookupExternalIds, *span.TaskRunExternalID)
+		}
+
+		if span.WorkflowRunID != nil && span.TaskRunExternalID != nil && *span.TaskRunExternalID != *span.WorkflowRunID {
+			// if both the task run and workflow run external ids are present and they're not the same, then we know
+			// the task must be part of a DAG, so we should insert a lookup entry for the DAG itself in addition to the task run
+			lookupTenantIds = append(lookupTenantIds, tenantId)
+			lookupRetryCounts = append(lookupRetryCounts, span.RetryCount)
+			lookupTraceIds = append(lookupTraceIds, span.TraceID)
+			lookupStartTimes = append(lookupStartTimes, pgtype.Timestamptz{Time: time.Unix(0, int64(span.StartTimeUnixNano)), Valid: true})
+			lookupExternalIds = append(lookupExternalIds, *span.WorkflowRunID)
+		}
+	}
+
+	return o.queries.InsertOTelTraceLookup(ctx, o.pool, sqlcv1.InsertOTelTraceLookupParams{
+		Tenantids:   lookupTenantIds,
+		Externalids: lookupExternalIds,
+		Retrycounts: lookupRetryCounts,
+		Traceids:    lookupTraceIds,
+		Starttimes:  lookupStartTimes,
+	})
 }
 
 func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalID, workflowRunExternalId *uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
