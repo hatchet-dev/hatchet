@@ -5,13 +5,14 @@ import {
 } from '../hooks/use-workflow-details';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
+import { Observability } from './v2components/step-run-detail/observability/observability';
 import {
+  TASK_RUN_TERMINAL_STATUSES,
   TabOption,
   TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
-import { Waterfall } from './v2components/waterfall';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
@@ -300,8 +301,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             <TabsTrigger variant="underlined" value="overview">
               Overview
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="waterfall">
-              Waterfall
+            <TabsTrigger variant="underlined" value="observability">
+              Observability
             </TabsTrigger>
             {logsEnabled && (
               <TabsTrigger variant="underlined" value="logs">
@@ -329,7 +330,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 <TabsTrigger variant="underlined" value="additional-metadata">
                   Additional Metadata
                 </TabsTrigger>
-                {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
               </TabsList>
               <TabsContent value="activity" className="py-4">
                 <StepRunEvents
@@ -350,11 +350,13 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               </TabsContent>
             </Tabs>
           </TabsContent>
-          <TabsContent value="waterfall" className="min-h-0 flex-1">
-            <Waterfall
-              workflowRunId={id}
-              selectedTaskId={undefined}
-              handleTaskSelect={handleTaskRunExpand}
+          <TabsContent value="observability" className="min-h-0 flex-1">
+            <Observability
+              workflowRunExternalId={id}
+              isRunning={
+                !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
+              }
+              onTaskRunClick={handleTaskRunExpand}
             />
           </TabsContent>
           {logsEnabled && (

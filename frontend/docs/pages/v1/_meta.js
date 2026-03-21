@@ -117,7 +117,4 @@ export default {
   "flow-control": {
     display: "hidden",
   },
-  observability: {
-    display: "hidden",
-  },
 };

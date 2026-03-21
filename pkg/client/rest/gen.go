@@ -71,6 +71,23 @@ const (
 	JobRunStatusSUCCEEDED JobRunStatus = "SUCCEEDED"
 )
 
+// Defines values for OtelSpanKind.
+const (
+	CLIENT      OtelSpanKind = "CLIENT"
+	CONSUMER    OtelSpanKind = "CONSUMER"
+	INTERNAL    OtelSpanKind = "INTERNAL"
+	PRODUCER    OtelSpanKind = "PRODUCER"
+	SERVER      OtelSpanKind = "SERVER"
+	UNSPECIFIED OtelSpanKind = "UNSPECIFIED"
+)
+
+// Defines values for OtelStatusCode.
+const (
+	OtelStatusCodeERROR OtelStatusCode = "ERROR"
+	OtelStatusCodeOK    OtelStatusCode = "OK"
+	OtelStatusCodeUNSET OtelStatusCode = "UNSET"
+)
+
 // Defines values for RateLimitOrderByDirection.
 const (
 	RateLimitOrderByDirectionAsc  RateLimitOrderByDirection = "asc"
@@ -181,8 +198,8 @@ const (
 
 // Defines values for V1CELDebugResponseStatus.
 const (
-	ERROR   V1CELDebugResponseStatus = "ERROR"
-	SUCCESS V1CELDebugResponseStatus = "SUCCESS"
+	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
+	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
@@ -711,6 +728,38 @@ type ListSlackWebhooks struct {
 	Pagination PaginationResponse `json:"pagination"`
 	Rows       []SlackWebhook     `json:"rows"`
 }
+
+// OtelSpan defines model for OtelSpan.
+type OtelSpan struct {
+	CreatedAt          time.Time          `json:"createdAt"`
+	DurationNs         int64              `json:"durationNs"`
+	ParentSpanId       *string            `json:"parentSpanId,omitempty"`
+	ResourceAttributes *map[string]string `json:"resourceAttributes,omitempty"`
+	RetryCount         int32              `json:"retryCount"`
+	ScopeName          *string            `json:"scopeName,omitempty"`
+	ScopeVersion       *string            `json:"scopeVersion,omitempty"`
+	ServiceName        string             `json:"serviceName"`
+	SpanAttributes     *map[string]string `json:"spanAttributes,omitempty"`
+	SpanId             string             `json:"spanId"`
+	SpanKind           OtelSpanKind       `json:"spanKind"`
+	SpanName           string             `json:"spanName"`
+	StatusCode         OtelStatusCode     `json:"statusCode"`
+	StatusMessage      *string            `json:"statusMessage,omitempty"`
+	TraceId            string             `json:"traceId"`
+}
+
+// OtelSpanKind defines model for OtelSpanKind.
+type OtelSpanKind string
+
+// OtelSpanList defines model for OtelSpanList.
+type OtelSpanList struct {
+	Pagination  *PaginationResponse `json:"pagination,omitempty"`
+	RetryCounts *[]int32            `json:"retryCounts,omitempty"`
+	Rows        *[]OtelSpan         `json:"rows,omitempty"`
+}
+
+// OtelStatusCode defines model for OtelStatusCode.
+type OtelStatusCode string
 
 // PaginationResponse defines model for PaginationResponse.
 type PaginationResponse struct {
@@ -2642,6 +2691,18 @@ type V1TaskGetPointMetricsParams struct {
 	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
 }
 
+// V1ObservabilityGetTraceParams defines parameters for V1ObservabilityGetTrace.
+type V1ObservabilityGetTraceParams struct {
+	// RunExternalId The workflow run external id
+	RunExternalId openapi_types.UUID `form:"run_external_id" json:"run_external_id"`
+
+	// Offset The number of spans to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number of spans to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // V1WebhookListParams defines parameters for V1WebhookList.
 type V1WebhookListParams struct {
 	// Offset The number to skip
@@ -3386,6 +3447,9 @@ type ClientInterface interface {
 	V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ObservabilityGetTrace request
+	V1ObservabilityGetTrace(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WebhookList request
 	V1WebhookList(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4254,6 +4318,18 @@ func (c *Client) V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.
 
 func (c *Client) V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskReplayRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ObservabilityGetTrace(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ObservabilityGetTraceRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7954,6 +8030,90 @@ func NewV1TaskReplayRequestWithBody(server string, tenant openapi_types.UUID, co
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1ObservabilityGetTraceRequest generates requests for V1ObservabilityGetTrace
+func NewV1ObservabilityGetTraceRequest(server string, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/traces", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "run_external_id", runtime.ParamLocationQuery, params.RunExternalId); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -13713,6 +13873,9 @@ type ClientWithResponsesInterface interface {
 
 	V1TaskReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
 
+	// V1ObservabilityGetTraceWithResponse request
+	V1ObservabilityGetTraceWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*V1ObservabilityGetTraceResponse, error)
+
 	// V1WebhookListWithResponse request
 	V1WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*V1WebhookListResponse, error)
 
@@ -14925,6 +15088,31 @@ func (r V1TaskReplayResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1TaskReplayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ObservabilityGetTraceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OtelSpanList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ObservabilityGetTraceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ObservabilityGetTraceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -17784,6 +17972,15 @@ func (c *ClientWithResponses) V1TaskReplayWithResponse(ctx context.Context, tena
 	return ParseV1TaskReplayResponse(rsp)
 }
 
+// V1ObservabilityGetTraceWithResponse request returning *V1ObservabilityGetTraceResponse
+func (c *ClientWithResponses) V1ObservabilityGetTraceWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ObservabilityGetTraceParams, reqEditors ...RequestEditorFn) (*V1ObservabilityGetTraceResponse, error) {
+	rsp, err := c.V1ObservabilityGetTrace(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ObservabilityGetTraceResponse(rsp)
+}
+
 // V1WebhookListWithResponse request returning *V1WebhookListResponse
 func (c *ClientWithResponses) V1WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*V1WebhookListResponse, error) {
 	rsp, err := c.V1WebhookList(ctx, tenant, params, reqEditors...)
@@ -20395,6 +20592,53 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ObservabilityGetTraceResponse parses an HTTP response from a V1ObservabilityGetTraceWithResponse call
+func ParseV1ObservabilityGetTraceResponse(rsp *http.Response) (*V1ObservabilityGetTraceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ObservabilityGetTraceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OtelSpanList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

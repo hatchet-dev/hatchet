@@ -75,6 +75,30 @@ type UseSidePanelProps =
       };
     };
 
+function SidePanelTaskRunDetail(props: {
+  taskRunId: string;
+  defaultOpenTab?: TabOption;
+  showViewTaskRunButton?: boolean;
+}) {
+  const { open } = useSidePanel();
+
+  const handleTaskRunClick = useCallback(
+    (taskRunId: string) => {
+      open({
+        type: 'task-run-details',
+        content: {
+          taskRunId,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
+        },
+      });
+    },
+    [open],
+  );
+
+  return <TaskRunDetail {...props} onTaskRunClick={handleTaskRunClick} />;
+}
+
 function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
@@ -105,7 +129,7 @@ function useSidePanelData(): SidePanelData {
       case 'task-run-details':
         return {
           isDocs: false,
-          component: <TaskRunDetail {...props.content} />,
+          component: <SidePanelTaskRunDetail {...props.content} />,
         };
       case 'event-details':
         return {

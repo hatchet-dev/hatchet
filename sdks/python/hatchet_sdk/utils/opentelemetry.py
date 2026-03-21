@@ -14,6 +14,7 @@ class OTelAttribute(str, Enum):
 
     ## Action
     ACTION_NAME = "action_name"
+    STEP_NAME = "step_name"
     CHILD_WORKFLOW_INDEX = "child_workflow_index"
     CHILD_WORKFLOW_KEY = "child_workflow_key"
     PARENT_WORKFLOW_RUN_ID = "parent_workflow_run_id"

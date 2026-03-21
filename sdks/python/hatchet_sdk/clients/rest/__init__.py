@@ -137,6 +137,10 @@ from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
     LogLineOrderByDirection,
 )
 from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
+from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
+from hatchet_sdk.clients.rest.models.otel_span_kind import OtelSpanKind
+from hatchet_sdk.clients.rest.models.otel_span_list import OtelSpanList
+from hatchet_sdk.clients.rest.models.otel_status_code import OtelStatusCode
 from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
 from hatchet_sdk.clients.rest.models.pull_request import PullRequest
 from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
@@ -311,6 +315,8 @@ from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
 from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
     V1LogLineOrderByDirection,
 )
+from hatchet_sdk.clients.rest.models.v1_logs_point_metric import V1LogsPointMetric
+from hatchet_sdk.clients.rest.models.v1_logs_point_metrics import V1LogsPointMetrics
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
 from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
 from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
