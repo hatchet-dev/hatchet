@@ -64,6 +64,32 @@ FROM inputs
 ON CONFLICT (tenant_id, trace_id, start_time, span_id) DO NOTHING
 ;
 
+-- name: InsertOTelTraceLookup :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@retryCounts::INT[]) AS retry_count,
+        UNNEST(@traceIds::BYTEA[]) AS trace_id,
+        UNNEST(@startTimes::TIMESTAMPTZ[]) AS start_time
+)
+INSERT INTO v1_otel_trace_lookup_table (
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+)
+SELECT
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+FROM inputs
+ON CONFLICT (tenant_id, external_id, retry_count, start_time) DO NOTHING
+;
+
 -- name: ListSpansByExternalID :many
 WITH candidate_traces AS (
     SELECT *

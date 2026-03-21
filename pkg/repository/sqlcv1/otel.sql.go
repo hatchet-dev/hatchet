@@ -12,6 +12,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const insertOTelTraceLookup = `-- name: InsertOTelTraceLookup :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS external_id,
+        UNNEST($3::INT[]) AS retry_count,
+        UNNEST($4::BYTEA[]) AS trace_id,
+        UNNEST($5::TIMESTAMPTZ[]) AS start_time
+)
+INSERT INTO v1_otel_trace_lookup_table (
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+)
+SELECT
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+FROM inputs
+ON CONFLICT (tenant_id, external_id, retry_count, start_time) DO NOTHING
+`
+
+type InsertOTelTraceLookupParams struct {
+	Tenantids   []uuid.UUID          `json:"tenantids"`
+	Externalids []uuid.UUID          `json:"externalids"`
+	Retrycounts []int32              `json:"retrycounts"`
+	Traceids    [][]byte             `json:"traceids"`
+	Starttimes  []pgtype.Timestamptz `json:"starttimes"`
+}
+
+func (q *Queries) InsertOTelTraceLookup(ctx context.Context, db DBTX, arg InsertOTelTraceLookupParams) error {
+	_, err := db.Exec(ctx, insertOTelTraceLookup,
+		arg.Tenantids,
+		arg.Externalids,
+		arg.Retrycounts,
+		arg.Traceids,
+		arg.Starttimes,
+	)
+	return err
+}
+
 const insertOtelSpans = `-- name: InsertOtelSpans :exec
 WITH inputs AS (
     SELECT

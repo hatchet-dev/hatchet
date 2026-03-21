@@ -158,7 +158,7 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		startTimes[i] = pgtype.Timestamptz{Time: startTime, Valid: true}
 	}
 
-	return o.queries.InsertOtelSpans(ctx, o.pool, sqlcv1.InsertOtelSpansParams{
+	err := o.queries.InsertOtelSpans(ctx, o.pool, sqlcv1.InsertOtelSpansParams{
 		Tenantids:              tenantIds,
 		Traceids:               traceIds,
 		Spanids:                spanIds,
@@ -178,6 +178,10 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		Retrycounts:            retryCounts,
 		Starttimes:             startTimes,
 	})
+
+	if err != nil {
+		return fmt.Errorf("error inserting otel spans: %w", err)
+	}
 }
 
 func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalID, workflowRunExternalId *uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
