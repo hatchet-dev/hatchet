@@ -240,7 +240,17 @@ func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Cont
 	lookupTraceIds := make([][]byte, 0)
 	lookupStartTimes := make([]pgtype.Timestamptz, 0)
 
+	seenTraceIds := make(map[string]struct{})
+
 	for _, span := range opts.Spans {
+		traceIdStr := hex.EncodeToString(span.TraceID)
+
+		if _, seen := seenTraceIds[traceIdStr]; seen {
+			continue
+		}
+
+		seenTraceIds[traceIdStr] = struct{}{}
+
 		if span.TaskRunExternalID != nil {
 			lookupTenantIds = append(lookupTenantIds, tenantId)
 			lookupRetryCounts = append(lookupRetryCounts, span.RetryCount)
