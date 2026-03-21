@@ -240,16 +240,18 @@ func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Cont
 	lookupTraceIds := make([][]byte, 0)
 	lookupStartTimes := make([]pgtype.Timestamptz, 0)
 
-	seenTraceIds := make(map[string]struct{})
+	seenExternalIds := make(map[uuid.UUID]struct{})
 
 	for _, span := range opts.Spans {
-		traceIdStr := hex.EncodeToString(span.TraceID)
-
-		if _, seen := seenTraceIds[traceIdStr]; seen {
+		if span.TaskRunExternalID == nil {
 			continue
 		}
 
-		seenTraceIds[traceIdStr] = struct{}{}
+		if _, seen := seenExternalIds[*span.TaskRunExternalID]; seen {
+			continue
+		}
+
+		seenExternalIds[*span.TaskRunExternalID] = struct{}{}
 
 		if span.TaskRunExternalID != nil {
 			lookupTenantIds = append(lookupTenantIds, tenantId)
@@ -259,7 +261,9 @@ func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Cont
 			lookupExternalIds = append(lookupExternalIds, *span.TaskRunExternalID)
 		}
 
-		if span.WorkflowRunID != nil && span.TaskRunExternalID != nil && *span.TaskRunExternalID != *span.WorkflowRunID {
+		_, haveSeenWorkflowRunIdAlready := seenExternalIds[*span.WorkflowRunID]
+
+		if !haveSeenWorkflowRunIdAlready && span.WorkflowRunID != nil && span.TaskRunExternalID != nil && *span.TaskRunExternalID != *span.WorkflowRunID {
 			// if both the task run and workflow run external ids are present and they're not the same, then we know
 			// the task must be part of a DAG, so we should insert a lookup entry for the DAG itself in addition to the task run
 			lookupTenantIds = append(lookupTenantIds, tenantId)
@@ -267,6 +271,8 @@ func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Cont
 			lookupTraceIds = append(lookupTraceIds, span.TraceID)
 			lookupStartTimes = append(lookupStartTimes, pgtype.Timestamptz{Time: time.Unix(0, int64(span.StartTimeUnixNano)), Valid: true})
 			lookupExternalIds = append(lookupExternalIds, *span.WorkflowRunID)
+
+			seenExternalIds[*span.WorkflowRunID] = struct{}{}
 		}
 	}
 
