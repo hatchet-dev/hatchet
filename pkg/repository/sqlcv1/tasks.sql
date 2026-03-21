@@ -11,7 +11,8 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80),
-    create_v1_range_partition('v1_otel_trace', @date::date)
+    create_v1_range_partition('v1_otel_trace', @date::date),
+    create_v1_range_partition('v1_otel_trace_lookup_table', @date::date)
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -77,6 +78,8 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
 ), otel_trace_partitions AS (
     SELECT 'v1_otel_trace' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace', @date::date) AS p
+), otel_trace_lookup_table_partitions AS (
+    SELECT 'v1_otel_trace_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_table', @date::date) AS p
 )
 
 SELECT
@@ -160,6 +163,13 @@ SELECT
     *
 FROM
     otel_trace_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    otel_trace_lookup_table_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one

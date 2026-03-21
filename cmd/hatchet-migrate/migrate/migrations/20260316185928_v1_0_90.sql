@@ -34,7 +34,6 @@ CREATE INDEX idx_v1_otel_trace_workflow_lookup
     WHERE workflow_run_external_id IS NOT NULL;
 
 SELECT create_v1_range_partition('v1_otel_trace'::TEXT, NOW()::DATE);
-
 SELECT create_v1_range_partition('v1_otel_trace'::TEXT, (NOW() + INTERVAL '1 day')::DATE);
 
 CREATE TABLE v1_otel_trace_lookup_table (
@@ -45,6 +44,9 @@ CREATE TABLE v1_otel_trace_lookup_table (
     start_time      TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (tenant_id, external_id, retry_count, start_time)
 ) PARTITION BY RANGE (start_time);
+
+SELECT create_v1_range_partition('v1_otel_trace_lookup_table'::TEXT, NOW()::DATE);
+SELECT create_v1_range_partition('v1_otel_trace_lookup_table'::TEXT, (NOW() + INTERVAL '1 day')::DATE);
 
 -- +goose Down
 DROP TABLE v1_otel_trace_lookup_table;
