@@ -15100,6 +15100,7 @@ type V1ObservabilityGetTraceResponse struct {
 	JSON200      *OtelSpanList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -20631,6 +20632,13 @@ func ParseV1ObservabilityGetTraceResponse(rsp *http.Response) (*V1ObservabilityG
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

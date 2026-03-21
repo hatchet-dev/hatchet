@@ -55,6 +55,12 @@ getTrace:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Trace not found
     summary: Get OTel trace
     tags:
       - Observability

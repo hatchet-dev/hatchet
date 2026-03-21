@@ -64,27 +64,55 @@ FROM inputs
 ON CONFLICT (tenant_id, trace_id, start_time, span_id) DO NOTHING
 ;
 
--- name: ListSpansByExternalID :many
+-- name: InsertOTelTraceLookup :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@retryCounts::INT[]) AS retry_count,
+        UNNEST(@traceIds::BYTEA[]) AS trace_id,
+        UNNEST(@startTimes::TIMESTAMPTZ[]) AS start_time
+)
+INSERT INTO v1_otel_trace_lookup_table (
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+)
+SELECT
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+FROM inputs
+ON CONFLICT (tenant_id, external_id, retry_count, start_time) DO NOTHING
+;
+
+-- name: LookUpTraceId :one
 WITH candidate_traces AS (
     SELECT *
-    FROM v1_otel_trace
+    FROM v1_otel_trace_lookup_table
     WHERE
         tenant_id = @tenantId::UUID
-        AND (sqlc.narg('taskRunExternalId')::UUID IS NULL OR task_run_external_id = sqlc.narg('taskRunExternalId')::UUID)
-        AND (sqlc.narg('workflowRunExternalId')::UUID IS NULL OR workflow_run_external_id = sqlc.narg('workflowRunExternalId')::UUID)
-), max_retry_count AS (
-    SELECT MAX(retry_count) AS retry_count
-    FROM candidate_traces
-), trace_id AS (
-    SELECT DISTINCT trace_id
-    FROM candidate_traces
-    WHERE retry_count = (SELECT retry_count FROM max_retry_count)
-    LIMIT 1 -- shouldn't need this, there should only be one trace_id per task_run_external_id, but just in case
+        AND external_id = @externalId::UUID
 )
 
+SELECT trace_id
+FROM candidate_traces
+-- get the max retry count + use time as a stable-ish order
+ORDER BY retry_count DESC, start_time DESC
+LIMIT 1
+;
+
+
+-- name: ListSpansByTraceId :many
 SELECT *
 FROM v1_otel_trace
-WHERE trace_id = (SELECT trace_id FROM trace_id)
+WHERE
+    tenant_id = @tenantId::UUID
+    AND trace_id = @traceId::BYTEA
 ORDER BY start_time ASC
 OFFSET COALESCE(@spanOffset::BIGINT, 0)
 LIMIT COALESCE(@spanLimit::BIGINT, 1000)

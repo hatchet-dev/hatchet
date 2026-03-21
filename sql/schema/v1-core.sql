@@ -2402,3 +2402,12 @@ CREATE INDEX idx_v1_otel_trace_task_lookup
 CREATE INDEX idx_v1_otel_trace_workflow_lookup
     ON v1_otel_trace (tenant_id, workflow_run_external_id)
     WHERE workflow_run_external_id IS NOT NULL;
+
+CREATE TABLE v1_otel_trace_lookup_table (
+    tenant_id       UUID NOT NULL,
+    external_id     UUID NOT NULL,
+    retry_count     INT NOT NULL,
+    trace_id        BYTEA NOT NULL,
+    start_time      TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, external_id, retry_count, start_time)
+) PARTITION BY RANGE (start_time);

@@ -12,6 +12,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const insertOTelTraceLookup = `-- name: InsertOTelTraceLookup :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS external_id,
+        UNNEST($3::INT[]) AS retry_count,
+        UNNEST($4::BYTEA[]) AS trace_id,
+        UNNEST($5::TIMESTAMPTZ[]) AS start_time
+)
+INSERT INTO v1_otel_trace_lookup_table (
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+)
+SELECT
+    tenant_id,
+    external_id,
+    retry_count,
+    trace_id,
+    start_time
+FROM inputs
+ON CONFLICT (tenant_id, external_id, retry_count, start_time) DO NOTHING
+`
+
+type InsertOTelTraceLookupParams struct {
+	Tenantids   []uuid.UUID          `json:"tenantids"`
+	Externalids []uuid.UUID          `json:"externalids"`
+	Retrycounts []int32              `json:"retrycounts"`
+	Traceids    [][]byte             `json:"traceids"`
+	Starttimes  []pgtype.Timestamptz `json:"starttimes"`
+}
+
+func (q *Queries) InsertOTelTraceLookup(ctx context.Context, db DBTX, arg InsertOTelTraceLookupParams) error {
+	_, err := db.Exec(ctx, insertOTelTraceLookup,
+		arg.Tenantids,
+		arg.Externalids,
+		arg.Retrycounts,
+		arg.Traceids,
+		arg.Starttimes,
+	)
+	return err
+}
+
 const insertOtelSpans = `-- name: InsertOtelSpans :exec
 WITH inputs AS (
     SELECT
@@ -123,47 +168,30 @@ func (q *Queries) InsertOtelSpans(ctx context.Context, db DBTX, arg InsertOtelSp
 	return err
 }
 
-const listSpansByExternalID = `-- name: ListSpansByExternalID :many
-WITH candidate_traces AS (
-    SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
-    FROM v1_otel_trace
-    WHERE
-        tenant_id = $3::UUID
-        AND ($4::UUID IS NULL OR task_run_external_id = $4::UUID)
-        AND ($5::UUID IS NULL OR workflow_run_external_id = $5::UUID)
-), max_retry_count AS (
-    SELECT MAX(retry_count) AS retry_count
-    FROM candidate_traces
-), trace_id AS (
-    SELECT DISTINCT trace_id
-    FROM candidate_traces
-    WHERE retry_count = (SELECT retry_count FROM max_retry_count)
-    LIMIT 1 -- shouldn't need this, there should only be one trace_id per task_run_external_id, but just in case
-)
-
+const listSpansByTraceId = `-- name: ListSpansByTraceId :many
 SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
 FROM v1_otel_trace
-WHERE trace_id = (SELECT trace_id FROM trace_id)
+WHERE
+    tenant_id = $1::UUID
+    AND trace_id = $2::BYTEA
 ORDER BY start_time ASC
-OFFSET COALESCE($1::BIGINT, 0)
-LIMIT COALESCE($2::BIGINT, 1000)
+OFFSET COALESCE($3::BIGINT, 0)
+LIMIT COALESCE($4::BIGINT, 1000)
 `
 
-type ListSpansByExternalIDParams struct {
-	Spanoffset            int64      `json:"spanoffset"`
-	Spanlimit             int64      `json:"spanlimit"`
-	Tenantid              uuid.UUID  `json:"tenantid"`
-	TaskRunExternalId     *uuid.UUID `json:"taskRunExternalId"`
-	WorkflowRunExternalId *uuid.UUID `json:"workflowRunExternalId"`
+type ListSpansByTraceIdParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Traceid    []byte    `json:"traceid"`
+	Spanoffset int64     `json:"spanoffset"`
+	Spanlimit  int64     `json:"spanlimit"`
 }
 
-func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSpansByExternalIDParams) ([]*V1OtelTrace, error) {
-	rows, err := db.Query(ctx, listSpansByExternalID,
+func (q *Queries) ListSpansByTraceId(ctx context.Context, db DBTX, arg ListSpansByTraceIdParams) ([]*V1OtelTrace, error) {
+	rows, err := db.Query(ctx, listSpansByTraceId,
+		arg.Tenantid,
+		arg.Traceid,
 		arg.Spanoffset,
 		arg.Spanlimit,
-		arg.Tenantid,
-		arg.TaskRunExternalId,
-		arg.WorkflowRunExternalId,
 	)
 	if err != nil {
 		return nil, err
@@ -200,4 +228,32 @@ func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSp
 		return nil, err
 	}
 	return items, nil
+}
+
+const lookUpTraceId = `-- name: LookUpTraceId :one
+WITH candidate_traces AS (
+    SELECT tenant_id, external_id, retry_count, trace_id, start_time
+    FROM v1_otel_trace_lookup_table
+    WHERE
+        tenant_id = $1::UUID
+        AND external_id = $2::UUID
+)
+
+SELECT trace_id
+FROM candidate_traces
+ORDER BY retry_count DESC, start_time DESC
+LIMIT 1
+`
+
+type LookUpTraceIdParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Externalid uuid.UUID `json:"externalid"`
+}
+
+// get the max retry count + use time as a stable-ish order
+func (q *Queries) LookUpTraceId(ctx context.Context, db DBTX, arg LookUpTraceIdParams) ([]byte, error) {
+	row := db.QueryRow(ctx, lookUpTraceId, arg.Tenantid, arg.Externalid)
+	var trace_id []byte
+	err := row.Scan(&trace_id)
+	return trace_id, err
 }

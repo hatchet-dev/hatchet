@@ -72,6 +72,21 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		}, nil
 	}
 
+	err = oc.repo.OTelLookup().CreateSpanLookupTableEntries(ctx, tenantId, &repository.CreateSpansOpts{
+		TenantID: tenantId,
+		Spans:    spans,
+	})
+
+	if err != nil {
+		oc.l.Error().Err(err).Msg("failed to create span lookup table entries")
+		return &collectortracev1.ExportTraceServiceResponse{
+			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
+				RejectedSpans: int64(len(spans)) + rejected,
+				ErrorMessage:  err.Error(),
+			},
+		}, nil
+	}
+
 	oc.l.Debug().Int("span_count", len(spans)).Str("tenant_id", tenantId.String()).Msg("stored spans")
 
 	if rejected > 0 {
