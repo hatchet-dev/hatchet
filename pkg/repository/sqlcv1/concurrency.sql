@@ -164,7 +164,7 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
-        ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.priority DESC, wcs_all.sort_id ASC
         LIMIT @maxRuns::int
     ) wsc ON true
 ), eligible_slots AS (
@@ -215,7 +215,7 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
-        ORDER BY wcs_all.sort_id ASC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.sort_id ASC
         LIMIT @maxRuns::int
     ) cs ON true
 ), schedule_timeout_slots AS (
@@ -326,7 +326,7 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT *
     FROM (
         SELECT *,
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id DESC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled ASC, sort_id DESC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = @tenantId::uuid
@@ -560,7 +560,7 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT *
     FROM (
         SELECT *,
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled DESC, sort_id ASC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = @tenantId::uuid
