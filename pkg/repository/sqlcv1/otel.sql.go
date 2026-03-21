@@ -250,6 +250,7 @@ type LookUpTraceIdParams struct {
 	Externalid uuid.UUID `json:"externalid"`
 }
 
+// get the max retry count + use time as a stable-ish order
 func (q *Queries) LookUpTraceId(ctx context.Context, db DBTX, arg LookUpTraceIdParams) ([]byte, error) {
 	row := db.QueryRow(ctx, lookUpTraceId, arg.Tenantid, arg.Externalid)
 	var trace_id []byte
