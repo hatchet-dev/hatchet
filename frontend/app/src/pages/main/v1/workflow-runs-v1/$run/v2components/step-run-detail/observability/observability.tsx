@@ -13,14 +13,15 @@ import {
 } from '@/components/v1/cloud/observability/trace-search';
 import { Loading } from '@/components/v1/ui/loading';
 import api from '@/lib/api/api';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
 }
 
-const PAGE_SIZE = 200;
 const GO_ZERO_TIME = '0001-01-01T00:00:00Z';
 
 const pickSpan = (
@@ -35,47 +36,6 @@ const pickSpan = (
   createdAt: span.createdAt,
   spanAttributes: span.spanAttributes,
 });
-
-type PaginatedFetcher = (
-  id: string,
-  params: { offset: number; limit: number },
-) => Promise<{
-  data: {
-    rows?: RelevantOpenTelemetrySpanProperties[];
-    pagination?: { num_pages?: number; current_page?: number };
-  };
-}>;
-
-const MAX_PAGES = 50;
-
-async function fetchAllSpansPaginated(
-  apiFn: PaginatedFetcher,
-  id: string,
-): Promise<RelevantOpenTelemetrySpanProperties[]> {
-  const allSpans: RelevantOpenTelemetrySpanProperties[] = [];
-  let currentPage = 0;
-  let numPages = 1;
-  let iterations = 0;
-
-  do {
-    const res = await apiFn(id, {
-      offset: currentPage * PAGE_SIZE,
-      limit: PAGE_SIZE,
-    });
-
-    const rows = res.data.rows ?? [];
-    if (rows.length === 0) {
-      break;
-    }
-    allSpans.push(...rows.map(pickSpan));
-
-    numPages = res.data.pagination?.num_pages ?? 1;
-    currentPage = res.data.pagination?.current_page ?? 1;
-    iterations++;
-  } while (currentPage < numPages && iterations < MAX_PAGES);
-
-  return allSpans;
-}
 
 type ObservabilityProps = {
   isRunning: boolean;
@@ -129,8 +89,8 @@ export const Observability = (props: ObservabilityProps) => {
     focusedTaskRunId,
   } = props;
 
-  const queryId = props.taskRunId ?? props.workflowRunExternalId;
-  const queryType = props.taskRunId ? 'task' : 'workflow-run';
+  const runExternalId = props.taskRunId ?? props.workflowRunExternalId;
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
   const [queryString, setQueryString] = useState('');
 
@@ -147,12 +107,16 @@ export const Observability = (props: ObservabilityProps) => {
   }, [isRunning]);
 
   const tracesQuery = useQuery({
-    queryKey: [queryType + ':trace', queryId],
-    queryFn: () =>
-      queryType === 'task'
-        ? fetchAllSpansPaginated(api.v1TaskGetTrace, queryId)
-        : fetchAllSpansPaginated(api.v1WorkflowRunGetTrace, queryId),
-    refetchInterval: isRunning || inGracePeriod ? 300 : 10000,
+    queryKey: [tenant, runExternalId],
+    queryFn: async () => {
+      const res = await api.v1ObservabilityGetTrace(tenant, {
+        run_external_id: runExternalId,
+        limit: 1_000,
+      });
+
+      return res.data?.rows?.map(pickSpan);
+    },
+    refetchInterval: isRunning || inGracePeriod ? 5000 : false,
   });
 
   const traces = tracesQuery.data;

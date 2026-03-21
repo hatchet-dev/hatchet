@@ -256,12 +256,6 @@ export enum TenantVersion {
   V1 = "V1",
 }
 
-export enum V1RunningFilter {
-  ALL = "ALL",
-  EVICTED = "EVICTED",
-  ON_WORKER = "ON_WORKER",
-}
-
 export enum OtelStatusCode {
   UNSET = "UNSET",
   OK = "OK",
@@ -275,6 +269,12 @@ export enum OtelSpanKind {
   CLIENT = "CLIENT",
   PRODUCER = "PRODUCER",
   CONSUMER = "CONSUMER",
+}
+
+export enum V1RunningFilter {
+  ALL = "ALL",
+  EVICTED = "EVICTED",
+  ON_WORKER = "ON_WORKER",
 }
 
 export enum V1LogLineOrderByDirection {
@@ -550,33 +550,6 @@ export interface V1LogLineList {
   rows?: V1LogLine[];
 }
 
-export interface OtelSpan {
-  traceId: string;
-  spanId: string;
-  parentSpanId?: string;
-  spanName: string;
-  spanKind: OtelSpanKind;
-  serviceName: string;
-  statusCode: OtelStatusCode;
-  statusMessage?: string;
-  /** @format int64 */
-  durationNs: number;
-  /** @format date-time */
-  createdAt: string;
-  resourceAttributes?: Record<string, string>;
-  spanAttributes?: Record<string, string>;
-  scopeName?: string;
-  scopeVersion?: string;
-  /** @format int32 */
-  retryCount: number;
-}
-
-export interface OtelSpanList {
-  pagination?: PaginationResponse;
-  retryCounts?: number[];
-  rows?: OtelSpan[];
-}
-
 export interface V1TaskFilter {
   /** @format date-time */
   since: string;
@@ -781,6 +754,33 @@ export interface V1BranchDurableTaskResponse {
    * @format int64
    */
   branchId: number;
+}
+
+export interface OtelSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  spanName: string;
+  spanKind: OtelSpanKind;
+  serviceName: string;
+  statusCode: OtelStatusCode;
+  statusMessage?: string;
+  /** @format int64 */
+  durationNs: number;
+  /** @format date-time */
+  createdAt: string;
+  resourceAttributes?: Record<string, string>;
+  spanAttributes?: Record<string, string>;
+  scopeName?: string;
+  scopeVersion?: string;
+  /** @format int32 */
+  retryCount: number;
+}
+
+export interface OtelSpanList {
+  pagination?: PaginationResponse;
+  retryCounts?: number[];
+  rows?: OtelSpan[];
 }
 
 export interface V1TaskTiming {

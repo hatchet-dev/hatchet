@@ -48,10 +48,10 @@ type PrometheusConfigFile struct {
 	Path string `mapstructure:"path" json:"path,omitempty" default:"/metrics"`
 }
 
-// HatchetO11yConfigFile configures the worker->engine OTel collector (the engine acting as a gRPC
+// ObservabilityConfigFile configures the worker->engine OTel collector (the engine acting as a gRPC
 // TraceService that receives spans from SDK workers). This is separate from OpenTelemetryConfigFile
 // which configures the engine's own outbound tracing.
-type HatchetO11yConfigFile struct {
+type ObservabilityConfigFile struct {
 	// Enabled controls whether the OTel collector gRPC service and REST API trace endpoints are active.
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 

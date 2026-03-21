@@ -102,8 +102,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 		return fmt.Errorf("could not run with config: %w", err)
 	}
 
-	time.Sleep(server.Runtime.ShutdownWait)
-
 	l.Debug().Msgf("interrupt received, shutting down")
 
 	err = cleanup.Run()
@@ -432,11 +430,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
 		}
 
-		if sc.HatchetO11y.Enabled {
+		if sc.Observability.Enabled {
 			oc, err := otelcol.NewOTelCollector(
 				otelcol.WithRepository(sc.V1),
 				otelcol.WithLogger(sc.Logger),
-				otelcol.WithMaxBatchSize(sc.HatchetO11y.MaxBatchSize),
+				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
 			)
 
 			if err != nil {
@@ -865,11 +863,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
 		}
 
-		if sc.HatchetO11y.Enabled {
+		if sc.Observability.Enabled {
 			oc, err := otelcol.NewOTelCollector(
 				otelcol.WithRepository(sc.V1),
 				otelcol.WithLogger(sc.Logger),
-				otelcol.WithMaxBatchSize(sc.HatchetO11y.MaxBatchSize),
+				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
 			)
 
 			if err != nil {

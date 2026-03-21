@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,8 +65,7 @@ type ListSpansResult struct {
 
 type OTelCollectorRepository interface {
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
-	ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error)
-	ListSpansByWorkflowRunExternalID(ctx context.Context, tenantId, workflowRunExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error)
+	ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalId, workflowRunExternalID *uuid.UUID, offset, limit int64) (*ListSpansResult, error)
 }
 
 type otelCollectorRepositoryImpl struct {
@@ -93,289 +91,131 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		return nil
 	}
 
-	params := make([]sqlcv1.InsertOtelSpansParams, len(opts.Spans))
+	tenantIds := make([]uuid.UUID, len(opts.Spans))
+	traceIds := make([][]byte, len(opts.Spans))
+	spanIds := make([][]byte, len(opts.Spans))
+	parentSpanIds := make([]string, len(opts.Spans))
+	spanNames := make([]string, len(opts.Spans))
+	spanKinds := make([]string, len(opts.Spans))
+	serviceNames := make([]string, len(opts.Spans))
+	statusCodes := make([]string, len(opts.Spans))
+	statusMessages := make([]string, len(opts.Spans))
+	durations := make([]int64, len(opts.Spans))
+	resourceAttrs := make([][]byte, len(opts.Spans))
+	spanAttrs := make([][]byte, len(opts.Spans))
+	scopeNames := make([]string, len(opts.Spans))
+	scopeVersions := make([]string, len(opts.Spans))
+	taskRunExternalIDs := make([]uuid.UUID, len(opts.Spans))
+	workflowRunExternalIDs := make([]uuid.UUID, len(opts.Spans))
+	retryCounts := make([]int32, len(opts.Spans))
+	startTimes := make([]pgtype.Timestamptz, len(opts.Spans))
+
 	for i, sd := range opts.Spans {
 		var parentSpanID string
 		if len(sd.ParentSpanID) > 0 {
 			parentSpanID = hex.EncodeToString(sd.ParentSpanID)
 		}
 
-		resourceAttrs := []byte(sd.ResourceAttributes)
-		if len(resourceAttrs) == 0 {
-			resourceAttrs = []byte("{}")
+		resourceAttr := []byte(sd.ResourceAttributes)
+		if len(resourceAttr) == 0 {
+			resourceAttr = []byte("{}")
 		}
 
-		spanAttrs := []byte(sd.Attributes)
-		if len(spanAttrs) == 0 {
-			spanAttrs = []byte("{}")
+		spanAttr := []byte(sd.Attributes)
+		if len(spanAttr) == 0 {
+			spanAttr = []byte("{}")
 		}
 
-		var taskRunExternalID *uuid.UUID
+		var taskRunExternalID uuid.UUID
 		if sd.TaskRunExternalID != nil && *sd.TaskRunExternalID != uuid.Nil {
-			id := *sd.TaskRunExternalID
-			taskRunExternalID = &id
+			taskRunExternalID = *sd.TaskRunExternalID
 		}
 
-		var workflowRunExternalID *uuid.UUID
+		var workflowRunExternalID uuid.UUID
 		if sd.WorkflowRunID != nil && *sd.WorkflowRunID != uuid.Nil {
-			id := *sd.WorkflowRunID
-			workflowRunExternalID = &id
+			workflowRunExternalID = *sd.WorkflowRunID
 		}
 
 		startTime := time.Unix(0, int64(sd.StartTimeUnixNano)) //nolint:gosec
 
-		params[i] = sqlcv1.InsertOtelSpansParams{
-			TenantID:              tenantId,
-			TraceID:               hex.EncodeToString(sd.TraceID),
-			SpanID:                hex.EncodeToString(sd.SpanID),
-			ParentSpanID:          pgtype.Text{String: parentSpanID, Valid: parentSpanID != ""},
-			SpanName:              sd.Name,
-			SpanKind:              protoSpanKindToDB(sd.Kind),
-			ServiceName:           extractServiceName(sd.ResourceAttributes),
-			StatusCode:            protoStatusCodeToDB(sd.StatusCode),
-			StatusMessage:         pgtype.Text{String: sd.StatusMessage, Valid: sd.StatusMessage != ""},
-			DurationNs:            int64(sd.EndTimeUnixNano - sd.StartTimeUnixNano), //nolint:gosec
-			ResourceAttributes:    resourceAttrs,
-			SpanAttributes:        spanAttrs,
-			ScopeName:             pgtype.Text{String: sd.InstrumentationScope, Valid: sd.InstrumentationScope != ""},
-			TaskRunExternalID:     taskRunExternalID,
-			WorkflowRunExternalID: workflowRunExternalID,
-			RetryCount:            sd.RetryCount,
-			StartTime:             pgtype.Timestamptz{Time: startTime, Valid: true},
-		}
+		tenantIds[i] = tenantId
+		traceIds[i] = sd.TraceID
+		spanIds[i] = sd.SpanID
+		parentSpanIds[i] = parentSpanID
+		spanNames[i] = sd.Name
+		spanKinds[i] = string(protoSpanKindToDB(sd.Kind))
+		serviceNames[i] = extractServiceName(resourceAttr)
+		statusCodes[i] = string(protoStatusCodeToDB(sd.StatusCode))
+		statusMessages[i] = sd.StatusMessage
+		durations[i] = int64(sd.EndTimeUnixNano - sd.StartTimeUnixNano) //nolint:gosec
+		resourceAttrs[i] = resourceAttr
+		spanAttrs[i] = spanAttr
+		scopeNames[i] = sd.InstrumentationScope
+		scopeVersions[i] = sd.InstrumentationScope
+		taskRunExternalIDs[i] = taskRunExternalID
+		workflowRunExternalIDs[i] = workflowRunExternalID
+		retryCounts[i] = sd.RetryCount
+		startTimes[i] = pgtype.Timestamptz{Time: startTime, Valid: true}
 	}
 
-	_, err := o.queries.InsertOtelSpans(ctx, o.pool, params)
-	if err != nil {
-		return fmt.Errorf("error inserting otel spans: %w", err)
-	}
-
-	return nil
+	return o.queries.InsertOtelSpans(ctx, o.pool, sqlcv1.InsertOtelSpansParams{
+		Tenantids:              tenantIds,
+		Traceids:               traceIds,
+		Spanids:                spanIds,
+		Parentspanids:          parentSpanIds,
+		Spannames:              spanNames,
+		Spankinds:              spanKinds,
+		Servicenames:           serviceNames,
+		Statuscodes:            statusCodes,
+		Statusmessages:         statusMessages,
+		Durationnss:            durations,
+		Resourceattributes:     resourceAttrs,
+		Spanattributes:         spanAttrs,
+		Scopenames:             scopeNames,
+		Scopeversions:          scopeVersions,
+		Taskrunexternalids:     taskRunExternalIDs,
+		Workflowrunexternalids: workflowRunExternalIDs,
+		Retrycounts:            retryCounts,
+		Starttimes:             startTimes,
+	})
 }
 
-func (o *otelCollectorRepositoryImpl) ListSpansByTaskExternalID(ctx context.Context, tenantId, taskExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
-	rows, err := o.queries.ListSpansByTaskExternalID(ctx, o.pool, sqlcv1.ListSpansByTaskExternalIDParams{
-		Tenantid:       tenantId,
-		Taskexternalid: taskExternalID,
-		Spanoffset:     0,
-		Spanlimit:      10000,
+func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalID, workflowRunExternalId *uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
+	rows, err := o.queries.ListSpansByExternalID(ctx, o.pool, sqlcv1.ListSpansByExternalIDParams{
+		Tenantid:              tenantId,
+		TaskRunExternalId:     taskRunExternalID,
+		WorkflowRunExternalId: workflowRunExternalId,
+		Spanoffset:            offset,
+		Spanlimit:             limit,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("error listing otel spans: %w", err)
 	}
 
-	var allRows []*OtelSpanRow
-	var childWorkflowRunIDs []uuid.UUID
-	seenSpanIDs := make(map[string]bool)
+	allRows := make([]*OtelSpanRow, 0, len(rows))
 
 	for _, r := range rows {
-		seenSpanIDs[r.SpanID] = true
 		allRows = append(allRows, &OtelSpanRow{
-			TraceID: r.TraceID, SpanID: r.SpanID, ParentSpanID: r.ParentSpanID,
-			SpanName: r.SpanName, SpanKind: r.SpanKind, ServiceName: r.ServiceName,
-			StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
-			StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
-			SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
-			RetryCount: r.RetryCount,
+			TraceID:            hex.EncodeToString(r.TraceID),
+			SpanID:             hex.EncodeToString(r.SpanID),
+			ParentSpanID:       r.ParentSpanID,
+			SpanName:           r.SpanName,
+			SpanKind:           r.SpanKind,
+			ServiceName:        r.ServiceName,
+			StatusCode:         r.StatusCode,
+			StatusMessage:      r.StatusMessage,
+			DurationNs:         r.DurationNs,
+			StartTime:          r.StartTime,
+			ResourceAttributes: r.ResourceAttributes,
+			SpanAttributes:     r.SpanAttributes,
+			ScopeName:          r.ScopeName,
+			ScopeVersion:       r.ScopeVersion,
+			RetryCount:         r.RetryCount,
 		})
-
-		childID := ExtractChildWorkflowRunID(r.SpanName, r.SpanAttributes)
-		if childID != uuid.Nil {
-			childWorkflowRunIDs = append(childWorkflowRunIDs, childID)
-		}
 	}
 
-	for _, childID := range childWorkflowRunIDs {
-		childRows, err := o.listSpansForWorkflowRunTree(ctx, tenantId, childID)
-		if err != nil {
-			return nil, err
-		}
-		// Deduplicate: old data may have trigger spans in both task and child queries
-		for _, cr := range childRows {
-			if !seenSpanIDs[cr.SpanID] {
-				seenSpanIDs[cr.SpanID] = true
-				allRows = append(allRows, cr)
-			}
-		}
-	}
-
-	total := int64(len(allRows))
-
-	if offset >= total {
-		return &ListSpansResult{Rows: nil, Total: total}, nil
-	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-
-	return &ListSpansResult{Rows: allRows[offset:end], Total: total}, nil
-}
-
-func (o *otelCollectorRepositoryImpl) ListSpansByWorkflowRunExternalID(ctx context.Context, tenantId, workflowRunExternalID uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
-	// Fetch spans for the requested workflow run and all child workflow runs.
-	// Instead of a slow recursive SQL CTE, we iteratively discover child workflow
-	// run IDs from span attributes (hatchet.workflow_run_id on trigger spans).
-	allRows, err := o.listSpansForWorkflowRunTree(ctx, tenantId, workflowRunExternalID, listSpansOpts{includeTraceIDLookup: true})
-	if err != nil {
-		return nil, err
-	}
-
-	total := int64(len(allRows))
-
-	// Apply offset/limit in Go
-	if offset >= total {
-		return &ListSpansResult{Rows: nil, Total: total}, nil
-	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-
-	return &ListSpansResult{Rows: allRows[offset:end], Total: total}, nil
-}
-
-type listSpansOpts struct {
-	includeTraceIDLookup bool
-}
-
-// listSpansForWorkflowRunTree fetches spans for a workflow run and all child
-// workflow runs, discovering children by inspecting span attributes.
-func (o *otelCollectorRepositoryImpl) listSpansForWorkflowRunTree(ctx context.Context, tenantId uuid.UUID, rootWorkflowRunID uuid.UUID, opts ...listSpansOpts) ([]*OtelSpanRow, error) {
-	cfg := listSpansOpts{}
-	if len(opts) > 0 {
-		cfg = opts[0]
-	}
-
-	var allRows []*OtelSpanRow
-	seenSpanIDs := make(map[string]bool)
-
-	// BFS through workflow run tree
-	queue := []uuid.UUID{rootWorkflowRunID}
-	visited := map[uuid.UUID]bool{rootWorkflowRunID: true}
-
-	for len(queue) > 0 {
-		wfRunID := queue[0]
-		queue = queue[1:]
-
-		rows, err := o.queries.ListSpansByWorkflowRunExternalID(ctx, o.pool, sqlcv1.ListSpansByWorkflowRunExternalIDParams{
-			Tenantid:              tenantId,
-			Workflowrunexternalid: wfRunID,
-			Spanoffset:            0,
-			Spanlimit:             10000,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error listing otel spans for workflow run %s: %w", wfRunID, err)
-		}
-
-		for _, r := range rows {
-			if seenSpanIDs[r.SpanID] {
-				continue
-			}
-			seenSpanIDs[r.SpanID] = true
-			allRows = append(allRows, &OtelSpanRow{
-				TraceID: r.TraceID, SpanID: r.SpanID, ParentSpanID: r.ParentSpanID,
-				SpanName: r.SpanName, SpanKind: r.SpanKind, ServiceName: r.ServiceName,
-				StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
-				StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
-				SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
-				RetryCount: r.RetryCount,
-			})
-
-			// Check span attributes for child workflow run IDs
-			childID := ExtractChildWorkflowRunID(r.SpanName, r.SpanAttributes)
-			if childID != uuid.Nil && !visited[childID] {
-				visited[childID] = true
-				queue = append(queue, childID)
-			}
-		}
-	}
-
-	if !cfg.includeTraceIDLookup {
-		return allRows, nil
-	}
-
-	// Second pass: fetch parent/trigger spans by trace_id.
-	// Trigger spans (hatchet.run_workflow, hatchet.push_event) don't have
-	// workflow_run_external_id set, so they're missed by the first query.
-	traceIDs := make(map[string]bool)
-	for _, row := range allRows {
-		traceIDs[row.TraceID] = true
-	}
-
-	if len(traceIDs) > 0 {
-		traceIDList := make([]string, 0, len(traceIDs))
-		for tid := range traceIDs {
-			traceIDList = append(traceIDList, tid)
-		}
-
-		traceRows, err := o.queries.ListSpansByTraceIDs(ctx, o.pool, sqlcv1.ListSpansByTraceIDsParams{
-			Tenantid: tenantId,
-			Traceids: traceIDList,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error listing otel spans by trace_id: %w", err)
-		}
-
-		for _, r := range traceRows {
-			if seenSpanIDs[r.SpanID] {
-				continue
-			}
-			seenSpanIDs[r.SpanID] = true
-			allRows = append(allRows, &OtelSpanRow{
-				TraceID: r.TraceID, SpanID: r.SpanID, ParentSpanID: r.ParentSpanID,
-				SpanName: r.SpanName, SpanKind: r.SpanKind, ServiceName: r.ServiceName,
-				StatusCode: r.StatusCode, StatusMessage: r.StatusMessage, DurationNs: r.DurationNs,
-				StartTime: r.StartTime, ResourceAttributes: r.ResourceAttributes,
-				SpanAttributes: r.SpanAttributes, ScopeName: r.ScopeName, ScopeVersion: r.ScopeVersion,
-				RetryCount: r.RetryCount,
-			})
-		}
-	}
-
-	return allRows, nil
-}
-
-// extractChildWorkflowRunID parses span attributes JSONB to find a child
-// workflow_run_id, but only from trigger spans. Non-trigger spans (like
-// hatchet.start_step_run) also carry hatchet.workflow_run_id but it refers
-// to their OWN workflow run, not a child.
-func ExtractChildWorkflowRunID(spanName string, attrs []byte) uuid.UUID {
-	if len(attrs) == 0 {
-		return uuid.Nil
-	}
-
-	// Only trigger/producer spans point to child workflow runs
-	if !strings.HasPrefix(spanName, "hatchet.trigger") &&
-		!strings.HasPrefix(spanName, "hatchet.run_workflow") {
-		return uuid.Nil
-	}
-
-	var m map[string]interface{}
-	if err := json.Unmarshal(attrs, &m); err != nil {
-		return uuid.Nil
-	}
-
-	// Prefer the explicit child attribute; fall back to legacy attribute name
-	val, ok := m["hatchet.child_workflow_run_id"]
-	if !ok {
-		val, ok = m["hatchet.workflow_run_id"]
-		if !ok {
-			return uuid.Nil
-		}
-	}
-
-	str, ok := val.(string)
-	if !ok {
-		return uuid.Nil
-	}
-
-	id, err := uuid.Parse(str)
-	if err != nil {
-		return uuid.Nil
-	}
-
-	return id
+	return &ListSpansResult{Rows: allRows, Total: int64(len(allRows))}, nil
 }
 
 func extractServiceName(resourceAttrsJSON json.RawMessage) string {

@@ -420,10 +420,10 @@ func (d *DispatcherImpl) sendTasksToWorker(
 							d.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event")
 						}
 					}()
-			}
+				}
 
-			return nil
-		}
+				return nil
+			}
 
 			requeue(task.V1Task)
 
