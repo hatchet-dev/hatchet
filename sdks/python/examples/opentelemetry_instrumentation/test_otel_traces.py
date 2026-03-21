@@ -20,9 +20,13 @@ from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[OtelSpan]:
     for _ in range(10):
         with hatchet.runs.client() as client:
-            trace = hatchet.runs._wra(client).v1_workflow_run_get_trace(
-                hatchet.tenant_id, run_id
-            )
+            try:
+                trace = hatchet.runs._wra(client).v1_workflow_run_get_trace(
+                    hatchet.tenant_id, run_id
+                )
+            except Exception:
+                time.sleep(1)
+                continue
 
         spans = trace.rows or []
         if len(spans) >= min_spans:
