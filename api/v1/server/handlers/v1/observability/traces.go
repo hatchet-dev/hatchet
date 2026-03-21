@@ -1,7 +1,6 @@
 package observability
 
 import (
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -15,23 +14,6 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 	}
 
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-
-	// fixme: this is a hack to figure out if the run belongs to a task or a dag without going to the OLAP db
-	tasks, err := t.config.V1.Tasks().FlattenExternalIds(ctx.Request().Context(), tenant.ID, []uuid.UUID{request.Params.RunExternalId})
-
-	if err != nil {
-		return nil, err
-	}
-
-	isDag := len(tasks) > 1
-
-	var taskRunExternalID, workflowRunExternalId *uuid.UUID
-
-	if isDag {
-		workflowRunExternalId = &request.Params.RunExternalId
-	} else {
-		taskRunExternalID = &request.Params.RunExternalId
-	}
 
 	limit := int64(1000)
 	offset := int64(0)
@@ -52,7 +34,13 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 		offset = 0
 	}
 
-	result, err := t.config.V1.OTelCollector().ListSpansByRunExternalID(ctx.Request().Context(), tenant.ID, taskRunExternalID, workflowRunExternalId, offset, limit)
+	traceId, err := t.config.V1.OTelLookup().LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := t.config.V1.OTelCollector().ListSpansByRunExternalID(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
 	if err != nil {
 		return nil, err
 	}

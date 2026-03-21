@@ -66,11 +66,12 @@ type ListSpansResult struct {
 
 type OTelCollectorRepository interface {
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
-	ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalId, workflowRunExternalID *uuid.UUID, offset, limit int64) (*ListSpansResult, error)
+	ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
 }
 
 type OTelLookupRepository interface {
 	CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
+	LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error)
 }
 
 type otelLookupRepositoryImpl struct {
@@ -295,23 +296,29 @@ func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Cont
 	return nil
 }
 
-func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalID, workflowRunExternalId *uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
+func (o *otelLookupRepositoryImpl) LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error) {
+	return o.queries.LookUpTraceId(ctx, o.pool, sqlcv1.LookUpTraceIdParams{
+		Tenantid:   tenantId,
+		Externalid: runExternalId,
+	})
+}
+
+func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error) {
 	rows, err := o.queries.ListSpansByExternalID(ctx, o.pool, sqlcv1.ListSpansByExternalIDParams{
-		Tenantid:              tenantId,
-		TaskRunExternalId:     taskRunExternalID,
-		WorkflowRunExternalId: workflowRunExternalId,
-		Spanoffset:            offset,
-		Spanlimit:             limit,
+		Tenantid:   tenantId,
+		Traceid:    traceId,
+		Spanoffset: offset,
+		Spanlimit:  limit,
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("error listing otel spans: %w", err)
 	}
 
-	allRows := make([]*OtelSpanRow, 0, len(rows))
+	spans := make([]*OtelSpanRow, 0, len(rows))
 
 	for _, r := range rows {
-		allRows = append(allRows, &OtelSpanRow{
+		spans = append(spans, &OtelSpanRow{
 			TraceID:            hex.EncodeToString(r.TraceID),
 			SpanID:             hex.EncodeToString(r.SpanID),
 			ParentSpanID:       r.ParentSpanID,
@@ -330,7 +337,7 @@ func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Conte
 		})
 	}
 
-	return &ListSpansResult{Rows: allRows, Total: int64(len(allRows))}, nil
+	return &ListSpansResult{Rows: spans, Total: int64(len(spans))}, nil
 }
 
 func extractServiceName(resourceAttrsJSON json.RawMessage) string {

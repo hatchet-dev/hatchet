@@ -169,46 +169,29 @@ func (q *Queries) InsertOtelSpans(ctx context.Context, db DBTX, arg InsertOtelSp
 }
 
 const listSpansByExternalID = `-- name: ListSpansByExternalID :many
-WITH candidate_traces AS (
-    SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
-    FROM v1_otel_trace
-    WHERE
-        tenant_id = $3::UUID
-        AND ($4::UUID IS NULL OR task_run_external_id = $4::UUID)
-        AND ($5::UUID IS NULL OR workflow_run_external_id = $5::UUID)
-), max_retry_count AS (
-    SELECT MAX(retry_count) AS retry_count
-    FROM candidate_traces
-), trace_id AS (
-    SELECT DISTINCT trace_id
-    FROM candidate_traces
-    WHERE retry_count = (SELECT retry_count FROM max_retry_count)
-    LIMIT 1 -- shouldn't need this, there should only be one trace_id per task_run_external_id, but just in case
-)
-
 SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
 FROM v1_otel_trace
-WHERE trace_id = (SELECT trace_id FROM trace_id)
+WHERE
+    tenant_id = $1::UUID
+    AND trace_id = $2::BYTEA
 ORDER BY start_time ASC
-OFFSET COALESCE($1::BIGINT, 0)
-LIMIT COALESCE($2::BIGINT, 1000)
+OFFSET COALESCE($3::BIGINT, 0)
+LIMIT COALESCE($4::BIGINT, 1000)
 `
 
 type ListSpansByExternalIDParams struct {
-	Spanoffset            int64      `json:"spanoffset"`
-	Spanlimit             int64      `json:"spanlimit"`
-	Tenantid              uuid.UUID  `json:"tenantid"`
-	TaskRunExternalId     *uuid.UUID `json:"taskRunExternalId"`
-	WorkflowRunExternalId *uuid.UUID `json:"workflowRunExternalId"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Traceid    []byte    `json:"traceid"`
+	Spanoffset int64     `json:"spanoffset"`
+	Spanlimit  int64     `json:"spanlimit"`
 }
 
 func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSpansByExternalIDParams) ([]*V1OtelTrace, error) {
 	rows, err := db.Query(ctx, listSpansByExternalID,
+		arg.Tenantid,
+		arg.Traceid,
 		arg.Spanoffset,
 		arg.Spanlimit,
-		arg.Tenantid,
-		arg.TaskRunExternalId,
-		arg.WorkflowRunExternalId,
 	)
 	if err != nil {
 		return nil, err
