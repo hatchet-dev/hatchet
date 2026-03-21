@@ -1,8 +1,10 @@
 import json
-import time
 from collections.abc import Callable, Collection, Coroutine, Sequence
+from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 from typing import Any, cast
+
+import grpc
 
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -41,7 +43,6 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     ) from e
 
 import inspect
-from datetime import datetime
 
 from google.protobuf import timestamp_pb2
 
@@ -71,7 +72,7 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 hatchet_sdk_version = version("hatchet-sdk")
 
 
-_RETRY_AFTER_SECONDS = 5 * 60
+_RETRY_AFTER = timedelta(minutes=5)
 
 
 class _HatchetSpanExporter(SpanExporter):
@@ -82,19 +83,19 @@ class _HatchetSpanExporter(SpanExporter):
 
     def __init__(self, inner: SpanExporter) -> None:
         self._inner = inner
-        self._retry_at: float = 0
+        self._retry_at: datetime | None = None
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        if self._retry_at and time.monotonic() < self._retry_at:
+        if self._retry_at and datetime.now(timezone.utc) < self._retry_at:
             return SpanExportResult.SUCCESS
 
         try:
             result = self._inner.export(spans)
-            self._retry_at = 0
+            self._retry_at = None
             return result
         except Exception as exc:
             if _is_grpc_unimplemented(exc):
-                self._retry_at = time.monotonic() + _RETRY_AFTER_SECONDS
+                self._retry_at = datetime.now(timezone.utc) + _RETRY_AFTER
                 return SpanExportResult.SUCCESS
             raise
 
@@ -107,12 +108,11 @@ class _HatchetSpanExporter(SpanExporter):
 
 def _is_grpc_unimplemented(exc: Exception) -> bool:
     try:
-        import grpc
-
         if isinstance(exc, grpc.RpcError):
             return exc.code() == grpc.StatusCode.UNIMPLEMENTED
     except ImportError:
         pass
+
     return "UNIMPLEMENTED" in str(exc)
 
 
@@ -345,24 +345,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         endpoint = self.config.host_port
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
+        credentials: grpc.ChannelCredentials | None = None
 
-        exporter_kwargs: dict[str, Any] = {
-            "endpoint": endpoint,
-            "headers": headers,
-        }
-
-        if insecure:
-            exporter_kwargs["insecure"] = True
-        elif self.config.tls_config.root_ca_file:
-            import grpc
-
+        if self.config.tls_config.root_ca_file:
             with open(self.config.tls_config.root_ca_file, "rb") as f:
                 root_certs = f.read()
-            exporter_kwargs["credentials"] = grpc.ssl_channel_credentials(
-                root_certificates=root_certs
-            )
 
-        otlp_exporter = OTLPSpanExporter(**exporter_kwargs)
+            credentials = grpc.ssl_channel_credentials(root_certificates=root_certs)
+
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=endpoint,
+            headers=headers,
+            insecure=insecure,
+            credentials=credentials,
+        )
 
         self.tracer_provider.add_span_processor(
             _HatchetAttributeSpanProcessor(

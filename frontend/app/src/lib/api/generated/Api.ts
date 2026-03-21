@@ -260,39 +260,6 @@ export class Api<
       ...params,
     });
   /**
-   * @description Get OTel trace for a task run
-   *
-   * @tags Task
-   * @name V1TaskGetTrace
-   * @summary Get OTel trace
-   * @request GET:/api/v1/stable/tasks/{task}/trace
-   * @secure
-   */
-  v1TaskGetTrace = (
-    task: string,
-    query?: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<OtelSpanList, APIErrors>({
-      path: `/api/v1/stable/tasks/${task}/trace`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
    * @description Cancel tasks
    *
    * @tags Task
@@ -734,22 +701,29 @@ export class Api<
   /**
    * @description Get OTel trace for a workflow run
    *
-   * @tags Workflow Runs
-   * @name V1WorkflowRunGetTrace
+   * @tags Observability
+   * @name V1ObservabilityGetTrace
    * @summary Get OTel trace
-   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/trace
+   * @request GET:/api/v1/stable/tenants/{tenant}/traces
    * @secure
    */
-  v1WorkflowRunGetTrace = (
-    v1WorkflowRun: string,
-    query?: {
+  v1ObservabilityGetTrace = (
+    tenant: string,
+    query: {
       /**
-       * The number to skip
+       * The workflow run external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      run_external_id: string;
+      /**
+       * The number of spans to skip
        * @format int64
        */
       offset?: number;
       /**
-       * The number to limit by
+       * The number of spans to limit by
        * @format int64
        */
       limit?: number;
@@ -757,7 +731,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<OtelSpanList, APIErrors>({
-      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/trace`,
+      path: `/api/v1/stable/tenants/${tenant}/traces`,
       method: "GET",
       query: query,
       secure: true,

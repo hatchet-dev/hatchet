@@ -66,7 +66,7 @@ type ServerConfigFile struct {
 
 	Prometheus shared.PrometheusConfigFile `mapstructure:"prometheus" json:"prometheus,omitempty"`
 
-	HatchetO11y shared.HatchetO11yConfigFile `mapstructure:"hatchetO11y" json:"hatchetO11y,omitempty"`
+	Observability shared.ObservabilityConfigFile `mapstructure:"observability" json:"observability,omitempty"`
 
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
 
@@ -628,7 +628,7 @@ type ServerConfig struct {
 
 	Prometheus shared.PrometheusConfigFile
 
-	HatchetO11y shared.HatchetO11yConfigFile
+	Observability shared.ObservabilityConfigFile
 
 	Email email.EmailService
 
@@ -870,8 +870,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.metricsEnabled", "SERVER_OTEL_METRICS_ENABLED")
 
 	// Hatchet O11y options
-	_ = v.BindEnv("hatchetO11y.enabled", "SERVER_HATCHET_O11Y_ENABLED")
-	_ = v.BindEnv("hatchetO11y.maxBatchSize", "SERVER_HATCHET_O11Y_MAX_BATCH_SIZE")
+	_ = v.BindEnv("observability.enabled", "SERVER_OBSERVABILITY_ENABLED")
+	_ = v.BindEnv("observability.maxBatchSize", "SERVER_OBSERVABILITY_MAX_BATCH_SIZE")
 
 	// prometheus options
 	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")
