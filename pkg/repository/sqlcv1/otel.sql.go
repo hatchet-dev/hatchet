@@ -168,7 +168,7 @@ func (q *Queries) InsertOtelSpans(ctx context.Context, db DBTX, arg InsertOtelSp
 	return err
 }
 
-const listSpansByExternalID = `-- name: ListSpansByExternalID :many
+const listSpansByTraceId = `-- name: ListSpansByTraceId :many
 SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
 FROM v1_otel_trace
 WHERE
@@ -179,15 +179,15 @@ OFFSET COALESCE($3::BIGINT, 0)
 LIMIT COALESCE($4::BIGINT, 1000)
 `
 
-type ListSpansByExternalIDParams struct {
+type ListSpansByTraceIdParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 	Traceid    []byte    `json:"traceid"`
 	Spanoffset int64     `json:"spanoffset"`
 	Spanlimit  int64     `json:"spanlimit"`
 }
 
-func (q *Queries) ListSpansByExternalID(ctx context.Context, db DBTX, arg ListSpansByExternalIDParams) ([]*V1OtelTrace, error) {
-	rows, err := db.Query(ctx, listSpansByExternalID,
+func (q *Queries) ListSpansByTraceId(ctx context.Context, db DBTX, arg ListSpansByTraceIdParams) ([]*V1OtelTrace, error) {
+	rows, err := db.Query(ctx, listSpansByTraceId,
 		arg.Tenantid,
 		arg.Traceid,
 		arg.Spanoffset,

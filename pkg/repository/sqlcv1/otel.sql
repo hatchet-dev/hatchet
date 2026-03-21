@@ -109,7 +109,7 @@ LIMIT 1
 ;
 
 
--- name: ListSpansByExternalID :many
+-- name: ListSpansByTraceId :many
 SELECT *
 FROM v1_otel_trace
 WHERE

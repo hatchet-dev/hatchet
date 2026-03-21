@@ -66,7 +66,7 @@ type ListSpansResult struct {
 
 type OTelCollectorRepository interface {
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
-	ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
+	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
 }
 
 type OTelLookupRepository interface {
@@ -303,8 +303,8 @@ func (o *otelLookupRepositoryImpl) LookUpTraceId(ctx context.Context, tenantId u
 	})
 }
 
-func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error) {
-	rows, err := o.queries.ListSpansByExternalID(ctx, o.pool, sqlcv1.ListSpansByExternalIDParams{
+func (o *otelCollectorRepositoryImpl) ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error) {
+	rows, err := o.queries.ListSpansByTraceId(ctx, o.pool, sqlcv1.ListSpansByTraceIdParams{
 		Tenantid:   tenantId,
 		Traceid:    traceId,
 		Spanoffset: offset,
