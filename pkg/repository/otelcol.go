@@ -68,6 +68,20 @@ type OTelCollectorRepository interface {
 	ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalId, workflowRunExternalID *uuid.UUID, offset, limit int64) (*ListSpansResult, error)
 }
 
+type OTelLookupRepository interface {
+	CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
+}
+
+type otelLookupRepositoryImpl struct {
+	*sharedRepository
+}
+
+func newOTelLookupRepository(s *sharedRepository) OTelLookupRepository {
+	return &otelLookupRepositoryImpl{
+		sharedRepository: s,
+	}
+}
+
 type otelCollectorRepositoryImpl struct {
 	*sharedRepository
 }
@@ -183,6 +197,10 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		return fmt.Errorf("error inserting otel spans: %w", err)
 	}
 
+	return nil
+}
+
+func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
 	lookupTenantIds := make([]uuid.UUID, 0)
 	lookupExternalIds := make([]uuid.UUID, 0)
 	lookupRetryCounts := make([]int32, 0)
