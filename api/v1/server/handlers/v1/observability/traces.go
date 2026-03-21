@@ -1,6 +1,9 @@
 package observability
 
 import (
+	"errors"
+
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -36,7 +39,12 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 
 	traceId, err := t.config.V1.OTelLookup().LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
 
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
+		// todo: return 404 here?
+		return gen.V1ObservabilityGetTrace404JSONResponse(gen.APIErrors{
+			Errors: []gen.APIError{{Description: "Trace not found"}},
+		}), nil
+	} else if err != nil {
 		return nil, err
 	}
 
