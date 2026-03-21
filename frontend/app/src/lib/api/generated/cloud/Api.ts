@@ -747,13 +747,11 @@ export class Api<
    * @name SubscriptionPlansList
    * @summary List subscription plans
    * @request GET:/api/v1/billing/plans
-   * @secure
    */
   subscriptionPlansList = (params: RequestParams = {}) =>
     this.request<SubscriptionPlanList, APIErrors>({
       path: `/api/v1/billing/plans`,
       method: "GET",
-      secure: true,
       format: "json",
       ...params,
     });
