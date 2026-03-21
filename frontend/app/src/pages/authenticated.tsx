@@ -15,6 +15,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Loading, Spinner } from '@/components/v1/ui/loading.tsx';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import {
   pendingInvitesQuery,
@@ -60,6 +61,7 @@ export async function loader(_args: { request: Request }) {
 
 function AuthenticatedInner() {
   const { tenant } = useTenantDetails();
+  const { capture } = useAnalytics();
   const {
     currentUser,
     error: userError,
@@ -314,8 +316,11 @@ function AuthenticatedInner() {
     if (localStorage.getItem(key)) {
       localStorage.removeItem(key);
       setShowWelcome(true);
+      capture('welcome_modal_shown', {
+        tenant_id: tenant?.metadata.id,
+      });
     }
-  }, [tenant?.metadata.id]);
+  }, [tenant?.metadata.id, capture]);
 
   const welcomePlansQuery = useQuery({
     ...queries.cloud.subscriptionPlans(),
@@ -451,16 +456,23 @@ function AuthenticatedInner() {
                 <Button
                   className="w-full"
                   onClick={() => {
+                    capture('welcome_modal_dismissed', {
+                      tenant_id: tenant?.metadata.id,
+                      cta: 'get_started',
+                    });
                     localStorage.removeItem('hatchet:show-welcome');
                     setShowWelcome(false);
                   }}
                 >
-                  Get Started
+                  Explore Hatchet for Free with Limits &rarr;
                 </Button>
                 <Button
                   variant="ghost"
                   className="w-full"
                   onClick={() => {
+                    capture('welcome_modal_upgrade_clicked', {
+                      tenant_id: tenant?.metadata.id,
+                    });
                     localStorage.removeItem('hatchet:show-welcome');
                     setShowWelcome(false);
                     if (tenant?.metadata.id) {
@@ -471,7 +483,7 @@ function AuthenticatedInner() {
                     }
                   }}
                 >
-                  Upgrade to Pay as you Go to remove limits
+                  Add a payment method to remove limits, no commitment required
                 </Button>
               </div>
             </div>
