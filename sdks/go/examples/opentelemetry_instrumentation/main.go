@@ -43,6 +43,7 @@ type NotifyInput struct {
 	OrderID       string `json:"orderId"`
 	TransactionID string `json:"transactionId"`
 	Channel       string `json:"channel"`
+	I             int    `json:"i"`
 }
 
 type NotifyOutput struct {
@@ -56,32 +57,46 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
-	// Set up the OTel instrumentor — by default it creates a TracerProvider that
-	// sends spans to the Hatchet engine's OTLP collector. The instrumentor also
-	// provides middleware that creates a root span per task run and propagates
-	// hatchet.* attributes to all child spans.
 	instrumentor, err := hatchetotel.NewInstrumentor()
 	if err != nil {
 		log.Fatalf("failed to create instrumentor: %v", err)
 	}
 
-	// Use the global tracer for creating custom child spans inside tasks.
-	// These will inherit hatchet.* attributes from the parent task run span.
 	tracer := otel.Tracer("otel-instrumentation-example")
 
-	// Standalone task for sending notifications — spawned as a child workflow
-	// from send-confirmation below. Each notification gets its own trace subtree.
+	// Child workflow for sending notifications via a specific channel
 	notifyTask := client.NewStandaloneTask(
 		"otel-send-notification",
 		func(ctx hatchet.Context, input NotifyInput) (NotifyOutput, error) {
-			// Render the notification template
 			_, span := tracer.Start(ctx, "notification.render-template")
 			time.Sleep(2 * time.Second)
 			span.End()
 
-			// Deliver via the requested channel (email, sms, etc.)
 			_, span = tracer.Start(ctx, fmt.Sprintf("notification.deliver.%s", input.Channel))
 			time.Sleep(3 * time.Second)
+			span.End()
+
+			if input.I == 10 {
+				return NotifyOutput{}, fmt.Errorf("test error")
+			}
+
+			return NotifyOutput{
+				Delivered: true,
+				Channel:   input.Channel,
+			}, nil
+		},
+	)
+
+	// Child workflow for sending notifications via a specific channel
+	otherTask := client.NewStandaloneTask(
+		"otel-other-task",
+		func(ctx hatchet.Context, input NotifyInput) (NotifyOutput, error) {
+			_, span := tracer.Start(ctx, "notification.render-template")
+			time.Sleep(50 * time.Millisecond)
+			span.End()
+
+			_, span = tracer.Start(ctx, fmt.Sprintf("notification.deliver.%s", input.Channel))
+			time.Sleep(200 * time.Millisecond)
 			span.End()
 
 			return NotifyOutput{
@@ -93,18 +108,15 @@ func main() {
 
 	workflow := client.NewWorkflow("otel-order-processing")
 
-	// Step 1: Validate the incoming order (schema + fraud check).
 	validateOrder := workflow.NewTask(
 		"validate-order",
 		func(ctx hatchet.Context, input OrderInput) (ValidateOrderOutput, error) {
-			// Validate the order schema
 			_, span := tracer.Start(ctx, "order.validate.schema")
-			time.Sleep(2 * time.Second)
+			time.Sleep(10 * time.Millisecond)
 			span.End()
 
-			// Run a fraud check against an external service
 			_, span = tracer.Start(ctx, "order.validate.fraud-check")
-			time.Sleep(3 * time.Second)
+			time.Sleep(20 * time.Millisecond)
 			span.End()
 
 			return ValidateOrderOutput{
@@ -114,7 +126,6 @@ func main() {
 		},
 	)
 
-	// Step 2a: Charge the customer's payment method (runs after validate-order).
 	chargePayment := workflow.NewTask(
 		"charge-payment",
 		func(ctx hatchet.Context, input OrderInput) (ChargePaymentOutput, error) {
@@ -123,19 +134,18 @@ func main() {
 				return ChargePaymentOutput{}, err
 			}
 
-			// Parent span wrapping the full payment flow
 			payCtx, paySpan := tracer.Start(ctx, "payment.process")
-			defer paySpan.End()
 
-			// Tokenize the card before charging
 			_, tokenSpan := tracer.Start(payCtx, "payment.tokenize-card")
-			time.Sleep(2 * time.Second)
+			time.Sleep(200 * time.Millisecond)
 			tokenSpan.End()
 
-			// Charge the tokenized card
 			_, chargeSpan := tracer.Start(payCtx, "payment.charge")
-			time.Sleep(4 * time.Second)
+			time.Sleep(400 * time.Millisecond)
 			chargeSpan.End()
+
+			paySpan.End()
+			return ChargePaymentOutput{}, fmt.Errorf("test error")
 
 			return ChargePaymentOutput{
 				TransactionID: fmt.Sprintf("txn-%s", validated.OrderID),
@@ -145,16 +155,13 @@ func main() {
 		hatchet.WithParents(validateOrder),
 	)
 
-	// Step 2b: Reserve inventory (runs in parallel with charge-payment after validate-order).
 	reserveInventory := workflow.NewTask(
 		"reserve-inventory",
 		func(ctx hatchet.Context, input OrderInput) (ReserveInventoryOutput, error) {
-			// Check if items are available
 			_, span := tracer.Start(ctx, "inventory.check-availability")
 			time.Sleep(2 * time.Second)
 			span.End()
 
-			// Lock the inventory for this order
 			_, span = tracer.Start(ctx, "inventory.reserve")
 			time.Sleep(3 * time.Second)
 			span.End()
@@ -170,7 +177,7 @@ func main() {
 	// Step 3: Send order confirmation (runs after both payment and inventory are done).
 	// Spawns multiple child workflows concurrently to test parallel Run() spans.
 	_ = workflow.NewTask(
-		"send-confirmation",
+		"dag-confirmation",
 		func(ctx hatchet.Context, input OrderInput) (SendConfirmationOutput, error) {
 			var payment ChargePaymentOutput
 			if err := ctx.ParentOutput(chargePayment, &payment); err != nil {
@@ -199,6 +206,7 @@ func main() {
 						OrderID:       input.OrderID,
 						TransactionID: payment.TransactionID,
 						Channel:       channel,
+						I:             idx,
 					})
 					if runErr != nil {
 						mu.Lock()
@@ -208,6 +216,20 @@ func main() {
 						mu.Unlock()
 					}
 				}(i)
+			}
+
+			_, runErr := otherTask.Run(ctx, NotifyInput{
+				OrderID:       input.OrderID,
+				TransactionID: payment.TransactionID,
+				Channel:       "email",
+				I:             1,
+			})
+			if runErr != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = runErr
+				}
+				mu.Unlock()
 			}
 
 			wg.Wait()
@@ -223,19 +245,17 @@ func main() {
 
 	worker, err := client.NewWorker(
 		"otel-instrumentation-worker",
-		hatchet.WithWorkflows(workflow, notifyTask),
+		hatchet.WithWorkflows(workflow, notifyTask, otherTask),
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// Register the OTel middleware so every task run gets a root span
 	worker.Use(instrumentor.Middleware())
 
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
 
-	// Flush remaining spans on shutdown
 	go func() {
 		<-interruptCtx.Done()
 		if shutdownErr := instrumentor.Shutdown(context.Background()); shutdownErr != nil {

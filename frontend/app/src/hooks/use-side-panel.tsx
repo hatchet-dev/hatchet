@@ -80,23 +80,7 @@ function SidePanelTaskRunDetail(props: {
   defaultOpenTab?: TabOption;
   showViewTaskRunButton?: boolean;
 }) {
-  const { open } = useSidePanel();
-
-  const handleTaskRunClick = useCallback(
-    (taskRunId: string) => {
-      open({
-        type: 'task-run-details',
-        content: {
-          taskRunId,
-          defaultOpenTab: TabOption.Output,
-          showViewTaskRunButton: true,
-        },
-      });
-    },
-    [open],
-  );
-
-  return <TaskRunDetail {...props} onTaskRunClick={handleTaskRunClick} />;
+  return <TaskRunDetail {...props} />;
 }
 
 function useSidePanelData(): SidePanelData {

@@ -647,6 +647,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]*uuid.UUID, 0)
+	var spanEvents []engineSpanEvent
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -672,6 +673,24 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
 		externalId := uuid.New()
 		eventExternalIds = append(eventExternalIds, &externalId)
+
+		spanEvents = append(spanEvents, engineSpanEvent{
+			taskID:             msg.TaskId,
+			insertedAt:         taskMeta.InsertedAt.Time,
+			eventType:          msg.EventType,
+			eventTimestamp:     msg.EventTimestamp,
+			eventMessage:       msg.EventMessage,
+			retryCount:         msg.RetryCount,
+			externalID:         taskMeta.ExternalID,
+			workflowRunID:      taskMeta.WorkflowRunID,
+			stepReadableID:     taskMeta.StepReadableID,
+			additionalMetadata: taskMeta.AdditionalMetadata,
+			actionID:           taskMeta.ActionID,
+			displayName:        taskMeta.DisplayName,
+			workflowID:         taskMeta.WorkflowID,
+			workflowVersionID:  taskMeta.WorkflowVersionID,
+			stepID:             taskMeta.StepID,
+		})
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -773,6 +792,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	if err != nil {
 		return err
 	}
+
+	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
 
 	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
 		return nil

@@ -1142,6 +1142,58 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 	return items, nil
 }
 
+const getTaskStartedTimestamps = `-- name: GetTaskStartedTimestamps :many
+SELECT
+    task_id,
+    task_inserted_at,
+    retry_count,
+    MIN(event_timestamp)::timestamptz AS started_at
+FROM
+    v1_task_events_olap
+WHERE
+    tenant_id = $1::uuid
+    AND task_id = ANY($2::bigint[])
+    AND event_type = 'STARTED'
+GROUP BY task_id, task_inserted_at, retry_count
+`
+
+type GetTaskStartedTimestampsParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Taskids  []int64   `json:"taskids"`
+}
+
+type GetTaskStartedTimestampsRow struct {
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+}
+
+func (q *Queries) GetTaskStartedTimestamps(ctx context.Context, db DBTX, arg GetTaskStartedTimestampsParams) ([]*GetTaskStartedTimestampsRow, error) {
+	rows, err := db.Query(ctx, getTaskStartedTimestamps, arg.Tenantid, arg.Taskids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTaskStartedTimestampsRow
+	for rows.Next() {
+		var i GetTaskStartedTimestampsRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.StartedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
 WITH task_external_ids AS (
     SELECT external_id
