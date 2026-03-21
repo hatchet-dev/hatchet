@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -105,6 +106,14 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		return nil
 	}
 
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
 	tenantIds := make([]uuid.UUID, len(opts.Spans))
 	traceIds := make([][]byte, len(opts.Spans))
 	spanIds := make([][]byte, len(opts.Spans))
@@ -172,7 +181,7 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		startTimes[i] = pgtype.Timestamptz{Time: startTime, Valid: true}
 	}
 
-	err := o.queries.InsertOtelSpans(ctx, o.pool, sqlcv1.InsertOtelSpansParams{
+	err = o.queries.InsertOtelSpans(ctx, tx, sqlcv1.InsertOtelSpansParams{
 		Tenantids:              tenantIds,
 		Traceids:               traceIds,
 		Spanids:                spanIds,
@@ -197,10 +206,34 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		return fmt.Errorf("error inserting otel spans: %w", err)
 	}
 
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
+
 	return nil
 }
 
 func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
+	if opts == nil {
+		return fmt.Errorf("opts cannot be nil")
+	}
+
+	if err := o.v.Validate(opts); err != nil {
+		return fmt.Errorf("validation error: %w", err)
+	}
+
+	if len(opts.Spans) == 0 {
+		return nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
 	lookupTenantIds := make([]uuid.UUID, 0)
 	lookupExternalIds := make([]uuid.UUID, 0)
 	lookupRetryCounts := make([]int32, 0)
@@ -227,13 +260,23 @@ func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Cont
 		}
 	}
 
-	return o.queries.InsertOTelTraceLookup(ctx, o.pool, sqlcv1.InsertOTelTraceLookupParams{
+	err = o.queries.InsertOTelTraceLookup(ctx, tx, sqlcv1.InsertOTelTraceLookupParams{
 		Tenantids:   lookupTenantIds,
 		Externalids: lookupExternalIds,
 		Retrycounts: lookupRetryCounts,
 		Traceids:    lookupTraceIds,
 		Starttimes:  lookupStartTimes,
 	})
+
+	if err != nil {
+		return fmt.Errorf("error inserting otel trace lookup entries: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (o *otelCollectorRepositoryImpl) ListSpansByRunExternalID(ctx context.Context, tenantId uuid.UUID, taskRunExternalID, workflowRunExternalId *uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
