@@ -40,7 +40,6 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 	traceId, err := t.config.V1.OTelLookup().LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		// todo: return 404 here?
 		return gen.V1ObservabilityGetTrace404JSONResponse(gen.APIErrors{
 			Errors: []gen.APIError{{Description: "Trace not found"}},
 		}), nil
