@@ -37,7 +37,17 @@ SELECT create_v1_range_partition('v1_otel_trace'::TEXT, NOW()::DATE);
 
 SELECT create_v1_range_partition('v1_otel_trace'::TEXT, (NOW() + INTERVAL '1 day')::DATE);
 
+CREATE TABLE v1_otel_trace_lookup_table (
+    tenant_id       UUID NOT NULL,
+    external_id     UUID NOT NULL,
+    retry_count     INT NOT NULL,
+    trace_id        BYTEA NOT NULL,
+    start_time      TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, external_id, retry_count, start_time)
+) PARTITION BY RANGE (start_time);
+
 -- +goose Down
-DROP TABLE IF EXISTS v1_otel_trace;
-DROP TYPE IF EXISTS v1_otel_status_code;
-DROP TYPE IF EXISTS v1_otel_span_kind;
+DROP TABLE v1_otel_trace_lookup_table;
+DROP TABLE v1_otel_trace;
+DROP TYPE v1_otel_status_code;
+DROP TYPE v1_otel_span_kind;
