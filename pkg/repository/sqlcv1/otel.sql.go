@@ -237,14 +237,11 @@ WITH candidate_traces AS (
     WHERE
         tenant_id = $1::UUID
         AND external_id = $2::UUID
-), max_retry_count AS (
-    SELECT MAX(retry_count) AS retry_count
-    FROM candidate_traces
 )
 
-SELECT DISTINCT trace_id
+SELECT trace_id
 FROM candidate_traces
-WHERE retry_count = (SELECT retry_count FROM max_retry_count)
+ORDER BY retry_count DESC, start_time DESC
 LIMIT 1
 `
 
