@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -98,7 +99,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		pgxStatsLogger:      &pgxStatsLogger,
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
-		replayEnabled:       true, // default to enabled for backward compatibility
+		replayEnabled:       true,
 		analyzeCronInterval: 3 * time.Hour,
 	}
 }
@@ -293,7 +294,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelStartupPartition()
 
-	// always create table partition on startup
 	if err := tc.createTablePartition(startupPartitionCtx); err != nil {
 		return nil, fmt.Errorf("could not create table partition: %w", err)
 	}
@@ -312,12 +312,10 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		wrappedErr := fmt.Errorf("could not schedule task partition method: %w", err)
-
 		cancel()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not schedule task partition method")
 		span.End()
-
 		return nil, wrappedErr
 	}
 
@@ -331,12 +329,10 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		wrappedErr := fmt.Errorf("could not schedule process payload external cutovers: %w", err)
-
 		cancel()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not run process payload external cutovers")
 		span.End()
-
 		return nil, wrappedErr
 	}
 
@@ -350,12 +346,10 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		wrappedErr := fmt.Errorf("could not run analyze: %w", err)
-
 		cancel()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not run analyze")
 		span.End()
-
 		return nil, wrappedErr
 	}
 
@@ -368,12 +362,10 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		wrappedErr := fmt.Errorf("could not run cleanup: %w", err)
-
 		cancel()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not run cleanup")
 		span.End()
-
 		return nil, wrappedErr
 	}
 
@@ -396,7 +388,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 		if err := tc.s.Shutdown(); err != nil {
 			err := fmt.Errorf("could not shutdown scheduler: %w", err)
-
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not shutdown scheduler")
 			return err
@@ -480,7 +471,6 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 		return err
 	}
 
-	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
 		prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
@@ -518,7 +508,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
 		}
 
-		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
@@ -585,7 +574,6 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	internalEventsWithoutRetries := make([]v1.InternalTaskEvent, 0)
 
 	for _, e := range res.InternalEvents {
-		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
 			prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
@@ -599,7 +587,6 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	// TODO: MOVE THIS TO THE DATA LAYER?
 	err := tc.signaler.SendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
@@ -611,7 +598,6 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	var outerErr error
 
-	// send retried tasks to the olap repository
 	for _, task := range res.RetriedTasks {
 		if task.IsAppError {
 			err = tc.pubRetryEvent(ctx, tenantId, task)
@@ -670,7 +656,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		}
 	}
 
-	// send task cancellations to the dispatcher
 	err = tc.sendTaskCancellationsToDispatcher(ctx, tenantId, tasksToSendToDispatcher)
 
 	if err != nil {
@@ -682,7 +667,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	// TODO: MOVE THIS TO THE DATA LAYER?
 	err = tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
 
 	if err != nil {
@@ -733,7 +717,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		}
 	}
 
-	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
 		prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
@@ -743,8 +726,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 }
 
 func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
-	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
 	pubPayloads := make([]tasktypes.CancelledTaskPayload, 0)
 
@@ -760,8 +741,6 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 		}
 	}
 
-	// Batch tasks to cancel in groups of 50 and publish to the message queue. This is a form of backpressure
-	// as we don't want to run out of RabbitMQ memory if we publish a very large number of tasks to cancel.
 	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, pubPayloads, func(pubPayloads []tasktypes.CancelledTaskPayload) error {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
@@ -789,8 +768,6 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 		return nil
 	}
 
-	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
-	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
 
 	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
@@ -830,7 +807,6 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
 	for _, task := range taskIdRetryCounts {
 		if task.WorkflowRunExternalId == uuid.Nil {
-			// Use a random uuid to effectively send tasks one at a time
 			randomUuid := uuid.NewString()
 			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task.TaskIdInsertedAtRetryCount)
 		} else {
@@ -844,6 +820,10 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
 
 		if err != nil {
+			if isPostgresPartitionError(err) {
+				tc.l.Warn().Ctx(ctx).Err(err).Msg("skipping replay: no partition found for task, task is likely too old to replay")
+				continue
+			}
 			return fmt.Errorf("failed to replay task: %w", err)
 		}
 
@@ -900,7 +880,6 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
 
-	// assemble messages
 	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, task := range releasedTasks {
@@ -910,7 +889,6 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], task)
 	}
 
-	// send messages
 	for dispatcherId, payloads := range dispatcherIdsToPayloads {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
@@ -1001,7 +979,6 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	}
 }
 
-// handleProcessUserEvents is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessUserEvents")
 	defer span.End()
@@ -1012,7 +989,6 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 	eg := &errgroup.Group{}
 
-	// TODO: run these in the same tx or send as separate messages?
 	eg.Go(func() error {
 		return tc.handleProcessUserEventTrigger(ctx, tenantId, msgs)
 	})
@@ -1024,7 +1000,6 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 	return eg.Wait()
 }
 
-// handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.UserEventTaskPayload) error {
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
 	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
@@ -1052,12 +1027,10 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	return tc.tw.TriggerFromEvents(ctx, tenantId, eventIdToOpts)
 }
 
-// handleProcessUserEventMatches is responsible for signaling or creating tasks based on user event matches.
 func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, payloads []*tasktypes.UserEventTaskPayload) error {
 	return tc.processUserEventMatches(ctx, tenantId, payloads)
 }
 
-// handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessInternalEvents")
 	defer span.End()
@@ -1069,12 +1042,10 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 	return tc.processInternalEvents(ctx, tenantId, msgs)
 }
 
-// handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	return tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
 }
 
-// processUserEventMatches looks for user event matches
 func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []*tasktypes.UserEventTaskPayload) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
@@ -1082,9 +1053,8 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
 			ID:             event.EventExternalId,
 			EventTimestamp: time.Now(),
-			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
-			Key:  event.EventKey,
-			Data: event.EventData,
+			Key:            event.EventKey,
+			Data:           event.EventData,
 		})
 	}
 
@@ -1119,10 +1089,9 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
 			ID:             uuid.New(),
 			EventTimestamp: time.Now(),
-			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
-			Key:          string(event.EventType),
-			Data:         event.Data,
-			ResourceHint: &resourceHint,
+			Key:            string(event.EventType),
+			Data:           event.Data,
+			ResourceHint:   &resourceHint,
 		})
 	}
 
@@ -1166,7 +1135,6 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 		maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
 		backoffFactor := task.RetryBackoffFactor.Float64
 
-		// compute the backoff duration
 		durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(task.AppRetryCount)))
 		retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
 		retryTime := time.Now().Add(retryDur)
@@ -1228,4 +1196,8 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 	}
 
 	return nil
+}
+
+func isPostgresPartitionError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "23514")
 }
