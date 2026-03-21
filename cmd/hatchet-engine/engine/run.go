@@ -102,8 +102,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 		return fmt.Errorf("could not run with config: %w", err)
 	}
 
-	time.Sleep(server.Runtime.ShutdownWait)
-
 	l.Debug().Msgf("interrupt received, shutting down")
 
 	err = cleanup.Run()
