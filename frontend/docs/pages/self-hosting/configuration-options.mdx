@@ -150,15 +150,16 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `DATABASE_POSTGRES_DB_NAME`    | PostgreSQL database name                                                                                         | `hatchet`           |
 | `DATABASE_POSTGRES_SSL_MODE`   | PostgreSQL SSL mode                                                                                              | `disable`           |
 | `DATABASE_MAX_CONNS`           | Max database connections                                                                                         | `50`                |
-| `DATABASE_MIN_CONNS`           | Min database connections                                                                                         | `10`                |
+| `DATABASE_MIN_CONNS`           | Min database connections                                                                                         | `1`                 |
 | `DATABASE_MAX_QUEUE_CONNS`     | Max queue connections                                                                                            | `50`                |
 | `DATABASE_MIN_QUEUE_CONNS`     | Min queue connections                                                                                            | `10`                |
 | `DATABASE_MAX_CONN_LIFETIME`   | Max lifetime of a connection                                                                                     | `15m`               |
 | `DATABASE_MAX_CONN_IDLE_TIME`  | Max time a connection can be idle before being closed                                                            | `1m`                |
 | `DATABASE_LOG_QUERIES`         | Log database queries                                                                                             | `false`             |
 | `DATABASE_PGBOUNCER_URL`       | PgBouncer connection string; when set, the main pool uses this URL and `DATABASE_URL` is used for DDL operations |                     |
-| `DATABASE_PGBOUNCER_MAX_CONNS` | Max connections for the pgbouncer pool                                                                           | `50`                |
-| `DATABASE_PGBOUNCER_MIN_CONNS` | Min connections for the pgbouncer pool                                                                           | `1`                 |
+| `DATABASE_DDL_POOL_MAX_CONNS`  | Max connections for the DDL pool (used for DDL-modifying operations that cannot go through PgBouncer)            | `5`                 |
+| `DATABASE_DDL_POOL_MIN_CONNS`  | Min connections for the DDL pool                                                                                 | `1`                 |
+| `DATABASE_ENFORCE_UTC_TIMEZONE` | Enforce that the database timezone is UTC; server will panic on startup if not UTC                              | `true`              |
 | `CACHE_DURATION`               | Cache duration                                                                                                   | `5s`                |
 | `ADMIN_EMAIL`                  | Admin email for seeding                                                                                          | `admin@example.com` |
 | `ADMIN_PASSWORD`               | Admin password for seeding                                                                                       | `Admin123!!`        |
