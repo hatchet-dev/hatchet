@@ -27,7 +27,7 @@ type taskExternalIdTenantIdTuple struct {
 
 type sharedRepository struct {
 	pool    *pgxpool.Pool
-	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations; may be nil
+	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
 	v       validator.Validator
 	l       *zerolog.Logger
 	queries *sqlcv1.Queries

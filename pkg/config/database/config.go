@@ -29,9 +29,8 @@ type ConfigFile struct {
 	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
 	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
 
-	// PgBouncerURL is an optional connection string for pgbouncer. When set, the main Pool
-	// connects through pgbouncer and a small DirectPool is created using DATABASE_URL for
-	// DDL operations like DETACH PARTITION CONCURRENTLY that cannot run inside a transaction block.
+	// PgBouncerURL is an optional connection string for pgbouncer. When set, most queries are routed
+	// through pgbouncer, other than DDL-modifying statements which use the separate direct connection pool.
 	PgBouncerURL string `mapstructure:"pgbouncerUrl" json:"pgbouncerUrl,omitempty" default:""`
 
 	DDLPoolMaxConns int `mapstructure:"ddlPoolMaxConns" json:"ddlPoolMaxConns,omitempty" default:"5"`

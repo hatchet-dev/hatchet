@@ -274,8 +274,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	// Create a separate direct pool using DATABASE_URL for DDL operations. These operations are
 	// critical and cannot use the main pool if it's routed through pgbouncer, so a separate pool
 	// is justified.
-	var directConfig *pgxpool.Config
-	directConfig, err = pgxpool.ParseConfig(databaseUrl)
+	directConfig, err := pgxpool.ParseConfig(databaseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
