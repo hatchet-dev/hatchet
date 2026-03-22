@@ -462,7 +462,7 @@ func (d *DispatcherImpl) handleRetries(
 				task.RetryCount,
 				false,
 				"Could not send task to worker. "+
-					"This likely means that too many slots have been configured for the number of workers"+
+					"This likely means that too many slots have been configured for the number of workers "+
 					"or the network latency between engine and worker is unusually high.",
 				false,
 			)
