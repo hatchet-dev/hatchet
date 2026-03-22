@@ -287,7 +287,7 @@ function PlanCard({
                           {f.display?.primaryText ?? f.name}
                         </span>
                         {f.included && f.display?.secondaryText && (
-                          <span className="text-muted-foreground text-xs block">
+                          <span className="text-foreground block">
                             {f.display.secondaryText}
                           </span>
                         )}
