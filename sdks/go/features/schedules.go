@@ -105,6 +105,30 @@ func (s *SchedulesClient) Delete(ctx context.Context, scheduledRunId string) err
 	return nil
 }
 
+// Update updates the trigger time for a scheduled workflow run.
+func (s *SchedulesClient) Update(ctx context.Context, scheduledRunId string, req rest.UpdateScheduledWorkflowRunRequest) (*rest.ScheduledWorkflows, error) {
+	scheduledRunIdUUID, err := uuid.Parse(scheduledRunId)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse scheduled run id")
+	}
+
+	resp, err := s.api.WorkflowScheduledUpdateWithResponse(
+		ctx,
+		s.tenantId,
+		scheduledRunIdUUID,
+		req,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update scheduled workflow run")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
 // List retrieves a collection of scheduled workflow runs based on the provided parameters.
 func (s *SchedulesClient) List(ctx context.Context, opts rest.WorkflowScheduledListParams) (*rest.ScheduledWorkflowsList, error) {
 	resp, err := s.api.WorkflowScheduledListWithResponse(
@@ -114,6 +138,34 @@ func (s *SchedulesClient) List(ctx context.Context, opts rest.WorkflowScheduledL
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list scheduled workflow runs")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+// BulkDelete deletes multiple scheduled workflow runs.
+func (s *SchedulesClient) BulkDelete(ctx context.Context, req rest.ScheduledWorkflowsBulkDeleteRequest) (*rest.ScheduledWorkflowsBulkDeleteResponse, error) {
+	resp, err := s.api.WorkflowScheduledBulkDeleteWithResponse(ctx, s.tenantId, req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to bulk delete scheduled workflow runs")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+// BulkUpdate updates the trigger times for multiple scheduled workflow runs.
+func (s *SchedulesClient) BulkUpdate(ctx context.Context, req rest.ScheduledWorkflowsBulkUpdateRequest) (*rest.ScheduledWorkflowsBulkUpdateResponse, error) {
+	resp, err := s.api.WorkflowScheduledBulkUpdateWithResponse(ctx, s.tenantId, req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to bulk update scheduled workflow runs")
 	}
 
 	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {

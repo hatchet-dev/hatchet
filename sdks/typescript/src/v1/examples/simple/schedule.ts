@@ -4,34 +4,30 @@ import { simple } from './workflow';
 async function main() {
   // > Create a Scheduled Run
 
-  const runAt = new Date(new Date().setHours(12, 0, 0, 0) + 24 * 60 * 60 * 1000);
+  const tomorrowNoon = new Date();
+  tomorrowNoon.setUTCDate(tomorrowNoon.getUTCDate() + 1);
+  tomorrowNoon.setUTCHours(12, 0, 0, 0);
 
-  const scheduled = await simple.schedule(runAt, {
-    Message: 'hello',
+  const scheduled = await simple.schedule(tomorrowNoon, {
+    Message: 'Hello, World!',
   });
 
-  // 👀 Get the scheduled run ID of the workflow
-  // it may be helpful to store the scheduled run ID of the workflow
-  // in a database or other persistent storage for later use
-  const scheduledRunId = scheduled.metadata.id;
-  console.log(scheduledRunId);
   // !!
+
+  const scheduledRunId = scheduled.metadata.id;
 
   // > Reschedule a Scheduled Run
   await hatchet.scheduled.update(scheduledRunId, {
-    triggerAt: new Date(Date.now() + 60 * 60 * 1000),
+    triggerAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
   });
   // !!
 
   // > Delete a Scheduled Run
-  await hatchet.scheduled.delete(scheduled);
+  await hatchet.scheduled.delete(scheduledRunId);
   // !!
 
   // > List Scheduled Runs
-  const scheduledRuns = await hatchet.scheduled.list({
-    workflow: simple,
-  });
-  console.log(scheduledRuns);
+  const scheduledRuns = await hatchet.scheduled.list({});
   // !!
 
   // > Bulk Delete Scheduled Runs
