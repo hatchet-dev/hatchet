@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "if [ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && [ -n \"$VERCEL_GIT_COMMIT_SHA\" ]; then git diff \"$VERCEL_GIT_PREVIOUS_SHA\" \"$VERCEL_GIT_COMMIT_SHA\" --quiet -- frontend/docs frontend/snippets examples sdks/*/examples sdks/guides; else exit 1; fi"
+}
