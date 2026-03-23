@@ -92,23 +92,31 @@ func InitTracer(opts *TracerOpts) (func() error, error) {
 			return nil, fmt.Errorf("failed to parse traceIdRatio: %w", err)
 		}
 	}
-
-	otel.SetTracerProvider(
-		sdktrace.NewTracerProvider(
-			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
-			sdktrace.WithBatcher(
-				exporter,
-				sdktrace.WithMaxQueueSize(sdktrace.DefaultMaxQueueSize*10),
-				sdktrace.WithMaxExportBatchSize(sdktrace.DefaultMaxExportBatchSize*10),
-			),
-			sdktrace.WithResource(resources),
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
+		sdktrace.WithBatcher(
+			exporter,
+			sdktrace.WithMaxQueueSize(sdktrace.DefaultMaxQueueSize*10),
+			sdktrace.WithMaxExportBatchSize(sdktrace.DefaultMaxExportBatchSize*10),
 		),
+		sdktrace.WithResource(resources),
+	)
+	otel.SetTracerProvider(
+		tracerProvider,
 	)
 
 	return func() error {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
-		return exporter.Shutdown(timeoutCtx)
+		err := tracerProvider.Shutdown(timeoutCtx)
+		if err != nil {
+			return err
+		}
+		err = exporter.Shutdown(timeoutCtx)
+		if err != nil {
+			return err
+		}
+		return nil
 	}, nil
 }
 
