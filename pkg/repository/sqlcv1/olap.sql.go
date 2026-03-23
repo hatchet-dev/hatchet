@@ -414,6 +414,17 @@ func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date p
 	return err
 }
 
+const createOLAPOtelPartitions = `-- name: CreateOLAPOtelPartitions :exec
+SELECT
+    create_v1_range_partition('v1_otel_trace_olap'::text, $1::date),
+    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, $1::date)
+`
+
+func (q *Queries) CreateOLAPOtelPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createOLAPOtelPartitions, date)
+	return err
+}
+
 const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
 SELECT
     create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int),
@@ -421,9 +432,7 @@ SELECT
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_payloads_olap'::text, $2::date),
-    create_v1_range_partition('v1_otel_trace_olap'::text, $2::date),
-    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, $2::date)
+    create_v1_range_partition('v1_payloads_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -1468,27 +1477,27 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
-    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $2::date) AS p
+    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $3::date) AS p
 ), dag_partitions AS (
-    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $2::date) AS p
+    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $3::date) AS p
 ), runs_partitions AS (
-    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $2::date) AS p
+    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $3::date) AS p
 ), events_partitions AS (
-    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $2::date) AS p
+    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $3::date) AS p
 ), event_trigger_partitions AS (
-    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $2::date) AS p
+    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $3::date) AS p
 ), events_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table_olap', $2::date) AS p
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table_olap', $3::date) AS p
 ), incoming_webhook_validation_failure_partitions AS (
-    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', $2::date) AS p
+    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', $3::date) AS p
 ), cel_evaluation_failures_partitions AS (
-    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', $2::date) AS p
+    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', $3::date) AS p
 ), payloads_partitions AS (
-    SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', $2::date) AS p
+    SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', $3::date) AS p
 ), otel_trace_partitions AS (
-    SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $2::date) AS p
+    SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $3::date) AS p
 ), otel_trace_lookup_partitions AS (
-    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $2::date) AS p
+    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $3::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1571,14 +1580,17 @@ FROM candidates
 WHERE
     CASE
         WHEN $1::BOOLEAN THEN TRUE
-        -- this is a list of all of the tables which are hypertables in timescale, so we should not manually drop their
-        -- partitions if @shouldPartitionEventsTables is false
         ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
+    END
+    AND CASE
+        WHEN $2::BOOLEAN THEN TRUE
+        ELSE parent_table NOT IN ('v1_otel_trace_olap', 'v1_otel_trace_lookup_olap')
     END
 `
 
 type ListOLAPPartitionsBeforeDateParams struct {
 	Shouldpartitioneventstables bool        `json:"shouldpartitioneventstables"`
+	Shouldpartitionoteltables   bool        `json:"shouldpartitionoteltables"`
 	Date                        pgtype.Date `json:"date"`
 }
 
@@ -1588,7 +1600,7 @@ type ListOLAPPartitionsBeforeDateRow struct {
 }
 
 func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg ListOLAPPartitionsBeforeDateParams) ([]*ListOLAPPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldpartitioneventstables, arg.Date)
+	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldpartitioneventstables, arg.Shouldpartitionoteltables, arg.Date)
 	if err != nil {
 		return nil, err
 	}

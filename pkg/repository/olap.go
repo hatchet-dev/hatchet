@@ -302,6 +302,7 @@ type OLAPRepositoryImpl struct {
 	olapRetentionPeriod time.Duration
 
 	shouldPartitionEventsTables bool
+	shouldPartitionOtelTables   bool
 
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
 }
@@ -316,15 +317,16 @@ func NewOLAPRepositoryFromPool(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
 	enableDurableUserEventLog bool,
+	shouldPartitionOtelTables bool,
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, nil, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
 
-	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, statusUpdateBatchSizeLimits), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool, shouldPartitionOtelTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -337,6 +339,7 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 		eventCache:                  eventCache,
 		olapRetentionPeriod:         olapRetentionPeriod,
 		shouldPartitionEventsTables: shouldPartitionEventsTables,
+		shouldPartitionOtelTables:   shouldPartitionOtelTables,
 		statusUpdateBatchSizeLimits: statusUpdateBatchSizeLimits,
 	}
 }
@@ -369,6 +372,17 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
+	if r.shouldPartitionOtelTables {
+		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
+			Time:  today,
+			Valid: true,
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
 	err = r.queries.CreateOLAPPartitions(ctx, r.pool, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  tomorrow,
@@ -392,8 +406,20 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
+	if r.shouldPartitionOtelTables {
+		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
+			Time:  tomorrow,
+			Valid: true,
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
 		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
+		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
 		Date: pgtype.Date{
 			Time:  removeBefore,
 			Valid: true,
