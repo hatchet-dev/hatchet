@@ -1,3 +1,4 @@
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,11 +45,12 @@ export function Notifications() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
+        <Button
+          variant="icon"
+          size="icon"
           title={title}
           aria-label={title}
-          className="relative flex size-8 aspect-square items-center justify-center rounded-full border border-border bg-muted/20 text-foreground hover:bg-muted/40"
+          className="relative rounded-full border border-border"
         >
           {count > 0 ? (
             <span className="text-xs font-medium leading-none">{count}</span>
@@ -63,7 +65,7 @@ export function Notifications() {
               )}
             />
           )}
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80" align="end">
         {count === 0 ? (
