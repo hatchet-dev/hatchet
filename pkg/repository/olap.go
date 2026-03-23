@@ -279,6 +279,12 @@ type OLAPRepository interface {
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
 	ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error)
+
+	// OTel trace methods
+	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
+	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
+	CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
+	LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error)
 }
 
 type StatusUpdateBatchSizeLimits struct {

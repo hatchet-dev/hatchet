@@ -64,37 +64,7 @@ type ListSpansResult struct {
 	Total int64
 }
 
-type OTelCollectorRepository interface {
-	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
-	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
-}
-
-type OTelLookupRepository interface {
-	CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
-	LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error)
-}
-
-type otelLookupRepositoryImpl struct {
-	*sharedRepository
-}
-
-func newOTelLookupRepository(s *sharedRepository) OTelLookupRepository {
-	return &otelLookupRepositoryImpl{
-		sharedRepository: s,
-	}
-}
-
-type otelCollectorRepositoryImpl struct {
-	*sharedRepository
-}
-
-func newOTelCollectorRepository(s *sharedRepository) OTelCollectorRepository {
-	return &otelCollectorRepositoryImpl{
-		sharedRepository: s,
-	}
-}
-
-func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
+func (o *OLAPRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
 	if opts == nil {
 		return fmt.Errorf("opts cannot be nil")
 	}
@@ -214,7 +184,7 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 	return nil
 }
 
-func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
+func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
 	if opts == nil {
 		return fmt.Errorf("opts cannot be nil")
 	}
@@ -296,14 +266,14 @@ func (o *otelLookupRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Cont
 	return nil
 }
 
-func (o *otelLookupRepositoryImpl) LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error) {
+func (o *OLAPRepositoryImpl) LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error) {
 	return o.queries.LookUpTraceId(ctx, o.pool, sqlcv1.LookUpTraceIdParams{
 		Tenantid:   tenantId,
 		Externalid: runExternalId,
 	})
 }
 
-func (o *otelCollectorRepositoryImpl) ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error) {
+func (o *OLAPRepositoryImpl) ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error) {
 	rows, err := o.queries.ListSpansByTraceId(ctx, o.pool, sqlcv1.ListSpansByTraceIdParams{
 		Tenantid:   tenantId,
 		Traceid:    traceId,

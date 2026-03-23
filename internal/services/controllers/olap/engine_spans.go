@@ -41,8 +41,8 @@ type taskRetryKey struct {
 }
 
 func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantId uuid.UUID, events []engineSpanEvent) {
-	otelRepo := tc.repo.OTelCollector()
-	if otelRepo == nil || len(events) == 0 {
+	olapRepo := tc.repo.OLAP()
+	if olapRepo == nil || len(events) == 0 {
 		return
 	}
 
@@ -77,7 +77,7 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 		return
 	}
 
-	if err := otelRepo.CreateSpans(ctx, tenantId, &v1.CreateSpansOpts{
+	if err := olapRepo.CreateSpans(ctx, tenantId, &v1.CreateSpansOpts{
 		TenantID: tenantId,
 		Spans:    allSpans,
 	}); err != nil {

@@ -237,8 +237,8 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', $1::date),
     create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80),
     create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80),
-    create_v1_range_partition('v1_otel_trace', $1::date),
-    create_v1_range_partition('v1_otel_trace_lookup_table', $1::date)
+    create_v1_range_partition('v1_otel_trace_olap', $1::date),
+    create_v1_range_partition('v1_otel_trace_lookup_olap', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -341,7 +341,7 @@ WITH tomorrow_date AS (
     UNION ALL
     SELECT 'v1_durable_event_log_branch_point_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
-    SELECT 'v1_otel_trace_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    SELECT 'v1_otel_trace_olap_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -1339,9 +1339,9 @@ WITH task_partitions AS (
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', $1::date) AS p
 ), otel_trace_partitions AS (
-    SELECT 'v1_otel_trace' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace', $1::date) AS p
+    SELECT 'v1_otel_trace_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $1::date) AS p
 ), otel_trace_lookup_table_partitions AS (
-    SELECT 'v1_otel_trace_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_table', $1::date) AS p
+    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $1::date) AS p
 )
 
 SELECT

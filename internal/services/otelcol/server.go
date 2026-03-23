@@ -38,9 +38,9 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 
 	tenantId := tenant.ID
 
-	otelColRepo := oc.repo.OTelCollector()
-	if otelColRepo == nil {
-		oc.l.Debug().Msg("otel collector repository not configured, discarding spans")
+	olapRepo := oc.repo.OLAP()
+	if olapRepo == nil {
+		oc.l.Debug().Msg("OLAP repository not configured, discarding spans")
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
@@ -57,7 +57,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		spans = spans[:oc.maxBatchSize]
 	}
 
-	err := otelColRepo.CreateSpans(ctx, tenantId, &repository.CreateSpansOpts{
+	err := olapRepo.CreateSpans(ctx, tenantId, &repository.CreateSpansOpts{
 		TenantID: tenantId,
 		Spans:    spans,
 	})
@@ -72,7 +72,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		}, nil
 	}
 
-	err = oc.repo.OTelLookup().CreateSpanLookupTableEntries(ctx, tenantId, &repository.CreateSpansOpts{
+	err = olapRepo.CreateSpanLookupTableEntries(ctx, tenantId, &repository.CreateSpansOpts{
 		TenantID: tenantId,
 		Spans:    spans,
 	})

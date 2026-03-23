@@ -11,8 +11,8 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80),
-    create_v1_range_partition('v1_otel_trace', @date::date),
-    create_v1_range_partition('v1_otel_trace_lookup_table', @date::date)
+    create_v1_range_partition('v1_otel_trace_olap', @date::date),
+    create_v1_range_partition('v1_otel_trace_lookup_olap', @date::date)
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -38,7 +38,7 @@ WITH tomorrow_date AS (
     UNION ALL
     SELECT 'v1_durable_event_log_branch_point_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
-    SELECT 'v1_otel_trace_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    SELECT 'v1_otel_trace_olap_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -77,9 +77,9 @@ WITH task_partitions AS (
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
 ), otel_trace_partitions AS (
-    SELECT 'v1_otel_trace' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace', @date::date) AS p
+    SELECT 'v1_otel_trace_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
 ), otel_trace_lookup_table_partitions AS (
-    SELECT 'v1_otel_trace_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_table', @date::date) AS p
+    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
 )
 
 SELECT
