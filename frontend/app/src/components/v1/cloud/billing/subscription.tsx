@@ -26,6 +26,7 @@ import {
   TenantSubscription,
   SubscriptionPlan,
   SubscriptionPlanCode,
+  SubscriptionPeriod,
   Coupon,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
@@ -38,15 +39,6 @@ interface SubscriptionProps {
   upcoming?: TenantSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
-}
-
-function parsePlanCode(planCode: string): SubscriptionPlanCode {
-  const base = planCode.split('_')[0];
-  const match = Object.values(SubscriptionPlanCode).find((v) => v === base);
-  if (!match) {
-    throw new Error(`Unknown plan code: ${base}`);
-  }
-  return match;
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -129,11 +121,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
   const subscriptionMutation = useMutation({
     mutationKey: ['user:update:logout'],
-    mutationFn: async (selectedPlan: SubscriptionPlan) => {
-      setLoading(selectedPlan.planCode);
+    mutationFn: async ({ plan_code }: { plan_code: string }) => {
+      const [plan, period] = plan_code.split('_');
+      setLoading(plan_code);
       const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
-        plan: parsePlanCode(selectedPlan.planCode),
-        period: selectedPlan.period,
+        plan: plan as SubscriptionPlanCode,
+        period: period as SubscriptionPeriod,
       });
       return response.data;
     },
@@ -231,7 +224,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         }
         submitLabel={'Change Plan'}
         onSubmit={async () => {
-          await subscriptionMutation.mutateAsync(isChangeConfirmOpen!);
+          await subscriptionMutation.mutateAsync({
+            plan_code: isChangeConfirmOpen!.planCode,
+          });
           setLoading(undefined);
           setChangeConfirmOpen(undefined);
         }}
@@ -444,7 +439,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               showAnnual={showAnnual}
               onSelectPlan={(plan) => {
                 if (!billing?.hasPaymentMethods) {
-                  subscriptionMutation.mutate(plan);
+                  subscriptionMutation.mutate({ plan_code: plan.planCode });
                 } else {
                   setChangeConfirmOpen(plan);
                 }
