@@ -8,6 +8,10 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -109,6 +113,16 @@ func WithFilterScope(scope *string) PushOpFunc {
 }
 
 func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/client")
+	ctx, span := tracer.Start(ctx, "hatchet.push_event",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.event_key", eventKey),
+		),
+	)
+	defer span.End()
+
 	key := client.ApplyNamespace(eventKey, &a.namespace)
 
 	request := eventcontracts.PushEventRequest{
@@ -119,6 +133,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	payloadBytes, err := json.Marshal(payload)
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -129,6 +144,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	for _, optionFunc := range options {
 		err = optionFunc(opts)
 		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}
@@ -136,6 +152,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	additionalMetaBytes, err := a.getAdditionalMetaBytes(&opts.additionalMetadata)
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -148,13 +165,24 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
 func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/client")
+	ctx, span := tracer.Start(ctx, "hatchet.bulk_push_event",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.Int("hatchet.num_events", len(payload)),
+		),
+	)
+	defer span.End()
 
 	request := eventcontracts.BulkPushEventRequest{}
 
@@ -164,11 +192,13 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 
 		ePayload, err := json.Marshal(p.Event)
 		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 		md := p.AdditionalMetadata
 		eMetadata, err := a.getAdditionalMetaBytes(&md)
 		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 		eMetadataString := string(eMetadata)
@@ -188,9 +218,11 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 	_, err := a.client.BulkPush(a.ctx.newContext(ctx), &request)
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 

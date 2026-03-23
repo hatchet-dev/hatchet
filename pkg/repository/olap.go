@@ -258,6 +258,7 @@ type OLAPRepository interface {
 
 	GetDAGDurations(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
+	GetTaskStartedTimestamps(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []time.Time, retryCounts []int32) ([]*sqlcv1.GetTaskStartedTimestampsRow, error)
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId uuid.UUID, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures []CELEvaluationFailure) error
@@ -2464,6 +2465,20 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	}
 
 	return taskDurations, nil
+}
+
+func (r *OLAPRepositoryImpl) GetTaskStartedTimestamps(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []time.Time, retryCounts []int32) ([]*sqlcv1.GetTaskStartedTimestampsRow, error) {
+	pgInsertedAts := make([]pgtype.Timestamptz, len(taskInsertedAts))
+	for i, t := range taskInsertedAts {
+		pgInsertedAts[i] = sqlchelpers.TimestamptzFromTime(t)
+	}
+
+	return r.queries.GetTaskStartedTimestamps(ctx, r.readPool, sqlcv1.GetTaskStartedTimestampsParams{
+		Tenantid:       tenantId,
+		Taskids:        taskIds,
+		Taskinsertedat: pgInsertedAts,
+		Retrycounts:    retryCounts,
+	})
 }
 
 type CreateIncomingWebhookFailureLogOpts struct {

@@ -66,6 +66,8 @@ type ServerConfigFile struct {
 
 	Prometheus shared.PrometheusConfigFile `mapstructure:"prometheus" json:"prometheus,omitempty"`
 
+	Observability shared.ObservabilityConfigFile `mapstructure:"observability" json:"observability,omitempty"`
+
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
 
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
@@ -623,6 +625,8 @@ type ServerConfig struct {
 
 	Prometheus shared.PrometheusConfigFile
 
+	Observability shared.ObservabilityConfigFile
+
 	Email email.EmailService
 
 	TenantAlerter *alerting.TenantAlertManager
@@ -853,13 +857,17 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("additionalLoggers.pgxStats.level", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL")
 	_ = v.BindEnv("additionalLoggers.pgxStats.format", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT")
 
-	// otel options
+	// engine OTel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 	_ = v.BindEnv("otel.collectorAuth", "SERVER_OTEL_COLLECTOR_AUTH")
 	_ = v.BindEnv("otel.metricsEnabled", "SERVER_OTEL_METRICS_ENABLED")
+
+	// Hatchet O11y options
+	_ = v.BindEnv("observability.enabled", "SERVER_OBSERVABILITY_ENABLED")
+	_ = v.BindEnv("observability.maxBatchSize", "SERVER_OBSERVABILITY_MAX_BATCH_SIZE")
 
 	// prometheus options
 	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")

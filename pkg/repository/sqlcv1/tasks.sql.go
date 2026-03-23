@@ -236,7 +236,9 @@ SELECT
     create_v1_range_partition('v1_event_to_run', $1::date),
     create_v1_range_partition('v1_durable_event_log_file', $1::date),
     create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80),
-    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80)
+    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80),
+    create_v1_range_partition('v1_otel_trace', $1::date),
+    create_v1_range_partition('v1_otel_trace_lookup_table', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -338,6 +340,8 @@ WITH tomorrow_date AS (
     SELECT 'v1_durable_event_log_entry_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_durable_event_log_branch_point_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_otel_trace_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -1334,6 +1338,10 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', $1::date) AS p
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', $1::date) AS p
+), otel_trace_partitions AS (
+    SELECT 'v1_otel_trace' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace', $1::date) AS p
+), otel_trace_lookup_table_partitions AS (
+    SELECT 'v1_otel_trace_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_table', $1::date) AS p
 )
 
 SELECT
@@ -1410,6 +1418,20 @@ SELECT
     parent_table, partition_name
 FROM
     durable_event_log_branch_point_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    otel_trace_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    otel_trace_lookup_table_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -1501,7 +1523,13 @@ SELECT
     external_id,
     retry_count,
     workflow_id,
-    workflow_run_id
+    workflow_run_id,
+    additional_metadata,
+    step_readable_id,
+    action_id,
+    display_name,
+    workflow_version_id,
+    step_id
 FROM
     v1_task
 WHERE
@@ -1515,12 +1543,18 @@ type ListTaskMetasParams struct {
 }
 
 type ListTaskMetasRow struct {
-	ID            int64              `json:"id"`
-	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID    uuid.UUID          `json:"external_id"`
-	RetryCount    int32              `json:"retry_count"`
-	WorkflowID    uuid.UUID          `json:"workflow_id"`
-	WorkflowRunID uuid.UUID          `json:"workflow_run_id"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	RetryCount         int32              `json:"retry_count"`
+	WorkflowID         uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+	StepReadableID     string             `json:"step_readable_id"`
+	ActionID           string             `json:"action_id"`
+	DisplayName        string             `json:"display_name"`
+	WorkflowVersionID  uuid.UUID          `json:"workflow_version_id"`
+	StepID             uuid.UUID          `json:"step_id"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -1539,6 +1573,12 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.RetryCount,
 			&i.WorkflowID,
 			&i.WorkflowRunID,
+			&i.AdditionalMetadata,
+			&i.StepReadableID,
+			&i.ActionID,
+			&i.DisplayName,
+			&i.WorkflowVersionID,
+			&i.StepID,
 		); err != nil {
 			return nil, err
 		}

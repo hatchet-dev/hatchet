@@ -2,6 +2,9 @@ import { ConfigLoader } from './config-loader';
 
 describe('ConfigLoader', () => {
   beforeEach(() => {
+    // Clear env vars that might leak from other tests
+    delete process.env.HATCHET_CLIENT_TLS_STRATEGY;
+
     process.env.HATCHET_CLIENT_TOKEN =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef';
     process.env.HATCHET_CLIENT_TLS_STRATEGY = 'tls';
@@ -33,6 +36,10 @@ describe('ConfigLoader', () => {
       healthcheck: {
         enabled: true,
         port: 8001,
+      },
+      otel: {
+        excludedAttributes: [],
+        includeTaskNameInSpanName: false,
       },
     });
   });
@@ -85,6 +92,10 @@ describe('ConfigLoader', () => {
       healthcheck: {
         enabled: true,
         port: 8002,
+      },
+      otel: {
+        excludedAttributes: ['additional_metadata'],
+        includeTaskNameInSpanName: true,
       },
     });
   });
