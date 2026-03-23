@@ -30,10 +30,10 @@ type TracerOpts struct {
 	CollectorAuth string
 }
 
-func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
+func InitTracer(opts *TracerOpts) (func() error, error) {
 	if opts.CollectorURL == "" {
 		// no-op
-		return func(context.Context) error {
+		return func() error {
 			return nil
 		}, nil
 	}
@@ -105,7 +105,11 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 		),
 	)
 
-	return exporter.Shutdown, nil
+	return func() error {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		return exporter.Shutdown(timeoutCtx)
+	}, nil
 }
 
 func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {
