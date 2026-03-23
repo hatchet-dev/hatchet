@@ -14,4 +14,3 @@ func pushEvent(client *hatchet.Client) {
 		"source":  "webhook",
 	})
 }
-

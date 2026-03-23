@@ -35,7 +35,6 @@ func main() {
 		return &AffinityOutput{Worker: ctx.Worker().ID()}, nil
 	})
 
-
 	_ = func() error {
 		// > AffinityRun
 		result, runErr := affinityWorkflow.RunNoWait(context.Background(), nil,
