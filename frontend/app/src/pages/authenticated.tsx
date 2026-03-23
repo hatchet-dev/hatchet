@@ -371,7 +371,7 @@ function AuthenticatedInner() {
                       : result.tenant.metadata.id;
 
                   if (result.type === 'cloud') {
-                    queryClient.prefetchQuery(
+                    void queryClient.prefetchQuery(
                       queries.cloud.subscriptionPlans(),
                     );
                   }
