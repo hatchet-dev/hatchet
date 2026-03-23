@@ -4,8 +4,6 @@ import { useTheme } from '@/components/hooks/use-theme';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
 import {
   MembershipsContextType,
   UserContextType,
@@ -14,10 +12,7 @@ import {
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useUserUniverse } from '@/providers/user-universe';
-import { appRoutes } from '@/router';
-import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -29,23 +24,7 @@ function Main() {
     !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const { toggleTheme, currentlyVisibleTheme } = useTheme();
-  const navigate = useNavigate();
-  const { invalidate: invalidateUserUniverse } = useUserUniverse();
-  const { handleApiError } = useApiError({});
-
-  const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
-    onSuccess: () => {
-      invalidateUserUniverse();
-      navigate({ to: appRoutes.authLoginRoute.to });
-    },
-    onError: handleApiError,
-  });
-
-  const onLogout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
+  const { logoutMutation } = useUserUniverse();
 
   const navSections = useMemo(
     () =>
@@ -54,7 +33,7 @@ function Main() {
         managedWorkerEnabled,
         isCloudEnabled,
         logsEnabled,
-        onLogout,
+        onLogout: logoutMutation.mutate,
         onToggleTheme: toggleTheme,
         currentlyVisibleTheme,
       }),
@@ -63,7 +42,7 @@ function Main() {
       managedWorkerEnabled,
       isCloudEnabled,
       logsEnabled,
-      onLogout,
+      logoutMutation.mutate,
       toggleTheme,
       currentlyVisibleTheme,
     ],
