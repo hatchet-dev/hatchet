@@ -1098,6 +1098,8 @@ const (
 	V1EventTypeOlapCOULDNOTSENDTOWORKER V1EventTypeOlap = "COULD_NOT_SEND_TO_WORKER"
 	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
 	V1EventTypeOlapDURABLERESTORING     V1EventTypeOlap = "DURABLE_RESTORING"
+	V1EventTypeOlapWORKFLOWPAUSED       V1EventTypeOlap = "WORKFLOW_PAUSED"
+	V1EventTypeOlapWORKFLOWUNPAUSED     V1EventTypeOlap = "WORKFLOW_UNPAUSED"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {
@@ -3415,6 +3417,26 @@ type V1OtelTraceOlap struct {
 	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
 	RetryCount            int32              `json:"retry_count"`
 	StartTime             pgtype.Timestamptz `json:"start_time"`
+}
+
+type V1PausedWorkflowQueueItems struct {
+	PausedAt           pgtype.Timestamptz `json:"paused_at"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	Queue              string             `json:"queue"`
+	TaskID             int64              `json:"task_id"`
+	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	ActionID           string             `json:"action_id"`
+	StepID             uuid.UUID          `json:"step_id"`
+	WorkflowID         uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeoutAt  pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout        pgtype.Text        `json:"step_timeout"`
+	Priority           int32              `json:"priority"`
+	Sticky             V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
+	RetryCount         int32              `json:"retry_count"`
+	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
 }
 
 type V1Payload struct {
