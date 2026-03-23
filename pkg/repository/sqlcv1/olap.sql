@@ -5,7 +5,9 @@ SELECT
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
-    create_v1_range_partition('v1_payloads_olap'::text, @date::date)
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date),
+    create_v1_range_partition('v1_otel_trace_olap'::text, @date::date),
+    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, @date::date)
 ;
 
 -- name: CreateOLAPEventPartitions :exec
@@ -54,6 +56,10 @@ WITH task_partitions AS (
     SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', @date::date) AS p
 ), payloads_partitions AS (
     SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', @date::date) AS p
+), otel_trace_partitions AS (
+    SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
+), otel_trace_lookup_partitions AS (
+    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -115,6 +121,20 @@ WITH task_partitions AS (
         *
     FROM
         payloads_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        otel_trace_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        otel_trace_lookup_partitions
 )
 
 SELECT *
