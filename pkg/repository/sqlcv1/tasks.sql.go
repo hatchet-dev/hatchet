@@ -237,7 +237,8 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', $1::date),
     create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80),
     create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80),
-    create_v1_range_partition('v1_otel_trace', $1::date)
+    create_v1_range_partition('v1_otel_trace', $1::date),
+    create_v1_range_partition('v1_otel_trace_lookup_table', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -1339,6 +1340,8 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', $1::date) AS p
 ), otel_trace_partitions AS (
     SELECT 'v1_otel_trace' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace', $1::date) AS p
+), otel_trace_lookup_table_partitions AS (
+    SELECT 'v1_otel_trace_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_table', $1::date) AS p
 )
 
 SELECT
@@ -1422,6 +1425,13 @@ SELECT
     parent_table, partition_name
 FROM
     otel_trace_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    otel_trace_lookup_table_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {

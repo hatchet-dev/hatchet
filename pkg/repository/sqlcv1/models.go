@@ -3399,6 +3399,14 @@ type V1OtelTrace struct {
 	StartTime             pgtype.Timestamptz `json:"start_time"`
 }
 
+type V1OtelTraceLookupTable struct {
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	ExternalID uuid.UUID          `json:"external_id"`
+	RetryCount int32              `json:"retry_count"`
+	TraceID    []byte             `json:"trace_id"`
+	StartTime  pgtype.Timestamptz `json:"start_time"`
+}
+
 type V1Payload struct {
 	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`
