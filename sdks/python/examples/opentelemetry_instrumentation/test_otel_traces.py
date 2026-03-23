@@ -281,7 +281,5 @@ async def test_otel_spans_created_from_engine_without_instrumentor(
 
     spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
 
-    for s in spans:
-        print(s)
-
+    ## todo: write some assertions here
     assert False
