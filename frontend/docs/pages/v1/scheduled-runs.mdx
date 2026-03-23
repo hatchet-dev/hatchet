@@ -5,21 +5,21 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Scheduled Runs
 
-Scheduled runs trigger a task at a specific point in the future. Common use cases include:
+Scheduled runs allow you to trigger a task at a specific time in the future. Some example use cases of scheduling runs might include:
 
-- Sending a reminder email after a user action.
-- Running a one-time maintenance task (e.g., a database vacuum) during a predetermined window.
-- Letting a customer specify when a task should run, such as setting an alarm.
+- Sending a reminder email at a specific time after a user took an action.
+- Running a one-time maintenance task at a predetermined time as determined by your application. For instance, you might want to run a database vacuum during a maintenance window any time a task matches a certain criteria.
+- Allowing a customer to decide when they want your application to perform a specific task. For instance, if your application is a simple alarm app that sends a customer a notification at a time that they specify, you might create a scheduled run for each alarm that the customer sets.
 
 <Callout type="warning">
   The scheduled time is when Hatchet **enqueues** the task, not when the run
-  starts. Concurrency limits, rate limits, and retry policies can affect the
-  actual start time.
+  starts. Scheduling constraints like concurrency limits, rate limits, and retry
+  policies can affect run start times.
 </Callout>
 
 ## Create a Scheduled Run
 
-Scheduled runs can be created programmatically. This gives an option for the trigger time to differ per customer or be derived from application logic.
+You can create scheduled runs programmatically via the API to run tasks at a specific time in the future. This way, you can have different scheduled times for different customers, or dynamically set the scheduled time based on some other business logic.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -38,10 +38,11 @@ Scheduled runs can be created programmatically. This gives an option for the tri
   </Tabs.Tab>
 </UniversalTabs>
 
-The API returns a scheduled run object whose ID should be persisted. It is required for subsequent delete or reschedule operations.
+When creating a scheduled run via the API, you will receive an object with a metadata property containing the ID of the scheduled run. You can use this ID to reference the scheduled run when deleting or rescheduling it, and it is often stored in a database or other persistence layer.
 
 <Callout type="info">
-  Scheduled runs are always stored and returned in UTC.
+  Be mindful of the time zone of the scheduled run. Scheduled runs are
+  **always** stored and returned in UTC.
 </Callout>
 
 ## Deleting a Scheduled Run
@@ -100,14 +101,12 @@ The API returns a scheduled run object whose ID should be persisted. It is requi
 </UniversalTabs>
 
 <Callout type="warning">
-  Only scheduled runs created via the API can be rescheduled, not runs defined
-  in code. Hatchet will reject a reschedule request if the run has already
-  triggered.
+  Hatchet may reject rescheduling if the run has already triggered.
 </Callout>
 
 ## Bulk Operations (Delete / Reschedule)
 
-Hatchet supports bulk delete and bulk reschedule operations for scheduled runs.
+Hatchet supports bulk operations for scheduled runs. You can bulk delete scheduled runs, and you can bulk reschedule scheduled runs by providing a list of updates.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -136,10 +135,12 @@ Hatchet supports bulk delete and bulk reschedule operations for scheduled runs.
 
 ## Considerations
 
-1. **Time zone**: All scheduled run times are stored and returned in UTC.
+When using scheduled runs, there are a few considerations to keep in mind:
 
-2. **Execution time**: Hatchet enqueues the task as close to the scheduled time as possible, but system load or other factors may introduce minor delays.
+1. **Time Zone**: Scheduled runs are stored and returned in UTC. Make sure to consider the time zone when defining your scheduled time.
 
-3. **Missed schedules**: Hatchet does not replay missed runs after downtime. If a scheduled task is missed, it will not execute when the service recovers.
+2. **Execution Time**: The actual execution time of a scheduled run may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to enqueue the task as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
 
-4. **Overlapping runs**: If a prior run is still active when a new scheduled run triggers, Hatchet starts a new instance or applies the configured [concurrency](/v1/concurrency) policy.
+3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances when the service comes back online.
+
+4. **Overlapping Schedules**: If a task is still running when a second run is scheduled to start, Hatchet will start a new instance of the task or respect the [concurrency](/v1/concurrency) policy.

@@ -5,28 +5,28 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Recurring Runs with Cron
 
-[Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler. In Hatchet, cron triggers define when a task executes automatically on a recurring schedule.
+A [Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler that allows you to define when a task should be executed automatically on a pre-determined schedule.
 
-Common use cases include:
+Some example use cases for cron-style tasks might include:
 
 1. Running a daily report at a specific time.
-2. Sending weekly digest emails summarizing user activity.
-3. Running a monthly billing process to generate invoices.
+2. Sending weekly digest emails to users about their activity from the past week.
+3. Running a monthly billing process to generate invoices for customers.
 
-Hatchet supports two ways to define cron triggers:
+Hatchet supports cron triggers to run on a schedule defined in a few different ways:
 
-- [Task Definitions](/v1/cron-runs#defining-a-cron-in-your-task-definition): A cron expression is embedded directly in the task definition.
-- [Programmatic API](/v1/cron-runs#programmatically-creating-cron-triggers): The Hatchet SDK is used to create and manage cron triggers at runtime.
+- [Task Definitions](/v1/cron-runs#defining-a-cron-in-your-task-definition): Define a cron expression in your task definition to trigger the task on a predefined schedule.
+- [Programmatic API](/v1/cron-runs#programmatically-creating-cron-triggers): Use the Hatchet SDKs to dynamically set the cron schedule of a task.
 
 <Callout type="warning">
-  The cron expression controls when Hatchet **enqueues** the task, not when the
-  run starts. Concurrency limits, rate limits, and retry policies can affect the
-  actual start time.
+  The expression is when Hatchet **enqueues** the task, not when the run starts.
+  Scheduling constraints like concurrency limits, rate limits, and retry
+  policies can affect run start times.
 </Callout>
 
 ### Cron Expression Syntax
 
-Hatchet supports standard cron syntax with 5-field and 6-field expressions. Fields are space-separated. A 6-field expression includes an optional leading seconds field.
+Cron expressions in Hatchet follow the standard cron syntax. Hatchet supports both 5-field and 6-field expressions. A cron expression consists of 5 to 6 fields separated by spaces. If there are 6 fields, the first field is seconds; if there are 5 fields, the first field is minutes.
 
 ```
 ┌───────────── second (0 - 59) (optional)
@@ -38,17 +38,22 @@ Hatchet supports standard cron syntax with 5-field and 6-field expressions. Fiel
 * * * * * *
 ```
 
-Use a service such as https://crontab.guru to validate cron expressions.
+Each field can contain a specific value, an asterisk (`*`) to represent all possible values, or a range of values. Here are some examples of cron expressions:
+
+- `0 0 * * *`: Run every day at midnight
+- `*/15 * * * *`: Run every 15 minutes
+- `0 9 * * 1`: Run every Monday at 9 AM
+- `0 0 1 * *`: Run on the first day of every month at midnight
+- `30 * * * * *`: Run at 30 seconds past every minute (6-field)
 
 <Callout type="info">
-  Hatchet Cloud meters by task run. Use sub-minute schedules (seconds field)
-  carefully. For pricing questions, [contact
-  us](https://hatchet.run/office-hours).
+  Keep in mind, Hatchet Cloud meters by task runs so use seconds wisely. Have
+  questions about pricing? [Contact us](https://hatchet.run/office-hours)
 </Callout>
 
 ## Defining a Cron in Your Task Definition
 
-A cron schedule can be defined as part of the task definition:
+You can define a task with a cron schedule by configuring the cron expression as part of the task definition:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -71,16 +76,16 @@ A cron schedule can be defined as part of the task definition:
 </UniversalTabs>
 
 <Callout>
-  Modifying a cron in a task definition overrides the schedule from any previous
-  task definition version. Crons created via the API or Dashboard are
-  unaffected.
+  Note: When modifying a cron in your task definition, it will override any cron
+  schedule for previous crons defined in previous task definitions, but crons
+  created via the API or Dashboard will still be respected.
 </Callout>
 
 ## Programmatically Creating Cron Triggers
 
 ### Create a Cron Trigger
 
-Cron triggers can be created via the API at runtime, useful when the schedule is not known at task definition time or differs per customer.
+You can create dynamic cron triggers programmatically via the API. This is useful if you want to create a cron trigger that is not known at the time of task definition, or if you want different schedules for different customers.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -97,15 +102,16 @@ Cron triggers can be created via the API at runtime, useful when the schedule is
   </Tabs.Tab>
 </UniversalTabs>
 
-The API returns a cron trigger object whose ID should be persisted. It is required for subsequent delete operations.
+When creating a cron via the API, you will receive a cron trigger object with a metadata property containing the ID of the cron trigger. This ID can be used to reference the cron trigger when deleting it and is often stored in a database or other persistence layer.
 
 <Callout>
-  Cron name and expression are both required and must be unique together.
+  Note: Cron Name and Expression are required fields when creating a cron
+  trigger and we enforce a unique constraint on the two.
 </Callout>
 
 ### Delete a Cron Trigger
 
-A cron trigger is deleted by passing its ID to the delete method.
+You can delete a cron trigger by passing the cron object or a cron trigger ID to the delete method.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -123,13 +129,14 @@ A cron trigger is deleted by passing its ID to the delete method.
 </UniversalTabs>
 
 <Callout>
-  Deleting a cron trigger stops future executions but does not cancel any
-  currently running instances.
+  Note: Deleting a cron trigger will not cancel any currently running instances
+  of the task. It will simply stop the cron trigger from triggering the task
+  again.
 </Callout>
 
 ### List Cron Triggers
 
-Returns all cron triggers matching the provided criteria.
+You can retrieve a list of all task cron triggers matching your criteria.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -148,10 +155,12 @@ Returns all cron triggers matching the provided criteria.
 
 ## Considerations
 
-1. **Time zone**: All cron schedules run in UTC. Account for time zone offsets when writing cron expressions.
+When using cron triggers, there are a few considerations to keep in mind:
 
-2. **Execution time**: Hatchet enqueues tasks as close to the scheduled time as possible, but minor delays may occur due to system load.
+1. **Time Zone**: Cron schedules are UTC. Make sure to consider the time zone when defining your cron expressions.
 
-3. **Missed schedules**: Hatchet does not replay missed executions after downtime. The next trigger fires at the next scheduled time.
+2. **Execution Time**: The actual execution time of a cron-triggered task may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to enqueue the task as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
 
-4. **Overlapping runs**: If a prior run is still active when the next scheduled time arrives, Hatchet starts a new instance or applies the configured [concurrency](/v1/concurrency) policy.
+3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will **not** automatically run the missed instances. It will wait for the next scheduled time to trigger the task.
+
+4. **Overlapping Schedules**: If a task is still running when the next scheduled time arrives, Hatchet will start a new instance of the task or respect the [concurrency](/v1/concurrency) policy.
