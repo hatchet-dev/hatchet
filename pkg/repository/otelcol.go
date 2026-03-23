@@ -171,7 +171,7 @@ func (o *otelCollectorRepositoryImpl) CreateSpans(ctx context.Context, tenantId 
 		serviceNames[i] = extractServiceName(resourceAttr)
 		statusCodes[i] = string(protoStatusCodeToDB(sd.StatusCode))
 		statusMessages[i] = sd.StatusMessage
-		durations[i] = int64(sd.EndTimeUnixNano - sd.StartTimeUnixNano)
+		durations[i] = int64(sd.EndTimeUnixNano - sd.StartTimeUnixNano) //nolint:gosec
 		resourceAttrs[i] = resourceAttr
 		spanAttrs[i] = spanAttr
 		scopeNames[i] = sd.InstrumentationScope

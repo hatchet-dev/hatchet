@@ -11,6 +11,12 @@ export const findTimeRange = (
     const end = start + node.durationNs / 1_000_000;
     minStart = Math.min(minStart, start);
     maxEnd = Math.max(maxEnd, end);
+    if (node.queuedPhase) {
+      const qStart = new Date(node.queuedPhase.createdAt).getTime();
+      const qEnd = qStart + node.queuedPhase.durationNs / 1_000_000;
+      minStart = Math.min(minStart, qStart);
+      maxEnd = Math.max(maxEnd, qEnd);
+    }
     node.children?.forEach(traverse);
   };
 

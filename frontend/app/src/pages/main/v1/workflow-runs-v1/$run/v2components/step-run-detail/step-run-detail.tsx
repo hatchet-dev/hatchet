@@ -27,7 +27,7 @@ import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 export enum TabOption {
   Output = 'output',
@@ -43,7 +43,6 @@ interface TaskRunDetailProps {
   taskRunId: string;
   defaultOpenTab?: TabOption;
   showViewTaskRunButton?: boolean;
-  onTaskRunClick?: (taskRunId: string) => void;
 }
 
 export const TASK_RUN_TERMINAL_STATUSES = [
@@ -104,9 +103,17 @@ export const TaskRunDetail = ({
   taskRunId,
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
-  onTaskRunClick,
 }: TaskRunDetailProps) => {
   const [logsResetKey, setLogsResetKey] = useState(0);
+  const [outerTab, setOuterTab] = useState('overview');
+  const [focusedTaskRunId, setFocusedTaskRunId] = useState<
+    string | undefined
+  >();
+
+  const handleMiniMapClick = useCallback(() => {
+    setFocusedTaskRunId(taskRunId);
+    setOuterTab('observability');
+  }, [taskRunId]);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -116,7 +123,7 @@ export const TaskRunDetail = ({
         return 5000;
       }
 
-      return 1000;
+      return 300;
     },
   });
 
@@ -185,7 +192,11 @@ export const TaskRunDetail = ({
       <div className="flex flex-row items-center gap-2">
         <V1StepRunSummary taskRunId={taskRunId} />
       </div>
-      <Tabs defaultValue="overview" className="flex h-full flex-col">
+      <Tabs
+        value={outerTab}
+        onValueChange={setOuterTab}
+        className="flex h-full flex-col"
+      >
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
             Overview
@@ -196,7 +207,10 @@ export const TaskRunDetail = ({
         </TabsList>
         <TabsContent value="overview" className="min-h-0 flex-1">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
-            <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
+            <TaskRunMiniMap
+              onClick={handleMiniMapClick}
+              taskRunId={taskRunId}
+            />
           </div>
           <div className="h-4" />
           <Tabs
@@ -300,7 +314,16 @@ export const TaskRunDetail = ({
           <Observability
             taskRunId={taskRunId}
             isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-            onTaskRunClick={onTaskRunClick}
+            tasks={[
+              {
+                externalId: taskRun.metadata.id,
+                displayName: taskRun.displayName,
+                status: taskRun.status,
+                createdAt: taskRun.metadata.createdAt,
+                startedAt: taskRun.startedAt,
+              },
+            ]}
+            focusedTaskRunId={focusedTaskRunId}
           />
         </TabsContent>
       </Tabs>

@@ -1894,6 +1894,22 @@ LEFT JOIN
     task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
 ORDER BY td.task_id, td.inserted_at;
 
+-- name: GetTaskStartedTimestamps :many
+SELECT
+    task_id,
+    task_inserted_at,
+    retry_count,
+    MIN(event_timestamp)::timestamptz AS started_at
+FROM
+    v1_task_events_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND (task_id, task_inserted_at, retry_count) IN (
+        SELECT UNNEST(@taskIds::bigint[]), UNNEST(@taskInsertedAt::timestamptz[]), UNNEST(@retryCounts::int[])
+    )
+    AND event_type = 'STARTED'
+GROUP BY task_id, task_inserted_at, retry_count;
+
 -- name: CreateIncomingWebhookValidationFailureLogs :exec
 WITH inputs AS (
     SELECT

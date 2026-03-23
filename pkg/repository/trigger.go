@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -457,6 +459,40 @@ type TriggeredByEvent struct {
 	eventKey string
 }
 
+func ensureTraceparent(additionalMetadata []byte) []byte {
+	meta := make(map[string]interface{})
+
+	if len(additionalMetadata) > 0 {
+		if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
+			meta = make(map[string]interface{})
+		}
+	}
+
+	if tp, ok := meta["traceparent"].(string); ok && tp != "" {
+		return additionalMetadata
+	}
+
+	traceID := make([]byte, 16)
+	spanID := make([]byte, 8)
+
+	if _, err := rand.Read(traceID); err != nil {
+		return additionalMetadata
+	}
+
+	if _, err := rand.Read(spanID); err != nil {
+		return additionalMetadata
+	}
+
+	meta["traceparent"] = fmt.Sprintf("00-%s-%s-01", hex.EncodeToString(traceID), hex.EncodeToString(spanID))
+
+	out, err := json.Marshal(meta)
+	if err != nil {
+		return additionalMetadata
+	}
+
+	return out
+}
+
 func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 	res := make(map[string]interface{})
 
@@ -526,6 +562,10 @@ func (r *sharedRepository) triggerWorkflows(
 	tuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
 ) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+	for i := range tuples {
+		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata)
+	}
+
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[uuid.UUID]struct{})
 

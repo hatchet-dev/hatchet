@@ -6,6 +6,7 @@ export type RelevantOpenTelemetrySpanProperties = Pick<
   | 'parentSpanId'
   | 'spanName'
   | 'statusCode'
+  | 'statusMessage'
   | 'durationNs'
   | 'createdAt'
   | 'spanAttributes'
@@ -13,4 +14,7 @@ export type RelevantOpenTelemetrySpanProperties = Pick<
 
 export type OtelSpanTree = RelevantOpenTelemetrySpanProperties & {
   children: OtelSpanTree[];
+  queuedPhase?: OtelSpanTree;
+  inProgress?: boolean;
+  hasErrorInSubtree?: boolean;
 };

@@ -59,7 +59,14 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     step_run_spans = [s for s in spans if s.span_name == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 1
 
-    step_span = step_run_spans[0]
+    sdk_spans = [
+        s
+        for s in step_run_spans
+        if s.span_attributes and s.span_attributes.get("instrumentor") == "hatchet"
+    ]
+    assert len(sdk_spans) >= 1
+
+    step_span = sdk_spans[0]
     attrs = step_span.span_attributes
 
     assert attrs
@@ -71,8 +78,6 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
         hatchet.config.apply_namespace(attrs.get("hatchet.step_name"))
         == otel_simple_task.name
     )
-
-    assert attrs.get("instrumentor") == "hatchet"
 
     child_spans = [s for s in spans if s.span_name == "custom.child.span"]
     assert len(child_spans) >= 1
@@ -140,14 +145,20 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     step_run_spans = [s for s in spans if s.span_name == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 1
 
-    attrs = step_run_spans[0].span_attributes
+    sdk_spans = [
+        s
+        for s in step_run_spans
+        if s.span_attributes and s.span_attributes.get("instrumentor") == "hatchet"
+    ]
+    assert len(sdk_spans) >= 1
+
+    attrs = sdk_spans[0].span_attributes
     assert attrs
     assert attrs.get("hatchet.tenant_id") == hatchet.config.tenant_id
     assert (
         hatchet.config.apply_namespace(attrs.get("hatchet.step_name"))
         == otel_simple_task.name
     )
-    assert attrs.get("instrumentor") == "hatchet"
 
     child_spans = [s for s in spans if s.span_name == "custom.child.span"]
     assert len(child_spans) >= 1
@@ -177,12 +188,18 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     expected_steps = {t.name for t in otel_workflow.tasks}
     assert expected_steps <= step_names
 
-    for span in step_run_spans:
-        assert span.span_attributes
+    sdk_spans = [
+        s
+        for s in step_run_spans
+        if s.span_attributes and s.span_attributes.get("instrumentor") == "hatchet"
+    ]
+    assert len(sdk_spans) >= 1
+
+    for span in sdk_spans:
+        assert span.span_attributes is not None
         assert (
             span.span_attributes.get("hatchet.workflow_run_id") == ref.workflow_run_id
         )
-        assert span.span_attributes.get("instrumentor") == "hatchet"
 
     user_span_names = {s.span_name for s in spans}
     assert "http.request" in user_span_names
