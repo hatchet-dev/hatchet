@@ -215,7 +215,7 @@ jobs:
       - name: Start engine and API
         working-directory: .
         run: |
-          SERVER_OBSERVABILITY_ENABLED=true docker compose -f docker-compose.yml -f docker-compose.release.yml up -d hatchet-engine hatchet-api
+          docker compose -f docker-compose.yml -f docker-compose.release.yml up -d hatchet-engine hatchet-api
           sleep 30
 
       - name: Set up Python
