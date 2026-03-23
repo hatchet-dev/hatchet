@@ -53,6 +53,31 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) ([]i
 	return items, nil
 }
 
+const cleanupV1PausedWorkflowQueueItem = `-- name: CleanupV1PausedWorkflowQueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_paused_workflow_queue_items qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+        AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_paused_workflow_queue_items
+WHERE (task_id, task_inserted_at) IN (
+    SELECT task_id, task_inserted_at
+    FROM locked_qis
+)
+`
+
+func (q *Queries) CleanupV1PausedWorkflowQueueItem(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1PausedWorkflowQueueItem, batchsize)
+}
+
 const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :execresult
 WITH locked_qis as (
     SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
@@ -592,6 +617,106 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid uuid.UUID) (
 	return items, nil
 }
 
+const movePausedWorkflowQueueItems = `-- name: MovePausedWorkflowQueueItems :many
+WITH moved_items AS (
+    DELETE FROM v1_queue_item
+    WHERE workflow_id = $1::uuid
+        AND tenant_id = $2::uuid
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label
+)
+INSERT INTO v1_paused_workflow_queue_items (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label
+FROM moved_items
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count
+`
+
+type MovePausedWorkflowQueueItemsParams struct {
+	Workflowid uuid.UUID `json:"workflowid"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+}
+
+type MovePausedWorkflowQueueItemsRow struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+func (q *Queries) MovePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg MovePausedWorkflowQueueItemsParams) ([]*MovePausedWorkflowQueueItemsRow, error) {
+	rows, err := db.Query(ctx, movePausedWorkflowQueueItems, arg.Workflowid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*MovePausedWorkflowQueueItemsRow
+	for rows.Next() {
+		var i MovePausedWorkflowQueueItemsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveRateLimitedQueueItems = `-- name: MoveRateLimitedQueueItems :many
 WITH input AS (
     SELECT
@@ -725,6 +850,132 @@ WHERE q.tenant_id = i.tenant_id
 // to ensure queues don't get stuck inactive while they have work to do.
 func (q *Queries) ReactivateInactiveQueuesWithItems(ctx context.Context, db DBTX) (pgconn.CommandTag, error) {
 	return db.Exec(ctx, reactivateInactiveQueuesWithItems)
+}
+
+const requeuePausedWorkflowQueueItems = `-- name: RequeuePausedWorkflowQueueItems :many
+WITH ready_items AS (
+    SELECT
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label
+    FROM
+        v1_paused_workflow_queue_items
+    WHERE
+        workflow_id = $1::uuid
+        AND tenant_id = $2::uuid
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE SKIP LOCKED
+), deleted_items AS (
+    DELETE FROM v1_paused_workflow_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM ready_items)
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+)
+INSERT INTO v1_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label
+FROM ready_items
+RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
+`
+
+type RequeuePausedWorkflowQueueItemsParams struct {
+	Workflowid uuid.UUID `json:"workflowid"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+}
+
+type RequeuePausedWorkflowQueueItemsRow struct {
+	ID             int64              `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+func (q *Queries) RequeuePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg RequeuePausedWorkflowQueueItemsParams) ([]*RequeuePausedWorkflowQueueItemsRow, error) {
+	rows, err := db.Query(ctx, requeuePausedWorkflowQueueItems, arg.Workflowid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RequeuePausedWorkflowQueueItemsRow
+	for rows.Next() {
+		var i RequeuePausedWorkflowQueueItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const requeueRateLimitedQueueItems = `-- name: RequeueRateLimitedQueueItems :many

@@ -649,6 +649,29 @@ WHERE
     (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM rate_limited_items_to_delete)
 `
 
+const releasePausedWorkflowQueueItems = `-- name: ReleasePausedWorkflowQueueItems :batchexec
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), paused_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_paused_workflow_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+DELETE FROM
+    v1_paused_workflow_queue_items
+WHERE
+    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM paused_items_to_delete)
+`
+
 const releaseRetryQueueItems = `-- name: ReleaseRetryQueueItems :batchexec
 WITH input AS (
     SELECT
@@ -790,7 +813,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)
-
+	batch.Queue(releasePausedWorkflowQueueItems, vals...)
 	br := db.SendBatch(ctx, batch)
 	err := br.Close()
 
