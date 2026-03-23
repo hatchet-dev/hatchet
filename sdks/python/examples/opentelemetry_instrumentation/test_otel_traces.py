@@ -196,6 +196,7 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     assert len(sdk_spans) >= 1
 
     for span in sdk_spans:
+        assert span.span_attributes is not None
         assert (
             span.span_attributes.get("hatchet.workflow_run_id") == ref.workflow_run_id
         )
