@@ -1,42 +1,43 @@
-# > Setup
+async def main() -> None:
 
-from datetime import datetime, timedelta, timezone
+    # > Setup
 
-from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter, V1TaskStatus
+    from datetime import datetime, timedelta, timezone
 
-hatchet = Hatchet()
+    from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter, V1TaskStatus
 
-workflows = hatchet.workflows.list()
+    hatchet = Hatchet()
+    workflows = await hatchet.workflows.aio_list()
 
-assert workflows.rows
+    assert workflows.rows
 
-workflow = workflows.rows[0]
+    workflow = workflows.rows[0]
 
-# !!
+    # !!
 
-# > List runs
-workflow_runs = hatchet.runs.list(workflow_ids=[workflow.metadata.id])
-# !!
+    # > List runs
+    workflow_runs = await hatchet.runs.aio_list(workflow_ids=[workflow.metadata.id])
+    # !!
 
-# > Cancel by run ids
-workflow_run_ids = [workflow_run.metadata.id for workflow_run in workflow_runs.rows]
+    # > Cancel by run ids
+    workflow_run_ids = [workflow_run.metadata.id for workflow_run in workflow_runs.rows]
 
-bulk_cancel_by_ids = BulkCancelReplayOpts(ids=workflow_run_ids)
+    bulk_cancel_by_ids = BulkCancelReplayOpts(ids=workflow_run_ids)
 
-hatchet.runs.bulk_cancel(bulk_cancel_by_ids)
-# !!
+    await hatchet.runs.aio_bulk_cancel(bulk_cancel_by_ids)
+    # !!
 
-# > Cancel by filters
+    # > Cancel by filters
 
-bulk_cancel_by_filters = BulkCancelReplayOpts(
-    filters=RunFilter(
-        since=datetime.today() - timedelta(days=1),
-        until=datetime.now(tz=timezone.utc),
-        statuses=[V1TaskStatus.RUNNING],
-        workflow_ids=[workflow.metadata.id],
-        additional_metadata={"key": "value"},
+    bulk_cancel_by_filters = BulkCancelReplayOpts(
+        filters=RunFilter(
+            since=datetime.today() - timedelta(days=1),
+            until=datetime.now(tz=timezone.utc),
+            statuses=[V1TaskStatus.RUNNING],
+            workflow_ids=[workflow.metadata.id],
+            additional_metadata={"key": "value"},
+        )
     )
-)
 
-hatchet.runs.bulk_cancel(bulk_cancel_by_filters)
-# !!
+    await hatchet.runs.aio_bulk_cancel(bulk_cancel_by_filters)
+    # !!

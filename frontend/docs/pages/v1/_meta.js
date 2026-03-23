@@ -31,10 +31,10 @@ export default {
     title: "Reliability",
     type: "separator",
   },
-  "retry-policies": "Retry Policies",
+  "retry-policies": "Automatic Retries",
   timeouts: "Timeouts",
   cancellation: "Cancellation",
-  "bulk-retries-and-cancellations": "Bulk Retries & Cancellations",
+  replays: "Replays",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",
@@ -106,18 +106,6 @@ export default {
   },
   migrating: {
     title: "V0 to V1 Upgrade Guide",
-    display: "hidden",
-  },
-  "advanced-tasks": {
-    display: "hidden",
-  },
-  "error-handling": {
-    display: "hidden",
-  },
-  "flow-control": {
-    display: "hidden",
-  },
-  observability: {
     display: "hidden",
   },
 };

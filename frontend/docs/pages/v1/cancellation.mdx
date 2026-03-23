@@ -3,66 +3,216 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
 
-# Cancellation in Hatchet Tasks
+# Cancellation
 
-Hatchet provides a mechanism for canceling task executions gracefully, allowing you to signal to running tasks that they should stop running. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency.mdx#cancel_in_progress), which cancels currently running task instances to free up slots for new instances when the concurrency limit is reached.
+Hatchet lets you cancel running tasks gracefully. When a task is canceled, Hatchet sends a cancellation signal to the worker. It is your responsibility to handle this signal by cleaning up resources, aborting network requests, or otherwise stopping execution. If the task has not yet been assigned to a worker, the assignment is canceled immediately and the task never runs.
 
-When a task is canceled, Hatchet sends a cancellation signal to the task. The task can then check for the cancellation signal and take appropriate action, such as cleaning up resources, aborting network requests, or gracefully terminating their execution.
+## Triggering Cancellations
 
-## Cancellation Mechanisms
+Cancellations can be triggered in several ways:
+
+- **SDK or REST API** - cancel a run by its ID using the runs client.
+- **Dashboard** - cancel individual runs from the runs list toolbar or from within a specific run.
+- **Concurrency strategies** - strategies like [`CANCEL_IN_PROGRESS`](./concurrency.mdx#cancel-in-progress) automatically cancel running tasks to free up slots when the concurrency limit is reached.
+  {/* TODO-DOCS: ADD VIDEO OF THE DASHBOARD VIEW */}
+
+### Cancelling via the SDK
+
+Cancel a run by passing its ID to the runs client, or (in TypeScript) by calling `cancel()` directly on the run reference:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
+
+    <Snippet src={snippets.python.cancellation.trigger.cancelling_a_run} />
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    <Snippet src={snippets.typescript.cancellation.run.cancelling_a_run} />
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+
+    <Snippet src={snippets.go.cancellations.main.cancelling_a_run} />
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+
+    <Snippet src={snippets.ruby.cancellation.trigger.cancelling_a_run} />
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Handling Cancellations
+
+When a task is cancelled, Hatchet sends a signal to the worker, which attempts to stop the task and free its slot. Each language handles this slightly differently.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    For async tasks, Hatchet cancels the underlying `asyncio.Task` via the event loop. An `asyncio.CancelledError` is raised at the next `await` point, so your task is cancelled automatically. Wrap `await` calls in a `try/except asyncio.CancelledError` block if you need to run cleanup logic.
+
+    <Snippet
+      src={snippets.python.cancellation.worker.async_cancellation}
+    />
+
+    For synchronous tasks, the worker cannot interrupt the thread directly. Poll `ctx.exit_flag` inside your loop to detect cancellation cooperatively.
+
     <Snippet
       src={snippets.python.cancellation.worker.checking_exit_flag}
-
     />
+
+    A task can also cancel itself by calling `ctx.aio_cancel()` (or `ctx.cancel()` for synchronous tasks). Any work after the cancel call will not execute.
+
     <Snippet
       src={snippets.python.cancellation.worker.self_cancelling_task}
-
     />
 
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
+    Check `ctx.cancelled` to detect whether a cancellation signal has been received.
+
     <Snippet
       src={snippets.typescript.cancellations.workflow.declaring_a_task}
-
     />
+
+    For tasks that make network requests or other async operations, pass `abortController.signal` to the underlying library so those operations are terminated when the task is cancelled.
+
     <Snippet
       src={snippets.typescript.cancellations.workflow.abort_signal}
-
     />
 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
+    Use the standard `ctx.Done()` channel in a `select` statement to detect cancellation. This follows the typical Go context pattern, where you can continue to propagate the context to other operations.
+
     <Snippet src={snippets.go.cancellations.main.cancelled_task}/>
+
   </Tabs.Tab>
   <Tabs.Tab title="Ruby">
+    Poll `ctx.cancelled?` inside your loop to detect cancellation without forcibly killing the thread.
+
     <Snippet src={snippets.ruby.cancellation.worker.checking_exit_flag} />
+
+    A task can also cancel itself by calling `ctx.cancel`. Any work after the cancel call will not execute.
+
     <Snippet src={snippets.ruby.cancellation.worker.self_cancelling_task} />
+
   </Tabs.Tab>
 </UniversalTabs>
 
-## Cancellation Best Practices
+## Bulk Cancellation
 
-When working with cancellation in Hatchet tasks, consider the following best practices:
+You can cancel many runs at once via the SDKs, REST API, or Hatchet Dashboard. There are two approaches:
 
-1. **Graceful Termination**: When a task receives a cancellation signal, aim to terminate its execution gracefully. Clean up any resources, abort pending operations, and perform any necessary cleanup tasks before returning from the task function.
+1. **By run IDs** - provide a list of task run IDs to cancel.
+2. **By filters** - match runs using the same filters available in the Dashboard.
 
-2. **Cancellation Checks**: Regularly check for cancellation signals within long-running tasks or loops. This allows the task to respond to cancellation in a timely manner and avoid unnecessary processing.
+### By Run IDs
 
-3. **Asynchronous Operations**: If a task performs asynchronous operations, such as network requests or file I/O, consider passing the cancellation signal to those operations. Many libraries and APIs support cancellation through the `AbortSignal` interface.
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
 
-4. **Error Handling**: Handle cancellation errors appropriately. Distinguish between cancellation errors and other types of errors to provide meaningful error messages and take appropriate actions.
+    First, we'll start by fetching a task.
 
-5. **Cancellation Propagation**: If a task invokes other functions or libraries, consider propagating the cancellation signal to those dependencies. This ensures that cancellation is handled consistently throughout the task.
+    <Snippet src={snippets.python.bulk_operations.cancel.setup} />
 
-## Additional Features
+    Now that we have a task, we'll get runs for it, so that we can use them to bulk cancel by run id.
 
-In addition to the methods of cancellation listed here, Hatchet also supports [bulk cancellation](./bulk-retries-and-cancellations.mdx), which allows you to cancel many tasks in bulk using either their IDs or a set of filters, which is often the easiest way to cancel many things at once.
+    <Snippet src={snippets.python.bulk_operations.cancel.list_runs} />
 
-## Conclusion
+    And finally, we can cancel the runs in bulk.
 
-Cancellation is a powerful feature in Hatchet that allows you to gracefully stop task executions when needed. Remember to follow best practices when implementing cancellation in your tasks, such as graceful termination, regular cancellation checks, handling asynchronous operations, proper error handling, and cancellation propagation.
+    <Snippet src={snippets.python.bulk_operations.cancel.cancel_by_run_ids} />
 
-By incorporating cancellation into your Hatchet tasks and workflows, you can build more resilient and responsive systems that can adapt to changing circumstances and user needs.
+    <Callout type="info">
+      Synchronous versions are also available:
+
+      - `await workflows.aio_list` -> `workflows.list`
+      - `await runs.aio_list` -> `runs.list`
+      - `await runs.aio_bulk_cancel` -> `runs.bulk_cancel`
+      </Callout>
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    First, we'll start by fetching a task.
+
+    <Snippet src={snippets.typescript.bulk_operations.cancel.setup} />
+
+    Now that we have a task, we'll get runs for it, so that we can use them to bulk cancel by run id.
+
+    <Snippet src={snippets.typescript.bulk_operations.cancel.list_runs} />
+
+    And finally, we can cancel the runs in bulk.
+
+    <Snippet src={snippets.typescript.bulk_operations.cancel.cancel_by_run_ids} />
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+
+    First, we'll start by fetching a task.
+
+    <Snippet src={snippets.go.bulk_operations.cancel.setup} />
+
+    Now that we have a task, we'll get runs for it, so that we can use them to bulk cancel by run id.
+
+    <Snippet src={snippets.go.bulk_operations.cancel.list_runs} />
+
+    And finally, we can cancel the runs in bulk.
+
+    <Snippet src={snippets.go.bulk_operations.cancel.cancel_by_run_ids} />
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+
+    First, we'll start by fetching a task.
+
+    <Snippet src={snippets.ruby.bulk_operations.cancel.setup} />
+
+    Now that we have a task, we'll get runs for it, so that we can use them to bulk cancel by run id.
+
+    <Snippet src={snippets.ruby.bulk_operations.cancel.list_runs} />
+
+    And finally, we can cancel the runs in bulk.
+
+    <Snippet src={snippets.ruby.bulk_operations.cancel.cancel_by_run_ids} />
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+### By Filters
+
+Instead of listing specific run IDs, you can cancel all runs matching a set of filters.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+  <Tabs.Tab title="Python">
+
+    <Snippet src={snippets.python.bulk_operations.cancel.cancel_by_filters} />
+
+    This cancels all runs matching the provided filters.
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    <Snippet src={snippets.typescript.bulk_operations.cancel.cancel_by_filters} />
+
+    This cancels all runs matching the provided filters.
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+
+    <Snippet src={snippets.go.bulk_operations.cancel.cancel_by_filters} />
+
+    This cancels all runs matching the provided filters.
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+
+    <Snippet src={snippets.ruby.bulk_operations.cancel.cancel_by_filters} />
+
+    This cancels all runs matching the provided filters.
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+Keywords: cancellation, bulk cancellation, cancel by run ids, cancel by filters, cancelling tasks, cancelling runs, stopping, terminating

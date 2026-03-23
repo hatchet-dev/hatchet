@@ -71,11 +71,10 @@ func main() {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// Run workflow instances to demonstrate cancellation
+	// > Cancelling a run
 	go func() {
 		time.Sleep(2 * time.Second)
 
-		log.Println("Starting workflow instance...")
 		ref, err := client.RunNoWait(context.Background(), "cancellation-demo", CancellationInput{
 			Message: "This task will run for 10 seconds and can be cancelled",
 		})
@@ -83,7 +82,6 @@ func main() {
 			log.Printf("failed to run workflow: %v", err)
 		}
 
-		// Send cancellation after 2 seconds
 		time.Sleep(2 * time.Second)
 
 		_, err = client.Runs().Cancel(context.Background(), rest.V1CancelTaskRequest{
@@ -93,6 +91,7 @@ func main() {
 			log.Printf("failed to cancel workflow: %v", err)
 		}
 	}()
+	// !!
 
 	log.Println("Starting worker for cancellation demo...")
 	log.Println("Features demonstrated:")
