@@ -9,6 +9,8 @@ import { appRoutes } from '@/router';
 import { useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+const TWO_MINUTES_MS = 2 * 60_000;
+
 const resourceLabels: Record<TenantResource, string> = {
   [TenantResource.WORKER]: 'Total Workers',
   [TenantResource.WORKER_SLOT]: 'Concurrency Slots',
@@ -63,9 +65,11 @@ export const useResourceLimitNotifications = () => {
     [tenantMemberships],
   );
 
+  // TODO: we really need a single resource policy endpoint
   const resourcePolicyQueries = useQueries({
     queries: tenants.map((tenant) => ({
       ...queries.tenantResourcePolicy.get(tenant.metadata.id),
+      refetchInterval: TWO_MINUTES_MS,
     })),
   });
 
