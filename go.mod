@@ -20,7 +20,7 @@ require (
 	github.com/docker/go-sdk/context v0.1.0-alpha013
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.24.0
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/getkin/kin-openapi v0.134.0
 	github.com/go-co-op/gocron/v2 v2.19.1
 	github.com/google/go-github/v57 v57.0.0
