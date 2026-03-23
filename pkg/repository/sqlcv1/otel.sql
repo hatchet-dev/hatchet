@@ -21,7 +21,7 @@ WITH inputs AS (
         UNNEST(@startTimes::TIMESTAMPTZ[]) AS start_time
 )
 
-INSERT INTO v1_otel_trace (
+INSERT INTO v1_otel_trace_olap (
     tenant_id,
     trace_id,
     span_id,
@@ -73,7 +73,7 @@ WITH inputs AS (
         UNNEST(@traceIds::BYTEA[]) AS trace_id,
         UNNEST(@startTimes::TIMESTAMPTZ[]) AS start_time
 )
-INSERT INTO v1_otel_trace_lookup_table (
+INSERT INTO v1_otel_trace_lookup_olap (
     tenant_id,
     external_id,
     retry_count,
@@ -93,7 +93,7 @@ ON CONFLICT (tenant_id, external_id, retry_count, start_time) DO NOTHING
 -- name: LookUpTraceId :one
 WITH candidate_traces AS (
     SELECT *
-    FROM v1_otel_trace_lookup_table
+    FROM v1_otel_trace_lookup_olap
     WHERE
         tenant_id = @tenantId::UUID
         AND external_id = @externalId::UUID
@@ -109,7 +109,7 @@ LIMIT 1
 
 -- name: ListSpansByTraceId :many
 SELECT *
-FROM v1_otel_trace
+FROM v1_otel_trace_olap
 WHERE
     tenant_id = @tenantId::UUID
     AND trace_id = @traceId::BYTEA

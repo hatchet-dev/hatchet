@@ -3378,7 +3378,15 @@ type V1OperationIntervalSettings struct {
 	IntervalNanoseconds int64     `json:"interval_nanoseconds"`
 }
 
-type V1OtelTrace struct {
+type V1OtelTraceLookupOlap struct {
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	ExternalID uuid.UUID          `json:"external_id"`
+	RetryCount int32              `json:"retry_count"`
+	TraceID    []byte             `json:"trace_id"`
+	StartTime  pgtype.Timestamptz `json:"start_time"`
+}
+
+type V1OtelTraceOlap struct {
 	TenantID              uuid.UUID          `json:"tenant_id"`
 	TraceID               []byte             `json:"trace_id"`
 	SpanID                []byte             `json:"span_id"`
@@ -3397,14 +3405,6 @@ type V1OtelTrace struct {
 	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
 	RetryCount            int32              `json:"retry_count"`
 	StartTime             pgtype.Timestamptz `json:"start_time"`
-}
-
-type V1OtelTraceLookupTable struct {
-	TenantID   uuid.UUID          `json:"tenant_id"`
-	ExternalID uuid.UUID          `json:"external_id"`
-	RetryCount int32              `json:"retry_count"`
-	TraceID    []byte             `json:"trace_id"`
-	StartTime  pgtype.Timestamptz `json:"start_time"`
 }
 
 type V1Payload struct {

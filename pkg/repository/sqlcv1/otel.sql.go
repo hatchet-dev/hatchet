@@ -21,7 +21,7 @@ WITH inputs AS (
         UNNEST($4::BYTEA[]) AS trace_id,
         UNNEST($5::TIMESTAMPTZ[]) AS start_time
 )
-INSERT INTO v1_otel_trace_lookup_table (
+INSERT INTO v1_otel_trace_lookup_olap (
     tenant_id,
     external_id,
     retry_count,
@@ -80,7 +80,7 @@ WITH inputs AS (
         UNNEST($18::TIMESTAMPTZ[]) AS start_time
 )
 
-INSERT INTO v1_otel_trace (
+INSERT INTO v1_otel_trace_olap (
     tenant_id,
     trace_id,
     span_id,
@@ -170,7 +170,7 @@ func (q *Queries) InsertOtelSpans(ctx context.Context, db DBTX, arg InsertOtelSp
 
 const listSpansByTraceId = `-- name: ListSpansByTraceId :many
 SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
-FROM v1_otel_trace
+FROM v1_otel_trace_olap
 WHERE
     tenant_id = $1::UUID
     AND trace_id = $2::BYTEA
@@ -186,7 +186,7 @@ type ListSpansByTraceIdParams struct {
 	Spanlimit  int64     `json:"spanlimit"`
 }
 
-func (q *Queries) ListSpansByTraceId(ctx context.Context, db DBTX, arg ListSpansByTraceIdParams) ([]*V1OtelTrace, error) {
+func (q *Queries) ListSpansByTraceId(ctx context.Context, db DBTX, arg ListSpansByTraceIdParams) ([]*V1OtelTraceOlap, error) {
 	rows, err := db.Query(ctx, listSpansByTraceId,
 		arg.Tenantid,
 		arg.Traceid,
@@ -197,9 +197,9 @@ func (q *Queries) ListSpansByTraceId(ctx context.Context, db DBTX, arg ListSpans
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1OtelTrace
+	var items []*V1OtelTraceOlap
 	for rows.Next() {
-		var i V1OtelTrace
+		var i V1OtelTraceOlap
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.TraceID,
@@ -233,7 +233,7 @@ func (q *Queries) ListSpansByTraceId(ctx context.Context, db DBTX, arg ListSpans
 const lookUpTraceId = `-- name: LookUpTraceId :one
 WITH candidate_traces AS (
     SELECT tenant_id, external_id, retry_count, trace_id, start_time
-    FROM v1_otel_trace_lookup_table
+    FROM v1_otel_trace_lookup_olap
     WHERE
         tenant_id = $1::UUID
         AND external_id = $2::UUID

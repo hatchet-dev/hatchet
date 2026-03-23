@@ -37,7 +37,7 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 		offset = 0
 	}
 
-	traceId, err := t.config.V1.OTelLookup().LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
+	traceId, err := t.config.V1.OLAP().LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return gen.V1ObservabilityGetTrace404JSONResponse(gen.APIErrors{
@@ -47,7 +47,7 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 		return nil, err
 	}
 
-	result, err := t.config.V1.OTelCollector().ListSpansByTraceId(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
+	result, err := t.config.V1.OLAP().ListSpansByTraceId(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
 	if err != nil {
 		return nil, err
 	}
