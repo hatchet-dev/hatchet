@@ -22,7 +22,7 @@ export const useInviteNotifications = () => {
         (invite): Notification => ({
           color: 'green',
           title: `Tenant invite: ${invite.tenantName ?? 'Unknown'}`,
-          message: `You've been invited to be ${getArticle(invite.role)} ${invite.role.toLowerCase()} of ${invite.tenantName ? `the ${invite.tenantName}` : 'a'} tenant`,
+          message: `You're invited to ${invite.tenantName ? `the "${invite.tenantName}"` : 'a'} tenant as ${getArticle(invite.role)} ${invite.role.toLowerCase()}`,
           timestamp: invite.metadata.createdAt,
           url: appRoutes.onboardingInvitesRoute.to,
         }),
@@ -31,7 +31,7 @@ export const useInviteNotifications = () => {
         (invite): Notification => ({
           color: 'green',
           title: 'Organization invite',
-          message: `You've been invited to be ${getArticle(invite.role)} ${invite.role.toLowerCase()} of an organization`,
+          message: `You're invited to be ${getArticle(invite.role)} ${invite.role.toLowerCase()} of an organization`,
           timestamp: invite.metadata.createdAt,
           url: appRoutes.onboardingInvitesRoute.to,
         }),

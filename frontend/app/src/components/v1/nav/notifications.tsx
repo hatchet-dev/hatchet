@@ -65,7 +65,7 @@ export function Notifications() {
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-72" align="end">
+      <DropdownMenuContent className="w-80" align="end">
         {count === 0 ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             No notifications
@@ -84,7 +84,7 @@ export function Notifications() {
                   colorToTailwind[notification.color],
                 )}
               />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1" title={notification.message}>
                 <p className="truncate text-sm font-medium">
                   {notification.title}
                 </p>
