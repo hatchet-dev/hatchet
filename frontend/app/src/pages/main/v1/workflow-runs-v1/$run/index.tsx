@@ -248,7 +248,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const { tenantId } = useCurrentTenantId();
   const { featureFlags, isCloudEnabled } = useCloud(tenantId);
   const logsEnabled =
-    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
+    isCloudEnabled && featureFlags?.['preview-tenant-logs'] === 'true';
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
