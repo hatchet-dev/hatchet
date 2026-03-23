@@ -34,6 +34,11 @@ type engineSpanEvent struct {
 	stepID             uuid.UUID
 }
 
+type taskRetryKey struct {
+	taskID     int64
+	retryCount int32
+}
+
 func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantId uuid.UUID, events []engineSpanEvent) {
 	otelRepo := tc.repo.OTelCollector()
 	if otelRepo == nil || len(events) == 0 {
@@ -42,11 +47,13 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 
 	var queuedSpans []*v1.SpanData
 	var terminalEvents []engineSpanEvent
+	batchStartedTimes := make(map[taskRetryKey]time.Time)
 
-	for i := range events {
-		e := &events[i]
-
+	for _, e := range events {
+		// FIXME: add spans for other event types
 		switch e.eventType {
+		case sqlcv1.V1EventTypeOlapSTARTED:
+			batchStartedTimes[taskRetryKey{e.taskID, e.retryCount}] = e.eventTimestamp
 		case sqlcv1.V1EventTypeOlapSENTTOWORKER:
 			span := tc.buildQueuedSpan(tenantId, e)
 			if span != nil {
@@ -56,11 +63,11 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 			sqlcv1.V1EventTypeOlapFAILED,
 			sqlcv1.V1EventTypeOlapCANCELLED,
 			sqlcv1.V1EventTypeOlapTIMEDOUT:
-			terminalEvents = append(terminalEvents, *e)
+			terminalEvents = append(terminalEvents, e)
 		}
 	}
 
-	stepRunSpans := tc.buildStepRunSpans(ctx, tenantId, terminalEvents)
+	stepRunSpans := tc.buildStepRunSpans(ctx, tenantId, terminalEvents, batchStartedTimes)
 
 	allSpans := make([]*v1.SpanData, 0, len(queuedSpans)+len(stepRunSpans))
 	allSpans = append(allSpans, queuedSpans...)
@@ -77,7 +84,7 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 	}
 }
 
-func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e *engineSpanEvent) *v1.SpanData {
+func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e engineSpanEvent) *v1.SpanData {
 	traceID, parentSpanID := parseTraceparent(e.additionalMetadata)
 	if traceID == "" {
 		return nil
@@ -118,6 +125,9 @@ func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e *engineSpanE
 		"service.name": "hatchet-engine",
 	})
 
+	externalID := e.externalID
+	workflowRunID := e.workflowRunID
+
 	return &v1.SpanData{
 		TenantID:             tenantId,
 		TraceID:              traceIDBytes,
@@ -131,43 +141,45 @@ func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e *engineSpanE
 		Attributes:           attrs,
 		ResourceAttributes:   resourceAttrs,
 		InstrumentationScope: "hatchet-engine",
-		TaskRunExternalID:    &e.externalID,
-		WorkflowRunID:        &e.workflowRunID,
+		TaskRunExternalID:    &externalID,
+		WorkflowRunID:        &workflowRunID,
 		RetryCount:           e.retryCount,
 	}
 }
 
-func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uuid.UUID, events []engineSpanEvent) []*v1.SpanData {
+func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uuid.UUID, events []engineSpanEvent, batchStartedTimes map[taskRetryKey]time.Time) []*v1.SpanData {
 	if len(events) == 0 {
 		return nil
 	}
 
 	taskIds := make([]int64, len(events))
+	retryCounts := make([]int32, len(events))
 	for i, e := range events {
 		taskIds[i] = e.taskID
+		retryCounts[i] = e.retryCount
 	}
 
-	startedRows, err := tc.repo.OLAP().GetTaskStartedTimestamps(ctx, tenantId, taskIds)
+	startedRows, err := tc.repo.OLAP().GetTaskStartedTimestamps(ctx, tenantId, taskIds, retryCounts)
 	if err != nil {
 		tc.l.Error().Ctx(ctx).Err(err).Msg("could not look up STARTED timestamps for step_run spans")
 		return nil
 	}
 
-	type startedKey struct {
-		taskID     int64
-		retryCount int32
+	startedMap := make(map[taskRetryKey]time.Time, len(startedRows)+len(batchStartedTimes))
+
+	// NOTE: seed from the in-memory batch first so DB rows take precedence
+	// when both are present (the DB value has already been persisted).
+	for k, t := range batchStartedTimes {
+		startedMap[k] = t
 	}
-	startedMap := make(map[startedKey]time.Time, len(startedRows))
 	for _, row := range startedRows {
 		if row.StartedAt.Valid {
-			startedMap[startedKey{row.TaskID, row.RetryCount}] = row.StartedAt.Time
+			startedMap[taskRetryKey{row.TaskID, row.RetryCount}] = row.StartedAt.Time
 		}
 	}
 
 	var spans []*v1.SpanData
-	for i := range events {
-		e := &events[i]
-
+	for _, e := range events {
 		traceID, parentSpanID := parseTraceparent(e.additionalMetadata)
 		if traceID == "" {
 			continue
@@ -178,7 +190,7 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 			continue
 		}
 
-		startTime, ok := startedMap[startedKey{e.taskID, e.retryCount}]
+		startTime, ok := startedMap[taskRetryKey{e.taskID, e.retryCount}]
 		if !ok {
 			startTime = e.insertedAt
 		}
@@ -230,6 +242,9 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 			"service.name": "hatchet-engine",
 		})
 
+		externalID := e.externalID
+		workflowRunID := e.workflowRunID
+
 		spans = append(spans, &v1.SpanData{
 			TenantID:             tenantId,
 			TraceID:              traceIDBytes,
@@ -244,8 +259,8 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 			Attributes:           attrs,
 			ResourceAttributes:   resourceAttrs,
 			InstrumentationScope: "hatchet-engine",
-			TaskRunExternalID:    &e.externalID,
-			WorkflowRunID:        &e.workflowRunID,
+			TaskRunExternalID:    &externalID,
+			WorkflowRunID:        &workflowRunID,
 			RetryCount:           e.retryCount,
 		})
 	}
