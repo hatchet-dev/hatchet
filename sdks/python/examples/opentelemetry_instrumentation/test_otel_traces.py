@@ -16,6 +16,8 @@ from examples.opentelemetry_instrumentation.worker import (
 )
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
+requires_observability = pytest.mark.usefixtures("_skip_unless_observability")
+
 
 def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[OtelSpan]:
     for _ in range(10):
@@ -37,6 +39,7 @@ def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[Ot
     raise TimeoutError(f"Trace for run_id {run_id} not found after polling.")
 
 
+@requires_observability
 @pytest.mark.asyncio(loop_scope="session")
 async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
@@ -99,6 +102,7 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     )
 
 
+@requires_observability
 @pytest.mark.asyncio(loop_scope="session")
 async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     HatchetInstrumentor().instrument()
@@ -151,6 +155,7 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     assert child_spans[0].span_attributes.get("input.message") == "event-triggered"
 
 
+@requires_observability
 @pytest.mark.asyncio(loop_scope="session")
 async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     HatchetInstrumentor().instrument()
@@ -196,6 +201,7 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     )
 
 
+@requires_observability
 @pytest.mark.asyncio(loop_scope="session")
 async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
     HatchetInstrumentor().instrument()

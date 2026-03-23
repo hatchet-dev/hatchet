@@ -18,7 +18,6 @@ services:
       SERVER_GRPC_INSECURE: "true"
       SERVER_DEFAULT_ENGINE_VERSION: V1
       SERVER_MSGQUEUE_KIND: postgres
-      SERVER_OBSERVABILITY_ENABLED: true
     volumes:
       - ./generated:/hatchet/generated
 
@@ -44,7 +43,6 @@ services:
       SERVER_LOGGER_FORMAT: console
       DATABASE_LOGGER_LEVEL: warn
       DATABASE_LOGGER_FORMAT: console
-      SERVER_OBSERVABILITY_ENABLED: true
     volumes:
       - ./generated:/hatchet/generated
 
@@ -67,6 +65,5 @@ services:
       SERVER_MSGQUEUE_KIND: postgres
       DATABASE_LOGGER_LEVEL: warn
       DATABASE_LOGGER_FORMAT: console
-      SERVER_OBSERVABILITY_ENABLED: true
     volumes:
       - ./generated:/hatchet/generated
