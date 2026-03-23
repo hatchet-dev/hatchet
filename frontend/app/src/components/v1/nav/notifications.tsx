@@ -48,7 +48,7 @@ export function Notifications() {
           type="button"
           title={title}
           aria-label={title}
-          className="relative flex size-8 items-center justify-center rounded-full border border-border bg-muted/20 text-foreground hover:bg-muted/40"
+          className="relative flex size-8 aspect-square items-center justify-center rounded-full border border-border bg-muted/20 text-foreground hover:bg-muted/40"
         >
           {count > 0 ? (
             <span className="text-xs font-medium leading-none">{count}</span>
