@@ -26,7 +26,6 @@ import {
   TenantSubscription,
   SubscriptionPlan,
   SubscriptionPlanCode,
-  SubscriptionPeriod,
   Coupon,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
@@ -39,6 +38,15 @@ interface SubscriptionProps {
   upcoming?: TenantSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
+}
+
+function parsePlanCode(planCode: string): SubscriptionPlanCode {
+  const base = planCode.split('_')[0];
+  const match = Object.values(SubscriptionPlanCode).find((v) => v === base);
+  if (!match) {
+    throw new Error(`Unknown plan code: ${base}`);
+  }
+  return match;
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -121,12 +129,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
   const subscriptionMutation = useMutation({
     mutationKey: ['user:update:logout'],
-    mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split('_');
-      setLoading(plan_code);
+    mutationFn: async (selectedPlan: SubscriptionPlan) => {
+      setLoading(selectedPlan.planCode);
       const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
-        plan: plan as SubscriptionPlanCode,
-        period: period as SubscriptionPeriod,
+        plan: parsePlanCode(selectedPlan.planCode),
+        period: selectedPlan.period,
       });
       return response.data;
     },
@@ -168,10 +175,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     return [upcoming.plan, upcoming.period].filter((x) => !!x).join('_');
   }, [upcoming]);
 
-  const activePlanAmountCents = useMemo(() => {
-    const activePlan = plans?.find((p) => p.planCode === activePlanCode);
-    return activePlan?.amountCents;
-  }, [plans, activePlanCode]);
+  const activePlanAmountCents = useMemo(
+    () => plans?.find((p) => p.planCode === activePlanCode)?.amountCents,
+    [plans, activePlanCode],
+  );
 
   const formattedEndDate = useMemo(() => {
     if (!active?.endsAt) {
@@ -224,9 +231,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         }
         submitLabel={'Change Plan'}
         onSubmit={async () => {
-          await subscriptionMutation.mutateAsync({
-            plan_code: isChangeConfirmOpen!.planCode,
-          });
+          await subscriptionMutation.mutateAsync(isChangeConfirmOpen!);
           setLoading(undefined);
           setChangeConfirmOpen(undefined);
         }}
@@ -439,7 +444,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               showAnnual={showAnnual}
               onSelectPlan={(plan) => {
                 if (!billing?.hasPaymentMethods) {
-                  subscriptionMutation.mutate({ plan_code: plan.planCode });
+                  subscriptionMutation.mutate(plan);
                 } else {
                   setChangeConfirmOpen(plan);
                 }
