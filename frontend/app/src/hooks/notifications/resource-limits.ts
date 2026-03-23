@@ -11,7 +11,7 @@ import { useMemo } from 'react';
 
 const TWO_MINUTES_MS = 2 * 60_000;
 
-const resourceLabels: Record<TenantResource, string> = {
+const resourceLabels = {
   [TenantResource.WORKER]: 'Total Workers',
   [TenantResource.WORKER_SLOT]: 'Concurrency Slots',
   [TenantResource.EVENT]: 'Events',
@@ -19,7 +19,7 @@ const resourceLabels: Record<TenantResource, string> = {
   [TenantResource.CRON]: 'Cron Triggers',
   [TenantResource.SCHEDULE]: 'Schedule Triggers',
   [TenantResource.INCOMING_WEBHOOK]: 'Incoming Webhooks',
-};
+} as const satisfies Record<TenantResource, string>;
 
 const statusToColor: Record<
   Exclude<ResourceLimitStatus, 'ok'>,
