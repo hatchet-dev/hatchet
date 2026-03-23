@@ -2127,6 +2127,11 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	workflowIdsForFilterCounts := make([]uuid.UUID, 0, len(workflowVersionIdsAndEventKeys))
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
+		if workflow.IsPaused.Bool {
+			r.l.Info().Ctx(ctx).Str("workflow_name", workflow.WorkflowName).Msg("Skipping event trigger for paused workflow")
+			continue
+		}
+
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
@@ -2319,10 +2324,16 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		return nil, fmt.Errorf("failed to list workflows for names: %w", err)
 	}
 
+
 	// each (workflowVersionId, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0, len(opts))
 
 	for _, workflowVersion := range workflowVersionsByNames {
+		if workflowVersion.IsPaused.Bool {
+			r.l.Info().Ctx(ctx).Str("workflow_name", workflowVersion.WorkflowName).Msg("Skipping workflow trigger for paused workflow")
+			continue
+		}
+
 		opts, ok := namesToOpts[workflowVersion.WorkflowName]
 
 		if !ok {
