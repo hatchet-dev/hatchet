@@ -295,10 +295,11 @@ Bases: `Context`
 
 Methods:
 
-| Name            | Description                                                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `aio_wait_for`  | Durably wait for either a sleep or an event.                                                                               |
-| `aio_sleep_for` | Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition. |
+| Name                 | Description                                                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `aio_wait_for`       | Durably wait for either a sleep or an event.                                                                               |
+| `aio_sleep_for`      | Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition. |
+| `aio_wait_for_event` | Lightweight wrapper for waiting on user events, returning the event payload directly.                                      |
 
 ### Functions
 
@@ -321,12 +322,67 @@ Returns:
 
 Raises:
 
-| Type         | Description                                     |
-| ------------ | ----------------------------------------------- |
-| `ValueError` | If the durable event listener is not available. |
+| Type                   | Description                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ValueError`           | If the durable event listener is not available.                                                                                                                |
+| `NonDeterminismError`  | If the task is being replayed and the wait conditions don't match the original execution. See [Determinism Requirements](/v1/patterns/durable-task-execution#determinism-requirements). |
 
 #### `aio_sleep_for`
 
 Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
 For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+Parameters:
+
+| Name       | Type       | Description                                                                                       | Default    |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------- | ---------- |
+| `duration` | `Duration` | The duration to sleep for. Can be a `timedelta` or a string (e.g. `"5m"`, `"1h"`). | _required_ |
+
+Returns:
+
+| Type          | Description                                         |
+| ------------- | --------------------------------------------------- |
+| `SleepResult` | A model containing the duration that was slept for. |
+
+Raises:
+
+| Type                   | Description                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NonDeterminismError`  | If the task is being replayed and the sleep duration doesn't match the original execution. See [Determinism Requirements](/v1/patterns/durable-task-execution#determinism-requirements). |
+
+#### `aio_wait_for_event`
+
+Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
+
+For more complicated conditions (such as waiting for multiple events or combining with sleep), use `ctx.aio_wait_for` directly.
+
+Parameters:
+
+| Name                | Type              | Description                                                                                                                                                                         | Default    |
+| ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `key`               | `str`             | The event key to wait for.                                                                                                                                                          | _required_ |
+| `expression`        | `str \| None`     | An optional CEL expression to filter events.                                                                                                                                        | `None`     |
+| `payload_validator` | `type[T] \| None` | An optional type (e.g. a Pydantic model, dataclass, or TypedDict) to validate the event payload against. If provided, the payload will be validated and returned as this type. | `None`     |
+
+Returns:
+
+| Type             | Description                                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `T \| dict[str, Any]` | The payload of the event, validated against the provided `payload_validator` if given, or as a raw dictionary if no validator was provided. |
+
+Raises:
+
+| Type                   | Description                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NonDeterminismError`  | If the task is being replayed and the event conditions don't match the original execution. See [Determinism Requirements](/v1/patterns/durable-task-execution#determinism-requirements). |
+
+## Return Types
+
+### `SleepResult`
+
+A Pydantic model representing the result of `aio_sleep_for`.
+
+| Field      | Type        | Description                      |
+| ---------- | ----------- | -------------------------------- |
+| `duration` | `timedelta` | The duration that was slept for. |
