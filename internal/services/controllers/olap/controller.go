@@ -677,6 +677,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		spanEvents = append(spanEvents, engineSpanEvent{
 			taskID:             msg.TaskId,
 			insertedAt:         taskMeta.InsertedAt.Time,
+			taskInsertedAt:     taskMeta.InsertedAt.Time,
 			eventType:          msg.EventType,
 			eventTimestamp:     msg.EventTimestamp,
 			eventMessage:       msg.EventMessage,

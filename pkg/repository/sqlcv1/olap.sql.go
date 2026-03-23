@@ -1152,16 +1152,18 @@ FROM
     v1_task_events_olap
 WHERE
     tenant_id = $1::uuid
-    AND task_id = ANY($2::bigint[])
-    AND retry_count = ANY($3::int[])
+    AND (task_id, task_inserted_at, retry_count) IN (
+        SELECT UNNEST($2::bigint[]), UNNEST($3::timestamptz[]), UNNEST($4::int[])
+    )
     AND event_type = 'STARTED'
 GROUP BY task_id, task_inserted_at, retry_count
 `
 
 type GetTaskStartedTimestampsParams struct {
-	Tenantid    uuid.UUID `json:"tenantid"`
-	Taskids     []int64   `json:"taskids"`
-	Retrycounts []int32   `json:"retrycounts"`
+	Tenantid       uuid.UUID            `json:"tenantid"`
+	Taskids        []int64              `json:"taskids"`
+	Taskinsertedat []pgtype.Timestamptz `json:"taskinsertedat"`
+	Retrycounts    []int32              `json:"retrycounts"`
 }
 
 type GetTaskStartedTimestampsRow struct {
@@ -1172,7 +1174,12 @@ type GetTaskStartedTimestampsRow struct {
 }
 
 func (q *Queries) GetTaskStartedTimestamps(ctx context.Context, db DBTX, arg GetTaskStartedTimestampsParams) ([]*GetTaskStartedTimestampsRow, error) {
-	rows, err := db.Query(ctx, getTaskStartedTimestamps, arg.Tenantid, arg.Taskids, arg.Retrycounts)
+	rows, err := db.Query(ctx, getTaskStartedTimestamps,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedat,
+		arg.Retrycounts,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -1904,8 +1904,9 @@ FROM
     v1_task_events_olap
 WHERE
     tenant_id = @tenantId::uuid
-    AND task_id = ANY(@taskIds::bigint[])
-    AND retry_count = ANY(@retryCounts::int[])
+    AND (task_id, task_inserted_at, retry_count) IN (
+        SELECT UNNEST(@taskIds::bigint[]), UNNEST(@taskInsertedAt::timestamptz[]), UNNEST(@retryCounts::int[])
+    )
     AND event_type = 'STARTED'
 GROUP BY task_id, task_inserted_at, retry_count;
 

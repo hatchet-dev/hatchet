@@ -18,6 +18,7 @@ import (
 
 type engineSpanEvent struct {
 	insertedAt         time.Time
+	taskInsertedAt     time.Time
 	eventTimestamp     time.Time
 	eventType          sqlcv1.V1EventTypeOlap
 	stepReadableID     string
@@ -153,13 +154,15 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 	}
 
 	taskIds := make([]int64, len(events))
+	taskInsertedAts := make([]time.Time, len(events))
 	retryCounts := make([]int32, len(events))
 	for i, e := range events {
 		taskIds[i] = e.taskID
+		taskInsertedAts[i] = e.taskInsertedAt
 		retryCounts[i] = e.retryCount
 	}
 
-	startedRows, err := tc.repo.OLAP().GetTaskStartedTimestamps(ctx, tenantId, taskIds, retryCounts)
+	startedRows, err := tc.repo.OLAP().GetTaskStartedTimestamps(ctx, tenantId, taskIds, taskInsertedAts, retryCounts)
 	if err != nil {
 		tc.l.Error().Ctx(ctx).Err(err).Msg("could not look up STARTED timestamps for step_run spans")
 		return nil
