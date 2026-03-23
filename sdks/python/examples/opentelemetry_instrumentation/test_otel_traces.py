@@ -1,5 +1,7 @@
 import pytest
 import asyncio
+from subprocess import Popen
+from typing import Any
 import time
 
 from uuid import uuid4
@@ -14,6 +16,7 @@ from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
     SimpleOtelTaskInput,
 )
+from examples.simple.worker import simple
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 requires_observability = pytest.mark.usefixtures("_skip_unless_observability")
@@ -255,3 +258,30 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
 
     run_workflow_spans = [s for s in spans if s.span_name == "hatchet.run_workflow"]
     assert len(run_workflow_spans) >= 1
+
+
+@requires_observability
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize(
+    "on_demand_worker",
+    [
+        (
+            ["poetry", "run", "python", "examples/simple/worker.py"],
+            8012,
+        )
+    ],
+    indirect=True,
+)
+async def test_otel_spans_created_from_engine_without_instrumentor(
+    hatchet: Hatchet, on_demand_worker: Popen[Any]
+) -> None:
+    ref = await simple.aio_run_no_wait()
+
+    await ref.aio_result()
+
+    spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
+
+    for s in spans:
+        print(s)
+
+    assert False
