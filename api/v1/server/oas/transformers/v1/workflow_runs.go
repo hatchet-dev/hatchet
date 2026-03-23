@@ -73,7 +73,9 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
 
-	return gen.V1TaskSummary{
+	status, isEvicted := mapOlapStatus(string(task.ReadableStatus))
+
+	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
@@ -88,7 +90,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		Output:                output,
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage,
-		Status:                gen.V1TaskStatus(task.ReadableStatus),
+		Status:                status,
 		TenantId:              task.TenantID,
 		WorkflowId:            task.WorkflowID,
 		WorkflowVersionId:     &workflowVersionId,
@@ -104,6 +106,12 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		Attempt:               &attempt,
 		ParentTaskExternalId:  parentTaskExternalId,
 	}
+
+	if isEvicted {
+		summary.IsEvicted = &isEvicted
+	}
+
+	return summary
 }
 
 func ToWorkflowRunMany(
@@ -182,7 +190,9 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
 
-	return gen.V1TaskSummary{
+	taskStatus, isEvicted := mapOlapStatus(string(task.Status))
+
+	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        task.ExternalID.String(),
 			CreatedAt: task.InsertedAt.Time,
@@ -197,7 +207,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		Output:                output,
 		AdditionalMetadata:    &additionalMetadata,
 		ErrorMessage:          &task.ErrorMessage.String,
-		Status:                gen.V1TaskStatus(task.Status),
+		Status:                taskStatus,
 		TenantId:              task.TenantID,
 		WorkflowId:            task.WorkflowID,
 		WorkflowVersionId:     &workflowVersionID,
@@ -214,6 +224,12 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		WorkflowRunExternalId: task.WorkflowRunID,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
 	}
+
+	if isEvicted {
+		summary.IsEvicted = &isEvicted
+	}
+
+	return summary
 }
 
 func TaskRunDataRowToWorkflowRunsMany(

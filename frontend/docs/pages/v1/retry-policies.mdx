@@ -44,15 +44,17 @@ To enable retries for a task, simply add the `retries` property to the task obje
 
 You can add the `retries` property to any task, and Hatchet will handle the retry logic automatically.
 
-It's important to note that task-level retries are not suitable for all types of failures. For example, if a task fails due to a programming error or an invalid configuration, retrying the task will likely not resolve the issue. In these cases, you should fix the underlying problem in your code or configuration rather than relying on retries.
+It's important to note that task-level retries are not suitable for all types of failures.
+For example, if a task fails due to a programming error or an invalid configuration, retrying the task will likely not resolve the issue.
+In these cases, you should fix the underlying problem in your code or configuration rather than relying on retries. See [Bypassing retry logic](#bypassing-retry-logic).
 
 Additionally, if a task interacts with external services or databases, you should ensure that the operation is idempotent (i.e. can be safely repeated without changing the result) before enabling retries. Otherwise, retrying the task could lead to unintended side effects or inconsistencies in your data.
 
 ## Accessing the Retry Count in a Running Task
 
-If you need to access the current retry count within a task, you can use the `retryCount` method available in the task context:
+You can access the current retry count on the task's context object:
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
     <Snippet src={snippets.python.retries.worker.retries_with_count} />
   </Tabs.Tab>
@@ -113,8 +115,105 @@ The Hatchet SDKs each expose a `NonRetryable` exception, which allows you to byp
 
 In these cases, even though `retries` is set to a non-zero number (meaning the task would ordinarily retry), Hatchet will not retry.
 
+## Python SDK Client Retry Behavior
+
+The retry behavior described above is for task execution inside Hatchet. The Python SDK also has separate retry behavior for certain client-side REST and gRPC calls made by the SDK itself.
+
+These client retries are configured separately from task retries and do not control whether a task is retried after failing in a worker.
+
+<Callout type="info">
+  Task retries and SDK client retries are separate mechanisms. Task retries
+  control whether Hatchet retries a task after task failure. SDK client retries
+  control whether the Python SDK retries certain API calls to Hatchet.
+</Callout>
+
+### Default client retry behavior
+
+By default, the Python SDK retries certain client calls with exponential backoff, with `max_attempts` defaulting to 5.
+
+**REST API calls**
+
+| Error Type                                            | Retried by Default |
+| ----------------------------------------------------- | ------------------ |
+| HTTP 5xx (server errors)                              | Yes                |
+| HTTP 404 (not found)                                  | Yes                |
+| HTTP 429 (too many requests)                          | No                 |
+| HTTP 400, 401, 403, 409, 422 (client errors)          | No                 |
+| Transport errors (timeout, connection, TLS, protocol) | No                 |
+
+**gRPC calls**
+
+| Status Code                                              | Retried |
+| -------------------------------------------------------- | ------- |
+| `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`           | Yes     |
+| `RESOURCE_EXHAUSTED`, `ABORTED`, `UNKNOWN`               | Yes     |
+| `UNIMPLEMENTED`, `NOT_FOUND`, `INVALID_ARGUMENT`         | No      |
+| `ALREADY_EXISTS`, `UNAUTHENTICATED`, `PERMISSION_DENIED` | No      |
+
+<Callout type="info">
+  REST 404 responses are retried by default because some REST reads can observe
+  replication lag between the core database and the OLAP database.
+</Callout>
+
+### Configuring Python SDK client retries
+
+The Python SDK exposes client retry configuration through `TenacityConfig`, either directly in `ClientConfig` or via environment variables.
+
+```python
+import os
+
+from hatchet_sdk import Hatchet
+from hatchet_sdk.config import ClientConfig, HTTPMethod, TenacityConfig
+
+hatchet = Hatchet(
+    config=ClientConfig(
+        token=os.environ["HATCHET_CLIENT_TOKEN"],
+        tenacity=TenacityConfig(
+            max_attempts=5,
+            retry_429=False,
+            retry_transport_errors=False,
+            retry_transport_methods=[HTTPMethod.GET, HTTPMethod.DELETE],
+        ),
+    )
+)
+```
+
+| Name                      | Type               | Description                                                                         | Default         |
+| ------------------------- | ------------------ | ----------------------------------------------------------------------------------- | --------------- |
+| `max_attempts`            | `int`              | Maximum number of retry attempts. Set to 0 to disable retries.                      | `5`             |
+| `retry_429`               | `bool`             | Enable retries for HTTP 429 Too Many Requests responses.                            | `False`         |
+| `retry_transport_errors`  | `bool`             | Enable retries for REST transport-level errors (timeout, connection, TLS).          | `False`         |
+| `retry_transport_methods` | `list[HTTPMethod]` | HTTP methods to retry on transport errors when `retry_transport_errors` is enabled. | `[GET, DELETE]` |
+
+You can also configure these via environment variables:
+
+| Environment Variable                             | Description                                     |
+| ------------------------------------------------ | ----------------------------------------------- |
+| `HATCHET_CLIENT_TENACITY_MAX_ATTEMPTS`           | Maximum retry attempts                          |
+| `HATCHET_CLIENT_TENACITY_RETRY_429`              | Enable 429 retries (`true`/`false`)             |
+| `HATCHET_CLIENT_TENACITY_RETRY_TRANSPORT_ERRORS` | Enable transport error retries (`true`/`false`) |
+
+### Idempotency considerations
+
+<Callout type="warning">
+  When `retry_transport_errors` is enabled, only idempotent HTTP methods (`GET`,
+  `DELETE`) are retried by default. Non-idempotent methods (`POST`, `PUT`,
+  `PATCH`) are excluded because retrying them after a transport error could
+  result in duplicate operations if the original request succeeded but the
+  response was lost.
+</Callout>
+
+You can add non-idempotent methods to `retry_transport_methods`, but only do so if:
+
+1. Your operations are idempotent (for example, because they use idempotency keys), or
+2. You understand and accept the risk of duplicate operations
+
+### Retry timing
+
+Python SDK client retries use exponential backoff with jitter. Fine-grained backoff timing is not currently configurable through `TenacityConfig`.
+
 ## Conclusion
 
 Hatchet's task-level retry feature is a simple and effective way to handle transient failures in your tasks, improving the reliability and resilience of your tasks. By specifying the number of retries for each task, you can ensure that your tasks can recover from temporary issues without requiring complex error handling logic.
 
-Remember to use retries judiciously and only for tasks that are idempotent and can safely be repeated. For more advanced retry strategies, such as exponential backoff or circuit breaking, stay tuned for future updates to Hatchet's retry capabilities.
+Remember to use retries judiciously and only for tasks that are idempotent. For more advanced retry strategies, such as exponential backoff or circuit breaking, stay tuned for future updates to Hatchet's retry capabilities.

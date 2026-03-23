@@ -6,10 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -17,10 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-
-	"reflect"
-
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 // Deprecated: WrappedTaskFn is part of the old generics-based v1 Go SDK.
@@ -713,7 +710,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 		Input:      inputMap,
 	}
 
-	runOpts := &admincontracts.TriggerWorkflowRequest{}
+	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
 		opt(runOpts)
@@ -755,7 +752,7 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 		Input:     inputMap,
 	}
 
-	runOpts := &admincontracts.TriggerWorkflowRequest{}
+	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
 		opt(runOpts)
@@ -1049,7 +1046,7 @@ func RunChildWorkflow[I any, O any](
 
 	spawnOpts := &worker.SpawnWorkflowOpts{}
 
-	runOpts := &admincontracts.TriggerWorkflowRequest{}
+	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
 		opt(runOpts)

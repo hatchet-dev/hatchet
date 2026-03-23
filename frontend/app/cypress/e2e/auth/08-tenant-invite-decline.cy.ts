@@ -102,13 +102,13 @@ describe('Tenant Invite: decline', () => {
     );
 
     // Verify the invite is displayed
-    cy.contains(`You got an invitation to join ${tenantName}`).should(
+    cy.contains(`invited to join the ${tenantName} tenant`).should(
       'be.visible',
     );
 
     // Step 5: Decline the invite - register intercept before clicking
     cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
-    cy.contains(`You got an invitation to join ${tenantName}`)
+    cy.contains(`invited to join the ${tenantName} tenant`)
       .parent()
       .contains('button', 'Decline')
       .should('be.visible')

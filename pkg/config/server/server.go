@@ -185,9 +185,9 @@ type ConfigFileRuntime struct {
 	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
 	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
 
-	// GRPCWorkerStreamMaxBacklogSize is the maximum number of messages that can be queued for a worker before we start rejecting new
-	// messages. Default is 20.
-	GRPCWorkerStreamMaxBacklogSize int `mapstructure:"grpcWorkerStreamMaxBacklogSize" json:"grpcWorkerStreamMaxBacklogSize,omitempty" default:"20"`
+	// GRPCWorkerMaxLockAcquisitionTime is the maximum amount of time the dispatcher will wait while attempting
+	// to send a messages to a worker. If it waits longer, the request will be rejected. Default is 250ms
+	GRPCMaxWorkerLockAcquisitionTime time.Duration `mapstructure:"grpcWorkerMaxLockAcquisitionTime" json:"grpcWorkerMaxLockAcquisitionTime,omitempty" default:"250ms"`
 
 	// GRPCStaticStreamWindowSize sets the static stream window size for the grpc server. This can help with performance
 	// with overloaded workers and large messages. Default is 10MB.
@@ -195,9 +195,6 @@ type ConfigFileRuntime struct {
 
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
-
-	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
-	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
 
 	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
@@ -684,13 +681,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
-	_ = v.BindEnv("runtime.grpcWorkerStreamMaxBacklogSize", "SERVER_GRPC_WORKER_STREAM_MAX_BACKLOG_SIZE")
+	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTime", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME")
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
-	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")

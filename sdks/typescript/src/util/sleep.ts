@@ -1,18 +1,21 @@
+import { Duration, durationToMs } from '../v1/client/duration';
+
 /**
  * Sleeps for a given number of milliseconds without blocking the event loop
  *
  * WARNING: This is not a durable sleep. It will not be honored if the worker is
  * restarted or crashes.
  *
- * @param ms - The number of milliseconds to sleep
+ * @param duration - The number of milliseconds to sleep, or a Duration (e.g. "5s", \{ seconds: 5 \})
  * @param signal - Optional AbortSignal; if aborted, the promise rejects with Error('Cancelled').
  *                 Use in task handlers so cancellation can interrupt long sleeps.
  * @returns A promise that resolves after the given number of milliseconds (or rejects on abort)
  */
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+function sleep(duration: number | Duration, signal?: AbortSignal): Promise<void> {
+  const timeout = typeof duration === 'number' ? duration : durationToMs(duration);
   if (!signal) {
     return new Promise((resolve) => {
-      setTimeout(resolve, ms);
+      setTimeout(resolve, timeout);
     });
   }
 
@@ -20,7 +23,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     const timer = setTimeout(() => {
       signal.removeEventListener('abort', onAbort);
       resolve();
-    }, ms);
+    }, timeout);
 
     const onAbort = () => {
       clearTimeout(timer);

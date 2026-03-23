@@ -91,6 +91,7 @@ roles:
       - EventUpdateReplay
       - StepRunGetSchema
       - V1DagListTasks
+      - V1DurableTaskBranch
       - MonitoringPostRunProbe
       - LivenessGet
       - UserUpdateGithubOauthStart
@@ -111,7 +112,6 @@ roles:
       - V1CelDebug
       - V1WorkflowRunGetTimings
       - InfoGetVersion
-      - LogLineList
       - TenantMemberDelete
       - V1TaskGetPointMetrics
       - WorkflowScheduledDelete
@@ -122,6 +122,7 @@ roles:
       - WorkflowDelete
       - UserGetCurrent
       - V1TaskReplay
+      - V1TaskRestore
       - WorkflowRunCancel
       - V1EventList
       - EventKeyList
@@ -140,3 +141,5 @@ roles:
       - WorkflowCronDelete
       - WorkflowCronGet
       - WorkflowCronUpdate
+      - V1TenantLogLineList
+      - V1TenantLogLineGetPointMetrics

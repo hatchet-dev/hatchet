@@ -14,7 +14,31 @@ import { concurrencyCancelNewestWorkflow } from './concurrency_cancel_newest/wor
 import { concurrencyMultipleKeysWorkflow } from './concurrency_multiple_keys/workflow';
 import { concurrencyWorkflowLevelWorkflow } from './concurrency_workflow_level/workflow';
 import { dag } from './dag/workflow';
-import { durableWorkflow, waitForSleepTwice } from './durable/workflow';
+import {
+  durableWorkflow,
+  waitForSleepTwice,
+  spawnChildTask,
+  durableWithSpawn,
+  durableWithBulkSpawn,
+  durableSleepEventSpawn,
+  durableWithExplicitSpawn,
+  durableNonDeterminism,
+  durableReplayReset,
+  dagChildWorkflow,
+  durableSpawnDag,
+} from './durable/workflow';
+import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
+import {
+  evictableSleep,
+  evictableWaitForEvent,
+  evictableChildSpawn,
+  multipleEviction,
+  nonEvictableSleep,
+  childTask as evictionChildTask,
+  bulkChildTask,
+  evictableChildBulkSpawn,
+} from './durable_eviction/workflow';
+import { durableSleep } from './durable_sleep/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
 import { nonRetryableWorkflow } from './non_retryable/workflow';
 import { failureWorkflow } from './on_failure/workflow';
@@ -41,6 +65,26 @@ const workflows = [
   dag,
   durableWorkflow,
   waitForSleepTwice,
+  spawnChildTask,
+  durableWithSpawn,
+  durableWithBulkSpawn,
+  durableSleepEventSpawn,
+  durableWithExplicitSpawn,
+  durableNonDeterminism,
+  durableReplayReset,
+  dagChildWorkflow,
+  durableSpawnDag,
+  durableEvent,
+  durableEventWithFilter,
+  durableSleep,
+  evictableSleep,
+  evictableWaitForEvent,
+  evictableChildSpawn,
+  multipleEviction,
+  nonEvictableSleep,
+  evictionChildTask,
+  bulkChildTask,
+  evictableChildBulkSpawn,
   createLoggingWorkflow(hatchet),
   nonRetryableWorkflow,
   failureWorkflow,

@@ -32,6 +32,8 @@ service Dispatcher {
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 
+    rpc RestoreEvictedTask(RestoreEvictedTaskRequest) returns (RestoreEvictedTaskResponse) {}
+
     rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
 
     // GetVersion returns the dispatcher protocol version as a simple integer.
@@ -184,6 +186,9 @@ message AssignedAction {
 
     // (optional) the workflow version id
     optional string workflow_version_id = 20;
+
+    // (optional) the invocation count for durable task events (required for durable events, otherwise null)
+    optional int32 durable_task_invocation_count = 21;
 }
 
 message WorkerListenRequest {
@@ -412,6 +417,14 @@ message ReleaseSlotRequest {
 }
 
 message ReleaseSlotResponse {}
+
+message RestoreEvictedTaskRequest {
+    string task_run_external_id = 1;
+}
+
+message RestoreEvictedTaskResponse {
+    bool requeued = 1;
+}
 
 message GetVersionRequest {}
 

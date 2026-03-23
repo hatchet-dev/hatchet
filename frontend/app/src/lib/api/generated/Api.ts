@@ -41,11 +41,6 @@ import {
   ListAPITokensResponse,
   ListSNSIntegrations,
   ListSlackWebhooks,
-  LogLineLevelField,
-  LogLineList,
-  LogLineOrderByDirection,
-  LogLineOrderByField,
-  LogLineSearch,
   RateLimitList,
   RateLimitOrderByDirection,
   RateLimitOrderByField,
@@ -92,6 +87,8 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1BranchDurableTaskRequest,
+  V1BranchDurableTaskResponse,
   V1CELDebugRequest,
   V1CELDebugResponse,
   V1CancelTaskRequest,
@@ -106,8 +103,11 @@ import {
   V1LogLineLevel,
   V1LogLineList,
   V1LogLineOrderByDirection,
+  V1LogsPointMetrics,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
+  V1RestoreTaskResponse,
+  V1RunningFilter,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -282,6 +282,93 @@ export class Api<
       ...params,
     });
   /**
+   * @description Lists log lines for a tenant
+   *
+   * @tags Log
+   * @name V1TenantLogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/stable/tenants/{tenant}/logs
+   * @secure
+   */
+  v1TenantLogLineList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The direction to order by */
+      order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
+      /** The task external ID(s) to filter by */
+      taskExternalIds?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1LogLineList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/logs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of log metrics for a tenant
+   *
+   * @tags Log
+   * @name V1TenantLogLineGetPointMetrics
+   * @summary Get log point metrics
+   * @request GET:/api/v1/stable/tenants/{tenant}/log-point-metrics
+   * @secure
+   */
+  v1TenantLogLineGetPointMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The task external ID(s) to filter by */
+      taskExternalIds?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1LogsPointMetrics, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/log-point-metrics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Replay tasks
    *
    * @tags Task
@@ -301,6 +388,23 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Restore an evicted durable task
+   *
+   * @tags Task
+   * @name V1TaskRestore
+   * @summary Restore a task
+   * @request POST:/api/v1/stable/tasks/{task}/restore
+   * @secure
+   */
+  v1TaskRestore = (task: string, params: RequestParams = {}) =>
+    this.request<V1RestoreTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/restore`,
+      method: "POST",
+      secure: true,
       format: "json",
       ...params,
     });
@@ -398,6 +502,8 @@ export class Api<
       triggering_event_external_id?: string;
       /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
       include_payloads?: boolean;
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
     },
     params: RequestParams = {},
   ) =>
@@ -462,6 +568,8 @@ export class Api<
       additional_metadata?: string[];
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
     },
     params: RequestParams = {},
   ) =>
@@ -489,6 +597,29 @@ export class Api<
   ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Branch a durable task from a specific node, creating a new branch and re-processing its matches.
+   *
+   * @tags Workflow Runs
+   * @name V1DurableTaskBranch
+   * @summary Branch durable task
+   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/branch
+   * @secure
+   */
+  v1DurableTaskBranch = (
+    tenant: string,
+    data: V1BranchDurableTaskRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1BranchDurableTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/branch`,
       method: "POST",
       body: data,
       secure: true,
@@ -2723,47 +2854,6 @@ export class Api<
   ) =>
     this.request<WorkflowMetrics, APIErrors>({
       path: `/api/v1/workflows/${workflow}/metrics`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Lists log lines for a step run.
-   *
-   * @tags Log
-   * @name LogLineList
-   * @summary List log lines
-   * @request GET:/api/v1/step-runs/{step-run}/logs
-   * @secure
-   */
-  logLineList = (
-    stepRun: string,
-    query?: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-      /** A list of levels to filter by */
-      levels?: LogLineLevelField;
-      /** The search query to filter for */
-      search?: LogLineSearch;
-      /** What to order by */
-      orderByField?: LogLineOrderByField;
-      /** The order direction */
-      orderByDirection?: LogLineOrderByDirection;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<LogLineList, APIErrors>({
-      path: `/api/v1/step-runs/${stepRun}/logs`,
       method: "GET",
       query: query,
       secure: true,

@@ -6,7 +6,7 @@ The Hatchet server and engine can be configured via environment variables using 
 
 Hatchet uses the following environment variable prefixes:
 
-- **`SERVER_`** (173 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
+- **`SERVER_`** (172 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
 - **`DATABASE_`** (19 variables) - PostgreSQL database connection and configuration
 - **`READ_REPLICA_`** (4 variables) - Read replica database configuration
 - **`ADMIN_`** (3 variables) - Administrator user setup for initial seeding
@@ -114,7 +114,6 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_GRPC_BIND_ADDRESS`                   | GRPC server bind address                | `127.0.0.1`             |
 | `SERVER_GRPC_BROADCAST_ADDRESS`              | GRPC server broadcast address           | `127.0.0.1:7070`        |
 | `SERVER_GRPC_INSECURE`                       | Controls if the GRPC server is insecure | `false`                 |
-| `SERVER_SHUTDOWN_WAIT`                       | Shutdown wait duration                  | `20s`                   |
 | `SERVER_ENFORCE_LIMITS`                      | Enforce tenant limits                   | `false`                 |
 | `SERVER_ALLOW_SIGNUP`                        | Allow new tenant signups                | `true`                  |
 | `SERVER_ALLOW_INVITES`                       | Allow new invites                       | `true`                  |

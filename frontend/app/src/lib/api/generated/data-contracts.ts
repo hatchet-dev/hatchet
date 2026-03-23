@@ -18,6 +18,22 @@ export enum V1TaskRunStatus {
   CANCELLED = "CANCELLED",
 }
 
+export enum LogLineOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export enum LogLineOrderByField {
+  CreatedAt = "createdAt",
+}
+
+export enum LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
 export enum PullRequestState {
   Open = "open",
   Closed = "closed",
@@ -79,22 +95,6 @@ export enum StepRunEventReason {
   RETRIED_BY_USER = "RETRIED_BY_USER",
   WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED",
   WORKFLOW_RUN_GROUP_KEY_FAILED = "WORKFLOW_RUN_GROUP_KEY_FAILED",
-}
-
-export enum LogLineOrderByDirection {
-  Asc = "asc",
-  Desc = "desc",
-}
-
-export enum LogLineOrderByField {
-  CreatedAt = "createdAt",
-}
-
-export enum LogLineLevel {
-  DEBUG = "DEBUG",
-  INFO = "INFO",
-  WARN = "WARN",
-  ERROR = "ERROR",
 }
 
 export enum JobRunStatus {
@@ -256,6 +256,12 @@ export enum TenantVersion {
   V1 = "V1",
 }
 
+export enum V1RunningFilter {
+  ALL = "ALL",
+  EVICTED = "EVICTED",
+  ON_WORKER = "ON_WORKER",
+}
+
 export enum V1LogLineOrderByDirection {
   ASC = "ASC",
   DESC = "DESC",
@@ -290,6 +296,8 @@ export enum V1TaskEventType {
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
+  DURABLE_EVICTED = "DURABLE_EVICTED",
+  DURABLE_RESTORING = "DURABLE_RESTORING",
 }
 
 export enum V1WorkflowType {
@@ -362,6 +370,8 @@ export interface V1TaskSummary {
   /** The output of the task run (for the latest run) */
   output: object;
   status: V1TaskStatus;
+  /** Whether the task has been evicted from a worker (still counts as RUNNING). */
+  isEvicted?: boolean;
   /**
    * The timestamp the task run started.
    * @format date-time
@@ -503,6 +513,15 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /**
+   * The external ID of the task associated with the log line.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId?: string;
+  /** The display name of the task associated with the log line. */
+  taskDisplayName?: string;
   /** The retry count of the log line. */
   retryCount?: number;
   /** The attempt number of the log line. */
@@ -537,6 +556,19 @@ export interface V1CancelledTasks {
   ids?: string[];
 }
 
+export interface V1LogsPointMetric {
+  /** @format date-time */
+  time: string;
+  DEBUG: number;
+  INFO: number;
+  WARN: number;
+  ERROR: number;
+}
+
+export interface V1LogsPointMetrics {
+  results?: V1LogsPointMetric[];
+}
+
 export interface V1ReplayTaskRequest {
   /** A list of external IDs, which can refer to either task or workflow run external IDs */
   externalIds?: string[];
@@ -546,6 +578,10 @@ export interface V1ReplayTaskRequest {
 export interface V1ReplayedTasks {
   /** The list of task external ids that were replayed */
   ids?: string[];
+}
+
+export interface V1RestoreTaskResponse {
+  requeued: boolean;
 }
 
 export interface V1DagChildren {
@@ -665,11 +701,53 @@ export interface V1WorkflowRunDetails {
   workflowConfig?: object;
 }
 
+export interface V1BranchDurableTaskRequest {
+  /**
+   * The external id of the durable task to branch.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id to replay from.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id to replay from.
+   * @format int64
+   */
+  branchId: number;
+}
+
+export interface V1BranchDurableTaskResponse {
+  /**
+   * The external id of the durable task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id of the new entry.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id of the new entry.
+   * @format int64
+   */
+  branchId: number;
+}
+
 export interface V1TaskTiming {
   metadata: APIResourceMeta;
   /** The depth of the task in the waterfall. */
   depth: number;
   status: V1TaskStatus;
+  /** Whether the task has been evicted from a worker (still counts as RUNNING). */
+  isEvicted?: boolean;
   /** The display name of the task run. */
   taskDisplayName: string;
   /**
@@ -733,9 +811,17 @@ export interface V1TaskTimingList {
   rows: V1TaskTiming[];
 }
 
+export interface V1RunningDetailCount {
+  /** The number of evicted tasks within the RUNNING status bucket. */
+  evicted: number;
+  /** The number of tasks currently on a worker within the RUNNING status bucket. */
+  onWorker: number;
+}
+
 export interface V1TaskRunMetric {
   status: V1TaskStatus;
   count: number;
+  runningDetailCount?: V1RunningDetailCount;
 }
 
 export type V1TaskRunMetrics = V1TaskRunMetric[];
@@ -1963,27 +2049,6 @@ export interface WorkflowMetrics {
   groupKeyCount?: number;
 }
 
-export type LogLineLevelField = LogLineLevel[];
-
-export type LogLineSearch = string;
-
-export interface LogLine {
-  /**
-   * The creation date of the log line.
-   * @format date-time
-   */
-  createdAt: string;
-  /** The log message. */
-  message: string;
-  /** The log metadata. */
-  metadata: object;
-}
-
-export interface LogLineList {
-  pagination?: PaginationResponse;
-  rows?: LogLine[];
-}
-
 export interface StepRunEvent {
   id: number;
   /** @format date-time */
@@ -2354,6 +2419,27 @@ export interface PullRequest {
 export interface ListPullRequestsResponse {
   pullRequests: PullRequest[];
 }
+
+export interface LogLine {
+  /**
+   * The creation date of the log line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The log message. */
+  message: string;
+  /** The log metadata. */
+  metadata: object;
+}
+
+export interface LogLineList {
+  pagination?: PaginationResponse;
+  rows?: LogLine[];
+}
+
+export type LogLineSearch = string;
+
+export type LogLineLevelField = LogLineLevel[];
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;

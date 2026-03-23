@@ -294,7 +294,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		return nil, nil, fmt.Errorf("could not register the worker: %w", err)
 	}
 
-	d.l.Debug().Msgf("Registered worker with id: %s", resp.WorkerId)
+	d.l.Debug().Ctx(ctx).Msgf("Registered worker with id: %s", resp.WorkerId)
 
 	// subscribe to the worker
 	listener, err := d.client.ListenV2(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
@@ -321,7 +321,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 	ch := make(chan *Action)
 	errCh := make(chan error)
 
-	a.l.Debug().Msgf("Starting to listen for actions")
+	a.l.Debug().Ctx(ctx).Msgf("Starting to listen for actions")
 
 	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
 	go func() {
@@ -339,7 +339,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				return
 			case <-timer.C:
 				if now := time.Now().UTC(); lastHeartbeat.Add(heartbeatInterval).Before(now) {
-					a.l.Debug().Msgf("updating worker %s heartbeat", a.workerId)
+					a.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", a.workerId)
 
 					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
 						WorkerId:    a.workerId,
@@ -347,7 +347,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					})
 
 					if err != nil {
-						a.l.Error().Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
+						a.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
 
 						// if the heartbeat method is unimplemented, don't continue to send heartbeats
 						if status.Code(err) == codes.Unimplemented {
@@ -361,7 +361,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						actualInterval := now.Sub(lastHeartbeat)
 						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
 						if actualInterval > heartbeatInterval+1*time.Second {
-							a.l.Warn().Msgf(
+							a.l.Warn().Ctx(ctx).Msgf(
 								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
 								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
 							)
@@ -384,7 +384,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			if err != nil {
 				// if context is cancelled, unsubscribe and close the channel
 				if ctx.Err() != nil {
-					a.l.Debug().Msgf("Context cancelled, closing channel")
+					a.l.Debug().Ctx(ctx).Msgf("Context cancelled, closing channel")
 
 					defer close(ch)
 					defer close(errCh)
@@ -392,7 +392,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					err := a.listenClient.CloseSend()
 
 					if err != nil {
-						a.l.Error().Msgf("Failed to close send: %v", err)
+						a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
 					}
 
 					return
@@ -402,14 +402,14 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 				// if this is an unimplemented error, default to v1
 				if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
-					a.l.Debug().Msgf("Falling back to v1 listener strategy")
+					a.l.Debug().Ctx(ctx).Msgf("Falling back to v1 listener strategy")
 					a.listenerStrategy = ListenerStrategyV1
 				}
 
 				err = a.retrySubscribe(ctx)
 
 				if err != nil {
-					a.l.Error().Msgf("Failed to resubscribe: %v", err)
+					a.l.Error().Ctx(ctx).Msgf("Failed to resubscribe: %v", err)
 					errCh <- fmt.Errorf("failed to resubscribe: %w", err)
 				}
 
@@ -430,11 +430,11 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
 				actionType = ActionTypeStartGetGroupKey
 			default:
-				a.l.Error().Msgf("Unknown action type: %s", assignedAction.ActionType)
+				a.l.Error().Ctx(ctx).Msgf("Unknown action type: %s", assignedAction.ActionType)
 				continue
 			}
 
-			a.l.Debug().Msgf("Received action type: %s for action: %s", actionType, assignedAction.ActionId)
+			a.l.Debug().Ctx(ctx).Msgf("Received action type: %s for action: %s", actionType, assignedAction.ActionId)
 
 			unquoted := assignedAction.ActionPayload
 
@@ -445,7 +445,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				var rawMap map[string]interface{}
 				if err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &rawMap); err != nil {
 					// If that fails, try to unmarshal as a single string
-					a.l.Error().Err(err).Msgf("could not unmarshal additional metadata")
+					a.l.Error().Ctx(ctx).Err(err).Msgf("could not unmarshal additional metadata")
 					continue
 				} else {
 					// Only keep string values from the map
@@ -491,7 +491,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 		err := a.listenClient.CloseSend()
 
 		if err != nil {
-			a.l.Error().Msgf("Failed to close send: %v", err)
+			a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
 		}
 	}()
 
@@ -519,7 +519,7 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 
 		if err != nil {
 			retries++
-			a.l.Error().Err(err).Msgf("could not subscribe to the worker")
+			a.l.Error().Ctx(ctx).Err(err).Msgf("could not subscribe to the worker")
 			continue
 		}
 

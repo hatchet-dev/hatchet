@@ -20,13 +20,13 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 		shouldContinue := true
 
 		for shouldContinue {
-			o.l.Debug().Msgf("partition: running status updates for dags")
+			o.l.Debug().Ctx(ctx).Msgf("partition: running status updates for dags")
 
 			// list all tenants
 			tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
 
 			if err != nil {
-				o.l.Error().Err(err).Msg("could not list tenants")
+				o.l.Error().Ctx(ctx).Err(err).Msg("could not list tenants")
 				return
 			}
 
@@ -42,14 +42,14 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 			shouldContinue, rows, err = o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds)
 
 			if err != nil {
-				o.l.Error().Err(err).Msg("could not update DAG statuses")
+				o.l.Error().Ctx(ctx).Err(err).Msg("could not update DAG statuses")
 				return
 			}
 
 			err = o.notifyDAGsUpdated(ctx, rows)
 
 			if err != nil {
-				o.l.Error().Err(err).Msg("failed to notify updated DAG statuses")
+				o.l.Error().Ctx(ctx).Err(err).Msg("failed to notify updated DAG statuses")
 				return
 			}
 		}
@@ -91,7 +91,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 				// Successfully sent
 			default:
 				// Channel full, discard with warning
-				o.l.Warn().Msgf("dag prometheus update channel full, discarding update for dag %s", row.ExternalId.String())
+				o.l.Warn().Ctx(ctx).Msgf("dag prometheus update channel full, discarding update for dag %s", row.ExternalId.String())
 			}
 		}
 	}
