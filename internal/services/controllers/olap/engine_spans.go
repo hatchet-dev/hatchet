@@ -77,11 +77,18 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 		return
 	}
 
-	if err := olapRepo.CreateSpans(ctx, tenantId, &v1.CreateSpansOpts{
+	opts := &v1.CreateSpansOpts{
 		TenantID: tenantId,
 		Spans:    allSpans,
-	}); err != nil {
+	}
+
+	if err := olapRepo.CreateSpans(ctx, tenantId, opts); err != nil {
 		tc.l.Error().Ctx(ctx).Err(err).Msg("could not write engine spans")
+		return
+	}
+
+	if err := olapRepo.CreateSpanLookupTableEntries(ctx, tenantId, opts); err != nil {
+		tc.l.Error().Ctx(ctx).Err(err).Msg("could not write engine span lookup table entries")
 	}
 }
 
