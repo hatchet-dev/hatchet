@@ -56,23 +56,8 @@ func up20260324135804(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+// down20260324135804 drops the parent index, which cascades to all child partition indexes.
 func down20260324135804(ctx context.Context, db *sql.DB) error {
-	partitions, err := listLeafPartitions(ctx, db, v1LogLineTable, 1)
-	if err != nil {
-		return err
-	}
-
-	for _, partition := range partitions {
-		stmt := fmt.Sprintf(
-			`DROP INDEX CONCURRENTLY IF EXISTS %s`,
-			quoteIdent(v1LogLineIdxName(partition)),
-		)
-
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("drop index concurrently on %s: %w", partition, err)
-		}
-	}
-
 	stmt := fmt.Sprintf(
 		`DROP INDEX IF EXISTS %s`,
 		quoteIdent(v1LogLineParentIdx),
