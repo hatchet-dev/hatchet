@@ -398,9 +398,12 @@ type APIMeta struct {
 	AllowInvites *bool `json:"allowInvites,omitempty"`
 
 	// AllowSignup whether or not users can sign up for this instance
-	AllowSignup *bool           `json:"allowSignup,omitempty"`
-	Auth        *APIMetaAuth    `json:"auth,omitempty"`
-	Posthog     *APIMetaPosthog `json:"posthog,omitempty"`
+	AllowSignup *bool        `json:"allowSignup,omitempty"`
+	Auth        *APIMetaAuth `json:"auth,omitempty"`
+
+	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
+	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
+	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`

@@ -8,12 +8,16 @@ import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-s
 import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
+import { OnboardingCard } from '@/components/v1/ui/onboarding-card';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { V1LogLine, V1LogLineOrderByDirection } from '@/lib/api';
 import api from '@/lib/api/api';
+import { docsPages } from '@/lib/generated/docs';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { ScrollText } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 const LOGS_PER_PAGE = 100;
@@ -114,6 +118,8 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
     [sidePanel],
   );
 
+  const isEmpty = !logsQuery.isLoading && logs.length === 0;
+
   return (
     <div className="my-4 flex flex-col gap-y-2 max-h-[40rem] min-h-[25rem]">
       <SearchBarWithFilters<AutocompleteSuggestion, number[]>
@@ -133,6 +139,23 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
           },
         ]}
       />
+      {isEmpty && (
+        <OnboardingCard
+          variant="info"
+          icon={<ScrollText className="size-4" />}
+          title="Send logs to Hatchet"
+          dismissible
+          dismissKey="hatchet:dismiss-logs-onboarding-hint"
+          description="Configure Hatchet as a log sink to view your task logs for this run."
+          actions={
+            <DocsButton
+              doc={docsPages.v1.logging}
+              label="View logging docs"
+              variant="text"
+            />
+          }
+        />
+      )}
       <LogViewer
         key={queryString + taskExternalIdsKey}
         logs={logs}

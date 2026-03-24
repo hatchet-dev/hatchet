@@ -16,6 +16,32 @@ export function isEngineSpan(span: OtelSpanTree): boolean {
   return span.spanAttributes?.['hatchet.span_source'] === 'engine';
 }
 
+export function hasOnlyEngineSpans(trees: OtelSpanTree[]): boolean {
+  const stack = [...trees];
+  let realSpanCount = 0;
+  let hasOkSpan = false;
+
+  while (stack.length > 0) {
+    const span = stack.pop()!;
+    stack.push(...span.children);
+
+    if (span.spanId.startsWith('__synthetic_')) {
+      continue;
+    }
+
+    realSpanCount++;
+
+    if (!isEngineSpan(span)) {
+      return false;
+    }
+    if (span.statusCode === OtelStatusCode.OK) {
+      hasOkSpan = true;
+    }
+  }
+
+  return realSpanCount > 0 && hasOkSpan;
+}
+
 export function isQueuedOnlyRoot(span: OtelSpanTree): boolean {
   if (!span.spanId.startsWith('__synthetic_') || !span.queuedPhase) {
     return false;

@@ -1,6 +1,6 @@
 import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TaskRunTrace } from './task-run-trace';
-import { isQueuedOnlyRoot } from './utils/span-tree-utils';
+import { hasOnlyEngineSpans, isQueuedOnlyRoot } from './utils/span-tree-utils';
 import {
   convertOtelSpansToOtelSpanTree,
   findSubtreeByTaskRunId,
@@ -13,11 +13,17 @@ import {
   TraceSearchInput,
   type TraceAutocompleteContext,
 } from '@/components/v1/cloud/observability/trace-search';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Loading } from '@/components/v1/ui/loading';
+import { OnboardingCard } from '@/components/v1/ui/onboarding-card';
 import api from '@/lib/api/api';
+import { docsPages } from '@/lib/generated/docs';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
+import { Activity } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
@@ -92,6 +98,8 @@ export const Observability = (props: ObservabilityProps) => {
 
   const runExternalId = props.taskRunId ?? props.workflowRunExternalId;
   const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
+  const { isCloudEnabled } = useCloud(tenant);
+  const { meta } = useApiMeta();
 
   const { queryString, setQueryString } = useRunDetailSearch();
 
@@ -241,22 +249,59 @@ export const Observability = (props: ObservabilityProps) => {
             autocompleteContext={autocompleteContext}
           />
         )}
-        <div className="py-4 text-sm text-muted-foreground">
-          {spanTrees ? (
-            'No spans match the current filter.'
-          ) : (
-            <>
-              No traces found. To collect traces, use the{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                HatchetInstrumentor
-              </code>{' '}
-              in your SDK.
-            </>
-          )}
-        </div>
+        {spanTrees ? (
+          <div className="py-4 text-sm text-muted-foreground">
+            No spans match the current filter.
+          </div>
+        ) : !isCloudEnabled && !meta?.observabilityEnabled ? (
+          <OnboardingCard
+            icon={<Activity className="size-4" />}
+            title="Enable Observability"
+            description={
+              <>
+                Trace collection is not enabled on this instance. Set{' '}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  SERVER_OBSERVABILITY_ENABLED=true
+                </code>{' '}
+                in your server configuration to start collecting traces.
+              </>
+            }
+            actions={
+              <DocsButton
+                doc={docsPages['self-hosting']['configuration-options']}
+                label="View setup guide"
+                variant="text"
+              />
+            }
+          />
+        ) : (
+          <OnboardingCard
+            icon={<Activity className="size-4" />}
+            title="No traces found"
+            description={
+              <>
+                To collect traces, use the{' '}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  HatchetInstrumentor
+                </code>{' '}
+                in your SDK.
+              </>
+            }
+            actions={
+              <DocsButton
+                doc={docsPages.v1.opentelemetry}
+                label="View instrumentation docs"
+                variant="text"
+              />
+            }
+          />
+        )}
       </div>
     );
   }
+
+  const onlyEngineSpans =
+    !isRunning && hasOnlyEngineSpans(filteredTrees);
 
   return (
     <div className="flex flex-col gap-4">
@@ -265,6 +310,31 @@ export const Observability = (props: ObservabilityProps) => {
         onChange={setQueryString}
         autocompleteContext={autocompleteContext}
       />
+      {onlyEngineSpans && (
+        <OnboardingCard
+          variant="info"
+          dismissible
+          dismissKey="hatchet:dismiss-traces-enrichment-hint"
+          icon={<Activity className="size-4" />}
+          title="Enrich your traces"
+          description={
+            <>
+              These traces only contain engine-generated spans. Add the{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                HatchetInstrumentor
+              </code>{' '}
+              to your SDK to capture custom spans from your application code.
+            </>
+          }
+          actions={
+            <DocsButton
+              doc={docsPages.v1.opentelemetry}
+              label="View instrumentation docs"
+              variant="text"
+            />
+          }
+        />
+      )}
       <TaskRunTrace
         spanTrees={filteredTrees}
         isRunning={isRunning}

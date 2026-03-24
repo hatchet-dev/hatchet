@@ -1198,6 +1198,11 @@ export interface APIMeta {
    * @example true
    */
   allowChangePassword?: boolean;
+  /**
+   * whether or not observability (trace collection) is enabled on this instance
+   * @example false
+   */
+  observabilityEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {
