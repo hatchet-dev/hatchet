@@ -116,7 +116,10 @@ func (c *ConcurrencyManager) acquireStrategyLocks() bool {
 	}
 	if c.strategy.ParentStrategyID.Valid {
 		parentId := v1.PARENT_STRATEGY_LOCK_OFFSET + c.strategy.ParentStrategyID.Int64
-		return c.advisoryParentLock.Acquire(parentId)
+		if !c.advisoryParentLock.Acquire(parentId) {
+			c.advisoryLock.Release(c.strategy.ID)
+			return false
+		}
 	}
 	return true
 
