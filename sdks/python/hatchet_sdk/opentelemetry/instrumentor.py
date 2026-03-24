@@ -62,6 +62,7 @@ from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import ctx_hatchet_span_attributes
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
@@ -523,33 +524,38 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_push_event(
         self,
-        wrapped: Callable[[str, JSONSerializableMapping, PushEventOptions], Event],
+        wrapped: Callable[..., Event],
         instance: EventClient,
         args: tuple[
             str,
             JSONSerializableMapping,
-            PushEventOptions,
+            PushEventOptions | None,
+            JSONSerializableMapping | None,
+            Priority | None,
+            str | None,
         ],
-        kwargs: dict[str, str | JSONSerializableMapping | PushEventOptions],
+        kwargs: dict[
+            str,
+            str | JSONSerializableMapping | PushEventOptions | Priority | None,
+        ],
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         event_key = cast(str, params[0])
         payload = cast(JSONSerializableMapping, params[1])
-        options = cast(
-            PushEventOptions,
-            params[2] if len(params) > 2 else PushEventOptions(),
-        )
+        options = cast(PushEventOptions | None, params[2])
+        additional_metadata = cast(JSONSerializableMapping | None, params[3])
+        priority = cast(Priority | None, params[4])
+        scope = cast(str | None, params[5])
 
         attributes = {
             OTelAttribute.EVENT_KEY: event_key,
             OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
-                options.additional_metadata, default=str
+                additional_metadata, default=str
             ),
-            OTelAttribute.NAMESPACE: options.namespace,
-            OTelAttribute.PRIORITY: options.priority,
-            OTelAttribute.FILTER_SCOPE: options.scope,
+            OTelAttribute.PRIORITY: priority,
+            OTelAttribute.FILTER_SCOPE: scope,
         }
 
         with self._tracer.start_as_current_span(
@@ -567,14 +573,24 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            options = PushEventOptions(
-                **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=_inject_traceparent_into_metadata(
-                    options.additional_metadata,
-                ),
-            )
+            if options is not None:
+                options = PushEventOptions(
+                    **options.model_dump(exclude={"additional_metadata"}),
+                    additional_metadata=_inject_traceparent_into_metadata(
+                        options.additional_metadata,
+                    ),
+                )
 
-            return wrapped(event_key, payload, options)
+            return wrapped(
+                event_key,
+                payload,
+                options,
+                _inject_traceparent_into_metadata(
+                    dict(additional_metadata or {}),
+                ),
+                priority,
+                scope,
+            )
 
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_bulk_push_event(
