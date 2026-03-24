@@ -300,8 +300,7 @@ export const Observability = (props: ObservabilityProps) => {
     );
   }
 
-  const onlyEngineSpans =
-    !isRunning && hasOnlyEngineSpans(filteredTrees);
+  const onlyEngineSpans = !isRunning && hasOnlyEngineSpans(filteredTrees);
 
   return (
     <div className="flex flex-col gap-4">

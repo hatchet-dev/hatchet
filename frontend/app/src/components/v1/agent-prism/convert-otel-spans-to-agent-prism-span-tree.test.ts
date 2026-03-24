@@ -750,10 +750,7 @@ describe('findSubtreeByTaskRunId', () => {
 
     const found = findSubtreeByTaskRunId(root.children, 'notif1');
     assert.ok(found, 'should find notif1 nested under dag-conf');
-    assert.strictEqual(
-      found.spanAttributes?.['hatchet.step_run_id'],
-      'notif1',
-    );
+    assert.strictEqual(found.spanAttributes?.['hatchet.step_run_id'], 'notif1');
   });
 
   test('returns undefined when task run id is not present', () => {
