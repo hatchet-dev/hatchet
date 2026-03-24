@@ -20,6 +20,9 @@ requires_observability = pytest.mark.usefixtures("_skip_unless_observability")
 
 
 def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[OtelSpan]:
+    # sleep to avoid race conditions with engine spans
+    time.sleep(5)
+
     for _ in range(10):
         with hatchet.runs.client() as client:
             try:
