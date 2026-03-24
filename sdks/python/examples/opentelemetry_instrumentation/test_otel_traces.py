@@ -122,8 +122,6 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
         == otel_simple_task.name
     )
 
-    assert False
-
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
