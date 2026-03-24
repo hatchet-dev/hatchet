@@ -19,7 +19,7 @@ function Main() {
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
   const logsEnabled =
-    isCloudEnabled && featureFlags?.['preview-tenant-logs'] === 'true';
+    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const navSections = useMemo(
     () =>
