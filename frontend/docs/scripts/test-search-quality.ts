@@ -215,7 +215,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "orchestration",
     query: "orchestration",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/mixing-patterns"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns"],
     topN: 10,
   },
   {
@@ -270,7 +270,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "durable best practices",
     query: "durable best practices",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/mixing-patterns"],
+    expectAnyOf: ["v1/durable-execution"],
     topN: 10,
   },
 

@@ -49,7 +49,7 @@ By keeping the pools separate, Hatchet ensures that a durable task waiting on ch
 
 ### Eviction and determinism
 
-Because a task can be evicted and resumed on a different worker at any time, the code between checkpoints must be [deterministic](/v1/patterns/mixing-patterns#determinism-in-durable-tasks). On resume, Hatchet replays the event log — it doesn't re-execute completed operations, but it does re-run the code path that led to each checkpoint. If the code has changed between the original run and the replay, the checkpoint sequence may not match, leading to unexpected behavior.
+Because a task can be evicted and resumed on a different worker at any time, the code between checkpoints must be [deterministic](/v1/patterns/durable-tasks). On resume, Hatchet replays the event log — it doesn't re-execute completed operations, but it does re-run the code path that led to each checkpoint. If the code has changed between the original run and the replay, the checkpoint sequence may not match, leading to unexpected behavior.
 
 See [Durable Tasks](/v1/patterns/durable-tasks), [Sleep & Delays](/v1/sleep), and [Wait For Events](/v1/events) for concrete examples of waits that trigger eviction.
 

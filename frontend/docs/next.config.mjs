@@ -55,7 +55,7 @@ const nextConfig = {
       { source: '/home/:slug(dags|orchestration)', destination: '/v1/patterns/directed-acyclic-graphs', permanent: true, basePath: false },
       { source: '/home/durable-sleep', destination: '/v1/sleep', permanent: true, basePath: false },
       { source: '/home/durable-events', destination: '/v1/events', permanent: true, basePath: false },
-      { source: '/home/durable-best-practices', destination: '/v1/patterns/mixing-patterns', permanent: true, basePath: false },
+      { source: '/home/durable-best-practices', destination: '/v1/patterns', permanent: true, basePath: false },
       { source: '/home/architecture', destination: '/v1/architecture-and-guarantees', permanent: true, basePath: false },
       { source: '/home/your-first-task', destination: '/v1/tasks', permanent: true, basePath: false },
       { source: '/home/running-tasks', destination: '/v1/tasks', permanent: true, basePath: false },

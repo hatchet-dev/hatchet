@@ -18,6 +18,18 @@ Use durable tasks when the shape of work is not known upfront, when parts of the
   your durable task spawn children to do this sort of work instead.
 </Callout>
 
+## Determinism in durable tasks
+
+One important thing to keep in mind when writing durable tasks: the code between checkpoints must be deterministic. When a task is evicted and resumed, Hatchet replays the durable event log to rebuild state — it doesn't re-execute completed operations, but it does re-run the code path that led to each checkpoint.
+
+This means a few things in practice:
+
+- **Base decisions on checkpoint outputs**, not on external state that might change between runs (wall-clock time, database reads, random values). If a branch is taken on the first run, it must be taken again on replay.
+- **Don't read outside state mid-function** in ways that assume a particular value that may differ between runs.
+- **Push side effects into child tasks**. If you need to call external APIs, databases, or other services, do it in child tasks and wait on their results.
+
+If you're ever unsure whether something is safe, ask yourself: "If this task was interrupted and replayed from the last checkpoint, would this code produce the same result?" If yes, you're fine.
+
 ## When to use durable tasks
 
 | Scenario                           | Why durable?                                                                     |
