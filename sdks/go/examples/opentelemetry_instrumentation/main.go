@@ -251,7 +251,7 @@ func main() {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// worker.Use(instrumentor.Middleware())
+	worker.Use(instrumentor.Middleware())
 
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
