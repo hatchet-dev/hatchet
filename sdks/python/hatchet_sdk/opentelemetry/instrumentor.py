@@ -350,7 +350,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self.config.tls_config.root_ca_file:
             with open(self.config.tls_config.root_ca_file, "rb") as f:
                 root_certs = f.read()
-
             credentials = grpc.ssl_channel_credentials(root_certificates=root_certs)
 
         otlp_exporter = OTLPSpanExporter(
