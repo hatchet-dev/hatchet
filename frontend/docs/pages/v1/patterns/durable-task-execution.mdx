@@ -21,10 +21,10 @@ A durable task is a single long-running function that acts as an **orchestrator*
 
 | Scenario                          | Why Durable?                                                                                                                                                                            |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot. See [Batch Processing](/guides/batch-processing) and [Document Processing](/guides/document-processing). |
-| **Agentic workflows**             | An agent decides what to do next, spawns subtasks, loops, or stops at runtime. See [AI Agents](/guides/ai-agents/reasoning-loop).                                                       |
+| **Dynamic fan-out** (N unknown)   | Spawn children based on runtime data; wait for results without holding a slot. |
+| **Agentic workflows**             | An agent decides what to do next, spawns subtasks, loops, or stops at runtime.                                                   |
 | **Long waits** (hours/days)       | Worker slots are freed during waits; no wasted compute.                                                                                                                                 |
-| **Human-in-the-loop**             | Wait for approval events without holding resources. See [Human-in-the-Loop](/guides/human-in-the-loop).                                                                                 |
+| **Human-in-the-loop**             | Wait for approval events without holding resources                                                |
 | **Multi-step with inline pauses** | `SleepFor` and `WaitForEvent` let you express complex procedural flows.                                                                                                                 |
 | **Crash-resilient pipelines**     | Automatically resume from checkpoints after failures.                                                                                                                                   |
 
