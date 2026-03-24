@@ -1,0 +1,33 @@
+import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
+
+# Introduction to Durable Execution
+
+At its core, Hatchet is a _**durable execution**_ platform. Unfortunately, durable execution is an overloaded, often-confusing term. If you're new to durable execution, or are curious for a refresher, we wrote a [blog post outlining the core ideas](https://hatchet.run/blog/durable-execution).
+
+At its most basic level, durable execution provides a toolbox that, when used correctly, gives you some guarantees about tasks and workflows you write in Hatchet that you wouldn't get from an ordinary task queueing system.
+
+## Guarantees
+
+One of the main promises of durable execution, when used correctly, is to give your tasks something closer to [exactly-once semantics](https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/) than you'd get from traditional task queues. In practice, this means that a durable task can guarantee that your application logic is cached correctly and retry-safe, such that every time a piece of a durable task completes, it creates a new checkpoint (an entry in a durable event log), from which we can replay without needing to replay the actual application logic.
+
+This means that if you run a durable task to a midway point and the worker it's running on crashes, you can replay the task from whatever checkpoint it last reached without re-running any of the previous steps or duplicating any work. In practice, this is priceless in systems that cannot reasonably be made idempotent, so replaying on failure is impossible.
+
+<DurableWorkflowDiagram />
+
+## Core Assumptions
+
+The core assumption of durable execution in Hatchet is that durable tasks only do one of two things: They can _wait for something, such as a [sleep to complete](/v1/sleep) or an [event to be received](/v1/events), or they can [\_spawn child tasks_](/v1/child-spawning). These operations can also be composed, such that you can have a durable task wait for _either_ a sleep to complete _or_ an event to be pushed, whichever comes first, for instance. You can achieve this behavior by using [or groups](/v1/patterns/durable-task-execution#or-groups).
+
+## Example Uses
+
+There are lots of cases where durable execution is useful. A few common ones where it's an obvious choice are:
+
+{/* todo-docs: update these with links to example uses or (ideally) customer testimonials */}
+
+1. Agentic workflows, especially ones that require human-in-the-loop steps, which continuously spawn children, collect results, spawn more children, and so on, in a loop. Durable tasks are an obvious fit here, since the durable task can be replayed from where it left off without losing any of the progress that was made by the agent in the past, and without needing to e.g. replay the human-in-the-loop portions of the task, such as approvals or similar.
+2. Tasks that are hard to make idempotent, where we cannot replay part of the task once it's completed, such as something that involves sending an email to a customer, or updating a value in a table midway through.
+3. Dynamic workflows, where we build a DAG at runtime by selecting which child workflows to spawn based on the input to the durable task or the results of upstream checkpoints. This is particularly useful for powering tools like drag-and-drop DAG builders.
+
+## Learn More!
+
+There are lots of durable execution concepts and features to cover, and we're only just scratching the surface here! Check out our more detailed [durable execution documentation](/v1/patterns) to keep learning and building.
