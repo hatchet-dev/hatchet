@@ -5,6 +5,13 @@ import { describe, test } from 'node:test';
 
 const OtelStatusCode = { UNSET: 'UNSET', OK: 'OK', ERROR: 'ERROR' } as const;
 
+function isStepRunSpanName(c: { spanName: string }): boolean {
+  return (
+    c.spanName === 'hatchet.start_step_run' ||
+    c.spanName === 'hatchet.engine.start_step_run'
+  );
+}
+
 type Span = RelevantOpenTelemetrySpanProperties;
 
 function span(overrides: Partial<Span> & { spanId: string }): Span {
@@ -46,7 +53,7 @@ function engineStepRun(
   return span({
     spanId: `esr_${stepRunId}`,
     parentSpanId,
-    spanName: 'hatchet.start_step_run',
+    spanName: 'hatchet.engine.start_step_run',
     spanAttributes: {
       'hatchet.span_source': 'engine',
       'hatchet.step_run_id': stepRunId,
@@ -144,9 +151,7 @@ describe('convertOtelSpansToOtelSpanTree', () => {
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
-      const stepRuns = root.children.filter(
-        (c) => c.spanName === 'hatchet.start_step_run',
-      );
+      const stepRuns = root.children.filter((c) => isStepRunSpanName(c));
 
       assert.strictEqual(
         stepRuns.length,
@@ -168,9 +173,7 @@ describe('convertOtelSpansToOtelSpanTree', () => {
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
-      const stepRuns = root.children.filter(
-        (c) => c.spanName === 'hatchet.start_step_run',
-      );
+      const stepRuns = root.children.filter((c) => isStepRunSpanName(c));
 
       assert.strictEqual(stepRuns.length, 1);
       assert.strictEqual(
@@ -190,9 +193,7 @@ describe('convertOtelSpansToOtelSpanTree', () => {
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
       const root = tree[0];
-      const stepRun = root.children.find(
-        (c) => c.spanName === 'hatchet.start_step_run',
-      );
+      const stepRun = root.children.find((c) => isStepRunSpanName(c));
 
       assert.ok(stepRun, 'step run should exist');
       assert.ok(stepRun.queuedPhase, 'should have queuedPhase');

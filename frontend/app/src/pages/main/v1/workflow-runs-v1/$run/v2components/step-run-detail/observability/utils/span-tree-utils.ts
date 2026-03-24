@@ -1,3 +1,4 @@
+import { isStartStepRunSpan } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 
@@ -13,15 +14,6 @@ export function hasErrorInTree(span: OtelSpanTree): boolean {
 
 export function isEngineSpan(span: OtelSpanTree): boolean {
   return span.spanAttributes?.['hatchet.span_source'] === 'engine';
-}
-
-export function isEngineSurrogateParent(span: OtelSpanTree): boolean {
-  return (
-    isEngineSpan(span) &&
-    span.spanName === 'hatchet.start_step_run' &&
-    span.children.length > 0 &&
-    span.children.some((c) => !isEngineSpan(c))
-  );
 }
 
 export function isQueuedOnlyRoot(span: OtelSpanTree): boolean {
@@ -68,7 +60,7 @@ export function getDisplayName(span: OtelSpanTree): string {
 }
 
 export function getStableKey(span: OtelSpanTree): string {
-  return span.spanName === 'hatchet.start_step_run' &&
+  return isStartStepRunSpan(span) &&
     span.spanAttributes?.['hatchet.step_run_id']
     ? span.spanAttributes['hatchet.step_run_id']
     : span.spanId;

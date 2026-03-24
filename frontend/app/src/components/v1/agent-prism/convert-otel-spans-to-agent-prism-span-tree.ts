@@ -11,6 +11,7 @@ import invariant from 'tiny-invariant';
 
 const SPAN = {
   START_STEP_RUN: 'hatchet.start_step_run',
+  ENGINE_START_STEP_RUN: 'hatchet.engine.start_step_run',
   ENGINE_QUEUED: 'hatchet.engine.queued',
   RUN_WORKFLOW: 'hatchet.run_workflow',
   START_WORKFLOW: 'hatchet.start_workflow',
@@ -36,6 +37,13 @@ function getStepRunId(node: OtelSpanTree): string | undefined {
 
 function isEngineSpan(node: OtelSpanTree): boolean {
   return node.spanAttributes?.[ATTR.SPAN_SOURCE] === 'engine';
+}
+
+export function isStartStepRunSpan(node: OtelSpanTree): boolean {
+  return (
+    node.spanName === SPAN.START_STEP_RUN ||
+    node.spanName === SPAN.ENGINE_START_STEP_RUN
+  );
 }
 
 function removeByPredicate(
@@ -167,7 +175,7 @@ function deduplicateStepRunSpans(nodes: OtelSpanTree[]): void {
   >();
 
   for (const node of nodes) {
-    if (node.spanName !== SPAN.START_STEP_RUN) {
+    if (!isStartStepRunSpan(node)) {
       continue;
     }
     const stepRunId = getStepRunId(node);
@@ -209,7 +217,7 @@ function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
   if (queuedByStepRunId.size > 0) {
     const toRemove = new Set<string>();
     for (const node of nodes) {
-      if (node.spanName === SPAN.START_STEP_RUN) {
+      if (isStartStepRunSpan(node)) {
         const stepRunId = getStepRunId(node);
         if (stepRunId && queuedByStepRunId.has(stepRunId)) {
           node.queuedPhase = queuedByStepRunId.get(stepRunId);
@@ -239,7 +247,7 @@ function synthesizeInProgressSpans(
 ): void {
   const stepRunIds = new Set<string>();
   for (const node of nodes) {
-    if (node.spanName === SPAN.START_STEP_RUN) {
+    if (isStartStepRunSpan(node)) {
       const id = getStepRunId(node);
       if (id) {
         stepRunIds.add(id);
@@ -293,7 +301,7 @@ function buildStepRunIndex(
   index: Map<string, OtelSpanTree>,
 ): void {
   for (const node of nodes) {
-    if (node.spanName === SPAN.START_STEP_RUN) {
+    if (isStartStepRunSpan(node)) {
       const id = getStepRunId(node);
       if (id) {
         index.set(id, node);
@@ -395,7 +403,7 @@ function markRunningTaskSpans(
 
   const walk = (list: OtelSpanTree[]) => {
     for (const node of list) {
-      if (node.spanName === SPAN.START_STEP_RUN && isEngineSpan(node)) {
+      if (isStartStepRunSpan(node) && isEngineSpan(node)) {
         const id = getStepRunId(node);
         if (id && runningIds.has(id)) {
           node.inProgress = true;
@@ -749,3 +757,23 @@ export const convertOtelSpansToOtelSpanTree = (
 
   return wrapMultipleRoots(rootSpans, workflowRunTiming);
 };
+
+// ---------------------------------------------------------------------------
+// Subtree extraction for child-run views
+// ---------------------------------------------------------------------------
+
+export function findSubtreeByTaskRunId(
+  nodes: OtelSpanTree[],
+  taskRunId: string,
+): OtelSpanTree | undefined {
+  for (const node of nodes) {
+    if (getStepRunId(node) === taskRunId) {
+      return node;
+    }
+    const found = findSubtreeByTaskRunId(node.children, taskRunId);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}

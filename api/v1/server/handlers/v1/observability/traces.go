@@ -1,9 +1,6 @@
 package observability
 
 import (
-	"errors"
-
-	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -37,19 +34,13 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 		offset = 0
 	}
 
-	traceId, err := t.config.V1.OLAP().LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		return gen.V1ObservabilityGetTrace404JSONResponse(gen.APIErrors{
-			Errors: []gen.APIError{{Description: "Trace not found"}},
-		}), nil
-	} else if err != nil {
+	result, err := t.config.V1.OLAP().ListSpansForRun(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId, offset, limit)
+	if err != nil {
 		return nil, err
 	}
 
-	result, err := t.config.V1.OLAP().ListSpansByTraceId(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
-	if err != nil {
-		return nil, err
+	if len(result.Rows) == 0 {
+		return gen.V1ObservabilityGetTrace200JSONResponse(gen.OtelSpanList{}), nil
 	}
 
 	return gen.V1ObservabilityGetTrace200JSONResponse(transformers.ToV1OtelSpanList(result.Rows, nil, limit, offset, result.Total)), nil

@@ -76,9 +76,9 @@ func main() {
 			time.Sleep(3 * time.Second)
 			span.End()
 
-			if input.I == 10 {
-				return NotifyOutput{}, fmt.Errorf("test error")
-			}
+			// if input.I == 10 {
+			// 	return NotifyOutput{}, fmt.Errorf("test error")
+			// }
 
 			return NotifyOutput{
 				Delivered: true,
@@ -145,7 +145,7 @@ func main() {
 			chargeSpan.End()
 
 			paySpan.End()
-			return ChargePaymentOutput{}, fmt.Errorf("test error")
+			// return ChargePaymentOutput{}, fmt.Errorf("test error")
 
 			return ChargePaymentOutput{
 				TransactionID: fmt.Sprintf("txn-%s", validated.OrderID),

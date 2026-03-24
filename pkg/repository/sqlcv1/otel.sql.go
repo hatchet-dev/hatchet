@@ -230,6 +230,68 @@ func (q *Queries) ListSpansByTraceId(ctx context.Context, db DBTX, arg ListSpans
 	return items, nil
 }
 
+const listSpansByTraceIds = `-- name: ListSpansByTraceIds :many
+SELECT tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind, service_name, status_code, status_message, duration_ns, resource_attributes, span_attributes, scope_name, scope_version, task_run_external_id, workflow_run_external_id, retry_count, start_time
+FROM v1_otel_trace_olap
+WHERE
+    tenant_id = $1::UUID
+    AND trace_id = ANY($2::BYTEA[])
+ORDER BY start_time ASC
+OFFSET COALESCE($3::BIGINT, 0)
+LIMIT COALESCE($4::BIGINT, 1000)
+`
+
+type ListSpansByTraceIdsParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Traceids   [][]byte  `json:"traceids"`
+	Spanoffset int64     `json:"spanoffset"`
+	Spanlimit  int64     `json:"spanlimit"`
+}
+
+func (q *Queries) ListSpansByTraceIds(ctx context.Context, db DBTX, arg ListSpansByTraceIdsParams) ([]*V1OtelTraceOlap, error) {
+	rows, err := db.Query(ctx, listSpansByTraceIds,
+		arg.Tenantid,
+		arg.Traceids,
+		arg.Spanoffset,
+		arg.Spanlimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1OtelTraceOlap
+	for rows.Next() {
+		var i V1OtelTraceOlap
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.TraceID,
+			&i.SpanID,
+			&i.ParentSpanID,
+			&i.SpanName,
+			&i.SpanKind,
+			&i.ServiceName,
+			&i.StatusCode,
+			&i.StatusMessage,
+			&i.DurationNs,
+			&i.ResourceAttributes,
+			&i.SpanAttributes,
+			&i.ScopeName,
+			&i.ScopeVersion,
+			&i.TaskRunExternalID,
+			&i.WorkflowRunExternalID,
+			&i.RetryCount,
+			&i.StartTime,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lookUpTraceId = `-- name: LookUpTraceId :one
 WITH candidate_traces AS (
     SELECT tenant_id, external_id, retry_count, trace_id, start_time
@@ -256,4 +318,49 @@ func (q *Queries) LookUpTraceId(ctx context.Context, db DBTX, arg LookUpTraceIdP
 	var trace_id []byte
 	err := row.Scan(&trace_id)
 	return trace_id, err
+}
+
+const lookUpTraceIdsForRun = `-- name: LookUpTraceIdsForRun :many
+SELECT DISTINCT trace_id
+FROM (
+    SELECT trace_id
+    FROM v1_otel_trace_lookup_olap
+    WHERE
+        tenant_id = $1::UUID
+        AND external_id = $2::UUID
+    UNION
+    SELECT DISTINCT trace_id
+    FROM v1_otel_trace_olap
+    WHERE
+        tenant_id = $1::UUID
+        AND (
+            task_run_external_id = $2::UUID
+            OR workflow_run_external_id = $2::UUID
+        )
+) sub
+`
+
+type LookUpTraceIdsForRunParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Externalid uuid.UUID `json:"externalid"`
+}
+
+func (q *Queries) LookUpTraceIdsForRun(ctx context.Context, db DBTX, arg LookUpTraceIdsForRunParams) ([][]byte, error) {
+	rows, err := db.Query(ctx, lookUpTraceIdsForRun, arg.Tenantid, arg.Externalid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items [][]byte
+	for rows.Next() {
+		var trace_id []byte
+		if err := rows.Scan(&trace_id); err != nil {
+			return nil, err
+		}
+		items = append(items, trace_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -3,10 +3,8 @@ package olap
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -84,51 +82,21 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 
 	if err := olapRepo.CreateSpans(ctx, tenantId, opts); err != nil {
 		tc.l.Error().Ctx(ctx).Err(err).Msg("could not write engine spans")
-		return
-	}
-
-	if err := olapRepo.CreateSpanLookupTableEntries(ctx, tenantId, opts); err != nil {
-		tc.l.Error().Ctx(ctx).Err(err).Msg("could not write engine span lookup table entries")
 	}
 }
 
 func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e engineSpanEvent) *v1.SpanData {
-	traceID, parentSpanID := parseTraceparent(e.additionalMetadata)
-	if traceID == "" {
+	traceIDBytes := generateTraceID()
+	if traceIDBytes == nil {
 		return nil
 	}
 
-	spanID := generateSpanID()
-	if spanID == "" {
+	spanIDBytes := generateSpanIDBytes()
+	if spanIDBytes == nil {
 		return nil
 	}
 
-	traceIDBytes, err := hex.DecodeString(traceID)
-	if err != nil {
-		return nil
-	}
-	spanIDBytes, err := hex.DecodeString(spanID)
-	if err != nil {
-		return nil
-	}
-	var parentBytes []byte
-	if parentSpanID != "" {
-		parentBytes, _ = hex.DecodeString(parentSpanID)
-	}
-
-	attrs, _ := json.Marshal(map[string]string{
-		"hatchet.span_source":         "engine",
-		"hatchet.step_run_id":         e.externalID.String(),
-		"hatchet.workflow_run_id":     e.workflowRunID.String(),
-		"hatchet.step_name":           e.stepReadableID,
-		"hatchet.retry_count":         fmt.Sprintf("%d", e.retryCount),
-		"hatchet.action_id":           e.actionID,
-		"hatchet.task_name":           e.stepReadableID,
-		"hatchet.workflow_id":         e.workflowID.String(),
-		"hatchet.workflow_version_id": e.workflowVersionID.String(),
-		"hatchet.step_id":             e.stepID.String(),
-	})
-
+	attrs := buildEngineSpanAttributes(e)
 	resourceAttrs, _ := json.Marshal(map[string]string{
 		"service.name": "hatchet-engine",
 	})
@@ -140,7 +108,6 @@ func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e engineSpanEv
 		TenantID:             tenantId,
 		TraceID:              traceIDBytes,
 		SpanID:               spanIDBytes,
-		ParentSpanID:         parentBytes,
 		Name:                 "hatchet.engine.queued",
 		Kind:                 tracev1.Span_SPAN_KIND_INTERNAL,
 		StartTimeUnixNano:    safeUint64(e.insertedAt.UnixNano()),
@@ -190,13 +157,13 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 
 	var spans []*v1.SpanData
 	for _, e := range events {
-		traceID, parentSpanID := parseTraceparent(e.additionalMetadata)
-		if traceID == "" {
+		traceIDBytes := generateTraceID()
+		if traceIDBytes == nil {
 			continue
 		}
 
-		spanID := generateSpanID()
-		if spanID == "" {
+		spanIDBytes := generateSpanIDBytes()
+		if spanIDBytes == nil {
 			continue
 		}
 
@@ -222,32 +189,7 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 			}
 		}
 
-		traceIDBytes, err := hex.DecodeString(traceID)
-		if err != nil {
-			continue
-		}
-		spanIDBytes, err := hex.DecodeString(spanID)
-		if err != nil {
-			continue
-		}
-		var parentBytes []byte
-		if parentSpanID != "" {
-			parentBytes, _ = hex.DecodeString(parentSpanID)
-		}
-
-		attrs, _ := json.Marshal(map[string]string{
-			"hatchet.span_source":         "engine",
-			"hatchet.step_run_id":         e.externalID.String(),
-			"hatchet.workflow_run_id":     e.workflowRunID.String(),
-			"hatchet.step_name":           e.stepReadableID,
-			"hatchet.retry_count":         fmt.Sprintf("%d", e.retryCount),
-			"hatchet.action_id":           e.actionID,
-			"hatchet.task_name":           e.stepReadableID,
-			"hatchet.workflow_id":         e.workflowID.String(),
-			"hatchet.workflow_version_id": e.workflowVersionID.String(),
-			"hatchet.step_id":             e.stepID.String(),
-		})
-
+		attrs := buildEngineSpanAttributes(e)
 		resourceAttrs, _ := json.Marshal(map[string]string{
 			"service.name": "hatchet-engine",
 		})
@@ -259,8 +201,7 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 			TenantID:             tenantId,
 			TraceID:              traceIDBytes,
 			SpanID:               spanIDBytes,
-			ParentSpanID:         parentBytes,
-			Name:                 "hatchet.start_step_run",
+			Name:                 "hatchet.engine.start_step_run",
 			Kind:                 tracev1.Span_SPAN_KIND_INTERNAL,
 			StartTimeUnixNano:    safeUint64(startTime.UnixNano()),
 			EndTimeUnixNano:      safeUint64(e.eventTimestamp.UnixNano()),
@@ -278,27 +219,20 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 	return spans
 }
 
-func parseTraceparent(additionalMetadata []byte) (traceID, parentSpanID string) {
-	if len(additionalMetadata) == 0 {
-		return "", ""
-	}
-
-	var meta map[string]interface{}
-	if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
-		return "", ""
-	}
-
-	tp, ok := meta["traceparent"].(string)
-	if !ok || tp == "" {
-		return "", ""
-	}
-
-	parts := strings.SplitN(tp, "-", 4)
-	if len(parts) < 3 {
-		return "", ""
-	}
-
-	return parts[1], parts[2]
+func buildEngineSpanAttributes(e engineSpanEvent) []byte {
+	attrs, _ := json.Marshal(map[string]string{
+		"hatchet.span_source":         "engine",
+		"hatchet.step_run_id":         e.externalID.String(),
+		"hatchet.workflow_run_id":     e.workflowRunID.String(),
+		"hatchet.step_name":           e.stepReadableID,
+		"hatchet.retry_count":         fmt.Sprintf("%d", e.retryCount),
+		"hatchet.action_id":           e.actionID,
+		"hatchet.task_name":           e.stepReadableID,
+		"hatchet.workflow_id":         e.workflowID.String(),
+		"hatchet.workflow_version_id": e.workflowVersionID.String(),
+		"hatchet.step_id":             e.stepID.String(),
+	})
+	return attrs
 }
 
 func safeUint64(v int64) uint64 {
@@ -308,10 +242,18 @@ func safeUint64(v int64) uint64 {
 	return uint64(v) // nolint:gosec
 }
 
-func generateSpanID() string {
+func generateTraceID() []byte {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return nil
+	}
+	return b
+}
+
+func generateSpanIDBytes() []byte {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		return ""
+		return nil
 	}
-	return hex.EncodeToString(b)
+	return b
 }

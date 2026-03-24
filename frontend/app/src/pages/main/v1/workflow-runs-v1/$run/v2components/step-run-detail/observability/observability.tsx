@@ -2,6 +2,7 @@ import { TaskRunTrace } from './task-run-trace';
 import { isQueuedOnlyRoot } from './utils/span-tree-utils';
 import {
   convertOtelSpansToOtelSpanTree,
+  findSubtreeByTaskRunId,
   type TaskSummaryForSynthesis,
 } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
@@ -174,10 +175,19 @@ export const Observability = (props: ObservabilityProps) => {
       return null;
     }
 
+    // prune tree to only include the subtree for the focused task run
+    if (props.taskRunId) {
+      const subtree = findSubtreeByTaskRunId(trees, props.taskRunId);
+      if (subtree) {
+        subtree.inProgress = isRunning && !isQueuedOnlyRoot(subtree);
+        return [subtree];
+      }
+    }
+
     trees[0].inProgress = isRunning && !isQueuedOnlyRoot(trees[0]);
 
     return trees;
-  }, [traces, tasks, isRunning, workflowRunTiming]);
+  }, [traces, tasks, isRunning, workflowRunTiming, props.taskRunId]);
 
   const parsedQuery = useMemo(
     () => parseTraceQuery(queryString),
