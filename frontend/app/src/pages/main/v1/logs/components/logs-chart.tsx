@@ -137,12 +137,6 @@ export function LogsChart({ metrics, since, until, onZoom }: LogsChartProps) {
               }
             />
             <Bar
-              dataKey="DEBUG"
-              stackId="normal"
-              fill={CHART_CONFIG.DEBUG.color}
-              isAnimationActive={false}
-            />
-            <Bar
               dataKey="INFO"
               stackId="normal"
               fill={CHART_CONFIG.INFO.color}
@@ -153,12 +147,21 @@ export function LogsChart({ metrics, since, until, onZoom }: LogsChartProps) {
               stackId="normal"
               fill={CHART_CONFIG.WARN.color}
               isAnimationActive={false}
+              minPointSize={(value) => (value != null && value > 0 ? 2 : 0)}
+            />
+            <Bar
+              dataKey="DEBUG"
+              stackId="normal"
+              fill={CHART_CONFIG.DEBUG.color}
+              isAnimationActive={false}
+              minPointSize={(value) => (value != null && value > 0 ? 2 : 0)}
             />
             <Bar
               dataKey="ERROR"
               stackId="error"
               fill={CHART_CONFIG.ERROR.color}
               isAnimationActive={false}
+              minPointSize={(value) => (value != null && value > 0 ? 2 : 0)}
             />
 
             {refAreaLeft && refAreaRight && (

@@ -245,7 +245,13 @@ SELECT
     external_id,
     retry_count,
     workflow_id,
-    workflow_run_id
+    workflow_run_id,
+    additional_metadata,
+    step_readable_id,
+    action_id,
+    display_name,
+    workflow_version_id,
+    step_id
 FROM
     v1_task
 WHERE

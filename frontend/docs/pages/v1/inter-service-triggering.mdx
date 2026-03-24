@@ -5,7 +5,8 @@ import { snippets } from "@/lib/generated/snippets";
 
 ## Invoking Tasks From Other Services
 
-While Hatchet recommends importing your workflows and standalone tasks directly to use for triggering runs, this only works in a monorepo or similar setups where you have access to those objects. However, it's common to have a polyrepo, have code written in multiple languages, or otherwise not be able to import your workflows and standalone tasks directly. Hatchet provides first-class, type-safe support for handling these cases as well, with only minor code duplication, to allow you to trigger your tasks from anywhere in a type-safe way.
+While Hatchet recommends importing your workflows and standalone tasks directly to use for triggering runs, this only works in a monorepo or similar setups where you have access to those objects. However, it's common to have a polyrepo, have code written in multiple languages, or otherwise not be able to import your workflows and standalone tasks directly.
+Hatchet provides stub tasks for these cases, allowing you to trigger your tasks from anywhere in a type-safe way with only minor code duplication.
 
 ### Creating a "Stub" Task on your External Service (Recommended)
 
@@ -30,7 +31,7 @@ Consider a task with an implementation like this:
 
 <Snippet src={snippets.python.stubs.implementation.all} />
 
-To trigger this task from a separate service, for instance, in a microservices architecture, where the code is not shared, start by defining models that match the input and output types of the task defined above.
+To trigger this task from a separate service where the code is not shared, start by defining models that match the input and output types of the task defined above.
 
 <Snippet src={snippets.python.stubs.stub_trigger.define_models} />
 

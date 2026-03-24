@@ -20,8 +20,6 @@ function Main() {
   const { tenantId } = useCurrentTenantId();
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
-  const logsEnabled =
-    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const { toggleTheme, currentlyVisibleTheme } = useTheme();
   const { logoutMutation } = useUserUniverse();
