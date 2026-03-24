@@ -32,7 +32,6 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
@@ -41,7 +40,6 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -251,10 +249,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const executingRef = useRef(false);
   const search = useRunDetailSearch();
   const activeTab = search.tab ?? 'overview';
-  const { tenantId } = useCurrentTenantId();
-  const { featureFlags, isCloudEnabled } = useCloud(tenantId);
-  const logsEnabled =
-    isCloudEnabled && featureFlags?.['preview-tenant-logs'] === 'true';
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -348,11 +342,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             <TabsTrigger variant="underlined" value="observability">
               Observability
             </TabsTrigger>
-            {logsEnabled && (
-              <TabsTrigger variant="underlined" value="logs">
-                Logs
-              </TabsTrigger>
-            )}
+            <TabsTrigger variant="underlined" value="logs">
+              Logs
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="min-h-0 flex-1">
             <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
@@ -406,11 +398,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               workflowRunStartedAt={workflowRun.startedAt}
             />
           </TabsContent>
-          {logsEnabled && (
-            <TabsContent value="logs">
-              <WorkflowRunLogs taskExternalIds={taskExternalIds} />
-            </TabsContent>
-          )}
+          <TabsContent value="logs">
+            <WorkflowRunLogs taskExternalIds={taskExternalIds} />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
