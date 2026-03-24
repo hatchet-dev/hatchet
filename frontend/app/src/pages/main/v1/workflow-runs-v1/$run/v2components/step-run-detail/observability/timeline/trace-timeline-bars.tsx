@@ -1,4 +1,3 @@
-import { formatDuration } from '../utils/format-utils';
 import { GroupBar } from './group-bar';
 import { SpanBar } from './span-bar';
 import {
@@ -118,50 +117,6 @@ export const TimelineBars = memo(function TimelineBars({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden pr-10">
-      <div className="relative h-6 shrink-0">
-        {brushRange && (
-          <div
-            className="pointer-events-none absolute z-20 flex h-full items-center"
-            style={{
-              left: `${brushRange.lo * 100}%`,
-              width: `${(brushRange.hi - brushRange.lo) * 100}%`,
-            }}
-          >
-            <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
-              {formatDuration(timelineMaxMs * brushRange.lo + visOffsetMs)}
-            </span>
-            <div className="flex min-w-1 flex-1 items-center">
-              <svg
-                width="5"
-                height="6"
-                viewBox="0 0 5 6"
-                className="shrink-0 fill-primary"
-              >
-                <path d="M5 0L0 3L5 6Z" />
-              </svg>
-              <div className="h-px flex-1 bg-primary" />
-            </div>
-            <span className="shrink-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-medium leading-tight text-primary-foreground">
-              {formatDuration(timelineMaxMs * (brushRange.hi - brushRange.lo))}
-            </span>
-            <div className="flex min-w-1 flex-1 items-center">
-              <div className="h-px flex-1 bg-primary" />
-              <svg
-                width="5"
-                height="6"
-                viewBox="0 0 5 6"
-                className="shrink-0 fill-primary"
-              >
-                <path d="M0 0L5 3L0 6Z" />
-              </svg>
-            </div>
-            <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">
-              {formatDuration(timelineMaxMs * brushRange.hi + visOffsetMs)}
-            </span>
-          </div>
-        )}
-      </div>
-
       <div
         className="relative overflow-hidden"
         ref={barsRef}
