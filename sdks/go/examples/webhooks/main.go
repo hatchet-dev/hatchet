@@ -42,6 +42,7 @@ func main() {
 		},
 		hatchet.WithWorkflowEvents("stripe:payment_intent.succeeded"),
 	)
+	// !!
 
 	// > GitHub webhook task
 	type GitHubPRInput struct {
@@ -72,6 +73,7 @@ func main() {
 		},
 		hatchet.WithWorkflowEvents("github:pull_request:opened"),
 	)
+	// !!
 
 	// > Slack event subscription task
 	type SlackEventInput struct {
@@ -95,6 +97,7 @@ func main() {
 		},
 		hatchet.WithWorkflowEvents("slack:event:app_mention"),
 	)
+	// !!
 
 	// > Slack slash command task
 	type SlackCommandInput struct {
@@ -121,6 +124,7 @@ func main() {
 		},
 		hatchet.WithWorkflowEvents("slack:command:/deploy"),
 	)
+	// !!
 
 	// > Slack interaction task
 	type SlackInteractionInput struct {
@@ -146,6 +150,7 @@ func main() {
 		},
 		hatchet.WithWorkflowEvents("slack:interaction:block_actions"),
 	)
+	// !!
 
 	worker, err := client.NewWorker("webhook-worker",
 		hatchet.WithWorkflows(

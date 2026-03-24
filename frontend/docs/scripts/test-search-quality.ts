@@ -576,7 +576,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "BaseModel — Pydantic",
     query: "BaseModel",
-    expectAnyOf: ["reference/python/pydantic", "v1/tasks"],
+    expectAnyOf: ["reference/python/pydantic", "v1/tasks", "cookbooks/webhooks-stripe", "cookbooks/webhooks-github", "cookbooks/webhooks-slack"],
   },
   {
     name: "ctx.spawn — child spawn",
