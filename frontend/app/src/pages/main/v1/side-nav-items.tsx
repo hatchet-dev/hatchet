@@ -1,9 +1,5 @@
-import {
-  SideNavSection,
-  SideNavChild,
-} from '../../../components/v1/nav/side-nav';
+import { SideNavSection } from '../../../components/v1/nav/side-nav';
 import { appRoutes } from '@/router';
-import { BiMoon, BiSun } from 'react-icons/bi';
 import {
   RiPulseAiLine,
   RiFilterLine,
@@ -14,10 +10,18 @@ import {
   RiCpuLine,
   RiEqualizer3Line,
   RiFunctionLine,
-  RiToolsLine,
   RiPlayLargeLine,
   RiFileTextLine,
   RiOrganizationChart,
+  RiSunLine,
+  RiMoonLine,
+  RiSettings3Line,
+  RiKey2Line,
+  RiGithubLine,
+  RiTeamLine,
+  RiBillLine,
+  RiAlertLine,
+  RiServerLine,
 } from 'react-icons/ri';
 
 export function sideNavItems(opts: {
@@ -29,44 +33,6 @@ export function sideNavItems(opts: {
   currentlyVisibleTheme: 'light' | 'dark';
 }): SideNavSection[] {
   const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
-
-  const settingsChildren: SideNavChild[] = [
-    {
-      key: 'tenant-settings-overview',
-      name: 'Overview',
-      to: appRoutes.tenantSettingsOverviewRoute.to,
-    },
-    {
-      key: 'tenant-settings-api-tokens',
-      name: 'API Tokens',
-      to: appRoutes.tenantSettingsApiTokensRoute.to,
-    },
-    {
-      key: 'tenant-settings-github',
-      name: 'GitHub',
-      to: appRoutes.tenantSettingsGithubRoute.to,
-    },
-    {
-      key: 'tenant-settings-members',
-      name: 'Members',
-      to: appRoutes.tenantSettingsMembersRoute.to,
-    },
-    {
-      key: 'tenant-settings-billing-and-limits',
-      name: billingLabel,
-      to: appRoutes.tenantSettingsBillingRoute.to,
-    },
-    {
-      key: 'tenant-settings-alerting',
-      name: 'Alerting',
-      to: appRoutes.tenantSettingsAlertingRoute.to,
-    },
-    {
-      key: 'tenant-settings-ingestors',
-      name: 'Ingestors',
-      to: appRoutes.tenantSettingsIngestorsRoute.to,
-    },
-  ];
 
   return [
     {
@@ -318,31 +284,86 @@ export function sideNavItems(opts: {
       itemsClassName: 'space-y-1',
       items: [
         {
-          key: 'tenant-settings',
-          name: 'General',
+          key: 'tenant-settings-overview',
+          name: 'Overview',
           to: appRoutes.tenantSettingsOverviewRoute.to,
-          displayAsActiveWhenThisRouteIsMatched:
-            appRoutes.tenantSettingsIndexRoute.to,
-          activeFuzzy: true,
-          prefix: appRoutes.tenantSettingsIndexRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiToolsLine
+            <RiSettings3Line
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
-          children: settingsChildren,
+        },
+        {
+          key: 'tenant-settings-api-tokens',
+          name: 'API Tokens',
+          to: appRoutes.tenantSettingsApiTokensRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiKey2Line
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'tenant-settings-github',
+          name: 'GitHub',
+          to: appRoutes.tenantSettingsGithubRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiGithubLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'tenant-settings-members',
+          name: 'Members',
+          to: appRoutes.tenantSettingsMembersRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiTeamLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'tenant-settings-billing-and-limits',
+          name: billingLabel,
+          to: appRoutes.tenantSettingsBillingRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiBillLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'tenant-settings-alerting',
+          name: 'Alerting',
+          to: appRoutes.tenantSettingsAlertingRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiAlertLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'tenant-settings-ingestors',
+          name: 'Ingestors',
+          to: appRoutes.tenantSettingsIngestorsRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiServerLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
         },
         {
           key: 'theme',
           name: `Theme: ${opts.currentlyVisibleTheme === 'dark' ? 'Dark' : 'Light'}`,
           onClick: opts.onToggleTheme,
           icon: ({ collapsed }: { collapsed: boolean }) =>
-            opts.currentlyVisibleTheme === 'dark' ? (
-              <BiSun
+            opts.currentlyVisibleTheme === 'light' ? (
+              <RiSunLine
                 className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
               />
             ) : (
-              <BiMoon
+              <RiMoonLine
                 className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
               />
             ),

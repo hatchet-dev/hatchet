@@ -491,6 +491,7 @@ export function SideNav({
                             name={item.name}
                             icon={item.icon({ collapsed: false })}
                             onClick={item.onClick}
+                            muted
                           />
                         ) : (
                           <SidebarButtonPrimary
