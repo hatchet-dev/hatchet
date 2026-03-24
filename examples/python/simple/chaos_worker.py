@@ -11,7 +11,7 @@ from pathlib import Path
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 FAILURE_LOG = Path(__file__).parent / "failures.log"
 
