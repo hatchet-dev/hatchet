@@ -4,7 +4,18 @@ import { isQueuedOnly, statusLabel } from './utils/span-tree-utils';
 import { useLiveClock } from './utils/use-live-clock';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import { Card } from '@/components/v1/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
@@ -31,14 +42,14 @@ function FilterWithBadgeIcon({
   );
 }
 
-function statusDotColor(code: string): string {
+function statusBadgeVariant(code: string): 'successful' | 'failed' | 'queued' {
   if (code === OtelStatusCode.ERROR) {
-    return 'bg-red-500';
+    return 'failed';
   }
   if (code === OtelStatusCode.OK) {
-    return 'bg-green-500';
+    return 'successful';
   }
-  return 'bg-slate-500';
+  return 'queued';
 }
 
 interface ChildError {
@@ -132,20 +143,23 @@ function AttrTable({
       <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         {title}
       </h4>
-      <div className="overflow-hidden rounded-md border border-border">
-        <table className="w-full text-xs">
-          <tbody>
+      <div className="overflow-hidden rounded-md border border-border bg-background">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Key</TableHead>
+              <TableHead>Value</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {entries.map(([key, value]) => {
               const active = isFilterActive(activeFilters, key, value);
               return (
-                <tr
-                  key={key}
-                  className="group border-b border-border last:border-b-0 transition-colors hover:bg-muted/50"
-                >
-                  <td className="whitespace-nowrap px-3 py-1.5 font-mono text-muted-foreground">
+                <TableRow key={key} className="group">
+                  <TableCell className="whitespace-nowrap font-mono text-muted-foreground">
                     {key}
-                  </td>
-                  <td className="break-all px-3 py-1.5 font-mono text-foreground">
+                  </TableCell>
+                  <TableCell className="break-all font-mono">
                     <span className="flex items-center justify-between gap-2">
                       <span>{value}</span>
                       {(onAddFilter || onRemoveFilter) && (
@@ -177,12 +191,12 @@ function AttrTable({
                         </Button>
                       )}
                     </span>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -221,12 +235,12 @@ export function SpanDetail({
   }
 
   const status = queuedOnlySpan
-    ? { label: 'Queued', dot: 'bg-yellow-500' }
+    ? { label: 'Queued', variant: 'queued' as const }
     : span.inProgress
-      ? { label: 'In Progress', dot: 'bg-blue-500' }
+      ? { label: 'In Progress', variant: 'inProgress' as const }
       : {
           label: statusLabel(span.statusCode),
-          dot: statusDotColor(span.statusCode),
+          variant: statusBadgeVariant(span.statusCode),
         };
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
   const taskRunId = span.spanAttributes?.['hatchet.step_run_id'];
@@ -256,7 +270,7 @@ export function SpanDetail({
   }, [span]);
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
+    <Card className="flex flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="truncate font-mono text-sm font-semibold text-foreground">
@@ -310,11 +324,8 @@ export function SpanDetail({
         </div>
         <div>
           <span className="text-xs text-muted-foreground">Status</span>
-          <div className="mt-0.5 flex items-center gap-1.5">
-            <span className={cn('size-2 shrink-0 rounded-full', status.dot)} />
-            <span className="font-mono text-sm text-foreground">
-              {status.label}
-            </span>
+          <div className="mt-0.5">
+            <Badge variant={status.variant}>{status.label}</Badge>
           </div>
         </div>
         <div>
@@ -326,37 +337,36 @@ export function SpanDetail({
       </div>
 
       {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
-          <span className="text-xs font-medium text-red-400">
-            Error Message
-          </span>
-          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-300">
-            {span.statusMessage}
-          </pre>
-        </div>
+        <Alert variant="destructive">
+          <AlertTitle>Error Message</AlertTitle>
+          <AlertDescription>
+            <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+              {span.statusMessage}
+            </pre>
+          </AlertDescription>
+        </Alert>
       )}
 
       {childErrors.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-red-400">
-            {childErrors.length === 1
-              ? '1 Error'
-              : `${childErrors.length} Errors`}{' '}
-            in child spans
-          </h4>
           {childErrors.map((err, i) => (
             <button
               key={i}
               type="button"
-              className="w-full rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-left transition-colors hover:border-red-500/50 hover:bg-red-500/15"
+              className="w-full text-left"
               onClick={() => onSpanSelect?.(err.span)}
             >
-              <span className="text-xs font-medium text-red-400">
-                {err.spanName}
-              </span>
-              <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-300">
-                {err.message}
-              </pre>
+              <Alert
+                variant="destructive"
+                className="transition-colors hover:bg-destructive/10"
+              >
+                <AlertTitle>{err.spanName}</AlertTitle>
+                <AlertDescription>
+                  <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                    {err.message}
+                  </pre>
+                </AlertDescription>
+              </Alert>
             </button>
           ))}
         </div>
@@ -380,7 +390,7 @@ export function SpanDetail({
           />
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -398,7 +408,7 @@ export function GroupDetail({
   const maxMs = Math.max(...durations);
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
+    <Card className="flex flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="truncate font-mono text-sm font-semibold text-foreground">
@@ -453,6 +463,6 @@ export function GroupDetail({
           </p>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
