@@ -33,10 +33,7 @@ COPY --from=frontend-build /app/dist /usr/share/nginx/html
 # Make entrypoint script executable
 RUN chmod +x ./entrypoint.sh
 
-# Create non-root user for Kubernetes Pod Security Standards compliance.
-# Image defaults to root for backward compatibility (nginx requires root for port 80).
-# For non-root nginx, consider nginxinc/nginx-unprivileged:alpine in a future major version.
-RUN addgroup -S hatchet && adduser -S -G hatchet -H -s /sbin/nologin -u 1000 hatchet
+# TODO: switch to nginx-unprivileged to enable non-root operation
 
 EXPOSE 80
 

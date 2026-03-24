@@ -26,14 +26,14 @@ FROM alpine:3.21
 
 WORKDIR /app
 
-COPY --from=build /app/dist ./dist
-COPY --from=staticfileserver /app/hatchet-staticfileserver ./hatchet-staticfileserver
-
 # Create non-root user for Kubernetes Pod Security Standards compliance.
 # Image defaults to root for backward compatibility. To run as non-root,
 # set securityContext.runAsUser: 1000 in your Kubernetes pod spec or
 # pass --user 1000 to docker run.
 RUN addgroup -S hatchet && adduser -S -G hatchet -H -s /sbin/nologin -u 1000 hatchet
+
+COPY --from=build /app/dist ./dist
+COPY --chown=hatchet:hatchet --from=staticfileserver /app/hatchet-staticfileserver ./hatchet-staticfileserver
 
 EXPOSE 80
 
