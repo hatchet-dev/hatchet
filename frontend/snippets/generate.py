@@ -186,14 +186,6 @@ def process_examples() -> list[ProcessedExample]:
     return examples
 
 
-GUIDES_LANG_TO_CTX: dict[str, SDKParsingContext] = {
-    "python": SDKParsingContext.PYTHON,
-    "typescript": SDKParsingContext.TYPESCRIPT,
-    "go": SDKParsingContext.GO,
-    "ruby": SDKParsingContext.RUBY,
-}
-
-
 def create_snippet_tree(examples: list[ProcessedExample]) -> dict[str, dict[str, Any]]:
     tree: dict[str, Any] = {}
 
@@ -238,9 +230,6 @@ def clean_example_content(content: str, comment_prefix: str) -> str:
             if not is_excluded_line(line, comment_prefix)
         ]
     )
-
-
-GUIDES_OUTPUT = "examples"
 
 
 def _read_sdk_version(lang: str) -> str:
