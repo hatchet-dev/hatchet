@@ -434,7 +434,7 @@ export function TaskRunTrace({
   return (
     <div
       ref={containerRef}
-      className="my-4 flex min-w-0 flex-col gap-4"
+      className="my-4 flex min-w-0 select-none flex-col gap-4"
       style={containerHeight ? { height: containerHeight } : undefined}
     >
       <div
