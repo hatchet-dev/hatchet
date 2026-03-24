@@ -59,6 +59,18 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     await ref.aio_result()
 
     spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
+
+    assert len(spans) == 5, (
+        "five spans: hatchet.run_workflow, hatchet.engine.queued, 2x hatchet.start_step_run, custom.child.span"
+    )
+
+    assert {s.span_name for s in spans} == {
+        "hatchet.run_workflow",
+        "hatchet.engine.queued",
+        "hatchet.start_step_run",
+        "custom.child.span",
+    }
+
     step_run_spans = [s for s in spans if s.span_name == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 1
 
@@ -109,6 +121,8 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
         == otel_simple_task.name
     )
 
+    assert False
+
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
@@ -135,6 +149,17 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     assert run_id is not None, "Event-triggered run did not complete in time."
 
     spans = await asyncio.to_thread(poll_for_trace, hatchet, run_id)
+
+    assert len(spans) == 5, (
+        "five spans: hatchet.push_event, hatchet.engine.queued, 2x hatchet.start_step_run, custom.child.span"
+    )
+
+    assert {s.span_name for s in spans} == {
+        "hatchet.push_event",
+        "hatchet.engine.queued",
+        "hatchet.start_step_run",
+        "custom.child.span",
+    }
 
     push_event_spans = [s for s in spans if s.span_name == "hatchet.push_event"]
 
@@ -180,6 +205,41 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     spans = await asyncio.to_thread(
         poll_for_trace, hatchet, ref.workflow_run_id, min_spans=4
     )
+
+    assert len(spans) == 24, """
+        24 spans:
+            - hatchet.run_workflow
+            - 4x hatchet.engine.queued
+            - 2x hatchet.start_step_run for each of the 4 tasks (8 total)
+            - db.query
+            - transform.pipeline
+            - transform.normalize
+            - http.request
+            - schema.validate
+            - transform.enrich
+            - data.clean
+            - transform.aggregate
+            - cache.invalidate
+            - notification.send
+            - json.parse
+        """
+
+    assert {s.span_name for s in spans} == {
+        "hatchet.run_workflow",
+        "hatchet.engine.queued",
+        "hatchet.start_step_run",
+        "db.query",
+        "transform.pipeline",
+        "transform.normalize",
+        "http.request",
+        "schema.validate",
+        "transform.enrich",
+        "data.clean",
+        "transform.aggregate",
+        "cache.invalidate",
+        "notification.send",
+        "json.parse",
+    }
 
     step_run_spans = [s for s in spans if s.span_name == "hatchet.start_step_run"]
     step_names = {
@@ -238,6 +298,23 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
     await ref.aio_result()
 
     spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
+
+    assert len(spans) == 10, """
+        10 spans:
+            - 2x hatchet.run_workflow (one for parent, one for child)
+            - 2x hatchet.engine.queued (one for parent, one for child)
+            - 4x hatchet.start_step_run for parent and child (2 each)
+            - spawn.child
+            - custom.child.span
+    """
+
+    assert {s.span_name for s in spans} == {
+        "hatchet.run_workflow",
+        "hatchet.engine.queued",
+        "hatchet.start_step_run",
+        "spawn.child",
+        "custom.child.span",
+    }
 
     step_run_spans = [s for s in spans if s.span_name == "hatchet.start_step_run"]
     assert len(step_run_spans) >= 1
