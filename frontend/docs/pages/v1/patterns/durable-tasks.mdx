@@ -11,7 +11,11 @@ A durable task is a task that is comprised exclusively of durable execution prim
 Use durable tasks when the shape of work is not known upfront, when parts of the task are hard to make idempotent, or when execution might be interrupted and resumed later. Common examples are agentic loops (often with human-in-the-loop steps), dynamic workflows that choose child workflows at runtime, and long waits that should not hold worker slots. They can also be very simple: sleep, then continue; or wait for an event, then exit.
 
 <Callout type="warning">
-  Durable tasks must only either call methods on the durable context or spawn children, and they must be deterministic given the event history. For example, you should _not_ directly access your database or an external API, or generate random numbers and use them for control flow inside of a durable task. Have your durable task spawn children to do this sort of work instead.
+  Durable tasks must only either call methods on the durable context or spawn
+  children, and they must be deterministic given the event history. For example,
+  you should _not_ directly access your database or an external API, or generate
+  random numbers and use them for control flow inside of a durable task. Have
+  your durable task spawn children to do this sort of work instead.
 </Callout>
 
 ## When to use durable tasks
