@@ -6,31 +6,29 @@ import LongWaitDiagram from "@/components/LongWaitDiagramWrapper";
 
 # Sleep & Delays
 
-Sleep pauses a task for a specified duration while freeing the worker slot. No resources are consumed during the wait, whether the pause lasts seconds or weeks.
+When a task needs to pause, Hatchet can free the worker slot for the duration of the wait — whether that is a few seconds or a few weeks. No resources are held while the task is sleeping.
 
 <LongWaitDiagram />
 
-Both durable tasks and DAGs support sleeping, but the API differs: durable tasks call `SleepFor` dynamically at runtime, while DAGs declare a sleep condition upfront on the task definition.
+Both durable tasks and DAGs support sleeping, but the model differs: durable tasks issue sleep waits dynamically at runtime, while DAGs declare sleep conditions upfront on the task definition.
 
 <UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
 <Tabs.Tab title="Durable Tasks">
 
-## Durable Sleep
+## Durable sleep
 
-Durable sleep pauses execution for a specified amount of time and frees the worker slot until the sleep expires.
+With a regular language-level sleep — `time.sleep` in Python, `setTimeout` in Node — the wait is tied to the local process. If the process restarts mid-sleep, the clock resets and you end up sleeping the full duration again. Sleep for 24 hours, restart after 23, and you've waited 47 hours total.
+
+Durable sleep tracks the original deadline server-side. If a task sleeping for 24 hours is interrupted after 23, it only sleeps for 1 more hour on restart. The deadline is respected across interruptions.
 
 <Callout type="info">
-  Sleeping puts the task into an [evictable state](/v1/task-eviction), the
+  Sleeping puts the task into an [evictable state](/v1/task-eviction) — the
   worker slot is freed and the task is re-queued when the sleep expires.
 </Callout>
 
-Unlike a language-level sleep (e.g. `time.sleep` in Python or `setTimeout` in Node), durable sleep is guaranteed to respect the original duration across interruptions. A language-level sleep ties the wait to the local process, so if the process restarts, the sleep starts over from zero.
-
-For example, say you'd like to send a notification to a user after 24 hours. With `time.sleep`, if the task is interrupted after 23 hours, it will restart and sleep for 24 hours again (47 hours total). With durable sleep, Hatchet tracks the original deadline server-side, so the task will only sleep for 1 more hour on restart.
-
 ### Using durable sleep
 
-Durable sleep can be used by calling the `SleepFor` method on the `DurableContext` object. This method takes a duration as an argument and will sleep for that duration.
+In a durable task, call the language-specific sleep helper in your SDK to start a durable wait for a duration.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -56,15 +54,15 @@ Durable sleep can be used by calling the `SleepFor` method on the `DurableContex
 </Tabs.Tab>
 <Tabs.Tab title="DAGs">
 
-## Sleep Conditions
+## Sleep conditions
 
 Sleep conditions pause a DAG task for a specified duration before it runs. Use them when a task should wait for a fixed amount of time after its parent tasks complete.
 
-Unlike durable sleep (which is called dynamically at runtime), DAG sleep conditions are declared upfront on the task definition. Both free the worker slot during the wait.
+Unlike durable sleep (which is triggered dynamically at runtime), DAG sleep conditions are declared upfront on the task definition. Both free the worker slot during the wait. See [Worker Slots & Waiting](/v1/task-eviction) for details.
 
 ### Using sleep conditions
 
-Declare a task with a `wait_for` sleep condition. The task will wait for its parent tasks to complete, then sleep for the specified duration before executing.
+Declare a task with a `wait_for` sleep condition. The task will wait for its parents to complete, then sleep for the specified duration before executing.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -90,7 +88,9 @@ This task will first wait for its parent to complete, then sleep for the specifi
 
 ### Combining with other conditions
 
-Sleep conditions can be combined with other conditions using or groups. For example, you can wait for _either_ a sleep duration or an event (whichever comes first). See [Combining Conditions](/v1/conditions#or-groups) for details.
+Sleep conditions can be combined with other conditions using or groups. For example, you can wait for _either_ a sleep duration or an event — whichever comes first. See [Conditions & Branching](/v1/conditions#or-groups) for details.
+
+If you're new to replay-safe waiting semantics, see [Introduction to Durable Execution](/v1/durable-execution).
 
 </Tabs.Tab>
 </UniversalTabs>

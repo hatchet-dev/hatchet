@@ -47,15 +47,15 @@ export default {
     type: "separator",
   },
   patterns: {
-    title: "Patterns",
+    title: "Workflow Design",
     theme: { collapsed: true },
   },
   "child-spawning": "Child Spawning",
-  sleep: "Sleep & Delays",
+  sleep: "Sleeps",
   events: "Wait For Events",
   conditions: "Conditions & Branching",
   "on-failure": "Error Handling",
-  "task-eviction": "Resource Management",
+  "task-eviction": "Worker Slots & Waiting",
   "--workers-section": {
     title: "Workers",
     type: "separator",

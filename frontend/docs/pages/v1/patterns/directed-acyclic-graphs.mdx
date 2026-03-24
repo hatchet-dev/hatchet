@@ -5,13 +5,15 @@ import UniversalTabs from "@/components/UniversalTabs";
 import WorkflowDiagram from "@/components/WorkflowDiagram";
 import PipelineDiagram from "@/components/PipelineDiagram";
 
-# Declarative Workflow Design (DAGs)
+# DAG Workflows
 
-Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each task is a node in the graph, and the dependencies between tasks are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies.
+If you know every step your workflow will take before it starts, use a DAG workflow. You declare tasks and dependencies upfront, and Hatchet handles the rest — execution order, parallelism for independent tasks, passing outputs downstream, and dashboard visibility.
+
+"DAG" stands for Directed Acyclic Graph. In practice, you do not need to think about graph theory here; you just declare task dependencies, and Hatchet figures out the execution order.
 
 <WorkflowDiagram />
 
-## How DAG Workflows Work
+## How it works
 
 <Steps>
 
@@ -33,7 +35,7 @@ Every task execution is tracked in the dashboard — inputs, outputs, durations,
 
 </Steps>
 
-## Defining a Workflow
+## Defining a workflow
 
 Start by declaring a workflow with a name. The workflow object can declare additional workflow-level configuration options which we'll cover later.
 
@@ -66,11 +68,11 @@ The returned object is an instance of the `Workflow` class, which is the primary
   applied at the task level.
 </Callout>
 
-## Defining a Task
+## Defining a task
 
-Now that we have a workflow, we can define a task to be executed as part of the workflow. Tasks are defined by calling the `task` method on the workflow object.
+Now that we have a workflow, we can add tasks to it. Tasks are defined by calling the `task` method on the workflow object.
 
-The `task` method takes a name and a function that defines the task's behavior. The function will receive the workflow's input and return the task's output. Tasks also accept a number of other configuration options, which are covered elsewhere in our documentation.
+Each task takes a name and a function. The function receives the workflow's input and returns the task's output. Tasks also accept a number of configuration options — retry policies, timeouts, concurrency settings, and so on — which are covered elsewhere in the docs.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -108,9 +110,9 @@ asynchronous.
   </Tabs.Tab>
 </UniversalTabs>
 
-## Building a DAG with Task Dependencies
+## Adding task dependencies
 
-The power of Hatchet's workflow design comes from connecting tasks into a DAG structure. Tasks can specify dependencies (parents) which must complete successfully before the task can start.
+The real power of a DAG workflow comes from connecting tasks. A task can declare which other tasks it depends on — those tasks must complete before this one starts. Outputs from parent tasks are automatically available in child tasks.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -133,9 +135,9 @@ The power of Hatchet's workflow design comes from connecting tasks into a DAG st
   </Tabs.Tab>
 </UniversalTabs>
 
-## Accessing Parent Task Outputs
+## Accessing parent task outputs
 
-As shown in the examples above, tasks can access outputs from their parent tasks using the context object:
+Tasks can read the output of their parent tasks from the context object:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -163,9 +165,9 @@ if err != nil {
   </Tabs.Tab>
 </UniversalTabs>
 
-## Running a Workflow
+## Running a workflow
 
-You can run workflows directly or enqueue them for asynchronous execution. All the same methods for running a task are available for workflows!
+You trigger a workflow the same way you'd trigger a standalone task — run and wait for a result, or enqueue it and let it run in the background.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -196,8 +198,8 @@ runID, err := simple.RunNoWait(ctx, input)
   </Tabs.Tab>
 </UniversalTabs>
 
-## Pre-Determined Pipelines
+## Fixed pipelines
 
-DAGs naturally model fixed multi-stage pipelines where the sequence of tasks and their dependencies are known before execution. ETL workflows, document processing pipelines, and CI/CD workflows all follow this pattern: each stage depends on the previous, and the overall structure is visible and predictable in the dashboard.
+DAGs naturally model multi-stage pipelines where every step is known ahead of time. ETL workflows, document processing pipelines, and CI/CD workflows are all good examples — each stage depends on the previous one, and the overall structure is visible and predictable in the dashboard.
 
 <PipelineDiagram />

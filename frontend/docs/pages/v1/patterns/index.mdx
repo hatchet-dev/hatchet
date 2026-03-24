@@ -1,9 +1,11 @@
 import { Callout } from "nextra/components";
 
-# Durable Workflow Patterns
+# Workflow Design
 
-Hatchet supports several patterns for building durable workflows. Choose the pattern that best fits your use case:
+There are two ways to build durable workflows in Hatchet: **DAGs** and **durable tasks**.
 
-- [**Durable Execution**](./patterns/durable-task-execution) - Run long-lived tasks with automatic checkpointing and recovery.
-- [**DAGs (Directed Acyclic Graphs)**](./patterns/directed-acyclic-graphs) - Orchestrate complex multi-step workflows with dependencies between tasks.
-- [**Best Practices**](./patterns/mixing-patterns) - Guidelines for combining and choosing between patterns.
+The short version: if you know every step your workflow will take before it starts, use a DAG. If the shape of your work is decided at runtime — based on inputs, model responses, or intermediate results — use a durable task. You can freely mix both in the same application.
+
+- [**Durable Tasks**](./durable-tasks) — Tasks that use durable execution primitives (waits + child spawning) with checkpointing and replay.
+- [**DAG Workflows**](./directed-acyclic-graphs) — Fixed multi-step workflows where every task and dependency is declared upfront.
+- [**Choosing an Approach**](./mixing-patterns) — Practical guidance on when to use each approach, and how to combine them.

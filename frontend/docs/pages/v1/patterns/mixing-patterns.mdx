@@ -1,12 +1,10 @@
 import { Callout } from "nextra/components";
 
-# Best Practices
+# Choosing an Approach
 
-## Choosing a Pattern
+The short answer: use a **DAG** for work whose shape you know upfront, and use a **durable task** for the parts that need runtime decisions. You can mix both in the same app — even in the same workflow.
 
-Use a **DAG** for any portion of work whose shape you know upfront, and use a **durable task** to orchestrate the parts whose shape is dynamic. You can mix them freely within the same application and even within the same workflow.
-
-| Scenario                                       | Pattern                                      |
+| Scenario                                       | What to use                                  |
 | ---------------------------------------------- | -------------------------------------------- |
 | Fixed pipeline, every step is known            | DAG                                          |
 | Fixed pipeline, but one step needs a long wait | DAG with a durable task node                 |
@@ -14,15 +12,28 @@ Use a **DAG** for any portion of work whose shape you know upfront, and use a **
 | Fully dynamic, shape decided at runtime        | Durable task spawning tasks/durable tasks    |
 | Agent that reasons and acts in a loop          | Durable task spawning children per iteration |
 
-[DAGs](/v1/patterns/directed-acyclic-graphs) are inherently deterministic, since their shape is predefined and intermediate results are cached. If your workflow can be represented as a DAG, prefer that. Reach for a durable task only when you need capabilities a static graph can't express.
+[DAGs](/v1/patterns/directed-acyclic-graphs) are simpler to reason about because the shape is predefined and intermediate results are cached. If your workflow can be expressed as a DAG, start there. Reach for a durable task when a static graph cannot express what you need.
 
 <Callout type="info">
-  You don't have to choose one pattern for your entire application. Different
+  You don't have to pick one approach for your whole application. Different
   workflows can use different patterns, and a single workflow can mix them.
-  Start with the simplest pattern that fits and add complexity only when needed.
+  Start with the simplest thing that fits and add complexity only when you need
+  it.
 </Callout>
 
-## Mixing Patterns
+## Determinism in durable tasks
+
+One important thing to keep in mind when writing durable tasks: the code between checkpoints must be deterministic. When a task is evicted and resumed, Hatchet replays the durable event log to rebuild state — it doesn't re-execute completed operations, but it does re-run the code path that led to each checkpoint.
+
+This means a few things in practice:
+
+- **Base decisions on checkpoint outputs**, not on external state that might change between runs (wall-clock time, database reads, random values). If a branch is taken on the first run, it must be taken again on replay.
+- **Don't read outside state mid-function** in ways that assume a particular value that may differ between runs.
+- **Push side effects into child tasks**. If you need to call external APIs, databases, or other services, do it in child tasks and wait on their results.
+
+If you're ever unsure whether something is safe, ask yourself: "If this task was interrupted and replayed from the last checkpoint, would this code produce the same result?" If yes, you're fine.
+
+## Combining both
 
 ### A durable task inside a DAG
 
@@ -78,13 +89,3 @@ graph TD
 ```
 
 This pattern is ideal for agent-based systems where each level of the tree decides what to do next. Each durable task in the tree can sleep, wait for events, or spawn more children, and none of them hold a worker slot while waiting.
-
-## Determinism in Durable Tasks
-
-Durable tasks must be **deterministic** between checkpoints. The task should always perform the same sequence of operations in between retries. This is what allows Hatchet to replay the task from the last checkpoint. If a task is not deterministic, it may produce different results on each retry, which can lead to unexpected behavior.
-
-### Rules for determinism
-
-1. **Only call methods available on the `DurableContext`**: a common way to introduce non-determinism is to call methods that produce side effects. If you need to fetch data from a database, call an API, or otherwise interact with external systems, spawn those operations as a **child task** using `RunChild`. Durable tasks are [evicted](/v1/task-eviction) at every wait point and replayed from checkpoint on resume. Any side effect not behind a checkpoint will re-execute.
-
-2. **When updating durable tasks, always guarantee backwards compatibility**: if you change the order of checkpoint operations in a durable task, you may break determinism. For example, if you call `SleepFor` followed by `WaitFor`, and then change the order of those calls, Hatchet will not be able to replay the task correctly. The task may have already been checkpointed at the first call to `SleepFor`, and changing the order makes that checkpoint meaningless.

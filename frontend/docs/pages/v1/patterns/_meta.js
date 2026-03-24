@@ -1,6 +1,6 @@
 export default {
   index: { display: "hidden" },
-  "durable-task-execution": "Durable Execution",
+  "durable-tasks": "Durable Tasks",
   "directed-acyclic-graphs": "DAGs",
-  "mixing-patterns": "Best Practices",
+  "mixing-patterns": "Choosing a Pattern",
 };
