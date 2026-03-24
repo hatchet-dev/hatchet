@@ -45,9 +45,11 @@ type tenantManager struct {
 	strategyIdsToParentIds *lru.Cache[int64, int64]
 	parentIdsToStrategyIds *lru.Cache[int64, []int64]
 
-	concurrencyMu           sync.RWMutex
-	concurrencyAdvisoryLock *timeout_lock.KeyedTimeoutLock[int64]
-	leaseManager            *LeaseManager
+	concurrencyMu                 sync.RWMutex
+	concurrencyAdvisoryLock       *timeout_lock.KeyedTimeoutLock[int64]
+	concurrencyParentAdvisoryLock *timeout_lock.KeyedTimeoutLock[int64]
+
+	leaseManager *LeaseManager
 
 	workersCh     notifierCh[*v1.ListActiveWorkersResult]
 	queuesCh      notifierCh[string]
@@ -71,20 +73,21 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 	parentIdsToStrategyIds, _ := lru.New[int64, []int64](1000)
 
 	t := &tenantManager{
-		scheduler:               s,
-		leaseManager:            leaseManager,
-		cf:                      cf,
-		l:                       cf.l.With().Str("tenant_id", tenantIdUUID.String()).Logger(),
-		tenantId:                tenantIdUUID,
-		workersCh:               workersCh,
-		queuesCh:                queuesCh,
-		concurrencyCh:           concurrencyCh,
-		resultsCh:               resultsCh,
-		rl:                      rl,
-		concurrencyResultsCh:    concurrencyResultsCh,
-		strategyIdsToParentIds:  strategyIdsToParentIds,
-		parentIdsToStrategyIds:  parentIdsToStrategyIds,
-		concurrencyAdvisoryLock: timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerConcurrencyPollingMinInterval),
+		scheduler:                     s,
+		leaseManager:                  leaseManager,
+		cf:                            cf,
+		l:                             cf.l.With().Str("tenant_id", tenantIdUUID.String()).Logger(),
+		tenantId:                      tenantIdUUID,
+		workersCh:                     workersCh,
+		queuesCh:                      queuesCh,
+		concurrencyCh:                 concurrencyCh,
+		resultsCh:                     resultsCh,
+		rl:                            rl,
+		concurrencyResultsCh:          concurrencyResultsCh,
+		strategyIdsToParentIds:        strategyIdsToParentIds,
+		parentIdsToStrategyIds:        parentIdsToStrategyIds,
+		concurrencyAdvisoryLock:       timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerConcurrencyPollingMinInterval),
+		concurrencyParentAdvisoryLock: timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerConcurrencyPollingMinInterval),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -260,7 +263,7 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	for _, strategy := range strategiesSet {
-		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock))
+		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
 	}
 
 	t.concurrencyStrategies = newArr
@@ -276,7 +279,7 @@ func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrenc
 		}
 	}
 
-	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock))
+	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {

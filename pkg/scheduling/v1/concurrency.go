@@ -48,10 +48,11 @@ type ConcurrencyManager struct {
 
 	maxPollingInterval time.Duration
 
-	advisoryLock *timeout_lock.KeyedTimeoutLock[int64]
+	advisoryLock       *timeout_lock.KeyedTimeoutLock[int64]
+	advisoryParentLock *timeout_lock.KeyedTimeoutLock[int64]
 }
 
-func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults, advisoryLock *timeout_lock.KeyedTimeoutLock[int64]) *ConcurrencyManager {
+func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults, advisoryLock *timeout_lock.KeyedTimeoutLock[int64], advisoryParentLock *timeout_lock.KeyedTimeoutLock[int64]) *ConcurrencyManager {
 	repo := conf.repo.Concurrency()
 
 	notifyConcurrencyCh := make(chan map[string]string, 2)
@@ -68,6 +69,7 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 		minPollingInterval:  conf.schedulerConcurrencyPollingMinInterval,
 		maxPollingInterval:  conf.schedulerConcurrencyPollingMaxInterval,
 		advisoryLock:        advisoryLock,
+		advisoryParentLock:  advisoryParentLock,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -114,7 +116,7 @@ func (c *ConcurrencyManager) acquireStrategyLocks() bool {
 	}
 	if c.strategy.ParentStrategyID.Valid {
 		parentId := v1.PARENT_STRATEGY_LOCK_OFFSET + c.strategy.ParentStrategyID.Int64
-		return c.advisoryLock.Acquire(parentId)
+		return c.advisoryParentLock.Acquire(parentId)
 	}
 	return true
 
@@ -124,7 +126,7 @@ func (c *ConcurrencyManager) releaseStrategyLocks() {
 	c.advisoryLock.Release(c.strategy.ID)
 	if c.strategy.ParentStrategyID.Valid {
 		parentId := v1.PARENT_STRATEGY_LOCK_OFFSET + c.strategy.ParentStrategyID.Int64
-		c.advisoryLock.Release(parentId)
+		c.advisoryParentLock.Release(parentId)
 	}
 }
 

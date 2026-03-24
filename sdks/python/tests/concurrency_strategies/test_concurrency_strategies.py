@@ -36,8 +36,8 @@ async def test_concurrency_strategy_scheduling(
             )
     )
     start = time.time()
-    results = run.result()
-    print(results)
+    run.result()
     end = time.time()
     elapsed_time = end - start
     print(f"Time taken: {elapsed_time:.4f} seconds")
+    assert elapsed_time < 100

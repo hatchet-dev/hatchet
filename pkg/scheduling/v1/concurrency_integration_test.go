@@ -421,7 +421,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		for _, strat := range strategies {
 			schedulingPool.NotifyNewConcurrencyStrategy(ctx, tenant.ID, strat.ID)
 		}
-		fmt.Println(tenantId)
+
 		for i := 0; i < 10; i++ {
 			res := <-resultsChan
 			require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
