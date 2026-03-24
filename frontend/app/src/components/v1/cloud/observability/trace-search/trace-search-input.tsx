@@ -1,4 +1,8 @@
-import { getTraceAutocomplete, applyTraceSuggestion } from './autocomplete';
+import {
+  getTraceAutocomplete,
+  applyTraceSuggestion,
+  STATIC_FILTER_KEYS,
+} from './autocomplete';
 import type {
   TraceAutocompleteSuggestion,
   TraceAutocompleteContext,
@@ -28,18 +32,11 @@ export function TraceSearchInput({
       autocompleteContext={autocompleteContext}
       placeholder={placeholder}
       className={className}
-      filterChips={[
-        {
-          key: 'status:',
-          label: 'Status',
-          description: 'Filter by span status',
-        },
-        {
-          key: 'name:',
-          label: 'Name',
-          description: 'Filter by span name',
-        },
-      ]}
+      filterChips={STATIC_FILTER_KEYS.map((f) => ({
+        key: f.value,
+        label: f.label,
+        description: f.description,
+      }))}
     />
   );
 }

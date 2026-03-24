@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from './alert';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 import { type ReactNode, useCallback, useState } from 'react';
@@ -59,12 +60,11 @@ export function OnboardingCard({
   }
 
   return (
-    <div
+    <Alert
+      variant={variant === 'info' ? 'info' : 'default'}
       className={cn(
-        'relative rounded-lg border px-4 py-3 text-sm',
-        variant === 'info'
-          ? 'border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/30'
-          : 'border-border bg-card',
+        variant === 'default' && 'border-border bg-card',
+        '[&>svg]:hidden',
         className,
       )}
     >
@@ -83,13 +83,13 @@ export function OnboardingCard({
           <div className="mt-0.5 shrink-0 text-muted-foreground">{icon}</div>
         )}
         <div className={cn('flex flex-col gap-1', dismissible && 'pr-6')}>
-          <p className="font-medium leading-tight">{title}</p>
-          <div className="text-xs leading-snug text-muted-foreground">
+          <AlertTitle className="mb-0">{title}</AlertTitle>
+          <AlertDescription className="text-xs leading-snug text-muted-foreground">
             {description}
-          </div>
+          </AlertDescription>
           {actions && <div className="mt-2 flex gap-2">{actions}</div>}
         </div>
       </div>
-    </div>
+    </Alert>
   );
 }

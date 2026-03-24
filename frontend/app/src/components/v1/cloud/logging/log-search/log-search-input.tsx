@@ -1,4 +1,8 @@
-import { getAutocomplete, applySuggestion } from './autocomplete';
+import {
+  getAutocomplete,
+  applySuggestion,
+  STATIC_FILTER_KEYS,
+} from './autocomplete';
 import type { AutocompleteSuggestion } from './types';
 import { useLogsContext } from './use-logs';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
@@ -22,14 +26,11 @@ export function LogSearchInput({
       autocompleteContext={availableAttempts}
       placeholder={placeholder}
       className={className}
-      filterChips={[
-        { key: 'level:', label: 'Level', description: 'Filter by log level' },
-        {
-          key: 'attempt:',
-          label: 'Attempt',
-          description: 'Filter by attempt number',
-        },
-      ]}
+      filterChips={STATIC_FILTER_KEYS.map((f) => ({
+        key: f.value,
+        label: f.label,
+        description: f.description,
+      }))}
     />
   );
 }

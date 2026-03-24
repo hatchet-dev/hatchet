@@ -17,17 +17,22 @@ const STATUS_DESCRIPTIONS: Record<string, string> = {
   unset: 'Spans without explicit status',
 };
 
-const STATIC_FILTER_KEYS: FilterSuggestion[] = [
+export const FILTER_KEYS = {
+  STATUS: 'status',
+  SPAN_NAME: 'span-name',
+} as const;
+
+export const STATIC_FILTER_KEYS: FilterSuggestion[] = [
   {
     type: 'key',
     label: 'status',
-    value: 'status:',
+    value: `${FILTER_KEYS.STATUS}:`,
     description: 'Filter by span status',
   },
   {
     type: 'key',
-    label: 'name',
-    value: 'name:',
+    label: 'span name',
+    value: `${FILTER_KEYS.SPAN_NAME}:`,
     description: 'Filter by span name',
   },
 ];
@@ -58,8 +63,11 @@ export function getTraceAutocomplete(
     return { mode: 'key', suggestions: allKeys };
   }
 
-  if (lastWord.startsWith('status:')) {
-    const partial = lastWord.slice(7).toLowerCase();
+  const statusPrefix = `${FILTER_KEYS.STATUS}:`;
+  const spanNamePrefix = `${FILTER_KEYS.SPAN_NAME}:`;
+
+  if (lastWord.startsWith(statusPrefix)) {
+    const partial = lastWord.slice(statusPrefix.length).toLowerCase();
     const suggestions = SPAN_STATUSES.filter((s) => s.startsWith(partial)).map(
       (s) => ({
         type: 'value' as const,
@@ -72,8 +80,8 @@ export function getTraceAutocomplete(
     return { mode: 'value', suggestions };
   }
 
-  if (lastWord.startsWith('name:')) {
-    const partial = lastWord.slice(5).toLowerCase();
+  if (lastWord.startsWith(spanNamePrefix)) {
+    const partial = lastWord.slice(spanNamePrefix.length).toLowerCase();
     const suggestions = ctx.spanNames
       .filter((n) => n.toLowerCase().includes(partial))
       .slice(0, 20)

@@ -145,7 +145,7 @@ func main() {
 			chargeSpan.End()
 
 			paySpan.End()
-			return ChargePaymentOutput{}, fmt.Errorf("test error")
+			// return ChargePaymentOutput{}, fmt.Errorf("test error")
 
 			return ChargePaymentOutput{
 				TransactionID: fmt.Sprintf("txn-%s", validated.OrderID),
