@@ -2,6 +2,7 @@ import { V1RunIndicator } from '../../../components/run-statuses';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
+import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
@@ -24,7 +25,6 @@ import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
-import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
@@ -192,7 +192,13 @@ export const TaskRunDetail = ({
       </div>
       <Tabs
         value={outerTab}
-        onValueChange={search.setTab}
+        onValueChange={(value) => {
+          search.setTab(value);
+          if (value === 'logs') {
+            // Increment counter to force remount when Logs tab is opened
+            setLogsResetKey((prev: number) => prev + 1);
+          }
+        }}
         className="flex h-full flex-col"
       >
         <TabsList layout="underlined" className="mb-4">
@@ -201,6 +207,9 @@ export const TaskRunDetail = ({
           </TabsTrigger>
           <TabsTrigger variant="underlined" value="traces">
             Traces
+          </TabsTrigger>
+          <TabsTrigger variant="underlined" value="logs">
+            Logs
           </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="min-h-0 flex-1">
@@ -211,15 +220,7 @@ export const TaskRunDetail = ({
             />
           </div>
           <div className="h-4" />
-          <Tabs
-            defaultValue={defaultOpenTab}
-            onValueChange={(value) => {
-              if (value === TabOption.Logs) {
-                // Increment counter to force remount when Logs tab is opened
-                setLogsResetKey((prev: number) => prev + 1);
-              }
-            }}
-          >
+          <Tabs defaultValue={defaultOpenTab}>
             <TabsList layout="underlined">
               <TabsTrigger variant="underlined" value={TabOption.Activity}>
                 Activity
@@ -237,9 +238,6 @@ export const TaskRunDetail = ({
               )}
               <TabsTrigger variant="underlined" value={TabOption.Input}>
                 Input
-              </TabsTrigger>
-              <TabsTrigger variant="underlined" value={TabOption.Logs}>
-                Logs
               </TabsTrigger>
               <TabsTrigger
                 variant="underlined"
@@ -294,9 +292,6 @@ export const TaskRunDetail = ({
                 />
               )}
             </TabsContent>
-            <TabsContent value={TabOption.Logs}>
-              <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
-            </TabsContent>
             <TabsContent value={TabOption.AdditionalMetadata}>
               <CodeHighlighter
                 className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
@@ -322,6 +317,9 @@ export const TaskRunDetail = ({
               },
             ]}
           />
+        </TabsContent>
+        <TabsContent value="logs" className="min-h-0 flex-1">
+          <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
         </TabsContent>
       </Tabs>
     </div>
