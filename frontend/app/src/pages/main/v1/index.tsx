@@ -33,7 +33,6 @@ function Main() {
         managedWorkerEnabled,
         isCloudEnabled,
         logsEnabled,
-        onLogout: logoutMutation.mutate,
         onToggleTheme: toggleTheme,
         currentlyVisibleTheme,
       }),
@@ -42,7 +41,6 @@ function Main() {
       managedWorkerEnabled,
       isCloudEnabled,
       logsEnabled,
-      logoutMutation.mutate,
       toggleTheme,
       currentlyVisibleTheme,
     ],
@@ -55,7 +53,9 @@ function Main() {
 
   return (
     <ThreeColumnLayout
-      sidebar={<SideNav navItems={navSections} />}
+      sidebar={
+        <SideNav navItems={navSections} onLogout={logoutMutation.mutate} />
+      }
       sidePanel={<SidePanel />}
       // mainClassName="overflow-auto"
       mainContainerType="inline-size"

@@ -3,7 +3,7 @@ import {
   SideNavChild,
 } from '../../../components/v1/nav/side-nav';
 import { appRoutes } from '@/router';
-import { BiLogOut, BiMoon, BiSun } from 'react-icons/bi';
+import { BiMoon, BiSun } from 'react-icons/bi';
 import {
   RiPulseAiLine,
   RiFilterLine,
@@ -25,7 +25,6 @@ export function sideNavItems(opts: {
   managedWorkerEnabled?: boolean;
   isCloudEnabled?: boolean;
   logsEnabled?: boolean;
-  onLogout: () => void;
   onToggleTheme: () => void;
   currentlyVisibleTheme: 'light' | 'dark';
 }): SideNavSection[] {
@@ -307,16 +306,6 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantOrganizationsAndTenantsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiOrganizationChart
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
-          key: 'logout',
-          name: 'Logout',
-          onClick: opts.onLogout,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <BiLogOut
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
