@@ -43,7 +43,7 @@ export default {
   "rate-limits": "Rate Limits",
   priority: "Priority",
   "--durable-workflows-section": {
-    title: "Durable Workflows",
+    title: "Durable Execution",
     type: "separator",
   },
   patterns: {
