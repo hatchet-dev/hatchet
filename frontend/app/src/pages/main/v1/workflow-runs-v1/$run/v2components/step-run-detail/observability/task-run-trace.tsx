@@ -199,26 +199,22 @@ export function TaskRunTrace({
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
   const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
 
-  const lastFocusedRef = useRef<string | undefined>();
-  useEffect(() => {
-    if (!focusedTaskRunId || focusedTaskRunId === lastFocusedRef.current) {
-      return;
-    }
+  const prevFocusedRef = useRef(focusedTaskRunId);
+  if (focusedTaskRunId && focusedTaskRunId !== prevFocusedRef.current) {
+    prevFocusedRef.current = focusedTaskRunId;
     const result = findSpanByTaskRunId(spanTrees, focusedTaskRunId);
-    if (!result) {
-      return;
+    if (result) {
+      setExpandedSpansIds((prev) => {
+        const next = new Set(prev);
+        for (const id of result.ancestorKeys) {
+          next.add(id);
+        }
+        next.add(getStableKey(result.span));
+        return next;
+      });
+      setSelectedSpanId(result.span.spanId);
     }
-    lastFocusedRef.current = focusedTaskRunId;
-    setExpandedSpansIds((prev) => {
-      const next = new Set(prev);
-      for (const id of result.ancestorKeys) {
-        next.add(id);
-      }
-      next.add(getStableKey(result.span));
-      return next;
-    });
-    setSelectedSpanId(result.span.spanId);
-  }, [focusedTaskRunId, spanTrees, setSelectedSpanId]);
+  }
 
   const pendingContextExpandRef = useRef(false);
 
