@@ -3649,22 +3649,22 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 			lookupTenantIds = append(lookupTenantIds, tenantId)
 			lookupRetryCounts = append(lookupRetryCounts, span.RetryCount)
 			lookupTraceIds = append(lookupTraceIds, span.TraceID)
-			lookupStartTimes = append(lookupStartTimes, pgtype.Timestamptz{Time: time.Unix(0, int64(span.StartTimeUnixNano)), Valid: true})
+			lookupStartTimes = append(lookupStartTimes, pgtype.Timestamptz{Time: time.Unix(0, int64(span.StartTimeUnixNano)), Valid: true}) //nolint:gosec
 			lookupExternalIds = append(lookupExternalIds, *span.TaskRunExternalID)
 		}
 
-		_, haveSeenWorkflowRunIdAlready := seenExternalIds[*span.WorkflowRunID]
+		// if both the task run and workflow run external ids are present and they're not the same, then we know
+		// the task must be part of a DAG, so we should insert a lookup entry for the DAG itself in addition to the task run
+		if span.WorkflowRunID != nil && span.TaskRunExternalID != nil && *span.TaskRunExternalID != *span.WorkflowRunID {
+			if _, haveSeenWorkflowRunIdAlready := seenExternalIds[*span.WorkflowRunID]; !haveSeenWorkflowRunIdAlready {
+				lookupTenantIds = append(lookupTenantIds, tenantId)
+				lookupRetryCounts = append(lookupRetryCounts, span.RetryCount)
+				lookupTraceIds = append(lookupTraceIds, span.TraceID)
+				lookupStartTimes = append(lookupStartTimes, pgtype.Timestamptz{Time: time.Unix(0, int64(span.StartTimeUnixNano)), Valid: true}) //nolint:gosec
+				lookupExternalIds = append(lookupExternalIds, *span.WorkflowRunID)
 
-		if !haveSeenWorkflowRunIdAlready && span.WorkflowRunID != nil && span.TaskRunExternalID != nil && *span.TaskRunExternalID != *span.WorkflowRunID {
-			// if both the task run and workflow run external ids are present and they're not the same, then we know
-			// the task must be part of a DAG, so we should insert a lookup entry for the DAG itself in addition to the task run
-			lookupTenantIds = append(lookupTenantIds, tenantId)
-			lookupRetryCounts = append(lookupRetryCounts, span.RetryCount)
-			lookupTraceIds = append(lookupTraceIds, span.TraceID)
-			lookupStartTimes = append(lookupStartTimes, pgtype.Timestamptz{Time: time.Unix(0, int64(span.StartTimeUnixNano)), Valid: true})
-			lookupExternalIds = append(lookupExternalIds, *span.WorkflowRunID)
-
-			seenExternalIds[*span.WorkflowRunID] = struct{}{}
+				seenExternalIds[*span.WorkflowRunID] = struct{}{}
+			}
 		}
 	}
 
