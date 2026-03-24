@@ -17,6 +17,7 @@ import type {
   FilteredSpanTree,
   ParsedTraceQuery,
 } from '@/components/v1/cloud/observability/trace-search';
+import { XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type Selection =
@@ -298,7 +299,21 @@ export function TaskRunTrace({
       >
         <div className="shrink-0">
           <div className="flex min-w-0">
-            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div
+              className="flex shrink-0 items-end justify-end pb-1 pr-2"
+              style={{ width: LABEL_WIDTH }}
+            >
+              {isZoomed && (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
+                >
+                  <XIcon className="h-3 w-3" />
+                  Clear zoom
+                </button>
+              )}
+            </div>
             <div className="min-w-0 flex-1 pr-10">
               <TraceMinimap
                 spanTrees={spanTrees}
