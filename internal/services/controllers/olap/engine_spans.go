@@ -61,7 +61,8 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 		case sqlcv1.V1EventTypeOlapFINISHED,
 			sqlcv1.V1EventTypeOlapFAILED,
 			sqlcv1.V1EventTypeOlapCANCELLED,
-			sqlcv1.V1EventTypeOlapTIMEDOUT:
+			sqlcv1.V1EventTypeOlapTIMEDOUT,
+			sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT:
 			terminalEvents = append(terminalEvents, e)
 		}
 	}
@@ -183,6 +184,8 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 					statusMessage = "task cancelled"
 				case sqlcv1.V1EventTypeOlapTIMEDOUT:
 					statusMessage = "task timed out"
+				case sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT:
+					statusMessage = "scheduling timed out"
 				case sqlcv1.V1EventTypeOlapFAILED:
 					statusMessage = "task failed"
 				}
