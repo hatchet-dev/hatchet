@@ -54,8 +54,12 @@ function buildAutocompleteContext(
 ): TraceAutocompleteContext {
   const keySet = new Set<string>();
   const valuesByKey = new Map<string, Set<string>>();
+  const nameSet = new Set<string>();
 
   for (const span of spans) {
+    if (span.spanName) {
+      nameSet.add(span.spanName);
+    }
     if (!span.spanAttributes) {
       continue;
     }
@@ -78,6 +82,7 @@ function buildAutocompleteContext(
   return {
     attributeKeys: [...keySet].sort(),
     attributeValues,
+    spanNames: [...nameSet].sort(),
   };
 }
 

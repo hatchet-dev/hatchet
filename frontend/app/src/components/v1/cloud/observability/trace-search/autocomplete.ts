@@ -24,6 +24,12 @@ const STATIC_FILTER_KEYS: FilterSuggestion[] = [
     value: 'status:',
     description: 'Filter by span status',
   },
+  {
+    type: 'key',
+    label: 'name',
+    value: 'name:',
+    description: 'Filter by span name',
+  },
 ];
 
 function buildFilterKeys(ctx: TraceAutocompleteContext): FilterSuggestion[] {
@@ -63,6 +69,20 @@ export function getTraceAutocomplete(
         color: SPAN_STATUS_COLORS[s],
       }),
     );
+    return { mode: 'value', suggestions };
+  }
+
+  if (lastWord.startsWith('name:')) {
+    const partial = lastWord.slice(5).toLowerCase();
+    const suggestions = ctx.spanNames
+      .filter((n) => n.toLowerCase().includes(partial))
+      .slice(0, 20)
+      .map((n) => ({
+        type: 'value' as const,
+        label: n,
+        value: n,
+        description: 'Span name',
+      }));
     return { mode: 'value', suggestions };
   }
 

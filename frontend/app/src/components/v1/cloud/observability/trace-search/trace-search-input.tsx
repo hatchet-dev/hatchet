@@ -34,6 +34,11 @@ export function TraceSearchInput({
           label: 'Status',
           description: 'Filter by span status',
         },
+        {
+          key: 'name:',
+          label: 'Name',
+          description: 'Filter by span name',
+        },
       ]}
     />
   );
