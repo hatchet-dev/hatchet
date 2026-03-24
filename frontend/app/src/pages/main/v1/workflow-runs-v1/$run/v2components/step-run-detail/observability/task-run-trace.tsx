@@ -1,6 +1,7 @@
 import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TraceMinimap } from './minimap/trace-minimap';
 import { SpanDetail, GroupDetail } from './span-detail';
+import { TimeTickLabels } from './timeline/time-tick-labels';
 import {
   TraceTimeline,
   LABEL_WIDTH,
@@ -11,7 +12,6 @@ import {
   groupSiblings,
   type SpanGroupInfo,
 } from './timeline/trace-timeline-utils';
-import { formatDuration } from './utils/format-utils';
 import { getStableKey } from './utils/span-tree-utils';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
@@ -533,40 +533,18 @@ export function TaskRunTrace({
               </div>
             </div>
           )}
-          <div className="flex min-w-0">
-            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-            <div className="min-w-0 flex-1 pr-10">
-              <div className="relative h-5 overflow-hidden">
-                {zoomedTicks?.ticks.map((t) => {
-                  if (t >= zoomedTicks.visDurationMs) {
-                    return null;
-                  }
-                  return (
-                    <div
-                      key={t}
-                      className="absolute flex h-full items-center"
-                      style={{
-                        left: `${zoomedTicks.visDurationMs > 0 ? (t / zoomedTicks.visDurationMs) * 100 : 0}%`,
-                      }}
-                    >
-                      <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                        {formatDuration(t + zoomedTicks.visOffsetMs)}
-                      </span>
-                    </div>
-                  );
-                })}
-                {zoomedTicks && (
-                  <div className="absolute right-0 z-10 flex h-full items-center">
-                    <span className="whitespace-nowrap rounded-sm bg-background px-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                      {formatDuration(
-                        zoomedTicks.visDurationMs + zoomedTicks.visOffsetMs,
-                      )}
-                    </span>
-                  </div>
-                )}
+          {zoomedTicks && (
+            <div className="flex min-w-0">
+              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+              <div className="min-w-0 flex-1 pr-10">
+                <TimeTickLabels
+                  ticks={zoomedTicks.ticks}
+                  totalMs={zoomedTicks.visDurationMs}
+                  offsetMs={zoomedTicks.visOffsetMs}
+                />
               </div>
             </div>
-          </div>
+          )}
         </div>
         <div
           ref={timelineScrollRef}

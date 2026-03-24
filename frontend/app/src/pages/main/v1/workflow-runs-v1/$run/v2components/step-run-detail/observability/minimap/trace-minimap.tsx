@@ -1,5 +1,5 @@
+import { TimeTickLabels } from '../timeline/time-tick-labels';
 import { computeTimeTicks } from '../timeline/trace-timeline-utils';
-import { formatDuration } from '../utils/format-utils';
 import { isQueuedOnlyRoot } from '../utils/span-tree-utils';
 import { useLiveClock } from '../utils/use-live-clock';
 import { CursorOverlay } from './cursor-overlay';
@@ -65,31 +65,7 @@ export function TraceMinimap({
 
   return (
     <div>
-      <div className="relative h-5 overflow-hidden">
-        {ticks.map((t) => {
-          if (t >= totalMs) {
-            return null;
-          }
-          return (
-            <div
-              key={t}
-              className="absolute flex h-full items-center"
-              style={{
-                left: `${totalMs > 0 ? (t / totalMs) * 100 : 0}%`,
-              }}
-            >
-              <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                {formatDuration(t)}
-              </span>
-            </div>
-          );
-        })}
-        <div className="absolute right-0 z-10 flex h-full items-center">
-          <span className="whitespace-nowrap rounded-sm bg-background px-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            {formatDuration(totalMs)}
-          </span>
-        </div>
-      </div>
+      <TimeTickLabels ticks={ticks} totalMs={totalMs} />
 
       <div
         ref={trackRef}
