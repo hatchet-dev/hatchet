@@ -198,15 +198,11 @@ export function RunDetailSearchLocalProvider({
       setFocusedTaskRunId,
       setSelectedSpanId: (id: string | undefined) => {
         setSelectedSpanIdRaw(id);
-        if (id) {
-          setSelectedGroupIdRaw(undefined);
-        }
+        setSelectedGroupIdRaw(undefined);
       },
       setSelectedGroupId: (id: string | undefined) => {
         setSelectedGroupIdRaw(id);
-        if (id) {
-          setSelectedSpanIdRaw(undefined);
-        }
+        setSelectedSpanIdRaw(undefined);
       },
       setQueryString,
       set: (patch) => {

@@ -1,4 +1,7 @@
-import { convertOtelSpansToOtelSpanTree } from './convert-otel-spans-to-agent-prism-span-tree';
+import {
+  convertOtelSpansToOtelSpanTree,
+  findSubtreeByTaskRunId,
+} from './convert-otel-spans-to-agent-prism-span-tree';
 import type { RelevantOpenTelemetrySpanProperties } from './span-tree-type';
 import * as assert from 'node:assert';
 import { describe, test } from 'node:test';
@@ -709,5 +712,61 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         'dag should have 3 run_workflow children',
       );
     });
+  });
+});
+
+describe('findSubtreeByTaskRunId', () => {
+  test('returns the node matching the task run id', () => {
+    const spans = asNonEmpty([
+      rootSpan(),
+      engineQueued('sr1', ROOT),
+      engineStepRun('sr1', ROOT),
+      sdkStepRun('sr2', ROOT),
+    ]);
+
+    const tree = convertOtelSpansToOtelSpanTree(spans);
+    const root = tree[0];
+
+    const found = findSubtreeByTaskRunId(root.children, 'sr1');
+    assert.ok(found, 'should find the sr1 subtree');
+    assert.strictEqual(found.spanAttributes?.['hatchet.step_run_id'], 'sr1');
+  });
+
+  test('finds a deeply nested node', () => {
+    const dagStepRunId = 'dag-conf';
+    const sdkDagSpanId = 'sdk_dag_span_id';
+
+    const spans = asNonEmpty([
+      rootSpan(),
+      engineQueued(dagStepRunId, ROOT),
+      engineStepRun(dagStepRunId, ROOT),
+      sdkRunWorkflow('rw1', sdkDagSpanId, 'otel-notification', dagStepRunId),
+      engineQueued('notif1', 'rw1'),
+      engineStepRun('notif1', 'rw1'),
+    ]);
+
+    const tree = convertOtelSpansToOtelSpanTree(spans);
+    const root = tree[0];
+
+    const found = findSubtreeByTaskRunId(root.children, 'notif1');
+    assert.ok(found, 'should find notif1 nested under dag-conf');
+    assert.strictEqual(
+      found.spanAttributes?.['hatchet.step_run_id'],
+      'notif1',
+    );
+  });
+
+  test('returns undefined when task run id is not present', () => {
+    const spans = asNonEmpty([
+      rootSpan(),
+      engineQueued('sr1', ROOT),
+      engineStepRun('sr1', ROOT),
+    ]);
+
+    const tree = convertOtelSpansToOtelSpanTree(spans);
+    const root = tree[0];
+
+    const found = findSubtreeByTaskRunId(root.children, 'nonexistent');
+    assert.strictEqual(found, undefined, 'should return undefined');
   });
 });

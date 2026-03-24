@@ -335,7 +335,8 @@ export function TaskRunTrace({
 
   const handleDetailClose = useCallback(() => {
     setSelectedSpanId(undefined);
-  }, [setSelectedSpanId]);
+    setSelectedGroupId(undefined);
+  }, [setSelectedSpanId, setSelectedGroupId]);
 
   const handleShowMore = useCallback(
     (groupId: string, newVisibleCount: number) => {

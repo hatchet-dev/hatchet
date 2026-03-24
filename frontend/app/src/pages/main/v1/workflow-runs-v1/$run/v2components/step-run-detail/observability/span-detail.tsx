@@ -93,7 +93,7 @@ function downloadAttrValue(key: string, value: string) {
   a.href = url;
   a.download = `${key.replace(/[^a-zA-Z0-9._-]/g, '_')}.txt`;
   a.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function partitionAttributes(attrs: Record<string, string> | undefined) {
