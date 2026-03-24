@@ -17,6 +17,7 @@ import type {
   FilteredSpanTree,
   ParsedTraceQuery,
 } from '@/components/v1/cloud/observability/trace-search';
+import { Button } from '@/components/v1/ui/button';
 import { XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -304,14 +305,15 @@ export function TaskRunTrace({
               style={{ width: LABEL_WIDTH }}
             >
               {isZoomed && (
-                <button
-                  type="button"
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="gap-1 font-mono"
                   onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
                 >
-                  <XIcon className="h-3 w-3" />
-                  Clear zoom
-                </button>
+                  <XIcon className="size-3" />
+                  clear zoom
+                </Button>
               )}
             </div>
             <div className="min-w-0 flex-1 pr-10">
@@ -329,7 +331,38 @@ export function TaskRunTrace({
               />
             </div>
           </div>
-          <div className="mt-8 flex min-w-0">
+          {isZoomed && (
+            <div className="flex min-w-0">
+              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+              <div className="min-w-0 flex-1 pr-10">
+                <svg
+                  className="h-5 w-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <line
+                    x1={visibleRange.startPct * 100}
+                    y1="0"
+                    x2="0"
+                    y2="100"
+                    className="stroke-border"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <line
+                    x1={visibleRange.endPct * 100}
+                    y1="0"
+                    x2="100"
+                    y2="100"
+                    className="stroke-border"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+              </div>
+            </div>
+          )}
+          <div className="flex min-w-0">
             <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
             <div className="min-w-0 flex-1 pr-10">
               <div className="relative h-5 overflow-hidden">
