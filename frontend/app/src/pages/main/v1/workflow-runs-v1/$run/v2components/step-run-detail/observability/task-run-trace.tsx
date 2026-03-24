@@ -133,6 +133,7 @@ export function TaskRunTrace({
   showInContext,
   onToggleShowInContext,
   contextTaskRunId,
+  onClearFilters,
 }: {
   spanTrees: FilteredSpanTree[];
   isRunning?: boolean;
@@ -142,6 +143,7 @@ export function TaskRunTrace({
   showInContext?: boolean;
   onToggleShowInContext?: () => void;
   contextTaskRunId?: string;
+  onClearFilters?: () => void;
 }) {
   const {
     focusedTaskRunId,
@@ -311,6 +313,31 @@ export function TaskRunTrace({
     },
     [],
   );
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') {
+        return;
+      }
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      setSelectedSpanId(undefined);
+      setSelectedGroupId(undefined);
+      setVisibleRange({ startPct: 0, endPct: 1 });
+      onClearFilters?.();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [
+    resolvedSelection,
+    isZoomed,
+    setSelectedSpanId,
+    setSelectedGroupId,
+    onClearFilters,
+  ]);
 
   const hasSelection = !!resolvedSelection;
   const containerRef = useRef<HTMLDivElement>(null);

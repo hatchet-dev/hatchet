@@ -276,6 +276,7 @@ export const Observability = (props: ObservabilityProps) => {
           props.taskRunId ? () => setShowInContext((v) => !v) : undefined
         }
         contextTaskRunId={props.taskRunId}
+        onClearFilters={queryString ? () => setQueryString('') : undefined}
       />
     </div>
   );
