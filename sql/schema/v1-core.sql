@@ -1686,8 +1686,6 @@ CREATE TABLE v1_log_line (
     PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
-CREATE INDEX v1_log_line_tenant_id_level_idx ON v1_log_line (tenant_id ASC, level ASC);
-
 CREATE TYPE v1_step_match_condition_kind AS ENUM ('PARENT_OVERRIDE', 'USER_EVENT', 'SLEEP');
 
 CREATE TABLE v1_step_match_condition (
