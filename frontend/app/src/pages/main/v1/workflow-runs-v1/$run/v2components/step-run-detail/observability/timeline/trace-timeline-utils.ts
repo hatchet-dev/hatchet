@@ -255,11 +255,11 @@ export function rowHighlightClass({
   selected?: boolean;
   childOfSelected?: boolean;
 }): string {
-  if (hovered) {
-    return 'bg-muted/40';
-  }
   if (selected) {
     return 'bg-primary/10';
+  }
+  if (hovered) {
+    return 'bg-muted/40';
   }
   if (childOfSelected) {
     return 'bg-primary/5';
