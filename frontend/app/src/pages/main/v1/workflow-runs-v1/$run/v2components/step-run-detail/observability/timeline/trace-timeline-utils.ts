@@ -291,11 +291,16 @@ export function computeTimeTicks(totalDurationMs: number): {
   }
 
   const ticks: number[] = [];
-  for (let t = 0; t <= totalDurationMs + interval * 0.5; t += interval) {
+  for (let t = 0; t < totalDurationMs; t += interval) {
     ticks.push(t);
     if (ticks.length > 20) {
       break;
     }
+  }
+
+  const lastTick = ticks[ticks.length - 1] || 0;
+  if (totalDurationMs - lastTick > interval * 0.3) {
+    ticks.push(totalDurationMs);
   }
 
   return { ticks, maxTick: ticks[ticks.length - 1] || totalDurationMs };

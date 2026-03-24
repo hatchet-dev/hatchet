@@ -1,5 +1,7 @@
 import { computeTimeTicks } from '../timeline/trace-timeline-utils';
 import { formatDuration } from '../utils/format-utils';
+import { isQueuedOnlyRoot } from '../utils/span-tree-utils';
+import { useLiveClock } from '../utils/use-live-clock';
 import { CursorOverlay } from './cursor-overlay';
 import { DragAnnotation } from './drag-annotation';
 import { MinimapTooltip } from './minimap-tooltip';
@@ -8,14 +10,22 @@ import { collectSpanMarkers, pctFromEvent } from './minimap-utils';
 import { RangeHandles } from './range-handles';
 import { SpanMarkers } from './span-markers';
 import { useMinimapDrag } from './use-minimap-drag';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { useMemo, useRef, useState } from 'react';
 
 export type { TimeRange } from './minimap-types';
+
+function hasLiveProgress(nodes: OtelSpanTree[]): boolean {
+  return nodes.some(
+    (n) => n.inProgress || isQueuedOnlyRoot(n) || hasLiveProgress(n.children),
+  );
+}
 
 export function TraceMinimap({
   spanTrees,
   minMs,
   maxMs,
+  isRunning,
   visibleRange,
   onRangeChange,
   expandedSpanIds,
@@ -32,16 +42,16 @@ export function TraceMinimap({
   } | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
 
-  const totalMs = maxMs - minMs;
+  const hasLive = useMemo(() => hasLiveProgress(spanTrees), [spanTrees]);
+  const now = useLiveClock(!!isRunning && hasLive);
+  const effectiveMaxMs = hasLive ? Math.max(maxMs, now) : maxMs;
+  const totalMs = effectiveMaxMs - minMs;
   const markers = useMemo(
     () => collectSpanMarkers(spanTrees, minMs, totalMs, expandedSpanIds),
     [spanTrees, minMs, totalMs, expandedSpanIds],
   );
 
-  const ticks = useMemo(() => {
-    const { ticks: rawTicks } = computeTimeTicks(totalMs);
-    return rawTicks.filter((t) => t <= totalMs);
-  }, [totalMs]);
+  const ticks = useMemo(() => computeTimeTicks(totalMs).ticks, [totalMs]);
 
   const { dragging, startDrag, handleTrackDown, handleDoubleClick } =
     useMinimapDrag(trackRef, visibleRange, onRangeChange);
@@ -55,6 +65,32 @@ export function TraceMinimap({
 
   return (
     <div>
+      <div className="relative h-5">
+        {ticks.map((t) => {
+          if (t >= totalMs) {
+            return null;
+          }
+          return (
+            <div
+              key={t}
+              className="absolute flex h-full items-center"
+              style={{
+                left: `${totalMs > 0 ? (t / totalMs) * 100 : 0}%`,
+              }}
+            >
+              <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                {formatDuration(t)}
+              </span>
+            </div>
+          );
+        })}
+        <div className="absolute right-0 z-10 flex h-full items-center">
+          <span className="whitespace-nowrap rounded-sm bg-background px-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            {formatDuration(totalMs)}
+          </span>
+        </div>
+      </div>
+
       <div
         ref={trackRef}
         className="group relative h-[43px] overflow-hidden rounded-lg border border-border/50 bg-muted/30"
@@ -101,26 +137,6 @@ export function TraceMinimap({
         {hoveredMarker && tooltipPos && !dragging && (
           <MinimapTooltip marker={hoveredMarker} position={tooltipPos} />
         )}
-      </div>
-
-      <div className="relative h-5">
-        {ticks.map((t, i) => {
-          const isLast = i === ticks.length - 1;
-          return (
-            <div
-              key={t}
-              className="absolute flex h-full items-center"
-              style={{
-                left: `${totalMs > 0 ? (t / totalMs) * 100 : 0}%`,
-                transform: isLast ? 'translateX(-100%)' : undefined,
-              }}
-            >
-              <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                {formatDuration(t)}
-              </span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

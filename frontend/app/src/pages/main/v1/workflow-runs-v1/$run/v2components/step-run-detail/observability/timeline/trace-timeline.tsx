@@ -114,22 +114,22 @@ export function TraceTimeline({
       const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
       const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
       const visDurationMs = visEndMs - visStartMs;
-      const { ticks: rawTicks } = computeTimeTicks(visDurationMs);
+      const { ticks } = computeTimeTicks(visDurationMs);
       return {
         visMinStart: visStartMs,
         visOffsetMs: visStartMs - minStart,
-        ticks: rawTicks.filter((t) => t <= visDurationMs),
+        ticks,
         timelineMaxMs: visDurationMs,
         traceMinStart: minStart,
         traceTotalMs: totalDurationMs,
       };
     }
 
-    const { ticks: rawTicks } = computeTimeTicks(totalDurationMs);
+    const { ticks } = computeTimeTicks(totalDurationMs);
     return {
       visMinStart: minStart,
       visOffsetMs: 0,
-      ticks: rawTicks.filter((t) => t <= totalDurationMs),
+      ticks,
       timelineMaxMs: totalDurationMs,
       traceMinStart: minStart,
       traceTotalMs: totalDurationMs,

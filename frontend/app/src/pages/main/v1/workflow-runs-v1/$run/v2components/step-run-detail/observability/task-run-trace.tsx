@@ -286,6 +286,7 @@ export function TaskRunTrace({
                 spanTrees={spanTrees}
                 minMs={minStart}
                 maxMs={maxEnd}
+                isRunning={isRunning}
                 visibleRange={visibleRange}
                 onRangeChange={setVisibleRange}
                 expandedSpanIds={expandedSpansIds}
