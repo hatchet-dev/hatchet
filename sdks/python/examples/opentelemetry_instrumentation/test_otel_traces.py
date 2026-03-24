@@ -60,9 +60,9 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
 
     spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
 
-    assert len(spans) == 5, (
-        "five spans: hatchet.run_workflow, hatchet.engine.queued,hatchet.start_step_run, hatchet.engine.started, custom.child.span"
-    )
+    assert (
+        len(spans) == 5
+    ), "five spans: hatchet.run_workflow, hatchet.engine.queued,hatchet.start_step_run, hatchet.engine.started, custom.child.span"
 
     assert {s.span_name for s in spans} == {
         "hatchet.run_workflow",
@@ -151,9 +151,9 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
 
     spans = await asyncio.to_thread(poll_for_trace, hatchet, run_id)
 
-    assert len(spans) == 5, (
-        "five spans: hatchet.push_event, hatchet.engine.queued, hatchet.start_step_run, hatchet.engine.started, custom.child.span"
-    )
+    assert (
+        len(spans) == 5
+    ), "five spans: hatchet.push_event, hatchet.engine.queued, hatchet.start_step_run, hatchet.engine.started, custom.child.span"
 
     assert {s.span_name for s in spans} == {
         "hatchet.push_event",
