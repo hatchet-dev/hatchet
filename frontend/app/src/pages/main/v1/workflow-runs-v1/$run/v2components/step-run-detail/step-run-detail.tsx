@@ -24,6 +24,7 @@ import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
+import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { FullscreenIcon } from 'lucide-react';
@@ -105,15 +106,12 @@ export const TaskRunDetail = ({
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const [logsResetKey, setLogsResetKey] = useState(0);
-  const [outerTab, setOuterTab] = useState('overview');
-  const [focusedTaskRunId, setFocusedTaskRunId] = useState<
-    string | undefined
-  >();
+  const search = useRunDetailSearch();
+  const outerTab = search.tab ?? 'overview';
 
   const handleMiniMapClick = useCallback(() => {
-    setFocusedTaskRunId(taskRunId);
-    setOuterTab('observability');
-  }, [taskRunId]);
+    search.set({ focusedTaskRunId: taskRunId, tab: 'observability' });
+  }, [taskRunId, search.set]);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -194,7 +192,7 @@ export const TaskRunDetail = ({
       </div>
       <Tabs
         value={outerTab}
-        onValueChange={setOuterTab}
+        onValueChange={search.setTab}
         className="flex h-full flex-col"
       >
         <TabsList layout="underlined" className="mb-4">
@@ -323,7 +321,6 @@ export const TaskRunDetail = ({
                 startedAt: taskRun.startedAt,
               },
             ]}
-            focusedTaskRunId={focusedTaskRunId}
           />
         </TabsContent>
       </Tabs>

@@ -13,6 +13,7 @@ import {
   type TraceAutocompleteContext,
 } from '@/components/v1/cloud/observability/trace-search';
 import { Loading } from '@/components/v1/ui/loading';
+import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import api from '@/lib/api/api';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -43,7 +44,6 @@ type ObservabilityProps = {
   tasks?: TaskSummaryForSynthesis[];
   workflowRunCreatedAt?: string;
   workflowRunStartedAt?: string;
-  focusedTaskRunId?: string;
 } & (
   | { taskRunId: string; workflowRunExternalId?: never }
   | { taskRunId?: never; workflowRunExternalId: string }
@@ -92,13 +92,12 @@ export const Observability = (props: ObservabilityProps) => {
     tasks,
     workflowRunCreatedAt,
     workflowRunStartedAt,
-    focusedTaskRunId,
   } = props;
 
   const runExternalId = props.taskRunId ?? props.workflowRunExternalId;
   const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
-  const [queryString, setQueryString] = useState('');
+  const { queryString, setQueryString } = useRunDetailSearch();
 
   const GRACE_PERIOD_MS = 15_000;
   const [inGracePeriod, setInGracePeriod] = useState(false);
@@ -206,21 +205,23 @@ export const Observability = (props: ObservabilityProps) => {
     return filterSpanTrees(spanTrees, parsedQuery);
   }, [spanTrees, parsedQuery]);
 
-  const handleAddFilter = useCallback((key: string, value: string) => {
-    const token = `${key}:${value}`;
-    setQueryString((prev) => {
-      const trimmed = prev.trim();
-      return trimmed ? `${trimmed} ${token}` : token;
-    });
-  }, []);
+  const handleAddFilter = useCallback(
+    (key: string, value: string) => {
+      const token = `${key}:${value}`;
+      const trimmed = queryString.trim();
+      setQueryString(trimmed ? `${trimmed} ${token}` : token);
+    },
+    [queryString, setQueryString],
+  );
 
-  const handleRemoveFilter = useCallback((key: string, value: string) => {
-    const token = `${key}:${value}`;
-    setQueryString((prev) => {
-      const parts = prev.split(/\s+/).filter((p) => p !== token);
-      return parts.join(' ');
-    });
-  }, []);
+  const handleRemoveFilter = useCallback(
+    (key: string, value: string) => {
+      const token = `${key}:${value}`;
+      const parts = queryString.split(/\s+/).filter((p) => p !== token);
+      setQueryString(parts.join(' '));
+    },
+    [queryString, setQueryString],
+  );
 
   if (!tracesQuery.isFetched) {
     return <Loading />;
@@ -266,7 +267,6 @@ export const Observability = (props: ObservabilityProps) => {
         activeFilters={parsedQuery}
         onAddFilter={handleAddFilter}
         onRemoveFilter={handleRemoveFilter}
-        focusedTaskRunId={focusedTaskRunId}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TraceMinimap } from './minimap/trace-minimap';
 import { SpanDetail, GroupDetail } from './span-detail';
 import {
@@ -7,6 +8,7 @@ import {
 } from './timeline/trace-timeline';
 import {
   computeTimeTicks,
+  groupSiblings,
   type SpanGroupInfo,
 } from './timeline/trace-timeline-utils';
 import { formatDuration } from './utils/format-utils';
@@ -65,6 +67,43 @@ function findSpanByTaskRunId(
   return undefined;
 }
 
+function findGroupInTrees(
+  trees: OtelSpanTree[],
+  targetGroupId: string,
+  parentSpanId?: string,
+): SpanGroupInfo | undefined {
+  const items = groupSiblings(trees, parentSpanId);
+  for (const item of items) {
+    if (item.kind === 'group' && item.group.groupId === targetGroupId) {
+      return item.group;
+    }
+  }
+  for (const item of items) {
+    if (item.kind === 'span') {
+      const found = findGroupInTrees(
+        item.span.children,
+        targetGroupId,
+        item.span.spanId,
+      );
+      if (found) {
+        return found;
+      }
+    } else if (item.kind === 'group') {
+      for (const span of item.group.spans) {
+        const found = findGroupInTrees(
+          span.children,
+          targetGroupId,
+          span.spanId,
+        );
+        if (found) {
+          return found;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 function collectAncestorKeys(
   nodes: OtelSpanTree[],
   targetSpanId: string,
@@ -91,29 +130,47 @@ export function TaskRunTrace({
   activeFilters,
   onAddFilter,
   onRemoveFilter,
-  focusedTaskRunId,
 }: {
   spanTrees: FilteredSpanTree[];
   isRunning?: boolean;
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
-  focusedTaskRunId?: string;
 }) {
+  const {
+    focusedTaskRunId,
+    selectedSpanId,
+    setSelectedSpanId,
+    selectedGroupId,
+    setSelectedGroupId,
+  } = useRunDetailSearch();
+
   const { minStart, maxEnd } = useMemo(
     () => findTimeRange(spanTrees),
     [spanTrees],
   );
 
-  const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(
-    () => new Set(spanTrees.map((s) => s.spanId)),
-  );
+  const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(() => {
+    const set = new Set(spanTrees.map((s) => s.spanId));
+    if (selectedSpanId) {
+      const span = findSpanInTrees(spanTrees, selectedSpanId);
+      if (span) {
+        const ancestors = collectAncestorKeys(spanTrees, selectedSpanId);
+        if (ancestors) {
+          for (const id of ancestors) {
+            set.add(id);
+          }
+        }
+        set.add(getStableKey(span));
+      }
+    }
+    return set;
+  });
 
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Record<string, number>
   >({});
 
-  const [selection, setSelection] = useState<Selection | undefined>();
   const [visibleRange, setVisibleRange] = useState<VisibleRange>({
     startPct: 0,
     endPct: 1,
@@ -154,19 +211,20 @@ export function TaskRunTrace({
       next.add(getStableKey(result.span));
       return next;
     });
-    setSelection({ kind: 'span', span: result.span });
-  }, [focusedTaskRunId, spanTrees]);
+    setSelectedSpanId(result.span.spanId);
+  }, [focusedTaskRunId, spanTrees, setSelectedSpanId]);
 
   const resolvedSelection = useMemo((): Selection | undefined => {
-    if (!selection) {
-      return undefined;
+    if (selectedSpanId) {
+      const span = findSpanInTrees(spanTrees, selectedSpanId);
+      return span ? { kind: 'span', span } : undefined;
     }
-    if (selection.kind === 'group') {
-      return selection;
+    if (selectedGroupId) {
+      const group = findGroupInTrees(spanTrees, selectedGroupId);
+      return group ? { kind: 'group', group } : undefined;
     }
-    const fresh = findSpanInTrees(spanTrees, selection.span.spanId);
-    return fresh ? { kind: 'span', span: fresh } : selection;
-  }, [selection, spanTrees]);
+    return undefined;
+  }, [selectedSpanId, selectedGroupId, spanTrees]);
 
   const expandAncestors = useCallback(
     (span: OtelSpanTree) => {
@@ -189,34 +247,33 @@ export function TaskRunTrace({
   const handleSpanSelect = useCallback(
     (span: OtelSpanTree) => {
       expandAncestors(span);
-      setSelection((prev) =>
-        prev?.kind === 'span' && prev.span.spanId === span.spanId
-          ? undefined
-          : { kind: 'span', span },
+      setSelectedSpanId(
+        selectedSpanId === span.spanId ? undefined : span.spanId,
       );
     },
-    [expandAncestors],
+    [expandAncestors, selectedSpanId, setSelectedSpanId],
   );
 
   const handleMinimapSpanSelect = useCallback(
     (span: OtelSpanTree, _ancestorSpanIds: string[]) => {
       expandAncestors(span);
-      setSelection({ kind: 'span', span });
+      setSelectedSpanId(span.spanId);
     },
-    [expandAncestors],
+    [expandAncestors, setSelectedSpanId],
   );
 
-  const handleGroupSelect = useCallback((group: SpanGroupInfo) => {
-    setSelection((prev) =>
-      prev?.kind === 'group' && prev.group.groupId === group.groupId
-        ? undefined
-        : { kind: 'group', group },
-    );
-  }, []);
+  const handleGroupSelect = useCallback(
+    (group: SpanGroupInfo) => {
+      setSelectedGroupId(
+        selectedGroupId === group.groupId ? undefined : group.groupId,
+      );
+    },
+    [selectedGroupId, setSelectedGroupId],
+  );
 
   const handleDetailClose = useCallback(() => {
-    setSelection(undefined);
-  }, []);
+    setSelectedSpanId(undefined);
+  }, [setSelectedSpanId]);
 
   const handleShowMore = useCallback(
     (groupId: string, newVisibleCount: number) => {
