@@ -3,6 +3,8 @@ package olap
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -87,10 +89,7 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 }
 
 func (tc *OLAPControllerImpl) buildQueuedSpan(tenantId uuid.UUID, e engineSpanEvent) *v1.SpanData {
-	traceIDBytes := generateTraceID()
-	if traceIDBytes == nil {
-		return nil
-	}
+	traceIDBytes := deriveEngineTraceID(e.externalID, e.retryCount)
 
 	spanIDBytes := generateSpanIDBytes()
 	if spanIDBytes == nil {
@@ -158,10 +157,7 @@ func (tc *OLAPControllerImpl) buildStepRunSpans(ctx context.Context, tenantId uu
 
 	var spans []*v1.SpanData
 	for _, e := range events {
-		traceIDBytes := generateTraceID()
-		if traceIDBytes == nil {
-			continue
-		}
+		traceIDBytes := deriveEngineTraceID(e.externalID, e.retryCount)
 
 		spanIDBytes := generateSpanIDBytes()
 		if spanIDBytes == nil {
@@ -245,12 +241,16 @@ func safeUint64(v int64) uint64 {
 	return uint64(v) // nolint:gosec
 }
 
-func generateTraceID() []byte {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return nil
-	}
-	return b
+// deriveEngineTraceID produces a deterministic 16-byte trace ID from
+// (externalID, retryCount) so all engine spans for a single step-run
+// retry share one trace instead of each getting a random one.
+func deriveEngineTraceID(externalID uuid.UUID, retryCount int32) []byte {
+	h := sha256.New()
+	h.Write([]byte("hatchet-engine-trace:"))
+	h.Write(externalID[:])
+	_ = binary.Write(h, binary.BigEndian, retryCount)
+	sum := h.Sum(nil)
+	return sum[:16]
 }
 
 func generateSpanIDBytes() []byte {
