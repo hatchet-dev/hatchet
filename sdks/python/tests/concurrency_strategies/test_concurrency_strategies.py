@@ -25,15 +25,12 @@ async def test_concurrency_strategy_scheduling(
     key1 = str(uuid4())
     key2 = str(uuid4())
     run = concurrency_strategy_workflow.run_no_wait(
-            input=InputModel(
-                key1=key1,
-                key2=key2
-            ),
-            options=TriggerWorkflowOptions(
-                additional_metadata={
-                    "test_run_id": key1,
-                }
-            )
+        input=InputModel(key1=key1, key2=key2),
+        options=TriggerWorkflowOptions(
+            additional_metadata={
+                "test_run_id": key1,
+            }
+        ),
     )
     start = time.time()
     run.result()
