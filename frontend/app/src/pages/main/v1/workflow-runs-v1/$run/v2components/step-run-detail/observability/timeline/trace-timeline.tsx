@@ -4,13 +4,14 @@ import { TimelineBars } from './trace-timeline-bars';
 import { TimelineLabels } from './trace-timeline-labels';
 import {
   flattenTree,
+  collectDescendantIds,
   computeTimeTicks,
   ROW_HEIGHT,
   type SpanGroupInfo,
   type VisibleRange,
 } from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useRef, useState } from 'react';
 
 export const LABEL_WIDTH = 320;
 
@@ -166,6 +167,13 @@ export function TraceTimeline({
 
   const gridHeight = flatRows.length * ROW_HEIGHT;
 
+  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
+
+  const selectedDescendantIds = useMemo(
+    () => (selectedSpan ? collectDescendantIds(selectedSpan) : new Set<string>()),
+    [selectedSpan],
+  );
+
   return (
     <div className="relative flex min-w-0 overflow-hidden" ref={containerRef}>
       <div
@@ -176,6 +184,9 @@ export function TraceTimeline({
           flatRows={flatRows}
           selectedSpan={selectedSpan}
           selectedGroupId={selectedGroupId}
+          selectedDescendantIds={selectedDescendantIds}
+          hoveredRowKey={hoveredRowKey}
+          onRowHover={setHoveredRowKey}
           onSpanSelect={onSpanSelect}
           onGroupSelect={onGroupSelect}
           onShowMore={onShowMore}
@@ -199,6 +210,9 @@ export function TraceTimeline({
         hasAnyLiveQueued={hasAnyLiveQueued}
         selectedSpan={selectedSpan}
         selectedGroupId={selectedGroupId}
+        selectedDescendantIds={selectedDescendantIds}
+        hoveredRowKey={hoveredRowKey}
+        onRowHover={setHoveredRowKey}
         onSpanSelect={onSpanSelect}
         onGroupSelect={onGroupSelect}
         expandOnly={expandOnly}

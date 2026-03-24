@@ -33,6 +33,9 @@ interface TimelineBarsProps {
   hasAnyLiveQueued: boolean;
   selectedSpan?: OtelSpanTree;
   selectedGroupId?: string;
+  selectedDescendantIds: Set<string>;
+  hoveredRowKey: string | null;
+  onRowHover: (key: string | null) => void;
   onSpanSelect?: (span: OtelSpanTree) => void;
   onGroupSelect?: (group: SpanGroupInfo) => void;
   expandOnly: (id: string) => void;
@@ -56,6 +59,9 @@ export const TimelineBars = memo(function TimelineBars({
   hasAnyLiveQueued,
   selectedSpan,
   selectedGroupId,
+  selectedDescendantIds,
+  hoveredRowKey,
+  onRowHover,
   onSpanSelect,
   onGroupSelect,
   expandOnly,
@@ -85,7 +91,6 @@ export const TimelineBars = memo(function TimelineBars({
     onCursorPctChange,
   );
 
-  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{
     x: number;
     y: number;
@@ -93,14 +98,14 @@ export const TimelineBars = memo(function TimelineBars({
 
   const handleBarHover = useCallback(
     (rowKey: string | null, event?: MouseEvent) => {
-      setHoveredRowKey(rowKey);
+      onRowHover(rowKey);
       if (event) {
         setTooltipPos({ x: event.clientX, y: event.clientY });
       } else {
         setTooltipPos(null);
       }
     },
-    [],
+    [onRowHover],
   );
 
   const handleBarMouseMove = useCallback((e: MouseEvent) => {
@@ -182,6 +187,7 @@ export const TimelineBars = memo(function TimelineBars({
               hasAnyInProgress={hasAnyInProgress}
               hasAnyLiveQueued={hasAnyLiveQueued}
               isSelected={selectedSpan?.spanId === row.span.spanId}
+              isChildOfSelected={selectedDescendantIds.has(row.span.spanId)}
               isHovered={hoveredRowKey === row.rowKey}
               onHover={handleBarHover}
               onMouseMove={handleBarMouseMove}

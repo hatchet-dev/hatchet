@@ -3,7 +3,11 @@ import {
   hasErrorInTree,
   isQueuedOnlyRoot,
 } from '../utils/span-tree-utils';
-import { ROW_HEIGHT, type FlatSpanRow } from './trace-timeline-utils';
+import {
+  ROW_HEIGHT,
+  rowHighlightClass,
+  type FlatSpanRow,
+} from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { cn } from '@/lib/utils';
 import { memo, type MouseEvent } from 'react';
@@ -17,6 +21,7 @@ interface SpanBarProps {
   hasAnyInProgress: boolean;
   hasAnyLiveQueued: boolean;
   isSelected: boolean;
+  isChildOfSelected: boolean;
   isHovered: boolean;
   onHover: (rowKey: string | null, event?: MouseEvent) => void;
   onMouseMove: (e: MouseEvent) => void;
@@ -33,6 +38,7 @@ export const SpanBar = memo(function SpanBar({
   hasAnyInProgress,
   hasAnyLiveQueued,
   isSelected,
+  isChildOfSelected,
   isHovered,
   onHover,
   onMouseMove,
@@ -76,7 +82,11 @@ export const SpanBar = memo(function SpanBar({
     <div
       className={cn(
         'relative shrink-0 transition-colors',
-        isSelected && 'bg-primary/8',
+        rowHighlightClass({
+          hovered: isHovered,
+          selected: isSelected,
+          childOfSelected: isChildOfSelected,
+        }),
         isBarDimmed && 'opacity-40',
       )}
       style={{ height: ROW_HEIGHT }}

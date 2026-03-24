@@ -270,126 +270,132 @@ export function SpanDetail({
   }, [span]);
 
   return (
-    <Card className="flex flex-col gap-4 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="truncate font-mono text-sm font-semibold text-foreground">
-            {span.spanName}
-          </h3>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {span.spanId}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {taskRunId && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleOpenTaskRun}
-              leftIcon={<PanelRight className="size-4" />}
-            >
-              View Task Run
-            </Button>
-          )}
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-8 shrink-0 text-muted-foreground"
-            onClick={onClose}
-            hoverText="Close"
-            aria-label="Close panel"
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
-        {q && (
-          <div>
-            <span className="text-xs text-muted-foreground">Queue Time</span>
-            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-              {formatDuration(queueNs, { unit: 'ns', precise: true })}
+    <Card className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 space-y-4 border-b border-border p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="truncate font-mono text-sm font-semibold text-foreground">
+              {span.spanName}
+            </h3>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {span.spanId}
             </p>
           </div>
-        )}
-        <div>
-          <span className="text-xs text-muted-foreground">Duration</span>
-          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {queuedOnlySpan
-              ? '–'
-              : formatDuration(durationNs, { unit: 'ns', precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Status</span>
-          <div className="mt-0.5">
-            <Badge variant={status.variant}>{status.label}</Badge>
+          <div className="flex shrink-0 items-center gap-1">
+            {taskRunId && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleOpenTaskRun}
+                leftIcon={<PanelRight className="size-4" />}
+              >
+                View Task Run
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8 shrink-0 text-muted-foreground"
+              onClick={onClose}
+              hoverText="Close"
+              aria-label="Close panel"
+            >
+              <X className="size-4" />
+            </Button>
           </div>
         </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Started</span>
-          <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatTimestamp(span.createdAt)}
-          </p>
+
+        <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
+          {q && (
+            <div>
+              <span className="text-xs text-muted-foreground">Queue Time</span>
+              <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+                {formatDuration(queueNs, { unit: 'ns', precise: true })}
+              </p>
+            </div>
+          )}
+          <div>
+            <span className="text-xs text-muted-foreground">Duration</span>
+            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+              {queuedOnlySpan
+                ? '–'
+                : formatDuration(durationNs, { unit: 'ns', precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Status</span>
+            <div className="mt-0.5">
+              <Badge variant={status.variant}>{status.label}</Badge>
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Started</span>
+            <p className="mt-0.5 font-mono text-sm text-foreground">
+              {formatTimestamp(span.createdAt)}
+            </p>
+          </div>
         </div>
       </div>
 
-      {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
-        <Alert variant="destructive">
-          <AlertTitle>Error Message</AlertTitle>
-          <AlertDescription>
-            <pre className="whitespace-pre-wrap break-words font-mono text-xs">
-              {span.statusMessage}
-            </pre>
-          </AlertDescription>
-        </Alert>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="flex flex-col gap-4">
+          {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
+            <Alert variant="destructive">
+              <AlertTitle>Error Message</AlertTitle>
+              <AlertDescription>
+                <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                  {span.statusMessage}
+                </pre>
+              </AlertDescription>
+            </Alert>
+          )}
 
-      {childErrors.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {childErrors.map((err, i) => (
-            <button
-              key={i}
-              type="button"
-              className="w-full text-left"
-              onClick={() => onSpanSelect?.(err.span)}
-            >
-              <Alert
-                variant="destructive"
-                className="transition-colors hover:bg-destructive/10"
-              >
-                <AlertTitle>{err.spanName}</AlertTitle>
-                <AlertDescription>
-                  <pre className="whitespace-pre-wrap break-words font-mono text-xs">
-                    {err.message}
-                  </pre>
-                </AlertDescription>
-              </Alert>
-            </button>
-          ))}
-        </div>
-      )}
+          {childErrors.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {childErrors.map((err, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() => onSpanSelect?.(err.span)}
+                >
+                  <Alert
+                    variant="destructive"
+                    className="transition-colors hover:bg-destructive/10"
+                  >
+                    <AlertTitle>{err.spanName}</AlertTitle>
+                    <AlertDescription>
+                      <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                        {err.message}
+                      </pre>
+                    </AlertDescription>
+                  </Alert>
+                </button>
+              ))}
+            </div>
+          )}
 
-      {(user.length > 0 || hatchet.length > 0) && (
-        <div className="flex flex-col gap-3">
-          <AttrTable
-            entries={user}
-            title="Attributes"
-            activeFilters={activeFilters}
-            onAddFilter={onAddFilter}
-            onRemoveFilter={onRemoveFilter}
-          />
-          <AttrTable
-            entries={hatchet}
-            title="Hatchet Attributes"
-            activeFilters={activeFilters}
-            onAddFilter={onAddFilter}
-            onRemoveFilter={onRemoveFilter}
-          />
+          {(user.length > 0 || hatchet.length > 0) && (
+            <div className="flex flex-col gap-3">
+              <AttrTable
+                entries={user}
+                title="Attributes"
+                activeFilters={activeFilters}
+                onAddFilter={onAddFilter}
+                onRemoveFilter={onRemoveFilter}
+              />
+              <AttrTable
+                entries={hatchet}
+                title="Hatchet Attributes"
+                activeFilters={activeFilters}
+                onAddFilter={onAddFilter}
+                onRemoveFilter={onRemoveFilter}
+              />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </Card>
   );
 }
@@ -408,59 +414,61 @@ export function GroupDetail({
   const maxMs = Math.max(...durations);
 
   return (
-    <Card className="flex flex-col gap-4 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="truncate font-mono text-sm font-semibold text-foreground">
-            {group.groupName}
-          </h3>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {group.totalCount.toLocaleString()} spans
-            {group.errorCount > 0 && (
-              <span className="text-red-500">
-                {' '}
-                · {group.errorCount.toLocaleString()} errors
-              </span>
-            )}
-          </p>
+    <Card className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 space-y-4 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="truncate font-mono text-sm font-semibold text-foreground">
+              {group.groupName}
+            </h3>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {group.totalCount.toLocaleString()} spans
+              {group.errorCount > 0 && (
+                <span className="text-red-500">
+                  {' '}
+                  · {group.errorCount.toLocaleString()} errors
+                </span>
+              )}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="size-8 shrink-0 text-muted-foreground"
+            onClick={onClose}
+            hoverText="Close"
+            aria-label="Close panel"
+          >
+            <X className="size-4" />
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-8 shrink-0 text-muted-foreground"
-          onClick={onClose}
-          hoverText="Close"
-          aria-label="Close panel"
-        >
-          <X className="size-4" />
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div>
-          <span className="text-xs text-muted-foreground">Time Range</span>
-          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {formatDuration(timeRangeMs, { precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Avg Duration</span>
-          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {formatDuration(avgMs, { precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Min Duration</span>
-          <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatDuration(minMs, { precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Max Duration</span>
-          <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatDuration(maxMs, { precise: true })}
-          </p>
+        <div className="grid grid-cols-4 gap-4">
+          <div>
+            <span className="text-xs text-muted-foreground">Time Range</span>
+            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+              {formatDuration(timeRangeMs, { precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Avg Duration</span>
+            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+              {formatDuration(avgMs, { precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Min Duration</span>
+            <p className="mt-0.5 font-mono text-sm text-foreground">
+              {formatDuration(minMs, { precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Max Duration</span>
+            <p className="mt-0.5 font-mono text-sm text-foreground">
+              {formatDuration(maxMs, { precise: true })}
+            </p>
+          </div>
         </div>
       </div>
     </Card>

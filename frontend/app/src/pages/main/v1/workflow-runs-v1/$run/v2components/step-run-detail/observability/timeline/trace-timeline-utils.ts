@@ -235,6 +235,38 @@ export function flattenTree(
   return rows;
 }
 
+export function collectDescendantIds(span: OtelSpanTree): Set<string> {
+  const ids = new Set<string>();
+  (function collect(nodes: OtelSpanTree[]) {
+    for (const n of nodes) {
+      ids.add(n.spanId);
+      collect(n.children);
+    }
+  })(span.children);
+  return ids;
+}
+
+export function rowHighlightClass({
+  hovered,
+  selected,
+  childOfSelected,
+}: {
+  hovered?: boolean;
+  selected?: boolean;
+  childOfSelected?: boolean;
+}): string {
+  if (hovered) {
+    return 'bg-muted/40';
+  }
+  if (selected) {
+    return 'bg-primary/10';
+  }
+  if (childOfSelected) {
+    return 'bg-primary/5';
+  }
+  return '';
+}
+
 export function computeTimeTicks(totalDurationMs: number): {
   ticks: number[];
   maxTick: number;
