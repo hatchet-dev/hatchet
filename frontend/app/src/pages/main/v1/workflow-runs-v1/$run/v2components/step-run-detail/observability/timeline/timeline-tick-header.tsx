@@ -6,7 +6,6 @@ interface TimelineTickHeaderProps {
   ticks: number[];
   timelineMaxMs: number;
   visOffsetMs: number;
-  effectiveCursorPct: number | null;
   brushRange: BrushRange | null;
 }
 
@@ -14,7 +13,6 @@ export const TimelineTickHeader = memo(function TimelineTickHeader({
   ticks,
   timelineMaxMs,
   visOffsetMs,
-  effectiveCursorPct,
   brushRange,
 }: TimelineTickHeaderProps) {
   return (
@@ -36,23 +34,6 @@ export const TimelineTickHeader = memo(function TimelineTickHeader({
           </div>
         );
       })}
-
-      {effectiveCursorPct !== null && !brushRange && (
-        <div
-          className="pointer-events-none absolute z-10 flex h-full items-center whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background"
-          style={{
-            left: `${effectiveCursorPct * 100}%`,
-            transform:
-              effectiveCursorPct < 0.05
-                ? 'none'
-                : effectiveCursorPct > 0.95
-                  ? 'translateX(-100%)'
-                  : 'translateX(-50%)',
-          }}
-        >
-          {formatDuration(timelineMaxMs * effectiveCursorPct + visOffsetMs)}
-        </div>
-      )}
 
       {brushRange && (
         <div

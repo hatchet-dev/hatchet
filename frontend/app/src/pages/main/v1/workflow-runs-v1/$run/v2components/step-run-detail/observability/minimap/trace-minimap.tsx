@@ -1,3 +1,5 @@
+import { computeTimeTicks } from '../timeline/trace-timeline-utils';
+import { formatDuration } from '../utils/format-utils';
 import { CursorOverlay } from './cursor-overlay';
 import { DragAnnotation } from './drag-annotation';
 import { MinimapTooltip } from './minimap-tooltip';
@@ -36,6 +38,11 @@ export function TraceMinimap({
     [spanTrees, minMs, totalMs, expandedSpanIds],
   );
 
+  const ticks = useMemo(() => {
+    const { ticks: rawTicks } = computeTimeTicks(totalMs);
+    return rawTicks.filter((t) => t <= totalMs);
+  }, [totalMs]);
+
   const { dragging, startDrag, handleTrackDown, handleDoubleClick } =
     useMinimapDrag(trackRef, visibleRange, onRangeChange);
 
@@ -47,52 +54,74 @@ export function TraceMinimap({
   const activePct = hoverPct ?? externalHoverPct ?? null;
 
   return (
-    <div
-      ref={trackRef}
-      className="group relative h-[43px] overflow-hidden rounded-lg border border-border/50 bg-muted/30"
-      style={{ cursor: cursorStyle }}
-      onPointerDown={handleTrackDown}
-      onDoubleClick={handleDoubleClick}
-      onMouseMove={(e) => {
-        if (!trackRef.current) {
-          return;
-        }
-        const pct = pctFromEvent(e, trackRef.current);
-        setHoverPct(pct);
-        onHoverPctChange?.(pct);
-      }}
-      onMouseLeave={() => {
-        setHoverPct(null);
-        onHoverPctChange?.(null);
-      }}
-    >
-      <SpanMarkers
-        markers={markers}
-        hoveredIdx={hoveredIdx}
-        onHoveredIdxChange={setHoveredIdx}
-        onTooltipPosChange={setTooltipPos}
-        onSpanSelect={onSpanSelect}
-      />
+    <div>
+      <div
+        ref={trackRef}
+        className="group relative h-[43px] overflow-hidden rounded-lg border border-border/50 bg-muted/30"
+        style={{ cursor: cursorStyle }}
+        onPointerDown={handleTrackDown}
+        onDoubleClick={handleDoubleClick}
+        onMouseMove={(e) => {
+          if (!trackRef.current) {
+            return;
+          }
+          const pct = pctFromEvent(e, trackRef.current);
+          setHoverPct(pct);
+          onHoverPctChange?.(pct);
+        }}
+        onMouseLeave={() => {
+          setHoverPct(null);
+          onHoverPctChange?.(null);
+        }}
+      >
+        <SpanMarkers
+          markers={markers}
+          hoveredIdx={hoveredIdx}
+          onHoveredIdxChange={setHoveredIdx}
+          onTooltipPosChange={setTooltipPos}
+          onSpanSelect={onSpanSelect}
+        />
 
-      <RangeHandles
-        visibleRange={visibleRange}
-        dragging={dragging}
-        startDrag={startDrag}
-      />
+        <RangeHandles
+          visibleRange={visibleRange}
+          dragging={dragging}
+          startDrag={startDrag}
+        />
 
-      {activePct !== null && !dragging && (
-        <CursorOverlay activePct={activePct} totalMs={totalMs} />
-      )}
+        {activePct !== null && !dragging && (
+          <CursorOverlay activePct={activePct} totalMs={totalMs} />
+        )}
 
-      {dragging && (
-        <DragAnnotation visibleRange={visibleRange} totalMs={totalMs} />
-      )}
+        {dragging && (
+          <DragAnnotation visibleRange={visibleRange} totalMs={totalMs} />
+        )}
 
-      <div className="pointer-events-none absolute inset-0 z-[4] rounded-[inherit] shadow-[inset_0px_7px_10px_0px_rgba(0,0,0,0.01),inset_0px_1px_3px_0px_rgba(0,0,0,0.01)]" />
+        <div className="pointer-events-none absolute inset-0 z-[4] rounded-[inherit] shadow-[inset_0px_7px_10px_0px_rgba(0,0,0,0.01),inset_0px_1px_3px_0px_rgba(0,0,0,0.01)]" />
 
-      {hoveredMarker && tooltipPos && !dragging && (
-        <MinimapTooltip marker={hoveredMarker} position={tooltipPos} />
-      )}
+        {hoveredMarker && tooltipPos && !dragging && (
+          <MinimapTooltip marker={hoveredMarker} position={tooltipPos} />
+        )}
+      </div>
+
+      <div className="relative h-5">
+        {ticks.map((t, i) => {
+          const isLast = i === ticks.length - 1;
+          return (
+            <div
+              key={t}
+              className="absolute flex h-full items-center"
+              style={{
+                left: `${totalMs > 0 ? (t / totalMs) * 100 : 0}%`,
+                transform: isLast ? 'translateX(-100%)' : undefined,
+              }}
+            >
+              <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                {formatDuration(t)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

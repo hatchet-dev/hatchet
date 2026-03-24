@@ -114,32 +114,27 @@ export function TraceTimeline({
       const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
       const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
       const visDurationMs = visEndMs - visStartMs;
-      const { ticks, maxTick } = computeTimeTicks(visDurationMs);
+      const { ticks: rawTicks } = computeTimeTicks(visDurationMs);
       return {
         visMinStart: visStartMs,
         visOffsetMs: visStartMs - minStart,
-        ticks,
-        timelineMaxMs: hasLiveProgress
-          ? visDurationMs
-          : Math.max(maxTick, visDurationMs),
+        ticks: rawTicks.filter((t) => t <= visDurationMs),
+        timelineMaxMs: visDurationMs,
         traceMinStart: minStart,
         traceTotalMs: totalDurationMs,
       };
     }
 
-    const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
-    const timelineMaxMs = hasLiveProgress
-      ? totalDurationMs
-      : Math.max(maxTick, totalDurationMs);
+    const { ticks: rawTicks } = computeTimeTicks(totalDurationMs);
     return {
       visMinStart: minStart,
       visOffsetMs: 0,
-      ticks,
-      timelineMaxMs,
+      ticks: rawTicks.filter((t) => t <= totalDurationMs),
+      timelineMaxMs: totalDurationMs,
       traceMinStart: minStart,
       traceTotalMs: totalDurationMs,
     };
-  }, [spanTrees, visibleRange, now, hasLiveProgress, isRunning]);
+  }, [spanTrees, visibleRange, now, isRunning]);
 
   const toggleExpand = useCallback(
     (id: string) => {
@@ -170,14 +165,15 @@ export function TraceTimeline({
   const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
 
   const selectedDescendantIds = useMemo(
-    () => (selectedSpan ? collectDescendantIds(selectedSpan) : new Set<string>()),
+    () =>
+      selectedSpan ? collectDescendantIds(selectedSpan) : new Set<string>(),
     [selectedSpan],
   );
 
   return (
     <div className="relative flex min-w-0 overflow-hidden" ref={containerRef}>
       <div
-        className="flex shrink-0 flex-col overflow-hidden pt-6"
+        className="flex shrink-0 flex-col overflow-hidden"
         style={{ width: LABEL_WIDTH }}
       >
         <TimelineLabels
