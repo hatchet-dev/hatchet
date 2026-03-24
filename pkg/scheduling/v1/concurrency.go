@@ -206,9 +206,9 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 		)
 
 		start := time.Now()
-
+		c.acquireStrategyLocks()
 		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
-
+		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()
 			c.l.Error().Ctx(ctx).Err(err).Msg("error updating concurrency strategy is_active")
