@@ -61,13 +61,14 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
 
     assert len(spans) == 5, (
-        "five spans: hatchet.run_workflow, hatchet.engine.queued, 2x hatchet.start_step_run, custom.child.span"
+        "five spans: hatchet.run_workflow, hatchet.engine.queued,hatchet.start_step_run, hatchet.engine.started, custom.child.span"
     )
 
     assert {s.span_name for s in spans} == {
         "hatchet.run_workflow",
         "hatchet.engine.queued",
         "hatchet.start_step_run",
+        "hatchet.engine.started",
         "custom.child.span",
     }
 
@@ -151,7 +152,7 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     spans = await asyncio.to_thread(poll_for_trace, hatchet, run_id)
 
     assert len(spans) == 5, (
-        "five spans: hatchet.push_event, hatchet.engine.queued, 2x hatchet.start_step_run, custom.child.span"
+        "five spans: hatchet.push_event, hatchet.engine.queued, hatchet.start_step_run, hatchet.engine.started, custom.child.span"
     )
 
     assert {s.span_name for s in spans} == {
@@ -159,6 +160,7 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
         "hatchet.engine.queued",
         "hatchet.start_step_run",
         "custom.child.span",
+        "hatchet.engine.started",
     }
 
     push_event_spans = [s for s in spans if s.span_name == "hatchet.push_event"]
@@ -210,7 +212,8 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
         24 spans:
             - hatchet.run_workflow
             - 4x hatchet.engine.queued
-            - 2x hatchet.start_step_run for each of the 4 tasks (8 total)
+            - hatchet.start_step_run for each of the 4 tasks
+            - hatchet.engine.started for each of the 4 tasks
             - db.query
             - transform.pipeline
             - transform.normalize
@@ -239,6 +242,7 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
         "cache.invalidate",
         "notification.send",
         "json.parse",
+        "hatchet.engine.started",
     }
 
     step_run_spans = [s for s in spans if s.span_name == "hatchet.start_step_run"]
@@ -303,7 +307,8 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
         10 spans:
             - 2x hatchet.run_workflow (one for parent, one for child)
             - 2x hatchet.engine.queued (one for parent, one for child)
-            - 4x hatchet.start_step_run for parent and child (2 each)
+            - 2x hatchet.start_step_run for parent and child
+            - 2x hatchet.engine.started for parent and child
             - spawn.child
             - custom.child.span
     """
@@ -314,6 +319,7 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
         "hatchet.start_step_run",
         "spawn.child",
         "custom.child.span",
+        "hatchet.engine.started",
     }
 
     step_run_spans = [s for s in spans if s.span_name == "hatchet.start_step_run"]
