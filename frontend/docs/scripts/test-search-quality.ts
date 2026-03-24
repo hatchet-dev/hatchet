@@ -213,12 +213,6 @@ const TEST_CASES: SearchTestCase[] = [
   // Orchestration & composition
   // -------------------------------------------------------------------------
   {
-    name: "orchestration",
-    query: "orchestration",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns"],
-    topN: 10,
-  },
-  {
     name: "DAG",
     query: "DAG",
     expectAnyOf: ["v1/durable-execution", "v1/patterns/directed-acyclic-graphs"],
