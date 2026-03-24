@@ -19,7 +19,7 @@ import {
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
-import { Filter, Minus, PanelRight, Plus, X } from 'lucide-react';
+import { Download, Filter, Minus, PanelRight, Plus, X } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 function FilterWithBadgeIcon({
@@ -84,6 +84,17 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
 }
 
 const HATCHET_ATTR_PREFIX = 'hatchet.';
+const LARGE_VALUE_THRESHOLD = 500;
+
+function downloadAttrValue(key: string, value: string) {
+  const blob = new Blob([value], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${key.replace(/[^a-zA-Z0-9._-]/g, '_')}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function partitionAttributes(attrs: Record<string, string> | undefined) {
   const hatchet: [string, string][] = [];
@@ -161,35 +172,59 @@ function AttrTable({
                   </TableCell>
                   <TableCell className="break-all font-mono">
                     <span className="flex items-center justify-between gap-2">
-                      <span>{value}</span>
-                      {(onAddFilter || onRemoveFilter) && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className={cn(
-                            'size-6 shrink-0 transition-opacity',
-                            active
-                              ? 'opacity-100'
-                              : 'opacity-0 group-hover:opacity-100',
-                          )}
-                          hoverText={
-                            active
-                              ? `Remove filter ${key}:${value}`
-                              : `Filter by ${key}:${value}`
-                          }
-                          onClick={() =>
-                            active
-                              ? onRemoveFilter?.(key, value)
-                              : onAddFilter?.(key, value)
-                          }
-                        >
-                          {active ? (
-                            <FilterWithBadgeIcon variant="minus" />
-                          ) : (
-                            <FilterWithBadgeIcon variant="plus" />
-                          )}
-                        </Button>
+                      {value.length > LARGE_VALUE_THRESHOLD ? (
+                        <span className="min-w-0">
+                          <span className="text-muted-foreground">
+                            {value.slice(0, LARGE_VALUE_THRESHOLD)}…
+                          </span>
+                          <span className="ml-1 text-xs text-muted-foreground/60">
+                            ({(value.length / 1024).toFixed(1)} KB)
+                          </span>
+                        </span>
+                      ) : (
+                        <span>{value}</span>
                       )}
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        {value.length > LARGE_VALUE_THRESHOLD && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-6 shrink-0"
+                            hoverText={`Download ${key}`}
+                            onClick={() => downloadAttrValue(key, value)}
+                          >
+                            <Download className="size-3" />
+                          </Button>
+                        )}
+                        {(onAddFilter || onRemoveFilter) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={cn(
+                              'size-6 shrink-0 transition-opacity',
+                              active
+                                ? 'opacity-100'
+                                : 'opacity-0 group-hover:opacity-100',
+                            )}
+                            hoverText={
+                              active
+                                ? `Remove filter ${key}:${value}`
+                                : `Filter by ${key}:${value}`
+                            }
+                            onClick={() =>
+                              active
+                                ? onRemoveFilter?.(key, value)
+                                : onAddFilter?.(key, value)
+                            }
+                          >
+                            {active ? (
+                              <FilterWithBadgeIcon variant="minus" />
+                            ) : (
+                              <FilterWithBadgeIcon variant="plus" />
+                            )}
+                          </Button>
+                        )}
+                      </span>
                     </span>
                   </TableCell>
                 </TableRow>
