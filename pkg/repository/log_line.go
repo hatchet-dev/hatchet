@@ -65,10 +65,8 @@ type CreateLogLineOpts struct {
 
 type ListLogLineRow struct {
 	*sqlcv1.V1LogLine
-
-	TaskExternalId uuid.UUID
-
 	TaskDisplayName string
+	TaskExternalId  uuid.UUID
 }
 
 type GetLogLinePointMetricsOpts struct {

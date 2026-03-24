@@ -106,6 +106,9 @@ export class AdminClient {
    * @param input an object containing the input to the workflow
    * @param options an object containing the options to run the workflow
    * @returns the ID of the new workflow run
+   *
+   * @important This method is instrumented by HatchetInstrumentor._patchRunWorkflow.
+   * Keep the signature in sync with the instrumentor wrapper.
    */
   async runWorkflow<Q = object, P = object>(
     workflowName: string,
@@ -186,6 +189,9 @@ export class AdminClient {
    * Order is preserved in the response.
    * @param workflowRuns an array of objects containing the workflow name, input, and options for each workflow run
    * @returns an array of workflow run references
+   *
+   * @important This method is instrumented by HatchetInstrumentor._patchRunWorkflows.
+   * Keep the signature in sync with the instrumentor wrapper.
    */
   async runWorkflows<Q = object, P = object>(
     workflowRuns: Array<{

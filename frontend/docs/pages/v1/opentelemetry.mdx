@@ -1,104 +1,170 @@
-import { Callout } from "nextra/components";
-import { snippets } from "@/lib/generated/snippets";
-import { Snippet } from "@/components/code";
+import { Callout, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
 
 # OpenTelemetry
 
-<Callout type="info" emoji="🪓">
-  OpenTelemetry support is currently only available for the Python SDK.
-</Callout>
-
 Hatchet supports exporting traces from your tasks to an [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) to improve visibility into your Hatchet tasks.
 
-## Usage
+## Setup
 
-### Setup
+<UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
 
-Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code if you opt in. Setup is straightforward:
+Install the `otel` extra:
 
-First, install the `otel` extra with (e.g.) `pip install hatchet-sdk[otel]`. Then, import the instrumentor:
+```bash
+pip install hatchet-sdk[otel]
+```
 
-<Snippet
-  src={
-    snippets.python.opentelemetry_instrumentation.worker
-      .configure_the_instrumentor
-  }
-/>
+Then create the instrumentor and call `instrument()`:
 
-You bring your own trace provider and plug it into the `HatchetInstrumentor`, call `instrument`, and that's it!
+```python
+from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
-<Callout type="info" emoji="🔭">
-  Check out the [OpenTelemetry
-  documentation](https://opentelemetry.io/docs/languages/python/instrumentation/)
-  for more information on how to set up a trace provider.
+HatchetInstrumentor().instrument()
+```
+
+By default, `HatchetInstrumentor` creates a `TracerProvider` that sends spans to the Hatchet engine's OTLP collector. You can also pass your own `TracerProvider`:
+
+```python
+HatchetInstrumentor(
+    tracer_provider=your_tracer_provider,
+).instrument()
+```
+
+### Options
+
+| Option                          | Type             | Default | Description                                                      |
+| ------------------------------- | ---------------- | ------- | ---------------------------------------------------------------- |
+| `tracer_provider`               | `TracerProvider` | —       | Custom TracerProvider. If not set, one is created automatically. |
+| `enable_hatchet_otel_collector` | `bool`           | `True`  | Send traces to the Hatchet engine's OTLP collector.              |
+| `schedule_delay_millis`         | `int`            | —       | Delay between consecutive exports of the BatchSpanProcessor.     |
+| `max_export_batch_size`         | `int`            | —       | Maximum batch size for the BatchSpanProcessor.                   |
+| `max_queue_size`                | `int`            | —       | Maximum queue size for the BatchSpanProcessor.                   |
+
+</Tabs.Tab>
+<Tabs.Tab title="TypeScript">
+
+Install the required OpenTelemetry packages:
+
+```bash
+npm install @opentelemetry/api @opentelemetry/instrumentation @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-grpc
+```
+
+Register the instrumentor before creating any Hatchet clients or workers:
+
+```typescript
+const { registerInstrumentations } = require("@opentelemetry/instrumentation");
+import { HatchetInstrumentor } from "@hatchet-dev/typescript-sdk/opentelemetry";
+
+registerInstrumentations({
+  instrumentations: [new HatchetInstrumentor()],
+});
+```
+
+By default, `HatchetInstrumentor` sends spans to the Hatchet engine's OTLP collector. You can disable this with `enableHatchetCollector: false`.
+
+### Options
+
+| Option                      | Type      | Default | Description                                                          |
+| --------------------------- | --------- | ------- | -------------------------------------------------------------------- |
+| `enableHatchetCollector`    | `boolean` | `true`  | Send traces to the Hatchet engine's OTLP collector.                  |
+| `clientConfig`              | `object`  | —       | Override Hatchet client config for the collector connection.         |
+| `includeTaskNameInSpanName` | `boolean` | `false` | Append the task action ID to the `hatchet.start_step_run` span name. |
+| `excludedAttributes`        | `array`   | `[]`    | List of `hatchet.*` attribute keys to exclude from spans.            |
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+Import the `opentelemetry` package (commonly aliased as `hatchetotel`):
+
+```go
+import hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
+```
+
+Create the instrumentor, then register its middleware on the worker:
+
+```go
+instrumentor, err := hatchetotel.NewInstrumentor()
+if err != nil {
+    log.Fatalf("failed to create instrumentor: %v", err)
+}
+
+worker.Use(instrumentor.Middleware())
+```
+
+By default, `NewInstrumentor` creates a `TracerProvider` that sends spans to the Hatchet engine's OTLP collector.
+
+Remember to shut down the instrumentor on exit to flush remaining spans:
+
+```go
+defer instrumentor.Shutdown(context.Background())
+```
+
+### Options
+
+| Option                                           | Description                                                            |
+| ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `hatchetotel.WithTracerProvider(tp)`             | Use a custom `*sdktrace.TracerProvider` instead of creating a new one. |
+| `hatchetotel.DisableHatchetCollector()`          | Disable sending traces to the Hatchet engine's OTLP collector.         |
+| `hatchetotel.WithBatchSpanProcessorOptions(...)` | Configure the `BatchSpanProcessor` for the Hatchet collector.          |
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+<Callout type="info">
+  OpenTelemetry support for the Ruby SDK is coming soon.
 </Callout>
 
-### Spans
+</Tabs.Tab>
+</UniversalTabs>
+
+## Spans
 
 By default, Hatchet creates spans at the following points in the lifecycle of a task run:
 
-1. When a trigger is run on the client side, e.g. `run()` or `push()` is called.
-2. When a worker handles a task event, such as starting to run the task or cancelling the task
+1. **Producer spans** — when a trigger is called on the client side (e.g. `run()`, `runNoWait()`, `push()`, `schedule()`).
+2. **Consumer spans** — when a worker handles a task run, such as starting to run the task (`hatchet.start_step_run`) or cancelling a task (`hatchet.cancel_step_run`).
 
-In addition, you'll get a handful of attributes set (prefixed by `hatchet.`) on the task run events, such as the task name and the worker ID, as well as success/failure states, and so on.
+### Span Names
 
-Some other important notes:
+| Span Name                   | Kind       | Description                                |
+| --------------------------- | ---------- | ------------------------------------------ |
+| `hatchet.start_step_run`    | `CONSUMER` | Worker begins executing a task.            |
+| `hatchet.cancel_step_run`   | `CONSUMER` | Worker cancels a running task.             |
+| `hatchet.run_workflow`      | `PRODUCER` | Client triggers a workflow run.            |
+| `hatchet.run_workflows`     | `PRODUCER` | Client triggers multiple workflow runs.    |
+| `hatchet.schedule_workflow` | `PRODUCER` | Client creates a scheduled workflow run.   |
+| `hatchet.push_event`        | `PRODUCER` | Client pushes an event.                    |
+| `hatchet.bulk_push_event`   | `PRODUCER` | Client pushes events in bulk.              |
+| `hatchet.durable.wait_for`  | `INTERNAL` | Durable task waits for a signal/condition. |
 
-1. The instrumentor will automatically propagate the trace context between task runs, so if you spawn a task from another task, the child will correctly show up as a child of its parent in the trace waterfall.
-2. You can exclude specific attributes from being attached to spans by providing the `otel` configuration option on the `ClientConfig` and passing a list of `excluded_attributes`, which come from [this list](https://github.com/hatchet-dev/hatchet/blob/main/sdks/python/hatchet_sdk/utils/opentelemetry.py).
+### Span Attributes
 
-## Integrations
+All spans include an `instrumentor` attribute set to `"hatchet"`. Consumer spans (`hatchet.start_step_run`) include the following `hatchet.*` attributes:
 
-Hatchet's instrumentor is easy to integrate with a number of third-party tracing tools.
+| Attribute                        | Type     | Description                                      |
+| -------------------------------- | -------- | ------------------------------------------------ |
+| `hatchet.tenant_id`              | `string` | The tenant ID for the task run.                  |
+| `hatchet.worker_id`              | `string` | The worker handling the task.                    |
+| `hatchet.workflow_run_id`        | `string` | The workflow run ID.                             |
+| `hatchet.step_run_id`            | `string` | The task run ID.                                 |
+| `hatchet.step_id`                | `string` | The task ID.                                     |
+| `hatchet.workflow_name`          | `string` | The workflow name.                               |
+| `hatchet.action_name`            | `string` | The action ID (format: `workflowName:taskName`). |
+| `hatchet.step_name`              | `string` | The human-readable task name.                    |
+| `hatchet.retry_count`            | `int`    | Current retry attempt (0-indexed).               |
+| `hatchet.workflow_id`            | `string` | The workflow definition ID (if available).       |
+| `hatchet.workflow_version_id`    | `string` | The workflow version ID (if available).          |
+| `hatchet.parent_workflow_run_id` | `string` | Parent workflow run ID (for child workflows).    |
+| `hatchet.child_workflow_index`   | `int`    | Child workflow index (for child workflows).      |
+| `hatchet.child_workflow_key`     | `string` | Child workflow key (for child workflows).        |
 
-### Langfuse
+Producer spans (`hatchet.run_workflow`) include `hatchet.step_name` (the workflow being triggered) and, on success, `hatchet.child_workflow_run_id`.
 
-For example, you might be interested in using [Langfuse](https://langfuse.com/) for tracing an LLM-intensive application.
+### Context Propagation
 
-<Callout type="warning" emoji="⚠️">
-  Note that this example uses Langfuse's [V3 (OTel-based)
-  SDK](https://langfuse.com/docs/sdk/python/sdk-v3). See their docs for more
-  information.
-</Callout>
+All SDKs:
 
-First, configure the Langfuse client [as described by their documentation](https://langfuse.com/docs/opentelemetry/example-python-sdk):
-
-<Snippet
-  src={
-    snippets.python.opentelemetry_instrumentation.langfuse.client
-      .configure_langfuse
-  }
-/>
-
-Langfuse will set the global tracer provider, so you don't have to do it manually.
-
-Next, create an OpenAI client [using Langfuse's OpenAI wrapper `langfuse.openai` as a drop-in replacement for the default OpenAI](https://langfuse.com/docs/integrations/openai/python/get-started) client:
-
-<Snippet
-  src={
-    snippets.python.opentelemetry_instrumentation.langfuse.client
-      .create_open_ai_client
-  }
-/>
-
-And that's it! Now you're ready to instrument your Hatchet workers with Langfuse. For example, create a task like this:
-
-<Snippet
-  src={snippets.python.opentelemetry_instrumentation.langfuse.worker.task}
-/>
-
-And finally, run the task to view the Langfuse traces (cost, usage, etc.) interspersed with Hatchet's traces, in addition to any other traces you may have:
-
-<Snippet
-  src={
-    snippets.python.opentelemetry_instrumentation.langfuse.trigger.trigger_task
-  }
-/>
-
-When you run this task, you'll see a trace like this in Langfuse!
-
-<img
-  src="/langfuse-trace.png"
-  alt="example-langfuse-trace"
-  className="max-w-full mx-auto my-8"
-/>
+1. Automatically inject W3C `traceparent` into `additionalMetadata` on producer spans, so consumer spans on the worker become children of the trigger span.
+2. Provide an `HatchetAttributeSpanProcessor` that propagates `hatchet.*` attributes from the parent task run span to all child spans created within the task. This means any custom spans you create inside a task function will automatically carry the same `hatchet.*` attributes.

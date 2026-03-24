@@ -47,3 +47,15 @@ type PrometheusConfigFile struct {
 	// Path is the path to bind the prometheus server to
 	Path string `mapstructure:"path" json:"path,omitempty" default:"/metrics"`
 }
+
+// ObservabilityConfigFile configures the worker->engine OTel collector (the engine acting as a gRPC
+// TraceService that receives spans from SDK workers). This is separate from OpenTelemetryConfigFile
+// which configures the engine's own outbound tracing.
+type ObservabilityConfigFile struct {
+	// Enabled controls whether the OTel collector gRPC service and REST API trace endpoints are active.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	// MaxBatchSize is the maximum number of spans accepted per Export RPC call. Excess spans are rejected
+	// via OTLP PartialSuccess, signaling SDK exporters to back off.
+	MaxBatchSize int `mapstructure:"maxBatchSize" json:"maxBatchSize,omitempty" default:"1000"`
+}

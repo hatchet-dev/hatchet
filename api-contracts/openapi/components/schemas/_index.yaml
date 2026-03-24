@@ -414,3 +414,11 @@ V1CELDebugResponse:
   $ref: "./v1/cel.yaml#/V1CELDebugResponse"
 V1CELDebugResponseStatus:
   $ref: "./v1/cel.yaml#/V1CELDebugResponseStatus"
+OtelSpan:
+  $ref: "./v1/otel.yaml#/OtelSpan"
+OtelSpanKind:
+  $ref: "./v1/otel.yaml#/OtelSpanKind"
+OtelStatusCode:
+  $ref: "./v1/otel.yaml#/OtelStatusCode"
+OtelSpanList:
+  $ref: "./v1/otel.yaml#/OtelSpanList"

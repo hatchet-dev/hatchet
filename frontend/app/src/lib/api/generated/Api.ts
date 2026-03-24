@@ -41,6 +41,7 @@ import {
   ListAPITokensResponse,
   ListSNSIntegrations,
   ListSlackWebhooks,
+  OtelSpanList,
   RateLimitList,
   RateLimitOrderByDirection,
   RateLimitOrderByField,
@@ -691,6 +692,46 @@ export class Api<
   ) =>
     this.request<V1TaskEventList, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/task-events`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get OTel trace for a workflow run
+   *
+   * @tags Observability
+   * @name V1ObservabilityGetTrace
+   * @summary Get OTel trace
+   * @request GET:/api/v1/stable/tenants/{tenant}/traces
+   * @secure
+   */
+  v1ObservabilityGetTrace = (
+    tenant: string,
+    query: {
+      /**
+       * The workflow run external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      run_external_id: string;
+      /**
+       * The number of spans to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number of spans to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<OtelSpanList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/traces`,
       method: "GET",
       query: query,
       secure: true,
