@@ -20,7 +20,7 @@ import type {
   ParsedTraceQuery,
 } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
-import { XIcon } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type Selection =
@@ -124,6 +124,17 @@ function collectAncestorKeys(
   return undefined;
 }
 
+function collectAllKeys(nodes: OtelSpanTree[]): string[] {
+  const keys: string[] = [];
+  for (const node of nodes) {
+    if (node.children.length > 0) {
+      keys.push(getStableKey(node));
+      keys.push(...collectAllKeys(node.children));
+    }
+  }
+  return keys;
+}
+
 export function TaskRunTrace({
   spanTrees,
   isRunning,
@@ -174,6 +185,28 @@ export function TaskRunTrace({
     }
     return set;
   });
+
+  const allExpandableKeys = useMemo(
+    () => collectAllKeys(spanTrees),
+    [spanTrees],
+  );
+  const isAllExpanded =
+    allExpandableKeys.length > 0 &&
+    allExpandableKeys.every((k) => expandedSpansIds.has(k));
+
+  const handleExpandAll = useCallback(() => {
+    setExpandedSpansIds((prev) => {
+      const next = new Set(prev);
+      for (const k of allExpandableKeys) {
+        next.add(k);
+      }
+      return next;
+    });
+  }, [allExpandableKeys]);
+
+  const handleCollapseAll = useCallback(() => {
+    setExpandedSpansIds(new Set());
+  }, []);
 
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Record<string, number>
@@ -415,6 +448,21 @@ export function TaskRunTrace({
               className="flex shrink-0 flex-col items-end justify-end gap-1 pb-1 pr-2"
               style={{ width: LABEL_WIDTH }}
             >
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="gap-1 text-xs"
+                  onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
+                >
+                  {isAllExpanded ? (
+                    <ChevronsDownUp className="size-3" />
+                  ) : (
+                    <ChevronsUpDown className="size-3" />
+                  )}
+                  {isAllExpanded ? 'collapse all' : 'expand all'}
+                </Button>
+              </div>
               {onToggleShowInContext && (
                 <Button
                   variant="ghost"
@@ -422,7 +470,7 @@ export function TaskRunTrace({
                   className="gap-1 text-xs"
                   onClick={handleToggleContext}
                 >
-                  {showInContext ? 'Show task only' : 'Show in context'}
+                  {showInContext ? 'show task only' : 'show in context'}
                 </Button>
               )}
               {isZoomed && (
