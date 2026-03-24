@@ -5,18 +5,18 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Error Handling
 
-When a task fails, you often want to run cleanup logic, send a notification, or trigger a compensating action. Durable tasks handle this with your language's normal error handling; DAGs provide a dedicated on-failure task.
+When a task fails, you need a way to run cleanup logic, send notifications, or trigger compensating actions. Both durable tasks and DAGs support error handling, but the mechanism differs: durable tasks use standard try/catch blocks, while DAGs declare a special on-failure task.
 
 <UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
 <Tabs.Tab title="Durable Tasks">
 
-## Handling errors in durable tasks
+## Try/Catch in Durable Tasks
 
-Durable tasks are just functions, so you handle errors with the same tools you use everywhere else — `try`/`except` in Python, `try`/`catch` in TypeScript and Go. You have full control over what happens when a child task or operation fails.
+Durable tasks are regular functions, so you handle errors with your language's native error handling (`try`/`except` in Python, `try`/`catch` in TypeScript/Go). This gives you full control over what happens when a child task or operation fails.
 
 ### Handling child task errors
 
-Wrap child task calls in try/catch to handle failures gracefully:
+When spawning child tasks, wrap the call in a try/catch block to handle failures gracefully:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
@@ -41,23 +41,23 @@ Wrap child task calls in try/catch to handle failures gracefully:
   </Tabs.Tab>
 </UniversalTabs>
 
-Some things you can do in a catch block:
+### Common patterns
 
-- **Retry with backoff** — sleep for a bit and retry the child task.
-- **Fall back to an alternative** — if a primary path fails, spawn a different child task.
-- **Handle partial failures** — in a fan-out, collect results from the successful children and handle failures individually, rather than failing the whole workflow.
-- **Clean up** — release resources, cancel in-progress work, or notify external systems.
+- **Retry with backoff** — Catch the error, sleep, and retry the child task.
+- **Fallback logic** — If a primary path fails, spawn a different child task as a fallback.
+- **Partial failure handling** — In a fan-out, collect results from successful children and handle failures individually rather than failing the entire workflow.
+- **Cleanup** — Release resources, cancel in-progress work, or notify external systems.
 
 </Tabs.Tab>
 <Tabs.Tab title="DAGs">
 
-## On-failure tasks
+## On-Failure Tasks
 
-The on-failure task is a special task that runs when any task in the workflow fails. It lets you handle errors, perform cleanup, or send notifications as a first-class part of the workflow definition.
+The on-failure task is a special task that runs when any task in the workflow fails. It lets you handle errors, perform cleanup, or trigger notifications declaratively as part of the workflow definition.
 
 ### Defining an on-failure task
 
-You define an on-failure task the same way you'd define any other task on a workflow:
+You can define an on-failure task on your workflow the same as you'd define any other task:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -77,12 +77,14 @@ You define an on-failure task the same way you'd define any other task on a work
   </Tabs.Tab>
 </UniversalTabs>
 
-The on-failure task will run if any of the main tasks in the workflow fail. A few things you might use it for:
+The on-failure task will be executed only if any of the main tasks in the workflow fail.
 
-- Cleaning up resources or partial state after a failure
-- Sending a notification or alert
-- Logging extra context for debugging
-- Kicking off a compensating action or fallback workflow
+### Use cases
+
+- Performing cleanup tasks after a task failure in a workflow
+- Sending notifications or alerts about the failure
+- Logging additional information for debugging purposes
+- Triggering a compensating action or a fallback task
 
 </Tabs.Tab>
 </UniversalTabs>

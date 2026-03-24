@@ -4,32 +4,32 @@ import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import HumanInLoopDiagram from "@/components/HumanInLoopDiagramWrapper";
 
-# Wait For Events
+# Events
 
-Sometimes a task needs to wait for something outside your system before it can continue — a human approval, a webhook from a third-party service, or a signal from another part of your app. That is what event waiting is for.
+Tasks can pause until an external event arrives before continuing. This is the foundation for human-in-the-loop workflows, webhook-driven pipelines, and any flow that depends on signals from outside the task.
 
 <HumanInLoopDiagram />
 
-Both durable tasks and DAGs support waiting for events. Durable tasks issue event waits dynamically at runtime; DAGs declare event conditions upfront on the task definition.
+Both durable tasks and DAGs support waiting for events. Durable tasks call `WaitForEvent` dynamically at runtime, while DAGs declare event conditions upfront on the task definition.
 
 Events are delivered by [pushing events](/v1/external-events/pushing-events) into Hatchet using the event client. The event key you push must match the key your task is waiting for.
 
 <UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
 <Tabs.Tab title="Durable Tasks">
 
-## Waiting for events in durable tasks
+## Wait For Events
 
-A durable task can pause at any point and wait for an external event to arrive. Even if the task is interrupted and re-queued while waiting, the event will still be processed — when the task resumes, it reads the event from the durable event log and continues from where it left off.
+Wait For Events lets a durable task pause until an external event arrives. Even if the task is interrupted and requeued while waiting, the event will still be processed. When it resumes, it reads the event from the durable event log and continues.
 
 <Callout type="info">
   Waiting for an event puts the task into an [evictable
-  state](/v1/task-eviction) — the worker slot is freed and the task is re-queued
+  state](/v1/task-eviction), the worker slot is freed and the task is re-queued
   when the event arrives.
 </Callout>
 
-### Waiting for an event
+### Declaring a wait for event
 
-In a durable task, use the language-specific wait-for-event helper in your SDK.
+Wait For Event is declared using the context method `WaitFor` (or utility method `WaitForEvent`) on the `DurableContext` object.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -52,9 +52,9 @@ In a durable task, use the language-specific wait-for-event helper in your SDK.
   </Tabs.Tab>
 </UniversalTabs>
 
-### Filtering events
+### Event filters
 
-You can filter events using [CEL](https://github.com/google/cel-spec) expressions. This is useful when multiple tasks are waiting on the same event type but you want each one to only receive events relevant to it — for example, `user:update` events for a specific user ID.
+Events can be filtered using [CEL](https://github.com/google/cel-spec) expressions. For example, to only receive `user:update` events for a specific user:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -103,15 +103,15 @@ When the pushed event's key matches what a durable task is waiting for (and pass
 </Tabs.Tab>
 <Tabs.Tab title="DAGs">
 
-## Event conditions
+## Event Conditions
 
-Event conditions let a DAG task react to external events. A task can wait for an event before running, be skipped when an event arrives, or be cancelled by one.
+Event conditions let a DAG task react to external events. A task can wait for an event before running, be skipped when an event arrives, or be cancelled by an event.
 
-Unlike durable tasks (where event waits are created dynamically at runtime), DAG event conditions are declared upfront on the task definition.
+Unlike durable tasks (where `WaitForEvent` is called dynamically at runtime), DAG event conditions are declared upfront on the task definition.
 
-### How to use event conditions
+### Usage modes
 
-Event conditions work with three operators:
+Event conditions can be used with three operators:
 
 - **`wait_for`** — the task waits for the event before starting.
 - **`skip_if`** — the task is skipped if the event arrives.
@@ -148,7 +148,7 @@ Declare a task with a `wait_for` event condition. The task will not start until 
 
 ### Skipping on an event
 
-Declare a task with a `skip_if` event condition. The task will be skipped if the event arrives before it starts.
+Declare a task with a `skip_if` event condition. The task will be skipped if the event arrives before the task starts.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -170,9 +170,9 @@ Declare a task with a `skip_if` event condition. The task will be skipped if the
   </Tabs.Tab>
 </UniversalTabs>
 
-### Filtering events
+### Event filters
 
-Events can be filtered using [CEL](https://github.com/google/cel-spec) expressions. The expression is evaluated against the event payload — the condition only matches if it returns `true`. This works identically to event filters in durable tasks.
+Events can be filtered using [CEL](https://github.com/google/cel-spec) expressions. The CEL expression is evaluated against the event payload, and the condition only matches if the expression returns `true`. This works identically to event filters in durable tasks.
 
 ### Pushing events
 
@@ -195,9 +195,7 @@ For a waiting task to proceed, something must [push an event](/v1/external-event
 
 ### Combining with other conditions
 
-Event conditions can be combined with parent and sleep conditions using or groups. For example, you can wait for _either_ an event or a timeout — whichever comes first. See [Conditions & Branching](/v1/conditions) for details.
-
-For the checkpoint/replay model behind this behavior, see [Introduction to Durable Execution](/v1/durable-execution).
+Event conditions can be combined with parent and sleep conditions using or groups. For example, you can wait for _either_ an event or a timeout (whichever comes first). See [Conditions & Branching](/v1/conditions) for details.
 
 </Tabs.Tab>
 </UniversalTabs>

@@ -13,9 +13,9 @@ Workflows often need to branch: run different paths depending on data, skip step
 <UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
 <Tabs.Tab title="Durable Tasks">
 
-## Branching in durable tasks
+## Procedural Branching
 
-Durable tasks use your language's standard control flow — `if`/`else`, `match`, loops — to branch at runtime. Because the task is a single long-running function, you can make decisions based on anything available during execution: inputs, intermediate results, API responses, or child task outputs.
+Durable tasks use standard language control flow (`if`/`else`, `match`, loops) to branch at runtime. Because the task is a single long-running function, you can make decisions based on any data available during execution: inputs, intermediate results, API responses, or child task outputs.
 
 ```python
 @workflow.durable_task()
@@ -29,21 +29,20 @@ async def process(input: ProcessInput, ctx: DurableContext):
         await ctx.run_child(review_task, result)
 ```
 
-This is one of the key advantages of durable tasks over DAGs: branching logic is expressed directly in code, so you can handle complex, dynamic flows without any special DSL. Each branch can spawn different children, sleep for different durations, or wait for different events.
+This is one of the key advantages of durable tasks: branching logic is expressed directly in code, making it easy to handle complex, dynamic flows. Each branch can spawn different children, sleep for different durations, or wait for different events.
 
 <Callout type="warning">
   Branching logic must be **deterministic** between checkpoints. If the task is
   evicted and replayed, the same branches must execute in the same order. Base
   decisions on checkpoint outputs (child results, event payloads) rather than
-  wall-clock time or external state that may change between replays. See
-  [Durable Tasks](/v1/patterns/durable-tasks) for details.
+  wall-clock time or external state that may change between replays. See [Best
+  Practices](/v1/patterns/mixing-patterns#determinism-in-durable-tasks) for
+  details.
 </Callout>
 
-## Or groups
+## Or Groups
 
-Or groups let you wait on multiple conditions at once and proceed as soon as any one of them is met — like a 24-hour timeout that fires if a human never responds, or proceeding whichever comes first: an event or a sleep.
-
-An or group evaluates to `True` if **at least one** of its conditions is satisfied.
+Durable tasks can combine multiple wait conditions using or groups. An or group evaluates to `True` if **at least one** of its conditions is satisfied, letting you express "proceed on timeout or event, whichever comes first."
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -75,11 +74,11 @@ An or group evaluates to `True` if **at least one** of its conditions is satisfi
 </Tabs.Tab>
 <Tabs.Tab title="DAGs">
 
-## Parent conditions
+## Parent Conditions
 
-Parent conditions let a DAG task decide whether to run based on the output of a parent task. This enables branching within a DAG: different paths can execute depending on runtime data, while the overall graph structure stays fixed and visible in the dashboard.
+Parent conditions let a DAG task decide whether to run based on the output of a parent task. This enables branching logic within a DAG: different paths can execute depending on runtime data, while the overall graph structure remains fixed and visible in the dashboard.
 
-Parent conditions work with two operators:
+Parent conditions can be used with two operators:
 
 - **`skip_if`** — skip the task if the parent output matches the condition.
 - **`cancel_if`** — cancel the task (and its downstream dependents) if the parent output matches the condition.
@@ -91,7 +90,7 @@ Parent conditions work with two operators:
 
 ### Branching example
 
-A common approach is to create two sibling tasks with complementary parent conditions. One task runs when a value is greater than 50; the other runs when it's less than or equal to 50. Only one branch executes per run.
+A common pattern is to create two sibling tasks with complementary parent conditions. For example, one task runs when a value is greater than 50 and the other runs when it is less than or equal to 50. Only one branch executes per run.
 
 First, declare a base task that returns a value:
 
@@ -135,7 +134,7 @@ Then add two branches that use `ParentCondition` with `skip_if`:
   </Tabs.Tab>
 </UniversalTabs>
 
-These two tasks check whether the base task output was greater or less than `50`. Only one of them will run per workflow execution.
+These two tasks check whether the output of the base task was greater or less than `50`, respectively. Only one of the two will run per workflow execution.
 
 ### Checking if a task was skipped
 
@@ -157,17 +156,17 @@ Downstream tasks can check whether a parent was skipped using `ctx.was_skipped`:
   </Tabs.Tab>
 </UniversalTabs>
 
-## Or groups
+## Or Groups
 
-DAG tasks can declare multiple conditions that work together to control when and whether a task runs. Conditions of different types — parent conditions, [event conditions](/v1/events), and [sleep conditions](/v1/sleep) — can be mixed on a single task using **or groups**.
+DAG tasks can declare multiple conditions that work together to control when and whether a task runs. Conditions of different types (parent conditions, [event conditions](/v1/events), and [sleep conditions](/v1/sleep)) can be mixed on a single task using **or groups**.
 
-An or group is a set of conditions joined by an `Or` operator. The group evaluates to `True` if at least one condition in the group is satisfied. Multiple or groups on the same task are combined with `AND`, so every group must have at least one satisfied condition for the task to proceed.
+An **or group** is a set of conditions combined with an `Or` operator. The group evaluates to `True` if **at least one** of its conditions is satisfied. Multiple or groups on the same task are combined with `AND`, so every group must have at least one satisfied condition for the task to proceed.
 
 This lets you express arbitrarily complex sets of conditions in [conjunctive normal form](https://en.wikipedia.org/wiki/Conjunctive_normal_form) (CNF).
 
-### Sleep + event example
+### Sleep + Event example
 
-The most common use is combining a sleep condition with an event condition: proceed when an external signal arrives _or_ after a timeout — whichever comes first. This is great for human-in-the-loop workflows where you want a deadline.
+The most common combination is a sleep condition with an event condition: proceed when an external signal arrives _or_ after a timeout (whichever comes first). This is ideal for human-in-the-loop workflows where you want a deadline.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
