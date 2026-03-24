@@ -134,7 +134,6 @@ class EventClient(BaseRestClient):
     ) -> list[Event]:
         return await asyncio.to_thread(self.bulk_push, events=events, options=options)
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     def push(
         self,
         event_key: str,
@@ -213,7 +212,6 @@ class EventClient(BaseRestClient):
             scope=event.scope,
         )
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],

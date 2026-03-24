@@ -403,7 +403,6 @@ class AdminClient:
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     def run_workflow(
         self,
         workflow_name: str,
@@ -434,7 +433,6 @@ class AdminClient:
             admin_client=self,
         )
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def aio_run_workflow(
         self,
         workflow_name: str,
@@ -472,7 +470,6 @@ class AdminClient:
         for i in range(0, len(xs), n):
             yield xs[i : i + n]
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     def run_workflows(
         self,
         workflows: list[WorkflowRunTriggerConfig],

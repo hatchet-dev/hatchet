@@ -554,7 +554,6 @@ class Runner:
 
         return ctx
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_step_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
 
@@ -641,7 +640,6 @@ class Runner:
         except Exception as e:
             logger.exception(f"failed to terminate thread: {e}")
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_cancel_action(self, action: Action) -> None:
         key = action.key
         try:

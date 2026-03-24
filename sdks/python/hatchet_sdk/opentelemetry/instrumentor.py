@@ -463,7 +463,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         return list(bound_args.arguments.values())
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_start_step_run(
         self,
         wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
@@ -501,7 +500,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         finally:
             ctx_hatchet_span_attributes.reset(token)
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_cancel_action(
         self,
         wrapped: Callable[[Action], Coroutine[None, None, None]],
@@ -521,7 +519,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ):
             return await wrapped(*args, **kwargs)
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_push_event(
         self,
         wrapped: Callable[..., Event],
@@ -592,7 +589,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 scope,
             )
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_bulk_push_event(
         self,
         wrapped: Callable[
@@ -639,7 +635,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 options,
             )
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_run_workflow(
         self,
         wrapped: Callable[
@@ -700,7 +695,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return wrapped(workflow_name, payload, options)
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_async_run_workflow(
         self,
         wrapped: Callable[
@@ -761,7 +755,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(workflow_name, payload, options)
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_schedule_workflow(
         self,
         wrapped: Callable[
@@ -769,7 +762,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 str,
                 list[datetime],
                 str | None,
-                ScheduleTriggerWorkflowOptions,
+                ScheduleTriggerWorkflowOptions | None,
             ],
             v0_workflow_protos.WorkflowVersion,
         ],
@@ -778,7 +771,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             str,
             list[datetime],
             str | None,
-            ScheduleTriggerWorkflowOptions,
+            ScheduleTriggerWorkflowOptions | None,
         ],
         kwargs: dict[
             str,
@@ -836,7 +829,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return wrapped(workflow_name, schedules, input, options)
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_run_workflows(
         self,
         wrapped: Callable[
@@ -881,7 +873,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return wrapped(workflow_run_configs_with_meta)
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_async_run_workflows(
         self,
         wrapped: Callable[
@@ -925,7 +916,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(workflow_run_configs_with_meta)
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_aio_wait_for(
         self,
         wrapped: Callable[..., Coroutine[None, None, dict[str, Any]]],
@@ -965,7 +955,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 span.set_status(StatusCode.ERROR, str(e))
                 raise
 
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_spawn_children_no_wait(
         self,
         wrapped: Callable[..., Coroutine[None, None, list[DurableSpawnResult]]],
