@@ -6,8 +6,7 @@ from uuid import uuid4
 
 from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.events import PushEventOptions
+from hatchet_sdk import Hatchet
 from examples.opentelemetry_instrumentation.worker import (
     otel_simple_task,
     otel_spawn_parent,
@@ -48,9 +47,7 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
 
     ref = await otel_simple_task.aio_run_no_wait(
         input=SimpleOtelTaskInput(message=message),
-        options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id},
-        ),
+        additional_metadata={"test_run_id": test_run_id},
     )
 
     await ref.aio_result()
@@ -116,7 +113,7 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     event = await hatchet.event.aio_push(
         "otel:test-event",
         {"message": "event-triggered"},
-        options=PushEventOptions(additional_metadata={"test_run_id": test_run_id}),
+        additional_metadata={"test_run_id": test_run_id},
     )
 
     run_id = None
@@ -227,9 +224,7 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
 
     ref = await otel_spawn_parent.aio_run_no_wait(
         input=SimpleOtelTaskInput(message=message),
-        options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id},
-        ),
+        additional_metadata={"test_run_id": test_run_id},
     )
 
     await ref.aio_result()
