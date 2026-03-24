@@ -51,7 +51,7 @@ const nextConfig = {
       // --- Old main: /home/* → /v1/* (only paths that existed on main) ---
       { source: '/home/conditional-workflows', destination: '/v1/conditions', permanent: true, basePath: false },
       { source: '/home/on-failure-tasks', destination: '/v1/on-failure', permanent: true, basePath: false },
-      { source: '/home/durable-execution', destination: '/v1/patterns/durable-task-execution', permanent: true, basePath: false },
+      { source: '/home/durable-execution', destination: '/v1/durable-execution', permanent: true, basePath: false },
       { source: '/home/:slug(dags|orchestration)', destination: '/v1/patterns/directed-acyclic-graphs', permanent: true, basePath: false },
       { source: '/home/durable-sleep', destination: '/v1/sleep', permanent: true, basePath: false },
       { source: '/home/durable-events', destination: '/v1/events', permanent: true, basePath: false },
@@ -75,7 +75,7 @@ const nextConfig = {
       { source: '/home/basics/(steps|workflows)', destination: '/v1/tasks', permanent: true, basePath: false },
       { source: '/home/basics/environments', destination: '/v1/setup/advanced/environments', permanent: true, basePath: false },
       { source: '/home/features/concurrency/:path*', destination: '/v1/concurrency', permanent: true, basePath: false },
-      { source: '/home/features/durable-execution', destination: '/v1/patterns/durable-task-execution', permanent: true, basePath: false },
+      { source: '/home/features/durable-execution', destination: '/v1/durable-execution', permanent: true, basePath: false },
       { source: '/home/features/retries/:path*', destination: '/v1/retry-policies', permanent: true, basePath: false },
       { source: '/home/features/errors-and-logging', destination: '/v1/logging', permanent: true, basePath: false },
       { source: '/home/features/on-failure-step', destination: '/v1/on-failure', permanent: true, basePath: false },

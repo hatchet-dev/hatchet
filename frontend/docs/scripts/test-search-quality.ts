@@ -249,7 +249,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "durable execution",
     query: "durable execution",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-task-execution"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns", "v1/patterns/durable-tasks"],
   },
   {
     name: "durable events",
@@ -586,7 +586,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "DurableContext",
     query: "DurableContext",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-task-execution"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns", "v1/patterns/durable-tasks"],
     skip: true,
   },
   {
@@ -702,7 +702,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "long running task → durable",
     query: "long running task",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-task-execution", "v1/sleep"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-tasks", "v1/patterns", "v1/sleep"],
     topN: 10,
   },
   {
