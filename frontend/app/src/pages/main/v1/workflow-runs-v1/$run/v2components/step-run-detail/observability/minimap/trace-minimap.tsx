@@ -65,7 +65,7 @@ export function TraceMinimap({
 
   return (
     <div>
-      <div className="relative h-5">
+      <div className="relative h-5 overflow-hidden">
         {ticks.map((t) => {
           if (t >= totalMs) {
             return null;
