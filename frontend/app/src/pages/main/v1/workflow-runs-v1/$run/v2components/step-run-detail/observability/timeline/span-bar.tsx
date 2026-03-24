@@ -129,9 +129,9 @@ export const SpanBar = memo(function SpanBar({
                 : '',
           )}
           style={{
-            left: `${leftPct}%`,
+            left: `min(${leftPct}%, calc(100% - 4px))`,
             width: `${Math.max(widthPct, 0.3)}%`,
-            minWidth: 2,
+            minWidth: 4,
           }}
           onMouseEnter={(e) => onHover(row.rowKey, e)}
           onMouseMove={onMouseMove}

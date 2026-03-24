@@ -107,11 +107,12 @@ export const TaskRunDetail = ({
 }: TaskRunDetailProps) => {
   const [logsResetKey, setLogsResetKey] = useState(0);
   const search = useRunDetailSearch();
+  const { set: setSearch } = search;
   const outerTab = search.tab ?? 'overview';
 
   const handleMiniMapClick = useCallback(() => {
-    search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
-  }, [taskRunId, search.set]);
+    setSearch({ focusedTaskRunId: taskRunId, tab: 'traces' });
+  }, [taskRunId, setSearch]);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
