@@ -66,7 +66,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "hatchet.workflow — defining a workflow",
     query: "hatchet.workflow",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/patterns/directed-acyclic-graphs", "v1/priority", "reference/python/runnables"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/directed-acyclic-graphs", "v1/priority", "reference/python/runnables"],
     topN: 10,
   },
 
@@ -81,7 +81,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "setup",
     query: "setup",
-    expectAnyOf: ["v1/quickstart", "reference/cli/index", "agent-instructions/setup-cli"],
+    expectAnyOf: ["v1/quickstart", "reference/cli/index", "reference/cli"],
     topN: 10,
   },
   {
@@ -215,37 +215,37 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "orchestration",
     query: "orchestration",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/patterns/mixing-patterns"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/mixing-patterns"],
     topN: 10,
   },
   {
     name: "DAG",
     query: "DAG",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/patterns/directed-acyclic-graphs"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/directed-acyclic-graphs"],
     topN: 10,
   },
   {
     name: "conditional workflows",
     query: "conditional workflows",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/conditions"],
+    expectAnyOf: ["v1/durable-execution", "v1/conditions"],
     topN: 10,
   },
   {
     name: "on failure",
     query: "on failure",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/on-failure", "v1/retry-policies"],
+    expectAnyOf: ["v1/durable-execution", "v1/on-failure", "v1/retry-policies"],
     topN: 10,
   },
   {
     name: "child spawning",
     query: "child spawning",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/child-spawning"],
+    expectAnyOf: ["v1/durable-execution", "v1/child-spawning"],
     topN: 10,
   },
   {
     name: "child tasks",
     query: "child tasks",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/child-spawning", "v1/advanced-assignment/sticky-assignment"],
+    expectAnyOf: ["v1/durable-execution", "v1/child-spawning", "v1/advanced-assignment/sticky-assignment"],
     topN: 10,
   },
 
@@ -255,22 +255,22 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "durable execution",
     query: "durable execution",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/patterns/durable-task-execution"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-task-execution"],
   },
   {
     name: "durable events",
     query: "durable events",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/events"],
+    expectAnyOf: ["v1/durable-execution", "v1/events"],
   },
   {
     name: "durable sleep",
     query: "durable sleep",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/sleep"],
+    expectAnyOf: ["v1/durable-execution", "v1/sleep"],
   },
   {
     name: "durable best practices",
     query: "durable best practices",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/patterns/mixing-patterns"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/mixing-patterns"],
     topN: 10,
   },
 
@@ -539,7 +539,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "CLI",
     query: "CLI",
-    expectAnyOf: ["reference/cli", "agent-instructions/setup-cli"],
+    expectAnyOf: ["reference/cli", "v1/developer-experience"],
   },
   {
     name: "TUI",
@@ -581,7 +581,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "ctx.spawn — child spawn",
     query: "ctx.spawn",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/child-spawning"],
+    expectAnyOf: ["v1/durable-execution", "v1/child-spawning"],
     topN: 10,
   },
   {
@@ -592,7 +592,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "DurableContext",
     query: "DurableContext",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/patterns/durable-task-execution"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-task-execution"],
     skip: true,
   },
   {
@@ -613,7 +613,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "ctx.spawn( — trailing paren",
     query: "ctx.spawn(",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/child-spawning"],
+    expectAnyOf: ["v1/durable-execution", "v1/child-spawning"],
     topN: 10,
   },
   {
@@ -639,7 +639,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "delay → scheduled/sleep",
     query: "delay",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/sleep", "v1/scheduled-runs"],
+    expectAnyOf: ["v1/durable-execution", "v1/sleep", "v1/scheduled-runs"],
   },
   {
     name: "debounce → concurrency",
@@ -659,12 +659,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "fan out → child spawning",
     query: "fan out",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/bulk-run", "v1/child-spawning"],
+    expectAnyOf: ["v1/durable-execution", "v1/bulk-run", "v1/child-spawning"],
   },
   {
     name: "parallel tasks",
     query: "parallel tasks",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/child-spawning"],
+    expectAnyOf: ["v1/durable-execution", "v1/child-spawning"],
     topN: 10,
   },
   {
@@ -680,7 +680,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "error handling → retry/failure",
     query: "error handling",
-    expectAnyOf: ["v1/retry-policies", "v1/durable-workflows-overview", "v1/on-failure"],
+    expectAnyOf: ["v1/retry-policies", "v1/durable-execution", "v1/on-failure"],
     topN: 10,
   },
   {
@@ -698,7 +698,7 @@ const TEST_CASES: SearchTestCase[] = [
     name: "pipeline → DAG",
     query: "pipeline",
     expectAnyOf: [
-      "v1/durable-workflows-overview",
+      "v1/durable-execution",
       "v1/patterns/directed-acyclic-graphs",
       "cookbooks/rag-and-indexing",
       "cookbooks/document-processing",
@@ -708,7 +708,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "long running task → durable",
     query: "long running task",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/patterns/durable-task-execution", "v1/sleep"],
+    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-task-execution", "v1/sleep"],
     topN: 10,
   },
   {
@@ -720,7 +720,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "if else → conditional",
     query: "if else workflow",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/conditions"],
+    expectAnyOf: ["v1/durable-execution", "v1/conditions"],
     topN: 10,
   },
   {
@@ -745,7 +745,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "debug → troubleshooting",
     query: "debug",
-    expectAnyOf: ["v1/troubleshooting", "v1/troubleshooting/index", "v1/logging", "agent-instructions/debug-run"],
+    expectAnyOf: ["v1/troubleshooting", "v1/troubleshooting/index", "v1/logging"],
     topN: 10,
   },
   {
@@ -794,7 +794,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "wait for event → durable events",
     query: "wait for event",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/events", "v1/external-events/pushing-events", "v1/external-events/event-filters", "v1/sleep"],
+    expectAnyOf: ["v1/durable-execution", "v1/events", "v1/external-events/pushing-events", "v1/external-events/event-filters", "v1/sleep"],
     topN: 10,
   },
   {
@@ -817,13 +817,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "how to retry a failed task",
     query: "how to retry a failed task",
-    expectAnyOf: ["v1/retry-policies", "v1/durable-workflows-overview"],
+    expectAnyOf: ["v1/retry-policies", "v1/durable-execution"],
     topN: 10,
   },
   {
     name: "how to run tasks in parallel",
     query: "how to run tasks in parallel",
-    expectAnyOf: ["v1/durable-workflows-overview", "v1/child-spawning", "v1/running-your-task"],
+    expectAnyOf: ["v1/durable-execution", "v1/child-spawning", "v1/running-your-task"],
     topN: 10,
   },
   {
@@ -841,7 +841,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "how to handle errors",
     query: "how to handle errors",
-    expectAnyOf: ["v1/retry-policies", "v1/durable-workflows-overview", "v1/on-failure"],
+    expectAnyOf: ["v1/retry-policies", "v1/durable-execution", "v1/on-failure"],
     topN: 10,
   },
   {
