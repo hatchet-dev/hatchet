@@ -278,7 +278,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
 
   const handleMiniMapClick = useCallback(
     (taskRunId: string) => {
-      search.set({ focusedTaskRunId: taskRunId, tab: 'observability' });
+      search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
     },
     [search],
   );
@@ -339,8 +339,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             <TabsTrigger variant="underlined" value="overview">
               Overview
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="observability">
-              Observability
+            <TabsTrigger variant="underlined" value="traces">
+              Traces
             </TabsTrigger>
             <TabsTrigger variant="underlined" value="logs">
               Logs
@@ -387,7 +387,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               </TabsContent>
             </Tabs>
           </TabsContent>
-          <TabsContent value="observability" className="min-h-0 flex-1">
+          <TabsContent value="traces" className="min-h-0 flex-1">
             <Observability
               workflowRunExternalId={id}
               isRunning={

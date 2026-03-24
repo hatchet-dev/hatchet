@@ -35,7 +35,7 @@ export enum TabOption {
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
   Logs = 'logs',
-  Observability = 'observability',
+  Traces = 'traces',
   AdditionalMetadata = 'additional-metadata',
   Activity = 'activity',
 }
@@ -110,7 +110,7 @@ export const TaskRunDetail = ({
   const outerTab = search.tab ?? 'overview';
 
   const handleMiniMapClick = useCallback(() => {
-    search.set({ focusedTaskRunId: taskRunId, tab: 'observability' });
+    search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
   }, [taskRunId, search.set]);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
@@ -199,8 +199,8 @@ export const TaskRunDetail = ({
           <TabsTrigger variant="underlined" value="overview">
             Overview
           </TabsTrigger>
-          <TabsTrigger variant="underlined" value="observability">
-            Observability
+          <TabsTrigger variant="underlined" value="traces">
+            Traces
           </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="min-h-0 flex-1">
@@ -308,7 +308,7 @@ export const TaskRunDetail = ({
             </TabsContent>
           </Tabs>
         </TabsContent>
-        <TabsContent value="observability" className="min-h-0 flex-1">
+        <TabsContent value="traces" className="min-h-0 flex-1">
           <Observability
             taskRunId={taskRunId}
             isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
