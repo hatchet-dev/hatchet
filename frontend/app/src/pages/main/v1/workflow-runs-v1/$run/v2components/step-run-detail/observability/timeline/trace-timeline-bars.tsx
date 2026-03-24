@@ -118,8 +118,8 @@ export const TimelineBars = memo(function TimelineBars({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden pr-10">
-      {brushRange && (
-        <div className="relative h-6 shrink-0">
+      <div className="relative h-6 shrink-0">
+        {brushRange && (
           <div
             className="pointer-events-none absolute z-20 flex h-full items-center"
             style={{
@@ -159,8 +159,8 @@ export const TimelineBars = memo(function TimelineBars({
               {formatDuration(timelineMaxMs * brushRange.hi + visOffsetMs)}
             </span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div
         className="relative overflow-hidden"
