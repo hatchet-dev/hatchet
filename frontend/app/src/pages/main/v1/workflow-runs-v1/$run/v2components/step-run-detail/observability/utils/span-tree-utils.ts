@@ -70,6 +70,9 @@ export function getSpanColor(span: OtelSpanTree): string {
   if (span.inProgress) {
     return 'bg-yellow-500';
   }
+  if (isQueuedOnlyRoot(span) || isQueuedOnly(span)) {
+    return 'bg-yellow-500';
+  }
   if (hasErrorInTree(span)) {
     return 'bg-red-500';
   }
@@ -109,6 +112,9 @@ export function effectiveStatusLabel(
 
 export function getBarColor(span: OtelSpanTree): string {
   if (span.inProgress) {
+    return 'bg-yellow-500';
+  }
+  if (isQueuedOnlyRoot(span) || isQueuedOnly(span)) {
     return 'bg-yellow-500';
   }
   if (isEngineSpan(span)) {

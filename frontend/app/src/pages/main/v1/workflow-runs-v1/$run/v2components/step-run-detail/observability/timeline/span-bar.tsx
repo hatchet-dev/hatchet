@@ -98,7 +98,7 @@ export const SpanBar = memo(function SpanBar({
             !noTransition && 'transition-all',
             (row.span.inProgress || isQueuedOnlyRoot(row.span)) &&
               'animate-pulse',
-            row.span.inProgress
+            row.span.inProgress || isQueuedOnlyRoot(row.span)
               ? 'border-yellow-500 bg-yellow-500/10'
               : hasErrorInTree(row.span)
                 ? 'border-red-500 bg-red-500/10'
