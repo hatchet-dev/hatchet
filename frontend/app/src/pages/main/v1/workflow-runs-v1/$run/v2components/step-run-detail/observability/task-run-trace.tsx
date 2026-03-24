@@ -130,12 +130,18 @@ export function TaskRunTrace({
   activeFilters,
   onAddFilter,
   onRemoveFilter,
+  showInContext,
+  onToggleShowInContext,
+  contextTaskRunId,
 }: {
   spanTrees: FilteredSpanTree[];
   isRunning?: boolean;
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
+  showInContext?: boolean;
+  onToggleShowInContext?: () => void;
+  contextTaskRunId?: string;
 }) {
   const {
     focusedTaskRunId,
@@ -213,6 +219,31 @@ export function TaskRunTrace({
     });
     setSelectedSpanId(result.span.spanId);
   }, [focusedTaskRunId, spanTrees, setSelectedSpanId]);
+
+  const pendingContextExpandRef = useRef(false);
+
+  const handleToggleContext = useCallback(() => {
+    if (!showInContext) {
+      pendingContextExpandRef.current = true;
+    }
+    onToggleShowInContext?.();
+  }, [showInContext, onToggleShowInContext]);
+
+  if (pendingContextExpandRef.current && showInContext && contextTaskRunId) {
+    pendingContextExpandRef.current = false;
+    const result = findSpanByTaskRunId(spanTrees, contextTaskRunId);
+    if (result) {
+      setExpandedSpansIds((prev) => {
+        const next = new Set(prev);
+        for (const id of result.ancestorKeys) {
+          next.add(id);
+        }
+        next.add(getStableKey(result.span));
+        return next;
+      });
+      setSelectedSpanId(result.span.spanId);
+    }
+  }
 
   const resolvedSelection = useMemo((): Selection | undefined => {
     if (selectedSpanId) {
@@ -358,9 +389,19 @@ export function TaskRunTrace({
         <div className="shrink-0">
           <div className="flex min-w-0">
             <div
-              className="flex shrink-0 items-end justify-end pb-1 pr-2"
+              className="flex shrink-0 flex-col items-end justify-end gap-1 pb-1 pr-2"
               style={{ width: LABEL_WIDTH }}
             >
+              {onToggleShowInContext && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="gap-1 text-xs"
+                  onClick={handleToggleContext}
+                >
+                  {showInContext ? 'Show task only' : 'Show in context'}
+                </Button>
+              )}
               {isZoomed && (
                 <Button
                   variant="ghost"

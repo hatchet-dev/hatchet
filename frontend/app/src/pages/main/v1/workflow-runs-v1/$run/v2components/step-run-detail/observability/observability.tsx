@@ -1,3 +1,4 @@
+import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TaskRunTrace } from './task-run-trace';
 import { isQueuedOnlyRoot } from './utils/span-tree-utils';
 import {
@@ -13,7 +14,6 @@ import {
   type TraceAutocompleteContext,
 } from '@/components/v1/cloud/observability/trace-search';
 import { Loading } from '@/components/v1/ui/loading';
-import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import api from '@/lib/api/api';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -87,12 +87,8 @@ function buildAutocompleteContext(
 }
 
 export const Observability = (props: ObservabilityProps) => {
-  const {
-    isRunning,
-    tasks,
-    workflowRunCreatedAt,
-    workflowRunStartedAt,
-  } = props;
+  const { isRunning, tasks, workflowRunCreatedAt, workflowRunStartedAt } =
+    props;
 
   const runExternalId = props.taskRunId ?? props.workflowRunExternalId;
   const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
@@ -100,6 +96,7 @@ export const Observability = (props: ObservabilityProps) => {
   const { queryString, setQueryString } = useRunDetailSearch();
 
   const GRACE_PERIOD_MS = 15_000;
+  const [showInContext, setShowInContext] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
   useEffect(() => {
     if (isRunning) {
@@ -180,7 +177,7 @@ export const Observability = (props: ObservabilityProps) => {
     }
 
     // prune tree to only include the subtree for the focused task run
-    if (props.taskRunId) {
+    if (props.taskRunId && !showInContext) {
       const subtree = findSubtreeByTaskRunId(trees, props.taskRunId);
       if (subtree) {
         subtree.inProgress = isRunning && !isQueuedOnlyRoot(subtree);
@@ -191,7 +188,14 @@ export const Observability = (props: ObservabilityProps) => {
     trees[0].inProgress = isRunning && !isQueuedOnlyRoot(trees[0]);
 
     return trees;
-  }, [traces, tasks, isRunning, workflowRunTiming, props.taskRunId]);
+  }, [
+    traces,
+    tasks,
+    isRunning,
+    workflowRunTiming,
+    props.taskRunId,
+    showInContext,
+  ]);
 
   const parsedQuery = useMemo(
     () => parseTraceQuery(queryString),
@@ -267,6 +271,11 @@ export const Observability = (props: ObservabilityProps) => {
         activeFilters={parsedQuery}
         onAddFilter={handleAddFilter}
         onRemoveFilter={handleRemoveFilter}
+        showInContext={props.taskRunId ? showInContext : undefined}
+        onToggleShowInContext={
+          props.taskRunId ? () => setShowInContext((v) => !v) : undefined
+        }
+        contextTaskRunId={props.taskRunId}
       />
     </div>
   );
