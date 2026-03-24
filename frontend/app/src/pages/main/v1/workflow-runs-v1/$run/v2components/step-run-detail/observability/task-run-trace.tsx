@@ -445,44 +445,48 @@ export function TaskRunTrace({
         <div className="shrink-0">
           <div className="flex min-w-0">
             <div
-              className="flex shrink-0 flex-col items-end justify-end gap-1 pb-1 pr-2"
+              className="flex shrink-0 flex-wrap items-end justify-end gap-1 pb-1 pr-2"
               style={{ width: LABEL_WIDTH }}
             >
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="gap-1 text-xs"
-                  onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
-                >
-                  {isAllExpanded ? (
-                    <ChevronsDownUp className="size-3" />
-                  ) : (
-                    <ChevronsUpDown className="size-3" />
-                  )}
-                  {isAllExpanded ? 'collapse all' : 'expand all'}
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="gap-1 text-xs"
+                onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
+              >
+                {isAllExpanded ? (
+                  <ChevronsDownUp className="size-3" />
+                ) : (
+                  <ChevronsUpDown className="size-3" />
+                )}
+                {isAllExpanded ? 'collapse all' : 'expand all'}
+              </Button>
               {onToggleShowInContext && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="gap-1 text-xs"
-                  onClick={handleToggleContext}
-                >
-                  {showInContext ? 'show task only' : 'show in context'}
-                </Button>
+                <>
+                  <span className="text-xs text-muted-foreground">|</span>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="gap-1 text-xs"
+                    onClick={handleToggleContext}
+                  >
+                    {showInContext ? 'show task only' : 'show in context'}
+                  </Button>
+                </>
               )}
               {isZoomed && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="gap-1 font-mono"
-                  onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
-                >
-                  <XIcon className="size-3" />
-                  clear zoom
-                </Button>
+                <>
+                  <span className="text-xs text-muted-foreground">|</span>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="gap-1 text-xs"
+                    onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
+                  >
+                    <XIcon className="size-3" />
+                    clear zoom
+                  </Button>
+                </>
               )}
             </div>
             <div className="min-w-0 flex-1 pr-10">
