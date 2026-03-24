@@ -163,7 +163,7 @@ export const TimelineBars = memo(function TimelineBars({
       )}
 
       <div
-        className="relative"
+        className="relative overflow-hidden"
         ref={barsRef}
         style={{ cursor: onRangeChange ? 'crosshair' : undefined }}
         onMouseMove={onMouseMove}

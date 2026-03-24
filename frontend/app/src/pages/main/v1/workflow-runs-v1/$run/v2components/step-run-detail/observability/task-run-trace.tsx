@@ -5,7 +5,11 @@ import {
   LABEL_WIDTH,
   type VisibleRange,
 } from './timeline/trace-timeline';
-import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
+import {
+  computeTimeTicks,
+  type SpanGroupInfo,
+} from './timeline/trace-timeline-utils';
+import { formatDuration } from './utils/format-utils';
 import { getStableKey } from './utils/span-tree-utils';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
@@ -112,6 +116,20 @@ export function TaskRunTrace({
     startPct: 0,
     endPct: 1,
   });
+
+  const isZoomed = visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999;
+
+  const zoomedTicks = useMemo(() => {
+    if (!isZoomed) {
+      return null;
+    }
+    const totalMs = maxEnd - minStart;
+    const visStartMs = totalMs * visibleRange.startPct;
+    const visDurationMs =
+      totalMs * (visibleRange.endPct - visibleRange.startPct);
+    const { ticks } = computeTimeTicks(visDurationMs);
+    return { ticks, visDurationMs, visOffsetMs: visStartMs };
+  }, [isZoomed, minStart, maxEnd, visibleRange]);
 
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
   const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
@@ -294,6 +312,40 @@ export function TaskRunTrace({
                 externalHoverPct={timelineHoverPct}
                 onHoverPctChange={setMinimapHoverPct}
               />
+            </div>
+          </div>
+          <div className="mt-8 flex min-w-0">
+            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div className="min-w-0 flex-1 pr-10">
+              <div className="relative h-5 overflow-hidden">
+                {zoomedTicks?.ticks.map((t) => {
+                  if (t >= zoomedTicks.visDurationMs) {
+                    return null;
+                  }
+                  return (
+                    <div
+                      key={t}
+                      className="absolute flex h-full items-center"
+                      style={{
+                        left: `${zoomedTicks.visDurationMs > 0 ? (t / zoomedTicks.visDurationMs) * 100 : 0}%`,
+                      }}
+                    >
+                      <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                        {formatDuration(t + zoomedTicks.visOffsetMs)}
+                      </span>
+                    </div>
+                  );
+                })}
+                {zoomedTicks && (
+                  <div className="absolute right-0 z-10 flex h-full items-center">
+                    <span className="whitespace-nowrap rounded-sm bg-background px-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                      {formatDuration(
+                        zoomedTicks.visDurationMs + zoomedTicks.visOffsetMs,
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
