@@ -24,7 +24,8 @@ async def test_run(hatchet: Hatchet) -> None:
 
     assert details.status == RunStatus.RUNNING
     assert details.input == mock_input.model_dump()
-    assert details.additional_metadata == meta
+    assert details.additional_metadata is not None
+    assert meta.items() <= details.additional_metadata.items()
     assert len(details.task_runs) == 4
     assert all(
         r.status in [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED]
@@ -43,7 +44,8 @@ async def test_run(hatchet: Hatchet) -> None:
 
     assert details.status == RunStatus.FAILED
     assert details.input == mock_input.model_dump()
-    assert details.additional_metadata == meta
+    assert details.additional_metadata is not None
+    assert meta.items() <= details.additional_metadata.items()
     assert len(details.task_runs) == 6
 
     assert details.task_runs["step1"].status == V1TaskStatus.COMPLETED

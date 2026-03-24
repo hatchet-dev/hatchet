@@ -9,7 +9,6 @@ export default {
   cookbooks: {
     title: "Cookbooks",
     type: "page",
-    display: "hidden",
     theme: {
       toc: true,
     },

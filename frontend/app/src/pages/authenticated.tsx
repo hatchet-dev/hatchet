@@ -1,19 +1,28 @@
+import { getCloudMetadataQuery } from './auth/hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
+import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
+import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
+import { Loading, Spinner } from '@/components/v1/ui/loading.tsx';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
-import { usePendingInvites } from '@/hooks/use-pending-invites';
+import {
+  pendingInvitesQuery,
+  usePendingInvites,
+} from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { User } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import api, { User, queries } from '@/lib/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
@@ -21,9 +30,11 @@ import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
+  useLoaderData,
   useLocation,
   useMatchRoute,
   useNavigate,
@@ -36,8 +47,21 @@ const DevtoolsFooter = import.meta.env.DEV
   ? lazy(() => import('../devtools.tsx'))
   : null;
 
+export async function loader(_args: { request: Request }) {
+  const { isCloudEnabled, ...meta } = await queryClient.fetchQuery(
+    getCloudMetadataQuery,
+  );
+
+  await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
+  return {
+    inactivityLogoutMs:
+      'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
+  };
+}
+
 function AuthenticatedInner() {
   const { tenant } = useTenantDetails();
+  const { capture } = useAnalytics();
   const {
     currentUser,
     error: userError,
@@ -48,14 +72,15 @@ function AuthenticatedInner() {
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
+  const [inviteModalTenantId, setInviteModalTenantId] = useState<
+    string | undefined
+  >();
+  const [orgInviteModal, setOrgInviteModal] = useState<
+    { organizationId: string; organizationName: string } | undefined
+  >();
+  const [showWelcome, setShowWelcome] = useState(false);
 
-  const { data: cloudMetadata } = useQuery({
-    queryKey: ['metadata'],
-    queryFn: async () => {
-      const res = await cloudApi.metadataGet();
-      return res.data;
-    },
-  });
+  const loaderData = useLoaderData({ from: '/' });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -99,14 +124,13 @@ function AuthenticatedInner() {
   });
 
   useInactivityDetection({
-    timeoutMs: cloudMetadata?.inactivityLogoutMs || -1,
+    timeoutMs: loaderData.inactivityLogoutMs,
     onInactive: () => {
       logoutMutation.mutate();
     },
   });
 
-  const { pendingInvitesQuery, isLoading: isPendingInvitesLoading } =
-    usePendingInvites();
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const {
     isCloudEnabled,
@@ -148,9 +172,13 @@ function AuthenticatedInner() {
       return;
     }
 
+    const pendingInvites = pendingInvitesQuery.isSuccess
+      ? pendingInvitesQuery.data
+      : null;
+
     if (
-      pendingInvitesQuery.data &&
-      pendingInvitesQuery.data > 0 &&
+      pendingInvites &&
+      pendingInvites.inviteCount > 0 &&
       !isOnboardingInvitesPage
     ) {
       navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
@@ -158,7 +186,9 @@ function AuthenticatedInner() {
     }
 
     const okayToMakeOnboardingRedirectDecisions =
-      !isPendingInvitesLoading && !isOnboardingPage && isUserUniverseLoaded;
+      pendingInvitesQuery.isSuccess &&
+      !isOnboardingPage &&
+      isUserUniverseLoaded;
 
     if (okayToMakeOnboardingRedirectDecisions) {
       const shouldHaveAnOrganizationButDoesnt =
@@ -228,8 +258,7 @@ function AuthenticatedInner() {
   }, [
     tenant?.metadata.id,
     currentUser,
-    pendingInvitesQuery.data,
-    isPendingInvitesLoading,
+    pendingInvitesQuery,
     tenantMemberships,
     tenant?.version,
     userError,
@@ -256,12 +285,47 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('new-tenant', ({ defaultOrganizationId }) => {
+      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
         setDefaultOrganizationId(defaultOrganizationId);
         setNewTenantModalOpen(true);
       }),
     [],
   );
+
+  useEffect(
+    () =>
+      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
+        setInviteModalTenantId(tenantId);
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on(
+        'create-organization-invite',
+        ({ organizationId, organizationName }) => {
+          setOrgInviteModal({ organizationId, organizationName });
+        },
+      ),
+    [],
+  );
+
+  useEffect(() => {
+    const key = 'hatchet:show-welcome';
+    if (localStorage.getItem(key)) {
+      localStorage.removeItem(key);
+      setShowWelcome(true);
+      capture('welcome_modal_shown', {
+        tenant_id: tenant?.metadata.id,
+      });
+    }
+  }, [tenant?.metadata.id, capture]);
+
+  const welcomePlansQuery = useQuery({
+    ...queries.cloud.subscriptionPlans(),
+    enabled: showWelcome,
+  });
 
   if (!currentUser) {
     return <Loading />;
@@ -305,12 +369,123 @@ function AuthenticatedInner() {
                     result.type === 'cloud'
                       ? result.tenant.id
                       : result.tenant.metadata.id;
+
+                  if (result.type === 'cloud') {
+                    void queryClient.prefetchQuery(
+                      queries.cloud.subscriptionPlans(),
+                    );
+                  }
+
                   navigate({
                     to: appRoutes.tenantOverviewRoute.to,
                     params: { tenant: tenantId },
                   });
                 }}
               />
+            </div>
+          </DialogContent>
+        </Dialog>
+        {inviteModalTenantId && (
+          <CreateTenantInviteModal
+            tenantId={inviteModalTenantId}
+            onClose={() => setInviteModalTenantId(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('tenant-invite-created', {
+                tenantId: inviteModalTenantId,
+                invite,
+              });
+            }}
+          />
+        )}
+        {orgInviteModal && (
+          <OrganizationInviteMemberModal
+            organizationId={orgInviteModal.organizationId}
+            organizationName={orgInviteModal.organizationName}
+            onClose={() => setOrgInviteModal(undefined)}
+            onCreated={(invite) => {
+              globalEmitter.emit('organization-invite-created', {
+                organizationId: orgInviteModal.organizationId,
+                invite,
+              });
+            }}
+          />
+        )}
+        <Dialog
+          open={showWelcome}
+          onOpenChange={(open) => {
+            if (!open) {
+              localStorage.removeItem('hatchet:show-welcome');
+              setShowWelcome(false);
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg text-center">
+            <div className="flex flex-col items-center gap-6">
+              <HatchetLogo variant="mark" className="h-10 w-10" />
+              <div className="space-y-2">
+                <DialogTitle className="text-center text-2xl">
+                  Welcome to Hatchet
+                </DialogTitle>
+                <DialogDescription className="text-center text-base text-muted-foreground">
+                  You&apos;re on the free plan with generous limits to get
+                  started. We&apos;ll let you know when you&apos;re getting
+                  close.
+                </DialogDescription>
+              </div>
+              <ul className="w-full text-left text-base space-y-2.5 rounded-md border border-border/50 bg-muted/30 p-5">
+                {welcomePlansQuery.isLoading ? (
+                  <li className="flex justify-center py-2">
+                    <Spinner />
+                  </li>
+                ) : (
+                  welcomePlansQuery.data?.freeLimits?.map((fl) => (
+                    <li key={fl.featureId} className="flex justify-between">
+                      <span className="text-muted-foreground">{fl.name}</span>
+                      <span className="font-medium">
+                        {fl.limit.toLocaleString()}
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+              <p className="text-sm text-muted-foreground">
+                You can upgrade anytime from Billing &amp; Limits in your tenant
+                settings.
+              </p>
+              <div className="flex w-full flex-col gap-2">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    capture('welcome_modal_dismissed', {
+                      tenant_id: tenant?.metadata.id,
+                      cta: 'get_started',
+                    });
+                    localStorage.removeItem('hatchet:show-welcome');
+                    setShowWelcome(false);
+                  }}
+                >
+                  Explore Hatchet for Free with Limits &rarr;
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    capture('welcome_modal_upgrade_clicked', {
+                      tenant_id: tenant?.metadata.id,
+                    });
+                    localStorage.removeItem('hatchet:show-welcome');
+                    setShowWelcome(false);
+                    if (tenant?.metadata.id) {
+                      navigate({
+                        to: '/tenants/$tenant/tenant-settings/billing-and-limits',
+                        params: { tenant: tenant.metadata.id },
+                      });
+                    }
+                  }}
+                >
+                  Add a payment method to remove limits, no commitment required
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

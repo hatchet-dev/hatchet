@@ -145,7 +145,7 @@ function processTerm(term: string): string | null {
  */
 export const MINISEARCH_OPTIONS = {
   fields: ["title", "content", "codeIdentifiers", "keywords"] as string[],
-  storeFields: ["title", "pageTitle", "pageRoute"] as string[],
+  storeFields: ["title", "pageTitle", "pageRoute", "content"] as string[],
   processTerm,
 };
 

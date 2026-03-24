@@ -103,6 +103,10 @@ const organizationsNewRoute = createRoute({
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  loader: async () => {
+    const mod = await import('./pages/authenticated');
+    return mod.loader({ request: new Request(window.location.href) });
+  },
   component: lazyRouteComponent(
     () => import('./pages/authenticated'),
     'default',
@@ -203,6 +207,15 @@ const tenantEventsRoute = createRoute({
   path: 'events',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/events'),
+    'default',
+  ),
+});
+
+const tenantLogsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'logs',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/logs'),
     'default',
   ),
 });
@@ -363,6 +376,19 @@ const tenantManagedWorkerRoute = createRoute({
   path: 'managed-workers/$managedWorker',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/managed-workers/$managed-worker/index.tsx'),
+    'default',
+  ),
+});
+
+const tenantOrganizationsAndTenantsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'organizations-and-tenants',
+  loader: async () => {
+    const mod = await import('./pages/main/v1/organizations-and-tenants');
+    return mod.loader();
+  },
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/organizations-and-tenants'),
     'default',
   ),
 });
@@ -547,6 +573,7 @@ const tenantSettingsSubpathRedirect = createRoute({
 
 const tenantRoutes = [
   tenantEventsRoute,
+  tenantLogsRoute,
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
@@ -565,6 +592,7 @@ const tenantRoutes = [
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
   tenantManagedWorkerRoute,
+  tenantOrganizationsAndTenantsRoute,
   tenantSettingsIndexRoute,
   tenantSettingsOverviewRoute,
   tenantSettingsApiTokensRoute,
@@ -621,6 +649,7 @@ export const appRoutes = {
   onboardingInvitesRoute,
   tenantRoute,
   tenantEventsRoute,
+  tenantLogsRoute,
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
@@ -639,6 +668,7 @@ export const appRoutes = {
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
   tenantManagedWorkerRoute,
+  tenantOrganizationsAndTenantsRoute,
   tenantSettingsIndexRoute,
   tenantSettingsOverviewRoute,
   tenantSettingsApiTokensRoute,

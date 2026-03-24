@@ -1,4 +1,11 @@
-import { AutocompleteSuggestion, LOG_LEVELS, LOG_LEVEL_COLORS } from './types';
+import { LOG_LEVELS, LOG_LEVEL_COLORS } from './types';
+import {
+  type FilterSuggestion,
+  type AutocompleteState,
+  applySuggestion as applyFilterSuggestion,
+} from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
+
+export type { AutocompleteMode } from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   error: 'Error messages',
@@ -7,7 +14,7 @@ const LEVEL_DESCRIPTIONS: Record<string, string> = {
   debug: 'Debug messages',
 };
 
-const FILTER_KEYS: AutocompleteSuggestion[] = [
+const FILTER_KEYS: FilterSuggestion[] = [
   {
     type: 'key',
     label: 'level',
@@ -22,13 +29,6 @@ const FILTER_KEYS: AutocompleteSuggestion[] = [
   },
 ];
 
-export type AutocompleteMode = 'key' | 'value' | 'none';
-
-export interface AutocompleteState {
-  mode: AutocompleteMode;
-  suggestions: AutocompleteSuggestion[];
-}
-
 export function getAutocomplete(
   query: string,
   availableAttempts: number[],
@@ -36,13 +36,10 @@ export function getAutocomplete(
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
 
-  // Check for trailing space FIRST - indicates user wants to add a new filter
-  // Don't check this if the query ends with a colon (e.g., "level:")
   if (query.endsWith(' ') && !trimmed.endsWith(':')) {
     return { mode: 'key', suggestions: FILTER_KEYS };
   }
 
-  // Check for empty input
   if (trimmed === '') {
     return { mode: 'key', suggestions: FILTER_KEYS };
   }
@@ -88,25 +85,7 @@ export function getAutocomplete(
 
 export function applySuggestion(
   query: string,
-  suggestion: AutocompleteSuggestion,
+  suggestion: FilterSuggestion,
 ): string {
-  const trimmed = query.trimEnd();
-  const words = trimmed.split(' ');
-  const lastWord = words.pop() || '';
-
-  if (suggestion.type === 'value') {
-    const prefix = lastWord.slice(0, lastWord.indexOf(':') + 1);
-    words.push(prefix + suggestion.value);
-  } else {
-    const isPartialKey = FILTER_KEYS.some((key) =>
-      key.value.startsWith(lastWord.toLowerCase()),
-    );
-    if (lastWord && isPartialKey) {
-      words.push(suggestion.value);
-    } else {
-      words.push(lastWord, suggestion.value);
-    }
-  }
-
-  return words.filter(Boolean).join(' ');
+  return applyFilterSuggestion(query, suggestion, FILTER_KEYS);
 }

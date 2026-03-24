@@ -392,6 +392,10 @@ V1LogLineOrderByDirection:
   $ref: "./v1/logs.yaml#/V1LogLineOrderByDirection"
 V1LogLineList:
   $ref: "./v1/logs.yaml#/V1LogLineList"
+V1LogsPointMetric:
+  $ref: "./v1/logs.yaml#/V1LogsPointMetric"
+V1LogsPointMetrics:
+  $ref: "./v1/logs.yaml#/V1LogsPointMetrics"
 V1TaskTiming:
   $ref: "./v1/task.yaml#/V1TaskTiming"
 V1TaskTimingList:
@@ -410,3 +414,11 @@ V1CELDebugResponse:
   $ref: "./v1/cel.yaml#/V1CELDebugResponse"
 V1CELDebugResponseStatus:
   $ref: "./v1/cel.yaml#/V1CELDebugResponseStatus"
+OtelSpan:
+  $ref: "./v1/otel.yaml#/OtelSpan"
+OtelSpanKind:
+  $ref: "./v1/otel.yaml#/OtelSpanKind"
+OtelStatusCode:
+  $ref: "./v1/otel.yaml#/OtelStatusCode"
+OtelSpanList:
+  $ref: "./v1/otel.yaml#/OtelSpanList"

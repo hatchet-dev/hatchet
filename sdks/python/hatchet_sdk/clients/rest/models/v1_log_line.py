@@ -19,6 +19,7 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from typing import Optional, Set
 from typing_extensions import Self
@@ -34,6 +35,18 @@ class V1LogLine(BaseModel):
     )
     message: StrictStr = Field(description="The log message.")
     metadata: Dict[str, Any] = Field(description="The log metadata.")
+    task_external_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(
+        default=None,
+        description="The external ID of the task associated with the log line.",
+        alias="taskExternalId",
+    )
+    task_display_name: Optional[StrictStr] = Field(
+        default=None,
+        description="The display name of the task associated with the log line.",
+        alias="taskDisplayName",
+    )
     retry_count: Optional[StrictInt] = Field(
         default=None, description="The retry count of the log line.", alias="retryCount"
     )
@@ -45,6 +58,8 @@ class V1LogLine(BaseModel):
         "createdAt",
         "message",
         "metadata",
+        "taskExternalId",
+        "taskDisplayName",
         "retryCount",
         "attempt",
         "level",
@@ -103,6 +118,8 @@ class V1LogLine(BaseModel):
                 "createdAt": obj.get("createdAt"),
                 "message": obj.get("message"),
                 "metadata": obj.get("metadata"),
+                "taskExternalId": obj.get("taskExternalId"),
+                "taskDisplayName": obj.get("taskDisplayName"),
                 "retryCount": obj.get("retryCount"),
                 "attempt": obj.get("attempt"),
                 "level": obj.get("level"),

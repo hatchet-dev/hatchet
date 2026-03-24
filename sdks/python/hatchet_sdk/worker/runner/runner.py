@@ -48,6 +48,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_additional_metadata,
     ctx_durable_context,
     ctx_hatchet_context,
+    ctx_hatchet_span_attributes,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -71,9 +72,18 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopyDict,
     ContextVarToCopyHatchetContext,
     ContextVarToCopyInt,
+    ContextVarToCopyOtelContext,
+    ContextVarToCopySpanAttributes,
     ContextVarToCopyStr,
     copy_context_vars,
 )
+
+try:
+    from opentelemetry import context as otel_context
+
+    _HAS_OTEL = True
+except ImportError:
+    _HAS_OTEL = False
 
 
 class WorkerStatus(Enum):
@@ -396,6 +406,18 @@ class Runner:
                                 value=ctx,
                             )
                         ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopySpanAttributes(
+                                name="ctx_hatchet_span_attributes",
+                                value=ctx_hatchet_span_attributes.get(),
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyOtelContext(
+                                name="ctx_otel_context",
+                                value=otel_context.get_current() if _HAS_OTEL else None,
+                            )
+                        ),
                     ],
                     self.thread_action_func,
                     ctx,
@@ -405,7 +427,10 @@ class Runner:
                 )
 
                 loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(self.thread_pool, pfunc)
+                return await loop.run_in_executor(
+                    self.thread_pool,
+                    pfunc,
+                )
             finally:
                 self.cleanup_run_id(action.key)
 

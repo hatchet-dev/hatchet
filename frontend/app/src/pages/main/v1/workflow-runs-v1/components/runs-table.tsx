@@ -94,8 +94,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     tableRows,
     numPages,
     isRunsLoading,
-    isRunsFetching,
-    isStatusCountsFetching,
     isStatusCountsLoading,
     isQueueMetricsLoading,
     isRefetching,
@@ -194,8 +192,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     return () => clearInterval(interval);
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const hasLoaded = !isRunsLoading && !isStatusCountsLoading;
-  const isFetching = !hasLoaded && (isRunsFetching || isStatusCountsFetching);
+  const isRunningFirstLoad = isRunsLoading || isStatusCountsLoading;
 
   const leftActions = [
     ...(!hideCounts
@@ -266,7 +263,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
               </div>
             </div>
           }
-          isLoading={isFetching}
+          isLoading={isRunningFirstLoad}
           columns={tableColumns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}

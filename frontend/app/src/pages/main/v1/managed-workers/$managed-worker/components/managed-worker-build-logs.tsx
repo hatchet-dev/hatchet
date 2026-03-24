@@ -34,7 +34,7 @@ export function ManagedWorkerBuildLogs({ buildId }: { buildId: string }) {
   }, [getBuildLogsQuery.data?.rows]);
 
   return (
-    <div className="w-full">
+    <div className="w-full flex flex-col max-h-[25rem] min-h-[25rem]">
       <LogViewer logs={logs} />
     </div>
   );

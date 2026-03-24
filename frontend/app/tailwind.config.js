@@ -1,3 +1,34 @@
+// Generate agent-prism Tailwind color mappings from CSS custom properties
+const agentPrismTokens = [
+  "background", "foreground", "primary", "primary-foreground", "secondary",
+  "secondary-foreground", "muted", "muted-foreground", "accent", "accent-foreground",
+  "brand", "brand-foreground", "brand-secondary", "brand-secondary-foreground",
+  "border", "border-subtle", "border-strong", "border-inverse",
+  "success", "success-muted", "success-muted-foreground",
+  "error", "error-muted", "error-muted-foreground",
+  "warning", "warning-muted", "warning-muted-foreground",
+  "pending", "pending-muted", "pending-muted-foreground",
+  "code-string", "code-number", "code-key", "code-base",
+  "badge-default", "badge-default-foreground",
+  "avatar-llm", "badge-llm", "badge-llm-foreground",
+  "avatar-agent", "badge-agent", "badge-agent-foreground",
+  "avatar-tool", "badge-tool", "badge-tool-foreground",
+  "avatar-chain", "badge-chain", "badge-chain-foreground", "timeline-chain",
+  "avatar-retrieval", "badge-retrieval", "badge-retrieval-foreground",
+  "avatar-embedding", "badge-embedding", "badge-embedding-foreground",
+  "avatar-guardrail", "badge-guardrail", "badge-guardrail-foreground",
+  "avatar-create-agent", "badge-create-agent", "badge-create-agent-foreground",
+  "avatar-span", "badge-span", "badge-span-foreground",
+  "avatar-event", "badge-event", "badge-event-foreground",
+  "avatar-unknown", "badge-unknown", "badge-unknown-foreground",
+];
+const agentPrismColors = Object.fromEntries(
+  agentPrismTokens.map((name) => [
+    `agentprism-${name}`,
+    `hsl(var(--agentprism-${name}) / <alpha-value>)`,
+  ])
+);
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -49,6 +80,7 @@ module.exports = {
     },
     extend: {
       colors: {
+        ...agentPrismColors,
         "purple": {
           "50": "hsl(252, 82%, 95%)",
           "100": "hsl(252, 82%, 90%)",
@@ -95,6 +127,8 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        success: "hsl(var(--success))",
+        danger: "hsl(var(--danger))",
       },
       borderRadius: {
         lg: "var(--radius)",

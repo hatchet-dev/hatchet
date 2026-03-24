@@ -208,6 +208,7 @@ class ActionListener:
                         step_id=assigned_action.task_id,
                         step_run_id=assigned_action.task_run_external_id,
                         action_id=assigned_action.action_id,
+                        step_name=assigned_action.task_name,
                         action_payload=action_payload,
                         action_type=convert_proto_enum_to_python(
                             assigned_action.action_type,

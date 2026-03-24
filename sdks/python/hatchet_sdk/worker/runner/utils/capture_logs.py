@@ -14,11 +14,19 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_hatchet_context,
+    ctx_hatchet_span_attributes,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
+
+try:
+    from opentelemetry import context as otel_context
+
+    _HAS_OTEL = True
+except ImportError:
+    _HAS_OTEL = False
 from hatchet_sdk.utils.typing import (
     STOP_LOOP,
     STOP_LOOP_TYPE,
@@ -55,12 +63,24 @@ class ContextVarToCopyHatchetContext(BaseModel):
     value: Any
 
 
+class ContextVarToCopySpanAttributes(BaseModel):
+    name: Literal["ctx_hatchet_span_attributes"]
+    value: dict[str, str | int] | None
+
+
+class ContextVarToCopyOtelContext(BaseModel):
+    name: Literal["ctx_otel_context"]
+    value: Any  # opentelemetry.context.Context (optional dependency)
+
+
 class ContextVarToCopy(BaseModel):
     var: (
         ContextVarToCopyStr
         | ContextVarToCopyDict
         | ContextVarToCopyInt
         | ContextVarToCopyHatchetContext
+        | ContextVarToCopySpanAttributes
+        | ContextVarToCopyOtelContext
     ) = Field(discriminator="name")
 
 
@@ -85,6 +105,11 @@ def copy_context_vars(
             ctx_additional_metadata.set(var.var.value or {})
         elif var.var.name == "ctx_hatchet_context":
             ctx_hatchet_context.set(var.var.value)
+        elif var.var.name == "ctx_hatchet_span_attributes":
+            ctx_hatchet_span_attributes.set(var.var.value)
+        elif var.var.name == "ctx_otel_context":
+            if _HAS_OTEL and var.var.value is not None:
+                otel_context.attach(var.var.value)
         else:
             raise ValueError(f"Unknown context variable name: {var.var.name}")
 

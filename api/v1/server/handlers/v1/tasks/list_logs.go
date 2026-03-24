@@ -3,6 +3,7 @@ package tasks
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -71,6 +72,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	limitInt := int(limit)
 
 	opts := &v1.ListLogsOpts{
+		TaskExternalIds:  []uuid.UUID{task.ExternalID},
 		Limit:            &limitInt,
 		Since:            since,
 		Until:            until,
@@ -80,7 +82,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		Attempt:          attempt,
 	}
 
-	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ExternalID, opts)
+	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, opts)
 
 	if err != nil {
 		span.RecordError(err)

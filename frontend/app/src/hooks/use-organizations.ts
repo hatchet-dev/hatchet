@@ -2,6 +2,7 @@ import { cloudApi } from '@/lib/api/api';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
+  OrganizationForUser,
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -43,14 +44,15 @@ export function useOrganizations() {
     return [];
   }, [isUserUniverseLoaded, organizationData, isCloudEnabled]);
 
-  const getOrganizationForTenant = useCallback(
-    (tenantId: string) => {
-      return organizations.find((org) =>
-        (org.tenants || []).some((tenant) => tenant.id === tenantId),
-      );
-    },
-    [organizations],
-  );
+  const getOrganizationForTenant = useMemo(() => {
+    const tenantIdToOrganization = new Map<string, OrganizationForUser>();
+    organizations.forEach((org) => {
+      org.tenants.forEach((tenant) => {
+        tenantIdToOrganization.set(tenant.id, org);
+      });
+    });
+    return (tenantId: string) => tenantIdToOrganization.get(tenantId);
+  }, [organizations]);
 
   const getOrganizationIdForTenant = useCallback(
     (tenantId: string) => {
@@ -113,6 +115,9 @@ export function useOrganizations() {
         },
       );
       return result.data;
+    },
+    onSuccess: () => {
+      localStorage.setItem('hatchet:show-welcome', '1');
     },
     onError: handleApiError,
   });
