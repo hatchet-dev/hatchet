@@ -108,15 +108,10 @@ func InitTracer(opts *TracerOpts) (func() error, error) {
 	return func() error {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
-		err := tracerProvider.Shutdown(timeoutCtx)
-		if err != nil {
+		if err := tracerProvider.Shutdown(timeoutCtx); err != nil {
 			return err
 		}
-		err = exporter.Shutdown(timeoutCtx)
-		if err != nil {
-			return err
-		}
-		return nil
+		return exporter.Shutdown(timeoutCtx)
 	}, nil
 }
 
