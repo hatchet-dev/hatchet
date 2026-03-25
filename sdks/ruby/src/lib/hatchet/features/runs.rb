@@ -450,32 +450,33 @@ module Hatchet
       # @example Poll with custom interval and timeout
       #   result = runs.poll("workflow-run-123", interval: 2.0, timeout: 30.0)
       # @since 0.1.0
-      def poll(workflow_run_id, interval: 1.0, timeout: nil)
-        start_time = Time.now
+     def poll(workflow_run_id, interval: 1.0, timeout: nil, cancellation_token: nil)
+  deadline = timeout ? Time.now + timeout : nil
 
-        loop do
-          begin
-            run = get(workflow_run_id)
-          rescue HatchetSdkRest::ApiError => e
-            raise unless e.code == 404
+  loop do
+    if cancellation_token&.cancelled?
+      @config.logger.info("Poll cancelled for run #{workflow_run_id}")
+      raise Hatchet::PollCancelledError,
+            "Polling for run #{workflow_run_id} was cancelled by the caller"
+    end
 
-            # Run may not be available via REST API yet after gRPC trigger
-            raise Timeout::Error, "Polling timed out after #{timeout} seconds" if timeout && (Time.now - start_time) >= timeout
+    if deadline && Time.now >= deadline
+      @config.logger.warn("Poll timed out after #{timeout}s for run #{workflow_run_id}")
+      raise Hatchet::PollTimeoutError,
+            "Polling for run #{workflow_run_id} timed out after #{timeout} seconds"
+    end
 
-            sleep(interval)
-            next
-          end
+    @config.logger.debug("Polling run #{workflow_run_id}...")
+    details = get(workflow_run_id)
+    status  = details.run.status
+    @config.logger.debug("Run #{workflow_run_id} status: #{status}")
 
-          status = run.status
+    return details if TERMINAL_STATUSES.include?(status)
 
-          return run if terminal_status?(status)
-
-          # Check timeout
-          raise Timeout::Error, "Polling timed out after #{timeout} seconds" if timeout && (Time.now - start_time) >= timeout
-
-          sleep(interval)
-        end
-      end
+    sleep_duration = deadline ? [interval, deadline - Time.now].min : interval
+    sleep(sleep_duration) if sleep_duration > 0
+  end
+end
 
       # Subscribe to stream events for a workflow run.
       #
