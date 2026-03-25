@@ -2951,7 +2951,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	subtreeStepIds := make(map[int64]map[uuid.UUID]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[uuid.UUID]struct{})
 	dagIdsToLockMap := make(map[int64]pgtype.Timestamptz)
-	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
 
 	for i, task := range lockedTasks {
 		lockedTaskIds[i] = task.ID
