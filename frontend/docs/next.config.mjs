@@ -83,6 +83,7 @@ const nextConfig = {
       { source: '/home/features/triggering-runs/cron-trigger', destination: '/v1/cron-runs', permanent: true, basePath: false },
       { source: '/home/features/triggering-runs/schedule-trigger', destination: '/v1/scheduled-runs', permanent: true, basePath: false },
       { source: '/home/features/rate-limits', destination: '/v1/rate-limits', permanent: true, basePath: false },
+      { source: '/v1/patterns/mixing-patterns', destination: '/v1/patterns', permanent: false, basePath: false },
       { source: '/home/features/worker-assignment/overview', destination: '/v1/advanced-assignment/sticky-assignment', permanent: true, basePath: false },
       { source: '/home/features/worker-assignment/(overview|sticky-assignment)', destination: '/v1/advanced-assignment/sticky-assignment', permanent: true, basePath: false },
       { source: '/home/features/worker-assignment/worker-affinity', destination: '/v1/advanced-assignment/worker-affinity', permanent: true, basePath: false },
