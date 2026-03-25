@@ -555,8 +555,9 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 
 	// check DAGs
 	notFinalizedDags, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:   dagsToCheck,
-		Tenantid: tenantId,
+		Dagids:        dagsToCheck,
+		Tenantid:      tenantId,
+		Mininsertedat: minInsertedAt,
 	})
 
 	if err != nil {
