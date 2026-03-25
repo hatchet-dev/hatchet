@@ -160,6 +160,10 @@ class Context:
     def worker_labels(self) -> list[WorkerLabel]:
         return self._worker_labels
 
+    @property
+    def worker_labels_dict(self) -> dict[str, str | int]:
+        return {label.key: label.value for label in self._worker_labels if label.key}
+
     def upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
         self._dispatcher_client.upsert_worker_labels(self.worker_id, labels)
 

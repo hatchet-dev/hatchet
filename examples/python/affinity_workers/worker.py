@@ -25,11 +25,7 @@ affinity_worker_workflow = hatchet.workflow(name="AffinityWorkflow")
 
 # > AffinityTask
 async def step(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
-    model_label = next(
-        (label.value for label in ctx.worker_labels if label.key == "model"), None
-    )
-
-    if model_label != "fancy-ai-model-v2":
+    if ctx.worker_labels_dict.get("model") != "fancy-ai-model-v2":
         ctx.worker.upsert_labels({"model": "unset"})
         # DO WORK TO EVICT OLD MODEL / LOAD NEW MODEL
         ctx.worker.upsert_labels({"model": "fancy-ai-model-v2"})
