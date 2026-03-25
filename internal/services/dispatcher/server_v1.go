@@ -365,7 +365,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return nil
 	}
 
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 
 	iter := func(workflowRunIds []uuid.UUID) error {
@@ -374,9 +374,9 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		}
 
 		select {
-		case <-time.After(500 * time.Millisecond):
-			return nil
 		case <-ticker.C:
+		default:
+			return nil
 		}
 
 		iterCtx, iterSpan := telemetry.NewSpan(ctx, "subscribe_to_workflow_runs_v1.iter")
