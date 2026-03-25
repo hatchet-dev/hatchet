@@ -256,6 +256,21 @@ export enum TenantVersion {
   V1 = "V1",
 }
 
+export enum OtelStatusCode {
+  UNSET = "UNSET",
+  OK = "OK",
+  ERROR = "ERROR",
+}
+
+export enum OtelSpanKind {
+  UNSPECIFIED = "UNSPECIFIED",
+  INTERNAL = "INTERNAL",
+  SERVER = "SERVER",
+  CLIENT = "CLIENT",
+  PRODUCER = "PRODUCER",
+  CONSUMER = "CONSUMER",
+}
+
 export enum V1RunningFilter {
   ALL = "ALL",
   EVICTED = "EVICTED",
@@ -739,6 +754,33 @@ export interface V1BranchDurableTaskResponse {
    * @format int64
    */
   branchId: number;
+}
+
+export interface OtelSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  spanName: string;
+  spanKind: OtelSpanKind;
+  serviceName: string;
+  statusCode: OtelStatusCode;
+  statusMessage?: string;
+  /** @format int64 */
+  durationNs: number;
+  /** @format date-time */
+  createdAt: string;
+  resourceAttributes?: Record<string, string>;
+  spanAttributes?: Record<string, string>;
+  scopeName?: string;
+  scopeVersion?: string;
+  /** @format int32 */
+  retryCount: number;
+}
+
+export interface OtelSpanList {
+  pagination?: PaginationResponse;
+  retryCounts?: number[];
+  rows?: OtelSpan[];
 }
 
 export interface V1TaskTiming {

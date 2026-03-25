@@ -120,6 +120,9 @@ export function useOrganizations() {
       );
       return result.data;
     },
+    onSuccess: () => {
+      localStorage.setItem('hatchet:show-welcome', '1');
+    },
     onError: handleApiError,
   });
 

@@ -245,7 +245,13 @@ SELECT
     external_id,
     retry_count,
     workflow_id,
-    workflow_run_id
+    workflow_run_id,
+    additional_metadata,
+    step_readable_id,
+    action_id,
+    display_name,
+    workflow_version_id,
+    step_id
 FROM
     v1_task
 WHERE
@@ -499,28 +505,28 @@ WITH input AS (
         e.id,
         e.event_key,
         e.data,
-		e.task_id,
-		e.task_inserted_at,
+    e.task_id,
+    e.task_inserted_at,
         e.inserted_at
     FROM
         v1_task_event e
     JOIN
         distinct_events de
-		ON e.task_id = de.task_id
-		AND e.task_inserted_at = de.task_inserted_at
+    ON e.task_id = de.task_id
+    AND e.task_inserted_at = de.task_inserted_at
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = 'SIGNAL_CREATED'
 )
 SELECT
-	e.id,
+  e.id,
     e.inserted_at,
-	e.event_key,
-	e.data
+  e.event_key,
+  e.data
 FROM
-	events_to_lock e
+  events_to_lock e
 WHERE
-	e.event_key = ANY(SELECT event_key FROM input);
+  e.event_key = ANY(SELECT event_key FROM input);
 
 -- name: ListMatchingSignalEvents :many
 WITH input AS (
@@ -762,14 +768,21 @@ ORDER BY
 
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 SELECT
-    id
+    d.id,
+    d.inserted_at
 FROM
-    v1_dag
+    v1_dag d
+JOIN
+    input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
-    id = ANY(@dagIds::bigint[])
-    AND tenant_id = @tenantId::uuid
-ORDER BY id
+    d.tenant_id = @tenantId::uuid
+ORDER BY d.id
 -- We skip locked tasks because replays are the only thing that can lock a DAG for updates
 FOR UPDATE SKIP LOCKED;
 
@@ -778,7 +791,11 @@ FOR UPDATE SKIP LOCKED;
 -- match the length of steps in the DAG. This assumes that we have a lock on DAGs so concurrent replays
 -- don't interfere with each other. It also does not check for whether the tasks are running, as that's
 -- checked in a different query. It returns DAGs which cannot be replayed.
-WITH dags_to_step_counts AS (
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+), dags_to_step_counts AS (
     SELECT
         d.id,
         d.external_id,
@@ -788,7 +805,9 @@ WITH dags_to_step_counts AS (
     FROM
         v1_dag d
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = d.id
+        input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
     JOIN
         "WorkflowVersion" wv ON wv."id" = d.workflow_version_id
     LEFT JOIN
@@ -796,8 +815,7 @@ WITH dags_to_step_counts AS (
     LEFT JOIN
         "Step" s ON s."jobId" = j."id"
     WHERE
-        d.id = ANY(@dagIds::bigint[])
-        AND d.tenant_id = @tenantId::uuid
+        d.tenant_id = @tenantId::uuid
     GROUP BY
         d.id,
         d.inserted_at

@@ -17,6 +17,12 @@ SELECT
     create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date)
 ;
 
+-- name: CreateOLAPOtelPartitions :exec
+SELECT
+    create_v1_range_partition('v1_otel_trace_olap'::text, @date::date),
+    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, @date::date)
+;
+
 -- name: AnalyzeV1RunsOLAP :exec
 ANALYZE v1_runs_olap;
 
@@ -54,6 +60,10 @@ WITH task_partitions AS (
     SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', @date::date) AS p
 ), payloads_partitions AS (
     SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', @date::date) AS p
+), otel_trace_partitions AS (
+    SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
+), otel_trace_lookup_partitions AS (
+    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -115,6 +125,20 @@ WITH task_partitions AS (
         *
     FROM
         payloads_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        otel_trace_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        otel_trace_lookup_partitions
 )
 
 SELECT *
@@ -122,9 +146,11 @@ FROM candidates
 WHERE
     CASE
         WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
-        -- this is a list of all of the tables which are hypertables in timescale, so we should not manually drop their
-        -- partitions if @shouldPartitionEventsTables is false
         ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
+    END
+    AND CASE
+        WHEN @shouldPartitionOtelTables::BOOLEAN THEN TRUE
+        ELSE parent_table NOT IN ('v1_otel_trace_olap', 'v1_otel_trace_lookup_olap')
     END
 ;
 
@@ -1893,6 +1919,22 @@ FROM
 LEFT JOIN
     task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
 ORDER BY td.task_id, td.inserted_at;
+
+-- name: GetTaskStartedTimestamps :many
+SELECT
+    task_id,
+    task_inserted_at,
+    retry_count,
+    MIN(event_timestamp)::timestamptz AS started_at
+FROM
+    v1_task_events_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND (task_id, task_inserted_at, retry_count) IN (
+        SELECT UNNEST(@taskIds::bigint[]), UNNEST(@taskInsertedAt::timestamptz[]), UNNEST(@retryCounts::int[])
+    )
+    AND event_type = 'STARTED'
+GROUP BY task_id, task_inserted_at, retry_count;
 
 -- name: CreateIncomingWebhookValidationFailureLogs :exec
 WITH inputs AS (

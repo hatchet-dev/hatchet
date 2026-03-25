@@ -11,3 +11,10 @@ func TextFromStr(str string) pgtype.Text {
 
 	return pgText
 }
+
+func TextToPtr(t pgtype.Text) *string {
+	if !t.Valid {
+		return nil
+	}
+	return &t.String
+}

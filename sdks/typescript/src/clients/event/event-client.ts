@@ -55,6 +55,10 @@ export class EventClient {
     this.tenantId = config.tenant_id;
   }
 
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchPushEvent.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
     const namespacedType = applyNamespace(type, this.config.namespace);
 
@@ -78,6 +82,10 @@ export class EventClient {
     }
   }
 
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchBulkPushEvent.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
   bulkPush<T>(type: string, inputs: EventWithMetadata<T>[], options: PushEventOptions = {}) {
     const namespacedType = applyNamespace(type, this.config.namespace);
 
