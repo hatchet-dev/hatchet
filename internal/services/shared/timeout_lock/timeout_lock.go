@@ -1,6 +1,7 @@
 package timeout_lock
 
 import (
+	"sync"
 	"time"
 )
 
@@ -34,28 +35,25 @@ func NewTimeoutLock(timeout time.Duration) *TimeoutLock {
 type KeyedTimeoutLock[T comparable] struct {
 	locks    map[T]*TimeoutLock
 	Timeout  time.Duration
-	lockLock *TimeoutLock
+	lockLock *sync.Mutex
 }
 
 func NewKeyedTimeoutLock[T comparable](timeout time.Duration) *KeyedTimeoutLock[T] {
 	return &KeyedTimeoutLock[T]{
 		locks:    make(map[T]*TimeoutLock),
 		Timeout:  timeout,
-		lockLock: NewTimeoutLock(100 * time.Millisecond), // secondary lock to protect creation of locks
+		lockLock: &sync.Mutex{}, // secondary lock to protect creation of locks
 	}
 }
 
 func (k *KeyedTimeoutLock[T]) Acquire(key T) bool {
-	acquired := k.lockLock.Acquire()
-	if !acquired {
-		return acquired
-	}
+	k.lockLock.Lock()
 	lock, ok := k.locks[key]
 	if !ok {
 		lock = NewTimeoutLock(k.Timeout)
 		k.locks[key] = lock
 	}
-	k.lockLock.Release()
+	k.lockLock.Unlock()
 	return lock.Acquire()
 }
 
