@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
@@ -341,6 +343,95 @@ func TestConcurrency_ChainedStrategiesDoNotContaminate(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res2.Queued, 1, "GROUP_ROUND_ROBIN with maxRuns=1 should queue exactly 1 task")
 
+		return nil
+	})
+}
+
+func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
+	// tests that multiple concurrency strategy ids that share a common parent id
+	// will not fail advisory lock
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		requireSchedulerSchema(t, ctx, conf)
+
+		r := conf.V1
+		queries := sqlcv1.New()
+
+		tenantId := uuid.New()
+		tenant, err := r.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: "concurrency-contention-test",
+			Slug: fmt.Sprintf("concurrency-contention-test-%s", tenantId.String()),
+		})
+		require.NoError(t, err)
+
+		l := zerolog.Nop()
+		schedulingPool, cleanup, err := v1.NewSchedulingPool(
+			r.Scheduler(),
+			&l,
+			100,
+			20,
+			5*time.Millisecond,
+			6*time.Millisecond,
+			false,
+			1,
+		)
+		require.NoError(t, err)
+		defer func() { _ = cleanup() }()
+		schedulingPool.SetTenants([]*sqlcv1.Tenant{tenant})
+		resultsChan := schedulingPool.GetConcurrencyResultsCh()
+
+		desc := "test workflow for concurrency contention"
+		cancelNewest := "CANCEL_NEWEST"
+		groupRR := "GROUP_ROUND_ROBIN"
+		var maxRunsGate1 int32 = 3
+		var maxRunsGate2 int32 = 1
+
+		_, err = r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "concurrency-contention-test",
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{
+					ReadableId: "my-task",
+					Action:     "test:run",
+				},
+				{
+					ReadableId: "my-task-2",
+					Action:     "test:run",
+				},
+			},
+			Concurrency: []repo.CreateConcurrencyOpts{
+				{
+					MaxRuns:       &maxRunsGate1,
+					LimitStrategy: &cancelNewest,
+					Expression:    "input.my_id",
+				},
+				{
+					MaxRuns:       &maxRunsGate2,
+					LimitStrategy: &groupRR,
+					Expression:    "input.my_id",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+		for _, strat := range strategies {
+			schedulingPool.NotifyNewConcurrencyStrategy(ctx, tenant.ID, strat.ID)
+		}
+
+		for i := 0; i < 10; i++ {
+			select {
+			case <-ctx.Done():
+				t.Fatalf("context cancelled while waiting for concurrency result: %v", ctx.Err())
+			case res := <-resultsChan:
+				require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
+			}
+
+		}
 		return nil
 	})
 }

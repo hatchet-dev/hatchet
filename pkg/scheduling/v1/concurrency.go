@@ -2,12 +2,15 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"golang.org/x/time/rate"
+
+	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -44,9 +47,12 @@ type ConcurrencyManager struct {
 	minPollingInterval time.Duration
 
 	maxPollingInterval time.Duration
+
+	advisoryLock       *timeout_lock.KeyedTimeoutLock[int64]
+	advisoryParentLock *timeout_lock.KeyedTimeoutLock[int64]
 }
 
-func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {
+func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults, advisoryLock *timeout_lock.KeyedTimeoutLock[int64], advisoryParentLock *timeout_lock.KeyedTimeoutLock[int64]) *ConcurrencyManager {
 	repo := conf.repo.Concurrency()
 
 	notifyConcurrencyCh := make(chan map[string]string, 2)
@@ -62,6 +68,8 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 		rateLimiter:         newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
 		minPollingInterval:  conf.schedulerConcurrencyPollingMinInterval,
 		maxPollingInterval:  conf.schedulerConcurrencyPollingMaxInterval,
+		advisoryLock:        advisoryLock,
+		advisoryParentLock:  advisoryParentLock,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -101,6 +109,28 @@ func (c *ConcurrencyManager) notify(ctx context.Context) {
 	}
 }
 
+func (c *ConcurrencyManager) acquireStrategyLocks() bool {
+	acquired := c.advisoryLock.Acquire(c.strategy.ID)
+	if !acquired {
+		return acquired
+	}
+	if c.strategy.ParentStrategyID.Valid {
+		if !c.advisoryParentLock.Acquire(c.strategy.ParentStrategyID.Int64) {
+			c.advisoryLock.Release(c.strategy.ID)
+			return false
+		}
+	}
+	return true
+
+}
+
+func (c *ConcurrencyManager) releaseStrategyLocks() {
+	c.advisoryLock.Release(c.strategy.ID)
+	if c.strategy.ParentStrategyID.Valid {
+		c.advisoryParentLock.Release(c.strategy.ParentStrategyID.Int64)
+	}
+}
+
 func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 	ticker := randomticker.NewRandomTicker(
 		c.minPollingInterval,
@@ -131,10 +161,15 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			continue
 		}
 
+		// acquire in-memory queue lock before running strategy because failure to acquire database-level
+		// locks will delay scheduling until next polling tick
+		if acquired := c.acquireStrategyLocks(); !acquired {
+			span.End()
+			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("could not acquire in-memory advisory lock for strategy id %d", c.strategy.ID))
+			continue
+		}
 		start := time.Now()
-
 		results, err := c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
-
 		if err != nil {
 			span.End()
 			c.l.Error().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
@@ -145,7 +180,7 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
 		}
-
+		c.releaseStrategyLocks()
 		c.resultsCh <- &ConcurrencyResults{
 			RunConcurrencyResult: results,
 			TenantId:             c.tenantId,
@@ -172,10 +207,14 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 			telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()},
 		)
 
+		if acquired := c.acquireStrategyLocks(); !acquired {
+			span.End()
+			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("could not acquire in-memory advisory lock for strategy id %d", c.strategy.ID))
+			continue
+		}
 		start := time.Now()
-
 		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
-
+		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()
 			c.l.Error().Ctx(ctx).Err(err).Msg("error updating concurrency strategy is_active")
