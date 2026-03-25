@@ -1,6 +1,4 @@
 import asyncio
-import time
-from datetime import timedelta
 
 from pydantic import BaseModel
 
@@ -10,7 +8,6 @@ from hatchet_sdk import (
     Context,
     Hatchet,
 )
-from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 
 class InputModel(BaseModel):
@@ -19,7 +16,6 @@ class InputModel(BaseModel):
 
 
 hatchet = Hatchet(debug=True)
-HatchetInstrumentor().instrument()
 
 concurrency_strat = [
     ConcurrencyExpression(

@@ -24,7 +24,7 @@ async def test_concurrency_strategy_scheduling(
 ) -> None:
     key1 = str(uuid4())
     key2 = str(uuid4())
-    run = concurrency_strategy_workflow.run_no_wait(
+    run = await concurrency_strategy_workflow.aio_run_no_wait(
         input=InputModel(key1=key1, key2=key2),
         options=TriggerWorkflowOptions(
             additional_metadata={
@@ -33,7 +33,7 @@ async def test_concurrency_strategy_scheduling(
         ),
     )
     start = time.time()
-    results = run.result()
+    results = await run.aio_result()
     end = time.time()
     elapsed_time = end - start
     print(f"Time taken: {elapsed_time:.4f} seconds")

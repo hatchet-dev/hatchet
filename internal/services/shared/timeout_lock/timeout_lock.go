@@ -1,8 +1,9 @@
 package timeout_lock
 
 import (
-	"sync"
 	"time"
+
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
 
 type TimeoutLock struct {
@@ -33,32 +34,24 @@ func NewTimeoutLock(timeout time.Duration) *TimeoutLock {
 }
 
 type KeyedTimeoutLock[T comparable] struct {
-	locks    map[T]*TimeoutLock
-	Timeout  time.Duration
-	lockLock *sync.Mutex
+	locks   syncx.Map[T, *TimeoutLock]
+	Timeout time.Duration
 }
 
 func NewKeyedTimeoutLock[T comparable](timeout time.Duration) *KeyedTimeoutLock[T] {
 	return &KeyedTimeoutLock[T]{
-		locks:    make(map[T]*TimeoutLock),
-		Timeout:  timeout,
-		lockLock: &sync.Mutex{}, // secondary lock to protect creation of locks
+		locks:   syncx.Map[T, *TimeoutLock]{},
+		Timeout: timeout,
 	}
 }
 
 func (k *KeyedTimeoutLock[T]) Acquire(key T) bool {
-	k.lockLock.Lock()
-	lock, ok := k.locks[key]
-	if !ok {
-		lock = NewTimeoutLock(k.Timeout)
-		k.locks[key] = lock
-	}
-	k.lockLock.Unlock()
+	lock, _ := k.locks.LoadOrStore(key, NewTimeoutLock(k.Timeout))
 	return lock.Acquire()
 }
 
 func (k *KeyedTimeoutLock[T]) Release(key T) {
-	lock, ok := k.locks[key]
+	lock, ok := k.locks.Load(key)
 	if !ok {
 		return
 	}

@@ -373,8 +373,8 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 			&l,
 			100,
 			20,
-			5*time.Second,
-			5*time.Second+time.Millisecond,
+			5*time.Millisecond,
+			6*time.Millisecond,
 			false,
 			1,
 		)
@@ -418,13 +418,19 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		require.NoError(t, err)
 
 		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
 		for _, strat := range strategies {
 			schedulingPool.NotifyNewConcurrencyStrategy(ctx, tenant.ID, strat.ID)
 		}
 
 		for i := 0; i < 10; i++ {
-			res := <-resultsChan
-			require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
+			select {
+			case <-ctx.Done():
+				t.Fatalf("context cancelled while waiting for concurrency result: %v", ctx.Err())
+			case res := <-resultsChan:
+				require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
+			}
+
 		}
 		return nil
 	})
