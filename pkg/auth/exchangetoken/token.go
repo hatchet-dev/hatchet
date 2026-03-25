@@ -1,0 +1,101 @@
+package exchangetoken
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/tink-crypto/tink-go/jwt"
+	"github.com/tink-crypto/tink-go/keyset"
+)
+
+type ExchangeTokenClient interface {
+	ValidateExchangeToken(ctx context.Context, token string) (tenantId, userId uuid.UUID, err error)
+}
+
+type ExchangeTokenOpts struct {
+	Issuer   string
+	Audience string
+}
+
+type exchangeTokenClientImpl struct {
+	opts     *ExchangeTokenOpts
+	verifier jwt.Verifier
+}
+
+func NewExchangeTokenClient(publicJWTHandle *keyset.Handle, opts *ExchangeTokenOpts) (ExchangeTokenClient, error) {
+	verifier, err := jwt.NewVerifier(publicJWTHandle)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWT Verifier: %v", err)
+	}
+
+	return &exchangeTokenClientImpl{
+		opts:     opts,
+		verifier: verifier,
+	}, nil
+}
+
+type Token struct {
+	ExpiresAt time.Time
+	Token     string
+	TokenId   uuid.UUID
+}
+
+func (j *exchangeTokenClientImpl) ValidateExchangeToken(ctx context.Context, token string) (tenantId, userId uuid.UUID, err error) {
+	// Verify the signed token.
+	audience := j.opts.Audience
+
+	validator, err := jwt.NewValidator(&jwt.ValidatorOpts{
+		ExpectedAudience:      &audience,
+		ExpectedIssuer:        &j.opts.Issuer,
+		FixedNow:              time.Now(),
+		ExpectIssuedInThePast: true,
+	})
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to create JWT Validator: %v", err)
+	}
+
+	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to verify and decode JWT: %v", err)
+	}
+
+	if hasTenantId := verifiedJwt.HasStringClaim("tenant_id"); !hasTenantId {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have tenant_id claim")
+	}
+
+	tenantIdStr, err := verifiedJwt.StringClaim("tenant_id")
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read tenant_id claim: %v", err)
+	}
+
+	tenantId, err = uuid.Parse(tenantIdStr)
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse tenant_id claim: %v", err)
+	}
+
+	// ensure the subject of the token matches the tenantId
+	if hasSubject := verifiedJwt.HasSubject(); !hasSubject {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have subject claim")
+	}
+
+	subject, err := verifiedJwt.Subject()
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read subject claim: %v", err)
+	}
+
+	userId, err = uuid.Parse(subject)
+
+	if err != nil {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse subject claim: %v", err)
+	}
+
+	return tenantId, userId, nil
+}

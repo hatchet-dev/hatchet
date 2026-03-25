@@ -42,6 +42,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflows"
 	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/cors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
@@ -211,6 +212,8 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	g := e.Group("")
+
+	g.Use(cors.Middleware(t.config))
 
 	if _, err := t.registerSpec(g, oaspec); err != nil {
 		return nil, err
