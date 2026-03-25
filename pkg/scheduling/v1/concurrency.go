@@ -163,8 +163,7 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 
 		// acquire in-memory queue lock before running strategy because failure to acquire database-level
 		// locks will delay scheduling until next polling tick
-		acquired := c.acquireStrategyLocks()
-		if !acquired {
+		if acquired := c.acquireStrategyLocks(); !acquired {
 			span.End()
 			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("could not acquire in-memory advisory lock for strategy id %d", c.strategy.ID))
 			continue
@@ -208,7 +207,11 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 			telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()},
 		)
 
-		c.acquireStrategyLocks()
+		if acquired := c.acquireStrategyLocks(); !acquired {
+			span.End()
+			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("could not acquire in-memory advisory lock for strategy id %d", c.strategy.ID))
+			continue
+		}
 		start := time.Now()
 		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
 		c.releaseStrategyLocks()

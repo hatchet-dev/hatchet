@@ -33,8 +33,9 @@ async def test_concurrency_strategy_scheduling(
         ),
     )
     start = time.time()
-    run.result()
+    results = run.result()
     end = time.time()
     elapsed_time = end - start
     print(f"Time taken: {elapsed_time:.4f} seconds")
-    assert elapsed_time < 5
+    max_time = 5
+    assert elapsed_time < max_time, f"Workflow took too long {elapsed_time}s > {max_time}s, results: {results}"
