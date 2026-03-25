@@ -769,11 +769,13 @@ ORDER BY
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 SELECT
-    id
+    id,
+    inserted_at
 FROM
     v1_dag
 WHERE
     id = ANY(@dagIds::bigint[])
+    AND inserted_at >= @minInsertedAt::TIMESTAMPTZ
     AND tenant_id = @tenantId::uuid
 ORDER BY id
 -- We skip locked tasks because replays are the only thing that can lock a DAG for updates
@@ -794,7 +796,7 @@ WITH dags_to_step_counts AS (
     FROM
         v1_dag d
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = d.id
+        v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
     JOIN
         "WorkflowVersion" wv ON wv."id" = d.workflow_version_id
     LEFT JOIN
@@ -803,6 +805,7 @@ WITH dags_to_step_counts AS (
         "Step" s ON s."jobId" = j."id"
     WHERE
         d.id = ANY(@dagIds::bigint[])
+        AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
         AND d.tenant_id = @tenantId::uuid
     GROUP BY
         d.id,

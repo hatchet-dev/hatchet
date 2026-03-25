@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"maps"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -2976,9 +2978,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		dagIdsToLock = append(dagIdsToLock, dagId)
 	}
 
-	successfullyLockedDAGIds, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
-		Dagids:   dagIdsToLock,
-		Tenantid: tenantId,
+	successfullyLockedDAGs, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
+		Dagids:        dagIdsToLock,
+		Tenantid:      tenantId,
+		Mininsertedat: minInsertedAt,
 	})
 
 	if err != nil {
@@ -2987,8 +2990,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	successfullyLockedDAGsMap := make(map[int64]bool)
 
-	for _, dagId := range successfullyLockedDAGIds {
-		successfullyLockedDAGsMap[dagId] = true
+	for _, dag := range successfullyLockedDAGs {
+		successfullyLockedDAGsMap[dag.ID] = true
 	}
 
 	// Discard tasks which can't be replayed. Discard rules are as follows:
@@ -2998,8 +3001,9 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	dagIdsFailedPreflight := make(map[int64]bool)
 
 	preflightDAGs, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:   successfullyLockedDAGIds,
-		Tenantid: tenantId,
+		Dagids:        slices.Collect(maps.Keys(successfullyLockedDAGsMap)),
+		Tenantid:      tenantId,
+		Mininsertedat: minInsertedAt,
 	})
 
 	if err != nil {
