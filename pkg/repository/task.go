@@ -2962,15 +2962,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				subtreeStepIds[task.DagID.Int64] = make(map[uuid.UUID]bool)
 			}
 
-			if task.DagInsertedAt.Valid {
-				dagIdsToLockMap[task.DagID.Int64] = task.DagInsertedAt
-			} else {
-				r.l.Error().Ctx(ctx).Int64("task_id", task.ID).Msg("could not find dag inserted at for task")
-				continue
-			}
-
 			subtreeStepIds[task.DagID.Int64][task.StepID] = true
 			subtreeExternalIds[task.ExternalID] = struct{}{}
+
+			dagIdsToLockMap[task.DagID.Int64] = task.DagInsertedAt
 		}
 
 		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
