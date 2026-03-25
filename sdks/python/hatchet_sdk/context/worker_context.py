@@ -26,6 +26,12 @@ class WorkerContext:
         return self._labels
 
     def upsert_labels(self, labels: dict[str, str | int]) -> None:
+        warn(
+            "The upsert_labels method deprecated. It will be removed in v2.0.0. Use `Context.upsert_labels` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         self._client.upsert_worker_labels(
             self._worker_id,
             [WorkerLabel(key=key, value=value) for key, value in labels.items()],
