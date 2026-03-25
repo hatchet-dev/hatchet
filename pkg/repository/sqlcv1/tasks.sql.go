@@ -2145,8 +2145,8 @@ func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasks
 const lockDAGsForReplay = `-- name: LockDAGsForReplay :many
 WITH input AS (
     SELECT
-        UNNEST($3::bigint[]) AS dag_id,
-        UNNEST($4::timestamptz[]) AS dag_inserted_at
+        UNNEST($2::bigint[]) AS dag_id,
+        UNNEST($3::timestamptz[]) AS dag_inserted_at
 )
 SELECT
     d.id,
@@ -2156,14 +2156,12 @@ FROM
 JOIN
     input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
-    d.inserted_at >= $1::TIMESTAMPTZ
-    AND d.tenant_id = $2::uuid
+    d.tenant_id = $1::uuid
 ORDER BY d.id
 FOR UPDATE SKIP LOCKED
 `
 
 type LockDAGsForReplayParams struct {
-	Mininsertedat  pgtype.Timestamptz   `json:"mininsertedat"`
 	Tenantid       uuid.UUID            `json:"tenantid"`
 	Dagids         []int64              `json:"dagids"`
 	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
@@ -2177,12 +2175,7 @@ type LockDAGsForReplayRow struct {
 // Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 // We skip locked tasks because replays are the only thing that can lock a DAG for updates
 func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsForReplayParams) ([]*LockDAGsForReplayRow, error) {
-	rows, err := db.Query(ctx, lockDAGsForReplay,
-		arg.Mininsertedat,
-		arg.Tenantid,
-		arg.Dagids,
-		arg.Daginsertedats,
-	)
+	rows, err := db.Query(ctx, lockDAGsForReplay, arg.Tenantid, arg.Dagids, arg.Daginsertedats)
 	if err != nil {
 		return nil, err
 	}
@@ -2418,8 +2411,7 @@ WITH input AS (
     LEFT JOIN
         "Step" s ON s."jobId" = j."id"
     WHERE
-        d.inserted_at >= $3::TIMESTAMPTZ
-        AND d.tenant_id = $4::uuid
+        d.tenant_id = $3::uuid
     GROUP BY
         d.id,
         d.inserted_at
@@ -2437,7 +2429,6 @@ FROM
 type PreflightCheckDAGsForReplayParams struct {
 	Dagids         []int64              `json:"dagids"`
 	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
-	Mininsertedat  pgtype.Timestamptz   `json:"mininsertedat"`
 	Tenantid       uuid.UUID            `json:"tenantid"`
 }
 
@@ -2454,12 +2445,7 @@ type PreflightCheckDAGsForReplayRow struct {
 // don't interfere with each other. It also does not check for whether the tasks are running, as that's
 // checked in a different query. It returns DAGs which cannot be replayed.
 func (q *Queries) PreflightCheckDAGsForReplay(ctx context.Context, db DBTX, arg PreflightCheckDAGsForReplayParams) ([]*PreflightCheckDAGsForReplayRow, error) {
-	rows, err := db.Query(ctx, preflightCheckDAGsForReplay,
-		arg.Dagids,
-		arg.Daginsertedats,
-		arg.Mininsertedat,
-		arg.Tenantid,
-	)
+	rows, err := db.Query(ctx, preflightCheckDAGsForReplay, arg.Dagids, arg.Daginsertedats, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}

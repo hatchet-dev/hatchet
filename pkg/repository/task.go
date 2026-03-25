@@ -512,7 +512,6 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 	taskInsertedAtsToCheck := make([]pgtype.Timestamptz, len(flattenedTasks))
 	taskIdsToTasks := make(map[int64]*sqlcv1.FlattenExternalIdsRow)
 	minTaskInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
-	minDagInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())  // current time as a placeholder - will be overwritten
 
 	for i, task := range flattenedTasks {
 		taskIdsToCheck[i] = task.ID
@@ -521,10 +520,6 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 
 		if task.InsertedAt.Time.Before(minTaskInsertedAt.Time) {
 			minTaskInsertedAt = task.InsertedAt
-		}
-
-		if task.DagID.Valid && task.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
-			minDagInsertedAt = task.DagInsertedAt
 		}
 	}
 
@@ -546,21 +541,23 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		notFinalizedMap[task.ID] = true
 	}
 
-	dagsToCheck := make([]int64, 0)
+	dagIdsToCheck := make([]int64, 0)
+	dagInsertedAtsToCheck := make([]pgtype.Timestamptz, 0)
 	dagsToTasks := make(map[int64][]*sqlcv1.FlattenExternalIdsRow)
 
 	for _, task := range flattenedTasks {
 		if !notFinalizedMap[task.ID] && task.DagID.Valid {
-			dagsToCheck = append(dagsToCheck, task.DagID.Int64)
+			dagIdsToCheck = append(dagIdsToCheck, task.DagID.Int64)
+			dagInsertedAtsToCheck = append(dagInsertedAtsToCheck, task.DagInsertedAt)
 			dagsToTasks[task.DagID.Int64] = append(dagsToTasks[task.DagID.Int64], task)
 		}
 	}
 
 	// check DAGs
 	notFinalizedDags, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:        dagsToCheck,
-		Tenantid:      tenantId,
-		Mininsertedat: minDagInsertedAt,
+		Dagids:         dagIdsToCheck,
+		Daginsertedats: dagInsertedAtsToCheck,
+		Tenantid:       tenantId,
 	})
 
 	if err != nil {
@@ -2955,8 +2952,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	subtreeExternalIds := make(map[uuid.UUID]struct{})
 	dagIdsToLockMap := make(map[int64]pgtype.Timestamptz)
 	minTaskInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())
-	minDagInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())
-
 	for i, task := range lockedTasks {
 		lockedTaskIds[i] = task.ID
 		lockedTaskInsertedAts[i] = task.InsertedAt
@@ -2966,17 +2961,19 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				subtreeStepIds[task.DagID.Int64] = make(map[uuid.UUID]bool)
 			}
 
-			dagIdsToLockMap[task.DagID.Int64] = task.DagInsertedAt
+			if task.DagInsertedAt.Valid {
+				dagIdsToLockMap[task.DagID.Int64] = task.DagInsertedAt
+			} else {
+				r.l.Error().Ctx(ctx).Int64("task_id", task.ID).Msg("could not find dag inserted at for task")
+				continue
+			}
+
 			subtreeStepIds[task.DagID.Int64][task.StepID] = true
 			subtreeExternalIds[task.ExternalID] = struct{}{}
 		}
 
 		if task.InsertedAt.Time.Before(minTaskInsertedAt.Time) {
 			minTaskInsertedAt = task.InsertedAt
-		}
-
-		if task.DagID.Valid && task.DagInsertedAt.Valid && task.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
-			minDagInsertedAt = task.DagInsertedAt
 		}
 	}
 
@@ -2993,7 +2990,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		Dagids:         dagIdsToLock,
 		Daginsertedats: dagInsertedAtsToLock,
 		Tenantid:       tenantId,
-		Mininsertedat:  minDagInsertedAt,
 	})
 
 	if err != nil {
@@ -3020,7 +3016,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		Dagids:         successfullyLockedDAGIds,
 		Daginsertedats: successfullyLockedDAGInsertedAts,
 		Tenantid:       tenantId,
-		Mininsertedat:  minDagInsertedAt,
 	})
 
 	if err != nil {

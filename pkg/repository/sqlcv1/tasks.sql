@@ -781,8 +781,7 @@ FROM
 JOIN
     input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
-    d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
-    AND d.tenant_id = @tenantId::uuid
+    d.tenant_id = @tenantId::uuid
 ORDER BY d.id
 -- We skip locked tasks because replays are the only thing that can lock a DAG for updates
 FOR UPDATE SKIP LOCKED;
@@ -816,8 +815,7 @@ WITH input AS (
     LEFT JOIN
         "Step" s ON s."jobId" = j."id"
     WHERE
-        d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
-        AND d.tenant_id = @tenantId::uuid
+        d.tenant_id = @tenantId::uuid
     GROUP BY
         d.id,
         d.inserted_at
