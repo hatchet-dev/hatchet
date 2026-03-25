@@ -75,6 +75,14 @@ type UseSidePanelProps =
       };
     };
 
+function SidePanelTaskRunDetail(props: {
+  taskRunId: string;
+  defaultOpenTab?: TabOption;
+  showViewTaskRunButton?: boolean;
+}) {
+  return <TaskRunDetail {...props} />;
+}
+
 function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
@@ -105,7 +113,7 @@ function useSidePanelData(): SidePanelData {
       case 'task-run-details':
         return {
           isDocs: false,
-          component: <TaskRunDetail {...props.content} />,
+          component: <SidePanelTaskRunDetail {...props.content} />,
         };
       case 'event-details':
         return {

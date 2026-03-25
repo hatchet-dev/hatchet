@@ -1,6 +1,7 @@
 package transformers
 
 import (
+	"math"
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -53,9 +54,12 @@ func ToTenantAlertEmailGroup(group *sqlcv1.TenantAlertEmailGroup) *gen.TenantAle
 
 func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantResourcePolicy {
 
-	limits := make([]gen.TenantResourceLimit, len(_limits))
+	limits := make([]gen.TenantResourceLimit, 0, len(_limits))
 
-	for i, limit := range _limits {
+	for _, limit := range _limits {
+		if limit.LimitValue == math.MaxInt32 {
+			continue
+		}
 
 		var alarmValue int
 		if limit.AlarmValue.Valid {
@@ -67,7 +71,7 @@ func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantRe
 			window = limit.Window.String
 		}
 
-		limits[i] = gen.TenantResourceLimit{
+		limits = append(limits, gen.TenantResourceLimit{
 			Metadata:   *toAPIMetadata(limit.ID, limit.CreatedAt.Time, limit.UpdatedAt.Time),
 			Resource:   gen.TenantResource(limit.Resource),
 			LimitValue: int(limit.LimitValue),
@@ -75,7 +79,7 @@ func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantRe
 			Value:      int(limit.Value),
 			Window:     &window,
 			LastRefill: &limit.LastRefill.Time,
-		}
+		})
 	}
 
 	return &gen.TenantResourcePolicy{

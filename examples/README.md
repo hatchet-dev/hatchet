@@ -5,7 +5,8 @@ These examples are generated from SDK source where they include, to contribute u
 
 - Typescript: ../sdks/typescript/src/v1/examples
 - Python: ../sdks/python/examples
-- Go: ../pkg/examples
+- Go: ../sdks/go/examples
+- Ruby: ../sdks/ruby/examples
 
 #### Comment Markup
 

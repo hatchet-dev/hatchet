@@ -1,5 +1,6 @@
-import type { SearchSuggestion } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { V1LogLineLevel } from '@/lib/api';
+
+export type { FilterSuggestion as AutocompleteSuggestion } from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -25,15 +26,6 @@ export interface ParsedLogQuery {
   raw: string;
   isValid: boolean;
   errors: string[];
-}
-
-export interface AutocompleteSuggestion
-  extends SearchSuggestion<'key' | 'value'> {
-  type: 'key' | 'value';
-  label: string;
-  value: string;
-  description?: string;
-  color?: string;
 }
 
 export interface LogSearchInputProps {

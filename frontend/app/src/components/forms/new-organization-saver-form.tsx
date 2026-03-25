@@ -65,6 +65,7 @@ const useSaveOrganization = ({
       }),
     onSuccess: (data) => {
       invalidateUserUniverse();
+      localStorage.setItem('hatchet:show-welcome', '1');
       capture('onboarding_tenant_created', {
         tenant_type: 'cloud',
         is_cloud: true,
