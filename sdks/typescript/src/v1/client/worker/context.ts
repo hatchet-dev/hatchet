@@ -32,10 +32,7 @@ import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
 import { z } from 'zod';
-import {
-  StandardSchemaV1,
-  validateWithSchema,
-} from '@hatchet/v1/standard-schema';
+import { StandardSchemaV1, validateWithSchema } from '@hatchet/v1/standard-schema';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToMs, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';

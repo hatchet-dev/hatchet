@@ -20,55 +20,53 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 
 /** The Standard Schema v1 interface. */
 export interface StandardSchemaV1<Input = unknown, Output = Input> {
-  readonly '~standard': StandardSchemaV1.Props<Input, Output>;
+  readonly '~standard': StandardSchemaV1Props<Input, Output>;
 }
 
-export namespace StandardSchemaV1 {
-  /** The Standard Schema v1 properties interface. */
-  export interface Props<Input = unknown, Output = Input> {
-    readonly version: 1;
-    readonly vendor: string;
-    readonly validate: (
-      value: unknown
-    ) => Result<Output> | Promise<Result<Output>>;
-    readonly types?: Types<Input, Output> | undefined;
-  }
-
-  /** The result type of the validate function. */
-  export type Result<Output> = Output | FailureResult;
-
-  /** The failure result type. */
-  export interface FailureResult {
-    readonly issues: ReadonlyArray<Issue>;
-  }
-
-  /** An issue from validation. */
-  export interface Issue {
-    readonly message: string;
-    readonly path?: ReadonlyArray<
-      PropertyKey | PathSegment
-    >;
-  }
-
-  /** A path segment. */
-  export interface PathSegment {
-    readonly key: PropertyKey;
-  }
-
-  /** The Standard Schema v1 types interface. */
-  export interface Types<Input = unknown, Output = Input> {
-    readonly input?: Input;
-    readonly output?: Output;
-  }
-
-  /** Infer the input type of a Standard Schema. */
-  export type InferInput<Schema extends StandardSchemaV1> =
-    NonNullable<Schema['~standard']['types']>['input'];
-
-  /** Infer the output type of a Standard Schema. */
-  export type InferOutput<Schema extends StandardSchemaV1> =
-    NonNullable<Schema['~standard']['types']>['output'];
+/** The Standard Schema v1 properties interface. */
+export interface StandardSchemaV1Props<Input = unknown, Output = Input> {
+  readonly version: 1;
+  readonly vendor: string;
+  readonly validate: (
+    value: unknown
+  ) => StandardSchemaV1Result<Output> | Promise<StandardSchemaV1Result<Output>>;
+  readonly types?: StandardSchemaV1Types<Input, Output> | undefined;
 }
+
+/** The result type of the validate function. */
+export type StandardSchemaV1Result<Output> = Output | StandardSchemaV1FailureResult;
+
+/** The failure result type. */
+export interface StandardSchemaV1FailureResult {
+  readonly issues: ReadonlyArray<StandardSchemaV1Issue>;
+}
+
+/** An issue from validation. */
+export interface StandardSchemaV1Issue {
+  readonly message: string;
+  readonly path?: ReadonlyArray<PropertyKey | StandardSchemaV1PathSegment>;
+}
+
+/** A path segment. */
+export interface StandardSchemaV1PathSegment {
+  readonly key: PropertyKey;
+}
+
+/** The Standard Schema v1 types interface. */
+export interface StandardSchemaV1Types<Input = unknown, Output = Input> {
+  readonly input?: Input;
+  readonly output?: Output;
+}
+
+/** Infer the input type of a Standard Schema. */
+export type StandardSchemaV1InferInput<Schema extends StandardSchemaV1> = NonNullable<
+  Schema['~standard']['types']
+>['input'];
+
+/** Infer the output type of a Standard Schema. */
+export type StandardSchemaV1InferOutput<Schema extends StandardSchemaV1> = NonNullable<
+  Schema['~standard']['types']
+>['output'];
 
 // ---------------------------------------------------------------------------
 // Type guards
@@ -80,16 +78,19 @@ export function isStandardSchema(value: unknown): value is StandardSchemaV1 {
     typeof value === 'object' &&
     value !== null &&
     '~standard' in value &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     typeof (value as any)['~standard'] === 'object'
   );
 }
 
 /** Returns true if the value is a Zod schema (has _def, used for zodToJsonSchema). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isZodSchema(value: unknown): value is z.ZodType<any> {
   return (
     typeof value === 'object' &&
     value !== null &&
     '_def' in value &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     typeof (value as any).parse === 'function'
   );
 }
@@ -102,9 +103,9 @@ export function isZodSchema(value: unknown): value is z.ZodType<any> {
  * A validation error thrown when a Standard Schema validation fails.
  */
 export class StandardSchemaValidationError extends Error {
-  public readonly issues: ReadonlyArray<StandardSchemaV1.Issue>;
+  public readonly issues: ReadonlyArray<StandardSchemaV1Issue>;
 
-  constructor(issues: ReadonlyArray<StandardSchemaV1.Issue>) {
+  constructor(issues: ReadonlyArray<StandardSchemaV1Issue>) {
     const message = issues.map((i) => i.message).join('; ');
     super(`Validation failed: ${message}`);
     this.name = 'StandardSchemaValidationError';
@@ -113,12 +114,13 @@ export class StandardSchemaValidationError extends Error {
 }
 
 function isFailureResult(
-  result: StandardSchemaV1.Result<unknown>
-): result is StandardSchemaV1.FailureResult {
+  result: StandardSchemaV1Result<unknown>
+): result is StandardSchemaV1FailureResult {
   return (
     typeof result === 'object' &&
     result !== null &&
     'issues' in result &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Array.isArray((result as any).issues)
   );
 }
@@ -162,7 +164,8 @@ export async function validateWithSchema<T = unknown>(
  */
 export function schemaToJsonSchema(schema: unknown): object | undefined {
   if (isZodSchema(schema)) {
-    return zodToJsonSchema(schema);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return zodToJsonSchema(schema as any);
   }
   return undefined;
 }
