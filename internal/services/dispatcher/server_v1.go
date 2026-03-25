@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -479,7 +480,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 	// new goroutine to poll every second for finished workflow runs which are not ackd
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := randomticker.NewRandomTicker(s.minWorkflowRunPollingInterval, s.maxWorkflowRunPollingInterval)
 
 		for {
 			select {
