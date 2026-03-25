@@ -365,17 +365,8 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return nil
 	}
 
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-
 	iter := func(workflowRunIds []uuid.UUID) error {
 		if len(workflowRunIds) == 0 {
-			return nil
-		}
-
-		select {
-		case <-ticker.C:
-		default:
 			return nil
 		}
 
@@ -441,14 +432,23 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return nil
 	}
 
-	f := func(msg *msgqueue.Message) error {
-		wg.Add(1)
-		defer wg.Done()
+	iterCh := make(chan []uuid.UUID, 100)
+	notifyCh := make(chan struct{}, 1)
 
-		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
-			if err := iter(matchedWorkflowRunIds); err != nil {
-				s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+	enqueue := func(ids []uuid.UUID) {
+		select {
+		case iterCh <- ids:
+			select {
+			case notifyCh <- struct{}{}:
+			default:
 			}
+		default:
+		}
+	}
+
+	f := func(msg *msgqueue.Message) error {
+		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
+			enqueue(matchedWorkflowRunIds)
 		}
 
 		return nil
@@ -487,6 +487,38 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		}
 	}()
 
+	// serial worker: drains iterCh whenever notified, ensuring at most one iter in flight
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-notifyCh:
+				var ids []uuid.UUID
+			drain:
+				for {
+					select {
+					case batch := <-iterCh:
+						ids = append(ids, batch...)
+					default:
+						break drain
+					}
+				}
+
+				if len(ids) == 0 {
+					continue
+				}
+
+				if err := iter(ids); err != nil {
+					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				}
+			}
+		}
+	}()
+
 	// new goroutine to poll every second for finished workflow runs which are not ackd
 	go func() {
 		ticker := randomticker.NewRandomTicker(s.minWorkflowRunPollingInterval, s.maxWorkflowRunPollingInterval)
@@ -498,12 +530,8 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			case <-ticker.C:
 				workflowRunIds := acks.getNonAckdWorkflowRuns()
 
-				if len(workflowRunIds) == 0 {
-					continue
-				}
-
-				if err := iter(workflowRunIds); err != nil {
-					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				if len(workflowRunIds) > 0 {
+					enqueue(workflowRunIds)
 				}
 			}
 		}
