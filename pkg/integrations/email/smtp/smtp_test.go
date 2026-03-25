@@ -12,8 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 )
 
 const (

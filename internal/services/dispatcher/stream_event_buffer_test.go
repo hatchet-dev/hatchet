@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
 const WORKFLOW_RUN_ID = "00000000-0000-0000-0000-000000000001"

@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
 
 // setupTestConfig creates a temporary config directory and initializes viper
