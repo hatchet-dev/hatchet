@@ -157,32 +157,27 @@ class Context:
         return self._action.worker_id
 
     @property
-    def worker_labels(self) -> list[WorkerLabel]:
-        return self._worker_labels
-
-    @property
-    def worker_labels_dict(self) -> dict[str, str | int]:
+    def worker_labels(self) -> dict[str, str | int]:
         return {label.key: label.value for label in self._worker_labels if label.key}
 
-    def upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
-        self._dispatcher_client.upsert_worker_labels(self.worker_id, labels)
+    def upsert_worker_labels(self, labels: dict[str, str | int]) -> None:
+        self._dispatcher_client.upsert_worker_labels(
+            self.worker_id, [WorkerLabel(key=k, value=v) for k, v in labels.items()]
+        )
 
         prior_label_dict = {
             label.key: label.value
             for label in self._worker_labels
             if label.key is not None
         }
-        new_label_dict = {
-            label.key: label.value for label in labels if label.key is not None
-        }
 
-        prior_label_dict.update(new_label_dict)
+        prior_label_dict.update(labels)
 
         self._worker_labels = [
             WorkerLabel(key=key, value=value) for key, value in prior_label_dict.items()
         ]
 
-    async def aio_upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
+    async def aio_upsert_worker_labels(self, labels: dict[str, str | int]) -> None:
         await asyncio.to_thread(self.upsert_worker_labels, labels)
 
     @property

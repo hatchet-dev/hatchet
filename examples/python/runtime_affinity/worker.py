@@ -22,7 +22,7 @@ def main() -> None:
 
     worker = hatchet.worker(
         "runtime-affinity-worker",
-        labels=[WorkerLabel(key="affinity", value=args.label)],
+        labels={"affinity": args.label},
         workflows=[affinity_example_task],
     )
 

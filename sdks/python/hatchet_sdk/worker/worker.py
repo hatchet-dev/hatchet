@@ -75,7 +75,7 @@ class Worker:
         name: str,
         config: ClientConfig,
         slot_config: dict[str, int],
-        labels: dict[str, str | int] | list[WorkerLabel] | None = None,
+        labels: dict[str, str | int] | None = None,
         debug: bool = False,
         handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] | None = None,
@@ -89,12 +89,9 @@ class Worker:
         self._debug = debug
 
         _warn_if_dict_worker_labels(labels, stacklevel=3)
-        if isinstance(labels, dict):
-            self._labels: list[WorkerLabel] = [
-                WorkerLabel(key=k, value=v) for k, v in labels.items()
-            ]
-        else:
-            self._labels = labels or []
+        self._labels = (
+            [WorkerLabel(key=k, value=v) for k, v in labels.items()] if labels else []
+        )
 
         self._handle_kill = handle_kill
 
