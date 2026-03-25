@@ -1,20 +1,20 @@
-import { Button } from "@/components/v1/ui/button";
-import { Label } from "@/components/v1/ui/label";
-import { Spinner } from "@/components/v1/ui/loading.tsx";
+import { Button } from '@/components/v1/ui/button';
+import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { Switch } from "@/components/v1/ui/switch";
-import { TenantAlertingSettings } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+} from '@/components/v1/ui/select';
+import { Switch } from '@/components/v1/ui/switch';
+import { TenantAlertingSettings } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   maxAlertingFrequency: z.string(),
@@ -70,7 +70,7 @@ export function UpdateTenantAlertingSettings({
             enableTenantResourceLimitAlerts: enableTenantResourceLimitAlerts,
           });
         })}
-        className={cn("grid gap-6", className)}
+        className={cn('grid gap-6', className)}
       >
         <div className="flex items-center space-x-2">
           <Switch

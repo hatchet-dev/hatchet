@@ -1,10 +1,10 @@
-import { getCloudMetadataQuery } from "./pages/auth/hooks/use-cloud";
-import { NotFound } from "./pages/error/components/not-found";
-import ErrorBoundary from "./pages/error/index.tsx";
-import Root from "./pages/root.tsx";
-import { userUniverseQuery } from "./providers/user-universe";
-import api from "@/lib/api";
-import queryClient from "@/query-client";
+import { getCloudMetadataQuery } from './pages/auth/hooks/use-cloud';
+import { NotFound } from './pages/error/components/not-found';
+import ErrorBoundary from './pages/error/index.tsx';
+import Root from './pages/root.tsx';
+import { userUniverseQuery } from './providers/user-universe';
+import api from '@/lib/api';
+import queryClient from '@/query-client';
 import {
   RouterProvider,
   createRootRoute,
@@ -12,10 +12,10 @@ import {
   createRouter,
   lazyRouteComponent,
   redirect,
-} from "@tanstack/react-router";
-import { Outlet } from "@tanstack/react-router";
-import { FC } from "react";
-import { validate } from "uuid";
+} from '@tanstack/react-router';
+import { Outlet } from '@tanstack/react-router';
+import { FC } from 'react';
+import { validate } from 'uuid';
 
 const rootRoute = createRootRoute({
   component: Root,
@@ -33,9 +33,9 @@ const rootRoute = createRootRoute({
 
 const authRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "auth",
+  path: 'auth',
   loader: async () => {
-    const mod = await import("./pages/auth/no-auth");
+    const mod = await import('./pages/auth/no-auth');
     if (mod.loader) {
       return mod.loader();
     }
@@ -50,24 +50,24 @@ const authRoute = createRoute({
 
 const authLoginRoute = createRoute({
   getParentRoute: () => authRoute,
-  path: "login",
-  component: lazyRouteComponent(() => import("./pages/auth/login"), "default"),
+  path: 'login',
+  component: lazyRouteComponent(() => import('./pages/auth/login'), 'default'),
 });
 
 const authRegisterRoute = createRoute({
   getParentRoute: () => authRoute,
-  path: "register",
+  path: 'register',
   component: lazyRouteComponent(
-    () => import("./pages/auth/register"),
-    "default",
+    () => import('./pages/auth/register'),
+    'default',
   ),
 });
 
 const onboardingVerifyRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "onboarding/verify-email",
+  path: 'onboarding/verify-email',
   loader: async () => {
-    const mod = await import("./pages/onboarding/verify-email");
+    const mod = await import('./pages/onboarding/verify-email');
     if (mod.loader) {
       return mod.loader({
         request: new Request(window.location.href),
@@ -77,49 +77,49 @@ const onboardingVerifyRoute = createRoute({
     return null;
   },
   component: lazyRouteComponent(
-    () => import("./pages/onboarding/verify-email"),
-    "default",
+    () => import('./pages/onboarding/verify-email'),
+    'default',
   ),
 });
 
 const organizationsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
-  path: "organizations/$organization",
+  path: 'organizations/$organization',
   component: lazyRouteComponent(
-    () => import("./pages/organizations/$organization"),
-    "default",
+    () => import('./pages/organizations/$organization'),
+    'default',
   ),
 });
 
 const organizationsNewRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
-  path: "organizations/new",
+  path: 'organizations/new',
   component: lazyRouteComponent(
-    () => import("./pages/organizations/new"),
-    "default",
+    () => import('./pages/organizations/new'),
+    'default',
   ),
 });
 
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/",
+  path: '/',
   loader: async () => {
-    const mod = await import("./pages/authenticated");
+    const mod = await import('./pages/authenticated');
     return mod.loader({ request: new Request(window.location.href) });
   },
   component: lazyRouteComponent(
-    () => import("./pages/authenticated"),
-    "default",
+    () => import('./pages/authenticated'),
+    'default',
   ),
   notFoundComponent: () => <NotFound />,
 });
 
 const onboardingCreateTenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
-  path: "onboarding/create-tenant",
+  path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
-    () => import("./pages/onboarding/create-tenant"),
-    "default",
+    () => import('./pages/onboarding/create-tenant'),
+    'default',
   ),
   loader: async () => {
     const { isCloudEnabled } = await queryClient.fetchQuery(
@@ -133,32 +133,32 @@ const onboardingCreateTenantRoute = createRoute({
 
 const onboardingCreateOrganizationRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
-  path: "onboarding/create-organization",
+  path: 'onboarding/create-organization',
   component: lazyRouteComponent(
-    () => import("./pages/onboarding/create-organization"),
-    "default",
+    () => import('./pages/onboarding/create-organization'),
+    'default',
   ),
 });
 
 const onboardingInvitesRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
-  path: "onboarding/invites",
+  path: 'onboarding/invites',
   loader: async () => {
-    const mod = await import("./pages/onboarding/invites");
+    const mod = await import('./pages/onboarding/invites');
     if (mod.loader) {
       return mod.loader({} as never);
     }
     return null;
   },
   component: lazyRouteComponent(
-    () => import("./pages/onboarding/invites"),
-    "default",
+    () => import('./pages/onboarding/invites'),
+    'default',
   ),
 });
 
 const v1RedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "v1/*",
+  path: 'v1/*',
   loader: () => {
     throw redirect({ to: appRoutes.authenticatedRoute.to });
   },
@@ -166,7 +166,7 @@ const v1RedirectRoute = createRoute({
 
 const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
-  path: "tenants/$tenant",
+  path: 'tenants/$tenant',
   loader: async ({ params }) => {
     // Ensure the tenant in the URL is one the user actually has access to.
     // If not, throw a 403 so the global error boundary can show a friendly message.
@@ -177,29 +177,29 @@ const tenantRoute = createRoute({
     );
 
     if (!hasAccess) {
-      throw new Response("Forbidden", {
+      throw new Response('Forbidden', {
         status: 403,
-        statusText: "Forbidden",
+        statusText: 'Forbidden',
       });
     }
 
     // Optionally warm the tenant details cache, since most tenant pages expect it.
     // If this fails for any reason, let the error boundary handle it.
     await queryClient.fetchQuery({
-      queryKey: ["tenant:get", params.tenant],
+      queryKey: ['tenant:get', params.tenant],
       queryFn: async () => (await api.tenantGet(params.tenant)).data,
       retry: false,
     });
 
     return null;
   },
-  component: lazyRouteComponent(() => import("./pages/main/v1"), "default"),
+  component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
   notFoundComponent: () => <NotFound />,
 });
 
 const tenantIndexRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "/",
+  path: '/',
   loader: ({ params }) => {
     throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
   },
@@ -207,115 +207,115 @@ const tenantIndexRedirectRoute = createRoute({
 
 const tenantEventsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "events",
+  path: 'events',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/events"),
-    "default",
+    () => import('./pages/main/v1/events'),
+    'default',
   ),
 });
 
 const tenantLogsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "logs",
+  path: 'logs',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/logs"),
-    "default",
+    () => import('./pages/main/v1/logs'),
+    'default',
   ),
 });
 
 const tenantFiltersRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "filters",
+  path: 'filters',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/filters"),
-    "default",
+    () => import('./pages/main/v1/filters'),
+    'default',
   ),
 });
 
 const tenantWebhooksRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "webhooks",
+  path: 'webhooks',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/webhooks"),
-    "default",
+    () => import('./pages/main/v1/webhooks'),
+    'default',
   ),
 });
 
 const tenantRateLimitsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "rate-limits",
+  path: 'rate-limits',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/rate-limits"),
-    "default",
+    () => import('./pages/main/v1/rate-limits'),
+    'default',
   ),
 });
 
 const tenantScheduledRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "scheduled",
+  path: 'scheduled',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/scheduled-runs"),
-    "default",
+    () => import('./pages/main/v1/scheduled-runs'),
+    'default',
   ),
 });
 
 const tenantCronJobsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "cron-jobs",
+  path: 'cron-jobs',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/recurring"),
-    "default",
+    () => import('./pages/main/v1/recurring'),
+    'default',
   ),
 });
 
 const tenantWorkflowsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "workflows",
+  path: 'workflows',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/workflows"),
-    "default",
+    () => import('./pages/main/v1/workflows'),
+    'default',
   ),
 });
 
 const tenantWorkflowRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "workflows/$workflow",
+  path: 'workflows/$workflow',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/workflows/$workflow"),
-    "default",
+    () => import('./pages/main/v1/workflows/$workflow'),
+    'default',
   ),
 });
 
 const tenantOverviewRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "overview",
+  path: 'overview',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/overview/index.tsx"),
-    "default",
+    () => import('./pages/main/v1/overview/index.tsx'),
+    'default',
   ),
 });
 
 const tenantRunsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "runs",
+  path: 'runs',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/workflow-runs-v1/index.tsx"),
-    "default",
+    () => import('./pages/main/v1/workflow-runs-v1/index.tsx'),
+    'default',
   ),
 });
 
 const tenantRunRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "runs/$run",
+  path: 'runs/$run',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/workflow-runs-v1/$run"),
-    "default",
+    () => import('./pages/main/v1/workflow-runs-v1/$run'),
+    'default',
   ),
 });
 
 const tenantTaskRunsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "task-runs/$run",
+  path: 'task-runs/$run',
   loader: ({ params }) => {
     throw redirect({ to: appRoutes.tenantRunRoute.to, params });
   },
@@ -323,16 +323,16 @@ const tenantTaskRunsRoute = createRoute({
 
 const tenantWorkersRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "workers",
+  path: 'workers',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/workers"),
-    "default",
+    () => import('./pages/main/v1/workers'),
+    'default',
   ),
 });
 
 const tenantWorkersAllRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "workers/all",
+  path: 'workers/all',
   loader: ({ params }) => {
     throw redirect({ to: appRoutes.tenantWorkersRoute.to, params });
   },
@@ -340,65 +340,65 @@ const tenantWorkersAllRoute = createRoute({
 
 const tenantWorkerRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "workers/$worker",
+  path: 'workers/$worker',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/workers/$worker"),
-    "default",
+    () => import('./pages/main/v1/workers/$worker'),
+    'default',
   ),
 });
 
 const tenantManagedWorkersRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "managed-workers",
+  path: 'managed-workers',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/managed-workers/index.tsx"),
-    "default",
+    () => import('./pages/main/v1/managed-workers/index.tsx'),
+    'default',
   ),
 });
 
 const tenantManagedWorkersTemplateRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "managed-workers/demo-template",
+  path: 'managed-workers/demo-template',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/managed-workers/demo-template/index.tsx"),
-    "default",
+    () => import('./pages/main/v1/managed-workers/demo-template/index.tsx'),
+    'default',
   ),
 });
 
 const tenantManagedWorkersCreateRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "managed-workers/create",
+  path: 'managed-workers/create',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/managed-workers/create/index.tsx"),
-    "default",
+    () => import('./pages/main/v1/managed-workers/create/index.tsx'),
+    'default',
   ),
 });
 
 const tenantManagedWorkerRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "managed-workers/$managedWorker",
+  path: 'managed-workers/$managedWorker',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/managed-workers/$managed-worker/index.tsx"),
-    "default",
+    () => import('./pages/main/v1/managed-workers/$managed-worker/index.tsx'),
+    'default',
   ),
 });
 
 const tenantOrganizationsAndTenantsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "organizations-and-tenants",
+  path: 'organizations-and-tenants',
   loader: async () => {
-    const mod = await import("./pages/main/v1/organizations-and-tenants");
+    const mod = await import('./pages/main/v1/organizations-and-tenants');
     return mod.loader();
   },
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/organizations-and-tenants"),
-    "default",
+    () => import('./pages/main/v1/organizations-and-tenants'),
+    'default',
   ),
 });
 
 const tenantSettingsIndexRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings",
+  path: 'tenant-settings',
   loader: ({ params }) => {
     throw redirect({
       to: appRoutes.tenantSettingsOverviewRoute.to,
@@ -409,70 +409,70 @@ const tenantSettingsIndexRoute = createRoute({
 
 const tenantSettingsOverviewRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings/overview",
+  path: 'tenant-settings/overview',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/tenant-settings/overview"),
-    "default",
+    () => import('./pages/main/v1/tenant-settings/overview'),
+    'default',
   ),
 });
 
 const tenantSettingsApiTokensRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings/api-tokens",
+  path: 'tenant-settings/api-tokens',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/tenant-settings/api-tokens"),
-    "default",
+    () => import('./pages/main/v1/tenant-settings/api-tokens'),
+    'default',
   ),
 });
 
 const tenantSettingsGithubRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings/github",
+  path: 'tenant-settings/github',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/tenant-settings/github"),
-    "default",
+    () => import('./pages/main/v1/tenant-settings/github'),
+    'default',
   ),
 });
 
 const tenantSettingsMembersRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings/members",
+  path: 'tenant-settings/members',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/tenant-settings/members"),
-    "default",
+    () => import('./pages/main/v1/tenant-settings/members'),
+    'default',
   ),
 });
 
 const tenantSettingsAlertingRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings/alerting",
+  path: 'tenant-settings/alerting',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/tenant-settings/alerting"),
-    "default",
+    () => import('./pages/main/v1/tenant-settings/alerting'),
+    'default',
   ),
 });
 
 const tenantSettingsBillingRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings/billing-and-limits",
+  path: 'tenant-settings/billing-and-limits',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/tenant-settings/resource-limits"),
-    "default",
+    () => import('./pages/main/v1/tenant-settings/resource-limits'),
+    'default',
   ),
 });
 
 const tenantSettingsIngestorsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tenant-settings/ingestors",
+  path: 'tenant-settings/ingestors',
   component: lazyRouteComponent(
-    () => import("./pages/main/v1/tenant-settings/ingestors"),
-    "default",
+    () => import('./pages/main/v1/tenant-settings/ingestors'),
+    'default',
   ),
 });
 
 const tenantWorkflowRunsRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "workflow-runs",
+  path: 'workflow-runs',
   loader: ({ params }) => {
     throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
   },
@@ -480,7 +480,7 @@ const tenantWorkflowRunsRedirectRoute = createRoute({
 
 const tenantWorkflowRunRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "workflow-runs/$run",
+  path: 'workflow-runs/$run',
   loader: ({ params }) => {
     throw redirect({ to: appRoutes.tenantRunsRoute.to, params });
   },
@@ -488,7 +488,7 @@ const tenantWorkflowRunRedirectRoute = createRoute({
 
 const tenantTasksRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tasks",
+  path: 'tasks',
   loader: ({ params }) => {
     throw redirect({ to: appRoutes.tenantWorkflowsRoute.to, params });
   },
@@ -496,7 +496,7 @@ const tenantTasksRedirectRoute = createRoute({
 
 const tenantTasksWorkflowRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: "tasks/$workflow",
+  path: 'tasks/$workflow',
   loader: ({ params }) => {
     throw redirect({
       to: appRoutes.tenantWorkflowRoute.to,
@@ -510,7 +510,7 @@ const tenantTasksWorkflowRedirectRoute = createRoute({
 // that might be landed on don't actually exist anymore in the route tree
 const workflowRunRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "workflow-runs/$run",
+  path: 'workflow-runs/$run',
   loader: ({ location, params }) => {
     const tenantId: string | null | undefined =
       (location.search as any)?.tenantId || (location.search as any)?.tenant;
@@ -530,7 +530,7 @@ const workflowRunRedirectRoute = createRoute({
 
 const tenantSettingsRedirect = createRoute({
   getParentRoute: () => rootRoute,
-  path: "tenant-settings",
+  path: 'tenant-settings',
   loader: ({ location }) => {
     const tenantId: string | null | undefined =
       (location.search as any)?.tenantId || (location.search as any)?.tenant;
@@ -548,12 +548,12 @@ const tenantSettingsRedirect = createRoute({
 
 const tenantSettingsSubpathRedirect = createRoute({
   getParentRoute: () => rootRoute,
-  path: "tenant-settings/$",
+  path: 'tenant-settings/$',
   loader: ({ params, location }) => {
     const tenantId: string | null | undefined =
       (location.search as any)?.tenantId || (location.search as any)?.tenant;
 
-    const subpath: string | null | undefined = (params as any)?._splat || "";
+    const subpath: string | null | undefined = (params as any)?._splat || '';
     const allowedSubpaths = [
       tenantSettingsAlertingRoute.path,
       tenantSettingsApiTokensRoute.path,
@@ -562,7 +562,7 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsIngestorsRoute.path,
       tenantSettingsMembersRoute.path,
       tenantSettingsOverviewRoute.path,
-    ].map((p) => p.split("/").pop());
+    ].map((p) => p.split('/').pop());
 
     if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
       throw redirect({ to: appRoutes.authenticatedRoute.to });
@@ -629,10 +629,10 @@ const routeTree = rootRoute.addChildren([
 
 export const router = createRouter({
   routeTree,
-  defaultPreload: "intent",
+  defaultPreload: 'intent',
 });
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router;
   }

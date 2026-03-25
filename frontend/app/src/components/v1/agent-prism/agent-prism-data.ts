@@ -1,4 +1,4 @@
-import type { OtelSpanTree } from "./span-tree-type";
+import type { OtelSpanTree } from './span-tree-type';
 
 export const findTimeRange = (
   spanTrees: OtelSpanTree[],
@@ -27,7 +27,7 @@ export const findTimeRange = (
 
 export const formatDuration = (durationMs: number): string => {
   if (durationMs <= 0) {
-    return "0ms";
+    return '0ms';
   }
   if (durationMs < 1000) {
     return `${Math.round(durationMs)}ms`;

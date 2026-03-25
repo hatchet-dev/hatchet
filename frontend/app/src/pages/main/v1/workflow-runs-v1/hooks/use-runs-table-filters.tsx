@@ -8,25 +8,25 @@ import {
   isCustomTimeRangeKey,
   timeWindowKey,
   runningFilterKey,
-} from "../components/v1/task-runs-columns";
-import { useZodColumnFilters } from "@/hooks/use-zod-column-filters";
-import { V1RunningFilter, V1TaskStatus } from "@/lib/api";
-import { useSearchParams } from "@/lib/router-helpers";
-import { ColumnFiltersState } from "@tanstack/react-table";
-import { useCallback, useMemo } from "react";
-import { z } from "zod";
+} from '../components/v1/task-runs-columns';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
+import { useSearchParams } from '@/lib/router-helpers';
+import { ColumnFiltersState } from '@tanstack/react-table';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod';
 
-type TimeWindow = "1h" | "6h" | "1d" | "7d";
+type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
 const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string => {
   switch (timeWindow) {
-    case "1h":
+    case '1h':
       return new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    case "6h":
+    case '6h':
       return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    case "1d":
+    case '1d':
       return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    case "7d":
+    case '7d':
       return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     default: {
       const exhaustiveCheck: never = timeWindow;
@@ -65,7 +65,7 @@ export type FilterActions = {
 
 const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
   z.object({
-    tw: z.enum(["1h", "6h", "1d", "7d"]).default("1d"), // time window preset
+    tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'), // time window preset
     ctr: z.boolean().default(false), // whether using custom range
     s: z.string().optional(), // since
     u: z.string().optional(), // until
@@ -94,7 +94,7 @@ export const useRunsTableFilters = (
   isCustomTimeRange: boolean;
   apiFilters: APIFilters;
 } => {
-  const paramKey = tableKey + "-workflow-runs-filters";
+  const paramKey = tableKey + '-workflow-runs-filters';
   const apiFilterSchema = createApiFilterSchema(initialValues);
   const [, setSearchParams] = useSearchParams();
 
@@ -204,7 +204,7 @@ export const useRunsTableFilters = (
   const setAdditionalMetadata = useCallback(
     ({ key, value }: { key: string; value: string }) => {
       const existing = selectedAdditionalMetadata || [];
-      const filtered = existing.filter((m: string) => m.split(":")[0] !== key);
+      const filtered = existing.filter((m: string) => m.split(':')[0] !== key);
       const newMetadata = [...filtered, `${key}:${value}`];
 
       const newColumnFilters = columnFilters
@@ -218,7 +218,7 @@ export const useRunsTableFilters = (
 
   const apiFilters = useMemo(
     () => ({
-      since: createdAfter || getCreatedAfterFromTimeRange("1d"),
+      since: createdAfter || getCreatedAfterFromTimeRange('1d'),
       until: finishedBefore,
       statuses: selectedStatuses,
       workflowIds: selectedWorkflowIds,

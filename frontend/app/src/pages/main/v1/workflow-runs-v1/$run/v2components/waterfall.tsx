@@ -1,17 +1,17 @@
-import { Button } from "@/components/v1/ui/button";
-import { ChartContainer, ChartTooltipContent } from "@/components/v1/ui/chart";
-import { Skeleton } from "@/components/v1/ui/skeleton";
+import { Button } from '@/components/v1/ui/button';
+import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   TooltipProvider,
   Tooltip as BaseTooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/v1/ui/tooltip";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { V1TaskStatus, V1TaskTiming, queries } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
-import { CirclePlus, CircleMinus, Loader } from "lucide-react";
-import { useState, useMemo, useCallback } from "react";
+} from '@/components/v1/ui/tooltip';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Bar,
   BarChart,
@@ -21,7 +21,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
-} from "recharts";
+} from 'recharts';
 
 // Helper function to check if a task is a descendant of another task
 function isDescendantOf(
@@ -99,11 +99,11 @@ function sortTasksPreorder(
 
 // Status color configuration compatible with v1
 const StatusColors: Record<V1TaskStatus, string> = {
-  [V1TaskStatus.COMPLETED]: "#10b981", // green-500
-  [V1TaskStatus.FAILED]: "#ef4444", // red-500
-  [V1TaskStatus.CANCELLED]: "#ef4444", // red-500
-  [V1TaskStatus.RUNNING]: "#f59e0b", // amber-500
-  [V1TaskStatus.QUEUED]: "#6b7280", // gray-500
+  [V1TaskStatus.COMPLETED]: '#10b981', // green-500
+  [V1TaskStatus.FAILED]: '#ef4444', // red-500
+  [V1TaskStatus.CANCELLED]: '#ef4444', // red-500
+  [V1TaskStatus.RUNNING]: '#f59e0b', // amber-500
+  [V1TaskStatus.QUEUED]: '#6b7280', // gray-500
 };
 
 interface ProcessedTaskData {
@@ -151,12 +151,12 @@ const CustomTooltip = (props: {
 
   if (active && payload?.length) {
     const filteredPayload = payload.filter(
-      (entry) => entry.dataKey !== "offset" && entry.name !== "Offset",
+      (entry) => entry.dataKey !== 'offset' && entry.name !== 'Offset',
     );
 
     if (filteredPayload.length > 0) {
       filteredPayload.forEach((entry, i) => {
-        if (filteredPayload[i].payload && entry.dataKey === "ranDuration") {
+        if (filteredPayload[i].payload && entry.dataKey === 'ranDuration') {
           const taskStatus = filteredPayload[0]?.payload?.status;
 
           if (taskStatus && StatusColors[taskStatus]) {
@@ -658,12 +658,12 @@ export function Waterfall({
 
   const chartConfig = {
     queued: {
-      label: "Queued",
+      label: 'Queued',
       color: `rgb(229 231 235 / 0.2)`,
     },
     runFor: {
-      label: "Ran For",
-      color: "rgb(99 102 241 / 0.8)",
+      label: 'Ran For',
+      color: 'rgb(99 102 241 / 0.8)',
     },
   };
 
@@ -673,7 +673,7 @@ export function Waterfall({
       className="w-full overflow-visible"
       style={{ height: chartHeight }}
     >
-      <div style={{ width: "100%", height: "100%" }}>
+      <div style={{ width: '100%', height: '100%' }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={processedData.data}
@@ -695,8 +695,8 @@ export function Waterfall({
               axisLine={false}
               height={30}
               tickMargin={8}
-              style={{ fontSize: "12px", userSelect: "none", top: 0 }}
-              tickFormatter={(v) => v.toString() + "s"}
+              style={{ fontSize: '12px', userSelect: 'none', top: 0 }}
+              tickFormatter={(v) => v.toString() + 's'}
               minTickGap={20}
               orientation="top"
             />
@@ -707,7 +707,7 @@ export function Waterfall({
               axisLine={false}
               tickLine={false}
               tickMargin={8}
-              style={{ userSelect: "none" }}
+              style={{ userSelect: 'none' }}
               tick={renderTick}
             />
             <Tooltip content={<CustomTooltip />} />
@@ -724,8 +724,8 @@ export function Waterfall({
                   key={`selected-${entry.id}`}
                   fill={
                     entry.id === selectedTaskId
-                      ? "rgb(99 102 241 / 0.1)"
-                      : "transparent"
+                      ? 'rgb(99 102 241 / 0.1)'
+                      : 'transparent'
                   }
                   width={10000}
                 />
@@ -805,11 +805,11 @@ const Tick = ({
           style={{ paddingLeft: `${task.depth * 12}px` }}
         >
           <div
-            className={`${task.id === workflowRunId ? "cursor-default" : "cursor-pointer"} flex w-full min-w-0 grow flex-row items-center justify-between gap-2 text-left text-xs`}
+            className={`${task.id === workflowRunId ? 'cursor-default' : 'cursor-pointer'} flex w-full min-w-0 grow flex-row items-center justify-between gap-2 text-left text-xs`}
             onClick={() => handleBarClick(task)}
           >
             <span
-              className={`text-xs ${task.id === selectedTaskId ? "underline" : ""} ${task.isShowMoreEntry ? "cursor-pointer text-indigo-600 hover:underline dark:text-indigo-400" : ""} truncate`}
+              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} ${task.isShowMoreEntry ? 'cursor-pointer text-indigo-600 hover:underline dark:text-indigo-400' : ''} truncate`}
               style={{ maxWidth: `${180 - task.depth * 12}px` }}
               title={task.taskDisplayName}
               onClick={() => handleBarClick(task)}
@@ -840,7 +840,7 @@ const Tick = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {task.isExpanded ? "Collapse children" : "Expand children"}
+                  {task.isExpanded ? 'Collapse children' : 'Expand children'}
                 </TooltipContent>
               </BaseTooltip>
             </TooltipProvider>

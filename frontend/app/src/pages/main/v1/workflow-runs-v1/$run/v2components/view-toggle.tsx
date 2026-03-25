@@ -1,15 +1,15 @@
-import { useWorkflowDetails } from "../../hooks/use-workflow-details";
-import { Button } from "@/components/v1/ui/button";
-import { preferredWorkflowRunViewAtom } from "@/lib/atoms";
-import { type ViewOptions } from "@/lib/atoms";
-import { useAtom } from "jotai";
-import { BiExitFullscreen, BiExpand } from "react-icons/bi";
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
+import { Button } from '@/components/v1/ui/button';
+import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
+import { type ViewOptions } from '@/lib/atoms';
+import { useAtom } from 'jotai';
+import { BiExitFullscreen, BiExpand } from 'react-icons/bi';
 
 const ToggleIcon = ({ view }: { view: ViewOptions | undefined }) => {
   switch (view) {
-    case "graph":
+    case 'graph':
       return <BiExpand />;
-    case "minimap":
+    case 'minimap':
       return <BiExitFullscreen />;
     case undefined:
       return null;
@@ -21,7 +21,7 @@ const ToggleIcon = ({ view }: { view: ViewOptions | undefined }) => {
 
 export const ViewToggle = () => {
   const [view, setView] = useAtom(preferredWorkflowRunViewAtom);
-  const otherView = view === "graph" ? "minimap" : "graph";
+  const otherView = view === 'graph' ? 'minimap' : 'graph';
 
   const { shape, isLoading, isError } = useWorkflowDetails();
 

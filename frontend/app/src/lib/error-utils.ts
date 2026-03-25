@@ -1,7 +1,7 @@
-import { isAxiosError } from "axios";
+import { isAxiosError } from 'axios';
 
 function getUnknownProp(value: unknown, key: string): unknown {
-  if (!value || typeof value !== "object") {
+  if (!value || typeof value !== 'object') {
     return undefined;
   }
 
@@ -24,8 +24,8 @@ export function getErrorStatus(error: unknown): number | undefined {
   }
 
   // TanStack Router can throw objects like { status, statusText }
-  const status = getUnknownProp(error, "status");
-  return typeof status === "number" ? status : undefined;
+  const status = getUnknownProp(error, 'status');
+  return typeof status === 'number' ? status : undefined;
 }
 
 export function getErrorStatusText(error: unknown): string | undefined {
@@ -41,8 +41,8 @@ export function getErrorStatusText(error: unknown): string | undefined {
     return error.response?.statusText;
   }
 
-  const statusText = getUnknownProp(error, "statusText");
-  return typeof statusText === "string" ? statusText : undefined;
+  const statusText = getUnknownProp(error, 'statusText');
+  return typeof statusText === 'string' ? statusText : undefined;
 }
 
 /**

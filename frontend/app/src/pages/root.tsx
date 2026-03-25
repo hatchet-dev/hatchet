@@ -1,12 +1,12 @@
-import { SidebarProvider } from "@/components/hooks/use-sidebar";
-import { ThemeProvider } from "@/components/hooks/use-theme";
-import { Toaster } from "@/components/v1/ui/toaster";
-import { RefetchIntervalProvider } from "@/contexts/refetch-interval-context";
-import { SidePanelProvider } from "@/hooks/use-side-panel";
-import { AppContextProvider } from "@/providers/app-context";
-import { UserUniverseProvider } from "@/providers/user-universe";
-import { Outlet } from "@tanstack/react-router";
-import { PropsWithChildren } from "react";
+import { SidebarProvider } from '@/components/hooks/use-sidebar';
+import { ThemeProvider } from '@/components/hooks/use-theme';
+import { Toaster } from '@/components/v1/ui/toaster';
+import { RefetchIntervalProvider } from '@/contexts/refetch-interval-context';
+import { SidePanelProvider } from '@/hooks/use-side-panel';
+import { AppContextProvider } from '@/providers/app-context';
+import { UserUniverseProvider } from '@/providers/user-universe';
+import { Outlet } from '@tanstack/react-router';
+import { PropsWithChildren } from 'react';
 
 function Root({ children }: PropsWithChildren) {
   return (

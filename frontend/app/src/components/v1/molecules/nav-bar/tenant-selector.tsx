@@ -1,4 +1,4 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   Command,
   CommandEmpty,
@@ -6,25 +6,25 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/v1/ui/command";
-import { useAnalytics } from "@/hooks/use-analytics";
-import { useTenantDetails } from "@/hooks/use-tenant";
-import { globalEmitter } from "@/lib/global-emitter";
-import { cn } from "@/lib/utils";
-import useApiMeta from "@/pages/auth/hooks/use-api-meta";
-import { useUserUniverse } from "@/providers/user-universe";
+} from '@/components/v1/ui/command';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { globalEmitter } from '@/lib/global-emitter';
+import { cn } from '@/lib/utils';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useUserUniverse } from '@/providers/user-universe';
 import {
   CheckIcon,
   ChevronUpDownIcon,
   PlusIcon,
-} from "@heroicons/react/24/outline";
+} from '@heroicons/react/24/outline';
 import {
   Popover,
   PopoverContent,
   PopoverPortal,
   PopoverTrigger,
-} from "@radix-ui/react-popover";
-import { useState, useMemo } from "react";
+} from '@radix-ui/react-popover';
+import { useState, useMemo } from 'react';
 
 export function TenantSelector({ className }: { className?: string }) {
   const { setTenant, tenant } = useTenantDetails();
@@ -56,7 +56,7 @@ export function TenantSelector({ className }: { className?: string }) {
       open={open}
       onOpenChange={(open) => {
         if (open) {
-          capture("tenant_selector_opened");
+          capture('tenant_selector_opened');
         }
         setOpen(open);
       }}
@@ -69,15 +69,15 @@ export function TenantSelector({ className }: { className?: string }) {
           aria-expanded={open}
           aria-label="Select a tenant"
           className={cn(
-            "w-[150px] md:w-[200px] justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30",
-            open && "bg-muted/30",
+            'w-[150px] md:w-[200px] justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+            open && 'bg-muted/30',
             className,
           )}
           disabled={!isUniverseLoaded}
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <span className="min-w-0 flex-1 truncate">
-              {tenant?.name ?? ""}
+              {tenant?.name ?? ''}
             </span>
           </div>
           {!isUniverseLoaded ? (
@@ -103,7 +103,7 @@ export function TenantSelector({ className }: { className?: string }) {
                     key={t.metadata.id}
                     value={`tenant-${t.metadata.id}`}
                     onSelect={() => {
-                      capture("tenant_selector_clicked", {
+                      capture('tenant_selector_clicked', {
                         tenant_id: t.metadata.id,
                       });
                       setTenant(t);
@@ -118,10 +118,10 @@ export function TenantSelector({ className }: { className?: string }) {
                       <span className="min-w-0 flex-1 truncate">{t.name}</span>
                       <CheckIcon
                         className={cn(
-                          "ml-2 size-4",
+                          'ml-2 size-4',
                           tenant?.metadata.id === t.metadata.id
-                            ? "opacity-100"
-                            : "opacity-0",
+                            ? 'opacity-100'
+                            : 'opacity-0',
                         )}
                       />
                     </div>
@@ -137,7 +137,7 @@ export function TenantSelector({ className }: { className?: string }) {
                     className="cursor-pointer text-sm"
                     data-cy="new-tenant"
                     onSelect={() => {
-                      globalEmitter.emit("create-new-tenant", {
+                      globalEmitter.emit('create-new-tenant', {
                         defaultOrganizationId: currentOrg?.metadata.id,
                       });
                       setOpen(false);

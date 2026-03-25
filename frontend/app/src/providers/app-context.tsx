@@ -1,11 +1,11 @@
-import { useUserUniverse } from "./user-universe";
-import { queries, Tenant, User } from "@/lib/api";
-import type { OrganizationForUserList } from "@/lib/api/generated/cloud/data-contracts";
-import type { TenantMember } from "@/lib/api/generated/data-contracts";
-import { lastTenantAtom } from "@/lib/atoms";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useUserUniverse } from './user-universe';
+import { queries, Tenant, User } from '@/lib/api';
+import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMember } from '@/lib/api/generated/data-contracts';
+import { lastTenantAtom } from '@/lib/atoms';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
+import { useAtom } from 'jotai';
 import {
   createContext,
   useContext,
@@ -13,8 +13,8 @@ import {
   type ReactNode,
   useEffect,
   useCallback,
-} from "react";
-import invariant from "tiny-invariant";
+} from 'react';
+import invariant from 'tiny-invariant';
 
 /**
  * Shared application context providing user, tenant, and organization data
@@ -38,7 +38,7 @@ type UserUniverseData =
       isUserUniverseLoaded: true;
       isCloudEnabled: true;
       membership: string | undefined;
-      organizations: OrganizationForUserList["rows"];
+      organizations: OrganizationForUserList['rows'];
     }
   | {
       isUserUniverseLoaded: true;
@@ -192,7 +192,7 @@ export function useAppContext() {
   const context = useContext(AppContext);
 
   if (!context) {
-    throw new Error("useAppContext must be used within AppContextProvider");
+    throw new Error('useAppContext must be used within AppContextProvider');
   }
 
   return context;

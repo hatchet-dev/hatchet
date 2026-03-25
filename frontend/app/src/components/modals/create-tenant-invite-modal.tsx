@@ -1,30 +1,30 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
-import { Spinner } from "@/components/v1/ui/loading.tsx";
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { useOrganizations } from "@/hooks/use-organizations";
-import api, { CreateTenantInviteRequest, TenantMemberRole } from "@/lib/api";
-import { TenantInvite } from "@/lib/api/generated/data-contracts";
-import { useApiError } from "@/lib/hooks";
-import { cn } from "@/lib/utils";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+} from '@/components/v1/ui/select';
+import { useOrganizations } from '@/hooks/use-organizations';
+import api, { CreateTenantInviteRequest, TenantMemberRole } from '@/lib/api';
+import { TenantInvite } from '@/lib/api/generated/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 type CreateTenantInviteFormProps = {
   className?: string;
@@ -44,7 +44,7 @@ const CreateTenantInviteForm = ({
     : [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.MEMBER];
 
   const schema = z.object({
-    email: z.string().email("Invalid email address"),
+    email: z.string().email('Invalid email address'),
     role: z.enum(availableRoles as [TenantMemberRole, ...TenantMemberRole[]]),
   });
 
@@ -68,7 +68,7 @@ const CreateTenantInviteForm = ({
       <DialogHeader>
         <DialogTitle>Invite new tenant member</DialogTitle>
       </DialogHeader>
-      <div className={cn("grid gap-6", className)}>
+      <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
             props.onSubmit(d);
@@ -78,7 +78,7 @@ const CreateTenantInviteForm = ({
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
-                {...register("email")}
+                {...register('email')}
                 id="email"
                 placeholder="name@example.com"
                 type="email"
@@ -146,7 +146,7 @@ export const CreateTenantInviteModal = ({
   const organizationId = getOrganizationIdForTenant(tenantId);
 
   const createMutation = useMutation({
-    mutationKey: ["tenant-invite:create", tenantId],
+    mutationKey: ['tenant-invite:create', tenantId],
     mutationFn: async (data: CreateTenantInviteRequest) => {
       const res = await api.tenantInviteCreate(tenantId, data);
       return res.data;

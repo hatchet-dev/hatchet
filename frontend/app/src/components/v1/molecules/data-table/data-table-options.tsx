@@ -1,29 +1,29 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
-import { ToolbarFilters } from "./data-table-toolbar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
+import { ToolbarFilters } from './data-table-toolbar';
 import {
   ToolbarType,
   FilterOption,
   TimeRangeConfig,
-} from "./data-table-toolbar";
-import { DateTimePicker } from "@/components/v1/molecules/time-picker/date-time-picker";
-import { Badge } from "@/components/v1/ui/badge";
-import { Button } from "@/components/v1/ui/button";
-import { Checkbox } from "@/components/v1/ui/checkbox";
+} from './data-table-toolbar';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "@/components/v1/ui/dropdown-menu";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
+} from '@/components/v1/ui/dropdown-menu';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { V1TaskStatus } from "@/lib/api";
+} from '@/components/v1/ui/select';
+import { V1TaskStatus } from '@/lib/api';
 import {
   flattenDAGsKey,
   createdAfterKey,
@@ -32,13 +32,13 @@ import {
   statusKey,
   isCustomTimeRangeKey,
   timeWindowKey,
-} from "@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns";
-import { XCircleIcon } from "@heroicons/react/24/outline";
-import { Cross2Icon, MixerHorizontalIcon } from "@radix-ui/react-icons";
-import { ChevronDownIcon } from "@radix-ui/react-icons";
-import { ColumnFiltersState, Table } from "@tanstack/react-table";
-import { Column } from "@tanstack/react-table";
-import * as React from "react";
+} from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
+import { XCircleIcon } from '@heroicons/react/24/outline';
+import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
+import { ColumnFiltersState, Table } from '@tanstack/react-table';
+import { Column } from '@tanstack/react-table';
+import * as React from 'react';
 
 interface FilterControlProps<TData> {
   table: Table<TData>;
@@ -58,13 +58,13 @@ function FilterControl<TData>({
   filter,
 }: FilterControlProps<TData>) {
   const value = column?.getFilterValue();
-  const [searchTerm, setSearchTerm] = React.useState("");
+  const [searchTerm, setSearchTerm] = React.useState('');
   const keyInputRef = React.useRef<HTMLInputElement>(null);
   const valueInputRef = React.useRef<HTMLInputElement>(null);
   const arrayValueInputRef = React.useRef<HTMLInputElement>(null);
-  const [newKey, setNewKey] = React.useState("");
-  const [newValue, setNewValue] = React.useState("");
-  const [newArrayValue, setNewArrayValue] = React.useState("");
+  const [newKey, setNewKey] = React.useState('');
+  const [newValue, setNewValue] = React.useState('');
+  const [newArrayValue, setNewArrayValue] = React.useState('');
 
   if (!filter.type) {
     return null;
@@ -131,7 +131,7 @@ function FilterControl<TData>({
             <div className="space-y-1">
               <Select
                 value={
-                  config.isCustomTimeRange ? "custom" : config.currentTimeWindow
+                  config.isCustomTimeRange ? 'custom' : config.currentTimeWindow
                 }
                 onValueChange={(value) => config.onTimeWindowChange?.(value)}
               >
@@ -179,8 +179,8 @@ function FilterControl<TData>({
         if (newKey.trim() && newValue.trim()) {
           const keyValuePair = `${newKey.trim()}:${newValue.trim()}`;
           column?.setFilterValue([...currentKVPairs, keyValuePair]);
-          setNewKey("");
-          setNewValue("");
+          setNewKey('');
+          setNewValue('');
         }
       };
 
@@ -189,7 +189,7 @@ function FilterControl<TData>({
           {currentKVPairs.length > 0 && (
             <div className="space-y-2">
               {currentKVPairs.map((val: string, index: number) => {
-                const separator = val.includes(":") ? ":" : "=";
+                const separator = val.includes(':') ? ':' : '=';
                 const [key, value] = val.split(separator);
                 return (
                   <div
@@ -231,9 +231,9 @@ function FilterControl<TData>({
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === 'Enter') {
                       addKeyValue();
-                    } else if (e.key === "Tab" && !e.shiftKey) {
+                    } else if (e.key === 'Tab' && !e.shiftKey) {
                       e.preventDefault();
                       valueInputRef.current?.focus();
                     }
@@ -249,9 +249,9 @@ function FilterControl<TData>({
                   value={newValue}
                   onChange={(e) => setNewValue(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === 'Enter') {
                       addKeyValue();
-                    } else if (e.key === "Tab" && e.shiftKey) {
+                    } else if (e.key === 'Tab' && e.shiftKey) {
                       e.preventDefault();
                       keyInputRef.current?.focus();
                     }
@@ -282,7 +282,7 @@ function FilterControl<TData>({
       const addArrayValue = () => {
         if (newArrayValue.trim()) {
           column?.setFilterValue([...currentArrayValues, newArrayValue]);
-          setNewArrayValue("");
+          setNewArrayValue('');
         }
       };
 
@@ -326,7 +326,7 @@ function FilterControl<TData>({
               value={newArrayValue}
               onChange={(e) => setNewArrayValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === 'Enter') {
                   addArrayValue();
                 }
               }}
@@ -509,7 +509,7 @@ function FilterControl<TData>({
         </div>
       );
     case ToolbarType.Search:
-      const currentSearchTerm = value ? String(value) || "" : "";
+      const currentSearchTerm = value ? String(value) || '' : '';
 
       return (
         <Input
@@ -518,7 +518,7 @@ function FilterControl<TData>({
           value={currentSearchTerm}
           onChange={(e) => column?.setFilterValue(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") {
+            if (e.key === 'Escape') {
               column?.setFilterValue(undefined);
             }
           }}
@@ -571,7 +571,7 @@ export function DataTableOptions<TData>({
           f.id === createdAfterKey ||
           f.id === finishedBeforeKey ||
           (f.id === isCustomTimeRangeKey && f.value !== true) ||
-          (f.id === timeWindowKey && f.value === "1d")
+          (f.id === timeWindowKey && f.value === '1d')
         ) {
           return false;
         }
@@ -588,7 +588,7 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (f.value === undefined || f.value === null || f.value === "") {
+        if (f.value === undefined || f.value === null || f.value === '') {
           return false;
         }
 
@@ -614,7 +614,7 @@ export function DataTableOptions<TData>({
       .getAllColumns()
       .filter(
         (column) =>
-          typeof column.accessorFn !== "undefined" && column.getCanHide(),
+          typeof column.accessorFn !== 'undefined' && column.getCanHide(),
       ).length > 0;
 
   if (!hasFilters && !hasVisibleColumns) {
@@ -763,7 +763,7 @@ function ColumnsContent<TData>({
             .getAllColumns()
             .filter(
               (column) =>
-                typeof column.accessorFn !== "undefined" && column.getCanHide(),
+                typeof column.accessorFn !== 'undefined' && column.getCanHide(),
             )
             .map((column) => {
               const columnName =
@@ -827,8 +827,8 @@ export function DataTableOptionsContent<TData>({
   onResetFilters,
   activeFiltersCount = 0,
 }: DataTableOptionsContentProps<TData>) {
-  const [selectedTab, setSelectedTab] = React.useState<"filters" | "columns">(
-    "filters",
+  const [selectedTab, setSelectedTab] = React.useState<'filters' | 'columns'>(
+    'filters',
   );
 
   const visibleFilters = filters.filter((filter) => {
@@ -844,7 +844,7 @@ export function DataTableOptionsContent<TData>({
       .getAllColumns()
       .filter(
         (column) =>
-          typeof column.accessorFn !== "undefined" && column.getCanHide(),
+          typeof column.accessorFn !== 'undefined' && column.getCanHide(),
       ).length > 0;
 
   const showBothSections =
@@ -875,7 +875,7 @@ export function DataTableOptionsContent<TData>({
   return (
     <Tabs
       value={selectedTab}
-      onValueChange={(value) => setSelectedTab(value as "filters" | "columns")}
+      onValueChange={(value) => setSelectedTab(value as 'filters' | 'columns')}
       className="w-full rounded-none p-0"
     >
       <TabsList className="grid w-full grid-cols-2 rounded-none bg-muted/30 px-2">

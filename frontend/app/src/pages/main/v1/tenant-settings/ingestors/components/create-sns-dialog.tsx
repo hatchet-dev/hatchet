@@ -1,17 +1,17 @@
-import { Button } from "@/components/v1/ui/button";
-import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
-import { Spinner } from "@/components/v1/ui/loading";
-import { cn } from "@/lib/utils";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   topicArn: z.string().min(1).max(255),
@@ -51,7 +51,7 @@ export function CreateSNSDialog({
           language="typescript"
           className="text-sm"
           wrapLines={false}
-          maxWidth={"calc(700px - 4rem)"}
+          maxWidth={'calc(700px - 4rem)'}
           code={snsIngestionUrl}
           copy
         />
@@ -67,7 +67,7 @@ export function CreateSNSDialog({
       <DialogHeader>
         <DialogTitle>Create a new SNS integration</DialogTitle>
       </DialogHeader>
-      <div className={cn("grid gap-6", className)}>
+      <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
             props.onSubmit(d);
@@ -77,7 +77,7 @@ export function CreateSNSDialog({
             <div className="grid gap-2">
               <Label htmlFor="email">Topic ARN</Label>
               <Input
-                {...register("topicArn")}
+                {...register('topicArn')}
                 id="sns-topic-arn"
                 placeholder="arn:aws:sns:us-west-1:123456789:topic"
                 autoCapitalize="none"

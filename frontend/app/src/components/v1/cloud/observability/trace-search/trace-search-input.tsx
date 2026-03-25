@@ -1,15 +1,15 @@
-import { getTraceAutocomplete, applyTraceSuggestion } from "./autocomplete";
+import { getTraceAutocomplete, applyTraceSuggestion } from './autocomplete';
 import type {
   TraceAutocompleteSuggestion,
   TraceAutocompleteContext,
-} from "./types";
-import { SearchBarWithFilters } from "@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters";
+} from './types';
+import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 
 export function TraceSearchInput({
   value,
   onChange,
   autocompleteContext,
-  placeholder = "Filter spans...",
+  placeholder = 'Filter spans...',
   className,
 }: {
   value: string;
@@ -30,9 +30,9 @@ export function TraceSearchInput({
       className={className}
       filterChips={[
         {
-          key: "status:",
-          label: "Status",
-          description: "Filter by span status",
+          key: 'status:',
+          label: 'Status',
+          description: 'Filter by span status',
         },
       ]}
     />

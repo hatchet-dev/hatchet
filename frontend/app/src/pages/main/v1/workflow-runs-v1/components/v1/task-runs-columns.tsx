@@ -1,53 +1,53 @@
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
-} from "../../../events/components/additional-metadata";
-import { V1RunStatus } from "../../../workflow-runs/components/run-statuses";
-import { DataTableColumnHeader } from "@/components/v1/molecules/data-table/data-table-column-header";
-import { TableRowActions } from "@/components/v1/molecules/data-table/data-table-row-actions";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { Duration } from "@/components/v1/shared/duration";
-import { Button } from "@/components/v1/ui/button";
-import { Checkbox } from "@/components/v1/ui/checkbox";
-import { V1TaskStatus, V1TaskSummary } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { appRoutes } from "@/router";
-import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
-import { Link } from "@tanstack/react-router";
-import { ColumnDef } from "@tanstack/react-table";
+} from '../../../events/components/additional-metadata';
+import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Duration } from '@/components/v1/shared/duration';
+import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const TaskRunColumn = {
-  taskName: "Task Name",
-  status: "Status",
-  workflow: "Workflow",
-  parentTaskExternalId: "Parent Task External ID",
-  flattenDAGs: "Flatten DAGs",
-  runningFilter: "Running Filter",
-  createdAt: "Created At",
-  startedAt: "Started At",
-  finishedAt: "Finished At",
-  duration: "Duration",
-  additionalMetadata: "Metadata",
+  taskName: 'Task Name',
+  status: 'Status',
+  workflow: 'Workflow',
+  parentTaskExternalId: 'Parent Task External ID',
+  flattenDAGs: 'Flatten DAGs',
+  runningFilter: 'Running Filter',
+  createdAt: 'Created At',
+  startedAt: 'Started At',
+  finishedAt: 'Finished At',
+  duration: 'Duration',
+  additionalMetadata: 'Metadata',
 } as const;
 
 export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
 
-export const workflowKey: TaskRunColumnKeys = "workflow";
-const parentTaskExternalIdKey: TaskRunColumnKeys = "parentTaskExternalId";
-export const flattenDAGsKey: TaskRunColumnKeys = "flattenDAGs";
-export const createdAtKey: TaskRunColumnKeys = "createdAt";
-const startedAtKey: TaskRunColumnKeys = "startedAt";
-const finishedAtKey: TaskRunColumnKeys = "finishedAt";
-const durationKey: TaskRunColumnKeys = "duration";
-export const additionalMetadataKey: TaskRunColumnKeys = "additionalMetadata";
-const taskNameKey: TaskRunColumnKeys = "taskName";
-export const statusKey: TaskRunColumnKeys = "status";
+export const workflowKey: TaskRunColumnKeys = 'workflow';
+const parentTaskExternalIdKey: TaskRunColumnKeys = 'parentTaskExternalId';
+export const flattenDAGsKey: TaskRunColumnKeys = 'flattenDAGs';
+export const createdAtKey: TaskRunColumnKeys = 'createdAt';
+const startedAtKey: TaskRunColumnKeys = 'startedAt';
+const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
+const durationKey: TaskRunColumnKeys = 'duration';
+export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
+const taskNameKey: TaskRunColumnKeys = 'taskName';
+export const statusKey: TaskRunColumnKeys = 'status';
 
-export const createdAfterKey = "createdAfter";
-export const finishedBeforeKey = "finishedBefore";
-export const isCustomTimeRangeKey = "isCustomTimeRange";
-export const timeWindowKey = "timeWindow";
-export const runningFilterKey: TaskRunColumnKeys = "runningFilter";
+export const createdAfterKey = 'createdAfter';
+export const finishedBeforeKey = 'finishedBefore';
+export const isCustomTimeRangeKey = 'isCustomTimeRange';
+export const timeWindowKey = 'timeWindow';
+export const runningFilterKey: TaskRunColumnKeys = 'runningFilter';
 
 export const columns: (
   tenantId: string,
@@ -63,12 +63,12 @@ export const columns: (
   onAdditionalMetadataOpenChange,
 ) => [
   {
-    id: "select",
+    id: 'select',
     header: ({ table }) => (
       <Checkbox
         checked={
           table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
+          (table.getIsSomePageRowsSelected() && 'indeterminate')
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
@@ -79,7 +79,7 @@ export const columns: (
       <div
         className={cn(
           `pl-${row.depth * 4}`,
-          "flex flex-row items-center justify-start gap-x-2",
+          'flex flex-row items-center justify-start gap-x-2',
         )}
       >
         <Checkbox
@@ -172,7 +172,7 @@ export const columns: (
               {workflowName}
             </Link>
           )) ||
-            "N/A"}
+            'N/A'}
         </div>
       );
     },
@@ -231,7 +231,7 @@ export const columns: (
           {row.original.metadata.createdAt ? (
             <RelativeDate date={row.original.metadata.createdAt} />
           ) : (
-            "N/A"
+            'N/A'
           )}
         </div>
       );
@@ -254,7 +254,7 @@ export const columns: (
           {row.original.startedAt ? (
             <RelativeDate date={row.original.startedAt} />
           ) : (
-            "N/A"
+            'N/A'
           )}
         </div>
       );
@@ -275,7 +275,7 @@ export const columns: (
       const finishedAt = row.original.finishedAt ? (
         <RelativeDate date={row.original.finishedAt} />
       ) : (
-        "N/A"
+        'N/A'
       );
 
       return <div className="whitespace-nowrap">{finishedAt}</div>;
@@ -332,14 +332,14 @@ export const columns: (
     enableSorting: false,
   },
   {
-    id: "actions",
+    id: 'actions',
     cell: ({ row }) => {
       return (
         <TableRowActions
           row={row.original}
           actions={[
             {
-              label: "Copy Run Id",
+              label: 'Copy Run Id',
               onClick: () => {
                 navigator.clipboard.writeText(row.original.metadata.id);
               },

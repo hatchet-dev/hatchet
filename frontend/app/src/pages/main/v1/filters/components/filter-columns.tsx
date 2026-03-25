@@ -1,25 +1,25 @@
-import { DataTableColumnHeader } from "@/components/v1/molecules/data-table/data-table-column-header";
-import { Button } from "@/components/v1/ui/button";
-import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
-import { V1Filter } from "@/lib/api";
-import { ColumnDef } from "@tanstack/react-table";
-import { CheckIcon } from "lucide-react";
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { V1Filter } from '@/lib/api';
+import { ColumnDef } from '@tanstack/react-table';
+import { CheckIcon } from 'lucide-react';
 
 export const FilterColumn = {
-  id: "ID",
-  workflowId: "Workflow",
-  scope: "Scope",
-  expression: "Expression",
-  isDeclarative: "Is Declarative",
+  id: 'ID',
+  workflowId: 'Workflow',
+  scope: 'Scope',
+  expression: 'Expression',
+  isDeclarative: 'Is Declarative',
 } as const;
 
 type FilterColumnKeys = keyof typeof FilterColumn;
 
-const idKey = "id";
-export const workflowIdKey: FilterColumnKeys = "workflowId";
-export const scopeKey: FilterColumnKeys = "scope";
-const expressionKey: FilterColumnKeys = "expression";
-export const isDeclarativeKey: FilterColumnKeys = "isDeclarative";
+const idKey = 'id';
+export const workflowIdKey: FilterColumnKeys = 'workflowId';
+export const scopeKey: FilterColumnKeys = 'scope';
+const expressionKey: FilterColumnKeys = 'expression';
+export const isDeclarativeKey: FilterColumnKeys = 'isDeclarative';
 
 export const filterColumns = (
   workflowIdToName: Record<string, string>,

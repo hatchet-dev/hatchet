@@ -1,15 +1,15 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Spinner } from "@/components/v1/ui/loading";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import api, { CronWorkflows } from "@/lib/api";
-import { useApiError } from "@/lib/hooks";
-import { useMutation } from "@tanstack/react-query";
+} from '@/components/v1/ui/dialog';
+import { Spinner } from '@/components/v1/ui/loading';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { CronWorkflows } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { useMutation } from '@tanstack/react-query';
 
 interface DeleteCronFormProps {
   className?: string;
@@ -31,7 +31,7 @@ export function DeleteCron({
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ["cron-job:delete", tenantId, cron],
+    mutationKey: ['cron-job:delete', tenantId, cron],
     mutationFn: async () => {
       if (!cron) {
         return;

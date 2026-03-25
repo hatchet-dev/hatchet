@@ -1,10 +1,10 @@
-import { DataTablePagination } from "./data-table-pagination";
+import { DataTablePagination } from './data-table-pagination';
 import {
   DataTableToolbar,
   ShowTableActionsProps,
   ToolbarFilters,
-} from "./data-table-toolbar";
-import { Skeleton } from "@/components/v1/ui/skeleton";
+} from './data-table-toolbar';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -12,10 +12,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/v1/ui/table";
-import { cn } from "@/lib/utils";
-import { ConfirmActionModal } from "@/pages/main/v1/task-runs-v1/actions";
-import { flattenDAGsKey } from "@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns";
+} from '@/components/v1/ui/table';
+import { cn } from '@/lib/utils';
+import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
+import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -34,8 +34,8 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-} from "@tanstack/react-table";
-import * as React from "react";
+} from '@tanstack/react-table';
+import * as React from 'react';
 
 export interface IDGetter<T> {
   metadata: {
@@ -193,9 +193,9 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
     return (
       <TableRow
         key={row.id}
-        data-state={row.getIsSelected() && "selected"}
+        data-state={row.getIsSelected() && 'selected'}
         className={cn(
-          row.original.isExpandable && "cursor-pointer hover:bg-muted",
+          row.original.isExpandable && 'cursor-pointer hover:bg-muted',
         )}
         onClick={row.original.onClick}
       >
@@ -213,7 +213,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   if (error) {
     return (
       <div className="p-4 text-center text-red-500">
-        {error.message || "An error occurred."}
+        {error.message || 'An error occurred.'}
       </div>
     );
   }

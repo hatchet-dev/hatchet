@@ -1,15 +1,15 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Input } from "@/components/v1/ui/input";
-import { Spinner } from "@/components/v1/ui/loading";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { OrganizationTenant } from "@/lib/api/generated/cloud/data-contracts";
-import { useState, useEffect } from "react";
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Spinner } from '@/components/v1/ui/loading';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useState, useEffect } from 'react';
 
 interface DeleteTenantModalProps {
   open: boolean;
@@ -29,12 +29,12 @@ export function DeleteTenantModal({
   onSuccess,
 }: DeleteTenantModalProps) {
   const { handleDeleteTenant, deleteTenantLoading } = useOrganizations();
-  const [typedName, setTypedName] = useState("");
+  const [typedName, setTypedName] = useState('');
 
   // Reset typed name when modal opens/closes
   useEffect(() => {
     if (!open) {
-      setTypedName("");
+      setTypedName('');
     }
   }, [open]);
 
@@ -59,18 +59,18 @@ export function DeleteTenantModal({
         <div>
           <div className="mb-4 space-y-3 text-sm text-foreground">
             <p>
-              Are you sure you want to archive <strong>{tenantName}</strong>{" "}
+              Are you sure you want to archive <strong>{tenantName}</strong>{' '}
               from {organizationName}?
             </p>
             <p className="text-sm text-muted-foreground">
               The tenant will be archived and kept for 30 days before being
-              permanently deleted. During this period, you can contact{" "}
+              permanently deleted. During this period, you can contact{' '}
               <a
                 href="mailto:support@hatchet.run"
                 className="text-primary underline"
               >
                 support@hatchet.run
-              </a>{" "}
+              </a>{' '}
               to unarchive the tenant if needed. After 30 days, the tenant and
               all associated data will be permanently removed.
             </p>

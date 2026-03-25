@@ -1,48 +1,48 @@
-import { RunsProvider } from "../hooks/runs-provider";
+import { RunsProvider } from '../hooks/runs-provider';
 import {
   isTerminalState,
   useWorkflowDetails,
-} from "../hooks/use-workflow-details";
-import { V1RunDetailHeader } from "./v2components/header";
-import { JobMiniMap } from "./v2components/mini-map";
-import { Observability } from "./v2components/step-run-detail/observability/observability";
+} from '../hooks/use-workflow-details';
+import { V1RunDetailHeader } from './v2components/header';
+import { JobMiniMap } from './v2components/mini-map';
+import { Observability } from './v2components/step-run-detail/observability/observability';
 import {
   TASK_RUN_TERMINAL_STATUSES,
   TabOption,
   TaskRunDetail,
-} from "./v2components/step-run-detail/step-run-detail";
-import { StepRunEvents } from "./v2components/step-run-events-for-workflow-run";
-import { ViewToggle } from "./v2components/view-toggle";
-import { WorkflowRunInputDialog } from "./v2components/workflow-run-input";
-import { WorkflowRunLogs } from "./v2components/workflow-run-logs";
-import WorkflowRunVisualizer from "./v2components/workflow-run-visualizer-v2";
-import type { TaskSummaryForSynthesis } from "@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree";
-import { Badge } from "@/components/v1/ui/badge";
-import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
-import { Spinner } from "@/components/v1/ui/loading";
-import { Separator } from "@/components/v1/ui/separator";
+} from './v2components/step-run-detail/step-run-detail';
+import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
+import { ViewToggle } from './v2components/view-toggle';
+import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
+import { WorkflowRunLogs } from './v2components/workflow-run-logs';
+import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
+import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
+import { Badge } from '@/components/v1/ui/badge';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/v1/ui/tabs";
-import { useSidePanel } from "@/hooks/use-side-panel";
+} from '@/components/v1/ui/tabs';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
   V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
-} from "@/lib/api";
-import { preferredWorkflowRunViewAtom } from "@/lib/atoms";
-import { getErrorStatus, shouldRetryQueryError } from "@/lib/error-utils";
-import { ResourceNotFound } from "@/pages/error/components/resource-not-found";
-import { appRoutes } from "@/router";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
-import { isAxiosError } from "axios";
-import { useAtom } from "jotai";
-import { useCallback, useMemo, useRef, useState } from "react";
+} from '@/lib/api';
+import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
+import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
+import { useAtom } from 'jotai';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 class StatusError extends Error {
   status: number;
@@ -56,15 +56,15 @@ class StatusError extends Error {
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {
     case V1TaskStatus.COMPLETED:
-      return "successful";
+      return 'successful';
     case V1TaskStatus.FAILED:
-      return "failed";
+      return 'failed';
     case V1TaskStatus.CANCELLED:
-      return "cancelled";
+      return 'cancelled';
     case V1TaskStatus.QUEUED:
-      return "queued";
+      return 'queued';
     case V1TaskStatus.RUNNING:
-      return "inProgress";
+      return 'inProgress';
     default: {
       const exhaustivenessCheck: never = status;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);
@@ -84,7 +84,7 @@ const GraphView = ({
   const [view] = useAtom(preferredWorkflowRunViewAtom);
 
   const showGraphView =
-    view == "graph" && shape.some((task) => task.childrenStepIds.length > 0);
+    view == 'graph' && shape.some((task) => task.childrenStepIds.length > 0);
 
   return showGraphView ? (
     <WorkflowRunVisualizer setSelectedTaskRunId={handleTaskRunExpand} />
@@ -101,7 +101,7 @@ const GraphView = ({
 
 type TaskRunDispatchQueryReturnType = {
   status: V1TaskStatus;
-  type: "task" | "dag";
+  type: 'task' | 'dag';
   task?: V1TaskSummary;
   dag?: V1WorkflowRunDetails;
 };
@@ -135,7 +135,7 @@ export default function Run() {
   const { run } = params;
 
   const taskRunQuery = useQuery({
-    queryKey: ["workflow-run", run],
+    queryKey: ['workflow-run', run],
     queryFn: async (): Promise<TaskRunDispatchQueryReturnType> => {
       const [task, dag] = await Promise.all([
         fetchTaskRun(run),
@@ -154,7 +154,7 @@ export default function Run() {
 
         return {
           status: taskData.status,
-          type: "task",
+          type: 'task',
           task: taskData,
         };
       }
@@ -164,7 +164,7 @@ export default function Run() {
 
         return {
           status: dagData.run.status,
-          type: "dag",
+          type: 'dag',
           dag: dagData,
         };
       }
@@ -196,7 +196,7 @@ export default function Run() {
         <ResourceNotFound
           resource="Run"
           primaryAction={{
-            label: "Back to Runs",
+            label: 'Back to Runs',
             navigate: {
               to: appRoutes.tenantRunsRoute.to,
               params: { tenant: params.tenant },
@@ -215,7 +215,7 @@ export default function Run() {
     return null;
   }
 
-  if (runData.type === "task") {
+  if (runData.type === 'task') {
     return (
       <RunsProvider tableKey={`task-runs-${run}`}>
         <ExpandedTaskRun id={run} />
@@ -223,7 +223,7 @@ export default function Run() {
     );
   }
 
-  if (runData.type === "dag") {
+  if (runData.type === 'dag') {
     return (
       <RunsProvider tableKey={`workflow-runs-${run}`}>
         <ExpandedWorkflowRun id={run} />
@@ -239,7 +239,7 @@ function ExpandedTaskRun({ id }: { id: string }) {
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
   const executingRef = useRef(false);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState('overview');
   const [focusedTaskRunId, setFocusedTaskRunId] = useState<
     string | undefined
   >();
@@ -255,7 +255,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
       executingRef.current = true;
 
       open({
-        type: "task-run-details",
+        type: 'task-run-details',
         content: {
           taskRunId,
           defaultOpenTab: TabOption.Output,
@@ -272,7 +272,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
 
   const handleMiniMapClick = useCallback((taskRunId: string) => {
     setFocusedTaskRunId(taskRunId);
-    setActiveTab("observability");
+    setActiveTab('observability');
   }, []);
 
   const { workflowRun, shape, taskRuns, isLoading, isError } =

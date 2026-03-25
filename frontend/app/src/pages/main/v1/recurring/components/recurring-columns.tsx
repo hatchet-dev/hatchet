@@ -1,39 +1,39 @@
-import { AdditionalMetadata } from "../../events/components/additional-metadata";
-import { DataTableColumnHeader } from "@/components/v1/molecules/data-table/data-table-column-header";
-import { TableRowActions } from "@/components/v1/molecules/data-table/data-table-row-actions";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { Badge } from "@/components/v1/ui/badge";
-import { Spinner } from "@/components/v1/ui/loading";
-import { CronWorkflows } from "@/lib/api";
-import { extractCronTz, formatCron } from "@/lib/cron";
-import { appRoutes } from "@/router";
-import { Link } from "@tanstack/react-router";
-import { ColumnDef } from "@tanstack/react-table";
-import { Check, X } from "lucide-react";
+import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
+import { Spinner } from '@/components/v1/ui/loading';
+import { CronWorkflows } from '@/lib/api';
+import { extractCronTz, formatCron } from '@/lib/cron';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
+import { Check, X } from 'lucide-react';
 
 export const CronColumn = {
-  expression: "Expression",
-  description: "Description",
-  timezone: "Timezone",
-  name: "Name",
-  workflow: "Workflow",
-  metadata: "Metadata",
-  createdAt: "Created At",
-  actions: "Actions",
-  enabled: "Enabled",
+  expression: 'Expression',
+  description: 'Description',
+  timezone: 'Timezone',
+  name: 'Name',
+  workflow: 'Workflow',
+  metadata: 'Metadata',
+  createdAt: 'Created At',
+  actions: 'Actions',
+  enabled: 'Enabled',
 };
 
 type CronColumnKeys = keyof typeof CronColumn;
 
-const enabledKey: CronColumnKeys = "enabled";
-const expressionKey: CronColumnKeys = "expression";
-const descriptionKey: CronColumnKeys = "description";
-const timezoneKey: CronColumnKeys = "timezone";
-const nameKey: CronColumnKeys = "name";
-export const workflowKey: CronColumnKeys = "workflow";
-export const metadataKey: CronColumnKeys = "metadata";
-const createdAtKey: CronColumnKeys = "createdAt";
-const actionsKey: CronColumnKeys = "actions";
+const enabledKey: CronColumnKeys = 'enabled';
+const expressionKey: CronColumnKeys = 'expression';
+const descriptionKey: CronColumnKeys = 'description';
+const timezoneKey: CronColumnKeys = 'timezone';
+const nameKey: CronColumnKeys = 'name';
+export const workflowKey: CronColumnKeys = 'workflow';
+export const metadataKey: CronColumnKeys = 'metadata';
+const createdAtKey: CronColumnKeys = 'createdAt';
+const actionsKey: CronColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,
@@ -96,7 +96,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div>
-          {row.original.method === "API" ? (
+          {row.original.method === 'API' ? (
             row.original.name
           ) : (
             <Badge variant="outline">Defined in code</Badge>
@@ -194,19 +194,19 @@ export const columns = ({
             row={row.original}
             actions={[
               {
-                label: "Delete",
+                label: 'Delete',
                 onClick: () => onDeleteClick(row.original),
                 disabled:
-                  row.original.method !== "API"
-                    ? "This cron was created via a code definition. Delete it from the code definition instead."
+                  row.original.method !== 'API'
+                    ? 'This cron was created via a code definition. Delete it from the code definition instead.'
                     : undefined,
               },
               {
-                label: row.original.enabled ? "Disable" : "Enable",
+                label: row.original.enabled ? 'Disable' : 'Enable',
                 onClick: () => onEnableClick(row.original),
                 disabled:
                   isUpdatePending && updatingCronId === row.original.metadata.id
-                    ? "Update in progress"
+                    ? 'Update in progress'
                     : undefined,
               },
             ]}

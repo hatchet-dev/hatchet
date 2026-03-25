@@ -1,7 +1,7 @@
-import { Button } from "@/components/v1/ui/button";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
-import { useCallback, useState } from "react";
+import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { useCallback, useState } from 'react';
 
 type NewOrganizationInputFormProps = {
   defaultOrganizationName?: string;
@@ -11,8 +11,8 @@ type NewOrganizationInputFormProps = {
 };
 
 export function NewOrganizationInputForm({
-  defaultOrganizationName = "",
-  defaultTenantName = "",
+  defaultOrganizationName = '',
+  defaultTenantName = '',
   onSubmit,
   isSaving,
 }: NewOrganizationInputFormProps) {
@@ -65,7 +65,7 @@ export function NewOrganizationInputForm({
       </div>
 
       <Button type="submit" className="w-full" disabled={isSaving}>
-        {isSaving ? "Creating..." : "Create"}
+        {isSaving ? 'Creating...' : 'Create'}
       </Button>
     </form>
   );

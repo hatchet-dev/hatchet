@@ -1,15 +1,15 @@
-import type { OtelSpan } from "@/lib/api/generated/data-contracts";
+import type { OtelSpan } from '@/lib/api/generated/data-contracts';
 
 export type RelevantOpenTelemetrySpanProperties = Pick<
   OtelSpan,
-  | "spanId"
-  | "parentSpanId"
-  | "spanName"
-  | "statusCode"
-  | "statusMessage"
-  | "durationNs"
-  | "createdAt"
-  | "spanAttributes"
+  | 'spanId'
+  | 'parentSpanId'
+  | 'spanName'
+  | 'statusCode'
+  | 'statusMessage'
+  | 'durationNs'
+  | 'createdAt'
+  | 'spanAttributes'
 >;
 
 export type OtelSpanTree = RelevantOpenTelemetrySpanProperties & {

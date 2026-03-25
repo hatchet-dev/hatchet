@@ -1,6 +1,6 @@
-import api from "@/lib/api";
-import { appRoutes } from "@/router";
-import { useQuery } from "@tanstack/react-query";
+import api from '@/lib/api';
+import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
 
 /**
  * Hook to determine the correct home route for a tenant
@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
  */
 export function useTenantHomeRoute(tenantId: string | undefined) {
   const workflowsQuery = useQuery({
-    queryKey: ["tenant-home-route", tenantId],
+    queryKey: ['tenant-home-route', tenantId],
     queryFn: async () => {
       if (!tenantId) {
         return { hasWorkflows: false };

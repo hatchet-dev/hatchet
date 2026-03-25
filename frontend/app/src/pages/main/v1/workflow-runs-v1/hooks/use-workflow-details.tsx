@@ -1,9 +1,9 @@
-import { queries, V1TaskStatus } from "@/lib/api";
-import { getErrorStatus } from "@/lib/error-utils";
-import { defaultQueryRetry } from "@/lib/query-retry";
-import { appRoutes } from "@/router";
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { queries, V1TaskStatus } from '@/lib/api';
+import { getErrorStatus } from '@/lib/error-utils';
+import { defaultQueryRetry } from '@/lib/query-retry';
+import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 
 export function isTerminalState(status: V1TaskStatus | undefined) {
   if (!status) {

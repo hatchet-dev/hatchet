@@ -1,16 +1,16 @@
-describe("runs table: rows per page", () => {
-  it("changes rows per page and persists the change in the URL", () => {
-    cy.login("owner");
+describe('runs table: rows per page', () => {
+  it('changes rows per page and persists the change in the URL', () => {
+    cy.login('owner');
 
     // Runs list request we expect to change when page size changes.
-    cy.intercept("GET", "/api/v1/stable/tenants/*/workflow-runs*").as(
-      "listRuns",
+    cy.intercept('GET', '/api/v1/stable/tenants/*/workflow-runs*').as(
+      'listRuns',
     );
 
     // Start from the authenticated root, then derive the active tenant base path.
-    cy.visit("/");
-    cy.location("pathname", { timeout: 30000 })
-      .should("match", /\/tenants\/.+/)
+    cy.visit('/');
+    cy.location('pathname', { timeout: 30000 })
+      .should('match', /\/tenants\/.+/)
       .then((pathname) => {
         const tenantBase = pathname.match(/\/tenants\/[^/]+/)?.[0];
         if (!tenantBase) {
@@ -23,24 +23,24 @@ describe("runs table: rows per page", () => {
       });
 
     // Wait for the initial load (default page size is 50).
-    cy.wait("@listRuns").its("request.url").should("include", "limit=50");
+    cy.wait('@listRuns').its('request.url').should('include', 'limit=50');
 
-    cy.get("#rows-per-page").should("be.visible").click();
-    cy.contains('[role="option"]', "25").click();
+    cy.get('#rows-per-page').should('be.visible').click();
+    cy.contains('[role="option"]', '25').click();
 
     // Changing page size should refetch the list with a new limit.
-    cy.wait("@listRuns").its("request.url").should("include", "limit=25");
+    cy.wait('@listRuns').its('request.url').should('include', 'limit=25');
 
     // UI should reflect the new selection.
-    cy.get("#rows-per-page").should("contain", "25");
+    cy.get('#rows-per-page').should('contain', '25');
 
     // Pagination state is stored in a JSON-encoded query param.
-    cy.location("search").then((search) => {
+    cy.location('search').then((search) => {
       const params = new URLSearchParams(search);
-      const raw = params.get("pagination-runs-table-workflow-runs-main");
+      const raw = params.get('pagination-runs-table-workflow-runs-main');
       if (!raw) {
         throw new Error(
-          "Missing pagination-runs-table-workflow-runs-main param",
+          'Missing pagination-runs-table-workflow-runs-main param',
         );
       }
 

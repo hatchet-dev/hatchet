@@ -1,24 +1,24 @@
-import { usePylon } from "@/components/support-chat";
-import { SidebarButtonPrimaryAction } from "@/components/v1/nav/sidebar-buttons";
-import { Button } from "@/components/v1/ui/button";
+import { usePylon } from '@/components/support-chat';
+import { SidebarButtonPrimaryAction } from '@/components/v1/nav/sidebar-buttons';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/v1/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
-import { VersionInfo } from "@/pages/main/info/components/version-info";
-import { ChevronDownIcon } from "@radix-ui/react-icons";
-import React, { useState } from "react";
+} from '@/components/v1/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { VersionInfo } from '@/pages/main/info/components/version-info';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
+import React, { useState } from 'react';
 import {
   BiHelpCircle,
   BiBook,
   BiCalendar,
   BiChat,
   BiLogoDiscordAlt,
-} from "react-icons/bi";
+} from 'react-icons/bi';
 
 function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
   const pylon = usePylon();
@@ -70,28 +70,28 @@ function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
 }
 
 export function HelpDropdown({
-  variant = "default",
-  triggerVariant = "icon",
-  align = "end",
+  variant = 'default',
+  triggerVariant = 'icon',
+  align = 'end',
   side,
   className,
 }: {
-  variant?: "default" | "sidebar";
-  triggerVariant?: "icon" | "button" | "split";
-  align?: React.ComponentProps<typeof DropdownMenuContent>["align"];
-  side?: React.ComponentProps<typeof DropdownMenuContent>["side"];
+  variant?: 'default' | 'sidebar';
+  triggerVariant?: 'icon' | 'button' | 'split';
+  align?: React.ComponentProps<typeof DropdownMenuContent>['align'];
+  side?: React.ComponentProps<typeof DropdownMenuContent>['side'];
   className?: string;
 }) {
   const pylon = usePylon();
   const [open, setOpen] = useState(false);
 
-  const isSplit = triggerVariant === "split" && pylon.enabled;
+  const isSplit = triggerVariant === 'split' && pylon.enabled;
   const includeChat = !isSplit;
-  const title = pylon.enabled ? "Support Chat" : "Help";
+  const title = pylon.enabled ? 'Support Chat' : 'Help';
 
   const trigger = (() => {
     // Only show the split button when Pylon is enabled. Otherwise, fall back to a simple Help menu trigger.
-    if (triggerVariant === "split" && !pylon.enabled) {
+    if (triggerVariant === 'split' && !pylon.enabled) {
       return (
         <SidebarButtonPrimaryAction
           name="Help"
@@ -104,7 +104,7 @@ export function HelpDropdown({
 
     if (isSplit) {
       return (
-        <div className={cn("flex w-full", className)}>
+        <div className={cn('flex w-full', className)}>
           <SidebarButtonPrimaryAction
             name={title}
             icon={<BiChat className="size-4 mr-2" />}
@@ -136,7 +136,7 @@ export function HelpDropdown({
       );
     }
 
-    if (triggerVariant === "button") {
+    if (triggerVariant === 'button') {
       return (
         <SidebarButtonPrimaryAction
           name="Help & Support"
@@ -170,7 +170,7 @@ export function HelpDropdown({
       )}
       <DropdownMenuContent
         className="w-56"
-        variant={variant === "sidebar" ? "sidebar" : "default"}
+        variant={variant === 'sidebar' ? 'sidebar' : 'default'}
         align={align}
         side={side}
         forceMount

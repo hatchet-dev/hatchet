@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
-import { ReactNode } from "react";
+import { cn } from '@/lib/utils';
+import { ReactNode } from 'react';
 
 type ThreeColumnLayoutProps = {
   sidebar: ReactNode;
@@ -8,7 +8,7 @@ type ThreeColumnLayoutProps = {
   className?: string;
   mainClassName?: string;
   /** Enables container queries on the main column (used by v1) */
-  mainContainerType?: "inline-size" | "normal";
+  mainContainerType?: 'inline-size' | 'normal';
 };
 
 export function ThreeColumnLayout({
@@ -17,22 +17,22 @@ export function ThreeColumnLayout({
   sidePanel,
   className,
   mainClassName,
-  mainContainerType = "normal",
+  mainContainerType = 'normal',
 }: ThreeColumnLayoutProps) {
   return (
     <div
       className={cn(
-        "relative grid h-full w-full min-h-0 min-w-0 grid-rows-1 grid-cols-[0px_1fr_auto] overflow-hidden md:grid-cols-[auto_1fr_auto]",
+        'relative grid h-full w-full min-h-0 min-w-0 grid-rows-1 grid-cols-[0px_1fr_auto] overflow-hidden md:grid-cols-[auto_1fr_auto]',
         className,
       )}
     >
       <div className="col-start-1 row-start-1 min-h-0">{sidebar}</div>
 
       <div
-        className={cn("col-start-2 row-start-1 min-h-0 min-w-0", mainClassName)}
+        className={cn('col-start-2 row-start-1 min-h-0 min-w-0', mainClassName)}
         style={
-          mainContainerType === "inline-size"
-            ? { containerType: "inline-size" }
+          mainContainerType === 'inline-size'
+            ? { containerType: 'inline-size' }
             : undefined
         }
       >

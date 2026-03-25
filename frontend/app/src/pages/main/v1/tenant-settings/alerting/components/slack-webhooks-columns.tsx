@@ -1,5 +1,5 @@
-import { TableRowActions } from "@/components/v1/molecules/data-table/data-table-row-actions";
-import { SlackWebhook } from "@/lib/api";
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { SlackWebhook } from '@/lib/api';
 
 export function SlackActions({
   webhook,
@@ -13,7 +13,7 @@ export function SlackActions({
       row={webhook}
       actions={[
         {
-          label: "Delete",
+          label: 'Delete',
           onClick: () => onDeleteClick(webhook),
         },
       ]}

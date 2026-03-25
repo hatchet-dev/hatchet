@@ -1,12 +1,12 @@
-import { useTenantDetails } from "@/hooks/use-tenant";
-import { User } from "@/lib/api";
-import useApiMeta from "@/pages/auth/hooks/use-api-meta";
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { User } from '@/lib/api';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import React, {
   PropsWithChildren,
   useCallback,
   useEffect,
   useMemo,
-} from "react";
+} from 'react';
 
 interface SupportChatProps {
   user?: User;
@@ -16,7 +16,7 @@ export const usePylon = () => {
   const { meta } = useApiMeta();
 
   const show = useCallback(() => {
-    (window as any).Pylon("show");
+    (window as any).Pylon('show');
   }, []);
 
   if (!meta?.pylonAppId) {
@@ -54,7 +54,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
     }
 
     const pylonScript = `(function(){var e=window;var t=document;var n=function(){n.e(arguments)};n.q=[];n.e=function(e){n.q.push(e)};e.Pylon=n;var r=function(){var e=t.createElement("script");e.setAttribute("type","text/javascript");e.setAttribute("async","true");e.setAttribute("src","https://widget.usepylon.com/widget/${APP_ID}");var n=t.getElementsByTagName("script")[0];n.parentNode.insertBefore(e,n)};if(t.readyState==="complete"){r()}else if(e.addEventListener){e.addEventListener("load",r,false)}})();`;
-    document.body.appendChild(document.createElement("script")).innerHTML =
+    document.body.appendChild(document.createElement('script')).innerHTML =
       pylonScript;
   }, [APP_ID]);
 
@@ -71,9 +71,9 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
         email_hash: user.emailHash,
       },
     };
-    (window as any).Pylon("hideChatBubble");
+    (window as any).Pylon('hideChatBubble');
 
-    (window as any).Pylon("setNewIssueCustomFields", {
+    (window as any).Pylon('setNewIssueCustomFields', {
       user_id: user.metadata.id,
       tenant_name: tenant?.name,
       tenant_slug: tenant?.slug,

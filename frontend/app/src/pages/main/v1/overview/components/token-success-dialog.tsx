@@ -3,8 +3,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { SecretCopier } from "@/components/v1/ui/secret-copier";
+} from '@/components/v1/ui/dialog';
+import { SecretCopier } from '@/components/v1/ui/secret-copier';
 
 export function TokenSuccessDialog({
   open,
@@ -32,7 +32,7 @@ export function TokenSuccessDialog({
         <SecretCopier
           secrets={{ HATCHET_CLIENT_TOKEN: token }}
           className="text-sm"
-          maxWidth={"calc(700px - 4rem)"}
+          maxWidth={'calc(700px - 4rem)'}
           copy
         />
       </DialogContent>

@@ -2,25 +2,25 @@ import {
   eventTypeToSeverity,
   mapEventTypeToTitle,
   RUN_STATUS_VARIANTS,
-} from "./event-utils";
-import { EventWithMetadata } from "./step-run-events-for-workflow-run";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { Badge } from "@/components/v1/ui/badge";
-import { Button } from "@/components/v1/ui/button";
+} from './event-utils';
+import { EventWithMetadata } from './step-run-events-for-workflow-run';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/v1/ui/popover";
-import { V1TaskEventType, V1TaskEvent } from "@/lib/api";
-import { cn, emptyGolangUUID } from "@/lib/utils";
-import { appRoutes } from "@/router";
+} from '@/components/v1/ui/popover';
+import { V1TaskEventType, V1TaskEvent } from '@/lib/api';
+import { cn, emptyGolangUUID } from '@/lib/utils';
+import { appRoutes } from '@/router';
 import {
   ArrowLeftEndOnRectangleIcon,
   ServerStackIcon,
   XCircleIcon,
-} from "@heroicons/react/24/outline";
-import { Link } from "@tanstack/react-router";
+} from '@heroicons/react/24/outline';
+import { Link } from '@tanstack/react-router';
 
 export function TaskEventCell({
   event,
@@ -125,7 +125,7 @@ function EventIndicator({
     <div
       className={cn(
         RUN_STATUS_VARIANTS[severity],
-        "h-[6px] w-[6px] rounded-full",
+        'h-[6px] w-[6px] rounded-full',
       )}
     />
   );
@@ -167,7 +167,7 @@ function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
       <div className="h-[400px] overflow-hidden rounded-md border border-border bg-muted/50">
         <div className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground h-full overflow-x-hidden overflow-y-scroll p-4 font-mono text-sm text-foreground">
           <pre className="min-h-[500px] whitespace-pre-wrap break-words">
-            {errorText || "No error message found"}
+            {errorText || 'No error message found'}
           </pre>
         </div>
       </div>

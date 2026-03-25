@@ -1,34 +1,34 @@
-import { Button } from "@/components/v1/ui/button";
-import CopyToClipboard from "@/components/v1/ui/copy-to-clipboard";
+import { Button } from '@/components/v1/ui/button';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { ManagementTokenDuration } from "@/lib/api/generated/cloud/data-contracts";
-import { KeyIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useEffect, useCallback } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
+} from '@/components/v1/ui/select';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import { KeyIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useState, useEffect, useCallback } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
-  name: z.string().min(1, "Token name is required"),
+  name: z.string().min(1, 'Token name is required'),
   duration: z.union([
     z.nativeEnum(ManagementTokenDuration),
-    z.literal("never"),
+    z.literal('never'),
   ]),
 });
 
@@ -47,7 +47,7 @@ export function CreateTokenModal({
   organizationName,
   onSuccess,
 }: CreateTokenModalProps) {
-  const DURATION_NEVER = "never";
+  const DURATION_NEVER = 'never';
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const { handleCreateToken, createTokenLoading } = useOrganizations();
 
@@ -61,7 +61,7 @@ export function CreateTokenModal({
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
-      name: "",
+      name: '',
       duration: ManagementTokenDuration.Value30D,
     },
   });
@@ -93,13 +93,13 @@ export function CreateTokenModal({
 
   const nameError = errors.name?.message?.toString();
   const durationError = errors.duration?.message?.toString();
-  const selectedDuration = watch("duration");
+  const selectedDuration = watch('duration');
 
   const durationOptions = [
-    { value: ManagementTokenDuration.Value30D, label: "30 days" },
-    { value: ManagementTokenDuration.Value60D, label: "60 days" },
-    { value: ManagementTokenDuration.Value90D, label: "90 days" },
-    { value: DURATION_NEVER, label: "Do not expire" },
+    { value: ManagementTokenDuration.Value30D, label: '30 days' },
+    { value: ManagementTokenDuration.Value60D, label: '60 days' },
+    { value: ManagementTokenDuration.Value90D, label: '90 days' },
+    { value: DURATION_NEVER, label: 'Do not expire' },
   ];
 
   return (
@@ -151,7 +151,7 @@ export function CreateTokenModal({
             <div className="space-y-2">
               <Label htmlFor="name">Token Name</Label>
               <Input
-                {...register("name")}
+                {...register('name')}
                 id="name"
                 placeholder="e.g., CI/CD Pipeline Token"
                 disabled={createTokenLoading}
@@ -206,7 +206,7 @@ export function CreateTokenModal({
                 Cancel
               </Button>
               <Button type="submit" disabled={createTokenLoading}>
-                {createTokenLoading ? "Creating..." : "Create Token"}
+                {createTokenLoading ? 'Creating...' : 'Create Token'}
               </Button>
             </div>
           </form>

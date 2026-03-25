@@ -1,5 +1,5 @@
-import type { VisibleRange } from "./trace-timeline-utils";
-import { useState, useCallback, useRef, type RefObject } from "react";
+import type { VisibleRange } from './trace-timeline-utils';
+import { useState, useCallback, useRef, type RefObject } from 'react';
 
 export type BrushRange = { lo: number; hi: number };
 
@@ -46,8 +46,8 @@ export function useBrushZoom(
       };
 
       const onUp = (ev: PointerEvent) => {
-        document.removeEventListener("pointermove", onMove);
-        document.removeEventListener("pointerup", onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
 
         if (!barsRef.current) {
           setBrushRange(null);
@@ -74,8 +74,8 @@ export function useBrushZoom(
         }
       };
 
-      document.addEventListener("pointermove", onMove);
-      document.addEventListener("pointerup", onUp);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
     },
     [barsRef, onRangeChange],
   );

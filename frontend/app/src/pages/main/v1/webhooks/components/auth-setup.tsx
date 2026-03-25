@@ -1,28 +1,28 @@
-import { WebhookFormData } from "../hooks/use-webhooks";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
+import { WebhookFormData } from '../hooks/use-webhooks';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
+} from '@/components/v1/ui/select';
 import {
   V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
   V1WebhookSourceName,
-} from "@/lib/api";
-import { useForm } from "react-hook-form";
+} from '@/lib/api';
+import { useForm } from 'react-hook-form';
 
 type BaseAuthMethodProps = {
-  register: ReturnType<typeof useForm<WebhookFormData>>["register"];
+  register: ReturnType<typeof useForm<WebhookFormData>>['register'];
 };
 
 type HMACAuthProps = BaseAuthMethodProps & {
-  watch: ReturnType<typeof useForm<WebhookFormData>>["watch"];
-  setValue: ReturnType<typeof useForm<WebhookFormData>>["setValue"];
+  watch: ReturnType<typeof useForm<WebhookFormData>>['watch'];
+  setValue: ReturnType<typeof useForm<WebhookFormData>>['setValue'];
 };
 
 const BasicAuth = ({ register }: BaseAuthMethodProps) => (
@@ -35,7 +35,7 @@ const BasicAuth = ({ register }: BaseAuthMethodProps) => (
         data-1p-ignore
         id="username"
         placeholder="username"
-        {...register("username")}
+        {...register('username')}
         className="h-10"
       />
     </div>
@@ -48,9 +48,9 @@ const BasicAuth = ({ register }: BaseAuthMethodProps) => (
         <Input
           data-1p-ignore
           id="password"
-          type={"text"}
+          type={'text'}
           placeholder="password"
-          {...register("password")}
+          {...register('password')}
           className="h-10 pr-10"
         />
       </div>
@@ -68,7 +68,7 @@ const APIKeyAuth = ({ register }: BaseAuthMethodProps) => (
         data-1p-ignore
         id="headerName"
         placeholder="X-API-Key"
-        {...register("headerName")}
+        {...register('headerName')}
         className="h-10"
       />
     </div>
@@ -81,9 +81,9 @@ const APIKeyAuth = ({ register }: BaseAuthMethodProps) => (
         <Input
           data-1p-ignore
           id="apiKey"
-          type={"text"}
+          type={'text'}
           placeholder="API key..."
-          {...register("apiKey")}
+          {...register('apiKey')}
           className="h-10 pr-10"
         />
       </div>
@@ -101,9 +101,9 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
         <Input
           data-1p-ignore
           id="signingSecret"
-          type={"text"}
+          type={'text'}
           placeholder="Secret key..."
-          {...register("signingSecret")}
+          {...register('signingSecret')}
           className="h-10 pr-10"
         />
       </div>
@@ -115,9 +115,9 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
           Algorithm
         </Label>
         <Select
-          value={watch("algorithm")}
+          value={watch('algorithm')}
           onValueChange={(value: V1WebhookHMACAlgorithm) =>
-            setValue("algorithm", value)
+            setValue('algorithm', value)
           }
         >
           <SelectTrigger className="h-10">
@@ -137,9 +137,9 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
           Encoding
         </Label>
         <Select
-          value={watch("encoding")}
+          value={watch('encoding')}
           onValueChange={(value: V1WebhookHMACEncoding) =>
-            setValue("encoding", value)
+            setValue('encoding', value)
           }
         >
           <SelectTrigger className="h-10">
@@ -162,7 +162,7 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
         data-1p-ignore
         id="signatureHeaderName"
         placeholder="X-Signature"
-        {...register("signatureHeaderName")}
+        {...register('signatureHeaderName')}
         className="h-10"
       />
     </div>
@@ -171,8 +171,8 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
 
 const PreconfiguredHMACAuth = ({
   register,
-  secretLabel = "Signing Secret",
-  secretPlaceholder = "super-secret",
+  secretLabel = 'Signing Secret',
+  secretPlaceholder = 'super-secret',
   helpText,
   helpLink,
 }: BaseAuthMethodProps & {
@@ -191,9 +191,9 @@ const PreconfiguredHMACAuth = ({
         <Input
           data-1p-ignore
           id="signingSecret"
-          type={"text"}
+          type={'text'}
           placeholder={secretPlaceholder}
-          {...register("signingSecret")}
+          {...register('signingSecret')}
           className="h-10 pr-10"
         />
       </div>
@@ -203,7 +203,7 @@ const PreconfiguredHMACAuth = ({
             {helpText}
             {helpLink && (
               <>
-                {" "}
+                {' '}
                 <a
                   href={helpLink}
                   target="_blank"

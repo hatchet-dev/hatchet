@@ -1,6 +1,6 @@
-import { formatDuration } from "../utils/format-utils";
-import type { BrushRange } from "./use-brush-zoom";
-import { memo } from "react";
+import { formatDuration } from '../utils/format-utils';
+import type { BrushRange } from './use-brush-zoom';
+import { memo } from 'react';
 
 interface TimelineTickHeaderProps {
   ticks: number[];
@@ -27,7 +27,7 @@ export const TimelineTickHeader = memo(function TimelineTickHeader({
             className="absolute flex h-full items-center"
             style={{
               left: `${(t / timelineMaxMs) * 100}%`,
-              transform: isLast ? "translateX(-100%)" : undefined,
+              transform: isLast ? 'translateX(-100%)' : undefined,
             }}
           >
             <span className="whitespace-nowrap font-mono text-xs uppercase tracking-wider text-muted-foreground">
@@ -44,10 +44,10 @@ export const TimelineTickHeader = memo(function TimelineTickHeader({
             left: `${effectiveCursorPct * 100}%`,
             transform:
               effectiveCursorPct < 0.05
-                ? "none"
+                ? 'none'
                 : effectiveCursorPct > 0.95
-                  ? "translateX(-100%)"
-                  : "translateX(-50%)",
+                  ? 'translateX(-100%)'
+                  : 'translateX(-50%)',
           }}
         >
           {formatDuration(timelineMaxMs * effectiveCursorPct + visOffsetMs)}

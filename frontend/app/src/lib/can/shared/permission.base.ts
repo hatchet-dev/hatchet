@@ -1,6 +1,6 @@
-import { APICloudMetadata } from "@/lib/api/generated/cloud/data-contracts";
-import { Tenant } from "@/lib/api/generated/data-contracts";
-import { BillingContext } from "@/lib/atoms";
+import { APICloudMetadata } from '@/lib/api/generated/cloud/data-contracts';
+import { Tenant } from '@/lib/api/generated/data-contracts';
+import { BillingContext } from '@/lib/atoms';
 
 type EvaluateContext = {
   tenant?: Tenant;
@@ -15,6 +15,6 @@ export type Evaluate = (
 export type PermissionSet<K = any> = Record<string, (resource?: K) => Evaluate>;
 
 export enum RejectReason {
-  BILLING_REQUIRED = "BILLING_REQUIRED",
-  UPGRADE_REQUIRED = "UPGRADE_REQUIRED",
+  BILLING_REQUIRED = 'BILLING_REQUIRED',
+  UPGRADE_REQUIRED = 'UPGRADE_REQUIRED',
 }

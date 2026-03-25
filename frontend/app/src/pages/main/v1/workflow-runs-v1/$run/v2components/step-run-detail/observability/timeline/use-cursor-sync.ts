@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, type RefObject } from "react";
+import { useState, useMemo, useCallback, useRef, type RefObject } from 'react';
 
 interface TimelineValues {
   visMinStart: number;

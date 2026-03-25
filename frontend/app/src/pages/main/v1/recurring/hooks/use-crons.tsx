@@ -1,19 +1,19 @@
-import { workflowKey, metadataKey } from "../components/recurring-columns";
-import { FilterOption } from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { usePagination } from "@/hooks/use-pagination";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { useZodColumnFilters } from "@/hooks/use-zod-column-filters";
+import { workflowKey, metadataKey } from '../components/recurring-columns';
+import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import api, {
   queries,
   CronWorkflowsOrderByField,
   WorkflowRunOrderByDirection,
   UpdateCronWorkflowTriggerRequest,
-} from "@/lib/api";
-import queryClient from "@/query-client";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
-import { z } from "zod";
+} from '@/lib/api';
+import queryClient from '@/query-client';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod';
 
 type UseCronsProps = {
   key: string;
@@ -60,7 +60,7 @@ export const useCrons = ({ key }: UseCronsProps) => {
   });
 
   const updateCronMutation = useMutation({
-    mutationKey: ["cron:update"],
+    mutationKey: ['cron:update'],
     mutationFn: async ({
       tenantId,
       cronId,

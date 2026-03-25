@@ -1,14 +1,14 @@
-import { useToast } from "@/components/v1/hooks/use-toast";
-import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
-import { DateTimePicker } from "@/components/v1/molecules/time-picker/date-time-picker";
-import { Input } from "@/components/v1/ui/input";
-import { Spinner } from "@/components/v1/ui/loading";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import api, { ScheduledWorkflows } from "@/lib/api";
-import { ScheduledWorkflowsBulkDeleteFilter } from "@/lib/api";
-import { useApiError } from "@/lib/hooks";
-import { useMutation } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useToast } from '@/components/v1/hooks/use-toast';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { Input } from '@/components/v1/ui/input';
+import { Spinner } from '@/components/v1/ui/loading';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { ScheduledWorkflows } from '@/lib/api';
+import { ScheduledWorkflowsBulkDeleteFilter } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { useMutation } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export function BulkRescheduleScheduledRuns({
   open,
@@ -51,23 +51,23 @@ export function BulkRescheduleScheduledRuns({
       }
     | undefined
   >(undefined);
-  const [confirmationText, setConfirmationText] = useState("");
-  const expectedConfirmation = "RESCHEDULE";
+  const [confirmationText, setConfirmationText] = useState('');
+  const expectedConfirmation = 'RESCHEDULE';
   const isConfirmed =
     confirmationText.trim().toLowerCase() ===
     expectedConfirmation.toLowerCase();
   const [progress, setProgress] = useState<{
-    phase: "idle" | "running" | "done";
+    phase: 'idle' | 'running' | 'done';
     processed: number;
     total?: number;
-  }>({ phase: "idle", processed: 0 });
+  }>({ phase: 'idle', processed: 0 });
 
   const isFilterMode = scheduledRunIds.length === 0 && !!filter;
 
   useEffect(() => {
     if (!open) {
-      setConfirmationText("");
-      setProgress({ phase: "idle", processed: 0 });
+      setConfirmationText('');
+      setProgress({ phase: 'idle', processed: 0 });
     }
   }, [open]);
 
@@ -212,7 +212,7 @@ export function BulkRescheduleScheduledRuns({
 
   const updateMutation = useMutation({
     mutationKey: [
-      "scheduled-run:bulk-update",
+      'scheduled-run:bulk-update',
       tenantId,
       scheduledRunIds,
       filter,
@@ -226,7 +226,7 @@ export function BulkRescheduleScheduledRuns({
       }
 
       setProgress({
-        phase: "running",
+        phase: 'running',
         processed: 0,
         total:
           scheduledRunIds.length > 0 ? scheduledRunIds.length : filterCount,
@@ -305,14 +305,14 @@ export function BulkRescheduleScheduledRuns({
         }
       }
 
-      setProgress((p) => ({ ...p, phase: "done" }));
+      setProgress((p) => ({ ...p, phase: 'done' }));
       return { updatedIds: allUpdatedIds, errors: allErrors };
     },
     onSuccess: (data) => {
       const updated = data?.updatedIds?.length || 0;
       const errors = data?.errors?.length || 0;
       const description = `Updated ${formatCount(updated)}. ${
-        errors ? `${formatCount(errors)} failed.` : ""
+        errors ? `${formatCount(errors)} failed.` : ''
       }`.trim();
 
       toast({
@@ -372,7 +372,7 @@ export function BulkRescheduleScheduledRuns({
           {updateMutation.isError && (
             <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
               {(updateMutation.error as Error)?.message ||
-                "Failed to reschedule."}
+                'Failed to reschedule.'}
             </div>
           )}
 
@@ -384,10 +384,10 @@ export function BulkRescheduleScheduledRuns({
               <div className="mt-2 space-y-1 text-xs">
                 {lastResult.errors.slice(0, 10).map((e, idx) => (
                   <div
-                    key={`${e.id ?? "unknown"}-${idx}`}
+                    key={`${e.id ?? 'unknown'}-${idx}`}
                     className="break-all"
                   >
-                    {e.id ? `${e.id}: ` : ""}
+                    {e.id ? `${e.id}: ` : ''}
                     {e.error}
                   </div>
                 ))}
@@ -404,8 +404,8 @@ export function BulkRescheduleScheduledRuns({
                 <div className="text-sm font-medium">New trigger time</div>
                 <div className="text-xs text-muted-foreground">
                   {isFilterMode
-                    ? "This will apply to all scheduled runs matching the current filters."
-                    : "This will apply to all selected scheduled runs."}
+                    ? 'This will apply to all scheduled runs matching the current filters.'
+                    : 'This will apply to all selected scheduled runs.'}
                 </div>
               </div>
 
@@ -421,11 +421,11 @@ export function BulkRescheduleScheduledRuns({
             <div className="flex flex-row items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-sm font-medium">
-                  Affected scheduled runs:{" "}
+                  Affected scheduled runs:{' '}
                   {isFilterMode
                     ? filterCount != null
                       ? formatCount(filterCount)
-                      : "—"
+                      : '—'
                     : formatCount(scheduledRunIds.length)}
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -455,20 +455,20 @@ export function BulkRescheduleScheduledRuns({
             </div>
           </div>
 
-          {progress.phase === "running" && (
+          {progress.phase === 'running' && (
             <div className="text-xs text-muted-foreground">
               Rescheduling {formatCount(progress.processed)}
               {progress.total != null
                 ? ` / ${formatCount(progress.total)}`
-                : ""}
+                : ''}
               …
             </div>
           )}
 
-          {!updateMutation.isPending && progress.phase !== "running" && (
+          {!updateMutation.isPending && progress.phase !== 'running' && (
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground">
-                Type <span className="font-mono">{expectedConfirmation}</span>{" "}
+                Type <span className="font-mono">{expectedConfirmation}</span>{' '}
                 to confirm.
               </div>
               <Input

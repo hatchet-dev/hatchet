@@ -1,11 +1,11 @@
-import { RunStatus } from "../../workflow-runs/components/run-statuses";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
-import { Separator } from "@/components/v1/ui/separator";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { ScheduledWorkflows } from "@/lib/api";
-import { appRoutes } from "@/router";
-import { Link } from "@tanstack/react-router";
+import { RunStatus } from '../../workflow-runs/components/run-statuses';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { ScheduledWorkflows } from '@/lib/api';
+import { appRoutes } from '@/router';
+import { Link } from '@tanstack/react-router';
 
 export function ExpandedScheduledRunContent({
   scheduledRun,
@@ -37,7 +37,7 @@ export function ExpandedScheduledRunContent({
 
           <span className="font-medium text-muted-foreground">Status</span>
           <div>
-            <RunStatus status={scheduledRun.workflowRunStatus || "SCHEDULED"} />
+            <RunStatus status={scheduledRun.workflowRunStatus || 'SCHEDULED'} />
           </div>
 
           {scheduledRun.workflowRunId && (

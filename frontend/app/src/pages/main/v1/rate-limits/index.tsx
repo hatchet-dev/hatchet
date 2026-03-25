@@ -2,14 +2,14 @@ import {
   columns,
   keyKey,
   RateLimitColumn,
-} from "./components/rate-limit-columns";
-import { useRateLimits } from "./hooks/use-rate-limits";
-import { DocsButton } from "@/components/v1/docs/docs-button";
-import { DataTable } from "@/components/v1/molecules/data-table/data-table";
-import { ToolbarType } from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { docsPages } from "@/lib/generated/docs";
-import { VisibilityState } from "@tanstack/react-table";
-import { useState } from "react";
+} from './components/rate-limit-columns';
+import { useRateLimits } from './hooks/use-rate-limits';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export default function RateLimits() {
   return <RateLimitsTable />;
@@ -31,7 +31,7 @@ function RateLimitsTable() {
     isRefetching,
     refetch,
     resetFilters,
-  } = useRateLimits({ key: "rate-limits-table" });
+  } = useRateLimits({ key: 'rate-limits-table' });
 
   return (
     <DataTable
@@ -67,7 +67,7 @@ function RateLimitsTable() {
           <p className="text-lg font-semibold">No rate limits found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.v1["rate-limits"]}
+              doc={docsPages.v1['rate-limits']}
               label="Learn about rate limits"
             />
           </div>

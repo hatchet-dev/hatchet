@@ -1,9 +1,9 @@
-import type { SpanCardViewOptions } from "./SpanCard/SpanCard";
-import { SpanCard } from "./SpanCard/SpanCard";
-import { findTimeRange } from "./agent-prism-data";
-import type { OtelSpanTree } from "./span-tree-type";
-import cn from "classnames";
-import { type FC, useMemo } from "react";
+import type { SpanCardViewOptions } from './SpanCard/SpanCard';
+import { SpanCard } from './SpanCard/SpanCard';
+import { findTimeRange } from './agent-prism-data';
+import type { OtelSpanTree } from './span-tree-type';
+import cn from 'classnames';
+import { type FC, useMemo } from 'react';
 
 interface TreeViewProps {
   spanTrees: OtelSpanTree[];
@@ -38,7 +38,7 @@ const useSharedTimeRange = (
 export const TreeView: FC<TreeViewProps> = ({
   spanTrees,
   onSpanSelect,
-  className = "",
+  className = '',
   selectedSpan,
   expandedSpansIds,
   onExpandSpansIdsChange,
@@ -49,7 +49,7 @@ export const TreeView: FC<TreeViewProps> = ({
   return (
     <div className="w-full min-w-0 px-4">
       <ul
-        className={cn(className, "overflow-x-auto pt-2")}
+        className={cn(className, 'overflow-x-auto pt-2')}
         role="tree"
         aria-label="Hierarchical card list"
       >

@@ -1,5 +1,5 @@
-import { RunsTable } from "./components/runs-table";
-import { RunsProvider } from "./hooks/runs-provider";
+import { RunsTable } from './components/runs-table';
+import { RunsProvider } from './hooks/runs-provider';
 
 export default function Tasks() {
   return (

@@ -1,31 +1,31 @@
-import { RunsTable } from "../../workflow-runs-v1/components/runs-table";
-import { workflowKey } from "../../workflow-runs-v1/components/v1/task-runs-columns";
-import { RunsProvider } from "../../workflow-runs-v1/hooks/runs-provider";
-import { WorkflowTags } from "../components/workflow-tags";
-import { TriggerWorkflowForm } from "./components/trigger-workflow-form";
-import WorkflowGeneralSettings from "./components/workflow-general-settings";
-import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
-import { Badge } from "@/components/v1/ui/badge";
-import { Button } from "@/components/v1/ui/button";
-import { Loading } from "@/components/v1/ui/loading.tsx";
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { workflowKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { WorkflowTags } from '../components/workflow-tags';
+import { TriggerWorkflowForm } from './components/trigger-workflow-form';
+import WorkflowGeneralSettings from './components/workflow-general-settings';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/v1/ui/tabs";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import api, { queries } from "@/lib/api";
-import { shouldRetryQueryError } from "@/lib/error-utils";
-import { relativeDate } from "@/lib/utils";
-import { ResourceNotFound } from "@/pages/error/components/resource-not-found";
-import { appRoutes } from "@/router";
-import { Square3Stack3DIcon } from "@heroicons/react/24/outline";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "@tanstack/react-router";
-import { isAxiosError } from "axios";
-import { useState } from "react";
+} from '@/components/v1/ui/tabs';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { queries } from '@/lib/api';
+import { shouldRetryQueryError } from '@/lib/error-utils';
+import { relativeDate } from '@/lib/utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import { appRoutes } from '@/router';
+import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
+import { useState } from 'react';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
@@ -52,7 +52,7 @@ export default function ExpandedWorkflow() {
   const navigate = useNavigate();
 
   const deleteWorkflowMutation = useMutation({
-    mutationKey: ["workflow:delete", workflowQuery?.data?.metadata.id],
+    mutationKey: ['workflow:delete', workflowQuery?.data?.metadata.id],
     mutationFn: async () => {
       if (!workflowQuery?.data) {
         return;
@@ -85,7 +85,7 @@ export default function ExpandedWorkflow() {
         <ResourceNotFound
           resource="Workflow"
           primaryAction={{
-            label: "Back to Workflows",
+            label: 'Back to Workflows',
             navigate: {
               to: appRoutes.tenantWorkflowsRoute.to,
               params: { tenant: tenantId },
@@ -139,7 +139,7 @@ export default function ExpandedWorkflow() {
         </div>
         <div className="mt-4 flex flex-row items-center justify-start">
           <div className="text-sm text-gray-700 dark:text-gray-300">
-            Updated{" "}
+            Updated{' '}
             {relativeDate(
               workflow.versions && workflow.versions[0].metadata.updatedAt,
             )}
@@ -206,7 +206,7 @@ export default function ExpandedWorkflow() {
             <ConfirmDialog
               title={`Delete workflow`}
               description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
-              submitLabel={"Delete"}
+              submitLabel={'Delete'}
               onSubmit={function (): void {
                 deleteWorkflowMutation.mutate();
               }}

@@ -1,8 +1,8 @@
-import { TaskRunActionButton } from "../../../task-runs-v1/actions";
-import { useRunsContext } from "../../hooks/runs-provider";
-import { Button } from "@/components/v1/ui/button";
-import { Play } from "lucide-react";
-import { useMemo } from "react";
+import { TaskRunActionButton } from '../../../task-runs-v1/actions';
+import { useRunsContext } from '../../hooks/runs-provider';
+import { Button } from '@/components/v1/ui/button';
+import { Play } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface TableActionsProps {
   onTriggerWorkflow: () => void;

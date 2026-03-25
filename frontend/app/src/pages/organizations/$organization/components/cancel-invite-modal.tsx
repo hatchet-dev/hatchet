@@ -1,6 +1,6 @@
-import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { OrganizationInvite } from "@/lib/api/generated/cloud/data-contracts";
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
 
 interface CancelInviteModalProps {
   open: boolean;
@@ -30,7 +30,7 @@ export function CancelInviteModal({
       description={
         <div className="space-y-3">
           <p>
-            Are you sure you want to cancel the invitation for{" "}
+            Are you sure you want to cancel the invitation for{' '}
             <strong>{invite.inviteeEmail}</strong> to join {organizationName}?
           </p>
           <p className="text-sm text-muted-foreground">

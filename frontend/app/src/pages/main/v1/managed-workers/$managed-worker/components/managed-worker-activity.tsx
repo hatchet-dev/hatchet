@@ -1,8 +1,8 @@
-import GithubButton from "./github-button";
-import { ManagedWorkerBuild } from "./managed-worker-build";
-import { ManagedWorkerIaC } from "./managed-worker-iac";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { Button } from "@/components/v1/ui/button";
+import GithubButton from './github-button';
+import { ManagedWorkerBuild } from './managed-worker-build';
+import { ManagedWorkerIaC } from './managed-worker-iac';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardContent,
@@ -10,20 +10,20 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/v1/ui/card";
-import { Spinner } from "@/components/v1/ui/loading";
-import { Separator } from "@/components/v1/ui/separator";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { queries } from "@/lib/api";
+} from '@/components/v1/ui/card';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
 import {
   ManagedWorker,
   ManagedWorkerEvent,
   ManagedWorkerEventStatus,
-} from "@/lib/api/generated/cloud/data-contracts";
-import { cn } from "@/lib/utils";
-import { ArrowRightIcon, ChevronLeftIcon } from "@radix-ui/react-icons";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+} from '@/lib/api/generated/cloud/data-contracts';
+import { cn } from '@/lib/utils';
+import { ArrowRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export function ManagedWorkerActivity({
   managedWorker,
@@ -68,7 +68,7 @@ function EventList({
   const { refetchInterval } = useRefetchInterval();
 
   const getLogsQuery = useQuery({
-    ...queries.cloud.listManagedWorkerEvents(managedWorker!.metadata.id || ""),
+    ...queries.cloud.listManagedWorkerEvents(managedWorker!.metadata.id || ''),
     enabled: !!managedWorker,
     refetchInterval,
   });
@@ -241,12 +241,12 @@ function renderCardFooter(
 }
 
 const RUN_STATUS_VARIANTS: Record<ManagedWorkerEventStatus, string> = {
-  SUCCEEDED: "border-transparent rounded-full bg-green-500",
-  FAILED: "border-transparent rounded-full bg-red-500",
-  CANCELLED: "border-transparent rounded-full bg-gray-500",
-  IN_PROGRESS: "border-transparent rounded-full bg-yellow-500",
-  SCALE_UP: "border-transparent rounded-full bg-blue-500",
-  SCALE_DOWN: "border-transparent rounded-full bg-purple-500",
+  SUCCEEDED: 'border-transparent rounded-full bg-green-500',
+  FAILED: 'border-transparent rounded-full bg-red-500',
+  CANCELLED: 'border-transparent rounded-full bg-gray-500',
+  IN_PROGRESS: 'border-transparent rounded-full bg-yellow-500',
+  SCALE_UP: 'border-transparent rounded-full bg-blue-500',
+  SCALE_DOWN: 'border-transparent rounded-full bg-purple-500',
 };
 
 function EventIndicator({ severity }: { severity: ManagedWorkerEventStatus }) {
@@ -254,7 +254,7 @@ function EventIndicator({ severity }: { severity: ManagedWorkerEventStatus }) {
     <div
       className={cn(
         RUN_STATUS_VARIANTS[severity],
-        "h-[6px] w-[6px] rounded-full",
+        'h-[6px] w-[6px] rounded-full',
       )}
     />
   );

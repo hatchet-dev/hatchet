@@ -1,5 +1,5 @@
-import { TableRowActions } from "@/components/v1/molecules/data-table/data-table-row-actions";
-import { APIToken } from "@/lib/api";
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { APIToken } from '@/lib/api';
 
 export function TokenActions({
   token,
@@ -13,7 +13,7 @@ export function TokenActions({
       row={token}
       actions={[
         {
-          label: "Revoke",
+          label: 'Revoke',
           onClick: () => onRevokeClick(token),
         },
       ]}

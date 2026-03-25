@@ -1,4 +1,4 @@
-import { PermissionSet, RejectReason } from "../shared/permission.base";
+import { PermissionSet, RejectReason } from '../shared/permission.base';
 
 export interface ComputeType {
   cpuKind: string;
@@ -49,13 +49,13 @@ export const managedCompute: PermissionSet = {
     let maxWorkerPools: number;
 
     switch (plan) {
-      case "free":
+      case 'free':
         maxWorkerPools = workerPoolLimits.free;
         break;
-      case "starter":
+      case 'starter':
         maxWorkerPools = workerPoolLimits.starter;
         break;
-      case "growth":
+      case 'growth':
         maxWorkerPools = workerPoolLimits.growth;
         break;
       default:
@@ -80,13 +80,13 @@ export const managedCompute: PermissionSet = {
     let maxReplicas: number;
 
     switch (plan) {
-      case "free":
+      case 'free':
         maxReplicas = replicaLimits.free;
         break;
-      case "starter":
+      case 'starter':
         maxReplicas = replicaLimits.starter;
         break;
-      case "growth":
+      case 'growth':
         maxReplicas = replicaLimits.growth;
         break;
       default:
@@ -116,10 +116,10 @@ export const managedCompute: PermissionSet = {
 
     // Only growth and enterprise plans can use GPUs
     switch (plan) {
-      case "free":
-      case "starter":
+      case 'free':
+      case 'starter':
         return [false, RejectReason.UPGRADE_REQUIRED];
-      case "growth":
+      case 'growth':
         // For growth plan, we might want to limit GPU types or quantities
         // This can be extended with specific GPU restrictions if needed
         return [true, undefined];
@@ -150,9 +150,9 @@ export const managedCompute: PermissionSet = {
     }
 
     switch (plan) {
-      case "free":
+      case 'free':
         // Free plan restrictions
-        if (cpuKind !== "shared") {
+        if (cpuKind !== 'shared') {
           return [false, RejectReason.UPGRADE_REQUIRED];
         }
         if (cpus !== 1) {
@@ -162,7 +162,7 @@ export const managedCompute: PermissionSet = {
           return [false, RejectReason.UPGRADE_REQUIRED];
         }
         break;
-      case "starter":
+      case 'starter':
         // Starter plan restrictions
         if (cpus > 4) {
           return [false, RejectReason.UPGRADE_REQUIRED];
@@ -171,7 +171,7 @@ export const managedCompute: PermissionSet = {
           return [false, RejectReason.UPGRADE_REQUIRED];
         }
         break;
-      case "growth":
+      case 'growth':
         // Growth plan has fewer restrictions
         // No specific restrictions, they can use any machine type
         break;

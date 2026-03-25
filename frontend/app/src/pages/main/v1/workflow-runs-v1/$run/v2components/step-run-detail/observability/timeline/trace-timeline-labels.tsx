@@ -1,4 +1,4 @@
-import { getDisplayName, isEngineSpan } from "../utils/span-tree-utils";
+import { getDisplayName, isEngineSpan } from '../utils/span-tree-utils';
 import {
   ROW_HEIGHT,
   CONNECTOR_WIDTH,
@@ -6,12 +6,12 @@ import {
   SHOW_MORE_BATCH,
   type FlatRow,
   type SpanGroupInfo,
-} from "./trace-timeline-utils";
-import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
-import { Button } from "@/components/v1/ui/button";
-import { cn } from "@/lib/utils";
-import { ChevronRight, ChevronDown, AlertCircle } from "lucide-react";
-import { memo, type ReactNode } from "react";
+} from './trace-timeline-utils';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import { Button } from '@/components/v1/ui/button';
+import { cn } from '@/lib/utils';
+import { ChevronRight, ChevronDown, AlertCircle } from 'lucide-react';
+import { memo, type ReactNode } from 'react';
 
 function ConnectorLines({
   depth,
@@ -93,10 +93,10 @@ function LabelRow({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center px-2",
-        onClick && "cursor-pointer rounded-l transition-colors",
-        selected ? "bg-primary/8" : onClick && "hover:bg-muted/50",
-        dimmed && "opacity-40",
+        'flex shrink-0 items-center px-2',
+        onClick && 'cursor-pointer rounded-l transition-colors',
+        selected ? 'bg-primary/8' : onClick && 'hover:bg-muted/50',
+        dimmed && 'opacity-40',
       )}
       style={{ height: ROW_HEIGHT }}
       onClick={onClick}
@@ -130,7 +130,7 @@ export const TimelineLabels = memo(function TimelineLabels({
   return (
     <>
       {flatRows.map((row) => {
-        if (row.kind === "show-more") {
+        if (row.kind === 'show-more') {
           return (
             <LabelRow key={row.rowKey}>
               <ConnectorLines
@@ -157,7 +157,7 @@ export const TimelineLabels = memo(function TimelineLabels({
           );
         }
 
-        if (row.kind === "group") {
+        if (row.kind === 'group') {
           const isSelected = selectedGroupId === row.group.groupId;
           return (
             <LabelRow
@@ -179,10 +179,10 @@ export const TimelineLabels = memo(function TimelineLabels({
               />
               <span
                 className={cn(
-                  "truncate text-sm leading-tight",
+                  'truncate text-sm leading-tight',
                   isSelected
-                    ? "font-medium text-foreground"
-                    : "text-muted-foreground",
+                    ? 'font-medium text-foreground'
+                    : 'text-muted-foreground',
                 )}
                 title={`batch: ${row.group.groupName} (${row.group.totalCount.toLocaleString()} spans)`}
               >
@@ -228,12 +228,12 @@ export const TimelineLabels = memo(function TimelineLabels({
             />
             <span
               className={cn(
-                "truncate text-sm leading-tight",
+                'truncate text-sm leading-tight',
                 isSelected
-                  ? "font-medium text-foreground"
+                  ? 'font-medium text-foreground'
                   : row.depth === 0
-                    ? "text-foreground"
-                    : "text-muted-foreground",
+                    ? 'text-foreground'
+                    : 'text-muted-foreground',
               )}
               title={displayName}
             >

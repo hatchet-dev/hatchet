@@ -1,23 +1,23 @@
-import GithubButton from "../$managed-worker/components/github-button";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { Button } from "@/components/v1/ui/button";
+import GithubButton from '../$managed-worker/components/github-button';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from "@/components/v1/ui/card";
-import { Loading } from "@/components/v1/ui/loading.tsx";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { queries } from "@/lib/api";
-import { ManagedWorker } from "@/lib/api/generated/cloud/data-contracts";
-import { appRoutes } from "@/router";
-import { ArrowPathIcon, CpuChipIcon } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+} from '@/components/v1/ui/card';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
+import { appRoutes } from '@/router';
+import { ArrowPathIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { useMemo, useState } from 'react';
 
 const ManagedWorkerCard: React.FC<{ data: ManagedWorker }> = ({ data }) => {
   const { tenantId } = useCurrentTenantId();
@@ -54,7 +54,7 @@ const ManagedWorkerCard: React.FC<{ data: ManagedWorker }> = ({ data }) => {
           <GithubButton buildConfig={data.buildConfig} prefix="Deploys from" />
         )}
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          {totReplicas} {totReplicas == 1 ? "instance" : "instances"} with{" "}
+          {totReplicas} {totReplicas == 1 ? 'instance' : 'instances'} with{' '}
           {totCpus} CPUs and {totMemory} MB memory
         </p>
       </div>
@@ -109,11 +109,11 @@ export function ManagedWorkersTable() {
             listManagedWorkersQuery.refetch();
             setRotate(!rotate);
           }}
-          variant={"outline"}
+          variant={'outline'}
           aria-label="Refresh events list"
         >
           <ArrowPathIcon
-            className={`size-4 transition-transform ${rotate ? "rotate-180" : ""}`}
+            className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
           />
         </Button>
       </div>

@@ -1,6 +1,6 @@
-import { Button } from "../ui/button";
-import { useSidePanel } from "@/hooks/use-side-panel";
-import { BookOpenText } from "lucide-react";
+import { Button } from '../ui/button';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { BookOpenText } from 'lucide-react';
 
 export type DocPage = {
   href: string;
@@ -11,7 +11,7 @@ type DocsButtonProps = {
   label: string;
   queryParams?: Record<string, string>;
   scrollTo?: string;
-  variant?: "button" | "text";
+  variant?: 'button' | 'text';
 };
 
 export const DocsButton = ({
@@ -19,13 +19,13 @@ export const DocsButton = ({
   label,
   queryParams,
   scrollTo,
-  variant = "button",
+  variant = 'button',
 }: DocsButtonProps) => {
   const { open } = useSidePanel();
 
   const handleClick = () => {
     open({
-      type: "docs",
+      type: 'docs',
       content: doc,
       queryParams,
       scrollTo,
@@ -33,7 +33,7 @@ export const DocsButton = ({
   };
 
   switch (variant) {
-    case "button":
+    case 'button':
       return (
         <Button
           onClick={handleClick}
@@ -43,7 +43,7 @@ export const DocsButton = ({
           <span>{label}</span>
         </Button>
       );
-    case "text":
+    case 'text':
       return (
         <span
           onClick={handleClick}

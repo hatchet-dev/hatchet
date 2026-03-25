@@ -1,21 +1,21 @@
-import { generateTenantSlug } from "./generate-tenant-slug";
-import { NewTenantInputForm } from "./new-tenant-input-form";
-import { useAnalytics } from "@/hooks/use-analytics";
-import api, { Tenant } from "@/lib/api";
-import { cloudApi } from "@/lib/api/api";
-import { OrganizationTenant } from "@/lib/api/generated/cloud/data-contracts";
-import { useApiError } from "@/lib/hooks";
-import { useUserUniverse } from "@/providers/user-universe";
-import { useMutation } from "@tanstack/react-query";
-import invariant from "tiny-invariant";
+import { generateTenantSlug } from './generate-tenant-slug';
+import { NewTenantInputForm } from './new-tenant-input-form';
+import { useAnalytics } from '@/hooks/use-analytics';
+import api, { Tenant } from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { useUserUniverse } from '@/providers/user-universe';
+import { useMutation } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
 
 type NewTenantSaverFormProps = {
   defaultTenantName?: string;
   defaultOrganizationId?: string;
   afterSave: (
     data:
-      | { type: "cloud"; tenant: OrganizationTenant; organizationId: string }
-      | { type: "regular"; tenant: Tenant },
+      | { type: 'cloud'; tenant: OrganizationTenant; organizationId: string }
+      | { type: 'regular'; tenant: Tenant },
   ) => void;
 };
 
@@ -34,13 +34,13 @@ const saveTenant = async ({
   tenantName: string;
   organizationId?: string;
   isCloudEnabled: boolean;
-}): Promise<FirstArgument<NewTenantSaverFormProps["afterSave"]>> => {
+}): Promise<FirstArgument<NewTenantSaverFormProps['afterSave']>> => {
   const slug = generateTenantSlug(tenantName);
 
   if (isCloudEnabled) {
     invariant(
       organizationId,
-      "Organization ID is required when isCloudEnabled",
+      'Organization ID is required when isCloudEnabled',
     );
 
     const { data: tenant } = await cloudApi.organizationCreateTenant(
@@ -51,21 +51,21 @@ const saveTenant = async ({
       },
     );
 
-    return { type: "cloud", tenant, organizationId };
+    return { type: 'cloud', tenant, organizationId };
   } else {
     const { data: tenant } = await api.tenantCreate({
       name: tenantName,
       slug,
     });
 
-    return { type: "regular", tenant };
+    return { type: 'regular', tenant };
   }
 };
 
 const useSaveTenant = ({
   afterSave,
 }: {
-  afterSave: NewTenantSaverFormProps["afterSave"];
+  afterSave: NewTenantSaverFormProps['afterSave'];
 }) => {
   const { isCloudEnabled, invalidate: invalidateUserUniverse } =
     useUserUniverse();
@@ -87,12 +87,12 @@ const useSaveTenant = ({
       }),
     onSuccess: (data) => {
       invalidateUserUniverse();
-      if (data.type === "cloud") {
-        localStorage.setItem("hatchet:show-welcome", "1");
+      if (data.type === 'cloud') {
+        localStorage.setItem('hatchet:show-welcome', '1');
       }
-      capture("onboarding_tenant_created", {
+      capture('onboarding_tenant_created', {
         tenant_type: data.type,
-        is_cloud: data.type === "cloud",
+        is_cloud: data.type === 'cloud',
       });
       afterSave(data);
     },

@@ -1,9 +1,9 @@
-import { ErrorPageLayout } from "./layout";
-import { Badge } from "@/components/v1/ui/badge";
-import { Button } from "@/components/v1/ui/button";
-import { appRoutes } from "@/router";
-import { useLocation, useNavigate } from "@tanstack/react-router";
-import { CloudDownload, Home } from "lucide-react";
+import { ErrorPageLayout } from './layout';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
+import { appRoutes } from '@/router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { CloudDownload, Home } from 'lucide-react';
 
 export function NewVersionAvailable() {
   const navigate = useNavigate();
@@ -11,8 +11,8 @@ export function NewVersionAvailable() {
 
   const queryParams = new URLSearchParams(location.search);
 
-  if (!queryParams.has("updated")) {
-    queryParams.set("updated", "true");
+  if (!queryParams.has('updated')) {
+    queryParams.set('updated', 'true');
     const updatedUrl = `${location.pathname}?${queryParams.toString()}`;
     window.location.href = updatedUrl;
   }

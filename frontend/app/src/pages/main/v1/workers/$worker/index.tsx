@@ -1,87 +1,87 @@
-import { RunsTable } from "../../workflow-runs-v1/components/runs-table";
-import { flattenDAGsKey } from "../../workflow-runs-v1/components/v1/task-runs-columns";
-import { RunsProvider } from "../../workflow-runs-v1/hooks/runs-provider";
-import { DocsButton } from "@/components/v1/docs/docs-button";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { Badge, BadgeProps } from "@/components/v1/ui/badge";
-import { Button } from "@/components/v1/ui/button";
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge, BadgeProps } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/v1/ui/card";
+} from '@/components/v1/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/v1/ui/dropdown-menu";
-import { Loading } from "@/components/v1/ui/loading.tsx";
+} from '@/components/v1/ui/dropdown-menu';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import {
   PortalTooltip,
   PortalTooltipContent,
   PortalTooltipProvider,
   PortalTooltipTrigger,
-} from "@/components/v1/ui/portal-tooltip";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import api, { queries, UpdateWorkerRequest, Worker } from "@/lib/api";
-import { shouldRetryQueryError } from "@/lib/error-utils";
-import { docsPages } from "@/lib/generated/docs";
-import { useApiError } from "@/lib/hooks";
-import { capitalize, cn } from "@/lib/utils";
-import { ResourceNotFound } from "@/pages/error/components/resource-not-found";
-import queryClient from "@/query-client";
-import { appRoutes } from "@/router";
-import { ServerStackIcon } from "@heroicons/react/24/outline";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
-import { isAxiosError } from "axios";
-import { useMemo, useState } from "react";
-import { BiDotsVertical } from "react-icons/bi";
+} from '@/components/v1/ui/portal-tooltip';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
+import { shouldRetryQueryError } from '@/lib/error-utils';
+import { docsPages } from '@/lib/generated/docs';
+import { useApiError } from '@/lib/hooks';
+import { capitalize, cn } from '@/lib/utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import queryClient from '@/query-client';
+import { appRoutes } from '@/router';
+import { ServerStackIcon } from '@heroicons/react/24/outline';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Link, useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
+import { useMemo, useState } from 'react';
+import { BiDotsVertical } from 'react-icons/bi';
 
 const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
   if (!worker) {
-    reasons.push("Worker is undefined");
+    reasons.push('Worker is undefined');
     return reasons;
   }
 
-  if (worker.status !== "ACTIVE") {
-    reasons.push("Worker has stopped heartbeating");
+  if (worker.status !== 'ACTIVE') {
+    reasons.push('Worker has stopped heartbeating');
   }
 
   if (!worker.dispatcherId) {
-    reasons.push("Worker has no assigned dispatcher");
+    reasons.push('Worker has no assigned dispatcher');
   }
 
   if (!worker.lastHeartbeatAt) {
-    reasons.push("Worker has no heartbeat");
+    reasons.push('Worker has no heartbeat');
   }
 
   return reasons;
 };
 
 const WorkerStatus = ({
-  status = "INACTIVE",
+  status = 'INACTIVE',
   health,
 }: {
-  status?: "ACTIVE" | "INACTIVE" | "PAUSED";
+  status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
   health: string[];
 }) => {
   const label: Record<typeof status, string> = {
-    ACTIVE: "Active",
-    INACTIVE: "Inactive",
-    PAUSED: "Paused",
+    ACTIVE: 'Active',
+    INACTIVE: 'Inactive',
+    PAUSED: 'Paused',
   };
 
-  const variant: Record<typeof status, BadgeProps["variant"]> = {
-    ACTIVE: "successful",
-    INACTIVE: "failed",
-    PAUSED: "inProgress",
+  const variant: Record<typeof status, BadgeProps['variant']> = {
+    ACTIVE: 'successful',
+    INACTIVE: 'failed',
+    PAUSED: 'inProgress',
   };
 
   return (
@@ -123,7 +123,7 @@ export default function WorkerDetail() {
   const healthy = isHealthy(worker);
 
   const updateWorker = useMutation({
-    mutationKey: ["worker:update", worker?.metadata.id],
+    mutationKey: ['worker:update', worker?.metadata.id],
     mutationFn: async (data: UpdateWorkerRequest) =>
       (await api.workerUpdate(worker!.metadata.id, data)).data,
     onSuccess: async () => {
@@ -163,7 +163,7 @@ export default function WorkerDetail() {
         <ResourceNotFound
           resource="Worker"
           primaryAction={{
-            label: "Back to Workers",
+            label: 'Back to Workers',
             navigate: {
               to: appRoutes.tenantWorkersRoute.to,
               params: { tenant: tenantId },
@@ -210,14 +210,14 @@ export default function WorkerDetail() {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem
-                  disabled={worker.status === "INACTIVE"}
+                  disabled={worker.status === 'INACTIVE'}
                   onClick={() => {
                     updateWorker.mutate({
-                      isPaused: worker.status === "PAUSED" ? false : true,
+                      isPaused: worker.status === 'PAUSED' ? false : true,
                     });
                   }}
                 >
-                  {worker.status === "PAUSED" ? "Resume" : "Pause"} Step Run
+                  {worker.status === 'PAUSED' ? 'Resume' : 'Pause'} Step Run
                   Assignment
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -227,7 +227,7 @@ export default function WorkerDetail() {
 
         <div
           className={cn(
-            "mt-6 grid gap-4 md:grid-cols-2",
+            'mt-6 grid gap-4 md:grid-cols-2',
             `lg:grid-cols-${maxCols}`,
           )}
         >
@@ -265,7 +265,7 @@ export default function WorkerDetail() {
                   {worker.lastHeartbeatAt ? (
                     <RelativeDate date={worker.lastHeartbeatAt} />
                   ) : (
-                    "Never"
+                    'Never'
                   )}
                 </div>
               </div>
@@ -330,12 +330,12 @@ export default function WorkerDetail() {
                 </div>
               )}
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Slots represent concurrent task runs.{" "}
+                Slots represent concurrent task runs.{' '}
                 <DocsButton
                   variant="text"
                   doc={docsPages.v1.workers}
                   label="Learn more"
-                  scrollTo={"understanding-slots"}
+                  scrollTo={'understanding-slots'}
                 />
               </p>
             </CardContent>
@@ -367,7 +367,7 @@ export default function WorkerDetail() {
                         Runtime
                       </div>
                       <div className="font-medium text-gray-900 dark:text-gray-100">
-                        {capitalize(worker.runtimeInfo.language ?? "")}{" "}
+                        {capitalize(worker.runtimeInfo.language ?? '')}{' '}
                         {worker.runtimeInfo.languageVersion}
                       </div>
                     </div>
@@ -405,12 +405,12 @@ export default function WorkerDetail() {
                 <CardTitle>Worker Labels</CardTitle>
                 <CardDescription>
                   Key-value pairs used to prioritize step assignment to specific
-                  workers.{" "}
+                  workers.{' '}
                   <DocsButton
                     variant="text"
-                    doc={docsPages.v1["advanced-assignment"]["worker-affinity"]}
+                    doc={docsPages.v1['advanced-assignment']['worker-affinity']}
                     label="Learn more"
-                    scrollTo={"specifying-worker-labels"}
+                    scrollTo={'specifying-worker-labels'}
                   />
                 </CardDescription>
               </CardHeader>
@@ -459,7 +459,7 @@ export default function WorkerDetail() {
                     size="sm"
                     onClick={() => setShowAllActions(true)}
                   >
-                    Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{" "}
+                    Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
                     more
                   </Button>
                 </div>
@@ -482,7 +482,7 @@ export default function WorkerDetail() {
                 workerId: worker.metadata.id,
               }}
             >
-              <RunsTable leftLabel={"Recent runs"} />
+              <RunsTable leftLabel={'Recent runs'} />
             </RunsProvider>
           </CardContent>
         </Card>

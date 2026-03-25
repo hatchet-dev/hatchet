@@ -43,10 +43,10 @@ function getValidNumber(
         numericValue = max;
       }
     }
-    return numericValue.toString().padStart(2, "0");
+    return numericValue.toString().padStart(2, '0');
   }
 
-  return "00";
+  return '00';
 }
 
 function getValidHour(value: string) {
@@ -85,7 +85,7 @@ function getValidArrowNumber(
     numericValue += step;
     return getValidNumber(String(numericValue), { min, max, loop: true });
   }
-  return "00";
+  return '00';
 }
 
 function getValidArrowHour(value: string, step: number) {
@@ -125,8 +125,8 @@ function set12Hours(date: Date, value: string, period: Period) {
   return date;
 }
 
-export type TimePickerType = "minutes" | "seconds" | "hours" | "12hours";
-export type Period = "AM" | "PM";
+export type TimePickerType = 'minutes' | 'seconds' | 'hours' | '12hours';
+export type Period = 'AM' | 'PM';
 
 export function setDateByType(
   date: Date,
@@ -135,13 +135,13 @@ export function setDateByType(
   period?: Period,
 ) {
   switch (type) {
-    case "minutes":
+    case 'minutes':
       return setMinutes(date, value);
-    case "seconds":
+    case 'seconds':
       return setSeconds(date, value);
-    case "hours":
+    case 'hours':
       return setHours(date, value);
-    case "12hours": {
+    case '12hours': {
       if (!period) {
         return date;
       }
@@ -154,16 +154,16 @@ export function setDateByType(
 
 export function getDateByType(date: Date, type: TimePickerType) {
   switch (type) {
-    case "minutes":
+    case 'minutes':
       return getValidMinuteOrSecond(String(date.getMinutes()));
-    case "seconds":
+    case 'seconds':
       return getValidMinuteOrSecond(String(date.getSeconds()));
-    case "hours":
+    case 'hours':
       return getValidHour(String(date.getHours()));
-    case "12hours":
+    case '12hours':
       return getValid12Hour(String(display12HourValue(date.getHours())));
     default:
-      return "00";
+      return '00';
   }
 }
 
@@ -173,16 +173,16 @@ export function getArrowByType(
   type: TimePickerType,
 ) {
   switch (type) {
-    case "minutes":
+    case 'minutes':
       return getValidArrowMinuteOrSecond(value, step);
-    case "seconds":
+    case 'seconds':
       return getValidArrowMinuteOrSecond(value, step);
-    case "hours":
+    case 'hours':
       return getValidArrowHour(value, step);
-    case "12hours":
+    case '12hours':
       return getValidArrow12Hour(value, step);
     default:
-      return "00";
+      return '00';
   }
 }
 
@@ -192,13 +192,13 @@ export function getArrowByType(
  * 12:00 AM is 00:00
  */
 function convert12HourTo24Hour(hour: number, period: Period) {
-  if (period === "PM") {
+  if (period === 'PM') {
     if (hour <= 11) {
       return hour + 12;
     } else {
       return hour;
     }
-  } else if (period === "AM") {
+  } else if (period === 'AM') {
     if (hour === 12) {
       return 0;
     }
@@ -214,7 +214,7 @@ function convert12HourTo24Hour(hour: number, period: Period) {
  */
 function display12HourValue(hours: number) {
   if (hours === 0 || hours === 12) {
-    return "12";
+    return '12';
   }
   if (hours >= 22) {
     return `${hours - 12}`;

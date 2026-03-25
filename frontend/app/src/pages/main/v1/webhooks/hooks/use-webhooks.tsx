@@ -1,4 +1,4 @@
-import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
   V1CreateWebhookRequest,
@@ -7,9 +7,9 @@ import api, {
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
   V1WebhookSourceName,
-} from "@/lib/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
+} from '@/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 
 export const useWebhooks = (onDeleteSuccess?: () => void) => {
   const queryClient = useQueryClient();
@@ -86,7 +86,7 @@ const optionalJsonString = z
   .optional()
   .refine(
     (val) => {
-      if (!val || val.trim() === "") {
+      if (!val || val.trim() === '') {
         return true;
       }
       try {
@@ -96,13 +96,13 @@ const optionalJsonString = z
         return false;
       }
     },
-    { message: "Must be valid JSON" },
+    { message: 'Must be valid JSON' },
   );
 
 export const webhookFormSchema = z.object({
   sourceName: z.nativeEnum(V1WebhookSourceName),
-  name: z.string().min(1, "Name expression is required"),
-  eventKeyExpression: z.string().min(1, "Event key expression is required"),
+  name: z.string().min(1, 'Name expression is required'),
+  eventKeyExpression: z.string().min(1, 'Event key expression is required'),
   scopeExpression: z.string().optional(),
   staticPayload: optionalJsonString,
   authType: z.nativeEnum(V1WebhookAuthType),
@@ -119,7 +119,7 @@ export const webhookFormSchema = z.object({
 export type WebhookFormData = z.infer<typeof webhookFormSchema>;
 
 export const webhookUpdateFormSchema = z.object({
-  eventKeyExpression: z.string().min(1, "Event key expression is required"),
+  eventKeyExpression: z.string().min(1, 'Event key expression is required'),
   scopeExpression: z.string().optional(),
   staticPayload: optionalJsonString,
 });

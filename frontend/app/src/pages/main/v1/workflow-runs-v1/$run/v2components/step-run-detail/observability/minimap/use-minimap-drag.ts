@@ -1,7 +1,7 @@
-import { MIN_RANGE_PCT } from "./minimap-types";
-import type { DragMode, DragState, TimeRange } from "./minimap-types";
-import { pctFromEvent } from "./minimap-utils";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { MIN_RANGE_PCT } from './minimap-types';
+import type { DragMode, DragState, TimeRange } from './minimap-types';
+import { pctFromEvent } from './minimap-utils';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function useMinimapDrag(
   trackRef: React.RefObject<HTMLDivElement | null>,
@@ -36,7 +36,7 @@ export function useMinimapDrag(
         startPct: clickPct,
         endPct: Math.min(1, clickPct + MIN_RANGE_PCT),
       });
-      startDrag("brush", e, clickPct);
+      startDrag('brush', e, clickPct);
     },
     [trackRef, startDrag, onRangeChange],
   );
@@ -62,7 +62,7 @@ export function useMinimapDrag(
 
       const { startPct: origStart, endPct: origEnd } = dragRef.current;
 
-      if (dragging === "brush") {
+      if (dragging === 'brush') {
         const anchor = dragRef.current.anchorPct!;
         const current = pctFromEvent(e, trackRef.current);
         let lo = Math.min(anchor, current);
@@ -80,13 +80,13 @@ export function useMinimapDrag(
 
       const deltaPct = (e.clientX - dragRef.current.mouseX) / trackWidth;
 
-      if (dragging === "left") {
+      if (dragging === 'left') {
         const newStart = Math.max(
           0,
           Math.min(origEnd - MIN_RANGE_PCT, origStart + deltaPct),
         );
         onRangeChange({ startPct: newStart, endPct: origEnd });
-      } else if (dragging === "right") {
+      } else if (dragging === 'right') {
         const newEnd = Math.min(
           1,
           Math.max(origStart + MIN_RANGE_PCT, origEnd + deltaPct),
@@ -100,11 +100,11 @@ export function useMinimapDrag(
       dragRef.current = null;
     };
 
-    document.addEventListener("pointermove", onMove);
-    document.addEventListener("pointerup", onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
     return () => {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
     };
   }, [dragging, trackRef, onRangeChange]);
 

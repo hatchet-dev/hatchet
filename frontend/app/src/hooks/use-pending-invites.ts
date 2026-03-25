@@ -1,11 +1,11 @@
-import api from "@/lib/api";
-import { cloudApi } from "@/lib/api/api";
-import useCloud from "@/pages/auth/hooks/use-cloud";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import api from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 export const pendingInvitesQuery = (isCloudEnabled: boolean) => ({
-  queryKey: ["pending-invites", isCloudEnabled],
+  queryKey: ['pending-invites', isCloudEnabled],
   queryFn: async () => {
     const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
       api.userListTenantInvites(),
@@ -15,11 +15,11 @@ export const pendingInvitesQuery = (isCloudEnabled: boolean) => ({
     ]);
 
     const tenantInvites =
-      tenantInvitesRes.status === "fulfilled"
+      tenantInvitesRes.status === 'fulfilled'
         ? tenantInvitesRes.value.data.rows || []
         : [];
     const organizationInvites =
-      orgInvitesRes.status === "fulfilled"
+      orgInvitesRes.status === 'fulfilled'
         ? orgInvitesRes.value.data.rows || []
         : [];
 
@@ -43,7 +43,7 @@ export const usePendingInvites = () => {
 
   const invalidate = useCallback(() => {
     queryClient.resetQueries({
-      queryKey: ["pending-invites"],
+      queryKey: ['pending-invites'],
     });
   }, [queryClient]);
 

@@ -1,4 +1,4 @@
-import { useAppContext } from "@/providers/app-context";
+import { useAppContext } from '@/providers/app-context';
 
 /**
  * Hook to access the current user

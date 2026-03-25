@@ -1,47 +1,47 @@
-import { Combobox } from "@/components/v1/molecules/combobox/combobox";
-import { ToolbarType } from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { DateTimePicker } from "@/components/v1/molecules/time-picker/date-time-picker";
-import { Button } from "@/components/v1/ui/button";
-import { CodeEditor } from "@/components/v1/ui/code-editor";
+import { Combobox } from '@/components/v1/molecules/combobox/combobox';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { Button } from '@/components/v1/ui/button';
+import { CodeEditor } from '@/components/v1/ui/code-editor';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Input } from "@/components/v1/ui/input";
-import { Skeleton } from "@/components/v1/ui/skeleton";
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/v1/ui/tabs";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
+} from '@/components/v1/ui/tabs';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CronWorkflows,
   queries,
   ScheduledWorkflows,
   V1WorkflowRunDetails,
   Workflow,
-} from "@/lib/api";
-import { formatCron } from "@/lib/cron";
-import { useApiError } from "@/lib/hooks";
-import { appRoutes } from "@/router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { debounce } from "lodash";
-import { useCallback, useMemo, useState, useEffect } from "react";
-import { BiDownArrowCircle } from "react-icons/bi";
+} from '@/lib/api';
+import { formatCron } from '@/lib/cron';
+import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { debounce } from 'lodash';
+import { useCallback, useMemo, useState, useEffect } from 'react';
+import { BiDownArrowCircle } from 'react-icons/bi';
 
-type TimingOption = "now" | "schedule" | "cron";
+type TimingOption = 'now' | 'schedule' | 'cron';
 
 export function TriggerWorkflowForm({
   defaultWorkflow,
   show,
   onClose,
-  defaultTimingOption = "now",
+  defaultTimingOption = 'now',
 }: {
   defaultWorkflow?: Workflow;
   show: boolean;
@@ -52,8 +52,8 @@ export function TriggerWorkflowForm({
   const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
 
-  const [input, setInput] = useState<string | undefined>("{}");
-  const [addlMeta, setAddlMeta] = useState<string | undefined>("{}");
+  const [input, setInput] = useState<string | undefined>('{}');
+  const [addlMeta, setAddlMeta] = useState<string | undefined>('{}');
   const [errors, setErrors] = useState<string[]>([]);
 
   const [timingOption, setTimingOption] =
@@ -61,15 +61,15 @@ export function TriggerWorkflowForm({
   const [scheduleTime, setScheduleTime] = useState<Date | undefined>(
     new Date(),
   );
-  const [cronExpression, setCronExpression] = useState<string>("* * * * *");
-  const [cronName, setCronName] = useState<string>("");
+  const [cronExpression, setCronExpression] = useState<string>('* * * * *');
+  const [cronName, setCronName] = useState<string>('');
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(
     defaultWorkflow?.metadata.id,
   );
 
-  const [workflowSearch, setWorkflowSearch] = useState("");
-  const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] = useState("");
+  const [workflowSearch, setWorkflowSearch] = useState('');
+  const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] = useState('');
 
   const debouncedSetSearch = useMemo(
     () => debounce((value: string) => setDebouncedWorkflowSearch(value), 300),
@@ -77,7 +77,7 @@ export function TriggerWorkflowForm({
   );
 
   const workflowVersionQuery = useQuery({
-    ...queries.workflows.getVersion(selectedWorkflowId || ""),
+    ...queries.workflows.getVersion(selectedWorkflowId || ''),
     enabled: !!selectedWorkflowId,
   });
   const selectedWorkflow = workflowVersionQuery.data;
@@ -99,16 +99,16 @@ export function TriggerWorkflowForm({
 
   const handleClose = useCallback(() => {
     onClose();
-    setInput("{}");
-    setAddlMeta("{}");
+    setInput('{}');
+    setAddlMeta('{}');
     setErrors([]);
     setSelectedWorkflowId(defaultWorkflow?.metadata.id);
     setTimingOption(defaultTimingOption);
     setScheduleTime(new Date());
-    setCronExpression("* * * * *");
-    setCronName("");
-    setWorkflowSearch("");
-    setDebouncedWorkflowSearch("");
+    setCronExpression('* * * * *');
+    setCronName('');
+    setWorkflowSearch('');
+    setDebouncedWorkflowSearch('');
     debouncedSetSearch.cancel();
   }, [onClose, defaultWorkflow, defaultTimingOption, debouncedSetSearch]);
 
@@ -129,7 +129,7 @@ export function TriggerWorkflowForm({
 
   const { data: workflowKeys } = useQuery({
     queryKey: [
-      "workflow:list",
+      'workflow:list',
       tenantId,
       {
         limit: 200,
@@ -149,7 +149,7 @@ export function TriggerWorkflowForm({
   const jsonSchema = selectedWorkflow?.inputJsonSchema;
 
   const triggerNowMutation = useMutation({
-    mutationKey: ["workflow-run:create", selectedWorkflow?.metadata.id],
+    mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],
     mutationFn: async (data: { input: object; addlMeta: object }) => {
       if (!selectedWorkflow || !selectedWorkflow.workflow) {
         return;
@@ -180,7 +180,7 @@ export function TriggerWorkflowForm({
   });
 
   const triggerScheduleMutation = useMutation({
-    mutationKey: ["workflow-run:schedule", selectedWorkflow?.metadata.id],
+    mutationKey: ['workflow-run:schedule', selectedWorkflow?.metadata.id],
     mutationFn: async (data: {
       input: object;
       addlMeta: object;
@@ -211,7 +211,7 @@ export function TriggerWorkflowForm({
       }
       handleClose();
       await queryClient.invalidateQueries({
-        queryKey: ["scheduledRuns", "list"],
+        queryKey: ['scheduledRuns', 'list'],
       });
       navigate({
         to: appRoutes.tenantScheduledRoute.to,
@@ -222,7 +222,7 @@ export function TriggerWorkflowForm({
   });
 
   const triggerCronMutation = useMutation({
-    mutationKey: ["workflow-run:cron", selectedWorkflow?.metadata.id],
+    mutationKey: ['workflow-run:cron', selectedWorkflow?.metadata.id],
     mutationFn: async (data: {
       input: object;
       addlMeta: object;
@@ -255,7 +255,7 @@ export function TriggerWorkflowForm({
       }
       handleClose();
       await queryClient.invalidateQueries({
-        queryKey: ["cronJobs", "list"],
+        queryKey: ['cronJobs', 'list'],
       });
       navigate({
         to: appRoutes.tenantCronJobsRoute.to,
@@ -267,21 +267,21 @@ export function TriggerWorkflowForm({
 
   const handleSubmit = () => {
     if (!selectedWorkflow) {
-      setErrors(["No workflow selected."]);
+      setErrors(['No workflow selected.']);
       return;
     }
 
-    const inputObj = JSON.parse(input || "{}");
-    const addlMetaObj = JSON.parse(addlMeta || "{}");
+    const inputObj = JSON.parse(input || '{}');
+    const addlMetaObj = JSON.parse(addlMeta || '{}');
 
-    if (timingOption === "now") {
+    if (timingOption === 'now') {
       triggerNowMutation.mutate({
         input: inputObj,
         addlMeta: addlMetaObj,
       });
-    } else if (timingOption === "schedule") {
+    } else if (timingOption === 'schedule') {
       if (!scheduleTime) {
-        setErrors(["Please select a date and time for scheduling."]);
+        setErrors(['Please select a date and time for scheduling.']);
         return;
       }
       triggerScheduleMutation.mutate({
@@ -289,9 +289,9 @@ export function TriggerWorkflowForm({
         addlMeta: addlMetaObj,
         scheduledAt: scheduleTime.toISOString(),
       });
-    } else if (timingOption === "cron") {
+    } else if (timingOption === 'cron') {
       if (!cronExpression) {
-        setErrors(["Please enter a valid cron expression."]);
+        setErrors(['Please enter a valid cron expression.']);
         return;
       }
       triggerCronMutation.mutate({
@@ -339,7 +339,7 @@ export function TriggerWorkflowForm({
           emptyMessage={
             debouncedWorkflowSearch
               ? `No workflows matching "${debouncedWorkflowSearch}"`
-              : "No workflows found"
+              : 'No workflows found'
           }
         />
         <div className="font-bold">
@@ -354,7 +354,7 @@ export function TriggerWorkflowForm({
           <Skeleton className="h-[180px] w-full" />
         ) : (
           <CodeEditor
-            code={input || "{}"}
+            code={input || '{}'}
             setCode={setInput}
             language="json"
             height="180px"
@@ -366,7 +366,7 @@ export function TriggerWorkflowForm({
           <Skeleton className="h-[90px] w-full" />
         ) : (
           <CodeEditor
-            code={addlMeta || "{}"}
+            code={addlMeta || '{}'}
             setCode={setAddlMeta}
             height="90px"
             language="json"
@@ -377,7 +377,7 @@ export function TriggerWorkflowForm({
           <Tabs
             defaultValue={timingOption}
             onValueChange={(value) =>
-              setTimingOption(value as "now" | "schedule" | "cron")
+              setTimingOption(value as 'now' | 'schedule' | 'cron')
             }
           >
             <TabsList>

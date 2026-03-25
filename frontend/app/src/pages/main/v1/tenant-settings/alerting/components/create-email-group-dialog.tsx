@@ -1,16 +1,16 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Spinner } from "@/components/v1/ui/loading";
-import { Textarea } from "@/components/v1/ui/textarea";
-import { cn } from "@/lib/utils";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+} from '@/components/v1/ui/dialog';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Textarea } from '@/components/v1/ui/textarea';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   emails: z.array(z.string().email()).min(1).max(100),
@@ -46,7 +46,7 @@ export function CreateEmailGroupDialog({
           Enter emails as a comma-separated list.
         </DialogDescription>
       </DialogHeader>
-      <div className={cn("grid gap-6", className)}>
+      <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
             props.onSubmit(d);
@@ -64,7 +64,7 @@ export function CreateEmailGroupDialog({
                       id="api-token-name"
                       placeholder="email1@example.com,email2@example.com"
                       onChange={(e) => {
-                        field.onChange(e.target.value.split(","));
+                        field.onChange(e.target.value.split(','));
                       }}
                       autoCapitalize="none"
                       autoCorrect="off"

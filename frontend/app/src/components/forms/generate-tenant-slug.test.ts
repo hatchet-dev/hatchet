@@ -1,10 +1,10 @@
-import { generateTenantSlug } from "./generate-tenant-slug";
-import * as assert from "node:assert";
-import { test } from "node:test";
+import { generateTenantSlug } from './generate-tenant-slug';
+import * as assert from 'node:assert';
+import { test } from 'node:test';
 
-test("generateTenantSlug", () => {
-  const input1 = "My Test Tenant";
-  const input2 = "Another Tenant";
+test('generateTenantSlug', () => {
+  const input1 = 'My Test Tenant';
+  const input2 = 'Another Tenant';
 
   const slug1 = generateTenantSlug(input1);
   const slug2a = generateTenantSlug(input2);
@@ -15,22 +15,22 @@ test("generateTenantSlug", () => {
   assert.notStrictEqual(
     slug1,
     slug2a,
-    "different inputs should produce different slugs",
+    'different inputs should produce different slugs',
   );
   assert.match(
     slug1,
     slugPattern,
-    "slug from first input should match expected pattern",
+    'slug from first input should match expected pattern',
   );
   assert.match(
     slug2a,
     slugPattern,
-    "slug from second input should match expected pattern",
+    'slug from second input should match expected pattern',
   );
   assert.match(
     slug2b,
     slugPattern,
-    "slug from second input should match expected pattern",
+    'slug from second input should match expected pattern',
   );
 
   assert.notStrictEqual(

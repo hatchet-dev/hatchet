@@ -1,16 +1,16 @@
-import { ErrorPageLayout } from "./layout";
-import { Badge } from "@/components/v1/ui/badge";
-import { Button } from "@/components/v1/ui/button";
-import { getOptionalStringParam } from "@/lib/router-helpers";
-import { appRoutes } from "@/router";
-import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { FileQuestion, Home, Undo2 } from "lucide-react";
+import { ErrorPageLayout } from './layout';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
+import { getOptionalStringParam } from '@/lib/router-helpers';
+import { appRoutes } from '@/router';
+import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
+import { FileQuestion, Home, Undo2 } from 'lucide-react';
 
 export function NotFound() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams({ strict: false });
-  const tenant = getOptionalStringParam(params, "tenant");
+  const tenant = getOptionalStringParam(params, 'tenant');
 
   return (
     <ErrorPageLayout

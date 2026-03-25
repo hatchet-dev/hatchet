@@ -1,7 +1,7 @@
-import { formatInviteExpiry } from "./format-invite-expiry";
-import sortByExpires from "./sort-by-expires";
-import { TenantList, TenantTable } from "./tenant-list";
-import { Button } from "@/components/v1/ui/button";
+import { formatInviteExpiry } from './format-invite-expiry';
+import sortByExpires from './sort-by-expires';
+import { TenantList, TenantTable } from './tenant-list';
+import { Button } from '@/components/v1/ui/button';
 import {
   Table,
   TableBody,
@@ -9,31 +9,31 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/v1/ui/table";
-import api from "@/lib/api";
-import { cloudApi } from "@/lib/api/api";
+} from '@/components/v1/ui/table';
+import api from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
 import type {
   OrganizationForUser,
   OrganizationInvite,
   OrganizationMember,
-} from "@/lib/api/generated/cloud/data-contracts";
-import { OrganizationInviteStatus } from "@/lib/api/generated/cloud/data-contracts";
-import type { CreateOrganizationInviteRequest } from "@/lib/api/generated/cloud/data-contracts";
+} from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationInviteStatus } from '@/lib/api/generated/cloud/data-contracts';
+import type { CreateOrganizationInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
 import {
   Tenant,
   TenantInvite,
   TenantMember,
   TenantMemberRole,
-} from "@/lib/api/generated/data-contracts";
-import { globalEmitter } from "@/lib/global-emitter";
-import { capitalize } from "@/lib/utils";
-import { getCloudMetadataQuery } from "@/pages/auth/hooks/use-cloud";
-import { userUniverseQuery } from "@/providers/user-universe";
-import queryClient from "@/query-client";
-import { PlusIcon } from "@heroicons/react/24/outline";
-import { useLoaderData } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import invariant from "tiny-invariant";
+} from '@/lib/api/generated/data-contracts';
+import { globalEmitter } from '@/lib/global-emitter';
+import { capitalize } from '@/lib/utils';
+import { getCloudMetadataQuery } from '@/pages/auth/hooks/use-cloud';
+import { userUniverseQuery } from '@/providers/user-universe';
+import queryClient from '@/query-client';
+import { PlusIcon } from '@heroicons/react/24/outline';
+import { useLoaderData } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import invariant from 'tiny-invariant';
 
 export type TenantWithRole = Tenant & {
   currentUsersRole: TenantMemberRole;
@@ -63,7 +63,7 @@ const mapTenantsToOrganizations = (
       .filter((t): t is TenantWithRole => t != null),
   }));
 
-type OrgWithTenants = Omit<OrganizationForUser, "tenants"> & {
+type OrgWithTenants = Omit<OrganizationForUser, 'tenants'> & {
   tenants: TenantWithRole[];
 };
 
@@ -171,7 +171,7 @@ const OrganizationMembersTable = ({
   invites: (OrganizationInvite | CreateOrganizationInviteRequest)[];
 }) => {
   const pendingInvites = invites.filter(
-    (i) => !("status" in i) || i.status === OrganizationInviteStatus.PENDING,
+    (i) => !('status' in i) || i.status === OrganizationInviteStatus.PENDING,
   );
 
   return (
@@ -195,14 +195,14 @@ const OrganizationMembersTable = ({
           {pendingInvites.map((invite) => (
             <TableRow
               key={
-                "metadata" in invite ? invite.metadata.id : invite.inviteeEmail
+                'metadata' in invite ? invite.metadata.id : invite.inviteeEmail
               }
               className="text-muted-foreground"
             >
               <TableCell>{invite.inviteeEmail}</TableCell>
               <TableCell>
-                Invited{" "}
-                {"expires" in invite && formatInviteExpiry(invite.expires)}
+                Invited{' '}
+                {'expires' in invite && formatInviteExpiry(invite.expires)}
               </TableCell>
             </TableRow>
           ))}
@@ -257,7 +257,7 @@ const OrganizationList = ({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      globalEmitter.emit("create-new-tenant", {
+                      globalEmitter.emit('create-new-tenant', {
                         defaultOrganizationId: org.metadata.id,
                       });
                     }}
@@ -273,7 +273,7 @@ const OrganizationList = ({
                   tenantMembers={tenantMembers}
                   tenantInvites={tenantInvites}
                   onInviteMember={(tenantId) =>
-                    globalEmitter.emit("create-tenant-invite", {
+                    globalEmitter.emit('create-tenant-invite', {
                       tenantId,
                     })
                   }
@@ -295,7 +295,7 @@ const OrganizationList = ({
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      globalEmitter.emit("create-organization-invite", {
+                      globalEmitter.emit('create-organization-invite', {
                         organizationId: org.metadata.id,
                         organizationName: org.name,
                       })
@@ -338,7 +338,7 @@ const fetchOrganizationInvites = (
 
 export default function OrganizationsPage() {
   const loaderData = useLoaderData({
-    from: "/tenants/$tenant/organizations-and-tenants",
+    from: '/tenants/$tenant/organizations-and-tenants',
   });
 
   const [, setOrganizationRefetchPromises] = useState<
@@ -353,7 +353,7 @@ export default function OrganizationsPage() {
   useEffect(
     () =>
       globalEmitter.on(
-        "organization-invite-created",
+        'organization-invite-created',
         ({ organizationId, invite }) => {
           setOrganizationInvites((prev) => {
             const next = new Map(prev);
@@ -395,7 +395,7 @@ export default function OrganizationsPage() {
 
   useEffect(
     () =>
-      globalEmitter.on("tenant-invite-created", ({ tenantId, invite }) => {
+      globalEmitter.on('tenant-invite-created', ({ tenantId, invite }) => {
         setTenantInvites((prev) => {
           const next = new Map(prev);
           const existing = next.get(tenantId) ?? [];

@@ -5,43 +5,43 @@ import {
   runningFilterKey,
   statusKey,
   workflowKey,
-} from "../components/v1/task-runs-columns";
-import { FilterActions } from "./use-runs-table-filters";
-import { useWorkflows } from "./use-workflows";
+} from '../components/v1/task-runs-columns';
+import { FilterActions } from './use-runs-table-filters';
+import { useWorkflows } from './use-workflows';
 import {
   FilterOption,
   ToolbarFilters,
   ToolbarType,
   TimeRangeConfig,
-} from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { V1RunningFilter, V1TaskStatus } from "@/lib/api";
-import { useMemo } from "react";
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
+import { useMemo } from 'react';
 
 export const workflowRunStatusFilters: FilterOption[] = [
   {
     value: V1TaskStatus.COMPLETED,
-    label: "Succeeded",
+    label: 'Succeeded',
   },
   {
     value: V1TaskStatus.FAILED,
-    label: "Failed",
+    label: 'Failed',
   },
   {
     value: V1TaskStatus.RUNNING,
-    label: "Running",
+    label: 'Running',
     subFilterColumnId: runningFilterKey,
     subOptions: [
-      { value: V1RunningFilter.ON_WORKER, label: "On Worker" },
-      { value: V1RunningFilter.EVICTED, label: "Evicted" },
+      { value: V1RunningFilter.ON_WORKER, label: 'On Worker' },
+      { value: V1RunningFilter.EVICTED, label: 'Evicted' },
     ],
   },
   {
     value: V1TaskStatus.QUEUED,
-    label: "Queued",
+    label: 'Queued',
   },
   {
     value: V1TaskStatus.CANCELLED,
-    label: "Cancelled",
+    label: 'Cancelled',
   },
 ];
 
@@ -65,7 +65,7 @@ export const useToolbarFilters = ({
 
   const timeRangeConfig: TimeRangeConfig = {
     onTimeWindowChange: (value: string) => {
-      if (value !== "custom") {
+      if (value !== 'custom') {
         filterActions.setTimeWindow(value as any);
       } else {
         filterActions.setCustomTimeRange({
@@ -103,34 +103,34 @@ export const useToolbarFilters = ({
   return [
     {
       columnId: createdAtKey,
-      title: "Time Range",
+      title: 'Time Range',
       type: ToolbarType.TimeRange,
       timeRangeConfig,
     },
     {
       columnId: workflowKey,
-      title: "Workflow",
+      title: 'Workflow',
       options: workflowKeyFilters,
       type: ToolbarType.Checkbox,
     },
     {
       columnId: statusKey,
-      title: "Status",
+      title: 'Status',
       options: workflowRunStatusFilters,
       type: ToolbarType.Checkbox,
     },
     {
       columnId: additionalMetadataKey,
-      title: "Metadata",
+      title: 'Metadata',
       type: ToolbarType.KeyValue,
     },
     {
       columnId: flattenDAGsKey,
-      title: "Flatten DAGs",
+      title: 'Flatten DAGs',
       type: ToolbarType.Switch,
       options: [
-        { value: "true", label: "Flatten" },
-        { value: "false", label: "All" },
+        { value: 'true', label: 'Flatten' },
+        { value: 'false', label: 'All' },
       ],
     },
   ].filter((filter) => filterVisibility[filter.columnId] != false);

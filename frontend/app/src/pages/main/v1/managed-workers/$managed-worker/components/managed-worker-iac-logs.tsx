@@ -1,9 +1,9 @@
-import { LogLine } from "@/components/v1/cloud/logging/log-search/use-logs";
-import { LogViewer } from "@/components/v1/cloud/logging/log-viewer";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { queries } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
+import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 export function ManagedWorkerIaCLogs({
   managedWorkerId,
@@ -24,9 +24,9 @@ export function ManagedWorkerIaCLogs({
     if (cloudLogs.length === 0) {
       return [
         {
-          line: "Loading...",
+          line: 'Loading...',
           timestamp: new Date().toISOString(),
-          instance: "Hatchet",
+          instance: 'Hatchet',
         },
       ];
     }

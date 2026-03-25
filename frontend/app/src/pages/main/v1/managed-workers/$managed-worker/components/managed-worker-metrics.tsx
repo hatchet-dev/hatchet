@@ -1,30 +1,30 @@
 import {
   DataPoint,
   ZoomableChart,
-} from "@/components/v1/molecules/charts/zoomable";
-import { DateTimePicker } from "@/components/v1/molecules/time-picker/date-time-picker";
-import { Button } from "@/components/v1/ui/button";
-import { Loading } from "@/components/v1/ui/loading";
+} from '@/components/v1/molecules/charts/zoomable';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/v1/ui/loading';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { Separator } from "@/components/v1/ui/separator";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { queries } from "@/lib/api";
+} from '@/components/v1/ui/select';
+import { Separator } from '@/components/v1/ui/separator';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { queries } from '@/lib/api';
 import {
   ManagedWorker,
   Matrix,
-} from "@/lib/api/generated/cloud/data-contracts";
-import { lastWorkerMetricsTimeRangeAtom } from "@/lib/atoms";
-import { getCreatedAfterFromTimeRange } from "@/pages/main/workflow-runs/components/workflow-runs-table";
-import { XCircleIcon } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useEffect, useMemo, useState } from "react";
+} from '@/lib/api/generated/cloud/data-contracts';
+import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
+import { getCreatedAfterFromTimeRange } from '@/pages/main/workflow-runs/components/workflow-runs-table';
+import { XCircleIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { useAtom } from 'jotai';
+import { useEffect, useMemo, useState } from 'react';
 
 export function ManagedWorkerMetrics({
   managedWorker,
@@ -84,7 +84,7 @@ export function ManagedWorkerMetrics({
 
   const getCpuMetricsQuery = useQuery({
     ...queries.cloud.getManagedWorkerCpuMetrics(
-      managedWorker?.metadata.id || "",
+      managedWorker?.metadata.id || '',
       queryParams,
     ),
     enabled: !!managedWorker,
@@ -93,7 +93,7 @@ export function ManagedWorkerMetrics({
 
   const getMemoryMetricsQuery = useQuery({
     ...queries.cloud.getManagedWorkerMemoryMetrics(
-      managedWorker?.metadata.id || "",
+      managedWorker?.metadata.id || '',
       queryParams,
     ),
     enabled: !!managedWorker,
@@ -102,7 +102,7 @@ export function ManagedWorkerMetrics({
 
   const getDiskMetricsQuery = useQuery({
     ...queries.cloud.getManagedWorkerDiskMetrics(
-      managedWorker?.metadata.id || "",
+      managedWorker?.metadata.id || '',
       queryParams,
     ),
     enabled: !!managedWorker,
@@ -158,9 +158,9 @@ export function ManagedWorkerMetrics({
             />,
           ]}
           <Select
-            value={customTimeRange ? "custom" : defaultTimeRange}
+            value={customTimeRange ? 'custom' : defaultTimeRange}
             onValueChange={(value) => {
-              if (value !== "custom") {
+              if (value !== 'custom') {
                 setDefaultTimeRange(value);
                 setCustomTimeRange(undefined);
               } else {
@@ -247,7 +247,7 @@ function transformToDataPoints(
 
   matrix.forEach((sampleStream) => {
     // if we have instance or region, use that as the metricLabel
-    let metricLabel = Object.values(sampleStream.metric || {}).join("-");
+    let metricLabel = Object.values(sampleStream.metric || {}).join('-');
 
     if (sampleStream.metric?.instance && sampleStream.metric?.region) {
       metricLabel = `[${sampleStream.metric.region}] ${sampleStream.metric.instance}`;

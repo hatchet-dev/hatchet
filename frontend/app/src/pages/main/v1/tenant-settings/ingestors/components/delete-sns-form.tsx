@@ -1,11 +1,11 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Spinner } from "@/components/v1/ui/loading.tsx";
-import { SNSIntegration } from "@/lib/api";
+} from '@/components/v1/ui/dialog';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { SNSIntegration } from '@/lib/api';
 
 interface DeleteSNSFormProps {
   className?: string;
@@ -23,7 +23,7 @@ export function DeleteSNSForm({ className, ...props }: DeleteSNSFormProps) {
       </DialogHeader>
       <div>
         <div className="mb-4 text-sm text-foreground">
-          Are you sure you want to revoke the SNS integration on Topic ARN{" "}
+          Are you sure you want to revoke the SNS integration on Topic ARN{' '}
           {props.snsIntegration.topicArn}? This action will immediately prevent
           any SNS events from being sent to the Hatchet subscriber.
         </div>

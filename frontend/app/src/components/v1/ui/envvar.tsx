@@ -1,9 +1,9 @@
-import { Textarea } from "./textarea";
-import { Button } from "@/components/v1/ui/button";
-import { Input } from "@/components/v1/ui/input";
-import { cn } from "@/lib/utils";
-import { TrashIcon } from "@radix-ui/react-icons";
-import React, { useEffect } from "react";
+import { Textarea } from './textarea';
+import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
+import { cn } from '@/lib/utils';
+import { TrashIcon } from '@radix-ui/react-icons';
+import React, { useEffect } from 'react';
 
 export type KeyValueType = {
   key: string;
@@ -49,10 +49,10 @@ const EnvGroupArray: React.FC<PropsType> = ({
     const entry = newValues[index];
 
     // If this is an existing secret and we're editing the value
-    if (key === "value" && entry.hint) {
+    if (key === 'value' && entry.hint) {
       // Only set isEditing to true if the value is different from the hint
       // and not empty (which would be the case when no changes are made)
-      if (value !== entry.hint && value !== "") {
+      if (value !== entry.hint && value !== '') {
         newValues[index] = { ...entry, [key]: value, isEditing: true };
       }
     } else {
@@ -116,32 +116,32 @@ const EnvGroupArray: React.FC<PropsType> = ({
       {values?.map((entry: KeyValueType, i: number) => (
         <div
           className={cn(
-            "mb-2 flex items-center gap-2",
-            entry.deleted && "opacity-50 [&>*]:line-through",
+            'mb-2 flex items-center gap-2',
+            entry.deleted && 'opacity-50 [&>*]:line-through',
           )}
           key={i}
         >
           <Input
             placeholder="ex: key"
             value={entry.key}
-            onChange={(e) => handleValueChange(i, "key", e.target.value)}
+            onChange={(e) => handleValueChange(i, 'key', e.target.value)}
             disabled={disabled || entry.locked || entry.deleted}
             className={cn(
-              "w-64",
-              entry.locked && "cursor-not-allowed bg-gray-200",
+              'w-64',
+              entry.locked && 'cursor-not-allowed bg-gray-200',
             )}
           />
           {entry.hidden ? (
             <Input
               placeholder={entry.hint}
               value={entry.isEditing ? entry.value : undefined}
-              onChange={(e) => handleValueChange(i, "value", e.target.value)}
+              onChange={(e) => handleValueChange(i, 'value', e.target.value)}
               type="password"
               disabled={disabled || entry.locked || entry.deleted}
               className={cn(
-                "flex-1",
-                entry.locked && "cursor-not-allowed bg-gray-200",
-                !entry.isEditing && entry.hint && "text-gray-400",
+                'flex-1',
+                entry.locked && 'cursor-not-allowed bg-gray-200',
+                !entry.isEditing && entry.hint && 'text-gray-400',
               )}
             />
           ) : (
@@ -149,14 +149,14 @@ const EnvGroupArray: React.FC<PropsType> = ({
               placeholder={entry.hint}
               value={entry.isEditing ? entry.value : undefined}
               onChange={(e: any) =>
-                handleValueChange(i, "value", e.target.value)
+                handleValueChange(i, 'value', e.target.value)
               }
-              rows={entry.value?.split("\n").length || 0}
+              rows={entry.value?.split('\n').length || 0}
               disabled={disabled || entry.locked || entry.deleted}
               className={cn(
-                "flex-1",
-                entry.locked && "cursor-not-allowed bg-gray-200",
-                !entry.isEditing && entry.hint && "text-gray-400",
+                'flex-1',
+                entry.locked && 'cursor-not-allowed bg-gray-200',
+                !entry.isEditing && entry.hint && 'text-gray-400',
               )}
             />
           )}
@@ -164,11 +164,11 @@ const EnvGroupArray: React.FC<PropsType> = ({
             <Button
               variant="ghost"
               onClick={() =>
-                !entry.locked && handleValueChange(i, "hidden", !entry.hidden)
+                !entry.locked && handleValueChange(i, 'hidden', !entry.hidden)
               }
               disabled={entry.locked || entry.deleted}
             >
-              {entry.hidden ? "Unlock" : "Lock"}
+              {entry.hidden ? 'Unlock' : 'Lock'}
             </Button>
           )}
           {!disabled && (
@@ -196,8 +196,8 @@ const EnvGroupArray: React.FC<PropsType> = ({
             variant="secondary"
             onClick={() => {
               const newEntry = {
-                key: "",
-                value: "",
+                key: '',
+                value: '',
                 hidden: false,
                 locked: false,
                 deleted: false,

@@ -1,8 +1,8 @@
-import { useSidebar } from "@/components/hooks/use-sidebar";
-import { useTheme } from "@/components/hooks/use-theme";
-import { OrganizationSelector } from "@/components/v1/molecules/nav-bar/organization-selector";
-import { TenantSelector } from "@/components/v1/molecules/nav-bar/tenant-selector";
-import RelativeDate from "@/components/v1/molecules/relative-date";
+import { useSidebar } from '@/components/hooks/use-sidebar';
+import { useTheme } from '@/components/hooks/use-theme';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
+import { TenantSelector } from '@/components/v1/molecules/nav-bar/tenant-selector';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,8 +10,8 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/v1/ui/breadcrumb";
-import { Button } from "@/components/v1/ui/button";
+} from '@/components/v1/ui/breadcrumb';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,41 +20,41 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@/components/v1/ui/dropdown-menu";
-import { HatchetLogo } from "@/components/v1/ui/hatchet-logo";
+} from '@/components/v1/ui/dropdown-menu';
+import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import {
   PopoverTrigger,
   Popover,
   PopoverContent,
-} from "@/components/v1/ui/popover";
-import { Separator } from "@/components/v1/ui/separator";
-import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
-import { usePendingInvites } from "@/hooks/use-pending-invites";
-import { useTenantDetails } from "@/hooks/use-tenant";
-import { useTenantHomeRoute } from "@/hooks/use-tenant-home-route";
-import api, { TenantMember, User } from "@/lib/api";
-import { useApiError } from "@/lib/hooks";
-import { cn } from "@/lib/utils";
-import useCloud from "@/pages/auth/hooks/use-cloud";
-import { useUserUniverse } from "@/providers/user-universe";
-import { appRoutes } from "@/router";
-import { useMutation } from "@tanstack/react-query";
+} from '@/components/v1/ui/popover';
+import { Separator } from '@/components/v1/ui/separator';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
+import api, { TenantMember, User } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { cn } from '@/lib/utils';
+import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useUserUniverse } from '@/providers/user-universe';
+import { appRoutes } from '@/router';
+import { useMutation } from '@tanstack/react-query';
 import {
   Link,
   useMatchRoute,
   useNavigate,
   useParams,
-} from "@tanstack/react-router";
-import { ChevronDown, Menu } from "lucide-react";
-import React from "react";
+} from '@tanstack/react-router';
+import { ChevronDown, Menu } from 'lucide-react';
+import React from 'react';
 import {
   BiEnvelope,
   BiLogOut,
   BiMoon,
   BiSun,
   BiUserCircle,
-} from "react-icons/bi";
-import { RiInformationFill, RiBatteryLowLine } from "react-icons/ri";
+} from 'react-icons/bi';
+import { RiInformationFill, RiBatteryLowLine } from 'react-icons/ri';
 
 function AccountDropdown({ user }: { user?: User }) {
   const navigate = useNavigate();
@@ -67,7 +67,7 @@ function AccountDropdown({ user }: { user?: User }) {
   const { pendingInvitesQuery } = usePendingInvites();
 
   const logoutMutation = useMutation({
-    mutationKey: ["user:update:logout"],
+    mutationKey: ['user:update:logout'],
     mutationFn: async () => {
       await api.userUpdateLogout();
     },
@@ -131,12 +131,12 @@ function AccountDropdown({ user }: { user?: User }) {
           </>
         )}
         <DropdownMenuItem variant="interactive" onClick={() => toggleTheme()}>
-          {theme === "dark" ? (
+          {theme === 'dark' ? (
             <BiSun className="mr-2 size-4" />
           ) : (
             <BiMoon className="mr-2 size-4" />
           )}
-          Theme: {theme === "dark" ? "Dark" : "Light"}
+          Theme: {theme === 'dark' ? 'Dark' : 'Light'}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -154,13 +154,13 @@ function AccountDropdown({ user }: { user?: User }) {
 
 interface GlobalNotificationDropdownProps {
   label?: string;
-  severity?: "info" | "warning" | "error";
+  severity?: 'info' | 'warning' | 'error';
   icon?: React.ReactNode;
   content?: React.ReactNode;
 }
 function GlobalNotificationDropdown({
-  label = "Notifications",
-  severity = "info",
+  label = 'Notifications',
+  severity = 'info',
   icon = <RiInformationFill className="size-4 shrink-0" />,
   content = (
     <>
@@ -170,11 +170,11 @@ function GlobalNotificationDropdown({
 }: GlobalNotificationDropdownProps) {
   const [open, setOpen] = React.useState(false);
   const severityColor =
-    severity === "info"
-      ? "bg-brand/30 text-brand ring-brand/10"
-      : severity === "warning"
-        ? "bg-yellow-500/20 text-yellow-800 ring-yellow-500/10 dark:text-yellow-300 "
-        : "bg-red-500/20 text-red-800 ring-red-500/10 dark:text-red-300";
+    severity === 'info'
+      ? 'bg-brand/30 text-brand ring-brand/10'
+      : severity === 'warning'
+        ? 'bg-yellow-500/20 text-yellow-800 ring-yellow-500/10 dark:text-yellow-300 '
+        : 'bg-red-500/20 text-red-800 ring-red-500/10 dark:text-red-300';
   return null; // TODO: enable this when we have a real notification
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -190,7 +190,7 @@ function GlobalNotificationDropdown({
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <div
               className={cn(
-                "ratio-square shrink-0 rounded-full p-1 flex items-center justify-center ring-1 ring-inset",
+                'ratio-square shrink-0 rounded-full p-1 flex items-center justify-center ring-1 ring-inset',
                 severityColor,
               )}
             >
@@ -214,7 +214,7 @@ function GlobalNotificationDropdown({
             <p className="text-sm font-medium leading-none flex flex-col gap-1 ">
               {label}
               <span className="text-xs text-muted-foreground">
-                <RelativeDate date={"2025-12-13T15:06:48.888358-05:00"} />
+                <RelativeDate date={'2025-12-13T15:06:48.888358-05:00'} />
               </span>
             </p>
           </div>
@@ -322,17 +322,17 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         style={
           headerSidebarWidth
             ? ({
-                ["--v1-sidebar-width" as any]: `${headerSidebarWidth}px`,
+                ['--v1-sidebar-width' as any]: `${headerSidebarWidth}px`,
               } as React.CSSProperties)
             : undefined
         }
       >
         <div
           className={cn(
-            "flex h-16 items-center",
+            'flex h-16 items-center',
             // Match the icon position in the expanded sidebar (px-4 container + pl-2 button => 24px).
             // In collapsed mode, center within the column to match the icon-only sidebar.
-            storedCollapsed ? "justify-center" : "pl-6",
+            storedCollapsed ? 'justify-center' : 'pl-6',
           )}
         >
           {storedCollapsed ? (

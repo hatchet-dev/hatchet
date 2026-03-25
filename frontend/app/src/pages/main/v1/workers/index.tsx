@@ -1,32 +1,32 @@
-import { columns, statusKey, WorkerColumn } from "./components/worker-columns";
-import { DocsButton } from "@/components/v1/docs/docs-button";
-import { ToolbarType } from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { DataTable } from "@/components/v1/molecules/data-table/data-table.tsx";
-import { Loading } from "@/components/v1/ui/loading.tsx";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { usePagination } from "@/hooks/use-pagination";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { useZodColumnFilters } from "@/hooks/use-zod-column-filters";
-import { queries } from "@/lib/api";
-import { docsPages } from "@/lib/generated/docs";
-import { useQuery } from "@tanstack/react-query";
-import { VisibilityState } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
-import { z } from "zod";
+import { columns, statusKey, WorkerColumn } from './components/worker-columns';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+import { queries } from '@/lib/api';
+import { docsPages } from '@/lib/generated/docs';
+import { useQuery } from '@tanstack/react-query';
+import { VisibilityState } from '@tanstack/react-table';
+import { useMemo, useState } from 'react';
+import { z } from 'zod';
 
 const workersQuerySchema = z
   .object({
-    s: z.array(z.enum(["ACTIVE", "INACTIVE", "PAUSED"])).optional(), // status
+    s: z.array(z.enum(['ACTIVE', 'INACTIVE', 'PAUSED'])).optional(), // status
   })
   .default({})
   .transform((data) => ({
-    s: data.s ?? ["ACTIVE", "PAUSED"],
+    s: data.s ?? ['ACTIVE', 'PAUSED'],
   }));
 
 export default function Workers() {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-  const paramKey = "workers-table";
+  const paramKey = 'workers-table';
   const { pagination, setPagination, limit, offset, setPageSize } =
     usePagination({
       key: paramKey,
@@ -73,13 +73,13 @@ export default function Workers() {
       data={paginatedData}
       filters={[
         {
-          columnId: "status",
-          title: "Status",
+          columnId: 'status',
+          title: 'Status',
           type: ToolbarType.Checkbox,
           options: [
-            { value: "ACTIVE", label: "Active" },
-            { value: "PAUSED", label: "Paused" },
-            { value: "INACTIVE", label: "Inactive" },
+            { value: 'ACTIVE', label: 'Active' },
+            { value: 'PAUSED', label: 'Paused' },
+            { value: 'INACTIVE', label: 'Inactive' },
           ],
         },
       ]}

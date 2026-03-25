@@ -3,9 +3,9 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/v1/ui/chart";
-import { V1LogsPointMetric } from "@/lib/api";
-import { useState } from "react";
+} from '@/components/v1/ui/chart';
+import { V1LogsPointMetric } from '@/lib/api';
+import { useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -13,13 +13,13 @@ import {
   CartesianGrid,
   ReferenceArea,
   ResponsiveContainer,
-} from "recharts";
+} from 'recharts';
 
 const CHART_CONFIG = {
-  DEBUG: { label: "Debug", color: "rgba(107, 114, 128, 0.55)" },
-  INFO: { label: "Info", color: "rgba(34, 197, 94, 0.65)" },
-  WARN: { label: "Warn", color: "rgba(234, 179, 8, 0.8)" },
-  ERROR: { label: "Error", color: "rgba(239, 68, 68, 0.9)" },
+  DEBUG: { label: 'Debug', color: 'rgba(107, 114, 128, 0.55)' },
+  INFO: { label: 'Info', color: 'rgba(34, 197, 94, 0.65)' },
+  WARN: { label: 'Warn', color: 'rgba(234, 179, 8, 0.8)' },
+  ERROR: { label: 'Error', color: 'rgba(239, 68, 68, 0.9)' },
 } satisfies ChartConfig;
 
 function getNextPointTime(time: string, points: V1LogsPointMetric[]): string {
@@ -55,13 +55,13 @@ function formatXAxis(tickItem: string, minDate: Date, maxDate: Date): string {
   const sevenDays = 7 * oneDay;
 
   if (timeDiff > sevenDays) {
-    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   } else if (timeDiff > oneDay) {
-    return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   } else {
     return date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }
 }
@@ -112,7 +112,7 @@ export function LogsChart({ metrics, since, until, onZoom }: LogsChartProps) {
 
   return (
     <ChartContainer config={CHART_CONFIG} className="h-24 min-h-24 w-full">
-      <div className="h-full" style={{ touchAction: "none" }}>
+      <div className="h-full" style={{ touchAction: 'none' }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={metrics}
@@ -129,7 +129,7 @@ export function LogsChart({ metrics, since, until, onZoom }: LogsChartProps) {
               axisLine={false}
               tickMargin={4}
               minTickGap={16}
-              style={{ fontSize: "10px", userSelect: "none" }}
+              style={{ fontSize: '10px', userSelect: 'none' }}
             />
             <ChartTooltip
               content={

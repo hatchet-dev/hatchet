@@ -1,13 +1,13 @@
-import type { User } from "@/lib/api";
-import useApiMeta from "@/pages/auth/hooks/use-api-meta";
-import { useAppContext } from "@/providers/app-context";
-import { useLocation } from "@tanstack/react-router";
-import posthog from "posthog-js";
-import { PostHogProvider as PhProvider, usePostHog } from "posthog-js/react";
-import { useEffect, useRef, useMemo, createContext } from "react";
+import type { User } from '@/lib/api';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useAppContext } from '@/providers/app-context';
+import { useLocation } from '@tanstack/react-router';
+import posthog from 'posthog-js';
+import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
+import { useEffect, useRef, useMemo, createContext } from 'react';
 
-const CROSS_DOMAIN_SESSION_ID_KEY = "session_id";
-const CROSS_DOMAIN_DISTINCT_ID_KEY = "distinct_id";
+const CROSS_DOMAIN_SESSION_ID_KEY = 'session_id';
+const CROSS_DOMAIN_DISTINCT_ID_KEY = 'distinct_id';
 
 interface PostHogContextValue {
   isReady: boolean;
@@ -47,7 +47,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
 
   // Check for cross-domain tracking params in URL hash
   const bootstrapIds = useMemo(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === 'undefined') {
       return null;
     }
 
@@ -68,7 +68,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
 
     if (tenant?.analyticsOptOut) {
       console.info(
-        "Skipping Analytics initialization due to opt-out, we respect user privacy.",
+        'Skipping Analytics initialization due to opt-out, we respect user privacy.',
       );
       return;
     }
@@ -78,17 +78,17 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
       return;
     }
 
-    console.info("Initializing Analytics, opt out in settings.");
+    console.info('Initializing Analytics, opt out in settings.');
 
     posthog.init(config.apiKey, {
-      api_host: config.apiHost || "https://us.i.posthog.com",
-      person_profiles: "identified_only",
+      api_host: config.apiHost || 'https://us.i.posthog.com',
+      person_profiles: 'identified_only',
       capture_pageleave: true,
       session_recording: {
         maskAllInputs: true,
-        maskTextSelector: "*",
+        maskTextSelector: '*',
       },
-      persistence: "localStorage+cookie",
+      persistence: 'localStorage+cookie',
       bootstrap: bootstrapIds || undefined,
     });
 
@@ -101,7 +101,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
       return;
     }
 
-    const ref = localStorage.getItem("ref");
+    const ref = localStorage.getItem('ref');
     if (ref) {
       posthog.identify(ref);
     }
@@ -154,7 +154,7 @@ function PostHogPageView() {
       url = `${url}?${location.searchStr}`;
     }
 
-    posthogClient.capture("$pageview", { $current_url: url });
+    posthogClient.capture('$pageview', { $current_url: url });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally exclude location.search to avoid firing pageviews on query param changes
   }, [location.pathname, posthogClient]);
 

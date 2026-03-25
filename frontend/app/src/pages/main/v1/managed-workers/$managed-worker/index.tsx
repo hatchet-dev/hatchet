@@ -1,34 +1,34 @@
-import GithubButton from "./components/github-button";
-import { ManagedWorkerActivity } from "./components/managed-worker-activity";
-import { ManagedWorkerInstancesTable } from "./components/managed-worker-instances-table";
-import { ManagedWorkerLogs } from "./components/managed-worker-logs";
-import { ManagedWorkerMetrics } from "./components/managed-worker-metrics";
-import UpdateWorkerForm from "./components/update-form";
-import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
-import { Button } from "@/components/v1/ui/button";
-import { Loading } from "@/components/v1/ui/loading.tsx";
-import { Separator } from "@/components/v1/ui/separator";
+import GithubButton from './components/github-button';
+import { ManagedWorkerActivity } from './components/managed-worker-activity';
+import { ManagedWorkerInstancesTable } from './components/managed-worker-instances-table';
+import { ManagedWorkerLogs } from './components/managed-worker-logs';
+import { ManagedWorkerMetrics } from './components/managed-worker-metrics';
+import UpdateWorkerForm from './components/update-form';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/v1/ui/tabs";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { queries } from "@/lib/api";
-import { cloudApi } from "@/lib/api/api";
-import { UpdateManagedWorkerRequest } from "@/lib/api/generated/cloud/data-contracts";
-import { shouldRetryQueryError } from "@/lib/error-utils";
-import { useApiError } from "@/lib/hooks";
-import { relativeDate } from "@/lib/utils";
-import { ResourceNotFound } from "@/pages/error/components/resource-not-found";
-import { appRoutes } from "@/router";
-import { CpuChipIcon } from "@heroicons/react/24/outline";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "@tanstack/react-router";
-import { isAxiosError } from "axios";
-import { useState } from "react";
+} from '@/components/v1/ui/tabs';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import { UpdateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
+import { shouldRetryQueryError } from '@/lib/error-utils';
+import { useApiError } from '@/lib/hooks';
+import { relativeDate } from '@/lib/utils';
+import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import { appRoutes } from '@/router';
+import { CpuChipIcon } from '@heroicons/react/24/outline';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
+import { useState } from 'react';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
@@ -50,7 +50,7 @@ export default function ExpandedWorkflow() {
   });
 
   const updateManagedWorkerMutation = useMutation({
-    mutationKey: ["managed-worker:update", params.managedWorker],
+    mutationKey: ['managed-worker:update', params.managedWorker],
     mutationFn: async (data: UpdateManagedWorkerRequest) => {
       const res = await cloudApi.managedWorkerUpdate(
         managedWorker.metadata.id,
@@ -65,7 +65,7 @@ export default function ExpandedWorkflow() {
   });
 
   const deleteManagedWorkerMutation = useMutation({
-    mutationKey: ["managed-worker:delete", params.managedWorker],
+    mutationKey: ['managed-worker:delete', params.managedWorker],
     mutationFn: async () => {
       const res = await cloudApi.managedWorkerDelete(managedWorker.metadata.id);
       return res.data;
@@ -93,7 +93,7 @@ export default function ExpandedWorkflow() {
         <ResourceNotFound
           resource="Managed worker"
           primaryAction={{
-            label: "Back to Managed Workers",
+            label: 'Back to Managed Workers',
             navigate: {
               to: appRoutes.tenantManagedWorkersRoute.to,
               params: { tenant: tenantId },
@@ -203,7 +203,7 @@ export default function ExpandedWorkflow() {
             <ConfirmDialog
               title={`Delete managed worker`}
               description={`Are you sure you want to delete the managed worker ${managedWorker.name}? This action cannot be undone, and will immediately tear these workers down.`}
-              submitLabel={"Delete"}
+              submitLabel={'Delete'}
               onSubmit={deleteManagedWorkerMutation.mutate}
               onCancel={function (): void {
                 setDeleteWorker(false);

@@ -1,11 +1,11 @@
-import { Button, type ButtonProps } from "@/components/v1/ui/button";
+import { Button, type ButtonProps } from '@/components/v1/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
-} from "@/components/v1/ui/collapsible";
-import { cn } from "@/lib/utils";
-import { Link, useMatchRoute } from "@tanstack/react-router";
-import React from "react";
+} from '@/components/v1/ui/collapsible';
+import { cn } from '@/lib/utils';
+import { Link, useMatchRoute } from '@tanstack/react-router';
+import React from 'react';
 
 type SidebarButtonPrimaryLinkProps = {
   onNavLinkClick: () => void;
@@ -17,7 +17,7 @@ type SidebarButtonPrimaryLinkProps = {
   collapsibleChildren?: React.ReactNode[];
 };
 
-export type SidebarButtonPrimaryActionProps = Omit<ButtonProps, "children"> & {
+export type SidebarButtonPrimaryActionProps = Omit<ButtonProps, 'children'> & {
   name: string;
   icon: React.ReactNode;
   selected?: boolean;
@@ -37,8 +37,8 @@ export const SidebarButtonPrimaryAction = React.forwardRef<
       type="button"
       variant="ghost"
       className={cn(
-        "w-full justify-start pl-2 min-w-0 overflow-hidden",
-        selected && "bg-slate-200 dark:bg-slate-800",
+        'w-full justify-start pl-2 min-w-0 overflow-hidden',
+        selected && 'bg-slate-200 dark:bg-slate-800',
         className,
       )}
     >
@@ -47,7 +47,7 @@ export const SidebarButtonPrimaryAction = React.forwardRef<
     </Button>
   );
 });
-SidebarButtonPrimaryAction.displayName = "SidebarButtonPrimaryAction";
+SidebarButtonPrimaryAction.displayName = 'SidebarButtonPrimaryAction';
 
 export function SidebarButtonPrimary(
   props: SidebarButtonPrimaryLinkProps | SidebarButtonPrimaryActionProps,
@@ -55,7 +55,7 @@ export function SidebarButtonPrimary(
   const matchRoute = useMatchRoute();
 
   // Action-style (no routing) button, used for things like dropdown triggers.
-  if (!("to" in props)) {
+  if (!('to' in props)) {
     // Keep backwards compatibility: this component is still used in a few places.
     // Prefer `SidebarButtonPrimaryAction` when the caller needs `asChild` behavior.
     const { name, icon, selected, ...rest } = props;
@@ -96,8 +96,8 @@ export function SidebarButtonPrimary(
       <Button
         variant="ghost"
         className={cn(
-          "w-full justify-start pl-2 min-w-0 overflow-hidden [&_svg]:text-muted-foreground/50",
-          selected && "bg-slate-200 dark:bg-slate-800 [&_svg]:text-primary",
+          'w-full justify-start pl-2 min-w-0 overflow-hidden [&_svg]:text-muted-foreground/50',
+          selected && 'bg-slate-200 dark:bg-slate-800 [&_svg]:text-primary',
         )}
       >
         {icon}
@@ -111,7 +111,7 @@ export function SidebarButtonPrimary(
   ) : (
     <Collapsible open={open} className="w-full">
       {primaryLink}
-      <CollapsibleContent className={"ml-4 space-y-2 border-l border-muted"}>
+      <CollapsibleContent className={'ml-4 space-y-2 border-l border-muted'}>
         {collapsibleChildren}
       </CollapsibleContent>
     </Collapsible>
@@ -143,8 +143,8 @@ export function SidebarButtonSecondary({
         variant="ghost"
         size="sm"
         className={cn(
-          "my-[1px] ml-1 mr-3 w-[calc(100%-3px)] justify-start pl-3 pr-0 min-w-0 overflow-hidden",
-          selected && "bg-slate-200 dark:bg-slate-800",
+          'my-[1px] ml-1 mr-3 w-[calc(100%-3px)] justify-start pl-3 pr-0 min-w-0 overflow-hidden',
+          selected && 'bg-slate-200 dark:bg-slate-800',
         )}
       >
         <span className="truncate">{name}</span>

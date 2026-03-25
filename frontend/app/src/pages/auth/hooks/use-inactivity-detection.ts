@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from 'react';
 
 interface UseInactivityDetectionOptions {
   timeoutMs?: number;
@@ -14,12 +14,12 @@ export function useInactivityDetection(
     timeoutMs = -1, // -1 means disabled
     throttleMs = 1000, // 1 second throttle
     events = [
-      "mousedown",
-      "mousemove",
-      "keypress",
-      "scroll",
-      "touchstart",
-      "click",
+      'mousedown',
+      'mousemove',
+      'keypress',
+      'scroll',
+      'touchstart',
+      'click',
     ],
     onInactive = () => {},
   } = options;

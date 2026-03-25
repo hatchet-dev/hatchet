@@ -1,4 +1,4 @@
-import { CSSProperties } from "react";
+import { CSSProperties } from 'react';
 
 // ---- ANSI parser (adapted from react-logviewer/src/components/Utils/ansiparse.ts) ----
 
@@ -11,49 +11,49 @@ interface AnsiPart {
   underline?: boolean;
 }
 
-type AnsiState = Omit<AnsiPart, "text">;
+type AnsiState = Omit<AnsiPart, 'text'>;
 
 const FOREGROUND_COLORS: Record<string, string> = {
-  "30": "black",
-  "31": "red",
-  "32": "green",
-  "33": "yellow",
-  "34": "blue",
-  "35": "magenta",
-  "36": "cyan",
-  "37": "white",
-  "90": "grey",
+  '30': 'black',
+  '31': 'red',
+  '32': 'green',
+  '33': 'yellow',
+  '34': 'blue',
+  '35': 'magenta',
+  '36': 'cyan',
+  '37': 'white',
+  '90': 'grey',
 };
 
 const BACKGROUND_COLORS: Record<string, string> = {
-  "40": "black",
-  "41": "red",
-  "42": "green",
-  "43": "yellow",
-  "44": "blue",
-  "45": "magenta",
-  "46": "cyan",
-  "47": "white",
+  '40': 'black',
+  '41': 'red',
+  '42': 'green',
+  '43': 'yellow',
+  '44': 'blue',
+  '45': 'magenta',
+  '46': 'cyan',
+  '47': 'white',
 };
 
 function ansiparse(str: string): AnsiPart[] {
   let matchingControl: string | null = null;
   let matchingData: string | null = null;
-  let matchingText = "";
+  let matchingText = '';
   let ansiState: string[] = [];
   const result: AnsiPart[] = [];
   let state: AnsiState = {};
 
   for (let i = 0; i < str.length; i++) {
     if (matchingControl !== null) {
-      if (matchingControl === "\x1b" && str[i] === "[") {
+      if (matchingControl === '\x1b' && str[i] === '[') {
         if (matchingText) {
           result.push({ text: matchingText, ...state });
           state = {};
-          matchingText = "";
+          matchingText = '';
         }
         matchingControl = null;
-        matchingData = "";
+        matchingData = '';
       } else {
         matchingText += matchingControl + str[i];
         matchingControl = null;
@@ -62,34 +62,34 @@ function ansiparse(str: string): AnsiPart[] {
     }
 
     if (matchingData !== null) {
-      if (str[i] === ";") {
+      if (str[i] === ';') {
         ansiState.push(matchingData);
-        matchingData = "";
-      } else if (str[i] === "m") {
+        matchingData = '';
+      } else if (str[i] === 'm') {
         ansiState.push(matchingData);
         matchingData = null;
-        matchingText = "";
+        matchingText = '';
 
         for (const code of ansiState) {
           if (FOREGROUND_COLORS[code]) {
             state.foreground = FOREGROUND_COLORS[code];
           } else if (BACKGROUND_COLORS[code]) {
             state.background = BACKGROUND_COLORS[code];
-          } else if (code === "39") {
+          } else if (code === '39') {
             delete state.foreground;
-          } else if (code === "49") {
+          } else if (code === '49') {
             delete state.background;
-          } else if (code === "1") {
+          } else if (code === '1') {
             state.bold = true;
-          } else if (code === "3") {
+          } else if (code === '3') {
             state.italic = true;
-          } else if (code === "4") {
+          } else if (code === '4') {
             state.underline = true;
-          } else if (code === "22") {
+          } else if (code === '22') {
             state.bold = false;
-          } else if (code === "23") {
+          } else if (code === '23') {
             state.italic = false;
-          } else if (code === "24") {
+          } else if (code === '24') {
             state.underline = false;
           }
         }
@@ -100,9 +100,9 @@ function ansiparse(str: string): AnsiPart[] {
       continue;
     }
 
-    if (str[i] === "\x1b") {
+    if (str[i] === '\x1b') {
       matchingControl = str[i];
-    } else if (str[i] === "\u0008") {
+    } else if (str[i] === '\u0008') {
       // Backspace: erase previous character
       if (matchingText.length) {
         matchingText = matchingText.slice(0, -1);
@@ -120,7 +120,7 @@ function ansiparse(str: string): AnsiPart[] {
   }
 
   if (matchingText) {
-    result.push({ text: matchingText + (matchingControl ?? ""), ...state });
+    result.push({ text: matchingText + (matchingControl ?? ''), ...state });
   }
 
   return result;
@@ -129,12 +129,12 @@ function ansiparse(str: string): AnsiPart[] {
 // ---- Color mapping to existing CSS variables ----
 
 const FOREGROUND_CSS_VARS: Record<string, string> = {
-  red: "var(--terminal-red)",
-  green: "var(--terminal-green)",
-  yellow: "var(--terminal-yellow)",
-  blue: "var(--terminal-blue)",
-  magenta: "var(--terminal-magenta)",
-  cyan: "var(--terminal-cyan)",
+  red: 'var(--terminal-red)',
+  green: 'var(--terminal-green)',
+  yellow: 'var(--terminal-yellow)',
+  blue: 'var(--terminal-blue)',
+  magenta: 'var(--terminal-magenta)',
+  cyan: 'var(--terminal-cyan)',
 };
 
 function partStyle(part: AnsiPart): CSSProperties | undefined {
@@ -147,15 +147,15 @@ function partStyle(part: AnsiPart): CSSProperties | undefined {
     hasStyle = true;
   }
   if (part.bold) {
-    style.fontWeight = "bold";
+    style.fontWeight = 'bold';
     hasStyle = true;
   }
   if (part.italic) {
-    style.fontStyle = "italic";
+    style.fontStyle = 'italic';
     hasStyle = true;
   }
   if (part.underline) {
-    style.textDecoration = "underline";
+    style.textDecoration = 'underline';
     hasStyle = true;
   }
 

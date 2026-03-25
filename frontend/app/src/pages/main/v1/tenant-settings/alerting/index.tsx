@@ -1,36 +1,36 @@
-import { CreateEmailGroupDialog } from "./components/create-email-group-dialog";
-import { DeleteEmailGroupForm } from "./components/delete-email-group-form";
-import { DeleteSlackForm } from "./components/delete-slack-form";
+import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
+import { DeleteEmailGroupForm } from './components/delete-email-group-form';
+import { DeleteSlackForm } from './components/delete-slack-form';
 import {
   EmailGroupCell,
   EmailGroupStatusCell,
   EmailGroupActions,
-} from "./components/email-groups-columns";
-import { SlackActions } from "./components/slack-webhooks-columns";
-import { UpdateTenantAlertingSettings } from "./components/update-tenant-alerting-settings-form";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
-import { Button } from "@/components/v1/ui/button";
-import { Spinner } from "@/components/v1/ui/loading";
-import { Separator } from "@/components/v1/ui/separator";
-import { useCurrentTenantId, useTenantDetails } from "@/hooks/use-tenant";
+} from './components/email-groups-columns';
+import { SlackActions } from './components/slack-webhooks-columns';
+import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
   CreateTenantAlertEmailGroupRequest,
   SlackWebhook,
   TenantAlertEmailGroup,
   UpdateTenantRequest,
   queries,
-} from "@/lib/api";
-import { useApiError, useApiMetaIntegrations } from "@/lib/hooks";
-import { Dialog } from "@radix-ui/react-dialog";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+} from '@/lib/api';
+import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
+import { Dialog } from '@radix-ui/react-dialog';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 
 export default function Alerting() {
   const integrations = useApiMetaIntegrations();
 
-  const hasEmailIntegration = integrations?.find((i) => i.name === "email");
-  const hasSlackIntegration = integrations?.find((i) => i.name === "slack");
+  const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
+  const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
 
   return (
     <div className="h-full w-full flex-grow">
@@ -63,7 +63,7 @@ const AlertingSettings: React.FC = () => {
   const { handleApiError } = useApiError({});
 
   const updateMutation = useMutation({
-    mutationKey: ["tenant:update"],
+    mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
       await api.tenantUpdate(tenantId, data);
     },
@@ -115,7 +115,7 @@ function EmailGroupsList() {
   const { handleApiError } = useApiError({});
 
   const updateMutation = useMutation({
-    mutationKey: ["tenant:update"],
+    mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
       await api.tenantUpdate(tenantId, data);
     },
@@ -134,9 +134,9 @@ function EmailGroupsList() {
         // Special group for all tenant members
         emails: [],
         metadata: {
-          id: "default",
-          createdAt: "default",
-          updatedAt: "default",
+          id: 'default',
+          createdAt: 'default',
+          updatedAt: 'default',
         },
       },
       ...customGroups,
@@ -146,22 +146,22 @@ function EmailGroupsList() {
   const emailGroupColumns = useMemo(
     () => [
       {
-        columnLabel: "Emails",
+        columnLabel: 'Emails',
         cellRenderer: (group: TenantAlertEmailGroup) => (
           <EmailGroupCell group={group} />
         ),
       },
       {
-        columnLabel: "Created",
+        columnLabel: 'Created',
         cellRenderer: (group: TenantAlertEmailGroup) =>
-          group.metadata.id != "default" ? (
+          group.metadata.id != 'default' ? (
             <RelativeDate date={group.metadata.createdAt} />
           ) : (
             <div />
           ),
       },
       {
-        columnLabel: "",
+        columnLabel: '',
         cellRenderer: (group: TenantAlertEmailGroup) => (
           <EmailGroupStatusCell
             group={group}
@@ -170,7 +170,7 @@ function EmailGroupsList() {
         ),
       },
       {
-        columnLabel: "",
+        columnLabel: '',
         cellRenderer: (group: TenantAlertEmailGroup) => (
           <EmailGroupActions
             group={group}
@@ -254,7 +254,7 @@ function CreateEmailGroup({
   });
 
   const createTokenMutation = useMutation({
-    mutationKey: ["api-token:create", tenantId],
+    mutationKey: ['api-token:create', tenantId],
     mutationFn: async (data: CreateTenantAlertEmailGroupRequest) => {
       const res = await api.alertEmailGroupCreate(tenantId, data);
       return res.data;
@@ -289,7 +289,7 @@ function DeleteEmailGroup({
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ["alert-email-group:delete", tenantId, emailGroup],
+    mutationKey: ['alert-email-group:delete', tenantId, emailGroup],
     mutationFn: async () => {
       await api.alertEmailGroupDelete(emailGroup.metadata.id);
     },
@@ -320,23 +320,23 @@ function SlackWebhooksList() {
   const slackColumns = useMemo(
     () => [
       {
-        columnLabel: "Team",
+        columnLabel: 'Team',
         cellRenderer: (webhook: SlackWebhook) => <div>{webhook.teamName}</div>,
       },
       {
-        columnLabel: "Channel",
+        columnLabel: 'Channel',
         cellRenderer: (webhook: SlackWebhook) => (
           <div>{webhook.channelName}</div>
         ),
       },
       {
-        columnLabel: "Created",
+        columnLabel: 'Created',
         cellRenderer: (webhook: SlackWebhook) => (
           <RelativeDate date={webhook.metadata.createdAt} />
         ),
       },
       {
-        columnLabel: "Actions",
+        columnLabel: 'Actions',
         cellRenderer: (webhook: SlackWebhook) => (
           <SlackActions
             webhook={webhook}
@@ -356,7 +356,7 @@ function SlackWebhooksList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Slack Webhooks
         </h3>
-        <a href={"/api/v1/tenants/" + tenantId + "/slack/start"}>
+        <a href={'/api/v1/tenants/' + tenantId + '/slack/start'}>
           <Button key="create-slack-webhook">Add Slack Webhook</Button>
         </a>
       </div>
@@ -398,7 +398,7 @@ function DeleteSlackWebhook({
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ["slack-webhook:delete", tenantId, slackWebhook],
+    mutationKey: ['slack-webhook:delete', tenantId, slackWebhook],
     mutationFn: async () => {
       await api.slackWebhookDelete(slackWebhook.metadata.id);
     },

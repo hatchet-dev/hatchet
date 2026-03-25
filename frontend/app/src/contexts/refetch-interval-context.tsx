@@ -1,10 +1,10 @@
-import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import {
   RefetchInterval,
   RefetchIntervalOption,
   LabeledRefetchInterval,
-} from "@/lib/api/refetch-interval";
-import { useLocation } from "@tanstack/react-router";
+} from '@/lib/api/refetch-interval';
+import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
@@ -12,7 +12,7 @@ import {
   useMemo,
   ReactNode,
   useEffect,
-} from "react";
+} from 'react';
 
 interface RefetchIntervalContextType {
   isFrozen: boolean;
@@ -30,16 +30,16 @@ interface RefetchIntervalProviderProps {
   children: ReactNode;
 }
 
-const STORAGE_KEY = "app-default-refetch-interval";
+const STORAGE_KEY = 'app-default-refetch-interval';
 
 export const RefetchIntervalProvider = ({
   children,
 }: RefetchIntervalProviderProps) => {
   const { pathname } = useLocation();
   const [storedInterval, setStoredInterval] =
-    useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, "10s");
+    useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, '10s');
   const [isFrozen, setIsFrozen] = useLocalStorageState<boolean>(
-    "app-refetch-interval-frozen",
+    'app-refetch-interval-frozen',
     false,
   );
 
@@ -108,7 +108,7 @@ export const useRefetchInterval = () => {
 
   if (!context) {
     throw new Error(
-      "useRefetchInterval must be used within a RefetchIntervalProvider",
+      'useRefetchInterval must be used within a RefetchIntervalProvider',
     );
   }
 

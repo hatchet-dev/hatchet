@@ -3,19 +3,19 @@ import api, {
   Tenant,
   CreateTenantRequest,
   queries,
-} from "@/lib/api";
-import { BillingContext, lastTenantAtom } from "@/lib/atoms";
-import { Evaluate } from "@/lib/can/shared/permission.base";
-import useCloud from "@/pages/auth/hooks/use-cloud";
-import { useAppContext } from "@/providers/app-context";
-import { useUserUniverse } from "@/providers/user-universe";
-import { appRoutes } from "@/router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMatchRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { useAtom } from "jotai";
-import { useCallback, useMemo, useState } from "react";
+} from '@/lib/api';
+import { BillingContext, lastTenantAtom } from '@/lib/atoms';
+import { Evaluate } from '@/lib/can/shared/permission.base';
+import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useAppContext } from '@/providers/app-context';
+import { useUserUniverse } from '@/providers/user-universe';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
+import { useAtom } from 'jotai';
+import { useCallback, useMemo, useState } from 'react';
 
-type Plan = "free" | "starter" | "growth";
+type Plan = 'free' | 'starter' | 'growth';
 
 /**
  * Hook to get current tenant ID from route params
@@ -68,7 +68,7 @@ export function useTenantDetails() {
 
       const navigateTarget = isOnTenantRoute
         ? {
-            to: ".", // stay on the current route
+            to: '.', // stay on the current route
             params: { tenant: tenant.metadata.id },
           }
         : {
@@ -85,18 +85,18 @@ export function useTenantDetails() {
   // No need to compute them here anymore
 
   const createTenantMutation = useMutation({
-    mutationKey: ["tenant:create"],
+    mutationKey: ['tenant:create'],
     mutationFn: async ({ name }: { name: string }): Promise<Tenant> => {
       const tenantData: CreateTenantRequest = {
         name,
-        slug: name.toLowerCase().replace(/\s+/g, "-"),
+        slug: name.toLowerCase().replace(/\s+/g, '-'),
       };
 
       const response = await api.tenantCreate(tenantData);
       return response.data;
     },
     onSuccess: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: ["user:*"] });
+      await queryClient.invalidateQueries({ queryKey: ['user:*'] });
       invalidateUserUniverse();
       if (data.metadata.id) {
         setTenant(data);
@@ -106,24 +106,24 @@ export function useTenantDetails() {
   });
 
   const updateTenantMutation = useMutation({
-    mutationKey: ["tenant:update", tenant?.metadata.id],
+    mutationKey: ['tenant:update', tenant?.metadata.id],
     mutationFn: async (data: UpdateTenantRequest) => {
       if (!tenant?.metadata.id) {
-        throw new Error("Tenant not found");
+        throw new Error('Tenant not found');
       }
       const response = await api.tenantUpdate(tenant.metadata.id, data);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user:*"] });
-      queryClient.invalidateQueries({ queryKey: ["tenant:*"] });
+      queryClient.invalidateQueries({ queryKey: ['user:*'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant:*'] });
     },
   });
 
   const resourcePolicyQuery = useQuery({
-    queryKey: ["tenant-resource-policy:get", tenant?.metadata.id],
+    queryKey: ['tenant-resource-policy:get', tenant?.metadata.id],
     queryFn: async () => {
-      return (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? "")).data
+      return (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? '')).data
         .limits;
     },
     enabled: !!tenant?.metadata.id,
@@ -134,14 +134,14 @@ export function useTenantDetails() {
   const { cloud, isCloudEnabled } = useCloud();
 
   const billingState = useQuery({
-    ...queries.cloud.billing(tenant?.metadata?.id || ""),
+    ...queries.cloud.billing(tenant?.metadata?.id || ''),
     enabled: !!tenant?.metadata?.id && isCloudEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
     retry: false,
   });
 
   const paymentMethodsQuery = useQuery({
-    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ""),
+    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
     enabled: !!tenant && !!cloud?.canBill,
     retry: false,
   });
@@ -149,7 +149,7 @@ export function useTenantDetails() {
   const subscriptionPlan: Plan = useMemo(() => {
     const plan = billingState.data?.currentSubscription?.plan;
     if (!plan) {
-      return "free";
+      return 'free';
     }
     return plan as Plan;
   }, [billingState.data?.currentSubscription?.plan]);

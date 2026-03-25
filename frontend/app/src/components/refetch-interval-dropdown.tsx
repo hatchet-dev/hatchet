@@ -1,18 +1,18 @@
-import { Button } from "./v1/ui/button";
+import { Button } from './v1/ui/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
+} from '@/components/v1/ui/select';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import {
   RefetchInterval,
   RefetchIntervalOption,
-} from "@/lib/api/refetch-interval";
-import { RefreshCw } from "lucide-react";
-import { useMemo } from "react";
+} from '@/lib/api/refetch-interval';
+import { RefreshCw } from 'lucide-react';
+import { useMemo } from 'react';
 
 type RefetchIntervalDropdownProps = {
   isRefetching: boolean;
@@ -46,7 +46,7 @@ export const RefetchIntervalDropdown = ({
       Object.entries(RefetchInterval).find(
         ([, interval]) =>
           interval.value === userRefetchIntervalPreference.value,
-      )?.[0] || "off"
+      )?.[0] || 'off'
     );
   }, [userRefetchIntervalPreference]);
 
@@ -65,7 +65,7 @@ export const RefetchIntervalDropdown = ({
       </Button>
       <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger className="flex h-full flex-row items-center gap-x-2 rounded-l-none rounded-r-md border-l-0 hover:bg-accent">
-          {value !== "off" && <SelectValue />}
+          {value !== 'off' && <SelectValue />}
         </SelectTrigger>
         <SelectContent>
           {intervalOptions.map(({ key, label }) => (

@@ -1,42 +1,42 @@
-import { V1RunIndicator } from "../../../components/run-statuses";
-import { RunsTable } from "../../../components/runs-table";
-import { RunsProvider } from "../../../hooks/runs-provider";
-import { useIsTaskRunSkipped } from "../../../hooks/use-is-task-run-skipped";
-import { isTerminalState } from "../../../hooks/use-workflow-details";
-import { TaskRunMiniMap } from "../mini-map";
-import { StepRunEvents } from "../step-run-events-for-workflow-run";
-import { Observability } from "./observability/observability";
-import { V1StepRunOutput } from "./step-run-output";
-import { TaskRunLogs } from "./task-run-logs";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { CopyWorkflowConfigButton } from "@/components/v1/shared/copy-workflow-config";
-import { Button } from "@/components/v1/ui/button";
-import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
-import { Loading } from "@/components/v1/ui/loading";
+import { V1RunIndicator } from '../../../components/run-statuses';
+import { RunsTable } from '../../../components/runs-table';
+import { RunsProvider } from '../../../hooks/runs-provider';
+import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
+import { isTerminalState } from '../../../hooks/use-workflow-details';
+import { TaskRunMiniMap } from '../mini-map';
+import { StepRunEvents } from '../step-run-events-for-workflow-run';
+import { Observability } from './observability/observability';
+import { V1StepRunOutput } from './step-run-output';
+import { TaskRunLogs } from './task-run-logs';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Loading } from '@/components/v1/ui/loading';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/v1/ui/tabs";
-import { V1TaskStatus, V1TaskSummary, queries } from "@/lib/api";
-import { emptyGolangUUID, formatDuration } from "@/lib/utils";
-import { TaskRunActionButton } from "@/pages/main/v1/task-runs-v1/actions";
-import { WorkflowDefinitionLink } from "@/pages/main/workflow-runs/$run/v2components/workflow-definition";
-import { appRoutes } from "@/router";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
-import { FullscreenIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+} from '@/components/v1/ui/tabs';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import { emptyGolangUUID, formatDuration } from '@/lib/utils';
+import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
+import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useParams } from '@tanstack/react-router';
+import { FullscreenIcon } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 export enum TabOption {
-  Output = "output",
-  ChildWorkflowRuns = "child-workflow-runs",
-  Input = "input",
-  Logs = "logs",
-  Observability = "observability",
-  AdditionalMetadata = "additional-metadata",
-  Activity = "activity",
+  Output = 'output',
+  ChildWorkflowRuns = 'child-workflow-runs',
+  Input = 'input',
+  Logs = 'logs',
+  Observability = 'observability',
+  AdditionalMetadata = 'additional-metadata',
+  Activity = 'activity',
 }
 
 interface TaskRunDetailProps {
@@ -67,8 +67,8 @@ const TaskRunPermalinkOrBacklink = ({
         params={{ tenant: tenant, run: taskRun.metadata.id }}
       >
         <Button
-          size={"sm"}
-          variant={"outline"}
+          size={'sm'}
+          variant={'outline'}
           leftIcon={<FullscreenIcon className="size-4" />}
         >
           Expand
@@ -86,8 +86,8 @@ const TaskRunPermalinkOrBacklink = ({
         params={{ tenant: tenant, run: taskRun.workflowRunExternalId }}
       >
         <Button
-          size={"sm"}
-          variant={"outline"}
+          size={'sm'}
+          variant={'outline'}
           leftIcon={<FullscreenIcon className="size-4" />}
         >
           View DAG Run
@@ -105,14 +105,14 @@ export const TaskRunDetail = ({
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const [logsResetKey, setLogsResetKey] = useState(0);
-  const [outerTab, setOuterTab] = useState("overview");
+  const [outerTab, setOuterTab] = useState('overview');
   const [focusedTaskRunId, setFocusedTaskRunId] = useState<
     string | undefined
   >();
 
   const handleMiniMapClick = useCallback(() => {
     setFocusedTaskRunId(taskRunId);
-    setOuterTab("observability");
+    setOuterTab('observability');
   }, [taskRunId]);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
@@ -147,7 +147,7 @@ export const TaskRunDetail = ({
               <V1RunIndicator status={taskRun.status} isSkipped={isSkipped} />
             )}
             <h3 className="flex flex-row items-center gap-4 font-mono text-lg font-semibold leading-tight tracking-tight text-foreground">
-              {taskRun.displayName || "Task Run Detail"}
+              {taskRun.displayName || 'Task Run Detail'}
             </h3>
           </div>
         </div>
@@ -347,7 +347,7 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   if (data.startedAt) {
     timings.push(
       <div key="created" className="text-sm text-muted-foreground">
-        {"Started "}
+        {'Started '}
         <RelativeDate date={data.startedAt} />
       </div>,
     );
@@ -356,7 +356,7 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   if (data.status === V1TaskStatus.FAILED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
-        {"Failed "}
+        {'Failed '}
         <RelativeDate date={data.finishedAt} />
       </div>,
     );
@@ -365,7 +365,7 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   if (data.status === V1TaskStatus.COMPLETED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
-        {hasSkippedEvent ? "Skipped " : "Succeeded "}
+        {hasSkippedEvent ? 'Skipped ' : 'Succeeded '}
         <RelativeDate date={data.finishedAt} />
       </div>,
     );

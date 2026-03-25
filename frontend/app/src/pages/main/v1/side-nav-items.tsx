@@ -1,8 +1,8 @@
 import {
   SideNavSection,
   SideNavChild,
-} from "../../../components/v1/nav/side-nav";
-import { appRoutes } from "@/router";
+} from '../../../components/v1/nav/side-nav';
+import { appRoutes } from '@/router';
 import {
   RiPulseAiLine,
   RiFilterLine,
@@ -17,62 +17,62 @@ import {
   RiPlayLargeLine,
   RiFileTextLine,
   RiOrganizationChart,
-} from "react-icons/ri";
+} from 'react-icons/ri';
 
 export function sideNavItems(opts: {
   canBill?: boolean;
   managedWorkerEnabled?: boolean;
   isCloudEnabled?: boolean;
 }): SideNavSection[] {
-  const billingLabel = opts.canBill ? "Billing & Limits" : "Resource Limits";
+  const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
 
   const settingsChildren: SideNavChild[] = [
     {
-      key: "tenant-settings-overview",
-      name: "Overview",
+      key: 'tenant-settings-overview',
+      name: 'Overview',
       to: appRoutes.tenantSettingsOverviewRoute.to,
     },
     {
-      key: "tenant-settings-api-tokens",
-      name: "API Tokens",
+      key: 'tenant-settings-api-tokens',
+      name: 'API Tokens',
       to: appRoutes.tenantSettingsApiTokensRoute.to,
     },
     {
-      key: "tenant-settings-github",
-      name: "GitHub",
+      key: 'tenant-settings-github',
+      name: 'GitHub',
       to: appRoutes.tenantSettingsGithubRoute.to,
     },
     {
-      key: "tenant-settings-members",
-      name: "Members",
+      key: 'tenant-settings-members',
+      name: 'Members',
       to: appRoutes.tenantSettingsMembersRoute.to,
     },
     {
-      key: "tenant-settings-billing-and-limits",
+      key: 'tenant-settings-billing-and-limits',
       name: billingLabel,
       to: appRoutes.tenantSettingsBillingRoute.to,
     },
     {
-      key: "tenant-settings-alerting",
-      name: "Alerting",
+      key: 'tenant-settings-alerting',
+      name: 'Alerting',
       to: appRoutes.tenantSettingsAlertingRoute.to,
     },
     {
-      key: "tenant-settings-ingestors",
-      name: "Ingestors",
+      key: 'tenant-settings-ingestors',
+      name: 'Ingestors',
       to: appRoutes.tenantSettingsIngestorsRoute.to,
     },
   ];
 
   return [
     {
-      key: "overview",
-      title: "",
-      itemsClassName: "flex flex-col gap-y-1",
+      key: 'overview',
+      title: '',
+      itemsClassName: 'flex flex-col gap-y-1',
       items: [
         {
-          key: "overview",
-          name: "Overview",
+          key: 'overview',
+          name: 'Overview',
           to: appRoutes.tenantOverviewRoute.to,
           icon: ({
             collapsed,
@@ -87,7 +87,7 @@ export function sideNavItems(opts: {
               viewBox="0 0 17 17"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             >
               <style>
                 {`
@@ -130,9 +130,9 @@ export function sideNavItems(opts: {
                 `}
               </style>
               <path
-                key={active ? "hatchet-active" : "hatchet-inactive"}
+                key={active ? 'hatchet-active' : 'hatchet-inactive'}
                 d="M10.7088 5.33333L8.90785 9.33333L5.39489 5.79376C5.00305 5.39895 4.80713 5.20155 4.73366 4.97425C4.66902 4.77429 4.66902 4.55905 4.73366 4.35909C4.80713 4.13178 5.00305 3.93438 5.39489 3.53957L8.90785 7.38316e-07L11.6096 1.21071e-06L7.07243 4.88519C6.94095 5.02675 6.87522 5.09753 6.87203 5.15789C6.86927 5.2103 6.89135 5.26095 6.93164 5.29459C6.97803 5.33333 7.07463 5.33333 7.26782 5.33333L10.7088 5.33333Z"
-                className={active ? "hatchet-animated" : ""}
+                className={active ? 'hatchet-animated' : ''}
                 fill="currentColor"
               />
               <path
@@ -145,7 +145,7 @@ export function sideNavItems(opts: {
                 fill="currentColor"
                 fillOpacity="0"
                 id="stump-gap"
-                className={active ? "stump-gap-animated" : ""}
+                className={active ? 'stump-gap-animated' : ''}
               />
             </svg>
           ),
@@ -153,172 +153,172 @@ export function sideNavItems(opts: {
       ],
     },
     {
-      key: "activity",
-      title: "Activity",
-      itemsClassName: "space-y-1",
+      key: 'activity',
+      title: 'Activity',
+      itemsClassName: 'space-y-1',
       items: [
         {
-          key: "runs",
-          name: "Runs",
+          key: 'runs',
+          name: 'Runs',
           to: appRoutes.tenantRunsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiPlayLargeLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
         {
-          key: "events",
-          name: "Events",
+          key: 'events',
+          name: 'Events',
           to: appRoutes.tenantEventsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiPulseAiLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
         {
-          key: "logs",
-          name: "Logs",
+          key: 'logs',
+          name: 'Logs',
           to: appRoutes.tenantLogsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiFileTextLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
       ],
     },
     {
-      key: "triggers",
-      title: "Triggers",
-      itemsClassName: "space-y-1",
+      key: 'triggers',
+      title: 'Triggers',
+      itemsClassName: 'space-y-1',
       items: [
         {
-          key: "scheduled",
-          name: "Scheduled Runs",
+          key: 'scheduled',
+          name: 'Scheduled Runs',
           to: appRoutes.tenantScheduledRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiCalendarEventLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
         {
-          key: "crons",
-          name: "Cron Jobs",
+          key: 'crons',
+          name: 'Cron Jobs',
           to: appRoutes.tenantCronJobsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiTimeLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
         {
-          key: "webhooks",
-          name: "Webhooks",
+          key: 'webhooks',
+          name: 'Webhooks',
           to: appRoutes.tenantWebhooksRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiWebhookLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
       ],
     },
     {
-      key: "resources",
-      title: "Resources",
-      itemsClassName: "space-y-1",
+      key: 'resources',
+      title: 'Resources',
+      itemsClassName: 'space-y-1',
       items: [
         {
-          key: "workers",
-          name: "Workers",
+          key: 'workers',
+          name: 'Workers',
           to: appRoutes.tenantWorkersRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiStackLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
         {
-          key: "workflows",
-          name: "Workflows",
+          key: 'workflows',
+          name: 'Workflows',
           to: appRoutes.tenantWorkflowsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiFunctionLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
         ...(opts.managedWorkerEnabled
           ? [
               {
-                key: "managed-compute",
-                name: "Managed Compute",
+                key: 'managed-compute',
+                name: 'Managed Compute',
                 to: appRoutes.tenantManagedWorkersRoute.to,
                 icon: ({ collapsed }: { collapsed: boolean }) => (
                   <RiCpuLine
-                    className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
                   />
                 ),
               },
             ]
           : []),
         {
-          key: "rate-limits",
-          name: "Rate Limits",
+          key: 'rate-limits',
+          name: 'Rate Limits',
           to: appRoutes.tenantRateLimitsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiEqualizer3Line
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
         {
-          key: "filters",
-          name: "Filters",
+          key: 'filters',
+          name: 'Filters',
           to: appRoutes.tenantFiltersRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiFilterLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
       ],
     },
     {
-      key: "admin",
-      title: "Admin",
-      itemsClassName: "space-y-1",
+      key: 'admin',
+      title: 'Admin',
+      itemsClassName: 'space-y-1',
       items: [
         {
-          key: "organizations",
-          name: opts.isCloudEnabled ? "Organizations" : "Tenants",
+          key: 'organizations',
+          name: opts.isCloudEnabled ? 'Organizations' : 'Tenants',
           to: appRoutes.tenantOrganizationsAndTenantsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiOrganizationChart
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
       ],
     },
     {
-      key: "settings",
-      title: "Settings",
-      itemsClassName: "space-y-1",
+      key: 'settings',
+      title: 'Settings',
+      itemsClassName: 'space-y-1',
       items: [
         {
-          key: "tenant-settings",
-          name: "General",
+          key: 'tenant-settings',
+          name: 'General',
           to: appRoutes.tenantSettingsOverviewRoute.to,
           activeTo: appRoutes.tenantSettingsIndexRoute.to,
           activeFuzzy: true,
           prefix: appRoutes.tenantSettingsIndexRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiToolsLine
-              className={collapsed ? "size-5" : "mr-2 size-4 shrink-0"}
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
           children: settingsChildren,

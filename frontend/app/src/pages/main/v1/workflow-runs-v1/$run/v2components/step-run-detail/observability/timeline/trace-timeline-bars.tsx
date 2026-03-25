@@ -1,22 +1,22 @@
-import { GroupBar } from "./group-bar";
-import { SpanBar } from "./span-bar";
-import { TimelineTickHeader } from "./timeline-tick-header";
+import { GroupBar } from './group-bar';
+import { SpanBar } from './span-bar';
+import { TimelineTickHeader } from './timeline-tick-header';
 import {
   SpanTooltip,
   GroupTooltip,
   TOOLTIP_EDGE_LIMIT,
-} from "./trace-timeline-tooltips";
+} from './trace-timeline-tooltips';
 import {
   ROW_HEIGHT,
   type FlatRow,
   type SpanGroupInfo,
   type VisibleRange,
-} from "./trace-timeline-utils";
-import { useBrushZoom } from "./use-brush-zoom";
-import { useCursorSync } from "./use-cursor-sync";
-import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
-import { memo, useState, useCallback, useRef, type MouseEvent } from "react";
-import { createPortal } from "react-dom";
+} from './trace-timeline-utils';
+import { useBrushZoom } from './use-brush-zoom';
+import { useCursorSync } from './use-cursor-sync';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import { memo, useState, useCallback, useRef, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 
 interface TimelineBarsProps {
   flatRows: FlatRow[];
@@ -124,7 +124,7 @@ export const TimelineBars = memo(function TimelineBars({
       <div
         className="relative"
         ref={barsRef}
-        style={{ cursor: onRangeChange ? "crosshair" : undefined }}
+        style={{ cursor: onRangeChange ? 'crosshair' : undefined }}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
         onPointerDown={onPointerDown}
@@ -142,7 +142,7 @@ export const TimelineBars = memo(function TimelineBars({
         ))}
 
         {flatRows.map((row) => {
-          if (row.kind === "show-more") {
+          if (row.kind === 'show-more') {
             return (
               <div
                 key={row.rowKey}
@@ -152,7 +152,7 @@ export const TimelineBars = memo(function TimelineBars({
             );
           }
 
-          if (row.kind === "group") {
+          if (row.kind === 'group') {
             return (
               <GroupBar
                 key={row.rowKey}
@@ -231,13 +231,13 @@ export const TimelineBars = memo(function TimelineBars({
 
       {hoveredRow &&
         tooltipPos &&
-        hoveredRow.kind === "span" &&
+        hoveredRow.kind === 'span' &&
         createPortal(
           <SpanTooltip
             row={hoveredRow}
             now={now}
             style={{
-              position: "fixed",
+              position: 'fixed',
               left: Math.min(
                 tooltipPos.x + 12,
                 window.innerWidth - TOOLTIP_EDGE_LIMIT,
@@ -249,12 +249,12 @@ export const TimelineBars = memo(function TimelineBars({
         )}
       {hoveredRow &&
         tooltipPos &&
-        hoveredRow.kind === "group" &&
+        hoveredRow.kind === 'group' &&
         createPortal(
           <GroupTooltip
             group={hoveredRow.group}
             style={{
-              position: "fixed",
+              position: 'fixed',
               left: Math.min(
                 tooltipPos.x + 12,
                 window.innerWidth - TOOLTIP_EDGE_LIMIT,

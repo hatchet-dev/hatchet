@@ -1,9 +1,9 @@
-import api, { APIErrors } from "./api";
-import { getFieldErrors } from "./utils";
-import { useToast } from "@/components/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
-import { AxiosError } from "axios";
-import { Dispatch, SetStateAction } from "react";
+import api, { APIErrors } from './api';
+import { getFieldErrors } from './utils';
+import { useToast } from '@/components/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
+import { Dispatch, SetStateAction } from 'react';
 
 export function useApiError(
   props: {
@@ -22,7 +22,7 @@ export function useApiError(
     : (errors: string[]) => {
         for (const error of errors) {
           toast({
-            title: "Error",
+            title: 'Error',
             description: error,
             duration: 5000,
           });
@@ -33,7 +33,7 @@ export function useApiError(
     console.log(error);
     if (error.response?.status) {
       if (error.response?.status >= 500) {
-        handler(["An internal error occurred."]);
+        handler(['An internal error occurred.']);
 
         return;
       }
@@ -61,14 +61,14 @@ export function useApiError(
     }
 
     if (!apiErrors || !apiErrors.errors || apiErrors.errors.length === 0) {
-      handler(["An internal error occurred."]);
+      handler(['An internal error occurred.']);
 
       return;
     }
 
     handler(
       apiErrors.errors.map(
-        (error) => error.description || "An internal error occurred.",
+        (error) => error.description || 'An internal error occurred.',
       ),
     );
   };
@@ -82,7 +82,7 @@ export function useApiMetaIntegrations() {
   const { handleApiError } = useApiError({});
 
   const metaQuery = useQuery({
-    queryKey: ["metadata:get:integrations"],
+    queryKey: ['metadata:get:integrations'],
     queryFn: async () => {
       const meta = await api.metadataListIntegrations();
       return meta;

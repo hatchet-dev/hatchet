@@ -1,17 +1,17 @@
-import { scopeKey, workflowIdKey } from "../components/filter-columns";
-import { FilterOption } from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { usePagination } from "@/hooks/use-pagination";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { scopeKey, workflowIdKey } from '../components/filter-columns';
+import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
   V1CreateFilterRequest,
   V1UpdateFilterRequest,
-} from "@/lib/api";
-import { useSearchParams } from "@/lib/router-helpers";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ColumnFiltersState, Updater } from "@tanstack/react-table";
-import { useCallback, useMemo } from "react";
+} from '@/lib/api';
+import { useSearchParams } from '@/lib/router-helpers';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ColumnFiltersState, Updater } from '@tanstack/react-table';
+import { useCallback, useMemo } from 'react';
 
 type UseFiltersProps = {
   key: string;
@@ -37,9 +37,9 @@ const parseFilterParam = (searchParams: URLSearchParams, key: string) => {
 
   if (
     !parsedFilterState ||
-    typeof parsedFilterState !== "object" ||
-    !("w" in parsedFilterState) ||
-    !("s" in parsedFilterState)
+    typeof parsedFilterState !== 'object' ||
+    !('w' in parsedFilterState) ||
+    !('s' in parsedFilterState)
   ) {
     return {
       w: [],
@@ -103,7 +103,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
       setSearchParams((prev) => {
         const currentColumnFilters = columnFilters;
         const newColumnFilters =
-          typeof updater === "function"
+          typeof updater === 'function'
             ? updater(currentColumnFilters)
             : updater;
 
@@ -139,7 +139,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
 
   const { data, isLoading, isRefetching, refetch, error } = useQuery({
     queryKey: [
-      "v1:filter:list",
+      'v1:filter:list',
       tenantId,
       key,
       offset,
@@ -201,7 +201,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["v1:filter:list", tenantId],
+        queryKey: ['v1:filter:list', tenantId],
       });
     },
   });
@@ -220,10 +220,10 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["v1:filter:list", tenantId],
+        queryKey: ['v1:filter:list', tenantId],
       });
       await queryClient.invalidateQueries({
-        queryKey: ["v1:filter:get", tenantId],
+        queryKey: ['v1:filter:get', tenantId],
       });
     },
   });
@@ -236,7 +236,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["v1:filter:list", tenantId],
+        queryKey: ['v1:filter:list', tenantId],
       });
     },
   });
@@ -299,7 +299,7 @@ export const useFilterDetails = (filterId: string) => {
   const { tenantId } = useCurrentTenantId();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["v1:filter:get", tenantId, filterId],
+    queryKey: ['v1:filter:get', tenantId, filterId],
     queryFn: async () => {
       const response = await api.v1FilterGet(tenantId, filterId);
 

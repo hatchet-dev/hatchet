@@ -1,10 +1,10 @@
-import { LogSearchInput } from "@/components/v1/cloud/logging/log-search/log-search-input";
+import { LogSearchInput } from '@/components/v1/cloud/logging/log-search/log-search-input';
 import {
   LogsProvider,
   useLogsContext,
-} from "@/components/v1/cloud/logging/log-search/use-logs";
-import { LogViewer } from "@/components/v1/cloud/logging/log-viewer";
-import { V1TaskSummary } from "@/lib/api";
+} from '@/components/v1/cloud/logging/log-search/use-logs';
+import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
+import { V1TaskSummary } from '@/lib/api';
 
 export function TaskRunLogs({
   taskRun,

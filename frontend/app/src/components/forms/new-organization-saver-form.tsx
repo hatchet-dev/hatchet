@@ -1,15 +1,15 @@
-import { generateTenantSlug } from "./generate-tenant-slug";
-import { NewOrganizationInputForm } from "./new-organization-input-form";
-import { useAnalytics } from "@/hooks/use-analytics";
-import { cloudApi } from "@/lib/api/api";
+import { generateTenantSlug } from './generate-tenant-slug';
+import { NewOrganizationInputForm } from './new-organization-input-form';
+import { useAnalytics } from '@/hooks/use-analytics';
+import { cloudApi } from '@/lib/api/api';
 import {
   Organization,
   OrganizationTenant,
-} from "@/lib/api/generated/cloud/data-contracts";
-import { useApiError } from "@/lib/hooks";
-import { useUserUniverse } from "@/providers/user-universe";
-import { useMutation } from "@tanstack/react-query";
-import invariant from "tiny-invariant";
+} from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { useUserUniverse } from '@/providers/user-universe';
+import { useMutation } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
 
 interface NewOrganizationSaverFormProps {
   defaultOrganizationName?: string;
@@ -45,7 +45,7 @@ const saveOrganizationAndTenant = async ({
 const useSaveOrganization = ({
   afterSave,
 }: {
-  afterSave: NewOrganizationSaverFormProps["afterSave"];
+  afterSave: NewOrganizationSaverFormProps['afterSave'];
 }) => {
   const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const { capture } = useAnalytics();
@@ -65,9 +65,9 @@ const useSaveOrganization = ({
       }),
     onSuccess: (data) => {
       invalidateUserUniverse();
-      localStorage.setItem("hatchet:show-welcome", "1");
-      capture("onboarding_tenant_created", {
-        tenant_type: "cloud",
+      localStorage.setItem('hatchet:show-welcome', '1');
+      capture('onboarding_tenant_created', {
+        tenant_type: 'cloud',
         is_cloud: true,
       });
       afterSave(data);
@@ -91,7 +91,7 @@ export function NewOrganizationSaverForm({
 
   invariant(
     isCloudEnabled,
-    "Organizations only exist in the cloud environment, thus the NewOrganizationSaverForm should never be rendered except in the cloud environment.  If this throws, a UI dev made a mistake.",
+    'Organizations only exist in the cloud environment, thus the NewOrganizationSaverForm should never be rendered except in the cloud environment.  If this throws, a UI dev made a mistake.',
   );
 
   return (

@@ -1,6 +1,6 @@
-import { useTenantDetails } from "./use-tenant";
-import { usePostHog } from "posthog-js/react";
-import { useCallback } from "react";
+import { useTenantDetails } from './use-tenant';
+import { usePostHog } from 'posthog-js/react';
+import { useCallback } from 'react';
 
 interface AnalyticsEvent {
   [key: string]: unknown;
@@ -16,8 +16,8 @@ interface UseAnalyticsReturn {
   isAvailable: boolean;
 }
 
-export const POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY = "ph__distinct_id";
-export const POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY = "ph__session_id";
+export const POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY = 'ph__distinct_id';
+export const POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY = 'ph__session_id';
 
 /**
  * Hook for PostHog analytics integration
@@ -40,7 +40,7 @@ export function useAnalytics(): UseAnalyticsReturn {
       try {
         posthog.capture(eventName, properties);
       } catch (error) {
-        console.warn("Analytics capture failed:", error);
+        console.warn('Analytics capture failed:', error);
       }
     },
     [posthog, isAvailable],
@@ -59,7 +59,7 @@ export function useAnalytics(): UseAnalyticsReturn {
       try {
         posthog.identify(userId, properties, setOnceProperties);
       } catch (error) {
-        console.warn("Analytics identify failed:", error);
+        console.warn('Analytics identify failed:', error);
       }
     },
     [posthog, isAvailable],

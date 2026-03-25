@@ -1,48 +1,48 @@
-import { AnsiLine } from "./ansi-line";
-import { LogLine } from "./log-search/use-logs";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { V1TaskStatus } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { useMemo, useCallback, useRef, useState } from "react";
+import { AnsiLine } from './ansi-line';
+import { LogLine } from './log-search/use-logs';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { V1TaskStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { useMemo, useCallback, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
   hour12: false,
 };
 
 const LEVEL_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   {
     error: {
-      bg: "bg-red-500/10",
-      text: "text-red-600 dark:text-red-400",
-      dot: "bg-red-500",
+      bg: 'bg-red-500/10',
+      text: 'text-red-600 dark:text-red-400',
+      dot: 'bg-red-500',
     },
     warn: {
-      bg: "bg-yellow-500/10",
-      text: "text-yellow-600 dark:text-yellow-400",
-      dot: "bg-yellow-500",
+      bg: 'bg-yellow-500/10',
+      text: 'text-yellow-600 dark:text-yellow-400',
+      dot: 'bg-yellow-500',
     },
     info: {
-      bg: "bg-green-500/10",
-      text: "text-green-600 dark:text-green-400",
-      dot: "bg-green-500",
+      bg: 'bg-green-500/10',
+      text: 'text-green-600 dark:text-green-400',
+      dot: 'bg-green-500',
     },
     debug: {
-      bg: "bg-gray-500/10",
-      text: "text-gray-500 dark:text-gray-400",
-      dot: "bg-gray-500",
+      bg: 'bg-gray-500/10',
+      text: 'text-gray-500 dark:text-gray-400',
+      dot: 'bg-gray-500',
     },
   };
 
 const formatTimestamp = (timestamp: string): string => {
   return new Date(timestamp)
-    .toLocaleString("sv", DATE_FORMAT_OPTIONS)
-    .replace(",", ".");
+    .toLocaleString('sv', DATE_FORMAT_OPTIONS)
+    .replace(',', '.');
 };
 
 export interface LogViewerProps {
@@ -67,16 +67,16 @@ function getEmptyStateMessage(
   }
   switch (taskStatus) {
     case V1TaskStatus.COMPLETED:
-      return "Task completed with no logs.";
+      return 'Task completed with no logs.';
     case V1TaskStatus.FAILED:
-      return "Task failed with no logs.";
+      return 'Task failed with no logs.';
     case V1TaskStatus.CANCELLED:
-      return "Task was cancelled with no logs.";
+      return 'Task was cancelled with no logs.';
     case V1TaskStatus.RUNNING:
     case V1TaskStatus.QUEUED:
-      return "Waiting for logs...";
+      return 'Waiting for logs...';
     default:
-      return "No logs available.";
+      return 'No logs available.';
   }
 }
 
@@ -87,12 +87,12 @@ const LevelBadge = ({ level }: { level: string }) => {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none uppercase tracking-wide",
+        'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none uppercase tracking-wide',
         style.bg,
         style.text,
       )}
     >
-      <span className={cn("size-1.5 rounded-full", style.dot)} />
+      <span className={cn('size-1.5 rounded-full', style.dot)} />
       {normalized}
     </span>
   );
@@ -191,26 +191,26 @@ export function LogViewer({
 
   const isRunning = taskStatus === V1TaskStatus.RUNNING;
 
-  const heightClass = "flex-1 min-h-0";
+  const heightClass = 'flex-1 min-h-0';
 
   // Build dynamic grid-template-columns
   const gridCols = [
-    "auto", // timestamp
-    "72px", // level
-    hasInstance && "minmax(100px, 200px)",
-    hasAttempt && "auto",
-    showTaskName && "minmax(100px, 200px)",
-    "minmax(0, 1fr)", // message
+    'auto', // timestamp
+    '72px', // level
+    hasInstance && 'minmax(100px, 200px)',
+    hasAttempt && 'auto',
+    showTaskName && 'minmax(100px, 200px)',
+    'minmax(0, 1fr)', // message
   ]
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 
   if (isLoading) {
     return (
       <div
         className={cn(
           heightClass,
-          "rounded-lg border bg-background flex items-center justify-center",
+          'rounded-lg border bg-background flex items-center justify-center',
         )}
       >
         <span className="text-sm text-muted-foreground">Loading logs...</span>
@@ -224,7 +224,7 @@ export function LogViewer({
       <div
         className={cn(
           heightClass,
-          "rounded-lg border bg-background flex items-center justify-center",
+          'rounded-lg border bg-background flex items-center justify-center',
         )}
       >
         <span className="text-sm text-muted-foreground">
@@ -251,10 +251,10 @@ export function LogViewer({
       )}
 
       <div
-        className={cn("grid overflow-y-auto", heightClass)}
+        className={cn('grid overflow-y-auto', heightClass)}
         style={{
           gridTemplateColumns: gridCols,
-          alignContent: "start",
+          alignContent: 'start',
         }}
         ref={scrollRef}
         onScroll={handleScroll}
@@ -298,7 +298,7 @@ export function LogViewer({
           .filter((log) => isNonEmpty(log.line))
           .map((log, ix) => (
             <div
-              key={`${log.timestamp}-${log.instance ?? ""}-${log.attempt ?? ""}`}
+              key={`${log.timestamp}-${log.instance ?? ''}-${log.attempt ?? ''}`}
               className="col-span-full items-baseline grid grid-cols-subgrid border-b border-border/40 hover:bg-muted/30 transition-colors group"
               style={{ gridColumn: `1 / span ${colCount}` }}
             >
@@ -310,7 +310,7 @@ export function LogViewer({
                     formatTimestamp(log.timestamp)
                   )
                 ) : (
-                  "—"
+                  '—'
                 )}
               </div>
               <div className="px-3 py-1.5 flex items-center">
@@ -322,21 +322,21 @@ export function LogViewer({
               </div>
               {hasInstance && (
                 <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground truncate">
-                  {log.instance || "—"}
+                  {log.instance || '—'}
                 </div>
               )}
               {hasAttempt && (
                 <div className="px-3 py-1.5 font-mono text-xs text-muted-foreground text-center tabular-nums">
-                  {log.attempt ?? "—"}
+                  {log.attempt ?? '—'}
                 </div>
               )}
               {showTaskName && (
                 <div
                   className={cn(
-                    "px-3 py-1.5 font-mono text-xs text-muted-foreground truncate",
+                    'px-3 py-1.5 font-mono text-xs text-muted-foreground truncate',
                     onViewRun &&
                       log.taskExternalId &&
-                      "cursor-pointer hover:text-foreground hover:underline",
+                      'cursor-pointer hover:text-foreground hover:underline',
                   )}
                   onClick={
                     onViewRun && log.taskExternalId
@@ -344,13 +344,13 @@ export function LogViewer({
                       : undefined
                   }
                 >
-                  {log.taskDisplayName || "—"}
+                  {log.taskDisplayName || '—'}
                 </div>
               )}
               <div
                 className={cn(
-                  "px-3 py-1.5 font-mono text-xs text-foreground truncate",
-                  selectedLogIndex === ix && "whitespace-normal break-words",
+                  'px-3 py-1.5 font-mono text-xs text-foreground truncate',
+                  selectedLogIndex === ix && 'whitespace-normal break-words',
                 )}
                 onClick={() => {
                   setSelectedLogIndex((prev) => (prev === ix ? undefined : ix));
@@ -358,9 +358,9 @@ export function LogViewer({
                 onMouseEnter={(e) => {
                   const el = e.currentTarget;
                   if (el.scrollWidth > el.clientWidth) {
-                    el.style.cursor = "pointer";
+                    el.style.cursor = 'pointer';
                   } else {
-                    el.style.cursor = "default";
+                    el.style.cursor = 'default';
                   }
                 }}
               >

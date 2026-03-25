@@ -3,104 +3,104 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/v1/ui/accordion";
-import { Button } from "@/components/v1/ui/button";
-import { Checkbox } from "@/components/v1/ui/checkbox";
-import EnvGroupArray, { KeyValueType } from "@/components/v1/ui/envvar";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
+} from '@/components/v1/ui/accordion';
+import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { Step, Steps } from "@/components/v1/ui/steps";
+} from '@/components/v1/ui/select';
+import { Step, Steps } from '@/components/v1/ui/steps';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/v1/ui/tabs";
-import { useCurrentTenantId, useTenantDetails } from "@/hooks/use-tenant";
-import { queries } from "@/lib/api";
-import { ManagedWorkerRegion } from "@/lib/api/generated/cloud/data-contracts";
+} from '@/components/v1/ui/tabs';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
 import {
   managedCompute,
   ComputeType,
-} from "@/lib/can/features/managed-compute";
-import { PlusIcon, ArrowUpIcon } from "@heroicons/react/24/outline";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+} from '@/lib/can/features/managed-compute';
+import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, useMemo } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 export const machineTypes = [
   {
-    title: "1 CPU, 1 GB RAM (shared CPU)",
-    cpuKind: "shared",
+    title: '1 CPU, 1 GB RAM (shared CPU)',
+    cpuKind: 'shared',
     cpus: 1,
     memoryMb: 1024,
   },
   {
-    title: "1 CPU, 2 GB RAM (shared CPU)",
-    cpuKind: "shared",
+    title: '1 CPU, 2 GB RAM (shared CPU)',
+    cpuKind: 'shared',
     cpus: 1,
     memoryMb: 2048,
   },
   {
-    title: "2 CPU, 2 GB RAM (shared CPU)",
-    cpuKind: "shared",
+    title: '2 CPU, 2 GB RAM (shared CPU)',
+    cpuKind: 'shared',
     cpus: 2,
     memoryMb: 2048,
   },
   {
-    title: "2 CPU, 4 GB RAM (shared CPU)",
-    cpuKind: "shared",
+    title: '2 CPU, 4 GB RAM (shared CPU)',
+    cpuKind: 'shared',
     cpus: 2,
     memoryMb: 4096,
   },
   {
-    title: "4 CPU, 8 GB RAM (shared CPU)",
-    cpuKind: "shared",
+    title: '4 CPU, 8 GB RAM (shared CPU)',
+    cpuKind: 'shared',
     cpus: 4,
     memoryMb: 8192,
   },
   {
-    title: "8 CPU, 16 GB RAM (shared CPU)",
-    cpuKind: "shared",
+    title: '8 CPU, 16 GB RAM (shared CPU)',
+    cpuKind: 'shared',
     cpus: 8,
     memoryMb: 16384,
   },
   {
-    title: "1 CPU, 2 GB RAM (performance CPU)",
-    cpuKind: "performance",
+    title: '1 CPU, 2 GB RAM (performance CPU)',
+    cpuKind: 'performance',
     cpus: 1,
     memoryMb: 2048,
   },
   {
-    title: "2 CPU, 2 GB RAM (performance CPU)",
-    cpuKind: "performance",
+    title: '2 CPU, 2 GB RAM (performance CPU)',
+    cpuKind: 'performance',
     cpus: 2,
     memoryMb: 2048,
   },
   {
-    title: "2 CPU, 4 GB RAM (performance CPU)",
-    cpuKind: "performance",
+    title: '2 CPU, 4 GB RAM (performance CPU)',
+    cpuKind: 'performance',
     cpus: 2,
     memoryMb: 4096,
   },
   {
-    title: "4 CPU, 8 GB RAM (performance CPU)",
-    cpuKind: "performance",
+    title: '4 CPU, 8 GB RAM (performance CPU)',
+    cpuKind: 'performance',
     cpus: 4,
     memoryMb: 8192,
   },
   {
-    title: "8 CPU, 16 GB RAM (performance CPU)",
-    cpuKind: "performance",
+    title: '8 CPU, 16 GB RAM (performance CPU)',
+    cpuKind: 'performance',
     cpus: 8,
     memoryMb: 16384,
   },
@@ -108,81 +108,81 @@ export const machineTypes = [
 
 export const regions = [
   {
-    name: "Amsterdam, Netherlands",
+    name: 'Amsterdam, Netherlands',
     value: ManagedWorkerRegion.Ams,
   },
   {
-    name: "Stockholm, Sweden",
+    name: 'Stockholm, Sweden',
     value: ManagedWorkerRegion.Arn,
   },
   {
-    name: "Mumbai, India",
+    name: 'Mumbai, India',
     value: ManagedWorkerRegion.Bom,
   },
   {
-    name: "Paris, France",
+    name: 'Paris, France',
     value: ManagedWorkerRegion.Cdg,
   },
   {
-    name: "Dallas, Texas (US)",
+    name: 'Dallas, Texas (US)',
     value: ManagedWorkerRegion.Dfw,
   },
   {
-    name: "Secaucus, NJ (US)",
+    name: 'Secaucus, NJ (US)',
     value: ManagedWorkerRegion.Ewr,
   },
   {
-    name: "Frankfurt, Germany",
+    name: 'Frankfurt, Germany',
     value: ManagedWorkerRegion.Fra,
   },
   {
-    name: "Sao Paulo, Brazil",
+    name: 'Sao Paulo, Brazil',
     value: ManagedWorkerRegion.Gru,
   },
   {
-    name: "Ashburn, Virginia (US)",
+    name: 'Ashburn, Virginia (US)',
     value: ManagedWorkerRegion.Iad,
   },
   {
-    name: "Johannesburg, South Africa",
+    name: 'Johannesburg, South Africa',
     value: ManagedWorkerRegion.Jnb,
   },
   {
-    name: "Los Angeles, California (US)",
+    name: 'Los Angeles, California (US)',
     value: ManagedWorkerRegion.Lax,
   },
   {
-    name: "London, United Kingdom",
+    name: 'London, United Kingdom',
     value: ManagedWorkerRegion.Lhr,
   },
   {
-    name: "Tokyo, Japan",
+    name: 'Tokyo, Japan',
     value: ManagedWorkerRegion.Nrt,
   },
   {
-    name: "Chicago, Illinois (US)",
+    name: 'Chicago, Illinois (US)',
     value: ManagedWorkerRegion.Ord,
   },
   {
-    name: "Singapore, Singapore",
+    name: 'Singapore, Singapore',
     value: ManagedWorkerRegion.Sin,
   },
   {
-    name: "San Jose, California (US)",
+    name: 'San Jose, California (US)',
     value: ManagedWorkerRegion.Sjc,
   },
   {
-    name: "Sydney, Australia",
+    name: 'Sydney, Australia',
     value: ManagedWorkerRegion.Syd,
   },
   {
-    name: "Toronto, Canada",
+    name: 'Toronto, Canada',
     value: ManagedWorkerRegion.Yyz,
   },
 ];
 
-export type ScalingType = "Autoscaling" | "Static";
-export const scalingTypes: ScalingType[] = ["Static", "Autoscaling"];
+export type ScalingType = 'Autoscaling' | 'Static';
+export const scalingTypes: ScalingType[] = ['Static', 'Autoscaling'];
 
 const createManagedWorkerSchema = z.object({
   name: z.string(),
@@ -258,8 +258,8 @@ export default function CreateWorkerForm({
       buildConfig: {
         steps: [
           {
-            buildDir: ".",
-            dockerfilePath: "./Dockerfile",
+            buildDir: '.',
+            dockerfilePath: './Dockerfile',
           },
         ],
       },
@@ -268,7 +268,7 @@ export default function CreateWorkerForm({
       },
       runtimeConfig: {
         numReplicas: 1,
-        cpuKind: "shared",
+        cpuKind: 'shared',
         cpus: 1,
         memoryMb: 1024,
         regions: [ManagedWorkerRegion.Sjc],
@@ -277,7 +277,7 @@ export default function CreateWorkerForm({
   });
 
   const [machineType, setMachineType] = useState<string>(
-    "1 CPU, 1 GB RAM (shared CPU)",
+    '1 CPU, 1 GB RAM (shared CPU)',
   );
 
   // Get max replicas based on plan
@@ -314,14 +314,14 @@ export default function CreateWorkerForm({
 
   // Display a message when a feature requires an upgrade
 
-  const region = watch("runtimeConfig.regions");
-  const installation = watch("buildConfig.githubInstallationId");
-  const repoOwner = watch("buildConfig.githubRepositoryOwner");
-  const repoName = watch("buildConfig.githubRepositoryName");
+  const region = watch('runtimeConfig.regions');
+  const installation = watch('buildConfig.githubInstallationId');
+  const repoOwner = watch('buildConfig.githubRepositoryOwner');
+  const repoName = watch('buildConfig.githubRepositoryName');
   const repoOwnerName = getRepoOwnerName(repoOwner, repoName);
-  const branch = watch("buildConfig.githubRepositoryBranch");
-  const numReplicas = watch("runtimeConfig.numReplicas");
-  const autoscalingMaxReplicas = watch("runtimeConfig.autoscaling.maxReplicas");
+  const branch = watch('buildConfig.githubRepositoryBranch');
+  const numReplicas = watch('runtimeConfig.numReplicas');
+  const autoscalingMaxReplicas = watch('runtimeConfig.autoscaling.maxReplicas');
 
   const listInstallationsQuery = useQuery({
     ...queries.github.listInstallations(tenantId),
@@ -355,7 +355,7 @@ export default function CreateWorkerForm({
 
   const [secrets, setSecrets] = useState<KeyValueType[]>([]);
 
-  const [scalingType, setScalingType] = useState<ScalingType>("Static");
+  const [scalingType, setScalingType] = useState<ScalingType>('Static');
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
   const buildDirError =
@@ -420,7 +420,7 @@ export default function CreateWorkerForm({
       !installation
     ) {
       setValue(
-        "buildConfig.githubInstallationId",
+        'buildConfig.githubInstallationId',
         listInstallationsQuery.data.rows[0].metadata.id,
       );
     }
@@ -462,7 +462,7 @@ export default function CreateWorkerForm({
 
     return (
       <SelectItem key={machine.title} value={machine.title}>
-        {machine.title} {!allowed && "🔒"}
+        {machine.title} {!allowed && '🔒'}
       </SelectItem>
     );
   };
@@ -489,13 +489,13 @@ export default function CreateWorkerForm({
                     <Select
                       onValueChange={(value) => {
                         field.onChange(value);
-                        setValue("buildConfig.githubRepositoryOwner", "");
-                        setValue("buildConfig.githubRepositoryName", "");
-                        setValue("buildConfig.githubRepositoryBranch", "");
+                        setValue('buildConfig.githubRepositoryOwner', '');
+                        setValue('buildConfig.githubRepositoryName', '');
+                        setValue('buildConfig.githubRepositoryBranch', '');
                       }}
                     >
                       <div className="text-sm text-muted-foreground">
-                        Not seeing your repository?{" "}
+                        Not seeing your repository?{' '}
                         <a
                           // fixme: make this redirect type safe
                           href={`/api/v1/cloud/users/github-app/start?redirect_to=/tenants/${tenantId}/managed-workers/create&with_repo_installation=true`}
@@ -535,14 +535,14 @@ export default function CreateWorkerForm({
                       value={repoOwnerName}
                       onValueChange={(value) => {
                         setValue(
-                          "buildConfig.githubRepositoryOwner",
-                          getRepoOwner(value) || "",
+                          'buildConfig.githubRepositoryOwner',
+                          getRepoOwner(value) || '',
                         );
                         setValue(
-                          "buildConfig.githubRepositoryName",
-                          getRepoName(value) || "",
+                          'buildConfig.githubRepositoryName',
+                          getRepoName(value) || '',
                         );
-                        setValue("buildConfig.githubRepositoryBranch", "");
+                        setValue('buildConfig.githubRepositoryBranch', '');
                       }}
                     >
                       <SelectTrigger className="w-fit">
@@ -556,7 +556,7 @@ export default function CreateWorkerForm({
                           <SelectItem
                             key={i.repo_owner + i.repo_name}
                             value={
-                              getRepoOwnerName(i.repo_owner, i.repo_name) || ""
+                              getRepoOwnerName(i.repo_owner, i.repo_name) || ''
                             }
                           >
                             {i.repo_owner}/{i.repo_name}
@@ -657,7 +657,7 @@ export default function CreateWorkerForm({
               setValues={(value) => {
                 setSecrets(value);
                 setValue(
-                  "secrets.add",
+                  'secrets.add',
                   value.map((item) => ({
                     key: item.key,
                     value: item.value,
@@ -678,7 +678,7 @@ export default function CreateWorkerForm({
                   if (!region) {
                     return;
                   }
-                  setValue("runtimeConfig.regions", [region.value]);
+                  setValue('runtimeConfig.regions', [region.value]);
                 }}
               >
                 <SelectTrigger className="w-fit">
@@ -706,14 +706,14 @@ export default function CreateWorkerForm({
                           (i) => i.title === value,
                         );
                         setMachineType(value);
-                        setValue("runtimeConfig.cpus", machineType?.cpus || 1);
+                        setValue('runtimeConfig.cpus', machineType?.cpus || 1);
                         setValue(
-                          "runtimeConfig.memoryMb",
+                          'runtimeConfig.memoryMb',
                           machineType?.memoryMb || 1024,
                         );
                         setValue(
-                          "runtimeConfig.cpuKind",
-                          machineType?.cpuKind || "shared",
+                          'runtimeConfig.cpuKind',
+                          machineType?.cpuKind || 'shared',
                         );
                       }}
                     >
@@ -755,17 +755,17 @@ export default function CreateWorkerForm({
                 defaultValue="Static"
                 value={scalingType}
                 onValueChange={(value) => {
-                  if (value === "Static") {
-                    setScalingType("Static");
-                    setValue("runtimeConfig.numReplicas", 1);
-                    setValue("runtimeConfig.autoscaling", undefined);
+                  if (value === 'Static') {
+                    setScalingType('Static');
+                    setValue('runtimeConfig.numReplicas', 1);
+                    setValue('runtimeConfig.autoscaling', undefined);
                     return;
                   } else {
-                    setScalingType("Autoscaling");
-                    setValue("runtimeConfig.numReplicas", undefined);
-                    setValue("runtimeConfig.autoscaling", {
-                      waitDuration: "1m",
-                      rollingWindowDuration: "2m",
+                    setScalingType('Autoscaling');
+                    setValue('runtimeConfig.numReplicas', undefined);
+                    setValue('runtimeConfig.autoscaling', {
+                      waitDuration: '1m',
+                      rollingWindowDuration: '2m',
                       utilizationScaleUpThreshold: 0.75,
                       utilizationScaleDownThreshold: 0.25,
                       increment: 1,
@@ -773,7 +773,7 @@ export default function CreateWorkerForm({
                       minAwakeReplicas: 1,
                       maxReplicas: Math.min(10, getMaxReplicas),
                       fly: {
-                        autoscalingKey: "dashboard",
+                        autoscalingKey: 'dashboard',
                         currentReplicas: 1,
                       },
                     });
@@ -800,7 +800,7 @@ export default function CreateWorkerForm({
                           {...field}
                           type="number"
                           onChange={(e) => {
-                            if (e.target.value === "") {
+                            if (e.target.value === '') {
                               field.onChange(e.target.value);
                               return;
                             }
@@ -840,17 +840,17 @@ export default function CreateWorkerForm({
                             field.onChange(minValue);
 
                             setValue(
-                              "runtimeConfig.autoscaling.fly.currentReplicas",
+                              'runtimeConfig.autoscaling.fly.currentReplicas',
                               minValue,
                             );
 
                             // If min replicas is greater than max replicas, update max replicas
                             const maxReplicas = watch(
-                              "runtimeConfig.autoscaling.maxReplicas",
+                              'runtimeConfig.autoscaling.maxReplicas',
                             );
                             if (maxReplicas < minValue) {
                               setValue(
-                                "runtimeConfig.autoscaling.maxReplicas",
+                                'runtimeConfig.autoscaling.maxReplicas',
                                 minValue,
                               );
                             }
@@ -872,7 +872,7 @@ export default function CreateWorkerForm({
                     name="runtimeConfig.autoscaling.maxReplicas"
                     render={({ field }) => {
                       const minReplicas =
-                        watch("runtimeConfig.autoscaling.minAwakeReplicas") ||
+                        watch('runtimeConfig.autoscaling.minAwakeReplicas') ||
                         1;
                       return (
                         <Input
@@ -1187,7 +1187,7 @@ export function getRepoOwner(repoOwnerName?: string) {
   if (!repoOwnerName) {
     return;
   }
-  const splArr = repoOwnerName.split("::");
+  const splArr = repoOwnerName.split('::');
   if (splArr.length > 1) {
     return splArr[0];
   }
@@ -1197,7 +1197,7 @@ export function getRepoName(repoOwnerName?: string) {
   if (!repoOwnerName) {
     return;
   }
-  const splArr = repoOwnerName.split("::");
+  const splArr = repoOwnerName.split('::');
   if (splArr.length > 1) {
     return splArr[1];
   }
@@ -1205,7 +1205,7 @@ export function getRepoName(repoOwnerName?: string) {
 // URL for the billing portal to upgrade
 const getBillingPortalUrl = () => {
   // Replace with your actual billing portal URL or API call
-  return "/tenant-settings/billing-and-limits";
+  return '/tenant-settings/billing-and-limits';
 };
 
 export const UpgradeMessage = ({ feature }: { feature: string }) => (

@@ -1,17 +1,17 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/v1/ui/dropdown-menu";
+} from '@/components/v1/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
-} from "@/components/v1/ui/tooltip";
-import { DotsVerticalIcon } from "@radix-ui/react-icons";
+} from '@/components/v1/ui/tooltip';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
 
 interface TableRowActionsProps<T> {
   row: T;

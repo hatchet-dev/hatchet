@@ -1,15 +1,15 @@
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { usePagination } from "@/hooks/use-pagination";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   queries,
   V1RunningFilter,
   V1TaskSummary,
   V1TaskStatus,
-} from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
-import { RowSelectionState } from "@tanstack/react-table";
-import { useCallback, useMemo, useState } from "react";
+} from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { RowSelectionState } from '@tanstack/react-table';
+import { useCallback, useMemo, useState } from 'react';
 
 type UseRunsProps = {
   key: string;
@@ -45,7 +45,7 @@ export const useRuns = ({
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
   const { offset, pagination, setPageSize, setPagination } = usePagination({
-    key: "runs-table-" + key,
+    key: 'runs-table-' + key,
   });
 
   const [initialRenderTime] = useState(

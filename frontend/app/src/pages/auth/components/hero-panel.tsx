@@ -1,4 +1,4 @@
-import { HatchetLogo } from "@/components/v1/ui/hatchet-logo";
+import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 
 // TODO-DESIGN
 export function HeroPanel() {

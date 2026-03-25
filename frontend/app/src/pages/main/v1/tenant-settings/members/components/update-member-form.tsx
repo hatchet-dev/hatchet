@@ -1,24 +1,24 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
-import { Spinner } from "@/components/v1/ui/loading.tsx";
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/v1/ui/select";
-import { TenantMember, TenantMemberRole } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+} from '@/components/v1/ui/select';
+import { TenantMember, TenantMemberRole } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
   role: z.nativeEnum(TenantMemberRole),
@@ -55,7 +55,7 @@ export function UpdateMemberForm({
       <DialogHeader>
         <DialogTitle>Update member role</DialogTitle>
       </DialogHeader>
-      <div className={cn("grid gap-6", className)}>
+      <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
             props.onSubmit(d);
@@ -67,7 +67,7 @@ export function UpdateMemberForm({
               <Input
                 readOnly
                 id="name"
-                value={props.member.user.name || ""}
+                value={props.member.user.name || ''}
                 disabled={true}
               />
             </div>

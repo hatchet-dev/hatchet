@@ -1,23 +1,23 @@
-import { useRunsContext } from "../hooks/runs-provider";
-import { Badge } from "@/components/v1/ui/badge";
-import { V1TaskStatus } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { CheckCircleIcon, ClockIcon } from "@heroicons/react/24/outline";
-import { PlayIcon, X, Ban, ChartColumn } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useRunsContext } from '../hooks/runs-provider';
+import { Badge } from '@/components/v1/ui/badge';
+import { V1TaskStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
     case V1TaskStatus.CANCELLED:
-      return "Cancelled";
+      return 'Cancelled';
     case V1TaskStatus.COMPLETED:
-      return "Succeeded";
+      return 'Succeeded';
     case V1TaskStatus.FAILED:
-      return "Failed";
+      return 'Failed';
     case V1TaskStatus.QUEUED:
-      return "Queued";
+      return 'Queued';
     case V1TaskStatus.RUNNING:
-      return "Running";
+      return 'Running';
     default:
       const exhaustivenessCheck: never = status;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);
@@ -94,14 +94,14 @@ function MetricBadge({
 
   const IconComponent = statusToIcon(status);
   const friendlyName = statusToFriendlyName(status);
-  const formattedCount = metric.count.toLocaleString("en-US");
+  const formattedCount = metric.count.toLocaleString('en-US');
 
   return (
     <Badge
       data-is-selected={isSelected}
-      variant={isSelected ? "default" : "outline"}
+      variant={isSelected ? 'default' : 'outline'}
       className={cn(
-        "h-8 w-fit cursor-pointer px-3 py-1 text-sm data-[is-selected=false]:font-light",
+        'h-8 w-fit cursor-pointer px-3 py-1 text-sm data-[is-selected=false]:font-light',
         className,
       )}
       onClick={() => handleStatusClick(status)}

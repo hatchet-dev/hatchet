@@ -1,14 +1,14 @@
-import { useTheme } from "@/components/hooks/use-theme";
-import { DocPage } from "@/components/v1/docs/docs-button";
-import { V1Event, V1Filter, ScheduledWorkflows } from "@/lib/api";
-import { ExpandedEventContent } from "@/pages/main/v1/events";
-import { FilterDetailView } from "@/pages/main/v1/filters/components/filter-detail-view";
-import { ExpandedScheduledRunContent } from "@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content";
+import { useTheme } from '@/components/hooks/use-theme';
+import { DocPage } from '@/components/v1/docs/docs-button';
+import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
+import { ExpandedEventContent } from '@/pages/main/v1/events';
+import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
+import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
 import {
   TaskRunDetail,
   TabOption,
-} from "@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail";
-import { useLocation } from "@tanstack/react-router";
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
+import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
@@ -16,7 +16,7 @@ import {
   useEffect,
   useMemo,
   useState,
-} from "react";
+} from 'react';
 
 type SidePanelContent =
   | {
@@ -42,14 +42,14 @@ type SidePanelData = {
 
 type UseSidePanelProps =
   | {
-      type: "docs";
+      type: 'docs';
       content: DocPage;
       queryParams?: Record<string, string>;
       // fixme: make this type safe based on the hashes available in the doc
       scrollTo?: string;
     }
   | {
-      type: "task-run-details";
+      type: 'task-run-details';
       content: {
         taskRunId: string;
         defaultOpenTab?: TabOption;
@@ -57,19 +57,19 @@ type UseSidePanelProps =
       };
     }
   | {
-      type: "event-details";
+      type: 'event-details';
       content: {
         event: V1Event;
       };
     }
   | {
-      type: "filter-detail";
+      type: 'filter-detail';
       content: {
         filter: V1Filter;
       };
     }
   | {
-      type: "scheduled-run-details";
+      type: 'scheduled-run-details';
       content: {
         scheduledRun: ScheduledWorkflows;
       };
@@ -89,7 +89,7 @@ function useSidePanelData(): SidePanelData {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const location = useLocation();
   const { theme: rawTheme } = useTheme();
-  const theme = ["dark", "light"].includes(rawTheme) ? rawTheme : "dark";
+  const theme = ['dark', 'light'].includes(rawTheme) ? rawTheme : 'dark';
 
   const props =
     currentIndex >= 0 && currentIndex < history.length
@@ -110,24 +110,24 @@ function useSidePanelData(): SidePanelData {
     const panelType = props.type;
 
     switch (panelType) {
-      case "task-run-details":
+      case 'task-run-details':
         return {
           isDocs: false,
           component: <SidePanelTaskRunDetail {...props.content} />,
         };
-      case "event-details":
+      case 'event-details':
         return {
           isDocs: false,
           component: <ExpandedEventContent event={props.content.event} />,
         };
-      case "filter-detail":
+      case 'filter-detail':
         return {
           isDocs: false,
           component: (
             <FilterDetailView filterId={props.content.filter.metadata.id} />
           ),
         };
-      case "scheduled-run-details":
+      case 'scheduled-run-details':
         return {
           isDocs: false,
           component: (
@@ -136,14 +136,14 @@ function useSidePanelData(): SidePanelData {
             />
           ),
         };
-      case "docs":
+      case 'docs':
         const query = props.queryParams ?? {};
         query.theme = theme;
 
         const queryString = new URLSearchParams(query).toString();
         const url =
           `${props.content.href}?${queryString}` +
-          (props.scrollTo ? `#${props.scrollTo}` : "");
+          (props.scrollTo ? `#${props.scrollTo}` : '');
 
         return {
           isDocs: true,
@@ -225,7 +225,7 @@ export function useSidePanel(): SidePanelData {
   const context = useContext(SidePanelContext);
   if (!context) {
     throw new Error(
-      "useSidePanelContext must be used within a SidePanelProvider",
+      'useSidePanelContext must be used within a SidePanelProvider',
     );
   }
   return context;

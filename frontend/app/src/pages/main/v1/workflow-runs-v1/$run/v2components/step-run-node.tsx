@@ -1,19 +1,19 @@
-import { V1RunIndicator } from "../../components/run-statuses";
-import { TabOption } from "./step-run-detail/step-run-detail";
+import { V1RunIndicator } from '../../components/run-statuses';
+import { TabOption } from './step-run-detail/step-run-detail';
 import {
   PortalTooltip,
   PortalTooltipContent,
   PortalTooltipProvider,
   PortalTooltipTrigger,
-} from "@/components/v1/ui/portal-tooltip";
-import { V1TaskStatus, V1TaskSummary } from "@/lib/api";
-import { cn, formatDuration } from "@/lib/utils";
-import { memo } from "react";
-import { Handle, Position } from "reactflow";
+} from '@/components/v1/ui/portal-tooltip';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { cn, formatDuration } from '@/lib/utils';
+import { memo } from 'react';
+import { Handle, Position } from 'reactflow';
 
 export type NodeData = {
   taskRun: V1TaskSummary | undefined;
-  graphVariant: "default" | "input_only" | "output_only" | "none";
+  graphVariant: 'default' | 'input_only' | 'output_only' | 'none';
   onClick: (defaultOpenTab?: TabOption) => void;
   childWorkflowsCount: number;
   taskName: string;
@@ -33,11 +33,11 @@ export default memo(({ data }: { data: NodeData }) => {
 
   return (
     <div className="flex min-w-fit grow flex-col justify-start">
-      {(variant == "default" || variant == "input_only") && (
+      {(variant == 'default' || variant == 'input_only') && (
         <Handle
           type="target"
           position={Position.Left}
-          style={{ visibility: "hidden" }}
+          style={{ visibility: 'hidden' }}
           isConnectable={false}
         />
       )}
@@ -51,8 +51,8 @@ export default memo(({ data }: { data: NodeData }) => {
                 `cursor-pointer`,
                 `flex flex-row items-center justify-between gap-4 border-2 dark:border-[1px]`,
                 `bg-[#ffffff] dark:bg-[#050c1c]`,
-                "opacity-80 hover:opacity-100",
-                "h-[30px]",
+                'opacity-80 hover:opacity-100',
+                'h-[30px]',
               )}
               onClick={() => data.onClick()}
             >
@@ -77,11 +77,11 @@ export default memo(({ data }: { data: NodeData }) => {
                 )}
               </div>
 
-              {(variant == "default" || variant == "output_only") && (
+              {(variant == 'default' || variant == 'output_only') && (
                 <Handle
                   type="source"
                   position={Position.Right}
-                  style={{ visibility: "hidden" }}
+                  style={{ visibility: 'hidden' }}
                   isConnectable={false}
                 />
               )}

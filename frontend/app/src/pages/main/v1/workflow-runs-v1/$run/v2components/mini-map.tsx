@@ -1,15 +1,15 @@
-import { useIsTaskRunSkipped } from "../../hooks/use-is-task-run-skipped";
-import { useWorkflowDetails } from "../../hooks/use-workflow-details";
-import { TabOption } from "./step-run-detail/step-run-detail";
-import StepRunNode from "./step-run-node";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
+import { useIsTaskRunSkipped } from '../../hooks/use-is-task-run-skipped';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
+import { TabOption } from './step-run-detail/step-run-detail';
+import StepRunNode from './step-run-node';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import {
   queries,
   V1TaskEventType,
   WorkflowRunShapeItemForWorkflowRunDetails,
-} from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+} from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 interface JobMiniMapProps {
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;
@@ -46,7 +46,7 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
     }
 
     return shape.map((shapeItem) => {
-      const node = shapeItem.stepId ?? "placeholder";
+      const node = shapeItem.stepId ?? 'placeholder';
 
       const children = shapeItem?.childrenStepIds || [];
       const parents = shape
@@ -144,7 +144,7 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
                 key={shapeItem.stepId}
                 data={{
                   taskRun,
-                  graphVariant: "none",
+                  graphVariant: 'none',
                   onClick: () => onClick(taskRun?.metadata.id),
                   childWorkflowsCount: taskRun?.numSpawnedChildren || 0,
                   taskName: shapeItem.taskName,
@@ -196,7 +196,7 @@ export const TaskRunMiniMap = ({
         <StepRunNode
           data={{
             taskRun,
-            graphVariant: "none",
+            graphVariant: 'none',
             onClick: () => onClick(taskRun.metadata.id),
             childWorkflowsCount: taskRun.numSpawnedChildren,
             taskName: taskRun.displayName,

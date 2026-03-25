@@ -1,33 +1,33 @@
-import { TabOption } from "../$run/v2components/step-run-detail/step-run-detail";
-import { TriggerWorkflowForm } from "../../workflows/$workflow/components/trigger-workflow-form";
-import { useRunsContext } from "../hooks/runs-provider";
-import { AdditionalMetadataProp } from "../hooks/use-runs-table-filters";
-import { V1WorkflowRunsMetricsView } from "./task-runs-metrics";
-import { columns, TaskRunColumn } from "./v1/task-runs-columns";
-import { DocsButton } from "@/components/v1/docs/docs-button";
+import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { useRunsContext } from '../hooks/runs-provider';
+import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
+import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
+import { columns, TaskRunColumn } from './v1/task-runs-columns';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import {
   DataPoint,
   ZoomableChart,
-} from "@/components/v1/molecules/charts/zoomable";
-import { DataTable } from "@/components/v1/molecules/data-table/data-table.tsx";
-import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+} from '@/components/v1/molecules/charts/zoomable';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Loading } from "@/components/v1/ui/loading";
-import { Separator } from "@/components/v1/ui/separator";
-import { Skeleton } from "@/components/v1/ui/skeleton";
-import { Toaster } from "@/components/v1/ui/toaster";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { useSidePanel } from "@/hooks/use-side-panel";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { queries } from "@/lib/api";
-import { docsPages } from "@/lib/generated/docs";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+} from '@/components/v1/ui/dialog';
+import { Loading } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import { Toaster } from '@/components/v1/ui/toaster';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
+import { docsPages } from '@/lib/generated/docs';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
@@ -65,7 +65,7 @@ const GetWorkflowChart = () => {
       kind="bar"
       data={
         workflowRunEventsMetricsQuery.data?.results?.map(
-          (result): DataPoint<"SUCCEEDED" | "FAILED"> => ({
+          (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
             date: result.time,
             SUCCEEDED: result.SUCCEEDED,
             FAILED: result.FAILED,
@@ -73,8 +73,8 @@ const GetWorkflowChart = () => {
         ) || []
       }
       colors={{
-        SUCCEEDED: "rgb(34 197 94 / 0.5)",
-        FAILED: "hsl(var(--destructive))",
+        SUCCEEDED: 'rgb(34 197 94 / 0.5)',
+        FAILED: 'hsl(var(--destructive))',
       }}
       zoom={zoom}
       showYAxis={false}
@@ -126,7 +126,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {
       sidePanel.open({
-        type: "task-run-details",
+        type: 'task-run-details',
         content: {
           taskRunId,
           defaultOpenTab: TabOption.Output,
@@ -241,7 +241,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
               <CodeHighlighter
                 language="json"
                 className="max-h-[400px] overflow-y-auto"
-                code={JSON.stringify(queueMetrics || "{}", null, 2)}
+                code={JSON.stringify(queueMetrics || '{}', null, 2)}
               />
             )}
           </DialogContent>
@@ -258,7 +258,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
               <div className="w-fit">
                 <DocsButton
                   doc={docsPages.v1.quickstart}
-                  label={"Learn more about tasks"}
+                  label={'Learn more about tasks'}
                 />
               </div>
             </div>
@@ -272,7 +272,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
           leftActions={leftActions}
           columnFilters={filters.columnFilters}
           setColumnFilters={(updaterOrValue) => {
-            if (typeof updaterOrValue === "function") {
+            if (typeof updaterOrValue === 'function') {
               filters.setColumnFilters(updaterOrValue(filters.columnFilters));
             } else {
               filters.setColumnFilters(updaterOrValue);

@@ -1,7 +1,7 @@
-import { useSearchParams } from "@/lib/router-helpers";
-import { ColumnFiltersState, Updater } from "@tanstack/react-table";
-import { useCallback, useMemo } from "react";
-import { z } from "zod";
+import { useSearchParams } from '@/lib/router-helpers';
+import { ColumnFiltersState, Updater } from '@tanstack/react-table';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod';
 
 type FilterMapping<T> = {
   [K in keyof T]: string;
@@ -28,7 +28,7 @@ export function useZodColumnFilters<T extends z.ZodType>(
 
     try {
       const parsed =
-        typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+        typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
       const validated = schema.parse(parsed);
       return validated;
     } catch (e) {
@@ -54,9 +54,9 @@ export function useZodColumnFilters<T extends z.ZodType>(
       if (value !== undefined && value !== null) {
         if (Array.isArray(value) && value.length > 0) {
           filters.push({ id: columnId, value });
-        } else if (typeof value === "string" && value.length > 0) {
+        } else if (typeof value === 'string' && value.length > 0) {
           filters.push({ id: columnId, value });
-        } else if (typeof value === "number" || typeof value === "boolean") {
+        } else if (typeof value === 'number' || typeof value === 'boolean') {
           filters.push({ id: columnId, value });
         }
       }
@@ -69,7 +69,7 @@ export function useZodColumnFilters<T extends z.ZodType>(
     (updater: Updater<ColumnFiltersState>) => {
       const currentColumnFilters = columnFilters;
       const newColumnFilters =
-        typeof updater === "function" ? updater(currentColumnFilters) : updater;
+        typeof updater === 'function' ? updater(currentColumnFilters) : updater;
 
       const newQueryState = { ...state };
 

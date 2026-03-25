@@ -1,25 +1,25 @@
-import { LimitIndicator } from "../../tenant-settings/resource-limits/components/resource-limit-columns";
-import { RateLimitWithMetadata } from "../hooks/use-rate-limits";
-import { DataTableColumnHeader } from "@/components/v1/molecules/data-table/data-table-column-header";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { capitalize } from "@/lib/utils";
-import { ColumnDef } from "@tanstack/react-table";
+import { LimitIndicator } from '../../tenant-settings/resource-limits/components/resource-limit-columns';
+import { RateLimitWithMetadata } from '../hooks/use-rate-limits';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { capitalize } from '@/lib/utils';
+import { ColumnDef } from '@tanstack/react-table';
 
 export const RateLimitColumn = {
-  key: "Key",
-  value: "Value",
-  limit: "Limit",
-  lastRefill: "Last Refill",
-  window: "Window",
+  key: 'Key',
+  value: 'Value',
+  limit: 'Limit',
+  lastRefill: 'Last Refill',
+  window: 'Window',
 };
 
 type RateLimitColumnKeys = keyof typeof RateLimitColumn;
 
-export const keyKey: RateLimitColumnKeys = "key";
-const valueKey: RateLimitColumnKeys = "value";
-const limitKey: RateLimitColumnKeys = "limit";
-const lastRefillKey: RateLimitColumnKeys = "lastRefill";
-const windowKey: RateLimitColumnKeys = "window";
+export const keyKey: RateLimitColumnKeys = 'key';
+const valueKey: RateLimitColumnKeys = 'value';
+const limitKey: RateLimitColumnKeys = 'limit';
+const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
+const windowKey: RateLimitColumnKeys = 'window';
 
 export const columns: ColumnDef<RateLimitWithMetadata>[] = [
   {

@@ -1,38 +1,38 @@
-import { TriggerWorkflowForm } from "../workflows/$workflow/components/trigger-workflow-form";
-import { BulkDeleteScheduledRuns } from "./components/bulk-delete-scheduled-runs";
-import { BulkRescheduleScheduledRuns } from "./components/bulk-reschedule-scheduled-runs";
-import { DeleteScheduledRun } from "./components/delete-scheduled-runs";
-import { columns } from "./components/scheduled-runs-columns";
+import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
+import { BulkDeleteScheduledRuns } from './components/bulk-delete-scheduled-runs';
+import { BulkRescheduleScheduledRuns } from './components/bulk-reschedule-scheduled-runs';
+import { DeleteScheduledRun } from './components/delete-scheduled-runs';
+import { columns } from './components/scheduled-runs-columns';
 import {
   ScheduledRunColumn,
   workflowKey,
   metadataKey,
-} from "./components/scheduled-runs-columns";
-import { useScheduledRuns } from "./hooks/use-scheduled-runs";
-import { DocsButton } from "@/components/v1/docs/docs-button";
+} from './components/scheduled-runs-columns';
+import { useScheduledRuns } from './hooks/use-scheduled-runs';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import {
   ToolbarFilters,
   ToolbarType,
-} from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { DataTable } from "@/components/v1/molecules/data-table/data-table.tsx";
-import { Button } from "@/components/v1/ui/button";
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/v1/ui/dropdown-menu";
-import { useSidePanel } from "@/hooks/use-side-panel";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
+} from '@/components/v1/ui/dropdown-menu';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   ScheduledWorkflows,
   ScheduledWorkflowsBulkDeleteFilter,
-} from "@/lib/api";
-import { docsPages } from "@/lib/generated/docs";
-import { ChevronDownIcon } from "@radix-ui/react-icons";
-import { RowSelectionState, VisibilityState } from "@tanstack/react-table";
-import { Command } from "lucide-react";
-import { useState } from "react";
+} from '@/lib/api';
+import { docsPages } from '@/lib/generated/docs';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
+import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { Command } from 'lucide-react';
+import { useState } from 'react';
 
 interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -82,7 +82,7 @@ export default function ScheduledRunsTable({
     selectedStatuses,
     selectedMetadata,
   } = useScheduledRuns({
-    key: "table",
+    key: 'table',
     workflowId,
     parentWorkflowRunId,
     parentStepRunId,
@@ -154,15 +154,15 @@ export default function ScheduledRunsTable({
     selectedIds.length > 0
       ? `Delete selected (${formatCount(selectedIds.length)})`
       : hasActiveFilters
-        ? "Delete filtered"
-        : "Delete all";
+        ? 'Delete filtered'
+        : 'Delete all';
 
   const rescheduleLabel =
     selectedIds.length > 0
       ? `Reschedule selected (${formatCount(selectedIds.length)})`
       : hasActiveFilters
-        ? "Reschedule filtered"
-        : "Reschedule all";
+        ? 'Reschedule filtered'
+        : 'Reschedule all';
 
   const leftActions = [
     <DropdownMenu
@@ -270,7 +270,7 @@ export default function ScheduledRunsTable({
             <p className="text-lg font-semibold">No runs found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.v1["scheduled-runs"]}
+                doc={docsPages.v1['scheduled-runs']}
                 label="Learn about scheduled runs"
               />
             </div>
@@ -290,7 +290,7 @@ export default function ScheduledRunsTable({
           handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
           onRowClick: (row) => {
             open({
-              type: "scheduled-run-details",
+              type: 'scheduled-run-details',
               content: {
                 scheduledRun: row,
               },

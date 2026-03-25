@@ -1,18 +1,18 @@
-import { ButtonProps, Button } from "@/components/v1/ui/button";
+import { ButtonProps, Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Spinner } from "@/components/v1/ui/loading.tsx";
+} from '@/components/v1/ui/dialog';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 
 interface ConfirmDialogProps {
   title: string;
   description: string | JSX.Element;
 
   submitLabel: string;
-  submitVariant?: ButtonProps["variant"];
+  submitVariant?: ButtonProps['variant'];
   submitDisabled?: boolean;
   cancelLabel?: string;
   className?: string;
@@ -27,9 +27,9 @@ export function ConfirmDialog({
   title,
   description,
   submitLabel,
-  submitVariant = "destructive",
+  submitVariant = 'destructive',
   submitDisabled = false,
-  cancelLabel = "Cancel",
+  cancelLabel = 'Cancel',
   isOpen,
   ...props
 }: ConfirmDialogProps) {

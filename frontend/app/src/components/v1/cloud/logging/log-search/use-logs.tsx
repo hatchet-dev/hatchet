@@ -1,5 +1,5 @@
-import { parseLogQuery } from "./parser";
-import { ParsedLogQuery } from "./types";
+import { parseLogQuery } from './parser';
+import { ParsedLogQuery } from './types';
 import {
   V1TaskSummary,
   V1LogLineList,
@@ -7,14 +7,14 @@ import {
   V1TaskStatus,
   V1LogLineLevel,
   V1LogLineOrderByDirection,
-} from "@/lib/api";
-import api from "@/lib/api/api";
-import { V1LogLineListQuery } from "@/lib/api/queries";
+} from '@/lib/api';
+import api from '@/lib/api/api';
+import { V1LogLineListQuery } from '@/lib/api/queries';
 import {
   useInfiniteQuery,
   InfiniteData,
   useQueryClient,
-} from "@tanstack/react-query";
+} from '@tanstack/react-query';
 import {
   useMemo,
   useCallback,
@@ -24,7 +24,7 @@ import {
   createContext,
   useContext,
   type ReactNode,
-} from "react";
+} from 'react';
 
 const LOGS_PER_PAGE = 100;
 
@@ -70,7 +70,7 @@ export function useLogs({
   const isPollingRef = useRef(false);
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [queryString, setQueryString] = useState("");
+  const [queryString, setQueryString] = useState('');
   const [isPollingEnabled, setPollingEnabled] = useState(true);
   const parsedQuery = useMemo(() => parseLogQuery(queryString), [queryString]);
 
@@ -79,7 +79,7 @@ export function useLogs({
   useEffect(() => {
     if (taskRun?.metadata.id) {
       queryClient.resetQueries({
-        queryKey: ["v1Tasks", "getLogs", taskRun.metadata.id],
+        queryKey: ['v1Tasks', 'getLogs', taskRun.metadata.id],
         exact: false,
       });
       lastPageTimestampRef.current = undefined;
@@ -101,8 +101,8 @@ export function useLogs({
     { since: string | undefined; until: string | undefined }
   >({
     queryKey: [
-      "v1Tasks",
-      "getLogs",
+      'v1Tasks',
+      'getLogs',
       taskRun?.metadata.id,
       parsedQuery.level,
       parsedQuery.search,
@@ -124,7 +124,7 @@ export function useLogs({
       };
 
       const response = await api.v1LogLineList(
-        taskRun?.metadata.id || "",
+        taskRun?.metadata.id || '',
         params,
       );
       const rows = response.data.rows;
@@ -195,8 +195,8 @@ export function useLogs({
 
           queryClient.setQueryData<InfiniteData<V1LogLineList>>(
             [
-              "v1Tasks",
-              "getLogs",
+              'v1Tasks',
+              'getLogs',
               taskRun.metadata.id,
               parsedQuery.level,
               parsedQuery.search,
@@ -229,7 +229,7 @@ export function useLogs({
           );
         }
       } catch (error) {
-        console.error("Failed to poll for new logs:", error);
+        console.error('Failed to poll for new logs:', error);
       } finally {
         isPollingRef.current = false;
         // Schedule next poll using setTimeout chaining
@@ -326,7 +326,7 @@ export function LogsProvider({
 export function useLogsContext(): UseLogsReturn {
   const context = useContext(LogsContext);
   if (!context) {
-    throw new Error("useLogsContext must be used within a LogsProvider");
+    throw new Error('useLogsContext must be used within a LogsProvider');
   }
   return context;
 }

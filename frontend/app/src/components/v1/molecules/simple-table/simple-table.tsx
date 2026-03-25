@@ -5,8 +5,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../ui/table";
-import React from "react";
+} from '../../ui/table';
+import React from 'react';
 
 type SimpleTableColumn<T> = {
   columnLabel: string;

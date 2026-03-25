@@ -2,20 +2,20 @@ import {
   limitDurationMap,
   limitedResources,
   LimitIndicator,
-} from "./components/resource-limit-columns";
-import { Subscription } from "@/components/v1/cloud/billing";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/v1/ui/alert";
-import { Spinner } from "@/components/v1/ui/loading";
-import { Separator } from "@/components/v1/ui/separator";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { queries, TenantMemberRole, TenantResourceLimit } from "@/lib/api";
-import useCloud from "@/pages/auth/hooks/use-cloud";
-import { useAppContext } from "@/providers/app-context";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+} from './components/resource-limit-columns';
+import { Subscription } from '@/components/v1/cloud/billing';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
+import useCloud from '@/pages/auth/hooks/use-cloud';
+import { useAppContext } from '@/providers/app-context';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
@@ -40,7 +40,7 @@ export default function ResourceLimits() {
   const resourceLimitColumns = useMemo(
     () => [
       {
-        columnLabel: "Resource",
+        columnLabel: 'Resource',
         cellRenderer: (limit: TenantResourceLimit) => (
           <div className="flex flex-row items-center gap-3">
             <LimitIndicator
@@ -55,35 +55,35 @@ export default function ResourceLimits() {
         ),
       },
       {
-        columnLabel: "Current Value",
+        columnLabel: 'Current Value',
         cellRenderer: (limit: TenantResourceLimit) => (
           <span className="tabular-nums">{limit.value}</span>
         ),
       },
       {
-        columnLabel: "Limit Value",
+        columnLabel: 'Limit Value',
         cellRenderer: (limit: TenantResourceLimit) => (
           <span className="tabular-nums">{limit.limitValue}</span>
         ),
       },
       {
-        columnLabel: "Alarm Value",
+        columnLabel: 'Alarm Value',
         cellRenderer: (limit: TenantResourceLimit) => (
-          <span className="tabular-nums">{limit.alarmValue || "N/A"}</span>
+          <span className="tabular-nums">{limit.alarmValue || 'N/A'}</span>
         ),
       },
       {
-        columnLabel: "Meter Window",
+        columnLabel: 'Meter Window',
         cellRenderer: (limit: TenantResourceLimit) =>
-          (limit.window || "-") in limitDurationMap
-            ? limitDurationMap[limit.window || "-"]
+          (limit.window || '-') in limitDurationMap
+            ? limitDurationMap[limit.window || '-']
             : limit.window,
       },
       {
-        columnLabel: "Last Refill",
+        columnLabel: 'Last Refill',
         cellRenderer: (limit: TenantResourceLimit) =>
           !limit.window
-            ? "N/A"
+            ? 'N/A'
             : limit.lastRefill && <RelativeDate date={limit.lastRefill} />,
       },
     ],
@@ -136,13 +136,13 @@ export default function ResourceLimits() {
         <p className="text-sm text-muted-foreground mb-4">
           Resource limits control usage within your tenant. When a limit is
           reached, the system will take action based on the limit type. Upgrade
-          your plan or{" "}
+          your plan or{' '}
           <a
             href="https://hatchet.run/office-hours"
             className="text-primary/70 hover:text-primary hover:underline"
           >
             contact us
-          </a>{" "}
+          </a>{' '}
           to adjust your limits.
         </p>
 

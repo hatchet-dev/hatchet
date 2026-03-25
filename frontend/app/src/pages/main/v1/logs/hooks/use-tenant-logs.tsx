@@ -1,27 +1,27 @@
-import { parseLogQuery } from "@/components/v1/cloud/logging/log-search/parser";
-import { LOG_LEVEL_TO_API } from "@/components/v1/cloud/logging/log-search/types";
-import { LogLine } from "@/components/v1/cloud/logging/log-search/use-logs";
-import { useRefetchInterval } from "@/contexts/refetch-interval-context";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { parseLogQuery } from '@/components/v1/cloud/logging/log-search/parser';
+import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
+import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   V1LogLine,
   V1LogLineOrderByDirection,
   V1LogsPointMetric,
-} from "@/lib/api";
-import api from "@/lib/api/api";
-import { useSearchParams } from "@/lib/router-helpers";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { z } from "zod";
+} from '@/lib/api';
+import api from '@/lib/api/api';
+import { useSearchParams } from '@/lib/router-helpers';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { z } from 'zod';
 
 const LOGS_PER_PAGE = 100;
-const FILTER_KEY = "tenant-logs-filters";
+const FILTER_KEY = 'tenant-logs-filters';
 
-export type TimeWindow = "1h" | "6h" | "1d" | "7d";
+export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
 const filterSchema = z.object({
   q: z.string().optional(),
-  tw: z.enum(["1h", "6h", "1d", "7d"]).default("1d"),
+  tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'),
   // custom time range set by chart drag; overrides tw when present
   since: z.string().optional(),
   until: z.string().optional(),
@@ -30,12 +30,12 @@ const filterSchema = z.object({
 type FilterState = z.infer<typeof filterSchema>;
 
 function getSinceFromTimeWindow(tw: TimeWindow): string {
-  const hours = { "1h": 1, "6h": 6, "1d": 24, "7d": 168 }[tw];
+  const hours = { '1h': 1, '6h': 6, '1d': 24, '7d': 168 }[tw];
   return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }
 
 function logKey(log: LogLine): string {
-  return `${log.timestamp ?? ""}-${log.line ?? ""}`;
+  return `${log.timestamp ?? ''}-${log.line ?? ''}`;
 }
 
 function mapToLogLines(rows: V1LogLine[]): LogLine[] {
@@ -75,7 +75,7 @@ export function useTenantLogs() {
   );
 
   const parsedQuery = useMemo(
-    () => parseLogQuery(filters.q ?? ""),
+    () => parseLogQuery(filters.q ?? ''),
     [filters.q],
   );
 
@@ -96,7 +96,7 @@ export function useTenantLogs() {
 
   const logsQuery = useInfiniteQuery({
     queryKey: [
-      "tenant-logs",
+      'tenant-logs',
       tenantId,
       since,
       filters.until,
@@ -155,7 +155,7 @@ export function useTenantLogs() {
 
   const metricsQuery = useQuery({
     queryKey: [
-      "tenant-log-metrics",
+      'tenant-log-metrics',
       tenantId,
       since,
       filters.until,
@@ -229,7 +229,7 @@ export function useTenantLogs() {
     isFetchingMore: logsQuery.isFetchingNextPage,
     refetch: logsQuery.refetch,
     fetchOlderLogs,
-    queryString: filters.q ?? "",
+    queryString: filters.q ?? '',
     setQueryString: (q: string) => setFilters({ q }),
     parsedQuery,
     // chart

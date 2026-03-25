@@ -1,17 +1,17 @@
-import { ChangePasswordDialog } from "./components/change-password-dialog";
-import { DeleteInviteForm } from "./components/delete-invite-form";
-import { InviteActions } from "./components/invites-columns";
-import { MemberActions } from "./components/members-columns";
-import { UpdateInviteForm } from "./components/update-invite-form";
-import { UpdateMemberForm } from "./components/update-member-form";
-import RelativeDate from "@/components/v1/molecules/relative-date";
-import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
-import { Button } from "@/components/v1/ui/button";
-import { Dialog } from "@/components/v1/ui/dialog";
-import { Separator } from "@/components/v1/ui/separator";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import { useOrganizations } from "@/hooks/use-organizations";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { ChangePasswordDialog } from './components/change-password-dialog';
+import { DeleteInviteForm } from './components/delete-invite-form';
+import { InviteActions } from './components/invites-columns';
+import { MemberActions } from './components/members-columns';
+import { UpdateInviteForm } from './components/update-invite-form';
+import { UpdateMemberForm } from './components/update-member-form';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { Button } from '@/components/v1/ui/button';
+import { Dialog } from '@/components/v1/ui/dialog';
+import { Separator } from '@/components/v1/ui/separator';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   TenantInvite,
   TenantMember,
@@ -19,16 +19,16 @@ import api, {
   UpdateTenantInviteRequest,
   UserChangePasswordRequest,
   queries,
-} from "@/lib/api";
-import { globalEmitter } from "@/lib/global-emitter";
-import { useApiError } from "@/lib/hooks";
-import { capitalize } from "@/lib/utils";
-import useApiMeta from "@/pages/auth/hooks/use-api-meta";
-import { appRoutes } from "@/router";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { AxiosError } from "axios";
-import { useState, useEffect, useMemo } from "react";
+} from '@/lib/api';
+import { globalEmitter } from '@/lib/global-emitter';
+import { useApiError } from '@/lib/hooks';
+import { capitalize } from '@/lib/utils';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
+import { useState, useEffect, useMemo } from 'react';
 
 export default function Members() {
   const { meta } = useApiMeta();
@@ -75,7 +75,7 @@ function MembersList() {
     );
   }, [listMembersQuery.data?.rows, currentUser?.email]);
 
-  const isCurrentUserOwner = currentUserMember?.role === "OWNER";
+  const isCurrentUserOwner = currentUserMember?.role === 'OWNER';
 
   // Separate owners and non-owners (only in cloud mode)
   const owners = useMemo(() => {
@@ -84,7 +84,7 @@ function MembersList() {
     }
     return (
       listMembersQuery.data?.rows?.filter(
-        (member) => member.role === "OWNER",
+        (member) => member.role === 'OWNER',
       ) || []
     );
   }, [listMembersQuery.data?.rows, isCloudEnabled]);
@@ -96,7 +96,7 @@ function MembersList() {
     }
     return (
       listMembersQuery.data?.rows?.filter(
-        (member) => member.role !== "OWNER",
+        (member) => member.role !== 'OWNER',
       ) || []
     );
   }, [listMembersQuery.data?.rows, isCloudEnabled]);
@@ -104,15 +104,15 @@ function MembersList() {
   const ownersColumns = useMemo(
     () => [
       {
-        columnLabel: "Name",
+        columnLabel: 'Name',
         cellRenderer: (member: TenantMember) => <div>{member.user.name}</div>,
       },
       {
-        columnLabel: "Email",
+        columnLabel: 'Email',
         cellRenderer: (member: TenantMember) => <div>{member.user.email}</div>,
       },
       {
-        columnLabel: "Joined",
+        columnLabel: 'Joined',
         cellRenderer: (member: TenantMember) => (
           <RelativeDate date={member.metadata.createdAt} />
         ),
@@ -124,27 +124,27 @@ function MembersList() {
   const membersColumns = useMemo(
     () => [
       {
-        columnLabel: "Name",
+        columnLabel: 'Name',
         cellRenderer: (member: TenantMember) => <div>{member.user.name}</div>,
       },
       {
-        columnLabel: "Email",
+        columnLabel: 'Email',
         cellRenderer: (member: TenantMember) => <div>{member.user.email}</div>,
       },
       {
-        columnLabel: "Role",
+        columnLabel: 'Role',
         cellRenderer: (member: TenantMember) => (
           <div className="font-medium">{capitalize(member.role)}</div>
         ),
       },
       {
-        columnLabel: "Joined",
+        columnLabel: 'Joined',
         cellRenderer: (member: TenantMember) => (
           <RelativeDate date={member.metadata.createdAt} />
         ),
       },
       {
-        columnLabel: "Actions",
+        columnLabel: 'Actions',
         cellRenderer: (member: TenantMember) => (
           <MemberActions
             member={member}
@@ -241,7 +241,7 @@ function UpdateMember({
   });
   const navigate = useNavigate();
   // Check if this is a cloud tenant and if we're trying to modify an OWNER
-  const isOwnerRole = member.role === "OWNER";
+  const isOwnerRole = member.role === 'OWNER';
 
   const organizationId = getOrganizationIdForTenant(tenantId);
 
@@ -257,12 +257,12 @@ function UpdateMember({
   }, [isCloudEnabled, isOwnerRole, organizationId, onClose, navigate]);
 
   const updateMutation = useMutation({
-    mutationKey: ["tenant-member:update", tenantId, member.metadata.id],
+    mutationKey: ['tenant-member:update', tenantId, member.metadata.id],
     mutationFn: async (data: { role: TenantMemberRole }) => {
       // Don't allow OWNER role changes in cloud mode
-      if (isCloudEnabled && data.role === "OWNER") {
+      if (isCloudEnabled && data.role === 'OWNER') {
         throw new Error(
-          "OWNER role management must be done through Organization Settings",
+          'OWNER role management must be done through Organization Settings',
         );
       }
       await api.tenantMemberUpdate(tenantId, member.metadata.id, data);
@@ -282,7 +282,7 @@ function UpdateMember({
         isLoading={updateMutation.isPending}
         onSubmit={(data) => {
           // Prevent OWNER role assignment in cloud mode
-          if (isCloudEnabled && data.role === "OWNER") {
+          if (isCloudEnabled && data.role === 'OWNER') {
             return;
           }
           updateMutation.mutate(data);
@@ -307,29 +307,29 @@ function InvitesList() {
   const invitesColumns = useMemo(
     () => [
       {
-        columnLabel: "Email",
+        columnLabel: 'Email',
         cellRenderer: (invite: TenantInvite) => <div>{invite.email}</div>,
       },
       {
-        columnLabel: "Role",
+        columnLabel: 'Role',
         cellRenderer: (invite: TenantInvite) => (
           <div>{capitalize(invite.role)}</div>
         ),
       },
       {
-        columnLabel: "Created",
+        columnLabel: 'Created',
         cellRenderer: (invite: TenantInvite) => (
           <RelativeDate date={invite.metadata.createdAt} />
         ),
       },
       {
-        columnLabel: "Expires",
+        columnLabel: 'Expires',
         cellRenderer: (invite: TenantInvite) => (
           <RelativeDate date={invite.expires} />
         ),
       },
       {
-        columnLabel: "Actions",
+        columnLabel: 'Actions',
         cellRenderer: (invite: TenantInvite) => (
           <InviteActions
             invite={invite}
@@ -355,7 +355,7 @@ function InvitesList() {
         <Button
           key="create-tenant-invite"
           onClick={() =>
-            globalEmitter.emit("create-tenant-invite", { tenantId })
+            globalEmitter.emit('create-tenant-invite', { tenantId })
           }
         >
           Create Invite
@@ -414,7 +414,7 @@ function UpdateInvite({
   });
 
   const updateMutation = useMutation({
-    mutationKey: ["tenant-invite:update", tenantId, tenantInvite],
+    mutationKey: ['tenant-invite:update', tenantId, tenantInvite],
     mutationFn: async (data: UpdateTenantInviteRequest) => {
       await api.tenantInviteUpdate(tenantId, tenantInvite.metadata.id, data);
     },
@@ -448,7 +448,7 @@ function DeleteInvite({
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ["tenant-invite:delete", tenantId, tenantInvite],
+    mutationKey: ['tenant-invite:delete', tenantId, tenantInvite],
     mutationFn: async () => {
       await api.tenantInviteDelete(tenantId, tenantInvite.metadata.id);
     },
@@ -484,7 +484,7 @@ function ChangePassword({
   });
 
   const updatePasswordMutation = useMutation({
-    mutationKey: ["user:update", tenantId],
+    mutationKey: ['user:update', tenantId],
     mutationFn: async (data: UserChangePasswordRequest) => {
       const res = await api.userUpdatePassword(data);
       return res.data;

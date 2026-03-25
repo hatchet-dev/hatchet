@@ -1,28 +1,28 @@
-import { Button } from "@/components/v1/ui/button";
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/v1/ui/dialog";
-import { Input } from "@/components/v1/ui/input";
-import { Label } from "@/components/v1/ui/label";
-import { cloudApi } from "@/lib/api/api";
+} from '@/components/v1/ui/dialog';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { cloudApi } from '@/lib/api/api';
 import {
   CreateOrganizationInviteRequest,
   OrganizationMemberRoleType,
-} from "@/lib/api/generated/cloud/data-contracts";
-import { useApiError } from "@/lib/hooks";
-import { UserPlusIcon } from "@heroicons/react/24/outline";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+} from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
+import { UserPlusIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 const schema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().email('Invalid email address'),
 });
 
 export type OrganizationInviteMemberModalProps = {
@@ -52,7 +52,7 @@ export const OrganizationInviteMemberModal = ({
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
-      email: "",
+      email: '',
     },
   });
 
@@ -100,7 +100,7 @@ export const OrganizationInviteMemberModal = ({
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <Input
-              {...register("email")}
+              {...register('email')}
               id="email"
               type="email"
               placeholder="name@example.com"
@@ -124,8 +124,8 @@ export const OrganizationInviteMemberModal = ({
             </Button>
             <Button type="submit" disabled={inviteMemberMutation.isPending}>
               {inviteMemberMutation.isPending
-                ? "Sending..."
-                : "Send Invitation"}
+                ? 'Sending...'
+                : 'Send Invitation'}
             </Button>
           </div>
         </form>

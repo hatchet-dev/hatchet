@@ -1,16 +1,16 @@
-import { Button } from "@/components/v1/ui/button";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { Tenant } from "@/lib/api";
-import { queries } from "@/lib/api/queries";
-import { BillingContext } from "@/lib/atoms";
-import { appRoutes } from "@/router";
+import { Button } from '@/components/v1/ui/button';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Tenant } from '@/lib/api';
+import { queries } from '@/lib/api/queries';
+import { BillingContext } from '@/lib/atoms';
+import { appRoutes } from '@/router';
 import {
   CalendarIcon,
   CpuChipIcon,
   CurrencyDollarIcon,
-} from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+} from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 
 interface BillingRequiredProps {
   tenant?: Tenant | undefined;
@@ -27,7 +27,7 @@ export function BillingRequired({
   const { tenantId } = useCurrentTenantId();
   // Query for compute cost information to show available credits
   const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenant?.metadata.id || ""),
+    ...queries.cloud.getComputeCost(tenant?.metadata.id || ''),
     enabled: !!tenant?.metadata.id,
   });
 
@@ -79,9 +79,9 @@ export function BillingRequired({
                             Monthly Free Credits:
                           </span>
                           <span className="font-medium text-green-500">
-                            {new Intl.NumberFormat("en-US", {
-                              style: "currency",
-                              currency: "USD",
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
                             }).format(computeCostQuery.data.creditsRemaining)}
                           </span>
                         </div>
@@ -119,7 +119,7 @@ export function BillingRequired({
                 className="min-w-40 px-8 py-6 text-base"
                 size="lg"
               >
-                {portalLoading ? "Loading..." : "Set Up Billing →"}
+                {portalLoading ? 'Loading...' : 'Set Up Billing →'}
               </Button>
 
               <div className="relative">

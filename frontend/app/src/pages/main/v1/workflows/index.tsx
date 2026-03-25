@@ -2,16 +2,16 @@ import {
   columns,
   nameKey,
   WorkflowColumn,
-} from "./components/workflow-columns";
-import { useWorkflows } from "./hooks/use-workflows";
-import { DocsButton } from "@/components/v1/docs/docs-button";
-import { ToolbarType } from "@/components/v1/molecules/data-table/data-table-toolbar";
-import { DataTable } from "@/components/v1/molecules/data-table/data-table.tsx";
-import { Loading } from "@/components/v1/ui/loading.tsx";
-import { useCurrentTenantId } from "@/hooks/use-tenant";
-import { docsPages } from "@/lib/generated/docs";
-import { VisibilityState } from "@tanstack/react-table";
-import { useState } from "react";
+} from './components/workflow-columns';
+import { useWorkflows } from './hooks/use-workflows';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { docsPages } from '@/lib/generated/docs';
+import { VisibilityState } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
@@ -31,7 +31,7 @@ export default function WorkflowTable() {
     setColumnFilters,
     resetFilters,
   } = useWorkflows({
-    key: "workflows-table",
+    key: 'workflows-table',
   });
 
   if (isLoading) {
