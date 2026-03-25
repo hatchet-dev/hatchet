@@ -4,6 +4,16 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2026-03-25
+
+### Fixed
+
+- Fixed OpenTelemetry version mismatch causing `TypeError: Cannot read properties of undefined (reading 'name')` when exporting spans. The SDK now requires OpenTelemetry JS SDK 2.x (`@opentelemetry/sdk-trace-base@^2.0.0`, `@opentelemetry/core@^2.0.0`) to match the `@opentelemetry/exporter-trace-otlp-grpc@^0.208.0` dependency.
+
+### Changed
+
+- Updated OpenTelemetry optional dependencies to the unified 2.x release set.
+
 ## [1.18.0] - 2026-03-18
 
 ### Added

@@ -13,6 +13,15 @@ import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config
 
 import { hatchetSpanAttributes } from './hatchet-span-context';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let otelDiag: any;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  otelDiag = (require('@opentelemetry/api') as typeof import('@opentelemetry/api')).diag;
+} catch {
+  // best-effort
+}
+
 try {
   require.resolve('@opentelemetry/exporter-trace-otlp-grpc');
   require.resolve('@opentelemetry/sdk-trace-base');
@@ -35,7 +44,6 @@ const { ExportResultCode } = require('@opentelemetry/core') as typeof import('@o
 
 const { BatchSpanProcessor } = sdkTraceBase;
 
-type SdkTracerProvider = import('@opentelemetry/sdk-trace-base').BasicTracerProvider;
 type ReadableSpan = import('@opentelemetry/sdk-trace-base').ReadableSpan;
 type SdkSpan = import('@opentelemetry/sdk-trace-base').Span;
 type SpanExporter = import('@opentelemetry/sdk-trace-base').SpanExporter;
@@ -58,21 +66,35 @@ class HatchetExporterWrapper implements SpanExporter {
       return;
     }
 
-    this.inner.export(spans, (result: ExportResult) => {
-      if (result.code !== ExportResultCode.SUCCESS && result.error) {
-        const err = result.error as unknown as Record<string, unknown>;
-        if (
-          err.code === GRPC_STATUS_UNIMPLEMENTED ||
-          err.message?.toString().includes('UNIMPLEMENTED')
-        ) {
-          this.retryAt = Date.now() + RETRY_AFTER_MS;
-          resultCallback({ code: ExportResultCode.SUCCESS });
-          return;
+    try {
+      this.inner.export(spans, (result: ExportResult) => {
+        if (result.code !== ExportResultCode.SUCCESS && result.error) {
+          const err = result.error as unknown as Record<string, unknown>;
+          if (
+            err.code === GRPC_STATUS_UNIMPLEMENTED ||
+            err.message?.toString().includes('UNIMPLEMENTED')
+          ) {
+            this.retryAt = Date.now() + RETRY_AFTER_MS;
+            resultCallback({ code: ExportResultCode.SUCCESS });
+            return;
+          }
         }
+        this.retryAt = 0;
+        resultCallback(result);
+      });
+    } catch (e: unknown) {
+      if (e instanceof TypeError && e.message?.includes("reading 'name'")) {
+        otelDiag?.error(
+          'hatchet instrumentation: OpenTelemetry package version mismatch. ' +
+            '@opentelemetry/exporter-trace-otlp-grpc and @opentelemetry/sdk-trace-base must be ' +
+            'from the same release set (1.x + 0.5x.x, or 2.x + 0.20x.x). ' +
+            'See https://github.com/open-telemetry/opentelemetry-js#version-compatibility'
+        );
+        resultCallback({ code: ExportResultCode.SUCCESS });
+        return;
       }
-      this.retryAt = 0;
-      resultCallback(result);
-    });
+      throw e;
+    }
   }
 
   shutdown(): Promise<void> {
@@ -136,23 +158,20 @@ export interface HatchetBspConfig {
 }
 
 /**
- * Adds the Hatchet OTLP exporter to the given TracerProvider.
- * The exporter sends spans to the Hatchet engine's collector endpoint
- * using the same connection settings as the Hatchet client.
+ * Creates a SpanProcessor that sends spans to the Hatchet engine's
+ * collector endpoint using the same connection settings as the Hatchet client.
+ * Pass the returned processor to BasicTracerProvider's `spanProcessors` option.
  */
-export function addHatchetExporter(
-  tracerProvider: SdkTracerProvider,
+export function createHatchetSpanProcessor(
   config: ClientConfig,
   bspConfig?: HatchetBspConfig
-): void {
+): InstanceType<typeof HatchetAttributeSpanProcessor> {
   const inner = createHatchetExporter(config);
   const exporter = new HatchetExporterWrapper(inner as unknown as SpanExporter);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const processor = new HatchetAttributeSpanProcessor(exporter as any, {
+  return new HatchetAttributeSpanProcessor(exporter as any, {
     scheduledDelayMillis: bspConfig?.scheduledDelayMillis,
     maxExportBatchSize: bspConfig?.maxExportBatchSize,
     maxQueueSize: bspConfig?.maxQueueSize,
   });
-
-  tracerProvider.addSpanProcessor(processor);
 }
