@@ -6,11 +6,11 @@ This is an extension for [Hatchet](https://github.com/hatchet-dev/hatchet) which
 
 After installation, each Hatchet DAG definition will show a button `Show Hatchet DAG`:
 
-![VSCode Button](./assets/vscode_button.png)
+![VSCode Button](https://raw.githubusercontent.com/hatchet-dev/hatchet/main/frontend/vscode-extension/assets/vscode_button.png)
 
 This will then open a webview showing the DAG definition. As you update your definition, the webview will automatically stay up to date:
 
-![Webview](./assets/vscode_dag.png)
+![Webview](https://raw.githubusercontent.com/hatchet-dev/hatchet/main/frontend/vscode-extension/assets/vscode_dag.png)
 
 ## Reporting issues
 
