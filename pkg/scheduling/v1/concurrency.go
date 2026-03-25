@@ -115,8 +115,7 @@ func (c *ConcurrencyManager) acquireStrategyLocks() bool {
 		return acquired
 	}
 	if c.strategy.ParentStrategyID.Valid {
-		parentId := v1.PARENT_STRATEGY_LOCK_OFFSET + c.strategy.ParentStrategyID.Int64
-		if !c.advisoryParentLock.Acquire(parentId) {
+		if !c.advisoryParentLock.Acquire(c.strategy.ParentStrategyID.Int64) {
 			c.advisoryLock.Release(c.strategy.ID)
 			return false
 		}
@@ -128,8 +127,7 @@ func (c *ConcurrencyManager) acquireStrategyLocks() bool {
 func (c *ConcurrencyManager) releaseStrategyLocks() {
 	c.advisoryLock.Release(c.strategy.ID)
 	if c.strategy.ParentStrategyID.Valid {
-		parentId := v1.PARENT_STRATEGY_LOCK_OFFSET + c.strategy.ParentStrategyID.Int64
-		c.advisoryParentLock.Release(parentId)
+		c.advisoryParentLock.Release(c.strategy.ParentStrategyID.Int64)
 	}
 }
 
@@ -163,7 +161,6 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			continue
 		}
 
-		start := time.Now()
 		// acquire in-memory queue lock before running strategy because failure to acquire database-level
 		// locks will delay scheduling until next polling tick
 		acquired := c.acquireStrategyLocks()
@@ -172,6 +169,7 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("could not acquire in-memory advisory lock for strategy id %d", c.strategy.ID))
 			continue
 		}
+		start := time.Now()
 		results, err := c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
 		if err != nil {
 			span.End()
@@ -210,8 +208,8 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 			telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()},
 		)
 
-		start := time.Now()
 		c.acquireStrategyLocks()
+		start := time.Now()
 		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
 		c.releaseStrategyLocks()
 		if err != nil {

@@ -41,7 +41,7 @@ func NewKeyedTimeoutLock[T comparable](timeout time.Duration) *KeyedTimeoutLock[
 	return &KeyedTimeoutLock[T]{
 		locks:    make(map[T]*TimeoutLock),
 		Timeout:  timeout,
-		lockLock: NewTimeoutLock(timeout),
+		lockLock: NewTimeoutLock(100 * time.Millisecond), // secondary lock to protect creation of locks
 	}
 }
 
