@@ -1,7 +1,26 @@
 # frozen_string_literal: true
-
 require "time"
 require "timeout"
+
+module Hatchet
+  class PollTimeoutError   < StandardError; end
+  class PollCancelledError < StandardError; end
+
+  class CancellationToken
+    def initialize
+      @mutex     = Mutex.new
+      @cancelled = false
+    end
+
+    def cancel!
+      @mutex.synchronize { @cancelled = true }
+    end
+
+    def cancelled?
+      @mutex.synchronize { @cancelled }
+    end
+  end
+end
 
 module Hatchet
   module Features
