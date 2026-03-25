@@ -61,6 +61,13 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     spans = await asyncio.to_thread(poll_for_trace, hatchet, ref.workflow_run_id)
 
     assert (
+        len({s.trace_id for s in spans}) == 1
+    ), "All spans should have the same trace_id"
+    assert len({s.span_id for s in spans}) == len(
+        spans
+    ), "All spans should have unique span_ids"
+
+    assert (
         len(spans) == 5
     ), "five spans: hatchet.run_workflow, hatchet.engine.queued,hatchet.start_step_run, hatchet.engine.start_step_run, custom.child.span"
 
@@ -153,6 +160,13 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
         len(spans) == 5
     ), "five spans: hatchet.push_event, hatchet.engine.queued, hatchet.start_step_run, hatchet.engine.start_step_run, custom.child.span"
 
+    assert (
+        len({s.trace_id for s in spans}) == 1
+    ), "All spans should have the same trace_id"
+    assert len({s.span_id for s in spans}) == len(
+        spans
+    ), "All spans should have unique span_ids"
+
     assert {s.span_name for s in spans} == {
         "hatchet.push_event",
         "hatchet.engine.queued",
@@ -205,6 +219,13 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     spans = await asyncio.to_thread(
         poll_for_trace, hatchet, ref.workflow_run_id, min_spans=4
     )
+
+    assert (
+        len({s.trace_id for s in spans}) == 1
+    ), "All spans should have the same trace_id"
+    assert len({s.span_id for s in spans}) == len(
+        spans
+    ), "All spans should have unique span_ids"
 
     assert len(spans) == 24, """
         24 spans:
@@ -310,6 +331,13 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
             - spawn.child
             - custom.child.span
     """
+
+    assert (
+        len({s.trace_id for s in spans}) == 1
+    ), "All spans should have the same trace_id"
+    assert len({s.span_id for s in spans}) == len(
+        spans
+    ), "All spans should have unique span_ids"
 
     assert {s.span_name for s in spans} == {
         "hatchet.run_workflow",
