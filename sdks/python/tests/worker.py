@@ -15,6 +15,7 @@ from tests.concurrency_strategies.workflow import concurrency_strategy_workflow
 hatchet = Hatchet(debug=True)
 HatchetInstrumentor().instrument()
 
+
 def main(slots: int) -> None:
     worker = hatchet.worker(
         "e2e-test-worker-2",
