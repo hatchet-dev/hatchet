@@ -511,15 +511,15 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 	taskIdsToCheck := make([]int64, len(flattenedTasks))
 	taskInsertedAtsToCheck := make([]pgtype.Timestamptz, len(flattenedTasks))
 	taskIdsToTasks := make(map[int64]*sqlcv1.FlattenExternalIdsRow)
-	minTaskInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
 
 	for i, task := range flattenedTasks {
 		taskIdsToCheck[i] = task.ID
 		taskInsertedAtsToCheck[i] = task.InsertedAt
 		taskIdsToTasks[task.ID] = task
 
-		if task.InsertedAt.Time.Before(minTaskInsertedAt.Time) {
-			minTaskInsertedAt = task.InsertedAt
+		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
 		}
 	}
 
@@ -528,7 +528,7 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		Tenantid:        tenantId,
 		Taskids:         taskIdsToCheck,
 		Taskinsertedats: taskInsertedAtsToCheck,
-		Mininsertedat:   minTaskInsertedAt,
+		Mininsertedat:   minInsertedAt,
 	})
 
 	if err != nil {
@@ -2951,7 +2951,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	subtreeStepIds := make(map[int64]map[uuid.UUID]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[uuid.UUID]struct{})
 	dagIdsToLockMap := make(map[int64]pgtype.Timestamptz)
-	minTaskInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())
+
 	for i, task := range lockedTasks {
 		lockedTaskIds[i] = task.ID
 		lockedTaskInsertedAts[i] = task.InsertedAt
@@ -2972,8 +2973,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			subtreeExternalIds[task.ExternalID] = struct{}{}
 		}
 
-		if task.InsertedAt.Time.Before(minTaskInsertedAt.Time) {
-			minTaskInsertedAt = task.InsertedAt
+		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
 		}
 	}
 
@@ -3034,7 +3035,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		Taskids:         lockedTaskIds,
 		Taskinsertedats: lockedTaskInsertedAts,
 		Tenantid:        tenantId,
-		Mininsertedat:   minTaskInsertedAt,
+		Mininsertedat:   minInsertedAt,
 	})
 
 	if err != nil {
