@@ -1,4 +1,6 @@
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
+import { queries } from '@/lib/api';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useLoaderData, useNavigate } from '@tanstack/react-router';
 
@@ -26,6 +28,15 @@ export default function CreateTenant() {
                 result.type === 'cloud'
                   ? result.tenant.id
                   : result.tenant.metadata.id;
+
+              if (result.type === 'cloud') {
+                void queryClient
+                  .prefetchQuery(queries.cloud.subscriptionPlans())
+                  .catch(() => {
+                    // Ignore prefetch errors; subscription plans will be fetched on demand if needed.
+                  });
+              }
+
               navigate({
                 to: appRoutes.tenantOverviewRoute.to,
                 params: { tenant: tenantId },

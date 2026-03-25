@@ -9,6 +9,11 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -91,6 +96,12 @@ type HatchetContext interface {
 
 	WasSkipped(parent create.NamedTask) bool
 
+	TenantId() string
+
+	WorkerId() string
+
+	ActionId() string
+
 	client() client.Client
 
 	action() *client.Action
@@ -101,6 +112,12 @@ type HatchetContext interface {
 	Priority() int32
 
 	FilterPayload() map[string]interface{}
+
+	ParentWorkflowRunId() *string
+
+	ChildIndex() *int32
+
+	ChildKey() *string
 }
 
 // Deprecated: TriggeredBy is an internal type used by the new Go SDK.
@@ -206,6 +223,18 @@ func (h *hatchetContext) client() client.Client {
 
 func (h *hatchetContext) action() *client.Action {
 	return h.a
+}
+
+func (h *hatchetContext) TenantId() string {
+	return h.a.TenantId
+}
+
+func (h *hatchetContext) WorkerId() string {
+	return h.a.WorkerId
+}
+
+func (h *hatchetContext) ActionId() string {
+	return h.a.ActionId
 }
 
 func (h *hatchetContext) Worker() HatchetWorkerContext {
@@ -481,11 +510,39 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 	return h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
 }
 
+// injectTraceparent serializes the current span's W3C traceparent from ctx
+// into the AdditionalMetadata map so child workflows inherit the trace.
+func injectTraceparent(ctx context.Context, meta *map[string]string) *map[string]string {
+	propagator := propagation.TraceContext{}
+	carrier := propagation.MapCarrier{}
+	propagator.Inject(ctx, carrier)
+
+	tp, ok := carrier["traceparent"]
+	if !ok || tp == "" {
+		return meta
+	}
+
+	if meta == nil {
+		m := map[string]string{"traceparent": tp}
+		return &m
+	}
+
+	(*meta)["traceparent"] = tp
+	return meta
+}
+
 // Deprecated: SpawnWorkflow is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
 	if opts == nil {
 		opts = &SpawnWorkflowOpts{}
+	}
+
+	// Only inject traceparent if the caller hasn't already set one (e.g. the
+	// new Go SDK's RunNoWait injects a traceparent pointing to its own
+	// hatchet.run_workflow span — we must not overwrite it).
+	if opts.AdditionalMetadata == nil || (*opts.AdditionalMetadata)["traceparent"] == "" {
+		opts.AdditionalMetadata = injectTraceparent(h.GetContext(), opts.AdditionalMetadata)
 	}
 
 	var desiredWorker *string
@@ -554,6 +611,9 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	listener, err := h.saveOrLoadListener()
 
 	for i, c := range childWorkflows {
+		if c.AdditionalMetadata == nil || (*c.AdditionalMetadata)["traceparent"] == "" {
+			c.AdditionalMetadata = injectTraceparent(h.GetContext(), c.AdditionalMetadata)
+		}
 
 		var desiredWorker *string
 
@@ -906,6 +966,16 @@ func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*Sing
 
 // WaitFor implements the DurableHatchetContext.WaitFor method.
 func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitResult, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/worker")
+	_, span := tracer.Start(d.GetContext(), "hatchet.durable.wait_for",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.step_run_id", d.StepRunId()),
+		),
+	)
+	defer span.End()
+
 	// Increment wait key to ensure unique keys for multiple wait operations
 	d.waitKeyCounterMu.Lock()
 	d.waitKeyCounter++
@@ -916,12 +986,15 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	durableListener, err := d.saveOrLoadDurableEventListener()
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	// compose the durable event to listen for
 	c := conditions.ToPB(v1.Action_CREATE)
 	signalKey := fmt.Sprintf("signal-%d", count)
+
+	span.SetAttributes(attribute.String("hatchet.signal_key", signalKey))
 
 	_, err = d.client().Dispatcher().RegisterDurableEvent(d, &v1.RegisterDurableEventRequest{
 		TaskId:    d.StepRunId(),
@@ -933,6 +1006,7 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	})
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to register durable event: %w", err)
 	}
 
@@ -945,11 +1019,13 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	})
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to add signal: %w", err)
 	}
 
 	data := <-resCh
 
+	span.SetStatus(codes.Ok, "")
 	return newWaitResult(data)
 }
 

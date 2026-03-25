@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/compute"
@@ -851,6 +854,16 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 }
 
 func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Action) error {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/worker")
+	_, span := tracer.Start(ctx, "hatchet.cancel_step_run",
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.step_run_id", assignedAction.StepRunId),
+		),
+	)
+	defer span.End()
+
 	cancel, ok := w.cancelMap.Load(assignedAction.StepRunId)
 
 	if !ok {
@@ -892,12 +905,12 @@ func (w *Worker) getGroupKeyActionFinishedEvent(action *client.Action, output st
 	return event, nil
 }
 
-func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
+func (w *Worker) sendFailureEvent(ctx HatchetContext, taskErr error) error {
 	assignedAction := ctx.action()
 
 	failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
 
-	w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
+	w.alerter.SendAlert(context.Background(), taskErr, map[string]interface{}{
 		"actionId":      assignedAction.ActionId,
 		"workerId":      assignedAction.WorkerId,
 		"workflowRunId": assignedAction.WorkflowRunId,
@@ -906,9 +919,9 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 		"actionType":    assignedAction.ActionType,
 	})
 
-	failureEvent.EventPayload = err.Error()
+	failureEvent.EventPayload = taskErr.Error()
 
-	if IsNonRetryableError(err) {
+	if IsNonRetryableError(taskErr) {
 		shouldNotRetry := true
 		failureEvent.ShouldNotRetry = &shouldNotRetry
 	}
@@ -916,16 +929,16 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 	innerCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, err = w.client.Dispatcher().SendStepActionEvent(
+	_, dispatchErr := w.client.Dispatcher().SendStepActionEvent(
 		innerCtx,
 		failureEvent,
 	)
 
-	if err != nil {
-		return fmt.Errorf("could not send action event: %w", err)
+	if dispatchErr != nil {
+		return fmt.Errorf("could not send action event: %w", dispatchErr)
 	}
 
-	return err
+	return taskErr
 }
 
 func getHostName() string {

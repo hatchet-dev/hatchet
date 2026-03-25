@@ -1,4 +1,8 @@
 import { LOG_LEVELS, LogLevel, ParsedLogQuery } from './types';
+import {
+  tokenizeFilterQuery,
+  isFilterToken,
+} from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 export function parseLogQuery(query: string): ParsedLogQuery {
   const errors: string[] = [];
@@ -6,13 +10,9 @@ export function parseLogQuery(query: string): ParsedLogQuery {
   let level: LogLevel | undefined;
   let attempt: number | undefined;
 
-  const tokenRegex = /(\S+?):(\S+)|(\S+)/g;
-  let match;
-
-  while ((match = tokenRegex.exec(query)) !== null) {
-    const [, key, value, text] = match;
-
-    if (key && value !== undefined) {
+  for (const token of tokenizeFilterQuery(query)) {
+    if (isFilterToken(token)) {
+      const { key, value } = token;
       if (key.toLowerCase() === 'level') {
         const normalizedLevel = value.toLowerCase();
         if (LOG_LEVELS.includes(normalizedLevel as LogLevel)) {
@@ -30,8 +30,8 @@ export function parseLogQuery(query: string): ParsedLogQuery {
       } else {
         textParts.push(`${key}:${value}`);
       }
-    } else if (text) {
-      textParts.push(text);
+    } else {
+      textParts.push(token.text);
     }
   }
 

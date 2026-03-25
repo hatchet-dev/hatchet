@@ -42,27 +42,35 @@ export default function ResourceLimits() {
       {
         columnLabel: 'Resource',
         cellRenderer: (limit: TenantResourceLimit) => (
-          <div className="flex flex-row items-center gap-4">
+          <div className="flex flex-row items-center gap-3">
             <LimitIndicator
               value={limit.value}
               alarmValue={limit.alarmValue}
               limitValue={limit.limitValue}
             />
-            {limitedResources[limit.resource]}
+            <span className="font-medium text-foreground">
+              {limitedResources[limit.resource]}
+            </span>
           </div>
         ),
       },
       {
         columnLabel: 'Current Value',
-        cellRenderer: (limit: TenantResourceLimit) => limit.value,
+        cellRenderer: (limit: TenantResourceLimit) => (
+          <span className="tabular-nums">{limit.value}</span>
+        ),
       },
       {
         columnLabel: 'Limit Value',
-        cellRenderer: (limit: TenantResourceLimit) => limit.limitValue,
+        cellRenderer: (limit: TenantResourceLimit) => (
+          <span className="tabular-nums">{limit.limitValue}</span>
+        ),
       },
       {
         columnLabel: 'Alarm Value',
-        cellRenderer: (limit: TenantResourceLimit) => limit.alarmValue || 'N/A',
+        cellRenderer: (limit: TenantResourceLimit) => (
+          <span className="tabular-nums">{limit.alarmValue || 'N/A'}</span>
+        ),
       },
       {
         columnLabel: 'Meter Window',
@@ -92,17 +100,22 @@ export default function ResourceLimits() {
 
   return (
     <div className="h-full w-full flex-grow">
-      {billingEnabled && (
-        <>
-          {isOwner ? (
-            <Subscription
-              active={billingState.data?.currentSubscription}
-              upcoming={billingState.data?.upcomingSubscription}
-              plans={billingState.data?.plans}
-              coupons={billingState.data?.coupons}
-            />
-          ) : (
-            <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <h2 className="text-2xl font-bold leading-tight text-foreground">
+          Billing & Limits
+        </h2>
+        <Separator className="my-4" />
+
+        {billingEnabled && (
+          <>
+            {isOwner ? (
+              <Subscription
+                active={billingState.data?.currentSubscription}
+                upcoming={billingState.data?.upcomingSubscription}
+                plans={billingState.data?.plans}
+                coupons={billingState.data?.coupons}
+              />
+            ) : (
               <Alert variant="destructive">
                 <ExclamationTriangleIcon className="size-4" />
                 <AlertTitle>Unauthorized</AlertTitle>
@@ -111,29 +124,35 @@ export default function ResourceLimits() {
                   tenant owners can access billing details.
                 </AlertDescription>
               </Alert>
-            </div>
-          )}
-          <Separator className="my-4" />
-        </>
-      )}
+            )}
+            <Separator className="my-8" />
+          </>
+        )}
 
-      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-row items-center justify-between">
-          <h3 className="text-xl font-semibold leading-tight text-foreground">
-            Resource Limits
-          </h3>
-        </div>
-        <p className="my-4 text-gray-700 dark:text-gray-300">
-          Resource limits are used to control the usage of resources within a
-          tenant. When a limit is reached, the system will take action based on
-          the limit type. Please upgrade your plan, or{' '}
-          <a href="https://hatchet.run/office-hours" className="underline">
+        <h3 className="text-xl font-semibold leading-tight text-foreground">
+          Resource Limits
+        </h3>
+        <Separator className="my-4" />
+        <p className="text-sm text-muted-foreground mb-4">
+          Resource limits control usage within your tenant. When a limit is
+          reached, the system will take action based on the limit type. Upgrade
+          your plan or{' '}
+          <a
+            href="https://hatchet.run/office-hours"
+            className="text-primary/70 hover:text-primary hover:underline"
+          >
             contact us
           </a>{' '}
-          if you need to adjust your limits.
+          to adjust your limits.
         </p>
 
-        <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
+        {resourceLimits.length > 0 ? (
+          <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            No resource limits configured.
+          </div>
+        )}
       </div>
     </div>
   );

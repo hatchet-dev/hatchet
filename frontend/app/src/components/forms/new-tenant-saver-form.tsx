@@ -87,6 +87,9 @@ const useSaveTenant = ({
       }),
     onSuccess: (data) => {
       invalidateUserUniverse();
+      if (data.type === 'cloud') {
+        localStorage.setItem('hatchet:show-welcome', '1');
+      }
       capture('onboarding_tenant_created', {
         tenant_type: data.type,
         is_cloud: data.type === 'cloud',

@@ -2,8 +2,10 @@ name: VS Code Extension Release
 
 on:
   push:
-    tags:
-      - 'vscode/v*'
+    branches:
+      - main
+    paths:
+      - 'frontend/vscode-extension/package.json'
 
 permissions:
   contents: write
@@ -48,9 +50,10 @@ jobs:
         working-directory: frontend/vscode-extension
         run: pnpm build:prod
 
-      - name: Extract version from tag
+      - name: Extract version from package.json
         id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#vscode/v}" >> $GITHUB_OUTPUT
+        working-directory: frontend/vscode-extension
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
 
       - name: Package extension
         working-directory: frontend/vscode-extension
@@ -65,6 +68,7 @@ jobs:
       - name: Upload .vsix as release artifact
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: vscode/v${{ steps.version.outputs.VERSION }}
           files: frontend/vscode-extension/hatchet-${{ steps.version.outputs.VERSION }}.vsix
           name: Hatchet VS Code Extension v${{ steps.version.outputs.VERSION }}
           body: |

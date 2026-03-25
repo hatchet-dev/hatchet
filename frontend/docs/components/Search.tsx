@@ -38,6 +38,67 @@ function loadIndex(basePath: string = ""): Promise<MiniSearch> {
   return indexPromise;
 }
 
+/**
+ * Extract a short snippet of content around the first query match.
+ * Falls back to the first ~120 characters if no match is found.
+ */
+function getContentSnippet(
+  content: string | undefined,
+  query: string,
+  maxLen = 120,
+): string {
+  if (!content) return "";
+  // Strip markdown headings, code fences, tables, and extra whitespace
+  const plain = content
+    .replace(/^#{1,6}\s+.*$/gm, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`]*`/g, "")
+    .replace(/^\|[-|\s:]+\|$/gm, "") // table separator rows
+    .replace(
+      /^\|.*\|$/gm,
+      (
+        row, // table data rows → cell text
+      ) =>
+        row
+          .replace(/^\||\|$/g, "")
+          .split("|")
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .join(", "),
+    )
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_~]+/g, "")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return "";
+
+  // Try to find a window around the first query term match
+  const words = query
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 1);
+  if (words.length > 0) {
+    const escaped = words
+      .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    const re = new RegExp(escaped, "i");
+    const matchIdx = plain.search(re);
+    if (matchIdx >= 0) {
+      const start = Math.max(0, matchIdx - 40);
+      const end = Math.min(plain.length, start + maxLen);
+      let snippet = plain.slice(start, end).trim();
+      if (start > 0) snippet = "…" + snippet;
+      if (end < plain.length) snippet = snippet + "…";
+      return snippet;
+    }
+  }
+
+  // Fallback: beginning of content
+  if (plain.length <= maxLen) return plain;
+  return plain.slice(0, maxLen).trim() + "…";
+}
+
 /** Convert a MiniSearch doc id to a Next.js route. */
 function idToRoute(id: string): string {
   return (
@@ -559,9 +620,20 @@ export default function Search({ className }: { className?: string }) {
                                 query={query}
                               />
                             </div>
-                            <div className="excerpt _mt-1 _text-sm _leading-[1.35rem] _text-gray-600 dark:_text-gray-400 contrast-more:dark:_text-gray-50">
-                              {idToRoute(result.id)}
-                            </div>
+                            {getContentSnippet(
+                              result.content as string,
+                              query,
+                            ) && (
+                              <div className="excerpt _mt-1 _text-sm _leading-[1.35rem] _text-gray-600 dark:_text-gray-400 contrast-more:dark:_text-gray-50">
+                                <HighlightMatches
+                                  text={getContentSnippet(
+                                    result.content as string,
+                                    query,
+                                  )}
+                                  query={query}
+                                />
+                              </div>
+                            )}
                           </a>
                         </li>
                       );
