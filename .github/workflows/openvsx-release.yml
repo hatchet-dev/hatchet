@@ -2,8 +2,10 @@ name: Open VSX Extension Release
 
 on:
   push:
-    tags:
-      - "vscode/v*"
+    branches:
+      - main
+    paths:
+      - 'frontend/vscode-extension/package.json'
 
 permissions:
   contents: read
@@ -52,9 +54,10 @@ jobs:
         working-directory: frontend/vscode-extension
         run: jq '.publisher = "hatchet-dev"' package.json > tmp.json && mv tmp.json package.json
 
-      - name: Extract version from tag
+      - name: Extract version from package.json
         id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#vscode/v}" >> $GITHUB_OUTPUT
+        working-directory: frontend/vscode-extension
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
 
       - name: Package extension
         working-directory: frontend/vscode-extension
