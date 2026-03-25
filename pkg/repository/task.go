@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"maps"
-	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -525,7 +523,7 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 			minTaskInsertedAt = task.InsertedAt
 		}
 
-		if task.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
+		if task.DagID.Valid && task.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
 			minDagInsertedAt = task.DagInsertedAt
 		}
 	}
@@ -2977,7 +2975,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			minTaskInsertedAt = task.InsertedAt
 		}
 
-		if task.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
+		if task.DagID.Valid && task.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
 			minDagInsertedAt = task.DagInsertedAt
 		}
 	}
@@ -3012,7 +3010,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	dagIdsFailedPreflight := make(map[int64]bool)
 
 	preflightDAGs, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:        slices.Collect(maps.Keys(successfullyLockedDAGsMap)),
+		Dagids:        successfullyLockedDAGIds,
 		Tenantid:      tenantId,
 		Mininsertedat: minDagInsertedAt,
 	})
