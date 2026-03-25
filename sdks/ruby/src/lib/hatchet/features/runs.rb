@@ -513,7 +513,27 @@ end
           break if event.respond_to?(:hangup) && event.hangup
         end
       end
+      def poll_async(workflow_run_id, interval: 1.0, timeout: nil,
+               on_complete: nil, on_error: nil,
+               cancellation_token: nil, &block)
+  token = cancellation_token || Hatchet::CancellationToken.new
 
+  thread = Thread.new do
+    begin
+      result = poll(workflow_run_id, interval: interval,
+                    timeout: timeout, cancellation_token: token)
+      block ? block.call(result, nil) : on_complete&.call(result, nil)
+    rescue Hatchet::PollTimeoutError, Hatchet::PollCancelledError => e
+      @config.logger.warn("poll_async stopped for #{workflow_run_id}: #{e.message}")
+      block ? block.call(nil, e) : on_error&.call(nil, e)
+    rescue => e
+      @config.logger.error("poll_async error for #{workflow_run_id}: #{e.message}")
+      block ? block.call(nil, e) : on_error&.call(nil, e)
+    end
+  end
+
+  [thread, token]
+end
       private
 
       # Build BulkCancelReplayOpts from keyword arguments.
