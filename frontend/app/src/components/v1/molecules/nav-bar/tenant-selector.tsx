@@ -24,6 +24,7 @@ import {
   PopoverTrigger,
 } from '@radix-ui/react-popover';
 import { useState, useMemo } from 'react';
+import { useAnalytics } from '@/hooks/use-analytics';
 
 export function TenantSelector({ className }: { className?: string }) {
   const { setTenant, tenant } = useTenantDetails();
@@ -34,6 +35,7 @@ export function TenantSelector({ className }: { className?: string }) {
     tenantMemberships,
   } = useUserUniverse();
   const { meta } = useApiMeta();
+  const { capture } = useAnalytics();
   const [open, setOpen] = useState(false);
 
   const currentOrg = useMemo(() => {
@@ -50,7 +52,12 @@ export function TenantSelector({ className }: { className?: string }) {
     : [];
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(open) => {
+        if (open) {
+          capture('tenant_selector_opened');
+        }
+        setOpen(open);
+      }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -93,6 +100,9 @@ export function TenantSelector({ className }: { className?: string }) {
                     key={t.metadata.id}
                     value={`tenant-${t.metadata.id}`}
                     onSelect={() => {
+                      capture('tenant_selector_clicked', {
+                        tenant_id: t.metadata.id,
+                      });
                       setTenant(t);
                       setOpen(false);
                     }}

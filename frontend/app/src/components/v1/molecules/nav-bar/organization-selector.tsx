@@ -27,6 +27,7 @@ import {
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useState, useMemo, useCallback } from 'react';
 import invariant from 'tiny-invariant';
+import { useAnalytics } from '@/hooks/use-analytics';
 
 export function OrganizationSelector({ className }: { className?: string }) {
   const navigate = useNavigate();
@@ -41,6 +42,7 @@ export function OrganizationSelector({ className }: { className?: string }) {
     getOrganizationForTenant,
     getTenantWithTenantId,
   } = useUserUniverse();
+  const { capture } = useAnalytics();
   const [open, setOpen] = useState(false);
 
   const currentOrg = useMemo(() => {
@@ -68,11 +70,15 @@ export function OrganizationSelector({ className }: { className?: string }) {
       const firstTenant = org.tenants.at(0);
       invariant(firstTenant);
 
+      capture('organization_selector_clicked', {
+        organization_id: org.metadata.id,
+      });
+
       setTenant(getTenantWithTenantId(firstTenant.id));
 
       setOpen(false);
     },
-    [isUniverseLoaded, getTenantWithTenantId, setTenant],
+    [isUniverseLoaded, getTenantWithTenantId, setTenant, capture],
   );
 
   const handleSettingsClick = useCallback(
@@ -93,7 +99,12 @@ export function OrganizationSelector({ className }: { className?: string }) {
     !isTenantLoaded || !isUniverseLoaded || !organizations?.length;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(open) => {
+        if (open) {
+          capture('organization_selector_opened');
+        }
+        setOpen(open);
+      }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
