@@ -44,6 +44,7 @@ const limitToNotification = (
 
   return {
     color: statusToColor[status],
+    shortTitle: status === 'exhausted' ? 'Limit reached' : 'Approaching limit',
     title:
       status === 'exhausted'
         ? `${label} limit reached`

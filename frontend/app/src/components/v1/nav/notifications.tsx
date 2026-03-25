@@ -42,22 +42,27 @@ export function Notifications() {
   const navigate = useNavigate();
   const count = notifications.length;
   const mostSevere = count > 0 ? getMostSevereColor(notifications) : null;
-  const title = `${count} notification${count !== 1 ? 's' : ''} for ${currentUser?.email ?? ''}`;
+  const ariaLabel = `${count} notification${count !== 1 ? 's' : ''} for ${currentUser?.email ?? ''}`;
+  const displayTitle =
+    count > 0 ? notifications[0].shortTitle : 'Notifications';
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="icon"
-          size="icon"
-          title={title}
-          aria-label={title}
-          className="relative rounded-full border border-border"
+          title={ariaLabel}
+          aria-label={ariaLabel}
+          className="relative gap-1.5 rounded-full border border-border px-2.5"
         >
-          {count > 0 ? (
-            <span className="text-xs font-medium leading-none">{count}</span>
-          ) : (
-            <RiNotification3Line className="size-4" />
+          <RiNotification3Line className="size-4" />
+          <span className="text-xs font-medium leading-none">
+            {displayTitle}
+          </span>
+          {count > 1 && (
+            <span className="text-xs font-medium leading-none text-muted-foreground">
+              {count}
+            </span>
           )}
           {mostSevere && (
             <span

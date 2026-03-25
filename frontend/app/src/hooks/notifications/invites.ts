@@ -21,6 +21,7 @@ export const useInviteNotifications = () => {
       ...data.tenantInvites.map(
         (invite): Notification => ({
           color: 'green',
+          shortTitle: 'Tenant invite',
           title: `Tenant invite: ${invite.tenantName ?? 'Unknown'}`,
           message: `You're invited to ${invite.tenantName ? `the "${invite.tenantName}"` : 'a'} tenant as ${getArticle(invite.role)} ${invite.role.toLowerCase()}`,
           timestamp: invite.metadata.createdAt,
@@ -30,6 +31,7 @@ export const useInviteNotifications = () => {
       ...data.organizationInvites.map(
         (invite): Notification => ({
           color: 'green',
+          shortTitle: 'Organization invite',
           title: 'Organization invite',
           message: `You're invited to be ${getArticle(invite.role)} ${invite.role.toLowerCase()} of an organization`,
           timestamp: invite.metadata.createdAt,

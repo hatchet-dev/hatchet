@@ -51,6 +51,7 @@ export const useOnboardingNotifications = () => {
     return [
       {
         color: 'blue',
+        shortTitle: 'Get started',
         title: 'Get started with Hatchet',
         message: 'Create an API token and run your first workflow',
         timestamp: new Date().toISOString(),
