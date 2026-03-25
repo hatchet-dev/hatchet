@@ -2143,37 +2143,50 @@ func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasks
 }
 
 const lockDAGsForReplay = `-- name: LockDAGsForReplay :many
+WITH input AS (
+    SELECT
+        UNNEST($2::bigint[]) AS dag_id,
+        UNNEST($3::timestamptz[]) AS dag_inserted_at
+)
 SELECT
-    id
+    d.id,
+    d.inserted_at
 FROM
-    v1_dag
+    v1_dag d
+JOIN
+    input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
-    id = ANY($1::bigint[])
-    AND tenant_id = $2::uuid
-ORDER BY id
+    d.tenant_id = $1::uuid
+ORDER BY d.id
 FOR UPDATE SKIP LOCKED
 `
 
 type LockDAGsForReplayParams struct {
-	Dagids   []int64   `json:"dagids"`
-	Tenantid uuid.UUID `json:"tenantid"`
+	Tenantid       uuid.UUID            `json:"tenantid"`
+	Dagids         []int64              `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+}
+
+type LockDAGsForReplayRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 }
 
 // Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 // We skip locked tasks because replays are the only thing that can lock a DAG for updates
-func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsForReplayParams) ([]int64, error) {
-	rows, err := db.Query(ctx, lockDAGsForReplay, arg.Dagids, arg.Tenantid)
+func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsForReplayParams) ([]*LockDAGsForReplayRow, error) {
+	rows, err := db.Query(ctx, lockDAGsForReplay, arg.Tenantid, arg.Dagids, arg.Daginsertedats)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []int64
+	var items []*LockDAGsForReplayRow
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var i LockDAGsForReplayRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2374,7 +2387,11 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 }
 
 const preflightCheckDAGsForReplay = `-- name: PreflightCheckDAGsForReplay :many
-WITH dags_to_step_counts AS (
+WITH input AS (
+    SELECT
+        UNNEST($1::bigint[]) AS dag_id,
+        UNNEST($2::timestamptz[]) AS dag_inserted_at
+), dags_to_step_counts AS (
     SELECT
         d.id,
         d.external_id,
@@ -2384,7 +2401,9 @@ WITH dags_to_step_counts AS (
     FROM
         v1_dag d
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = d.id
+        input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
     JOIN
         "WorkflowVersion" wv ON wv."id" = d.workflow_version_id
     LEFT JOIN
@@ -2392,8 +2411,7 @@ WITH dags_to_step_counts AS (
     LEFT JOIN
         "Step" s ON s."jobId" = j."id"
     WHERE
-        d.id = ANY($1::bigint[])
-        AND d.tenant_id = $2::uuid
+        d.tenant_id = $3::uuid
     GROUP BY
         d.id,
         d.inserted_at
@@ -2409,8 +2427,9 @@ FROM
 `
 
 type PreflightCheckDAGsForReplayParams struct {
-	Dagids   []int64   `json:"dagids"`
-	Tenantid uuid.UUID `json:"tenantid"`
+	Dagids         []int64              `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Tenantid       uuid.UUID            `json:"tenantid"`
 }
 
 type PreflightCheckDAGsForReplayRow struct {
@@ -2426,7 +2445,7 @@ type PreflightCheckDAGsForReplayRow struct {
 // don't interfere with each other. It also does not check for whether the tasks are running, as that's
 // checked in a different query. It returns DAGs which cannot be replayed.
 func (q *Queries) PreflightCheckDAGsForReplay(ctx context.Context, db DBTX, arg PreflightCheckDAGsForReplayParams) ([]*PreflightCheckDAGsForReplayRow, error) {
-	rows, err := db.Query(ctx, preflightCheckDAGsForReplay, arg.Dagids, arg.Tenantid)
+	rows, err := db.Query(ctx, preflightCheckDAGsForReplay, arg.Dagids, arg.Daginsertedats, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
