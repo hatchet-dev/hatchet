@@ -1,4 +1,4 @@
-name: VS Code Extension Release
+name: Open VSX Extension Release
 
 on:
   push:
@@ -8,11 +8,11 @@ on:
       - 'frontend/vscode-extension/package.json'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
-    name: Package and Publish VS Code Extension
+    name: Package and Publish to Open VSX
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -50,6 +50,10 @@ jobs:
         working-directory: frontend/vscode-extension
         run: pnpm build:prod
 
+      - name: Set publisher to hatchet-dev for Open VSX
+        working-directory: frontend/vscode-extension
+        run: jq '.publisher = "hatchet-dev"' package.json > tmp.json && mv tmp.json package.json
+
       - name: Extract version from package.json
         id: version
         working-directory: frontend/vscode-extension
@@ -59,30 +63,9 @@ jobs:
         working-directory: frontend/vscode-extension
         run: pnpm package --out hatchet-${{ steps.version.outputs.VERSION }}.vsix
 
-      - name: Publish to VS Code Marketplace
+      - name: Install ovsx
+        run: npm install -g ovsx
+
+      - name: Publish to Open VSX Registry
         working-directory: frontend/vscode-extension
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: pnpm run publish
-
-      - name: Upload .vsix as release artifact
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: vscode/v${{ steps.version.outputs.VERSION }}
-          files: frontend/vscode-extension/hatchet-${{ steps.version.outputs.VERSION }}.vsix
-          name: Hatchet VS Code Extension v${{ steps.version.outputs.VERSION }}
-          body: |
-            ## Hatchet VS Code Extension v${{ steps.version.outputs.VERSION }}
-
-            ### Installation
-            **From VS Code Marketplace:** Search for "Hatchet" in the Extensions panel.
-
-            **Manual install:**
-            ```
-            code --install-extension hatchet-${{ steps.version.outputs.VERSION }}.vsix
-            ```
-
-            ### Usage
-            Open any TypeScript file that declares a Hatchet workflow — a
-            "$(graph) Show Hatchet DAG" CodeLens will appear above each
-            `hatchet.workflow(...)` declaration.
+        run: ovsx publish hatchet-${{ steps.version.outputs.VERSION }}.vsix -p ${{ secrets.OPEN_VSX_REGISTRY_TOKEN }}
