@@ -1,6 +1,6 @@
-import { useFilters } from '../filters/hooks/use-filters';
-import { RunsTable } from '../workflow-runs-v1/components/runs-table';
-import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
+import { useFilters } from "../filters/hooks/use-filters";
+import { RunsTable } from "../workflow-runs-v1/components/runs-table";
+import { RunsProvider } from "../workflow-runs-v1/hooks/runs-provider";
 import {
   columns,
   EventColumn,
@@ -10,27 +10,27 @@ import {
   scopeKey,
   statusKey,
   workflowKey,
-} from './components/event-columns';
-import { useEvents } from './hooks/use-events';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { Button } from '@/components/v1/ui/button';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Separator } from '@/components/v1/ui/separator';
-import { useSidePanel } from '@/hooks/use-side-panel';
-import { V1Event, V1Filter } from '@/lib/api';
-import { docsPages } from '@/lib/generated/docs';
-import { VisibilityState } from '@tanstack/react-table';
-import { CheckIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+} from "./components/event-columns";
+import { useEvents } from "./hooks/use-events";
+import { DocsButton } from "@/components/v1/docs/docs-button";
+import { DataTable } from "@/components/v1/molecules/data-table/data-table";
+import { ToolbarType } from "@/components/v1/molecules/data-table/data-table-toolbar";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { Button } from "@/components/v1/ui/button";
+import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+import { Separator } from "@/components/v1/ui/separator";
+import { useSidePanel } from "@/hooks/use-side-panel";
+import { V1Event, V1Filter } from "@/lib/api";
+import { docsPages } from "@/lib/generated/docs";
+import { VisibilityState } from "@tanstack/react-table";
+import { CheckIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 
 export default function Events() {
-  const [openMetadataPopover, setOpenMetadataPopover] = useState<
-    string | null
-  >(null);
+  const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
+    null,
+  );
   const [openPayloadPopover, setOpenPayloadPopover] = useState<string | null>(
     null,
   );
@@ -53,7 +53,7 @@ export default function Events() {
     isRefetching,
     resetFilters,
   } = useEvents({
-    key: 'table',
+    key: "table",
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
@@ -65,7 +65,7 @@ export default function Events() {
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
       open({
-        type: 'event-details',
+        type: "event-details",
         content: {
           event: row,
         },
@@ -141,7 +141,7 @@ export default function Events() {
             <p className="text-lg font-semibold">No events found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.v1['external-events']['run-on-event']}
+                doc={docsPages.v1["external-events"]["run-on-event"]}
                 label="Learn about pushing events to Hatchet"
               />
             </div>
@@ -155,7 +155,7 @@ export default function Events() {
 export function ExpandedEventContent({ event }: { event: V1Event }) {
   const hasScope = Boolean(event.scope && event.scope.length > 0);
   const { filters, workflowIdToName } = useFilters({
-    key: 'events-table',
+    key: "events-table",
     scopeOverrides: event.scope ? [event.scope] : undefined,
   });
 
@@ -172,9 +172,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="font-medium text-muted-foreground">
-              Seen
-            </span>
+            <span className="font-medium text-muted-foreground">Seen</span>
             <span className="font-medium">
               <RelativeDate date={event.metadata.createdAt} />
             </span>
@@ -206,9 +204,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
           )}
 
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-foreground">
-              Runs
-            </h3>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">Runs</h3>
             <Separator className="mb-3" />
             <EventWorkflowRunsList event={event} />
           </div>
@@ -247,7 +243,7 @@ function FiltersSection({
   const filterColumns = useMemo(
     () => [
       {
-        columnLabel: 'ID',
+        columnLabel: "ID",
         cellRenderer: (filter: V1Filter) => (
           <div className="w-full">
             <Button className="w-fit pl-0" variant="link">
@@ -257,21 +253,19 @@ function FiltersSection({
         ),
       },
       {
-        columnLabel: 'Workflow',
+        columnLabel: "Workflow",
         cellRenderer: (filter: V1Filter) => (
-          <div className="w-full">
-            {workflowIdToName[filter.workflowId]}
-          </div>
+          <div className="w-full">{workflowIdToName[filter.workflowId]}</div>
         ),
       },
       {
-        columnLabel: 'Scope',
+        columnLabel: "Scope",
         cellRenderer: (filter: V1Filter) => (
           <div className="w-full">{filter.scope}</div>
         ),
       },
       {
-        columnLabel: 'Expression',
+        columnLabel: "Expression",
         cellRenderer: (filter: V1Filter) => (
           <CodeHighlighter
             language="text"
@@ -284,7 +278,7 @@ function FiltersSection({
         ),
       },
       {
-        columnLabel: 'Is Declarative',
+        columnLabel: "Is Declarative",
         cellRenderer: (filter: V1Filter) =>
           filter.isDeclarative ? (
             <CheckIcon className="size-4 text-green-600" />

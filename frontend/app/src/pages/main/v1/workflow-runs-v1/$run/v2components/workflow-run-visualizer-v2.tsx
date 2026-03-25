@@ -1,20 +1,20 @@
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
-import stepRunNode, { NodeData } from './step-run-node';
-import { useTheme } from '@/components/hooks/use-theme';
-import { V1TaskEventType, V1TaskStatus } from '@/lib/api';
-import dagre from 'dagre';
-import { useMemo } from 'react';
+import { useWorkflowDetails } from "../../hooks/use-workflow-details";
+import stepRunNode, { NodeData } from "./step-run-node";
+import { useTheme } from "@/components/hooks/use-theme";
+import { V1TaskEventType, V1TaskStatus } from "@/lib/api";
+import dagre from "dagre";
+import { useMemo } from "react";
 import ReactFlow, {
   Position,
   MarkerType,
   Node,
   Edge,
   BezierEdge,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+} from "reactflow";
+import "reactflow/dist/style.css";
 
-const connectionLineStyleDark = { stroke: '#fff' };
-const connectionLineStyleLight = { stroke: '#000' };
+const connectionLineStyleDark = { stroke: "#fff" };
+const connectionLineStyleLight = { stroke: "#000" };
 
 const nodeTypes = {
   stepNode: stepRunNode,
@@ -49,9 +49,7 @@ const WorkflowRunVisualizer = ({
         shape.flatMap((shapeItem) =>
           shapeItem.childrenStepIds.map((childId) => {
             const child = shape.find((t) => t.stepId === childId);
-            const childTaskRun = taskRuns.find(
-              (t) => t.stepId === childId,
-            );
+            const childTaskRun = taskRuns.find((t) => t.stepId === childId);
 
             if (!child) {
               return null;
@@ -63,13 +61,13 @@ const WorkflowRunVisualizer = ({
               target: childId,
               animated: childTaskRun?.status === V1TaskStatus.RUNNING,
               style:
-                theme === 'dark'
+                theme === "dark"
                   ? connectionLineStyleDark
                   : connectionLineStyleLight,
               markerEnd: {
                 type: MarkerType.ArrowClosed,
               },
-              type: 'smoothstep',
+              type: "smoothstep",
             };
           }),
         ) || []
@@ -91,10 +89,10 @@ const WorkflowRunVisualizer = ({
           taskRun: task,
           graphVariant:
             hasParent && hasChild
-              ? 'default'
+              ? "default"
               : hasChild
-                ? 'output_only'
-                : 'input_only',
+                ? "output_only"
+                : "input_only",
           onClick: () => task && setSelectedTaskRunId(task.metadata.id),
           childWorkflowsCount: task?.numSpawnedChildren || 0,
           taskName: shapeItem.taskName,
@@ -103,7 +101,7 @@ const WorkflowRunVisualizer = ({
 
         return {
           id: shapeItem.stepId,
-          type: 'stepNode',
+          type: "stepNode",
           position: { x: 0, y: 0 },
           data,
           selectable: true,
@@ -118,12 +116,12 @@ const WorkflowRunVisualizer = ({
   const getLayoutedElements = (
     nodes: Node[],
     edges: Edge[],
-    direction = 'LR',
+    direction = "LR",
   ) => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-    const isHorizontal = direction === 'LR';
+    const isHorizontal = direction === "LR";
     dagreGraph.setGraph({ rankdir: direction });
 
     nodes.forEach((node) => {
@@ -181,9 +179,7 @@ const WorkflowRunVisualizer = ({
         }}
         maxZoom={1}
         connectionLineStyle={
-          theme === 'dark'
-            ? connectionLineStyleDark
-            : connectionLineStyleLight
+          theme === "dark" ? connectionLineStyleDark : connectionLineStyleLight
         }
         snapToGrid={true}
       />

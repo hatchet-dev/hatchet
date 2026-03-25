@@ -1,16 +1,16 @@
-import { ErrorPageLayout } from './layout';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
-import { getOptionalStringParam } from '@/lib/router-helpers';
-import { appRoutes } from '@/router';
-import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
-import { FileQuestion, Home, Undo2 } from 'lucide-react';
+import { ErrorPageLayout } from "./layout";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
+import { getOptionalStringParam } from "@/lib/router-helpers";
+import { appRoutes } from "@/router";
+import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
+import { FileQuestion, Home, Undo2 } from "lucide-react";
 
 export function NotFound() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams({ strict: false });
-  const tenant = getOptionalStringParam(params, 'tenant');
+  const tenant = getOptionalStringParam(params, "tenant");
 
   return (
     <ErrorPageLayout
@@ -55,9 +55,7 @@ export function NotFound() {
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Requested path
         </div>
-        <div className="break-all text-foreground/90">
-          {location.pathname}
-        </div>
+        <div className="break-all text-foreground/90">{location.pathname}</div>
       </div>
     </ErrorPageLayout>
   );

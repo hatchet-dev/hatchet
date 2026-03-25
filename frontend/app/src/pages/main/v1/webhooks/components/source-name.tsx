@@ -1,8 +1,8 @@
-import { V1WebhookSourceName } from '@/lib/api';
-import { GitHubLogoIcon } from '@radix-ui/react-icons';
-import { Webhook } from 'lucide-react';
-import { CgLinear } from 'react-icons/cg';
-import { FaSlack, FaStripeS } from 'react-icons/fa';
+import { V1WebhookSourceName } from "@/lib/api";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { Webhook } from "lucide-react";
+import { CgLinear } from "react-icons/cg";
+import { FaSlack, FaStripeS } from "react-icons/fa";
 
 const SvixLogo = ({ className }: { className?: string }) => (
   <svg

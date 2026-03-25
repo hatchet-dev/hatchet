@@ -4,17 +4,17 @@ import {
   isDeclarativeKey,
   scopeKey,
   workflowIdKey,
-} from './components/filter-columns';
-import { FilterCreateButton } from './components/filter-create-form';
-import { useFilters } from './hooks/use-filters';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { useSidePanel } from '@/hooks/use-side-panel';
-import { V1Filter } from '@/lib/api';
-import { docsPages } from '@/lib/generated/docs';
-import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+} from "./components/filter-columns";
+import { FilterCreateButton } from "./components/filter-create-form";
+import { useFilters } from "./hooks/use-filters";
+import { DocsButton } from "@/components/v1/docs/docs-button";
+import { DataTable } from "@/components/v1/molecules/data-table/data-table";
+import { ToolbarType } from "@/components/v1/molecules/data-table/data-table-toolbar";
+import { useSidePanel } from "@/hooks/use-side-panel";
+import { V1Filter } from "@/lib/api";
+import { docsPages } from "@/lib/generated/docs";
+import { VisibilityState } from "@tanstack/react-table";
+import { useState } from "react";
 
 export default function Filters() {
   const sidePanel = useSidePanel();
@@ -35,7 +35,7 @@ export default function Filters() {
     workflowNameFilters,
     mutations,
   } = useFilters({
-    key: 'table',
+    key: "table",
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
@@ -44,7 +44,7 @@ export default function Filters() {
 
   const handleRowClick = (filter: V1Filter) => {
     sidePanel.open({
-      type: 'filter-detail',
+      type: "filter-detail",
       content: {
         filter,
       },
@@ -97,7 +97,7 @@ export default function Filters() {
           <p className="text-lg font-semibold">No filters found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.v1['external-events']['run-on-event']}
+              doc={docsPages.v1["external-events"]["run-on-event"]}
               scrollTo="event-filtering"
               label="Learn about event filters"
             />

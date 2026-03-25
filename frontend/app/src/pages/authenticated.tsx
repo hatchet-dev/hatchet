@@ -1,50 +1,50 @@
-import { getCloudMetadataQuery } from './auth/hooks/use-cloud.ts';
-import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
-import { AppLayout } from '@/components/layout/app-layout';
-import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
-import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
-import SupportChat from '@/components/support-chat';
-import TopNav from '@/components/v1/nav/top-nav.tsx';
-import { Button } from '@/components/v1/ui/button';
+import { getCloudMetadataQuery } from "./auth/hooks/use-cloud.ts";
+import { NewTenantSaverForm } from "@/components/forms/new-tenant-saver-form";
+import { AppLayout } from "@/components/layout/app-layout";
+import { CreateTenantInviteModal } from "@/components/modals/create-tenant-invite-modal";
+import { OrganizationInviteMemberModal } from "@/components/modals/organization-invite-member-modal";
+import SupportChat from "@/components/support-chat";
+import TopNav from "@/components/v1/nav/top-nav.tsx";
+import { Button } from "@/components/v1/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { Loading, Spinner } from '@/components/v1/ui/loading.tsx';
-import { useAnalytics } from '@/hooks/use-analytics';
-import { useCurrentUser } from '@/hooks/use-current-user.ts';
+} from "@/components/v1/ui/dialog";
+import { HatchetLogo } from "@/components/v1/ui/hatchet-logo";
+import { Loading, Spinner } from "@/components/v1/ui/loading.tsx";
+import { useAnalytics } from "@/hooks/use-analytics";
+import { useCurrentUser } from "@/hooks/use-current-user.ts";
 import {
   pendingInvitesQuery,
   usePendingInvites,
-} from '@/hooks/use-pending-invites.ts';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { User, queries } from '@/lib/api';
-import { lastTenantAtom } from '@/lib/atoms';
-import { globalEmitter } from '@/lib/global-emitter';
-import { useContextFromParent } from '@/lib/outlet';
-import { OutletWithContext } from '@/lib/router-helpers';
-import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
-import { PostHogProvider } from '@/providers/posthog';
-import { useUserUniverse } from '@/providers/user-universe';
-import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+} from "@/hooks/use-pending-invites.ts";
+import { useTenantDetails } from "@/hooks/use-tenant";
+import api, { User, queries } from "@/lib/api";
+import { lastTenantAtom } from "@/lib/atoms";
+import { globalEmitter } from "@/lib/global-emitter";
+import { useContextFromParent } from "@/lib/outlet";
+import { OutletWithContext } from "@/lib/router-helpers";
+import { useInactivityDetection } from "@/pages/auth/hooks/use-inactivity-detection";
+import { PostHogProvider } from "@/providers/posthog";
+import { useUserUniverse } from "@/providers/user-universe";
+import queryClient from "@/query-client";
+import { appRoutes } from "@/router";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   useLoaderData,
   useLocation,
   useMatchRoute,
   useNavigate,
-} from '@tanstack/react-router';
-import { AxiosError } from 'axios';
-import { useAtom } from 'jotai';
-import { lazy, Suspense, useEffect, useState } from 'react';
+} from "@tanstack/react-router";
+import { AxiosError } from "axios";
+import { useAtom } from "jotai";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 const DevtoolsFooter = import.meta.env.DEV
-  ? lazy(() => import('../devtools.tsx'))
+  ? lazy(() => import("../devtools.tsx"))
   : null;
 
 export async function loader(_args: { request: Request }) {
@@ -55,7 +55,7 @@ export async function loader(_args: { request: Request }) {
   await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
   return {
     inactivityLogoutMs:
-      'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
+      "inactivityLogoutMs" in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
   };
 }
 
@@ -80,7 +80,7 @@ function AuthenticatedInner() {
   >();
   const [showWelcome, setShowWelcome] = useState(false);
 
-  const loaderData = useLoaderData({ from: '/' });
+  const loaderData = useLoaderData({ from: "/" });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -114,7 +114,7 @@ function AuthenticatedInner() {
     isOnboardingCreateOrganizationPage;
 
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
+    mutationKey: ["user:update:logout"],
     mutationFn: async () => {
       await api.userUpdateLogout();
     },
@@ -212,17 +212,12 @@ function AuthenticatedInner() {
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
-    if (
-      pathname === '/' &&
-      tenantMemberships &&
-      tenantMemberships.length > 0
-    ) {
+    if (pathname === "/" && tenantMemberships && tenantMemberships.length > 0) {
       const lastTenantId = lastTenant?.metadata.id;
 
       const lastTenantInMemberships = lastTenantId
-        ? tenantMemberships.find(
-            (m) => m.tenant?.metadata.id === lastTenantId,
-          )?.tenant
+        ? tenantMemberships.find((m) => m.tenant?.metadata.id === lastTenantId)
+            ?.tenant
         : undefined;
 
       // If the cached tenant isn't in the current user's memberships (e.g. user switched),
@@ -236,7 +231,8 @@ function AuthenticatedInner() {
 
       if (targetTenant) {
         // Check if tenant has workflows to decide where to redirect
-        api.workflowList(targetTenant.metadata.id, { limit: 1 })
+        api
+          .workflowList(targetTenant.metadata.id, { limit: 1 })
           .then((response) => {
             const hasWorkflows =
               response.data.rows && response.data.rows.length > 0;
@@ -289,7 +285,7 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
+      globalEmitter.on("create-new-tenant", ({ defaultOrganizationId }) => {
         setDefaultOrganizationId(defaultOrganizationId);
         setNewTenantModalOpen(true);
       }),
@@ -298,7 +294,7 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
+      globalEmitter.on("create-tenant-invite", ({ tenantId }) => {
         setInviteModalTenantId(tenantId);
       }),
     [],
@@ -307,7 +303,7 @@ function AuthenticatedInner() {
   useEffect(
     () =>
       globalEmitter.on(
-        'create-organization-invite',
+        "create-organization-invite",
         ({ organizationId, organizationName }) => {
           setOrgInviteModal({ organizationId, organizationName });
         },
@@ -316,11 +312,11 @@ function AuthenticatedInner() {
   );
 
   useEffect(() => {
-    const key = 'hatchet:show-welcome';
+    const key = "hatchet:show-welcome";
     if (localStorage.getItem(key)) {
       localStorage.removeItem(key);
       setShowWelcome(true);
-      capture('welcome_modal_shown', {
+      capture("welcome_modal_shown", {
         tenant_id: tenant?.metadata.id,
       });
     }
@@ -358,10 +354,7 @@ function AuthenticatedInner() {
           <OutletWithContext context={ctx} />
         </AppLayout>
 
-        <Dialog
-          open={newTenantModalOpen}
-          onOpenChange={setNewTenantModalOpen}
-        >
+        <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
           <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
             <DialogHeader>
               <DialogTitle>Create New Tenant</DialogTitle>
@@ -373,11 +366,11 @@ function AuthenticatedInner() {
                   setDefaultOrganizationId(undefined);
                   setNewTenantModalOpen(false);
                   const tenantId =
-                    result.type === 'cloud'
+                    result.type === "cloud"
                       ? result.tenant.id
                       : result.tenant.metadata.id;
 
-                  if (result.type === 'cloud') {
+                  if (result.type === "cloud") {
                     void queryClient.prefetchQuery(
                       queries.cloud.subscriptionPlans(),
                     );
@@ -397,7 +390,7 @@ function AuthenticatedInner() {
             tenantId={inviteModalTenantId}
             onClose={() => setInviteModalTenantId(undefined)}
             onCreated={(invite) => {
-              globalEmitter.emit('tenant-invite-created', {
+              globalEmitter.emit("tenant-invite-created", {
                 tenantId: inviteModalTenantId,
                 invite,
               });
@@ -410,7 +403,7 @@ function AuthenticatedInner() {
             organizationName={orgInviteModal.organizationName}
             onClose={() => setOrgInviteModal(undefined)}
             onCreated={(invite) => {
-              globalEmitter.emit('organization-invite-created', {
+              globalEmitter.emit("organization-invite-created", {
                 organizationId: orgInviteModal.organizationId,
                 invite,
               });
@@ -421,7 +414,7 @@ function AuthenticatedInner() {
           open={showWelcome}
           onOpenChange={(open) => {
             if (!open) {
-              localStorage.removeItem('hatchet:show-welcome');
+              localStorage.removeItem("hatchet:show-welcome");
               setShowWelcome(false);
             }
           }}
@@ -434,9 +427,9 @@ function AuthenticatedInner() {
                   Welcome to Hatchet
                 </DialogTitle>
                 <DialogDescription className="text-center text-base text-muted-foreground">
-                  You&apos;re on the free plan with generous limits to
-                  get started. We&apos;ll let you know when you&apos;re
-                  getting close.
+                  You&apos;re on the free plan with generous limits to get
+                  started. We&apos;ll let you know when you&apos;re getting
+                  close.
                 </DialogDescription>
               </div>
               <ul className="w-full text-left text-base space-y-2.5 rounded-md border border-border/50 bg-muted/30 p-5">
@@ -446,13 +439,8 @@ function AuthenticatedInner() {
                   </li>
                 ) : (
                   welcomePlansQuery.data?.freeLimits?.map((fl) => (
-                    <li
-                      key={fl.featureId}
-                      className="flex justify-between"
-                    >
-                      <span className="text-muted-foreground">
-                        {fl.name}
-                      </span>
+                    <li key={fl.featureId} className="flex justify-between">
+                      <span className="text-muted-foreground">{fl.name}</span>
                       <span className="font-medium">
                         {fl.limit.toLocaleString()}
                       </span>
@@ -461,18 +449,18 @@ function AuthenticatedInner() {
                 )}
               </ul>
               <p className="text-sm text-muted-foreground">
-                You can upgrade anytime from Billing &amp; Limits in
-                your tenant settings.
+                You can upgrade anytime from Billing &amp; Limits in your tenant
+                settings.
               </p>
               <div className="flex w-full flex-col gap-2">
                 <Button
                   className="w-full"
                   onClick={() => {
-                    capture('welcome_modal_dismissed', {
+                    capture("welcome_modal_dismissed", {
                       tenant_id: tenant?.metadata.id,
-                      cta: 'get_started',
+                      cta: "get_started",
                     });
-                    localStorage.removeItem('hatchet:show-welcome');
+                    localStorage.removeItem("hatchet:show-welcome");
                     setShowWelcome(false);
                   }}
                 >
@@ -482,21 +470,20 @@ function AuthenticatedInner() {
                   variant="ghost"
                   className="w-full"
                   onClick={() => {
-                    capture('welcome_modal_upgrade_clicked', {
+                    capture("welcome_modal_upgrade_clicked", {
                       tenant_id: tenant?.metadata.id,
                     });
-                    localStorage.removeItem('hatchet:show-welcome');
+                    localStorage.removeItem("hatchet:show-welcome");
                     setShowWelcome(false);
                     if (tenant?.metadata.id) {
                       navigate({
-                        to: '/tenants/$tenant/tenant-settings/billing-and-limits',
+                        to: "/tenants/$tenant/tenant-settings/billing-and-limits",
                         params: { tenant: tenant.metadata.id },
                       });
                     }
                   }}
                 >
-                  Add a payment method to remove limits, no commitment
-                  required
+                  Add a payment method to remove limits, no commitment required
                 </Button>
               </div>
             </div>

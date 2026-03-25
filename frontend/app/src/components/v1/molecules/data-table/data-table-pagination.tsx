@@ -1,19 +1,19 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from "@/components/v1/ui/select";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   DoubleArrowLeftIcon,
   DoubleArrowRightIcon,
-} from '@radix-ui/react-icons';
-import { Label } from '@radix-ui/react-label';
-import { Table } from '@tanstack/react-table';
+} from "@radix-ui/react-icons";
+import { Label } from "@radix-ui/react-label";
+import { Table } from "@tanstack/react-table";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -33,7 +33,7 @@ export function DataTablePagination<TData>({
       <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
         {showSelectedRows && (
           <div>
-            {table.getFilteredSelectedRowModel().rows.length} of{' '}
+            {table.getFilteredSelectedRowModel().rows.length} of{" "}
             {table.getFilteredRowModel().rows.length} row(s) selected.
           </div>
         )}

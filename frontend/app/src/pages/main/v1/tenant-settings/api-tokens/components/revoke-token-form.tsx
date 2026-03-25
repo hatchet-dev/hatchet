@@ -1,11 +1,11 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
-import { APIToken } from '@/lib/api';
+} from "@/components/v1/ui/dialog";
+import { Spinner } from "@/components/v1/ui/loading.tsx";
+import { APIToken } from "@/lib/api";
 
 interface RevokeTokenFormProps {
   className?: string;
@@ -23,10 +23,9 @@ export function RevokeTokenForm({ className, ...props }: RevokeTokenFormProps) {
       </DialogHeader>
       <div>
         <div className="mb-4 text-sm text-foreground">
-          Are you sure you want to revoke the API token{' '}
-          {props.apiToken.name}? This action will immediately prevent any
-          services running with this token from dispatching events or
-          executing steps.
+          Are you sure you want to revoke the API token {props.apiToken.name}?
+          This action will immediately prevent any services running with this
+          token from dispatching events or executing steps.
         </div>
         <div className="flex flex-row gap-4">
           <Button

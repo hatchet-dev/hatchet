@@ -1,29 +1,29 @@
 import type {
   OtelSpanTree,
   RelevantOpenTelemetrySpanProperties,
-} from './span-tree-type';
-import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
-import invariant from 'tiny-invariant';
+} from "./span-tree-type";
+import { OtelStatusCode } from "@/lib/api/generated/data-contracts";
+import invariant from "tiny-invariant";
 
 // ---------------------------------------------------------------------------
 // Span name & attribute constants
 // ---------------------------------------------------------------------------
 
 const SPAN = {
-  START_STEP_RUN: 'hatchet.start_step_run',
-  ENGINE_QUEUED: 'hatchet.engine.queued',
-  RUN_WORKFLOW: 'hatchet.run_workflow',
-  START_WORKFLOW: 'hatchet.start_workflow',
+  START_STEP_RUN: "hatchet.start_step_run",
+  ENGINE_QUEUED: "hatchet.engine.queued",
+  RUN_WORKFLOW: "hatchet.run_workflow",
+  START_WORKFLOW: "hatchet.start_workflow",
 } as const;
 
 const ATTR = {
-  STEP_RUN_ID: 'hatchet.step_run_id',
-  STEP_NAME: 'hatchet.step_name',
-  SPAN_SOURCE: 'hatchet.span_source',
-  ACTION_ID: 'hatchet.action_id',
-  WORKFLOW_NAME: 'hatchet.workflow_name',
-  TASK_NAME: 'hatchet.task_name',
-  INSTRUMENTOR: 'instrumentor',
+  STEP_RUN_ID: "hatchet.step_run_id",
+  STEP_NAME: "hatchet.step_name",
+  SPAN_SOURCE: "hatchet.span_source",
+  ACTION_ID: "hatchet.action_id",
+  WORKFLOW_NAME: "hatchet.workflow_name",
+  TASK_NAME: "hatchet.task_name",
+  INSTRUMENTOR: "instrumentor",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ function getStepRunId(node: OtelSpanTree): string | undefined {
 }
 
 function isEngineSpan(node: OtelSpanTree): boolean {
-  return node.spanAttributes?.[ATTR.SPAN_SOURCE] === 'engine';
+  return node.spanAttributes?.[ATTR.SPAN_SOURCE] === "engine";
 }
 
 function removeByPredicate(
@@ -61,10 +61,7 @@ function countParents(nodes: OtelSpanTree[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const node of nodes) {
     if (node.parentSpanId) {
-      counts.set(
-        node.parentSpanId,
-        (counts.get(node.parentSpanId) ?? 0) + 1,
-      );
+      counts.set(node.parentSpanId, (counts.get(node.parentSpanId) ?? 0) + 1);
     }
   }
   return counts;
@@ -87,13 +84,13 @@ function makeSyntheticRoot(
   }
 
   return {
-    spanId: '__synthetic_workflow_start__',
+    spanId: "__synthetic_workflow_start__",
     parentSpanId: undefined,
     spanName: SPAN.START_WORKFLOW,
     statusCode: OtelStatusCode.UNSET,
     durationNs: 0,
     createdAt: new Date(earliestStart).toISOString(),
-    spanAttributes: { [ATTR.INSTRUMENTOR]: 'hatchet' },
+    spanAttributes: { [ATTR.INSTRUMENTOR]: "hatchet" },
     children,
     ...overrides,
   };
@@ -113,7 +110,7 @@ function makeQueuedPhase(
     statusCode: OtelStatusCode.OK,
     durationNs,
     createdAt,
-    spanAttributes: { [ATTR.SPAN_SOURCE]: 'engine', ...attrs },
+    spanAttributes: { [ATTR.SPAN_SOURCE]: "engine", ...attrs },
     children: [],
   };
 }
@@ -132,7 +129,7 @@ function makeStepRunSpan(
     statusCode: OtelStatusCode.UNSET,
     durationNs: 0,
     createdAt,
-    spanAttributes: { [ATTR.SPAN_SOURCE]: 'engine', ...attrs },
+    spanAttributes: { [ATTR.SPAN_SOURCE]: "engine", ...attrs },
     children: [],
     ...extra,
   };
@@ -388,7 +385,7 @@ function markRunningTaskSpans(
 ): void {
   const runningIds = new Set<string>();
   for (const task of tasks) {
-    if (task.status === 'RUNNING') {
+    if (task.status === "RUNNING") {
       runningIds.add(task.externalId);
     }
   }
@@ -410,11 +407,11 @@ function markRunningTaskSpans(
   walk(nodes);
 }
 
-const MIN_VALID_TIMESTAMP = new Date('2020-01-01').getTime();
+const MIN_VALID_TIMESTAMP = new Date("2020-01-01").getTime();
 
 function taskStepAttrs(task: TaskSummaryForSynthesis): Record<string, string> {
   return {
-    [ATTR.SPAN_SOURCE]: 'engine',
+    [ATTR.SPAN_SOURCE]: "engine",
     [ATTR.STEP_RUN_ID]: task.externalId,
     [ATTR.STEP_NAME]: task.displayName,
   };
@@ -432,7 +429,7 @@ function synthesizePendingTaskSpans(
     if (taskIdsWithSpans.has(task.externalId)) {
       continue;
     }
-    if (task.status !== 'QUEUED' && task.status !== 'RUNNING') {
+    if (task.status !== "QUEUED" && task.status !== "RUNNING") {
       continue;
     }
 
@@ -443,7 +440,7 @@ function synthesizePendingTaskSpans(
 
     const attrs = taskStepAttrs(task);
 
-    if (task.status === 'QUEUED') {
+    if (task.status === "QUEUED") {
       const nowMs = Date.now();
       const queuedDurationMs = Math.max(0, nowMs - taskCreatedMs);
       const queuedPhase = makeQueuedPhase(
@@ -540,13 +537,13 @@ function attachWorkflowQueuedPhase(
   }
 
   root.queuedPhase = {
-    spanId: '__synthetic_workflow_queued__',
+    spanId: "__synthetic_workflow_queued__",
     parentSpanId: root.spanId,
     spanName: SPAN.ENGINE_QUEUED,
     statusCode: OtelStatusCode.OK,
     durationNs: durationMs * 1e6,
     createdAt: timing.createdAt,
-    spanAttributes: { [ATTR.SPAN_SOURCE]: 'engine' },
+    spanAttributes: { [ATTR.SPAN_SOURCE]: "engine" },
     children: [],
   };
 }
@@ -608,7 +605,7 @@ function buildRawTree(
     }
   }
 
-  invariant(rootSpans.length > 0, 'Must have at least one root span');
+  invariant(rootSpans.length > 0, "Must have at least one root span");
   return { rootSpans, spanMap };
 }
 
@@ -645,21 +642,19 @@ function wrapMultipleRoots(
     }
   }
 
-  const hasError = rootSpans.some(
-    (s) => s.statusCode === OtelStatusCode.ERROR,
-  );
+  const hasError = rootSpans.some((s) => s.statusCode === OtelStatusCode.ERROR);
 
   const actionId = rootSpans
     .map((s) => s.spanAttributes?.[ATTR.ACTION_ID])
-    .find((id) => id?.includes(':'));
-  const workflowName = actionId ? actionId.split(':')[0] : undefined;
+    .find((id) => id?.includes(":"));
+  const workflowName = actionId ? actionId.split(":")[0] : undefined;
 
   const syntheticRoot = makeSyntheticRoot(rootSpans, {
     statusCode: hasError ? OtelStatusCode.ERROR : OtelStatusCode.OK,
     durationNs: (latestEnd - earliestStart) * 1e6,
     createdAt: new Date(earliestStart).toISOString(),
     spanAttributes: {
-      [ATTR.INSTRUMENTOR]: 'hatchet',
+      [ATTR.INSTRUMENTOR]: "hatchet",
       ...(workflowName && { [ATTR.WORKFLOW_NAME]: workflowName }),
     },
   });

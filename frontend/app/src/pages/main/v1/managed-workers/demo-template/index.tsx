@@ -1,46 +1,44 @@
-import { Button } from '@/components/v1/ui/button';
-import { Card } from '@/components/v1/ui/card';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Label } from '@/components/v1/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/v1/ui/radio-group';
-import { Separator } from '@/components/v1/ui/separator';
-import { Step, Steps } from '@/components/v1/ui/steps';
+import { Button } from "@/components/v1/ui/button";
+import { Card } from "@/components/v1/ui/card";
+import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+import { Label } from "@/components/v1/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/v1/ui/radio-group";
+import { Separator } from "@/components/v1/ui/separator";
+import { Step, Steps } from "@/components/v1/ui/steps";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/components/v1/ui/tabs';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+} from "@/components/v1/ui/tabs";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import api from "@/lib/api";
+import { cloudApi } from "@/lib/api/api";
 import {
   ManagedWorkerEventStatus,
   TemplateOptions,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { queries } from '@/lib/api/queries';
-import { appRoutes } from '@/router';
+} from "@/lib/api/generated/cloud/data-contracts";
+import { queries } from "@/lib/api/queries";
+import { appRoutes } from "@/router";
 import {
   PlayIcon,
   CheckCircleIcon,
   ArrowPathIcon,
   KeyIcon,
-} from '@heroicons/react/24/outline';
-import { ArrowLeftIcon } from '@radix-ui/react-icons';
-import { GitHubLogoIcon } from '@radix-ui/react-icons';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
+} from "@heroicons/react/24/outline";
+import { ArrowLeftIcon } from "@radix-ui/react-icons";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useState, useEffect, useCallback } from "react";
 
 export default function DemoTemplate() {
   const { tenantId } = useCurrentTenantId();
   const [deploying, setDeploying] = useState(false);
   const [deployed, setDeployed] = useState(false);
-  const [deployedWorkerId, setDeployedWorkerId] = useState<string | null>(
-    null,
-  );
+  const [deployedWorkerId, setDeployedWorkerId] = useState<string | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
-  const [deploymentStatus, setDeploymentStatus] = useState<string>('');
+  const [deploymentStatus, setDeploymentStatus] = useState<string>("");
   const [isSimulation] = useState(false);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [, setTriggering] = useState(false);
@@ -73,17 +71,15 @@ export default function DemoTemplate() {
 
         // In a real implementation, we would fetch the demo workflow ID here
         if (isSimulation) {
-          setWorkflowId(
-            `sim-wf-${Math.random().toString(36).substring(2, 7)}`,
-          );
+          setWorkflowId(`sim-wf-${Math.random().toString(36).substring(2, 7)}`);
         }
       }
     },
     onError: (error: any) => {
-      console.error('Failed to create template:', error);
+      console.error("Failed to create template:", error);
       setDeploymentError(
         error?.response?.data?.errors?.[0]?.description ||
-          'Failed to create template',
+          "Failed to create template",
       );
       setDeploying(false);
     },
@@ -91,7 +87,7 @@ export default function DemoTemplate() {
 
   // Query for monitoring worker events if we have a worker ID
   const workerEventsQuery = useQuery({
-    ...queries.cloud.listManagedWorkerEvents(deployedWorkerId || ''),
+    ...queries.cloud.listManagedWorkerEvents(deployedWorkerId || ""),
     enabled: !!deployedWorkerId && !isSimulation,
     refetchInterval:
       deployedWorkerId && !deployed && !isSimulation ? 2000 : false,
@@ -101,7 +97,7 @@ export default function DemoTemplate() {
   const simulateDeployment = () => {
     setDeploying(true);
     setDeploymentError(null);
-    setDeploymentStatus('Initializing deployment...');
+    setDeploymentStatus("Initializing deployment...");
 
     // Mock a random worker ID for the simulation
     const mockWorkerId = `sim-${Math.random().toString(36).substring(2, 9)}`;
@@ -110,16 +106,16 @@ export default function DemoTemplate() {
 
     // Simulate a deployment sequence with delays
     setTimeout(() => {
-      setDeploymentStatus('Creating worker resources...');
+      setDeploymentStatus("Creating worker resources...");
 
       setTimeout(() => {
-        setDeploymentStatus('Building container image...');
+        setDeploymentStatus("Building container image...");
 
         setTimeout(() => {
-          setDeploymentStatus('Deploying managed worker...');
+          setDeploymentStatus("Deploying managed worker...");
 
           setTimeout(() => {
-            setDeploymentStatus('Deployment complete');
+            setDeploymentStatus("Deployment complete");
             setDeploying(false);
             setDeployed(true);
             setDeployStepOpen(false);
@@ -163,7 +159,7 @@ export default function DemoTemplate() {
         }
       }, 1000);
     } catch (error) {
-      console.error('Failed to trigger run:', error);
+      console.error("Failed to trigger run:", error);
       setTriggering(false);
     }
   }, [workflowId, isSimulation, runsTriggered]);
@@ -232,7 +228,7 @@ export default function DemoTemplate() {
 
     setDeploying(true);
     setDeploymentError(null);
-    setDeploymentStatus('Initializing deployment...');
+    setDeploymentStatus("Initializing deployment...");
 
     // Call the actual API to deploy the template
     createComputeDemoTemplate(selectedTemplate);
@@ -252,7 +248,7 @@ export default function DemoTemplate() {
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
   const [apiToken, setApiToken] = useState<string | null>(null);
   const [tokenRevealed, setTokenRevealed] = useState(true);
-  const [selectedCodeTab, setSelectedCodeTab] = useState('typescript');
+  const [selectedCodeTab, setSelectedCodeTab] = useState("typescript");
 
   // Handle API token generation
   const handleGenerateToken = () => {
@@ -261,7 +257,7 @@ export default function DemoTemplate() {
     if (isSimulation) {
       // Only simulate token generation in simulation mode
       setTimeout(() => {
-        const tokenPrefix = 'hx_sim_';
+        const tokenPrefix = "hx_sim_";
         const randomPart =
           Math.random().toString(36).substring(2, 15) +
           Math.random().toString(36).substring(2, 15);
@@ -271,16 +267,17 @@ export default function DemoTemplate() {
       }, 1500);
     } else {
       // Call the real API to generate a token
-      api.apiTokenCreate(tenantId, { name: 'demo-template-token' })
+      api
+        .apiTokenCreate(tenantId, { name: "demo-template-token" })
         .then((response: any) => {
           if (response.data && response.data.token) {
             setApiToken(response.data.token);
           } else {
-            console.error('Failed to get token from response');
+            console.error("Failed to get token from response");
           }
         })
         .catch((error: any) => {
-          console.error('Failed to generate token:', error);
+          console.error("Failed to generate token:", error);
         })
         .finally(() => {
           setIsGeneratingToken(false);
@@ -390,9 +387,7 @@ func main() {
                       <span className="mr-2 flex items-center text-primary">
                         •
                       </span>
-                      <span>
-                        1 managed service (limited resources)
-                      </span>
+                      <span>1 managed service (limited resources)</span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2 flex items-center text-primary">
@@ -428,13 +423,11 @@ func main() {
                       }
                     >
                       <Card
-                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_TYPESCRIPT ? 'border-primary' : 'border-border'}`}
+                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_TYPESCRIPT ? "border-primary" : "border-border"}`}
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
-                            value={
-                              TemplateOptions.QUICKSTART_TYPESCRIPT
-                            }
+                            value={TemplateOptions.QUICKSTART_TYPESCRIPT}
                             id="typescript"
                             className="mr-2"
                           />
@@ -488,13 +481,11 @@ func main() {
                       }
                     >
                       <Card
-                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_PYTHON ? 'border-primary' : 'border-border'}`}
+                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_PYTHON ? "border-primary" : "border-border"}`}
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
-                            value={
-                              TemplateOptions.QUICKSTART_PYTHON
-                            }
+                            value={TemplateOptions.QUICKSTART_PYTHON}
                             id="python"
                             className="mr-2"
                           />
@@ -506,8 +497,7 @@ func main() {
                               Python
                             </Label>
                             <p className="text-sm text-muted-foreground">
-                              Simple, readable syntax for rapid
-                              development.
+                              Simple, readable syntax for rapid development.
                             </p>
                           </div>
                         </div>
@@ -543,13 +533,11 @@ func main() {
                     <div
                       className="cursor-pointer"
                       onClick={() =>
-                        handleLanguageSelection(
-                          TemplateOptions.QUICKSTART_GO,
-                        )
+                        handleLanguageSelection(TemplateOptions.QUICKSTART_GO)
                       }
                     >
                       <Card
-                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_GO ? 'border-primary' : 'border-border'}`}
+                        className={`border-2 p-4 ${selectedTemplate === TemplateOptions.QUICKSTART_GO ? "border-primary" : "border-border"}`}
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
@@ -565,14 +553,12 @@ func main() {
                               Go
                             </Label>
                             <p className="text-sm text-muted-foreground">
-                              Efficient, concurrent programming
-                              language.
+                              Efficient, concurrent programming language.
                             </p>
                           </div>
                         </div>
 
-                        {selectedTemplate ===
-                          TemplateOptions.QUICKSTART_GO && (
+                        {selectedTemplate === TemplateOptions.QUICKSTART_GO && (
                           <div className="mt-4 border-t pt-4">
                             <div className="flex items-center justify-between">
                               <a
@@ -600,10 +586,7 @@ func main() {
                   </RadioGroup>
                 </div>
 
-                <Button
-                  onClick={handleConfirmInfo}
-                  className="mt-2 w-fit"
-                >
+                <Button onClick={handleConfirmInfo} className="mt-2 w-fit">
                   Continue
                 </Button>
               </div>
@@ -626,27 +609,24 @@ func main() {
                         Ready to Deploy
                       </h3>
                       <p className="mb-4 text-muted-foreground">
-                        Click the button below to deploy your{' '}
+                        Click the button below to deploy your{" "}
                         {selectedTemplate
-                          .replace('QUICKSTART_', '')
-                          .toLowerCase()}{' '}
-                        demo template. This will create a managed
-                        service and workflow that you can use to
-                        explore the features.
+                          .replace("QUICKSTART_", "")
+                          .toLowerCase()}{" "}
+                        demo template. This will create a managed service and
+                        workflow that you can use to explore the features.
                       </p>
 
                       <div className="mb-6 rounded-lg bg-muted/30 p-4">
-                        <h4 className="mb-2 font-medium">
-                          What happens next:
-                        </h4>
+                        <h4 className="mb-2 font-medium">What happens next:</h4>
                         <ul className="space-y-2">
                           <li className="flex items-start">
                             <span className="mr-2 flex items-center text-primary">
                               •
                             </span>
                             <span>
-                              A service will be provisioned with
-                              the necessary resources
+                              A service will be provisioned with the necessary
+                              resources
                             </span>
                           </li>
                           <li className="flex items-start">
@@ -654,8 +634,7 @@ func main() {
                               •
                             </span>
                             <span>
-                              A sample workflow will be created
-                              and registered
+                              A sample workflow will be created and registered
                             </span>
                           </li>
                           <li className="flex items-start">
@@ -663,8 +642,8 @@ func main() {
                               •
                             </span>
                             <span>
-                              You'll be able to monitor the
-                              activity in your dashboard
+                              You'll be able to monitor the activity in your
+                              dashboard
                             </span>
                           </li>
                         </ul>
@@ -682,15 +661,10 @@ func main() {
                             <span>{deploymentStatus}</span>
                             {deployedWorkerId && (
                               <Link
-                                to={
-                                  appRoutes
-                                    .tenantManagedWorkerRoute
-                                    .to
-                                }
+                                to={appRoutes.tenantManagedWorkerRoute.to}
                                 params={{
                                   tenant: tenantId,
-                                  managedWorker:
-                                    deployedWorkerId,
+                                  managedWorker: deployedWorkerId,
                                 }}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -718,25 +692,21 @@ func main() {
                         <div className="flex items-center justify-between">
                           <div className="text-sm text-muted-foreground">
                             {deploying
-                              ? 'Deploying demo template...'
+                              ? "Deploying demo template..."
                               : isSimulation
-                                ? 'Ready to simulate deployment'
-                                : 'Ready to deploy'}
+                                ? "Ready to simulate deployment"
+                                : "Ready to deploy"}
                           </div>
                           <Button
                             onClick={handleDeploy}
-                            disabled={
-                              deploying ||
-                              (!isSimulation && isPending)
-                            }
+                            disabled={deploying || (!isSimulation && isPending)}
                             className="min-w-32"
                           >
-                            {deploying ||
-                            (!isSimulation && isPending)
-                              ? 'Deploying...'
+                            {deploying || (!isSimulation && isPending)
+                              ? "Deploying..."
                               : isSimulation
-                                ? 'Simulate Deploy'
-                                : 'Deploy Demo'}
+                                ? "Simulate Deploy"
+                                : "Deploy Demo"}
                           </Button>
                         </div>
                       </div>
@@ -763,17 +733,16 @@ func main() {
                       Demo Template Deployed!
                     </h3>
                     <p className="mb-4 max-w-md text-muted-foreground">
-                      Your{' '}
+                      Your{" "}
                       {selectedTemplate
-                        .replace('QUICKSTART_', '')
-                        .toLowerCase()}{' '}
-                      demo template has been successfully deployed.
-                      You can now explore the managed service
-                      features.
+                        .replace("QUICKSTART_", "")
+                        .toLowerCase()}{" "}
+                      demo template has been successfully deployed. You can now
+                      explore the managed service features.
                       {isSimulation && (
                         <span className="mt-2 block font-medium text-amber-500">
-                          Note: This was a simulated deployment. No
-                          actual resources were created.
+                          Note: This was a simulated deployment. No actual
+                          resources were created.
                         </span>
                       )}
                     </p>
@@ -791,8 +760,8 @@ func main() {
                         Trigger a Remote Run Programmatically
                       </h4>
                       <p className="mb-4 text-sm text-muted-foreground">
-                        Run the following code locally to execute a
-                        task on the deployed service.
+                        Run the following code locally to execute a task on the
+                        deployed service.
                       </p>
 
                       {!apiToken ? (
@@ -807,7 +776,7 @@ func main() {
                               Generating Token...
                             </>
                           ) : (
-                            'Generate API Token'
+                            "Generate API Token"
                           )}
                         </Button>
                       ) : (
@@ -817,9 +786,8 @@ func main() {
                           </div>
 
                           <p className="mb-2 text-sm text-muted-foreground">
-                            This is the only time we will show you
-                            this auth token. Make sure to copy it
-                            now.
+                            This is the only time we will show you this auth
+                            token. Make sure to copy it now.
                           </p>
 
                           <CodeHighlighter
@@ -834,13 +802,9 @@ func main() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() =>
-                                setTokenRevealed(!tokenRevealed)
-                              }
+                              onClick={() => setTokenRevealed(!tokenRevealed)}
                             >
-                              {tokenRevealed
-                                ? 'Hide Token'
-                                : 'Reveal Token'}
+                              {tokenRevealed ? "Hide Token" : "Reveal Token"}
                             </Button>
                             <Button
                               variant="outline"
@@ -854,9 +818,7 @@ func main() {
                         </>
                       )}
                       <div className="mt-2 border-t pt-4">
-                        <h5 className="mb-2 font-medium">
-                          Example Code
-                        </h5>
+                        <h5 className="mb-2 font-medium">Example Code</h5>
                         <Tabs
                           value={selectedCodeTab}
                           onValueChange={setSelectedCodeTab}
@@ -866,29 +828,17 @@ func main() {
                             <TabsTrigger value="typescript">
                               TypeScript
                             </TabsTrigger>
-                            <TabsTrigger value="python">
-                              Python
-                            </TabsTrigger>
-                            <TabsTrigger value="go">
-                              Go
-                            </TabsTrigger>
+                            <TabsTrigger value="python">Python</TabsTrigger>
+                            <TabsTrigger value="go">Go</TabsTrigger>
                           </TabsList>
-                          <TabsContent
-                            value="typescript"
-                            className="mt-0"
-                          >
+                          <TabsContent value="typescript" className="mt-0">
                             <CodeHighlighter
-                              code={
-                                triggerCodeExamples.typescript
-                              }
+                              code={triggerCodeExamples.typescript}
                               language="typescript"
                               copy
                             />
                           </TabsContent>
-                          <TabsContent
-                            value="python"
-                            className="mt-0"
-                          >
+                          <TabsContent value="python" className="mt-0">
                             <CodeHighlighter
                               code={triggerCodeExamples.python}
                               language="python"
@@ -917,8 +867,7 @@ func main() {
                         •
                       </span>
                       <span>
-                        View your deployed service to see logs and
-                        metrics
+                        View your deployed service to see logs and metrics
                       </span>
                     </li>
                     <li className="flex items-start">
@@ -926,17 +875,14 @@ func main() {
                         •
                       </span>
                       <span>
-                        Three demo task runs have been triggered for
-                        you
+                        Three demo task runs have been triggered for you
                       </span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2 mt-0.5 flex items-center text-primary">
                         •
                       </span>
-                      <span>
-                        Use the API to trigger additional task runs
-                      </span>
+                      <span>Use the API to trigger additional task runs</span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2 mt-0.5 flex items-center text-primary">

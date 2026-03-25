@@ -1,14 +1,14 @@
-import { TimePicker } from './time-picker';
-import { Button } from '@/components/v1/ui/button';
-import { Calendar } from '@/components/v1/ui/calendar';
+import { TimePicker } from "./time-picker";
+import { Button } from "@/components/v1/ui/button";
+import { Calendar } from "@/components/v1/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/v1/ui/popover';
-import { cn } from '@/lib/utils';
-import { CalendarIcon } from '@radix-ui/react-icons';
-import { add, format } from 'date-fns';
+} from "@/components/v1/ui/popover";
+import { cn } from "@/lib/utils";
+import { CalendarIcon } from "@radix-ui/react-icons";
+import { add, format } from "date-fns";
 
 type DateTimePickerProps = {
   date: Date | undefined;
@@ -45,16 +45,16 @@ export function DateTimePicker({
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant={'outline'}
+          variant={"outline"}
           className={cn(
-            'w-fit justify-start text-left text-xs font-normal',
-            !date && 'text-muted-foreground',
+            "w-fit justify-start text-left text-xs font-normal",
+            !date && "text-muted-foreground",
             triggerClassName,
           )}
         >
           <CalendarIcon className="mr-2 size-4" />
           {date ? (
-            label + ':  ' + format(date, 'PPP HH:mm:ss')
+            label + ":  " + format(date, "PPP HH:mm:ss")
           ) : (
             <span>{label}</span>
           )}

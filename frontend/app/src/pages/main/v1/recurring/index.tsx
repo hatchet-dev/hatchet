@@ -1,33 +1,31 @@
-import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
-import { DeleteCron } from './components/delete-cron';
-import { columns } from './components/recurring-columns';
+import { TriggerWorkflowForm } from "../workflows/$workflow/components/trigger-workflow-form";
+import { DeleteCron } from "./components/delete-cron";
+import { columns } from "./components/recurring-columns";
 import {
   CronColumn,
   workflowKey,
   metadataKey,
-} from './components/recurring-columns';
-import { useCrons } from './hooks/use-crons';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+} from "./components/recurring-columns";
+import { useCrons } from "./hooks/use-crons";
+import { DocsButton } from "@/components/v1/docs/docs-button";
+import { DataTable } from "@/components/v1/molecules/data-table/data-table";
 import {
   ToolbarFilters,
   ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { CronWorkflows } from '@/lib/api';
-import { docsPages } from '@/lib/generated/docs';
-import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+} from "@/components/v1/molecules/data-table/data-table-toolbar";
+import { Button } from "@/components/v1/ui/button";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { CronWorkflows } from "@/lib/api";
+import { docsPages } from "@/lib/generated/docs";
+import { VisibilityState } from "@tanstack/react-table";
+import { useState } from "react";
 
 export default function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    {},
-  );
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const {
     crons,
@@ -47,7 +45,7 @@ export default function CronsTable() {
     isUpdatePending,
     updatingCronId,
   } = useCrons({
-    key: 'table',
+    key: "table",
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -148,7 +146,7 @@ export default function CronsTable() {
             <p className="text-lg font-semibold">No crons found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.v1['cron-runs']}
+                doc={docsPages.v1["cron-runs"]}
                 label="Learn about cron jobs in Hatchet"
               />
             </div>

@@ -1,13 +1,13 @@
-import { DataTableOptions } from './data-table-options';
-import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
-import { Spinner } from '@/components/v1/ui/loading';
+import { DataTableOptions } from "./data-table-options";
+import { RefetchIntervalDropdown } from "@/components/refetch-interval-dropdown";
+import { Spinner } from "@/components/v1/ui/loading";
 import {
   ActionType,
   BaseTaskRunActionParams,
-} from '@/pages/main/v1/task-runs-v1/actions';
-import { TableActions } from '@/pages/main/v1/workflow-runs-v1/components/task-runs-table/table-actions';
-import { Table } from '@tanstack/react-table';
-import * as React from 'react';
+} from "@/pages/main/v1/task-runs-v1/actions";
+import { TableActions } from "@/pages/main/v1/workflow-runs-v1/components/task-runs-table/table-actions";
+import { Table } from "@tanstack/react-table";
+import * as React from "react";
 
 export interface FilterOption {
   label: string;
@@ -18,13 +18,13 @@ export interface FilterOption {
 }
 
 export enum ToolbarType {
-  Checkbox = 'checkbox',
-  Radio = 'radio',
-  KeyValue = 'key-value',
-  Array = 'array',
-  Switch = 'switch',
-  TimeRange = 'time-range',
-  Search = 'search',
+  Checkbox = "checkbox",
+  Radio = "radio",
+  KeyValue = "key-value",
+  Array = "array",
+  Switch = "switch",
+  TimeRange = "time-range",
+  Search = "search",
 }
 
 export interface TimeRangeConfig {

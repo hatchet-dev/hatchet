@@ -3,13 +3,13 @@ import {
   TimestampCell,
   EventTypeCell,
   DescriptionCell,
-} from './events-columns';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries, V1TaskEvent } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+} from "./events-columns";
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { useRefetchInterval } from "@/contexts/refetch-interval-context";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { queries, V1TaskEvent } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 export type EventWithMetadata = V1TaskEvent & {
   metadata: {
@@ -56,7 +56,7 @@ export function StepRunEvents({
   const eventColumns = useMemo(
     () => [
       {
-        columnLabel: 'Task',
+        columnLabel: "Task",
         cellRenderer: (event: EventWithMetadata) => (
           <TaskEventCell
             event={event}
@@ -70,19 +70,19 @@ export function StepRunEvents({
         ),
       },
       {
-        columnLabel: 'Seen at',
+        columnLabel: "Seen at",
         cellRenderer: (event: EventWithMetadata) => (
           <TimestampCell event={event} />
         ),
       },
       {
-        columnLabel: 'Event',
+        columnLabel: "Event",
         cellRenderer: (event: EventWithMetadata) => (
           <EventTypeCell event={event} />
         ),
       },
       {
-        columnLabel: 'Description',
+        columnLabel: "Description",
         cellRenderer: (event: EventWithMetadata) => (
           <DescriptionCell event={event} tenantId={tenantId} />
         ),

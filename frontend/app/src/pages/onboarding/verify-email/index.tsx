@@ -1,12 +1,12 @@
-import TopNav from '@/components/v1/nav/top-nav';
-import { Loading } from '@/components/v1/ui/loading';
-import { useAnalytics } from '@/hooks/use-analytics';
-import { queries } from '@/lib/api';
-import { AppContextProvider } from '@/providers/app-context';
-import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
-import { redirect, useLoaderData } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import TopNav from "@/components/v1/nav/top-nav";
+import { Loading } from "@/components/v1/ui/loading";
+import { useAnalytics } from "@/hooks/use-analytics";
+import { queries } from "@/lib/api";
+import { AppContextProvider } from "@/providers/app-context";
+import queryClient from "@/query-client";
+import { appRoutes } from "@/router";
+import { redirect, useLoaderData } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 export async function loader({ request }: { request: Request }) {
   try {
@@ -14,7 +14,7 @@ export async function loader({ request }: { request: Request }) {
 
     if (
       user.emailVerified &&
-      request.url.includes('/onboarding/verify-email')
+      request.url.includes("/onboarding/verify-email")
     ) {
       throw redirect({ to: appRoutes.authenticatedRoute.to });
     }
@@ -24,8 +24,8 @@ export async function loader({ request }: { request: Request }) {
     if (error instanceof Response) {
       throw error;
     } else if (
-      !request.url.includes('/auth/login') &&
-      !request.url.includes('/auth/register')
+      !request.url.includes("/auth/login") &&
+      !request.url.includes("/auth/register")
     ) {
       throw redirect({ to: appRoutes.authLoginRoute.to });
     }
@@ -39,7 +39,7 @@ function VerifyEmailInner() {
   const { capture } = useAnalytics();
 
   useEffect(() => {
-    capture('onboarding_verify_email_viewed');
+    capture("onboarding_verify_email_viewed");
   }, [capture]);
 
   if (!res?.user) {
@@ -58,9 +58,8 @@ function VerifyEmailInner() {
               </h1>
             </div>
             <div className="my-4 text-sm">
-              Please contact your Hatchet instance administrator to
-              verify your email. Refresh this page once your email has
-              been verified.
+              Please contact your Hatchet instance administrator to verify your
+              email. Refresh this page once your email has been verified.
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
-import type { DragMode, TimeRange } from './minimap-types';
-import { cn } from '@/lib/utils';
+import type { DragMode, TimeRange } from "./minimap-types";
+import { cn } from "@/lib/utils";
 
 interface RangeHandlesProps {
   visibleRange: TimeRange;
@@ -21,14 +21,14 @@ export function RangeHandles({
 
   return (
     <>
-      {dragging !== 'brush' && (
+      {dragging !== "brush" && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-[1] bg-background/70"
           style={{ width: `${sPct}%` }}
         />
       )}
 
-      {dragging !== 'brush' && (
+      {dragging !== "brush" && (
         <div
           className="pointer-events-none absolute inset-y-0 right-0 z-[1] bg-background/70"
           style={{ width: `${100 - ePct}%` }}
@@ -37,19 +37,19 @@ export function RangeHandles({
 
       <div
         className={cn(
-          'pointer-events-none absolute inset-y-0 z-[3] transition-opacity duration-150',
-          dragging === 'brush'
-            ? 'opacity-0'
+          "pointer-events-none absolute inset-y-0 z-[3] transition-opacity duration-150",
+          dragging === "brush"
+            ? "opacity-0"
             : dragging
-              ? 'opacity-100'
-              : 'opacity-0 group-hover:opacity-100',
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100",
         )}
         style={{ left: `${sPct}%`, right: `${100 - ePct}%` }}
       >
         <div
           className="pointer-events-auto absolute inset-y-[3px] left-0 flex w-[20px] items-center justify-center rounded-full border border-border/40 bg-muted"
-          style={{ cursor: 'ew-resize' }}
-          onPointerDown={(e) => startDrag('left', e)}
+          style={{ cursor: "ew-resize" }}
+          onPointerDown={(e) => startDrag("left", e)}
         >
           <svg
             width="6"
@@ -70,8 +70,8 @@ export function RangeHandles({
 
         <div
           className="pointer-events-auto absolute inset-y-[3px] right-0 flex w-[20px] items-center justify-center rounded-full border border-border/40 bg-muted"
-          style={{ cursor: 'ew-resize' }}
-          onPointerDown={(e) => startDrag('right', e)}
+          style={{ cursor: "ew-resize" }}
+          onPointerDown={(e) => startDrag("right", e)}
         >
           <svg
             width="6"

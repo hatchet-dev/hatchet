@@ -1,33 +1,33 @@
-import { AdditionalMetadata } from '../../events/components/additional-metadata';
-import { RunStatus } from '../../workflow-runs/components/run-statuses';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import { ScheduledWorkflows } from '@/lib/api';
-import { appRoutes } from '@/router';
-import { Link } from '@tanstack/react-router';
-import { ColumnDef } from '@tanstack/react-table';
+import { AdditionalMetadata } from "../../events/components/additional-metadata";
+import { RunStatus } from "../../workflow-runs/components/run-statuses";
+import { DataTableColumnHeader } from "@/components/v1/molecules/data-table/data-table-column-header";
+import { TableRowActions } from "@/components/v1/molecules/data-table/data-table-row-actions";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { Checkbox } from "@/components/v1/ui/checkbox";
+import { ScheduledWorkflows } from "@/lib/api";
+import { appRoutes } from "@/router";
+import { Link } from "@tanstack/react-router";
+import { ColumnDef } from "@tanstack/react-table";
 
 export const ScheduledRunColumn = {
-  id: 'ID',
-  status: 'Status',
-  triggerAt: 'Trigger At',
-  workflow: 'Workflow',
-  metadata: 'Metadata',
-  createdAt: 'Created At',
-  actions: 'Actions',
+  id: "ID",
+  status: "Status",
+  triggerAt: "Trigger At",
+  workflow: "Workflow",
+  metadata: "Metadata",
+  createdAt: "Created At",
+  actions: "Actions",
 };
 
 type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
 
-const idKey: ScheduledRunColumnKeys = 'id';
-export const statusKey: ScheduledRunColumnKeys = 'status';
-const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
-export const workflowKey: ScheduledRunColumnKeys = 'workflow';
-export const metadataKey: ScheduledRunColumnKeys = 'metadata';
-const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
-const actionsKey: ScheduledRunColumnKeys = 'actions';
+const idKey: ScheduledRunColumnKeys = "id";
+export const statusKey: ScheduledRunColumnKeys = "status";
+const triggerAtKey: ScheduledRunColumnKeys = "triggerAt";
+export const workflowKey: ScheduledRunColumnKeys = "workflow";
+export const metadataKey: ScheduledRunColumnKeys = "metadata";
+const createdAtKey: ScheduledRunColumnKeys = "createdAt";
+const actionsKey: ScheduledRunColumnKeys = "actions";
 
 export const columns = ({
   tenantId,
@@ -46,16 +46,14 @@ export const columns = ({
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
-      id: 'select',
+      id: "select",
       header: ({ table }) => (
         <Checkbox
           checked={
             table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
+            (table.getIsSomePageRowsSelected() && "indeterminate")
           }
-          onCheckedChange={(value) =>
-            table.toggleAllPageRowsSelected(!!value)
-          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
           className="translate-y-[2px]"
         />
@@ -65,7 +63,7 @@ export const columns = ({
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          disabled={row.original.method !== 'API' ? true : undefined}
+          disabled={row.original.method !== "API" ? true : undefined}
         />
       ),
       enableSorting: false,
@@ -74,10 +72,7 @@ export const columns = ({
     {
       accessorKey: idKey,
       header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={ScheduledRunColumn.id}
-        />
+        <DataTableColumnHeader column={column} title={ScheduledRunColumn.id} />
       ),
       cell: ({ row }) => (
         <div
@@ -103,9 +98,7 @@ export const columns = ({
           className="cursor-pointer"
           onClick={() => onRowClick?.(row.original)}
         >
-          <RunStatus
-            status={row.original.workflowRunStatus || 'SCHEDULED'}
-          />
+          <RunStatus status={row.original.workflowRunStatus || "SCHEDULED"} />
         </div>
       ),
       enableSorting: false,
@@ -172,14 +165,10 @@ export const columns = ({
         return (
           <AdditionalMetadata
             metadata={row.original.additionalMetadata}
-            isOpen={
-              selectedAdditionalMetaJobId === row.original.metadata.id
-            }
+            isOpen={selectedAdditionalMetaJobId === row.original.metadata.id}
             onOpenChange={(open) => {
               if (open) {
-                handleSetSelectedAdditionalMetaJobId(
-                  row.original.metadata.id,
-                );
+                handleSetSelectedAdditionalMetaJobId(row.original.metadata.id);
               } else {
                 handleSetSelectedAdditionalMetaJobId(null);
               }
@@ -220,21 +209,21 @@ export const columns = ({
             row={row.original}
             actions={[
               {
-                label: 'Reschedule',
+                label: "Reschedule",
                 onClick: () => onRescheduleClick(row.original),
                 disabled:
-                  row.original.method !== 'API'
-                    ? 'Cannot reschedule scheduled run created via code definition'
+                  row.original.method !== "API"
+                    ? "Cannot reschedule scheduled run created via code definition"
                     : row.original.workflowRunId
-                      ? 'Cannot reschedule a scheduled run that has already been triggered'
+                      ? "Cannot reschedule a scheduled run that has already been triggered"
                       : undefined,
               },
               {
-                label: 'Delete',
+                label: "Delete",
                 onClick: () => onDeleteClick(row.original),
                 disabled:
-                  row.original.method !== 'API'
-                    ? 'Cannot delete scheduled run created via code definition'
+                  row.original.method !== "API"
+                    ? "Cannot delete scheduled run created via code definition"
                     : undefined,
               },
             ]}

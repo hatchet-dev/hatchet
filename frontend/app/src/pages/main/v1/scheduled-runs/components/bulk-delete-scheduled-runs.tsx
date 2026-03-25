@@ -1,13 +1,13 @@
-import { useToast } from '@/components/v1/hooks/use-toast';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Spinner } from '@/components/v1/ui/loading';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api from '@/lib/api';
-import { ScheduledWorkflowsBulkDeleteFilter } from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useToast } from "@/components/v1/hooks/use-toast";
+import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
+import { Input } from "@/components/v1/ui/input";
+import { Spinner } from "@/components/v1/ui/loading";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import api from "@/lib/api";
+import { ScheduledWorkflowsBulkDeleteFilter } from "@/lib/api";
+import { useApiError } from "@/lib/hooks";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
 export function BulkDeleteScheduledRuns({
   open,
@@ -28,9 +28,7 @@ export function BulkDeleteScheduledRuns({
   const formatCount = (n: number) => new Intl.NumberFormat().format(n);
 
   const isFilterMode = scheduledRunIds.length === 0 && !!filter;
-  const [filterCount, setFilterCount] = useState<number | undefined>(
-    undefined,
-  );
+  const [filterCount, setFilterCount] = useState<number | undefined>(undefined);
   const [isFilterCountLoading, setIsFilterCountLoading] = useState(false);
   const [filterCountError, setFilterCountError] = useState<string | undefined>(
     undefined,
@@ -42,21 +40,21 @@ export function BulkDeleteScheduledRuns({
       }
     | undefined
   >(undefined);
-  const [confirmationText, setConfirmationText] = useState('');
-  const expectedConfirmation = 'DELETE';
+  const [confirmationText, setConfirmationText] = useState("");
+  const expectedConfirmation = "DELETE";
   const isConfirmed =
     confirmationText.trim().toLowerCase() ===
     expectedConfirmation.toLowerCase();
   const [progress, setProgress] = useState<{
-    phase: 'idle' | 'collecting' | 'deleting' | 'done';
+    phase: "idle" | "collecting" | "deleting" | "done";
     processed: number;
     total?: number;
-  }>({ phase: 'idle', processed: 0 });
+  }>({ phase: "idle", processed: 0 });
 
   useEffect(() => {
     if (!open) {
-      setConfirmationText('');
-      setProgress({ phase: 'idle', processed: 0 });
+      setConfirmationText("");
+      setProgress({ phase: "idle", processed: 0 });
     }
 
     if (!open || !isFilterMode || !filter) {
@@ -124,7 +122,7 @@ export function BulkDeleteScheduledRuns({
 
   const deleteMutation = useMutation({
     mutationKey: [
-      'scheduled-run:bulk-delete',
+      "scheduled-run:bulk-delete",
       tenantId,
       scheduledRunIds,
       filter,
@@ -156,7 +154,7 @@ export function BulkDeleteScheduledRuns({
         const effectiveFilter = filter ?? {};
 
         setProgress({
-          phase: 'collecting',
+          phase: "collecting",
           processed: 0,
           total: filterCount,
         });
@@ -201,7 +199,7 @@ export function BulkDeleteScheduledRuns({
       }
 
       setProgress({
-        phase: 'deleting',
+        phase: "deleting",
         processed: 0,
         total: idsToDelete.length,
       });
@@ -216,14 +214,14 @@ export function BulkDeleteScheduledRuns({
         }));
       }
 
-      setProgress((p) => ({ ...p, phase: 'done' }));
+      setProgress((p) => ({ ...p, phase: "done" }));
       return { deletedIds: allDeletedIds, errors: allErrors };
     },
     onSuccess: (data) => {
       const deleted = data?.deletedIds?.length || 0;
       const errors = data?.errors?.length || 0;
       const description = `Deleted ${formatCount(deleted)}. ${
-        errors ? `${formatCount(errors)} failed.` : ''
+        errors ? `${formatCount(errors)} failed.` : ""
       }`.trim();
 
       toast({
@@ -264,9 +262,7 @@ export function BulkDeleteScheduledRuns({
       title="Delete scheduled runs"
       submitLabel="Delete"
       submitVariant="destructive"
-      submitDisabled={
-        (scheduledRunIds.length === 0 && !filter) || !isConfirmed
-      }
+      submitDisabled={(scheduledRunIds.length === 0 && !filter) || !isConfirmed}
       isLoading={deleteMutation.isPending}
       onCancel={() => onOpenChange(false)}
       onSubmit={handleDelete}
@@ -274,8 +270,7 @@ export function BulkDeleteScheduledRuns({
         <div className="space-y-4">
           {deleteMutation.isError && (
             <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
-              {(deleteMutation.error as Error)?.message ||
-                'Failed to delete.'}
+              {(deleteMutation.error as Error)?.message || "Failed to delete."}
             </div>
           )}
 
@@ -287,10 +282,10 @@ export function BulkDeleteScheduledRuns({
               <div className="mt-2 space-y-1 text-xs">
                 {lastResult.errors.slice(0, 10).map((e, idx) => (
                   <div
-                    key={`${e.id ?? 'unknown'}-${idx}`}
+                    key={`${e.id ?? "unknown"}-${idx}`}
                     className="break-all"
                   >
-                    {e.id ? `${e.id}: ` : ''}
+                    {e.id ? `${e.id}: ` : ""}
                     {e.error}
                   </div>
                 ))}
@@ -303,15 +298,15 @@ export function BulkDeleteScheduledRuns({
 
           {scheduledRunIds.length > 0 ? (
             <p>
-              You are about to delete <b>{scheduledRunIds.length}</b>{' '}
-              scheduled run{scheduledRunIds.length === 1 ? '' : 's'}.
-              This cannot be undone.
+              You are about to delete <b>{scheduledRunIds.length}</b> scheduled
+              run{scheduledRunIds.length === 1 ? "" : "s"}. This cannot be
+              undone.
             </p>
           ) : (
             <div className="space-y-2">
               <p>
-                You are about to delete all scheduled runs matching the
-                current filters. This cannot be undone.
+                You are about to delete all scheduled runs matching the current
+                filters. This cannot be undone.
               </p>
               <div className="text-xs text-muted-foreground">
                 {isFilterCountLoading && (
@@ -320,51 +315,45 @@ export function BulkDeleteScheduledRuns({
                   </span>
                 )}
                 {!isFilterCountLoading && filterCountError && (
-                  <span className="text-destructive">
-                    {filterCountError}
-                  </span>
+                  <span className="text-destructive">{filterCountError}</span>
                 )}
                 {!isFilterCountLoading &&
                   !filterCountError &&
                   filterCount != null && (
                     <span>
-                      Affected scheduled runs:{' '}
-                      <b>{formatCount(filterCount)}</b>
+                      Affected scheduled runs: <b>{formatCount(filterCount)}</b>
                     </span>
                   )}
               </div>
             </div>
           )}
 
-          {progress.phase === 'collecting' && (
+          {progress.phase === "collecting" && (
             <div className="text-xs text-muted-foreground">
               Collecting {formatCount(progress.processed)}
               {progress.total != null
                 ? ` / ${formatCount(progress.total)}`
-                : ''}{' '}
+                : ""}{" "}
               ids…
             </div>
           )}
 
-          {progress.phase === 'deleting' && (
+          {progress.phase === "deleting" && (
             <div className="text-xs text-muted-foreground">
               Deleting {formatCount(progress.processed)}
               {progress.total != null
                 ? ` / ${formatCount(progress.total)}`
-                : ''}
+                : ""}
               …
             </div>
           )}
 
           {!deleteMutation.isPending &&
-            progress.phase !== 'collecting' &&
-            progress.phase !== 'deleting' && (
+            progress.phase !== "collecting" &&
+            progress.phase !== "deleting" && (
               <div className="space-y-2">
                 <div className="text-xs text-muted-foreground">
-                  Type{' '}
-                  <span className="font-mono">
-                    {expectedConfirmation}
-                  </span>{' '}
+                  Type <span className="font-mono">{expectedConfirmation}</span>{" "}
                   to confirm.
                 </div>
                 <Input

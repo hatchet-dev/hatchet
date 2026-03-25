@@ -1,16 +1,16 @@
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+import { Button } from "@/components/v1/ui/button";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
-import { useState } from 'react';
-import invariant from 'tiny-invariant';
+} from "@/components/v1/ui/select";
+import { OrganizationForUser } from "@/lib/api/generated/cloud/data-contracts";
+import { useState } from "react";
+import invariant from "tiny-invariant";
 
 type NewTenantInputFormProps = {
   defaultTenantName?: string;
@@ -74,7 +74,7 @@ function OrganizationSelect({
 }
 
 export function NewTenantInputForm({
-  defaultTenantName = '',
+  defaultTenantName = "",
   defaultOrganizationId,
   isSaving = false,
   isCloudEnabled,
@@ -133,7 +133,7 @@ export function NewTenantInputForm({
         disabled={isSaving}
         data-cy="create-tenant-submit"
       >
-        {isSaving ? 'Creating...' : 'Create Tenant'}
+        {isSaving ? "Creating..." : "Create Tenant"}
       </Button>
     </form>
   );

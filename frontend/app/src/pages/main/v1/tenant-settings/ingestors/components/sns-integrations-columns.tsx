@@ -1,9 +1,9 @@
-import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { Button } from '@/components/v1/ui/button';
-import { SNSIntegration } from '@/lib/api';
-import { CheckIcon } from '@heroicons/react/24/outline';
-import { CopyIcon } from '@radix-ui/react-icons';
-import { useState } from 'react';
+import { TableRowActions } from "@/components/v1/molecules/data-table/data-table-row-actions";
+import { Button } from "@/components/v1/ui/button";
+import { SNSIntegration } from "@/lib/api";
+import { CheckIcon } from "@heroicons/react/24/outline";
+import { CopyIcon } from "@radix-ui/react-icons";
+import { useState } from "react";
 
 export function CopyIngestURL({ ingestUrl }: { ingestUrl: string }) {
   const [successCopy, setSuccessCopy] = useState(false);
@@ -25,7 +25,7 @@ export function CopyIngestURL({ ingestUrl }: { ingestUrl: string }) {
       ) : (
         <CopyIcon className="size-4" />
       )}
-      {successCopy ? 'Copied' : 'Copy ingest URL'}
+      {successCopy ? "Copied" : "Copy ingest URL"}
     </Button>
   );
 }
@@ -42,7 +42,7 @@ export function SNSActions({
       row={integration}
       actions={[
         {
-          label: 'Delete',
+          label: "Delete",
           onClick: () => onDeleteClick(integration),
         },
       ]}

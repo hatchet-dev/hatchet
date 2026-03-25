@@ -1,4 +1,4 @@
-import { formatDuration, formatTimestamp } from '../utils/format-utils';
+import { formatDuration, formatTimestamp } from "../utils/format-utils";
 import {
   getSpanColor,
   getDisplayName,
@@ -6,9 +6,9 @@ import {
   isEngineSpan,
   isQueuedEngineSpan,
   isQueuedOnlyRoot,
-} from '../utils/span-tree-utils';
-import type { FlatSpanRow, SpanGroupInfo } from './trace-timeline-utils';
-import { cn } from '@/lib/utils';
+} from "../utils/span-tree-utils";
+import type { FlatSpanRow, SpanGroupInfo } from "./trace-timeline-utils";
+import { cn } from "@/lib/utils";
 
 export const TOOLTIP_MAX_WIDTH = 420;
 const TOOLTIP_OVERFLOW_BUFFER = 20;
@@ -88,9 +88,7 @@ export function SpanTooltip({
           </span>
           <span className="text-muted-foreground">Execution</span>
           <span className="font-mono font-medium text-foreground">
-            {queuedOnly
-              ? '–'
-              : formatDuration(durationMs, { precise: true })}
+            {queuedOnly ? "–" : formatDuration(durationMs, { precise: true })}
           </span>
           <span className="text-muted-foreground">Total</span>
           <span className="font-mono font-medium text-foreground">
@@ -102,7 +100,7 @@ export function SpanTooltip({
       ) : (
         <>
           <span className="text-muted-foreground">
-            {isQueuedEngineSpan(span) ? 'Queue Time' : 'Duration'}
+            {isQueuedEngineSpan(span) ? "Queue Time" : "Duration"}
           </span>
           <span className="font-mono font-medium text-foreground">
             {formatDuration(durationMs, { precise: true })}
@@ -113,10 +111,7 @@ export function SpanTooltip({
       <span className="text-muted-foreground">Status</span>
       <span className="flex items-center gap-1.5">
         <span
-          className={cn(
-            'size-1.5 shrink-0 rounded-full',
-            getSpanColor(span),
-          )}
+          className={cn("size-1.5 shrink-0 rounded-full", getSpanColor(span))}
         />
         <span className="font-mono text-foreground">
           {effectiveStatusLabel(span, queuedOnly)}

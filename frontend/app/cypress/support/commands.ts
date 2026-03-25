@@ -1,5 +1,5 @@
-import { loginSession } from './flows/auth';
-import { seededUsers } from './seeded-users.generated';
+import { loginSession } from "./flows/auth";
+import { seededUsers } from "./seeded-users.generated";
 
 declare global {
   // Cypress exposes its typings via a global namespace; augmenting it is the intended pattern here.
@@ -14,7 +14,7 @@ declare global {
   }
 }
 
-Cypress.Commands.add('login', (user: keyof typeof seededUsers) => {
+Cypress.Commands.add("login", (user: keyof typeof seededUsers) => {
   return loginSession(user);
 });
 

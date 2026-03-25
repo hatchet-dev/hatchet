@@ -1,15 +1,15 @@
-import { cloudApi } from '@/lib/api/api';
+import { cloudApi } from "@/lib/api/api";
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
   OrganizationMember,
   TenantStatusType,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { useApiError } from '@/lib/hooks';
-import { useUserUniverse } from '@/providers/user-universe';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { useMemo, useCallback } from 'react';
-import invariant from 'tiny-invariant';
+} from "@/lib/api/generated/cloud/data-contracts";
+import { useApiError } from "@/lib/hooks";
+import { useUserUniverse } from "@/providers/user-universe";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMemo, useCallback } from "react";
+import invariant from "tiny-invariant";
 
 /**
  * Hook for organization data and operations
@@ -28,7 +28,7 @@ export function useOrganizations() {
 
   // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
-    queryKey: ['organization:list'],
+    queryKey: ["organization:list"],
     queryFn: async () => {
       const result = await cloudApi.organizationList();
       return result.data;
@@ -86,7 +86,7 @@ export function useOrganizations() {
   }, [organizationListQuery.data?.rows]);
 
   const acceptOrgInviteMutation = useMutation({
-    mutationKey: ['organization-invite:accept'],
+    mutationKey: ["organization-invite:accept"],
     mutationFn: async (data: { inviteId: string }) => {
       await cloudApi.organizationInviteAccept({
         id: data.inviteId,
@@ -96,7 +96,7 @@ export function useOrganizations() {
   });
 
   const rejectOrgInviteMutation = useMutation({
-    mutationKey: ['organization-invite:reject'],
+    mutationKey: ["organization-invite:reject"],
     mutationFn: async (data: { inviteId: string }) => {
       await cloudApi.organizationInviteReject({
         id: data.inviteId,
@@ -121,7 +121,7 @@ export function useOrganizations() {
       return result.data;
     },
     onSuccess: () => {
-      localStorage.setItem('hatchet:show-welcome', '1');
+      localStorage.setItem("hatchet:show-welcome", "1");
     },
     onError: handleApiError,
   });

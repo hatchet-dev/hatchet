@@ -1,6 +1,6 @@
-import { Button } from '@/components/v1/ui/button';
-import { ManagedWorkerBuildConfig } from '@/lib/api/generated/cloud/data-contracts';
-import { GitHubLogoIcon } from '@radix-ui/react-icons';
+import { Button } from "@/components/v1/ui/button";
+import { ManagedWorkerBuildConfig } from "@/lib/api/generated/cloud/data-contracts";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
 
 export default function GithubButton({
   buildConfig,
@@ -25,7 +25,7 @@ export default function GithubButton({
       >
         <Button
           variant="link"
-          size={'xs'}
+          size={"xs"}
           leftIcon={<GitHubLogoIcon className="size-4" />}
         >
           {commitSha
@@ -39,5 +39,5 @@ export default function GithubButton({
 
 function getHref(buildConfig: ManagedWorkerBuildConfig, commitSha?: string) {
   const root = `https://github.com/${buildConfig.githubRepository.repo_owner}/${buildConfig.githubRepository.repo_name}`;
-  return commitSha ? root + '/commit/' + commitSha : root;
+  return commitSha ? root + "/commit/" + commitSha : root;
 }

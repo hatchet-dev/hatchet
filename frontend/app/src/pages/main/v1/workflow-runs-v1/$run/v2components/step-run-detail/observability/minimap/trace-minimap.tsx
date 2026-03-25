@@ -1,14 +1,14 @@
-import { CursorOverlay } from './cursor-overlay';
-import { DragAnnotation } from './drag-annotation';
-import { MinimapTooltip } from './minimap-tooltip';
-import type { TraceMinimapProps } from './minimap-types';
-import { collectSpanMarkers, pctFromEvent } from './minimap-utils';
-import { RangeHandles } from './range-handles';
-import { SpanMarkers } from './span-markers';
-import { useMinimapDrag } from './use-minimap-drag';
-import { useMemo, useRef, useState } from 'react';
+import { CursorOverlay } from "./cursor-overlay";
+import { DragAnnotation } from "./drag-annotation";
+import { MinimapTooltip } from "./minimap-tooltip";
+import type { TraceMinimapProps } from "./minimap-types";
+import { collectSpanMarkers, pctFromEvent } from "./minimap-utils";
+import { RangeHandles } from "./range-handles";
+import { SpanMarkers } from "./span-markers";
+import { useMinimapDrag } from "./use-minimap-drag";
+import { useMemo, useRef, useState } from "react";
 
-export type { TimeRange } from './minimap-types';
+export type { TimeRange } from "./minimap-types";
 
 export function TraceMinimap({
   spanTrees,
@@ -42,7 +42,7 @@ export function TraceMinimap({
   const hoveredMarker = hoveredIdx !== null ? markers[hoveredIdx] : null;
 
   const cursorStyle =
-    dragging === 'left' || dragging === 'right' ? 'ew-resize' : 'crosshair';
+    dragging === "left" || dragging === "right" ? "ew-resize" : "crosshair";
 
   const activePct = hoverPct ?? externalHoverPct ?? null;
 

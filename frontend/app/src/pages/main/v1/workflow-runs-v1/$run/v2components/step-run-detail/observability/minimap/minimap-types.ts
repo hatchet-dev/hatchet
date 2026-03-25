@@ -1,10 +1,10 @@
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import type { OtelStatusCode } from '@/lib/api/generated/data-contracts';
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
+import type { OtelStatusCode } from "@/lib/api/generated/data-contracts";
 
 export const MIN_RANGE_PCT = 0.05;
 
 export type TimeRange = { startPct: number; endPct: number };
-export type DragMode = 'left' | 'right' | 'brush' | null;
+export type DragMode = "left" | "right" | "brush" | null;
 
 export type SpanMarker = {
   pct: number;

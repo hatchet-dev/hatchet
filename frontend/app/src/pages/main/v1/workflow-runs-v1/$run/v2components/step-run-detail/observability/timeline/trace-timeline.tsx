@@ -1,20 +1,20 @@
-import { isQueuedOnlyRoot } from '../utils/span-tree-utils';
-import { useLiveClock } from '../utils/use-live-clock';
-import { TimelineBars } from './trace-timeline-bars';
-import { TimelineLabels } from './trace-timeline-labels';
+import { isQueuedOnlyRoot } from "../utils/span-tree-utils";
+import { useLiveClock } from "../utils/use-live-clock";
+import { TimelineBars } from "./trace-timeline-bars";
+import { TimelineLabels } from "./trace-timeline-labels";
 import {
   flattenTree,
   computeTimeTicks,
   ROW_HEIGHT,
   type SpanGroupInfo,
   type VisibleRange,
-} from './trace-timeline-utils';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { useMemo, useCallback, useRef } from 'react';
+} from "./trace-timeline-utils";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
+import { useMemo, useCallback, useRef } from "react";
 
 export const LABEL_WIDTH = 320;
 
-export type { VisibleRange } from './trace-timeline-utils';
+export type { VisibleRange } from "./trace-timeline-utils";
 
 interface TraceTimelineProps {
   spanTrees: OtelSpanTree[];

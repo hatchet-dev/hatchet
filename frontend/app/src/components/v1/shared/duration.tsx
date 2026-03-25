@@ -3,14 +3,14 @@ import {
   PortalTooltipTrigger,
   PortalTooltipContent,
   PortalTooltipProvider,
-} from '@/components/v1/ui/portal-tooltip';
-import { V1TaskStatus } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { intervalToDuration } from 'date-fns';
-import { Duration as DateFnsDuration } from 'date-fns';
-import { Clock } from 'lucide-react';
-import * as React from 'react';
+} from "@/components/v1/ui/portal-tooltip";
+import { V1TaskStatus } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { cva, type VariantProps } from "class-variance-authority";
+import { intervalToDuration } from "date-fns";
+import { Duration as DateFnsDuration } from "date-fns";
+import { Clock } from "lucide-react";
+import * as React from "react";
 
 function formatDuration(duration: DateFnsDuration, rawTimeMs: number): string {
   const parts = [];
@@ -29,8 +29,8 @@ function formatDuration(duration: DateFnsDuration, rawTimeMs: number): string {
 
   if (rawTimeMs < 10000 && duration.seconds) {
     const ms = Math.floor((rawTimeMs % 1000) / 10);
-    parts.push(`${duration.seconds}.${ms.toString().padStart(2, '0')}s`);
-    return parts.join(' ');
+    parts.push(`${duration.seconds}.${ms.toString().padStart(2, "0")}s`);
+    return parts.join(" ");
   }
 
   if (duration.seconds) {
@@ -42,7 +42,7 @@ function formatDuration(duration: DateFnsDuration, rawTimeMs: number): string {
     parts.push(`${ms}ms`);
   }
 
-  return parts.join(' ');
+  return parts.join(" ");
 }
 
 const isValidTimestamp = (
@@ -52,7 +52,7 @@ const isValidTimestamp = (
     return false;
   }
 
-  const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+  const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
 
   // Check for the special "0001-01-01" timestamp that represents a null value
   if (date.getFullYear() <= 1) {
@@ -63,15 +63,15 @@ const isValidTimestamp = (
   return !isNaN(date.getTime()) && date.getFullYear() > 1970;
 };
 
-const durationVariants = cva('text-sm', {
+const durationVariants = cva("text-sm", {
   variants: {
     variant: {
-      default: 'text-muted-foreground',
-      compact: 'font-mono text-xs',
+      default: "text-muted-foreground",
+      compact: "font-mono text-xs",
     },
   },
   defaultVariants: {
-    variant: 'default',
+    variant: "default",
   },
 });
 
@@ -106,23 +106,23 @@ export function Duration({
     );
   }
 
-  const startDate = typeof start === 'string' ? new Date(start) : start;
+  const startDate = typeof start === "string" ? new Date(start) : start;
   const endDate = isValidTimestamp(end) ? new Date(end) : new Date();
   const duration = intervalToDuration({ start: startDate, end: endDate });
   const rawDuration = endDate.getTime() - startDate.getTime();
-  const isRunning = status === 'RUNNING';
+  const isRunning = status === "RUNNING";
 
   const content = (
     <span className="flex items-center gap-1">
       {showIcon ? <Clock className="h-3.5 w-3.5" /> : null}
-      <span className={isRunning ? 'animate-pulse' : ''}>
+      <span className={isRunning ? "animate-pulse" : ""}>
         {formatDuration(duration, rawDuration)}
-        {isRunning ? '...' : null}
+        {isRunning ? "..." : null}
       </span>
     </span>
   );
 
-  if (variant === 'compact') {
+  if (variant === "compact") {
     return (
       <span
         className={cn(!asChild && durationVariants({ variant }), className)}
@@ -138,17 +138,14 @@ export function Duration({
       <PortalTooltip>
         <PortalTooltipTrigger asChild>
           <span
-            className={cn(
-              !asChild && durationVariants({ variant }),
-              className,
-            )}
+            className={cn(!asChild && durationVariants({ variant }), className)}
             {...props}
           >
             {content}
           </span>
         </PortalTooltipTrigger>
         <PortalTooltipContent>
-          {isRunning ? 'Running for ' : ''}
+          {isRunning ? "Running for " : ""}
           {formatDuration(duration, rawDuration)}
         </PortalTooltipContent>
       </PortalTooltip>

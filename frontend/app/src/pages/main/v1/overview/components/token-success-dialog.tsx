@@ -3,8 +3,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { SecretCopier } from '@/components/v1/ui/secret-copier';
+} from "@/components/v1/ui/dialog";
+import { SecretCopier } from "@/components/v1/ui/secret-copier";
 
 export function TokenSuccessDialog({
   open,
@@ -26,13 +26,13 @@ export function TokenSuccessDialog({
           <DialogTitle>Keep it secret, keep it safe</DialogTitle>
         </DialogHeader>
         <p className="text-sm">
-          This is the only time we will show you this token. Make sure to
-          copy it somewhere safe.
+          This is the only time we will show you this token. Make sure to copy
+          it somewhere safe.
         </p>
         <SecretCopier
           secrets={{ HATCHET_CLIENT_TOKEN: token }}
           className="text-sm"
-          maxWidth={'calc(700px - 4rem)'}
+          maxWidth={"calc(700px - 4rem)"}
           copy
         />
       </DialogContent>

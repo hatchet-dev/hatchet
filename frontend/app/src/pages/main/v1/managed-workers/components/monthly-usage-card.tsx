@@ -4,9 +4,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/v1/ui/card';
-import { MonthlyComputeCost } from '@/lib/api/generated/cloud/data-contracts';
-import { CurrencyDollarIcon } from '@heroicons/react/24/outline';
+} from "@/components/v1/ui/card";
+import { MonthlyComputeCost } from "@/lib/api/generated/cloud/data-contracts";
+import { CurrencyDollarIcon } from "@heroicons/react/24/outline";
 
 interface MonthlyUsageCardProps {
   computeCost?: MonthlyComputeCost;
@@ -42,13 +42,11 @@ export function MonthlyUsageCard({
   // If cost is negative or has credits remaining, show credits
   const showingCredits = cost < 0 || hasCreditsRemaining;
   const amount = Math.abs(
-    showingCredits && creditsRemaining !== undefined
-      ? creditsRemaining
-      : cost,
+    showingCredits && creditsRemaining !== undefined ? creditsRemaining : cost,
   );
-  const formattedAmount = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  const formattedAmount = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
   }).format(amount);
 
   return (
@@ -63,13 +61,13 @@ export function MonthlyUsageCard({
       <CardContent>
         <div className="flex items-center">
           <div
-            className={`text-xl font-bold ${showingCredits ? 'text-green-500' : 'text-foreground'}`}
+            className={`text-xl font-bold ${showingCredits ? "text-green-500" : "text-foreground"}`}
           >
-            {showingCredits ? '+ ' : '- '}
+            {showingCredits ? "+ " : "- "}
             {formattedAmount}
           </div>
           <div className="ml-2 text-sm text-muted-foreground">
-            {showingCredits ? 'credits remaining' : 'used this month'}
+            {showingCredits ? "credits remaining" : "used this month"}
           </div>
         </div>
       </CardContent>

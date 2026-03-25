@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
-const LOCAL_STORAGE_EVENT = 'hatchet:local-storage';
+const LOCAL_STORAGE_EVENT = "hatchet:local-storage";
 
 export function useLocalStorageState<T>(
   key: string,
@@ -52,10 +52,10 @@ export function useLocalStorageState<T>(
       setState(custom.detail.value as T);
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
     window.addEventListener(LOCAL_STORAGE_EVENT, handleInTabChange);
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener(LOCAL_STORAGE_EVENT, handleInTabChange);
     };
   }, [key]);

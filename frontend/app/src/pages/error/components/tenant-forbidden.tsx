@@ -1,24 +1,24 @@
-import { ErrorPageLayout } from './layout';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
-import { useCurrentUser } from '@/hooks/use-current-user';
-import { useOrganizations } from '@/hooks/use-organizations';
-import api, { TenantMember } from '@/lib/api';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
-import { lastTenantAtom } from '@/lib/atoms';
-import { getOptionalStringParam } from '@/lib/router-helpers';
-import { useUserUniverse } from '@/providers/user-universe';
-import { appRoutes } from '@/router';
+import { ErrorPageLayout } from "./layout";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useOrganizations } from "@/hooks/use-organizations";
+import api, { TenantMember } from "@/lib/api";
+import { OrganizationForUser } from "@/lib/api/generated/cloud/data-contracts";
+import { lastTenantAtom } from "@/lib/atoms";
+import { getOptionalStringParam } from "@/lib/router-helpers";
+import { useUserUniverse } from "@/providers/user-universe";
+import { appRoutes } from "@/router";
 import {
   BuildingOffice2Icon,
   ChevronDownIcon,
   ChevronRightIcon,
-} from '@heroicons/react/24/outline';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import { useSetAtom } from 'jotai';
-import { LogOut, ShieldX, Undo2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+} from "@heroicons/react/24/outline";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { useSetAtom } from "jotai";
+import { LogOut, ShieldX, Undo2 } from "lucide-react";
+import { useMemo, useState } from "react";
 
 function TenantPickerItem({
   membership,
@@ -34,14 +34,12 @@ function TenantPickerItem({
       type="button"
       onClick={onSelect}
       className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground/80 transition-colors hover:bg-muted/50 hover:text-foreground"
-      style={indented ? { paddingLeft: '2rem' } : undefined}
+      style={indented ? { paddingLeft: "2rem" } : undefined}
     >
       <div className="flex h-5 w-5 items-center justify-center">
         <div className="h-2 w-2 rounded-full bg-green-500" />
       </div>
-      <span className="min-w-0 flex-1 truncate">
-        {membership.tenant?.name}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{membership.tenant?.name}</span>
     </button>
   );
 }
@@ -81,9 +79,9 @@ function OrgGroup({
       {expanded &&
         tenants
           .sort((a, b) =>
-            (a.tenant?.name ?? '')
+            (a.tenant?.name ?? "")
               .toLowerCase()
-              .localeCompare((b.tenant?.name ?? '').toLowerCase()),
+              .localeCompare((b.tenant?.name ?? "").toLowerCase()),
           )
           .map((membership) => (
             <TenantPickerItem
@@ -100,7 +98,7 @@ function OrgGroup({
 export function TenantForbidden() {
   const navigate = useNavigate();
   const params = useParams({ strict: false });
-  const tenant = getOptionalStringParam(params, 'tenant');
+  const tenant = getOptionalStringParam(params, "tenant");
   const setLastTenant = useSetAtom(lastTenantAtom);
   const queryClient = useQueryClient();
 
@@ -110,7 +108,7 @@ export function TenantForbidden() {
     useOrganizations();
 
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
+    mutationKey: ["user:update:logout"],
     mutationFn: async () => {
       await api.userUpdateLogout();
     },
@@ -156,7 +154,7 @@ export function TenantForbidden() {
     const standalone: TenantMember[] = [];
 
     availableTenants.forEach((membership) => {
-      const tenantId = membership.tenant?.metadata.id || '';
+      const tenantId = membership.tenant?.metadata.id || "";
       const org = getOrganizationForTenant(tenantId);
       if (org) {
         const orgId = org.metadata.id;
@@ -215,7 +213,7 @@ export function TenantForbidden() {
           Requested Tenant
         </div>
         <div className="break-all text-foreground/90">
-          {tenant || 'unknown'}
+          {tenant || "unknown"}
         </div>
       </div>
 
@@ -236,11 +234,9 @@ export function TenantForbidden() {
             {standaloneTenants.length > 0 &&
               standaloneTenants
                 .sort((a, b) =>
-                  (a.tenant?.name ?? '')
+                  (a.tenant?.name ?? "")
                     .toLowerCase()
-                    .localeCompare(
-                      (b.tenant?.name ?? '').toLowerCase(),
-                    ),
+                    .localeCompare((b.tenant?.name ?? "").toLowerCase()),
                 )
                 .map((membership) => (
                   <TenantPickerItem
@@ -256,8 +252,7 @@ export function TenantForbidden() {
       <div className="flex flex-row flex-wrap items-center justify-center gap-2">
         {!!currentUser?.email && (
           <div className="text-xs text-muted-foreground">
-            Signed in as{' '}
-            <span className="font-mono">{currentUser.email}</span>
+            Signed in as <span className="font-mono">{currentUser.email}</span>
           </div>
         )}
         <Button

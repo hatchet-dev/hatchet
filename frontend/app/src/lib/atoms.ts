@@ -1,6 +1,6 @@
-import { Tenant } from './api';
-import { TenantBillingState } from './api/generated/cloud/data-contracts';
-import { atom } from 'jotai';
+import { Tenant } from "./api";
+import { TenantBillingState } from "./api/generated/cloud/data-contracts";
+import { atom } from "jotai";
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
@@ -16,7 +16,7 @@ const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   return;
 };
 
-type Plan = 'free' | 'starter' | 'growth';
+type Plan = "free" | "starter" | "growth";
 
 export type BillingContext = {
   state: TenantBillingState | undefined;
@@ -26,7 +26,7 @@ export type BillingContext = {
   isLoading: boolean;
 };
 
-const lastTenantKey = 'lastTenant';
+const lastTenantKey = "lastTenant";
 
 const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
 
@@ -44,10 +44,10 @@ export const lastTenantAtom = atom(
   },
 );
 
-const lastWorkerMetricsTimeRange = 'lastWorkerMetricsTimeRange';
+const lastWorkerMetricsTimeRange = "lastWorkerMetricsTimeRange";
 
 const lastWorkerMetricsTimeRangeAtomInit = atom(
-  getInitialValue<string>(lastWorkerMetricsTimeRange, '1h'),
+  getInitialValue<string>(lastWorkerMetricsTimeRange, "1h"),
 );
 
 export const lastWorkerMetricsTimeRangeAtom = atom(
@@ -58,12 +58,12 @@ export const lastWorkerMetricsTimeRangeAtom = atom(
   },
 );
 
-export type ViewOptions = 'graph' | 'minimap';
+export type ViewOptions = "graph" | "minimap";
 
-const preferredWorkflowRunViewKey = 'wrView';
+const preferredWorkflowRunViewKey = "wrView";
 
 const preferredWorkflowRunViewAtomInit = atom(
-  getInitialValue<ViewOptions>(preferredWorkflowRunViewKey, 'minimap'),
+  getInitialValue<ViewOptions>(preferredWorkflowRunViewKey, "minimap"),
 );
 
 export const preferredWorkflowRunViewAtom = atom(

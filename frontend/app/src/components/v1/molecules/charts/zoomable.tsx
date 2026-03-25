@@ -3,9 +3,9 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from '@/components/v1/ui/chart';
-import { capitalize, cn } from '@/lib/utils';
-import { useState, useMemo, useRef } from 'react';
+} from "@/components/v1/ui/chart";
+import { capitalize, cn } from "@/lib/utils";
+import { useState, useMemo, useRef } from "react";
 import {
   CartesianGrid,
   XAxis,
@@ -18,7 +18,7 @@ import {
   Line,
   Area,
   AreaChart,
-} from 'recharts';
+} from "recharts";
 
 export type DataPoint<T extends string> = Record<T, number> & {
   date: string;
@@ -63,7 +63,7 @@ type ZoomableChartProps<T extends string> = {
   colors?: Record<string, string>;
   zoom?: (startTime: string, endTime: string) => void;
   showYAxis?: boolean;
-  kind: 'bar' | 'line' | 'area';
+  kind: "bar" | "line" | "area";
   className?: string;
 };
 
@@ -72,7 +72,7 @@ export function ZoomableChart<T extends string>({
   colors,
   zoom,
   showYAxis = true,
-  kind = 'bar',
+  kind = "bar",
   className,
 }: ZoomableChartProps<T>) {
   const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
@@ -87,7 +87,7 @@ export function ZoomableChart<T extends string>({
   const chartRef = useRef<HTMLDivElement>(null);
 
   const chartConfig = useMemo<ChartConfig>(() => {
-    const keys = Object.keys(data[0] || {}).filter((key) => key !== 'date');
+    const keys = Object.keys(data[0] || {}).filter((key) => key !== "date");
     return keys.reduce<ChartConfig>((acc, key, index) => {
       let color = `hsl(${(index * 360) / keys.length}, 70%, 50%)`;
 
@@ -148,26 +148,26 @@ export function ZoomableChart<T extends string>({
     const sevenDays = 7 * oneDay;
 
     if (timeDiff > sevenDays) {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
     } else if (timeDiff > oneDay) {
-      return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     } else {
       return date.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
+        hour: "2-digit",
+        minute: "2-digit",
       });
     }
   };
 
   // remove date from dataKeys
-  const dataKeys = Object.keys(data[0] || {}).filter((key) => key !== 'date');
+  const dataKeys = Object.keys(data[0] || {}).filter((key) => key !== "date");
 
   return (
     <ChartContainer
       config={chartConfig}
-      className={cn('h-[200px] min-h-[200px] w-full', className)}
+      className={cn("h-[200px] min-h-[200px] w-full", className)}
     >
-      <div className="h-full" ref={chartRef} style={{ touchAction: 'none' }}>
+      <div className="h-full" ref={chartRef} style={{ touchAction: "none" }}>
         {getChildChart(kind, {
           data,
           showYAxis,
@@ -186,15 +186,15 @@ export function ZoomableChart<T extends string>({
 }
 
 function getChildChart<T extends string>(
-  kind: 'bar' | 'line' | 'area',
+  kind: "bar" | "line" | "area",
   props: ChildChartProps<T>,
 ) {
   switch (kind) {
-    case 'bar':
+    case "bar":
       return <ChildBarChart {...props} />;
-    case 'line':
+    case "line":
       return <ChildLineChart {...props} />;
-    case 'area':
+    case "area":
       return <ChildAreaChart {...props} />;
   }
 }
@@ -246,23 +246,21 @@ function ChildBarChart<T extends string>({
           axisLine={false}
           tickMargin={4}
           minTickGap={16}
-          style={{ fontSize: '10px', userSelect: 'none' }}
+          style={{ fontSize: "10px", userSelect: "none" }}
         />
         {showYAxis && (
           <YAxis
             tickLine={false}
             axisLine={false}
             tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
+            style={{ fontSize: "10px", userSelect: "none" }}
           />
         )}
         <ChartTooltip
           content={
             <ChartTooltipContent
               className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
-              labelFormatter={(value) =>
-                new Date(value).toLocaleString()
-              }
+              labelFormatter={(value) => new Date(value).toLocaleString()}
             />
           }
         />
@@ -326,23 +324,21 @@ function ChildLineChart<T extends string>({
           axisLine={false}
           tickMargin={4}
           minTickGap={16}
-          style={{ fontSize: '10px', userSelect: 'none' }}
+          style={{ fontSize: "10px", userSelect: "none" }}
         />
         {showYAxis && (
           <YAxis
             tickLine={false}
             axisLine={false}
             tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
+            style={{ fontSize: "10px", userSelect: "none" }}
           />
         )}
         <ChartTooltip
           content={
             <ChartTooltipContent
               className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
-              labelFormatter={(value) =>
-                new Date(value).toLocaleString()
-              }
+              labelFormatter={(value) => new Date(value).toLocaleString()}
             />
           }
         />
@@ -408,23 +404,21 @@ function ChildAreaChart<T extends string>({
           axisLine={false}
           tickMargin={4}
           minTickGap={48}
-          style={{ fontSize: '10px', userSelect: 'none' }}
+          style={{ fontSize: "10px", userSelect: "none" }}
         />
         {showYAxis && (
           <YAxis
             tickLine={false}
             axisLine={false}
             tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
+            style={{ fontSize: "10px", userSelect: "none" }}
           />
         )}
         <ChartTooltip
           content={
             <ChartTooltipContent
               className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
-              labelFormatter={(value) =>
-                new Date(value).toLocaleString()
-              }
+              labelFormatter={(value) => new Date(value).toLocaleString()}
             />
           }
         />

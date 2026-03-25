@@ -1,23 +1,23 @@
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Badge } from '@/components/v1/ui/badge';
-import { Workflow } from '@/lib/api';
-import { appRoutes } from '@/router';
-import { ChevronRightIcon } from '@radix-ui/react-icons';
-import { Link } from '@tanstack/react-router';
-import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from "@/components/v1/molecules/data-table/data-table-column-header";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { Badge } from "@/components/v1/ui/badge";
+import { Workflow } from "@/lib/api";
+import { appRoutes } from "@/router";
+import { ChevronRightIcon } from "@radix-ui/react-icons";
+import { Link } from "@tanstack/react-router";
+import { ColumnDef } from "@tanstack/react-table";
 
 export const WorkflowColumn = {
-  status: 'Status',
-  name: 'Name',
-  createdAt: 'Created at',
+  status: "Status",
+  name: "Name",
+  createdAt: "Created at",
 } as const;
 
 type WorkflowColumnKeys = keyof typeof WorkflowColumn;
 
-const statusKey: WorkflowColumnKeys = 'status';
-export const nameKey: WorkflowColumnKeys = 'name';
-const createdAtKey: WorkflowColumnKeys = 'createdAt';
+const statusKey: WorkflowColumnKeys = "status";
+export const nameKey: WorkflowColumnKeys = "name";
+const createdAtKey: WorkflowColumnKeys = "createdAt";
 
 export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
   tenantId,
@@ -84,7 +84,7 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
   },
   {
     header: () => <></>,
-    accessorKey: 'chevron',
+    accessorKey: "chevron",
     cell: ({ row }) => {
       return (
         <div className="flex justify-end gap-2">

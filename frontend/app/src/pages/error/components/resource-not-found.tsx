@@ -1,11 +1,11 @@
-import { ErrorPageLayout } from './layout';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
-import { appRoutes } from '@/router';
-import { useLocation, useNavigate } from '@tanstack/react-router';
-import type { NavigateOptions } from '@tanstack/react-router';
-import { FileQuestion, Home, Undo2 } from 'lucide-react';
-import { ReactNode } from 'react';
+import { ErrorPageLayout } from "./layout";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
+import { appRoutes } from "@/router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
+import type { NavigateOptions } from "@tanstack/react-router";
+import { FileQuestion, Home, Undo2 } from "lucide-react";
+import { ReactNode } from "react";
 
 export function ResourceNotFound({
   resource,
@@ -46,7 +46,7 @@ export function ResourceNotFound({
                   })
             }
           >
-            {primaryAction?.label ?? 'Dashboard'}
+            {primaryAction?.label ?? "Dashboard"}
           </Button>
           <Button
             leftIcon={<Undo2 className="h-4 w-4" />}
@@ -67,9 +67,7 @@ export function ResourceNotFound({
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Requested path
         </div>
-        <div className="break-all text-foreground/90">
-          {location.pathname}
-        </div>
+        <div className="break-all text-foreground/90">{location.pathname}</div>
       </div>
     </ErrorPageLayout>
   );

@@ -1,30 +1,30 @@
-import { CancelInviteModal } from './components/cancel-invite-modal';
-import { CreateTokenModal } from './components/create-token-modal';
-import { DeleteMemberModal } from './components/delete-member-modal';
-import { DeleteTenantModal } from './components/delete-tenant-modal';
-import { DeleteTokenModal } from './components/delete-token-modal';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import { CancelInviteModal } from "./components/cancel-invite-modal";
+import { CreateTokenModal } from "./components/create-token-modal";
+import { DeleteMemberModal } from "./components/delete-member-modal";
+import { DeleteTenantModal } from "./components/delete-tenant-modal";
+import { DeleteTokenModal } from "./components/delete-token-modal";
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
+import CopyToClipboard from "@/components/v1/ui/copy-to-clipboard";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import { Input } from '@/components/v1/ui/input';
-import { Loading } from '@/components/v1/ui/loading';
+} from "@/components/v1/ui/dropdown-menu";
+import { Input } from "@/components/v1/ui/input";
+import { Loading } from "@/components/v1/ui/loading";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
-import { useCurrentUser } from '@/hooks/use-current-user';
-import { useOrganizations } from '@/hooks/use-organizations';
-import api from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+} from "@/components/v1/ui/tooltip";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useOrganizations } from "@/hooks/use-organizations";
+import api from "@/lib/api";
+import { cloudApi } from "@/lib/api/api";
 import {
   OrganizationMember,
   ManagementToken,
@@ -32,12 +32,12 @@ import {
   OrganizationInviteStatus,
   TenantStatusType,
   OrganizationTenant,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { lastTenantAtom } from '@/lib/atoms';
-import { globalEmitter } from '@/lib/global-emitter';
-import { cn } from '@/lib/utils';
-import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
-import { appRoutes } from '@/router';
+} from "@/lib/api/generated/cloud/data-contracts";
+import { lastTenantAtom } from "@/lib/atoms";
+import { globalEmitter } from "@/lib/global-emitter";
+import { cn } from "@/lib/utils";
+import { ResourceNotFound } from "@/pages/error/components/resource-not-found";
+import { appRoutes } from "@/router";
 import {
   PlusIcon,
   BuildingOffice2Icon,
@@ -48,21 +48,21 @@ import {
   XMarkIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-} from '@heroicons/react/24/outline';
-import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from '@tanstack/react-router';
-import { isAxiosError } from 'axios';
-import { formatDistanceToNow } from 'date-fns';
-import { useAtomValue } from 'jotai';
-import { useState } from 'react';
+} from "@heroicons/react/24/outline";
+import { EllipsisVerticalIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useParams, useNavigate } from "@tanstack/react-router";
+import { isAxiosError } from "axios";
+import { formatDistanceToNow } from "date-fns";
+import { useAtomValue } from "jotai";
+import { useState } from "react";
 
-type Section = 'tenants' | 'members' | 'tokens';
+type Section = "tenants" | "members" | "tokens";
 
 const NAV_ITEMS: { key: Section; label: string; icon: typeof KeyIcon }[] = [
-  { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
-  { key: 'members', label: 'Members', icon: UserIcon },
-  { key: 'tokens', label: 'Management Tokens', icon: KeyIcon },
+  { key: "tenants", label: "Tenants", icon: BuildingOffice2Icon },
+  { key: "members", label: "Members", icon: UserIcon },
+  { key: "tokens", label: "Management Tokens", icon: KeyIcon },
 ];
 
 export default function OrganizationPage() {
@@ -84,9 +84,9 @@ export default function OrganizationPage() {
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenant | null>(null);
   const lastTenant = useAtomValue(lastTenantAtom);
-  const [activeSection, setActiveSection] = useState<Section>('tenants');
+  const [activeSection, setActiveSection] = useState<Section>("tenants");
   const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState('');
+  const [editedName, setEditedName] = useState("");
 
   const handleStartEdit = () => {
     if (organizationQuery.data?.name) {
@@ -97,7 +97,7 @@ export default function OrganizationPage() {
 
   const handleCancelEdit = () => {
     setIsEditingName(false);
-    setEditedName('');
+    setEditedName("");
   };
 
   const handleSaveEdit = () => {
@@ -107,24 +107,24 @@ export default function OrganizationPage() {
 
     handleUpdateOrganization(orgId, editedName.trim(), () => {
       setIsEditingName(false);
-      setEditedName('');
+      setEditedName("");
       queryClient.invalidateQueries({
-        queryKey: ['organization:get', orgId],
+        queryKey: ["organization:get", orgId],
       });
     });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSaveEdit();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       handleCancelEdit();
     }
   };
 
   const formatExpirationDate = (expiresDate?: string) => {
     if (!expiresDate) {
-      return 'never';
+      return "never";
     }
 
     try {
@@ -132,7 +132,7 @@ export default function OrganizationPage() {
       const now = new Date();
 
       if (expires < now) {
-        return 'expired';
+        return "expired";
       }
 
       return `in ${formatDistanceToNow(expires)}`;
@@ -142,10 +142,10 @@ export default function OrganizationPage() {
   };
 
   const organizationQuery = useQuery({
-    queryKey: ['organization:get', orgId],
+    queryKey: ["organization:get", orgId],
     queryFn: async () => {
       if (!orgId) {
-        throw new Error('Organization ID is required');
+        throw new Error("Organization ID is required");
       }
       const result = await cloudApi.organizationGet(orgId);
       return result.data;
@@ -157,7 +157,7 @@ export default function OrganizationPage() {
     queries: (organizationQuery.data?.tenants || [])
       .filter((tenant) => tenant.status !== TenantStatusType.ARCHIVED)
       .map((tenant) => ({
-        queryKey: ['tenant:get', tenant.id],
+        queryKey: ["tenant:get", tenant.id],
         queryFn: async () => {
           const result = await api.tenantGet(tenant.id);
           return result.data;
@@ -173,10 +173,10 @@ export default function OrganizationPage() {
     .map((query) => query.data);
 
   const managementTokensQuery = useQuery({
-    queryKey: ['management-tokens:list', orgId],
+    queryKey: ["management-tokens:list", orgId],
     queryFn: async () => {
       if (!orgId) {
-        throw new Error('Organization ID is required');
+        throw new Error("Organization ID is required");
       }
       const result = await cloudApi.managementTokenList(orgId);
       return result.data;
@@ -185,10 +185,10 @@ export default function OrganizationPage() {
   });
 
   const organizationInvitesQuery = useQuery({
-    queryKey: ['organization-invites:list', orgId],
+    queryKey: ["organization-invites:list", orgId],
     queryFn: async () => {
       if (!orgId) {
-        throw new Error('Organization ID is required');
+        throw new Error("Organization ID is required");
       }
       const result = await cloudApi.organizationInviteList(orgId);
       return result.data;
@@ -217,7 +217,7 @@ export default function OrganizationPage() {
           resource="Organization"
           description="The organization you're looking for doesn't exist or you don't have access to it."
           primaryAction={{
-            label: 'Dashboard',
+            label: "Dashboard",
             navigate: { to: appRoutes.authenticatedRoute.to },
           }}
         />
@@ -245,28 +245,24 @@ export default function OrganizationPage() {
         params: { tenant: tenantId },
       });
     } else {
-      navigate({ to: '/' });
+      navigate({ to: "/" });
     }
   };
 
   const tenantColumns = [
     {
-      columnLabel: 'Name',
+      columnLabel: "Name",
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => {
-        const detailed = detailedTenants.find(
-          (t) => t?.metadata.id === row.id,
-        );
+        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
         return (
-          <span className="font-medium">
-            {detailed?.name || 'Loading...'}
-          </span>
+          <span className="font-medium">{detailed?.name || "Loading..."}</span>
         );
       },
     },
     {
-      columnLabel: 'ID',
+      columnLabel: "ID",
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => (
@@ -277,22 +273,18 @@ export default function OrganizationPage() {
       ),
     },
     {
-      columnLabel: 'Slug',
+      columnLabel: "Slug",
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => {
-        const detailed = detailedTenants.find(
-          (t) => t?.metadata.id === row.id,
-        );
+        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
         return (
-          <span className="text-muted-foreground">
-            {detailed?.slug || '-'}
-          </span>
+          <span className="text-muted-foreground">{detailed?.slug || "-"}</span>
         );
       },
     },
     {
-      columnLabel: 'Actions',
+      columnLabel: "Actions",
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => (
@@ -330,19 +322,19 @@ export default function OrganizationPage() {
 
   const memberColumns = [
     {
-      columnLabel: 'Email',
+      columnLabel: "Email",
       cellRenderer: (row: OrganizationMember) => (
         <span className="font-mono text-sm">{row.email}</span>
       ),
     },
     {
-      columnLabel: 'Role',
+      columnLabel: "Role",
       cellRenderer: (row: OrganizationMember) => (
         <Badge variant="outline">{row.role}</Badge>
       ),
     },
     {
-      columnLabel: 'Actions',
+      columnLabel: "Actions",
       cellRenderer: (row: OrganizationMember) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -382,25 +374,25 @@ export default function OrganizationPage() {
 
   const inviteColumns = [
     {
-      columnLabel: 'Email',
+      columnLabel: "Email",
       cellRenderer: (row: OrganizationInvite) => (
         <span className="font-mono text-sm">{row.inviteeEmail}</span>
       ),
     },
     {
-      columnLabel: 'Role',
+      columnLabel: "Role",
       cellRenderer: (row: OrganizationInvite) => (
         <Badge variant="outline">{row.role}</Badge>
       ),
     },
     {
-      columnLabel: 'Status',
+      columnLabel: "Status",
       cellRenderer: (row: OrganizationInvite) => (
         <Badge
           variant={
             row.status === OrganizationInviteStatus.PENDING
-              ? 'secondary'
-              : 'destructive'
+              ? "secondary"
+              : "destructive"
           }
         >
           {row.status}
@@ -408,13 +400,13 @@ export default function OrganizationPage() {
       ),
     },
     {
-      columnLabel: 'Expiry',
+      columnLabel: "Expiry",
       cellRenderer: (row: OrganizationInvite) => (
         <span>{formatExpirationDate(row.expires)}</span>
       ),
     },
     {
-      columnLabel: 'Actions',
+      columnLabel: "Actions",
       cellRenderer: (row: OrganizationInvite) =>
         row.status === OrganizationInviteStatus.PENDING ? (
           <DropdownMenu>
@@ -436,22 +428,20 @@ export default function OrganizationPage() {
 
   const tokenColumns = [
     {
-      columnLabel: 'Name',
-      cellRenderer: (
-        row: ManagementToken & { metadata: { id: string } },
-      ) => <span className="font-medium">{row.name}</span>,
+      columnLabel: "Name",
+      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+        <span className="font-medium">{row.name}</span>
+      ),
     },
     {
-      columnLabel: 'Expiry',
-      cellRenderer: (
-        row: ManagementToken & { metadata: { id: string } },
-      ) => <span>{formatExpirationDate(row.expiresAt)}</span>,
+      columnLabel: "Expiry",
+      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+        <span>{formatExpirationDate(row.expiresAt)}</span>
+      ),
     },
     {
-      columnLabel: 'Actions',
-      cellRenderer: (
-        row: ManagementToken & { metadata: { id: string } },
-      ) => (
+      columnLabel: "Actions",
+      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -511,9 +501,7 @@ export default function OrganizationPage() {
                 variant="ghost"
                 className="h-7 w-7 shrink-0 p-0"
                 onClick={handleSaveEdit}
-                disabled={
-                  updateOrganizationLoading || !editedName.trim()
-                }
+                disabled={updateOrganizationLoading || !editedName.trim()}
               >
                 <CheckIcon className="size-3.5" />
               </Button>
@@ -550,10 +538,10 @@ export default function OrganizationPage() {
                 key={item.key}
                 onClick={() => setActiveSection(item.key)}
                 className={cn(
-                  'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   activeSection === item.key
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                 )}
               >
                 <item.icon className="size-4 shrink-0" />
@@ -568,12 +556,12 @@ export default function OrganizationPage() {
             <h2 className="text-lg font-semibold">
               {NAV_ITEMS.find((i) => i.key === activeSection)?.label}
             </h2>
-            {activeSection === 'tenants' && (
+            {activeSection === "tenants" && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  globalEmitter.emit('create-new-tenant', {
+                  globalEmitter.emit("create-new-tenant", {
                     defaultOrganizationId: organization.metadata.id,
                   });
                 }}
@@ -582,12 +570,12 @@ export default function OrganizationPage() {
                 Add Tenant
               </Button>
             )}
-            {activeSection === 'members' && (
+            {activeSection === "members" && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  globalEmitter.emit('create-organization-invite', {
+                  globalEmitter.emit("create-organization-invite", {
                     organizationId: orgId,
                     organizationName: organization.name,
                   })
@@ -597,7 +585,7 @@ export default function OrganizationPage() {
                 Invite Member
               </Button>
             )}
-            {activeSection === 'tokens' && (
+            {activeSection === "tokens" && (
               <Button
                 variant="outline"
                 size="sm"
@@ -610,20 +598,17 @@ export default function OrganizationPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-8">
-            {activeSection === 'tenants' && (
+            {activeSection === "tenants" && (
               <>
                 {tenantsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loading />
                   </div>
-                ) : organization.tenants &&
-                  organization.tenants.length > 0 ? (
+                ) : organization.tenants && organization.tenants.length > 0 ? (
                   <SimpleTable
                     data={organization.tenants
                       .filter(
-                        (tenant) =>
-                          tenant.status !==
-                          TenantStatusType.ARCHIVED,
+                        (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
                       )
                       .map((t) => ({
                         ...t,
@@ -634,17 +619,14 @@ export default function OrganizationPage() {
                 ) : (
                   <div className="py-16 text-center">
                     <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <h3 className="mb-2 text-lg font-medium">
-                      No Tenants Yet
-                    </h3>
+                    <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
                     <p className="mb-4 text-muted-foreground">
                       Add your first tenant to get started.
                     </p>
                     <Button
                       onClick={() => {
-                        globalEmitter.emit('create-new-tenant', {
-                          defaultOrganizationId:
-                            organization.metadata.id,
+                        globalEmitter.emit("create-new-tenant", {
+                          defaultOrganizationId: organization.metadata.id,
                         });
                       }}
                       leftIcon={<PlusIcon className="size-4" />}
@@ -656,10 +638,9 @@ export default function OrganizationPage() {
               </>
             )}
 
-            {activeSection === 'members' && (
+            {activeSection === "members" && (
               <div className="space-y-8">
-                {organization.members &&
-                organization.members.length > 0 ? (
+                {organization.members && organization.members.length > 0 ? (
                   <SimpleTable
                     data={organization.members}
                     columns={memberColumns}
@@ -667,12 +648,9 @@ export default function OrganizationPage() {
                 ) : (
                   <div className="py-16 text-center">
                     <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <h3 className="mb-2 text-lg font-medium">
-                      No Members Yet
-                    </h3>
+                    <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
                     <p className="mb-4 text-muted-foreground">
-                      Members will appear here when they join this
-                      organization.
+                      Members will appear here when they join this organization.
                     </p>
                   </div>
                 )}
@@ -695,7 +673,7 @@ export default function OrganizationPage() {
               </div>
             )}
 
-            {activeSection === 'tokens' && (
+            {activeSection === "tokens" && (
               <>
                 {managementTokensQuery.isLoading ? (
                   <div className="flex items-center justify-center py-8">
@@ -705,12 +683,10 @@ export default function OrganizationPage() {
                   managementTokensQuery.data.rows &&
                   managementTokensQuery.data.rows.length > 0 ? (
                   <SimpleTable
-                    data={managementTokensQuery.data.rows.map(
-                      (t) => ({
-                        ...t,
-                        metadata: { id: t.id },
-                      }),
-                    )}
+                    data={managementTokensQuery.data.rows.map((t) => ({
+                      ...t,
+                      metadata: { id: t.id },
+                    }))}
                     columns={tokenColumns}
                   />
                 ) : (
@@ -787,9 +763,7 @@ export default function OrganizationPage() {
 
       {(() => {
         const foundTenant = tenantToArchive
-          ? detailedTenants.find(
-              (t) => t?.metadata.id === tenantToArchive.id,
-            )
+          ? detailedTenants.find((t) => t?.metadata.id === tenantToArchive.id)
           : undefined;
         return (
           tenantToArchive &&
@@ -803,10 +777,10 @@ export default function OrganizationPage() {
               organizationName={organization.name}
               onSuccess={() => {
                 queryClient.invalidateQueries({
-                  queryKey: ['organization:get', orgId],
+                  queryKey: ["organization:get", orgId],
                 });
                 queryClient.invalidateQueries({
-                  queryKey: ['tenant:get'],
+                  queryKey: ["tenant:get"],
                 });
               }}
             />

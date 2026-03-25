@@ -1,9 +1,9 @@
-import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
-import { queries } from '@/lib/api';
-import { useAppContext } from '@/providers/app-context';
-import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
-import { useNavigate } from '@tanstack/react-router';
+import { NewOrganizationSaverForm } from "@/components/forms/new-organization-saver-form";
+import { queries } from "@/lib/api";
+import { useAppContext } from "@/providers/app-context";
+import queryClient from "@/query-client";
+import { appRoutes } from "@/router";
+import { useNavigate } from "@tanstack/react-router";
 
 export default function CreateOrganization() {
   const navigate = useNavigate();
@@ -24,9 +24,7 @@ export default function CreateOrganization() {
           <NewOrganizationSaverForm
             defaultOrganizationName={user?.name}
             afterSave={({ organization, tenant }) => {
-              queryClient.prefetchQuery(
-                queries.cloud.subscriptionPlans(),
-              );
+              queryClient.prefetchQuery(queries.cloud.subscriptionPlans());
               navigate({
                 to: appRoutes.tenantOverviewRoute.to,
                 params: { tenant: tenant.id },

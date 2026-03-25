@@ -1,20 +1,20 @@
-import { BillingRequired } from './components/billing-required';
-import { ManagedWorkersTable } from './components/managed-workers-table';
-import { MonthlyUsageCard } from './components/monthly-usage-card';
-import { Button } from '@/components/v1/ui/button';
-import { Spinner } from '@/components/v1/ui/loading';
-import { Separator } from '@/components/v1/ui/separator';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { cloudApi } from '@/lib/api/api';
-import { queries } from '@/lib/api/queries';
-import { managedCompute } from '@/lib/can/features/managed-compute';
-import { RejectReason } from '@/lib/can/shared/permission.base';
-import { useApiError } from '@/lib/hooks';
-import { appRoutes } from '@/router';
-import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { BillingRequired } from "./components/billing-required";
+import { ManagedWorkersTable } from "./components/managed-workers-table";
+import { MonthlyUsageCard } from "./components/monthly-usage-card";
+import { Button } from "@/components/v1/ui/button";
+import { Spinner } from "@/components/v1/ui/loading";
+import { Separator } from "@/components/v1/ui/separator";
+import { useCurrentTenantId, useTenantDetails } from "@/hooks/use-tenant";
+import { cloudApi } from "@/lib/api/api";
+import { queries } from "@/lib/api/queries";
+import { managedCompute } from "@/lib/can/features/managed-compute";
+import { RejectReason } from "@/lib/can/shared/permission.base";
+import { useApiError } from "@/lib/hooks";
+import { appRoutes } from "@/router";
+import { PlusIcon, ArrowUpIcon } from "@radix-ui/react-icons";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 
 export default function ManagedWorkers() {
   const { tenant, billing, can } = useTenantDetails();
@@ -59,7 +59,7 @@ export default function ManagedWorkers() {
         return;
       }
       const link = await cloudApi.billingPortalLinkGet(tenantId);
-      window.open(link.data.url, '_blank');
+      window.open(link.data.url, "_blank");
     } catch (e) {
       handleApiError(e as any);
     } finally {
@@ -99,11 +99,11 @@ export default function ManagedWorkers() {
     }
 
     switch (billing.plan) {
-      case 'free':
+      case "free":
         return 1;
-      case 'starter':
+      case "starter":
         return 2;
-      case 'growth':
+      case "growth":
         return 5;
       default:
         // This covers 'enterprise' and any other plans
@@ -131,9 +131,9 @@ export default function ManagedWorkers() {
             Plan Upgrade Required
           </h3>
           <p className="mb-4 text-muted-foreground">
-            You've reached the maximum number of services (
-            {workerPoolCount}/{getWorkerPoolLimit()}) allowed on your
-            current plan. Upgrade to create more services.
+            You've reached the maximum number of services ({workerPoolCount}/
+            {getWorkerPoolLimit()}) allowed on your current plan. Upgrade to
+            create more services.
           </p>
           <div className="flex justify-end gap-3">
             <Button

@@ -1,4 +1,4 @@
-import { useLocalStorageState } from '@/hooks/use-local-storage-state';
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import {
   PropsWithChildren,
   createContext,
@@ -7,13 +7,13 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
+} from "react";
 
-type SidebarState = 'open' | 'closed';
+type SidebarState = "open" | "closed";
 
-const SIDEBAR_WIDTH_LEGACY_KEY = 'v1SidebarWidth';
-const SIDEBAR_WIDTH_EXPANDED_KEY = 'v1SidebarWidthExpanded';
-const SIDEBAR_COLLAPSED_KEY = 'v1SidebarCollapsed';
+const SIDEBAR_WIDTH_LEGACY_KEY = "v1SidebarWidth";
+const SIDEBAR_WIDTH_EXPANDED_KEY = "v1SidebarWidthExpanded";
+const SIDEBAR_COLLAPSED_KEY = "v1SidebarCollapsed";
 
 // Tailwind's `md` breakpoint (px). Used to decide when the v1 sidebar is a persistent column.
 const WIDE_BREAKPOINT_PX = 768;
@@ -47,7 +47,7 @@ type SidebarProviderState = {
 };
 
 const initialState: SidebarProviderState = {
-  sidebarOpen: 'closed',
+  sidebarOpen: "closed",
   setSidebarOpen: () => null,
   toggleSidebarOpen: () => null,
   isWide: false,
@@ -64,7 +64,7 @@ const SidebarProviderContext =
 
 export function SidebarProvider({
   children,
-  defaultSidebarOpen = 'closed',
+  defaultSidebarOpen = "closed",
 
   ...props
 }: SidebarProviderProps) {
@@ -75,13 +75,13 @@ export function SidebarProvider({
   // Initialize from the current viewport so we don't "animate" from mobile->desktop
   // width on first load (the resize effect will keep it updated).
   const [isWide, setIsWide] = useState(() =>
-    typeof window !== 'undefined'
+    typeof window !== "undefined"
       ? window.innerWidth >= WIDE_BREAKPOINT_PX
       : false,
   );
 
   const defaultExpandedWidth = useMemo(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return DEFAULT_EXPANDED_SIDEBAR_WIDTH;
     }
 
@@ -123,20 +123,20 @@ export function SidebarProvider({
 
     handleResize();
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
   useEffect(() => {
     if (isWide) {
       // Desktop: sidebar participates in the layout grid; keep it open.
-      setSidebarOpen('open');
+      setSidebarOpen("open");
     } else {
       // Mobile: default to closed (overlay sidebar).
-      setSidebarOpen('closed');
+      setSidebarOpen("closed");
     }
   }, [isWide]);
 
@@ -149,9 +149,7 @@ export function SidebarProvider({
           setSidebarOpen(open);
         },
         toggleSidebarOpen: () => {
-          setSidebarOpen((state) =>
-            state === 'open' ? 'closed' : 'open',
-          );
+          setSidebarOpen((state) => (state === "open" ? "closed" : "open"));
         },
         isWide,
         sidebarWidth,
@@ -171,7 +169,7 @@ export const useSidebar = () => {
   const context = useContext(SidebarProviderContext);
 
   if (context === undefined) {
-    throw new Error('useSidebar must be used within a SidebarProvider');
+    throw new Error("useSidebar must be used within a SidebarProvider");
   }
 
   return context;

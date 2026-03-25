@@ -1,25 +1,25 @@
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
-import { Badge } from '@/components/v1/ui/badge';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Label } from '@/components/v1/ui/label';
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { CopyWorkflowConfigButton } from "@/components/v1/shared/copy-workflow-config";
+import { Badge } from "@/components/v1/ui/badge";
+import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+import { Label } from "@/components/v1/ui/label";
 import {
   ConcurrencyLimitStrategy,
   ConcurrencyScope,
   WorkflowVersion,
-} from '@/lib/api';
-import { formatCron } from '@/lib/cron';
+} from "@/lib/api";
+import { formatCron } from "@/lib/cron";
 
 function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
   switch (strategy) {
     case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
-      return 'Cancel In Progress';
+      return "Cancel In Progress";
     case ConcurrencyLimitStrategy.DROP_NEWEST:
-      return 'Drop Newest';
+      return "Drop Newest";
     case ConcurrencyLimitStrategy.QUEUE_NEWEST:
-      return 'Queue Newest';
+      return "Queue Newest";
     case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
-      return 'Group Round Robin';
+      return "Group Round Robin";
     default: {
       const exhaustiveCheck: never = strategy;
       return exhaustiveCheck;
@@ -30,9 +30,9 @@ function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
 function formatScope(scope: ConcurrencyScope): string {
   switch (scope) {
     case ConcurrencyScope.WORKFLOW:
-      return 'Workflow';
+      return "Workflow";
     case ConcurrencyScope.TASK:
-      return 'Task';
+      return "Task";
     default: {
       const exhaustiveCheck: never = scope;
       return exhaustiveCheck;
@@ -89,9 +89,7 @@ function SettingsSection({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <p className="text-sm italic text-gray-500 dark:text-gray-400">
-      {message}
-    </p>
+    <p className="text-sm italic text-gray-500 dark:text-gray-400">{message}</p>
   );
 }
 
@@ -201,11 +199,11 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
     <SimpleTable
       data={workflow.v1Concurrency
         .map((c) => ({
-          stepReadableId: c.stepReadableId || 'N/A',
+          stepReadableId: c.stepReadableId || "N/A",
           ...c,
           // hack for typing
           metadata: {
-            id: '',
+            id: "",
           },
         }))
         .sort(
@@ -215,13 +213,13 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         )}
       columns={[
         {
-          columnLabel: 'Scope',
+          columnLabel: "Scope",
           cellRenderer: (row) => formatScope(row.scope),
         },
-        { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
-        { columnLabel: 'Max', cellRenderer: (row) => row.maxRuns },
+        { columnLabel: "Task", cellRenderer: (row) => row.stepReadableId },
+        { columnLabel: "Max", cellRenderer: (row) => row.maxRuns },
         {
-          columnLabel: 'Strategy',
+          columnLabel: "Strategy",
           cellRenderer: (row) => (
             <Badge variant="secondary">
               {formatLimitStrategy(row.limitStrategy)}
@@ -229,7 +227,7 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
           ),
         },
         {
-          columnLabel: 'Expression',
+          columnLabel: "Expression",
           cellRenderer: (row) => (
             <CodeHighlighter
               language="text"

@@ -1,36 +1,36 @@
-import { Button } from './button';
-import CopyToClipboard from './copy-to-clipboard';
-import { useTheme } from '@/components/hooks/use-theme';
+import { Button } from "./button";
+import CopyToClipboard from "./copy-to-clipboard";
+import { useTheme } from "@/components/hooks/use-theme";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import { CaretSortIcon } from '@radix-ui/react-icons';
-import { useRef, useState } from 'react';
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
-import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescript';
-import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
+} from "@/components/v1/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { CaretSortIcon } from "@radix-ui/react-icons";
+import { useRef, useState } from "react";
+import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
+import json from "react-syntax-highlighter/dist/esm/languages/hljs/json";
+import typescript from "react-syntax-highlighter/dist/esm/languages/hljs/typescript";
+import yaml from "react-syntax-highlighter/dist/esm/languages/hljs/yaml";
 import {
   anOldHope,
   atomOneLight,
-} from 'react-syntax-highlighter/dist/esm/styles/hljs';
+} from "react-syntax-highlighter/dist/esm/styles/hljs";
 
-SyntaxHighlighter.registerLanguage('typescript', typescript);
-SyntaxHighlighter.registerLanguage('yaml', yaml);
-SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage("typescript", typescript);
+SyntaxHighlighter.registerLanguage("yaml", yaml);
+SyntaxHighlighter.registerLanguage("json", json);
 
 type Secrets = Record<string, string>;
 
 enum Formats {
-  TABLE = 'table',
-  JSON = 'json',
-  YAML = 'yaml',
-  DOTENV = 'dotenv',
-  CLI = 'cli',
+  TABLE = "table",
+  JSON = "json",
+  YAML = "yaml",
+  DOTENV = "dotenv",
+  CLI = "cli",
 }
 
 export function SecretCopier({
@@ -90,7 +90,7 @@ export function SecretCopier({
   };
 
   return (
-    <div className={cn(className, 'relative h-fit w-full')}>
+    <div className={cn(className, "relative h-fit w-full")}>
       <div className="justify-right mb-2 flex flex-row items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -138,23 +138,23 @@ export function SecretCopier({
         ) : (
           <SyntaxHighlighter
             language="text"
-            style={theme === 'dark' ? anOldHope : atomOneLight}
+            style={theme === "dark" ? anOldHope : atomOneLight}
             wrapLines={false}
             lineProps={{
-              style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' },
+              style: { wordBreak: "break-all", whiteSpace: "pre-wrap" },
             }}
             customStyle={{
-              cursor: 'default',
-              borderRadius: '0.5rem',
+              cursor: "default",
+              borderRadius: "0.5rem",
               maxHeight: maxHeight,
               maxWidth: maxWidth,
               fontFamily:
                 "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-              fontSize: '0.75rem',
-              lineHeight: '1rem',
-              padding: '0.5rem',
-              flex: '1',
-              background: 'transparent',
+              fontSize: "0.75rem",
+              lineHeight: "1rem",
+              padding: "0.5rem",
+              flex: "1",
+              background: "transparent",
             }}
           >
             {renderSecrets() as string}
@@ -175,17 +175,17 @@ export function SecretCopier({
 function toDotEnv(s: Secrets) {
   return Object.entries(s)
     .map(([key, value]) => `${key}="${value}"`)
-    .join('\n');
+    .join("\n");
 }
 
 function toCliEnv(s: Secrets) {
   return Object.entries(s)
     .map(([key, value]) => `export ${key}="${value}"`)
-    .join('\n');
+    .join("\n");
 }
 
 function toYAML(s: Secrets) {
   return Object.entries(s)
     .map(([key, value]) => `${key}:"${value}"`)
-    .join('\n');
+    .join("\n");
 }

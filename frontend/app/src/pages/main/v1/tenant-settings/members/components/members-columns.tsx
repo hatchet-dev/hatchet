@@ -1,15 +1,15 @@
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { TenantMember, queries } from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
-import { UserContextType } from '@/lib/outlet';
-import { useOutletContext } from '@/lib/router-helpers';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import useCloud from '@/pages/auth/hooks/use-cloud';
-import queryClient from '@/query-client';
-import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
+import { TableRowActions } from "@/components/v1/molecules/data-table/data-table-row-actions";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import api, { TenantMember, queries } from "@/lib/api";
+import { useApiError } from "@/lib/hooks";
+import { UserContextType } from "@/lib/outlet";
+import { useOutletContext } from "@/lib/router-helpers";
+import useApiMeta from "@/pages/auth/hooks/use-api-meta";
+import useCloud from "@/pages/auth/hooks/use-cloud";
+import queryClient from "@/query-client";
+import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 
 // Component for handling member actions
 export function MemberActions({
@@ -29,7 +29,7 @@ export function MemberActions({
   const { isCloudEnabled } = useCloud();
 
   const deleteMemberMutation = useMutation({
-    mutationKey: ['tenant-member:delete', tenantId],
+    mutationKey: ["tenant-member:delete", tenantId],
     mutationFn: async (data: { memberId: string }) => {
       await api.tenantMemberDelete(tenantId, data.memberId);
     },
@@ -41,7 +41,7 @@ export function MemberActions({
     onError: handleApiError,
   });
 
-  const isOwnerRole = member.role === 'OWNER';
+  const isOwnerRole = member.role === "OWNER";
 
   const canDeleteMember =
     member.user.email !== user?.email &&
@@ -61,7 +61,7 @@ export function MemberActions({
           ...(canEditRole
             ? [
                 {
-                  label: 'Edit role',
+                  label: "Edit role",
                   onClick: () => onEditRoleClick(member),
                 },
               ]
@@ -69,7 +69,7 @@ export function MemberActions({
           ...(canChangePassword
             ? [
                 {
-                  label: 'Change password',
+                  label: "Change password",
                   onClick: () => onChangePasswordClick(member),
                 },
               ]
@@ -77,7 +77,7 @@ export function MemberActions({
           ...(canDeleteMember
             ? [
                 {
-                  label: 'Remove from tenant',
+                  label: "Remove from tenant",
                   onClick: () => setShowDeleteDialog(true),
                 },
               ]

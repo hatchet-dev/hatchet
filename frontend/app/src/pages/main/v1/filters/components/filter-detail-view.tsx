@@ -1,6 +1,6 @@
-import { useFilterDetails, useFilters } from '../hooks/use-filters';
-import { updateFilterSchema, UpdateFilterFormData } from '../schemas';
-import { Button } from '@/components/v1/ui/button';
+import { useFilterDetails, useFilters } from "../hooks/use-filters";
+import { updateFilterSchema, UpdateFilterFormData } from "../schemas";
+import { Button } from "@/components/v1/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,15 +8,15 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Textarea } from '@/components/v1/ui/textarea';
-import { useSidePanel } from '@/hooks/use-side-panel';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Trash2Icon, EditIcon, SaveIcon, XIcon } from 'lucide-react';
-import { useCallback, useState } from 'react';
-import { useForm } from 'react-hook-form';
+} from "@/components/v1/ui/dialog";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
+import { Textarea } from "@/components/v1/ui/textarea";
+import { useSidePanel } from "@/hooks/use-side-panel";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Trash2Icon, EditIcon, SaveIcon, XIcon } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useForm } from "react-hook-form";
 
 interface FilterDetailViewProps {
   filterId: string;
@@ -71,12 +71,12 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
         let payloadObj;
         if (data.payload !== undefined) {
           try {
-            const payloadText = data.payload.trim() || '{}';
+            const payloadText = data.payload.trim() || "{}";
             payloadObj = JSON.parse(payloadText);
             setPayloadError(null);
           } catch (error) {
             if (error instanceof SyntaxError) {
-              setPayloadError('The filter payload must be valid JSON');
+              setPayloadError("The filter payload must be valid JSON");
               return;
             }
           }
@@ -88,7 +88,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
         });
         setIsEditing(false);
       } catch (error) {
-        console.error('Failed to update filter:', error);
+        console.error("Failed to update filter:", error);
       }
     },
     [mutations.update, filter],
@@ -110,7 +110,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
       setShowDeleteDialog(false);
       close();
     } catch (error) {
-      console.error('Failed to delete filter:', error);
+      console.error("Failed to delete filter:", error);
     }
   };
 
@@ -148,7 +148,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                   disabled={mutations.update.isPending}
                   leftIcon={<SaveIcon className="size-4" />}
                 >
-                  {mutations.update.isPending ? 'Saving...' : 'Save'}
+                  {mutations.update.isPending ? "Saving..." : "Save"}
                 </Button>
               </>
             )}
@@ -178,9 +178,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
             <Label htmlFor="workflow">Workflow</Label>
             <Input
               id="workflow"
-              value={
-                workflowIdToName[filter.workflowId] || filter.workflowId
-              }
+              value={workflowIdToName[filter.workflowId] || filter.workflowId}
               disabled
               className="bg-muted disabled:cursor-text"
             />
@@ -192,13 +190,11 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
               <>
                 <Input
                   id="scope"
-                  {...register('scope')}
+                  {...register("scope")}
                   placeholder="Enter scope"
                 />
                 {errors.scope && (
-                  <p className="text-sm text-red-600">
-                    {errors.scope.message}
-                  </p>
+                  <p className="text-sm text-red-600">{errors.scope.message}</p>
                 )}
               </>
             ) : (
@@ -217,7 +213,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
               <>
                 <Textarea
                   id="expression"
-                  {...register('expression')}
+                  {...register("expression")}
                   placeholder="Enter filter expression"
                   className="min-h-[100px] font-mono"
                 />
@@ -243,18 +239,16 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
               <>
                 <Textarea
                   id="payload"
-                  {...register('payload')}
+                  {...register("payload")}
                   placeholder='{"key": "value"} or leave empty for {}'
                   className="min-h-[120px] font-mono text-sm"
                   onChange={(e) => {
-                    register('payload').onChange(e);
+                    register("payload").onChange(e);
                     setPayloadError(null);
                   }}
                 />
                 {payloadError && (
-                  <p className="text-sm text-red-600">
-                    {payloadError}
-                  </p>
+                  <p className="text-sm text-red-600">{payloadError}</p>
                 )}
               </>
             ) : (
@@ -274,8 +268,8 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
           <DialogHeader>
             <DialogTitle>Delete Filter</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this filter? This action
-              cannot be undone.
+              Are you sure you want to delete this filter? This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -290,7 +284,7 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
               onClick={handleDelete}
               disabled={mutations.delete.isPending}
             >
-              {mutations.delete.isPending ? 'Deleting...' : 'Delete'}
+              {mutations.delete.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

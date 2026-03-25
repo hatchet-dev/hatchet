@@ -1,6 +1,6 @@
-import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
-import { generateBreadcrumbs, BreadcrumbItem } from '@/lib/breadcrumbs';
-import { useLocation, useParams, useRouterState } from '@tanstack/react-router';
+import { useTenantHomeRoute } from "@/hooks/use-tenant-home-route";
+import { generateBreadcrumbs, BreadcrumbItem } from "@/lib/breadcrumbs";
+import { useLocation, useParams, useRouterState } from "@tanstack/react-router";
 
 export function useBreadcrumbs(): BreadcrumbItem[] {
   const location = useLocation();
@@ -28,10 +28,10 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
   // When on a 404 page under /tenants/:tenant/*, the matches will only include
   // the tenant route itself, not any child routes
   const isOnTenantRoute = routerState.matches.some(
-    (match) => match.routeId === '/tenants/$tenant',
+    (match) => match.routeId === "/tenants/$tenant",
   );
 
-  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const pathSegments = location.pathname.split("/").filter(Boolean);
   const hasChildPath = pathSegments.length > 2; // More than just /tenants/:tenant
 
   // If we're on a tenant route with a child path but only 3 matches (root, authenticated, tenant),
@@ -47,8 +47,8 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
   const breadcrumbs = generateBreadcrumbs(location.pathname, cleanParams);
 
   // Update the Home breadcrumb href with the conditional route
-  if (breadcrumbs.length > 0 && breadcrumbs[0].label === 'Home' && tenantId) {
-    breadcrumbs[0].href = homeRoute.replace(':tenant', tenantId);
+  if (breadcrumbs.length > 0 && breadcrumbs[0].label === "Home" && tenantId) {
+    breadcrumbs[0].href = homeRoute.replace(":tenant", tenantId);
   }
 
   return breadcrumbs;

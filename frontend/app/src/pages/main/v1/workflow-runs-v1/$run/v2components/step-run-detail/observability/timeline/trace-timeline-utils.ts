@@ -2,8 +2,8 @@ import {
   getDisplayName,
   getStableKey,
   hasErrorInTree,
-} from '../utils/span-tree-utils';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+} from "../utils/span-tree-utils";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
 
 const GROUP_THRESHOLD = 5;
 const INITIAL_GROUP_VISIBLE = 20;
@@ -38,7 +38,7 @@ export type SpanGroupInfo = {
 };
 
 export type FlatSpanRow = {
-  kind: 'span';
+  kind: "span";
   rowKey: string;
   span: OtelSpanTree;
   depth: number;
@@ -50,7 +50,7 @@ export type FlatSpanRow = {
 };
 
 export type FlatGroupRow = {
-  kind: 'group';
+  kind: "group";
   rowKey: string;
   group: SpanGroupInfo;
   depth: number;
@@ -60,7 +60,7 @@ export type FlatGroupRow = {
 };
 
 export type FlatShowMoreRow = {
-  kind: 'show-more';
+  kind: "show-more";
   rowKey: string;
   groupId: string;
   remaining: number;
@@ -75,11 +75,10 @@ export function groupSiblings(
   children: OtelSpanTree[],
   parentSpanId?: string,
 ): Array<
-  | { kind: 'span'; span: OtelSpanTree }
-  | { kind: 'group'; group: SpanGroupInfo }
+  { kind: "span"; span: OtelSpanTree } | { kind: "group"; group: SpanGroupInfo }
 > {
   if (children.length <= GROUP_THRESHOLD) {
-    return children.map((span) => ({ kind: 'span' as const, span }));
+    return children.map((span) => ({ kind: "span" as const, span }));
   }
 
   const byName = new Map<string, OtelSpanTree[]>();
@@ -92,8 +91,8 @@ export function groupSiblings(
   }
 
   const result: Array<
-    | { kind: 'span'; span: OtelSpanTree }
-    | { kind: 'group'; group: SpanGroupInfo }
+    | { kind: "span"; span: OtelSpanTree }
+    | { kind: "group"; group: SpanGroupInfo }
   > = [];
   const emittedGroups = new Set<string>();
 
@@ -102,7 +101,7 @@ export function groupSiblings(
     const siblings = byName.get(name)!;
 
     if (siblings.length <= GROUP_THRESHOLD) {
-      result.push({ kind: 'span' as const, span: child });
+      result.push({ kind: "span" as const, span: child });
     } else if (!emittedGroups.has(name)) {
       emittedGroups.add(name);
 
@@ -121,9 +120,9 @@ export function groupSiblings(
       }
 
       result.push({
-        kind: 'group' as const,
+        kind: "group" as const,
         group: {
-          groupId: `__group_${parentSpanId || 'root'}_${name}`,
+          groupId: `__group_${parentSpanId || "root"}_${name}`,
           groupName: name,
           spans: sorted,
           errorCount: errors.length,
@@ -160,7 +159,7 @@ export function flattenTree(
     const isExpanded = expandedIds.has(stableKey) && hasChildren;
 
     rows.push({
-      kind: 'span',
+      kind: "span",
       rowKey: stableKey,
       span,
       depth: rowDepth,
@@ -188,14 +187,14 @@ export function flattenTree(
   items.forEach((item, idx) => {
     const isLast = idx === items.length - 1;
 
-    if (item.kind === 'span') {
+    if (item.kind === "span") {
       pushSpanRow(item.span, depth, isLast, connectorFlags);
     } else {
       const { group } = item;
       const isExpanded = expandedIds.has(group.groupId);
 
       rows.push({
-        kind: 'group',
+        kind: "group",
         rowKey: group.groupId,
         group,
         depth,
@@ -220,7 +219,7 @@ export function flattenTree(
 
         if (remaining > 0) {
           rows.push({
-            kind: 'show-more',
+            kind: "show-more",
             rowKey: `${group.groupId}__show-more`,
             groupId: group.groupId,
             remaining,

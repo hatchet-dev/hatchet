@@ -5,8 +5,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../../ui/table';
-import React from 'react';
+} from "../../ui/table";
+import React from "react";
 
 type SimpleTableColumn<T> = {
   columnLabel: string;
@@ -45,9 +45,7 @@ export function SimpleTable<
           {data.map((row) => (
             <TableRow key={row.metadata.id}>
               {columns.map(({ columnLabel, cellRenderer }) => (
-                <TableCell key={columnLabel}>
-                  {cellRenderer(row)}
-                </TableCell>
+                <TableCell key={columnLabel}>{cellRenderer(row)}</TableCell>
               ))}
             </TableRow>
           ))}

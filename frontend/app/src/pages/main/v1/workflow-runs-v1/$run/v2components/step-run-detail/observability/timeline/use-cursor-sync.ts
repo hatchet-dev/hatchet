@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, type RefObject } from 'react';
+import { useState, useMemo, useCallback, useRef, type RefObject } from "react";
 
 interface TimelineValues {
   visMinStart: number;
@@ -58,9 +58,7 @@ export function useCursorSync(
         const v = valuesRef.current;
         const timeMs = v.visMinStart + localPct * v.timelineMaxMs;
         const fullPct =
-          v.traceTotalMs > 0
-            ? (timeMs - v.traceMinStart) / v.traceTotalMs
-            : 0;
+          v.traceTotalMs > 0 ? (timeMs - v.traceMinStart) / v.traceTotalMs : 0;
         onCursorPctChange(Math.max(0, Math.min(1, fullPct)));
       }
     },

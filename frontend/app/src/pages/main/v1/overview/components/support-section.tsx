@@ -3,11 +3,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from '@/components/v1/ui/card';
-import { Separator } from '@/components/v1/ui/separator';
-import { ArrowRightIcon } from '@radix-ui/react-icons';
-import { BiBook, BiMessageSquareDetail } from 'react-icons/bi';
-import { RiDiscordFill, RiGithubFill, RiSlackFill } from 'react-icons/ri';
+} from "@/components/v1/ui/card";
+import { Separator } from "@/components/v1/ui/separator";
+import { ArrowRightIcon } from "@radix-ui/react-icons";
+import { BiBook, BiMessageSquareDetail } from "react-icons/bi";
+import { RiDiscordFill, RiGithubFill, RiSlackFill } from "react-icons/ri";
 
 export function SupportSection() {
   return (
@@ -119,8 +119,7 @@ export function SupportSection() {
               GMT-5 Eastern Standard Time
             </span>
             <p className="text-sm text-muted-foreground whitespace-nowrap">
-              Weekdays{' '}
-              <span className="text-primary">09:00 - 17:00</span>
+              Weekdays <span className="text-primary">09:00 - 17:00</span>
             </p>
           </CardContent>
         </Card>

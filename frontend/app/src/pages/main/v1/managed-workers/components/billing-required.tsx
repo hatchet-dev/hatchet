@@ -1,16 +1,16 @@
-import { Button } from '@/components/v1/ui/button';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { Tenant } from '@/lib/api';
-import { queries } from '@/lib/api/queries';
-import { BillingContext } from '@/lib/atoms';
-import { appRoutes } from '@/router';
+import { Button } from "@/components/v1/ui/button";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { Tenant } from "@/lib/api";
+import { queries } from "@/lib/api/queries";
+import { BillingContext } from "@/lib/atoms";
+import { appRoutes } from "@/router";
 import {
   CalendarIcon,
   CpuChipIcon,
   CurrencyDollarIcon,
-} from '@heroicons/react/24/outline';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+} from "@heroicons/react/24/outline";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 
 interface BillingRequiredProps {
   tenant?: Tenant | undefined;
@@ -27,7 +27,7 @@ export function BillingRequired({
   const { tenantId } = useCurrentTenantId();
   // Query for compute cost information to show available credits
   const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenant?.metadata.id || ''),
+    ...queries.cloud.getComputeCost(tenant?.metadata.id || ""),
     enabled: !!tenant?.metadata.id,
   });
 
@@ -65,36 +65,24 @@ export function BillingRequired({
                   </h4>
                   <div className="mt-2 grid gap-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        CPU:
-                      </span>
-                      <span className="font-medium">
-                        $0.01/hour/CPU
-                      </span>
+                      <span className="text-muted-foreground">CPU:</span>
+                      <span className="font-medium">$0.01/hour/CPU</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Memory:
-                      </span>
-                      <span className="font-medium">
-                        $0.01/hour/GB RAM
-                      </span>
+                      <span className="text-muted-foreground">Memory:</span>
+                      <span className="font-medium">$0.01/hour/GB RAM</span>
                     </div>
                     {hasCredits &&
-                      computeCostQuery.data?.creditsRemaining !==
-                        undefined && (
+                      computeCostQuery.data?.creditsRemaining !== undefined && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">
                             Monthly Free Credits:
                           </span>
                           <span className="font-medium text-green-500">
-                            {new Intl.NumberFormat('en-US', {
-                              style: 'currency',
-                              currency: 'USD',
-                            }).format(
-                              computeCostQuery.data
-                                .creditsRemaining,
-                            )}
+                            {new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency: "USD",
+                            }).format(computeCostQuery.data.creditsRemaining)}
                           </span>
                         </div>
                       )}
@@ -106,27 +94,19 @@ export function BillingRequired({
             <div className="mb-8 flex justify-center rounded-lg bg-muted/30 p-6">
               <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-left text-sm">
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">
-                    •
-                  </span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>Auto-scaling workers based on slots</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">
-                    •
-                  </span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>Zero infrastructure headaches</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">
-                    •
-                  </span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>Multiple regions and machine types</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">
-                    •
-                  </span>
+                  <span className="mr-2 flex items-center text-primary">•</span>
                   <span>No cold starts</span>
                 </div>
               </div>
@@ -139,7 +119,7 @@ export function BillingRequired({
                 className="min-w-40 px-8 py-6 text-base"
                 size="lg"
               >
-                {portalLoading ? 'Loading...' : 'Set Up Billing →'}
+                {portalLoading ? "Loading..." : "Set Up Billing →"}
               </Button>
 
               <div className="relative">

@@ -1,17 +1,17 @@
-import { TaskRunActionButton } from '../../../task-runs-v1/actions';
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
-import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
-import { Toaster } from '@/components/v1/ui/toaster';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { V1TaskStatus, queries } from '@/lib/api';
-import { formatDuration } from '@/lib/utils';
-import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
-import { appRoutes } from '@/router';
-import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { TaskRunActionButton } from "../../../task-runs-v1/actions";
+import { useWorkflowDetails } from "../../hooks/use-workflow-details";
+import { TASK_RUN_TERMINAL_STATUSES } from "./step-run-detail/step-run-detail";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { CopyWorkflowConfigButton } from "@/components/v1/shared/copy-workflow-config";
+import { Toaster } from "@/components/v1/ui/toaster";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { V1TaskStatus, queries } from "@/lib/api";
+import { formatDuration } from "@/lib/utils";
+import { WorkflowDefinitionLink } from "@/pages/main/workflow-runs/$run/v2components/workflow-definition";
+import { appRoutes } from "@/router";
+import { AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 
 export const V1RunDetailHeader = () => {
   const { tenantId } = useCurrentTenantId();
@@ -51,9 +51,7 @@ export const V1RunDetailHeader = () => {
             <TaskRunActionButton
               actionType="cancel"
               paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
-              disabled={TASK_RUN_TERMINAL_STATUSES.includes(
-                workflowRun.status,
-              )}
+              disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
               showLabel
             />
@@ -90,7 +88,7 @@ const V1RunSummary = () => {
 
   timings.push(
     <div key="created" className="text-sm text-muted-foreground">
-      {'Created '}
+      {"Created "}
       <RelativeDate date={workflowRun.createdAt} />
     </div>,
   );
@@ -98,7 +96,7 @@ const V1RunSummary = () => {
   if (workflowRun.startedAt) {
     timings.push(
       <div key="started" className="text-sm text-muted-foreground">
-        {'Started '}
+        {"Started "}
         <RelativeDate date={workflowRun.startedAt} />
       </div>,
     );
@@ -110,13 +108,10 @@ const V1RunSummary = () => {
     );
   }
 
-  if (
-    workflowRun.status === V1TaskStatus.CANCELLED &&
-    workflowRun.finishedAt
-  ) {
+  if (workflowRun.status === V1TaskStatus.CANCELLED && workflowRun.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
-        {'Cancelled '}
+        {"Cancelled "}
         <RelativeDate date={workflowRun.finishedAt} />
       </div>,
     );
@@ -125,19 +120,16 @@ const V1RunSummary = () => {
   if (workflowRun.status === V1TaskStatus.FAILED && workflowRun.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
-        {'Failed '}
+        {"Failed "}
         <RelativeDate date={workflowRun.finishedAt} />
       </div>,
     );
   }
 
-  if (
-    workflowRun.status === V1TaskStatus.COMPLETED &&
-    workflowRun.finishedAt
-  ) {
+  if (workflowRun.status === V1TaskStatus.COMPLETED && workflowRun.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
-        {'Succeeded '}
+        {"Succeeded "}
         <RelativeDate date={workflowRun.finishedAt} />
       </div>,
     );
@@ -166,9 +158,7 @@ const V1RunSummary = () => {
   });
 
   return (
-    <div className="flex flex-row items-center gap-4">
-      {interleavedTimings}
-    </div>
+    <div className="flex flex-row items-center gap-4">{interleavedTimings}</div>
   );
 };
 
@@ -189,7 +179,7 @@ function TriggeringParentWorkflowRunSection({
 
   // Get the parent workflow run details - only enabled when we have a parent workflow run ID
   const parentWorkflowRunQuery = useQuery({
-    ...queries.v1WorkflowRuns.details(parentWorkflowRunId || ''),
+    ...queries.v1WorkflowRuns.details(parentWorkflowRunId || ""),
     enabled: !!parentWorkflowRunId,
   });
 

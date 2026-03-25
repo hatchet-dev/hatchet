@@ -1,7 +1,7 @@
-import { formatInviteExpiry } from './format-invite-expiry';
-import type { TenantWithRole } from './index';
-import { Button } from '@/components/v1/ui/button';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import { formatInviteExpiry } from "./format-invite-expiry";
+import type { TenantWithRole } from "./index";
+import { Button } from "@/components/v1/ui/button";
+import CopyToClipboard from "@/components/v1/ui/copy-to-clipboard";
 import {
   Table,
   TableBody,
@@ -9,18 +9,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/v1/ui/table';
+} from "@/components/v1/ui/table";
 import {
   TenantInvite,
   TenantMember,
   TenantMemberRole,
-} from '@/lib/api/generated/data-contracts';
-import { globalEmitter } from '@/lib/global-emitter';
-import { capitalize } from '@/lib/utils';
-import { appRoutes } from '@/router';
-import { ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { Link } from '@tanstack/react-router';
-import { Fragment, useState } from 'react';
+} from "@/lib/api/generated/data-contracts";
+import { globalEmitter } from "@/lib/global-emitter";
+import { capitalize } from "@/lib/utils";
+import { appRoutes } from "@/router";
+import { ChevronRightIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { Link } from "@tanstack/react-router";
+import { Fragment, useState } from "react";
 
 export const TenantTable = ({
   tenants,
@@ -91,20 +91,16 @@ export const TenantTable = ({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-muted-foreground">
-                      {tenant.slug}
-                    </span>
+                    <span className="text-muted-foreground">{tenant.slug}</span>
                   </TableCell>
                   <TableCell>
                     {members != null ? (
                       <button
-                        onClick={() =>
-                          toggleExpanded(tenant.metadata.id)
-                        }
+                        onClick={() => toggleExpanded(tenant.metadata.id)}
                         className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
                       >
                         <ChevronRightIcon
-                          className={`size-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                          className={`size-3.5 transition-transform ${isExpanded ? "rotate-90" : ""}`}
                         />
                         {members.length}
                       </button>
@@ -115,9 +111,7 @@ export const TenantTable = ({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() =>
-                          onInviteMember(tenant.metadata.id)
-                        }
+                        onClick={() => onInviteMember(tenant.metadata.id)}
                         leftIcon={<PlusIcon className="size-4" />}
                       >
                         Invite new member
@@ -133,7 +127,7 @@ export const TenantTable = ({
                     >
                       <TableCell>
                         <span className="text-sm">
-                          {member.user?.email ?? '-'}
+                          {member.user?.email ?? "-"}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -153,14 +147,11 @@ export const TenantTable = ({
                       className="bg-muted/30 text-muted-foreground"
                     >
                       <TableCell>
-                        <span className="text-sm">
-                          {invite.email}
-                        </span>
+                        <span className="text-sm">{invite.email}</span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">
-                          Invited{' '}
-                          {formatInviteExpiry(invite.expires)}
+                          Invited {formatInviteExpiry(invite.expires)}
                         </span>
                       </TableCell>
                       <TableCell />
@@ -204,7 +195,7 @@ export const TenantList = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => globalEmitter.emit('create-new-tenant', {})}
+          onClick={() => globalEmitter.emit("create-new-tenant", {})}
           leftIcon={<PlusIcon className="size-4" />}
         >
           Add a tenant
@@ -215,7 +206,7 @@ export const TenantList = ({
         tenantMembers={tenantMembers}
         tenantInvites={tenantInvites}
         onInviteMember={(tenantId) =>
-          globalEmitter.emit('create-tenant-invite', { tenantId })
+          globalEmitter.emit("create-tenant-invite", { tenantId })
         }
       />
     </div>

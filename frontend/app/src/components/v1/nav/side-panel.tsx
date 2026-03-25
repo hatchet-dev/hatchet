@@ -1,13 +1,13 @@
-import { Button } from '../ui/button';
-import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import { useSidePanel } from '@/hooks/use-side-panel';
-import { cn } from '@/lib/utils';
+import { Button } from "../ui/button";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { useSidePanel } from "@/hooks/use-side-panel";
+import { cn } from "@/lib/utils";
 import {
   Cross2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
-} from '@radix-ui/react-icons';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+} from "@radix-ui/react-icons";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 const DEFAULT_PANEL_WIDTH = 650;
 const MIN_PANEL_WIDTH = 350;
@@ -23,7 +23,7 @@ export function SidePanel() {
     goForward,
   } = useSidePanel();
   const [storedPanelWidth, setStoredPanelWidth] = useLocalStorageState(
-    'sidePanelWidth',
+    "sidePanelWidth",
     DEFAULT_PANEL_WIDTH,
   );
 
@@ -68,14 +68,14 @@ export function SidePanel() {
 
   useEffect(() => {
     if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
 
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.body.style.cursor = '';
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+        document.body.style.cursor = "";
       };
     }
   }, [isResizing, handleMouseMove, handleMouseUp]);
@@ -85,8 +85,8 @@ export function SidePanel() {
       ref={panelRef}
       data-cy="side-panel"
       className={cn(
-        'relative flex flex-shrink-0 flex-col overflow-hidden border-l border-border bg-background h-full',
-        !isResizing && 'transition-all duration-300 ease-in-out',
+        "relative flex flex-shrink-0 flex-col overflow-hidden border-l border-border bg-background h-full",
+        !isResizing && "transition-all duration-300 ease-in-out",
       )}
       style={{
         width: panelWidth,
@@ -96,8 +96,8 @@ export function SidePanel() {
         <>
           <div
             className={cn(
-              'absolute bottom-0 left-0 top-0 z-10 w-1 cursor-col-resize transition-colors hover:bg-blue-500/20',
-              isResizing && 'bg-blue-500/30',
+              "absolute bottom-0 left-0 top-0 z-10 w-1 cursor-col-resize transition-colors hover:bg-blue-500/20",
+              isResizing && "bg-blue-500/30",
             )}
             onMouseDown={handleMouseDown}
           />
@@ -140,8 +140,8 @@ export function SidePanel() {
           <div
             data-cy="side-panel-content"
             className={cn(
-              'side-panel-content flex-1 overflow-auto p-4',
-              isResizing && 'pointer-events-none',
+              "side-panel-content flex-1 overflow-auto p-4",
+              isResizing && "pointer-events-none",
             )}
           >
             {maybeContent.component}

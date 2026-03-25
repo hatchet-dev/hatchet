@@ -1,72 +1,72 @@
-import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
-import { useToast } from '@/components/v1/hooks/use-toast';
-import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
+import { useRunsContext } from "../workflow-runs-v1/hooks/runs-provider";
+import { useToast } from "@/components/v1/hooks/use-toast";
+import { IDGetter } from "@/components/v1/molecules/data-table/data-table";
 import {
   DataTableOptionsContent,
   DataTableOptionsContentProps,
-} from '@/components/v1/molecules/data-table/data-table-options';
-import { Button } from '@/components/v1/ui/button';
+} from "@/components/v1/molecules/data-table/data-table-options";
+import { Button } from "@/components/v1/ui/button";
 import {
   DialogTitle,
   Dialog,
   DialogContent,
   DialogHeader,
-} from '@/components/v1/ui/dialog';
+} from "@/components/v1/ui/dialog";
 import {
   PortalTooltip,
   PortalTooltipContent,
   PortalTooltipProvider,
   PortalTooltipTrigger,
-} from '@/components/v1/ui/portal-tooltip';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+} from "@/components/v1/ui/portal-tooltip";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
 import api, {
   queries,
   V1CancelTaskRequest,
   V1ReplayTaskRequest,
-} from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
-import { cn } from '@/lib/utils';
-import { XCircleIcon } from '@heroicons/react/24/outline';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { capitalize } from 'lodash';
-import { Repeat1 } from 'lucide-react';
-import { useCallback } from 'react';
+} from "@/lib/api";
+import { useApiError } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
+import { XCircleIcon } from "@heroicons/react/24/outline";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { capitalize } from "lodash";
+import { Repeat1 } from "lucide-react";
+import { useCallback } from "react";
 
-export type ActionType = 'cancel' | 'replay';
+export type ActionType = "cancel" | "replay";
 
 export type BaseTaskRunActionParams =
   | {
       filter?: never;
       externalIds:
-        | NonNullable<V1CancelTaskRequest['externalIds']>
-        | NonNullable<V1ReplayTaskRequest['externalIds']>;
+        | NonNullable<V1CancelTaskRequest["externalIds"]>
+        | NonNullable<V1ReplayTaskRequest["externalIds"]>;
     }
   | {
       filter:
-        | NonNullable<V1CancelTaskRequest['filter']>
-        | NonNullable<V1ReplayTaskRequest['filter']>;
+        | NonNullable<V1CancelTaskRequest["filter"]>
+        | NonNullable<V1ReplayTaskRequest["filter"]>;
       externalIds?: never;
     };
 
 type TaskRunActionsParams =
   | {
-      actionType: 'cancel';
+      actionType: "cancel";
       filter?: never;
-      externalIds: NonNullable<V1CancelTaskRequest['externalIds']>;
+      externalIds: NonNullable<V1CancelTaskRequest["externalIds"]>;
     }
   | {
-      actionType: 'cancel';
-      filter: NonNullable<V1CancelTaskRequest['filter']>;
+      actionType: "cancel";
+      filter: NonNullable<V1CancelTaskRequest["filter"]>;
       externalIds?: never;
     }
   | {
-      actionType: 'replay';
+      actionType: "replay";
       filter?: never;
-      externalIds: NonNullable<V1ReplayTaskRequest['externalIds']>;
+      externalIds: NonNullable<V1ReplayTaskRequest["externalIds"]>;
     }
   | {
-      actionType: 'replay';
-      filter: NonNullable<V1ReplayTaskRequest['filter']>;
+      actionType: "replay";
+      filter: NonNullable<V1ReplayTaskRequest["filter"]>;
       externalIds?: never;
     };
 
@@ -87,12 +87,12 @@ const useTaskRunActions = () => {
   );
 
   const handleActionProcessed = useCallback(
-    (action: 'cancel' | 'replay', ids: string[]) => {
-      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
+    (action: "cancel" | "replay", ids: string[]) => {
+      const prefix = action === "cancel" ? "Canceling" : "Replaying";
       const count = ids.length;
 
       const t = toast({
-        title: `${prefix} ${count} task run${count > 1 ? 's' : ''}`,
+        title: `${prefix} ${count} task run${count > 1 ? "s" : ""}`,
         description: `This may take a few seconds. You don't need to hit ${action} again.`,
       });
 
@@ -104,14 +104,14 @@ const useTaskRunActions = () => {
   );
 
   const { mutateAsync: handleAction } = useMutation({
-    mutationKey: ['task-run:action'],
+    mutationKey: ["task-run:action"],
     mutationFn: async (params: TaskRunActionsParams) => {
       const actionType: ActionType = params.actionType;
 
       switch (actionType) {
-        case 'cancel':
+        case "cancel":
           return api.v1TaskCancel(tenantId, params);
-        case 'replay':
+        case "replay":
           return api.v1TaskReplay(tenantId, params);
         default:
           const exhaustiveCheck: never = actionType;
@@ -165,10 +165,10 @@ type ConfirmActionModalProps = {
 
 const actionTypeToLabel = (actionType: ActionType) => {
   switch (actionType) {
-    case 'cancel':
-      return 'Cancel';
-    case 'replay':
-      return 'Replay';
+    case "cancel":
+      return "Cancel";
+    case "replay":
+      return "Replay";
     default:
       const exhaustiveCheck: never = actionType;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
@@ -338,9 +338,9 @@ const BaseActionButton = ({
       <PortalTooltip>
         <PortalTooltipTrigger>
           <Button
-            size={'sm'}
-            className={cn('text-sm gap-2', className)}
-            variant={'outline'}
+            size={"sm"}
+            className={cn("text-sm gap-2", className)}
+            variant={"outline"}
             disabled={disabled}
             onClick={() => {
               setSelectedActionType(params.actionType);
@@ -382,25 +382,25 @@ export const TaskRunActionButton = ({
   const params = paramOverrides || actionModalParams;
 
   switch (actionType) {
-    case 'cancel':
+    case "cancel":
       return (
         <BaseActionButton
           disabled={disabled}
-          params={{ ...params, actionType: 'cancel' }}
+          params={{ ...params, actionType: "cancel" }}
           icon={<XCircleIcon className="size-4" />}
-          label={'Cancel'}
+          label={"Cancel"}
           showModal={showModal}
           className={className}
           showLabel={showLabel}
         />
       );
-    case 'replay':
+    case "replay":
       return (
         <BaseActionButton
           disabled={disabled}
-          params={{ ...params, actionType: 'replay' }}
+          params={{ ...params, actionType: "replay" }}
           icon={<Repeat1 className="size-4" />}
-          label={'Replay'}
+          label={"Replay"}
           showModal={showModal}
           className={className}
           showLabel={showLabel}

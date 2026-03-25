@@ -1,11 +1,11 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
-import { SlackWebhook } from '@/lib/api';
+} from "@/components/v1/ui/dialog";
+import { Spinner } from "@/components/v1/ui/loading.tsx";
+import { SlackWebhook } from "@/lib/api";
 
 interface DeleteSlackFormProps {
   className?: string;
@@ -23,9 +23,9 @@ export function DeleteSlackForm({ className, ...props }: DeleteSlackFormProps) {
       </DialogHeader>
       <div>
         <div className="mb-4 text-sm text-foreground">
-          Are you sure you want to delete the Slack webhook for channel{' '}
-          {props.slackWebhook.channelName} in team{' '}
-          {props.slackWebhook.teamName}?
+          Are you sure you want to delete the Slack webhook for channel{" "}
+          {props.slackWebhook.channelName} in team {props.slackWebhook.teamName}
+          ?
         </div>
         <div className="flex flex-row gap-4">
           <Button

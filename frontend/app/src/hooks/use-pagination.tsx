@@ -1,6 +1,6 @@
-import { useSearchParams } from '@/lib/router-helpers';
-import { PaginationState, Updater } from '@tanstack/react-table';
-import { useCallback, useMemo } from 'react';
+import { useSearchParams } from "@/lib/router-helpers";
+import { PaginationState, Updater } from "@tanstack/react-table";
+import { useCallback, useMemo } from "react";
 
 type PaginationQueryShape = {
   i: number; // index
@@ -25,9 +25,9 @@ const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
 
   if (
     !parsedPaginationState ||
-    typeof parsedPaginationState !== 'object' ||
-    !('i' in parsedPaginationState) ||
-    !('s' in parsedPaginationState)
+    typeof parsedPaginationState !== "object" ||
+    !("i" in parsedPaginationState) ||
+    !("s" in parsedPaginationState)
   ) {
     return {
       pageIndex: 0,
@@ -134,9 +134,7 @@ export const usePagination = ({ key }: UsePaginationProps) => {
       setSearchParams((prev) => {
         const currentPagination = parsePaginationParam(prev, paramKey);
         const newPagination =
-          typeof updater === 'function'
-            ? updater(currentPagination)
-            : updater;
+          typeof updater === "function" ? updater(currentPagination) : updater;
 
         return {
           ...Object.fromEntries(prev.entries()),

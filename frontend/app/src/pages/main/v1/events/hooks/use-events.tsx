@@ -1,4 +1,4 @@
-import { workflowRunStatusFilters } from '../../workflow-runs-v1/hooks/use-toolbar-filters';
+import { workflowRunStatusFilters } from "../../workflow-runs-v1/hooks/use-toolbar-filters";
 import {
   keyKey,
   workflowKey,
@@ -6,16 +6,16 @@ import {
   metadataKey,
   idKey,
   scopeKey,
-} from '../components/event-columns';
-import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { usePagination } from '@/hooks/use-pagination';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
-import api, { queries, V1TaskStatus } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { z } from 'zod';
+} from "../components/event-columns";
+import { FilterOption } from "@/components/v1/molecules/data-table/data-table-toolbar";
+import { useRefetchInterval } from "@/contexts/refetch-interval-context";
+import { usePagination } from "@/hooks/use-pagination";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { useZodColumnFilters } from "@/hooks/use-zod-column-filters";
+import api, { queries, V1TaskStatus } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { z } from "zod";
 
 type UseEventsProps = {
   key: string;
@@ -64,7 +64,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
     queryKey: [
-      'v1:events:list',
+      "v1:events:list",
       tenantId,
       {
         keys: selectedKeys,
@@ -105,7 +105,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
     isLoading: eventKeysIsLoading,
     error: eventKeysError,
   } = useQuery({
-    queryKey: ['v1:events:listKeys', tenantId],
+    queryKey: ["v1:events:listKeys", tenantId],
     queryFn: async () => {
       const response = await api.v1EventKeyList(tenantId);
       return response.data;

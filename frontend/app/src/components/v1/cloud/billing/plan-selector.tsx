@@ -1,21 +1,21 @@
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from '@/components/v1/ui/card';
-import { Spinner } from '@/components/v1/ui/loading';
-import { queries } from '@/lib/api';
+} from "@/components/v1/ui/card";
+import { Spinner } from "@/components/v1/ui/loading";
+import { queries } from "@/lib/api";
 import {
   Coupon,
   SubscriptionPlan,
   SubscriptionPlanFeatureGroup,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
-import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+} from "@/lib/api/generated/cloud/data-contracts";
+import { CheckIcon, Cross2Icon } from "@radix-ui/react-icons";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 
 interface PlanSelectorProps {
   activePlanCode: string;
@@ -30,10 +30,10 @@ interface PlanSelectorProps {
 }
 
 function formatCurrency(cents: number, period?: string) {
-  const monthly = period === 'yearly' ? cents / 100 / 12 : cents / 100;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  const monthly = period === "yearly" ? cents / 100 / 12 : cents / 100;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
   }).format(monthly);
 }
 
@@ -76,25 +76,21 @@ export function PlanSelector({
   const plans = plansQuery.data?.plans;
 
   const sortedPlans = useMemo(() => {
-    const nonLegacy = plans?.filter(
-      (v) => !v.legacy && v.planCode !== 'free',
-    );
+    const nonLegacy = plans?.filter((v) => !v.legacy && v.planCode !== "free");
 
     const hasYearlyVariant = (planCode: string) =>
       nonLegacy?.some(
         (p) =>
-          p.planCode.startsWith(planCode.split('_')[0]) &&
-          p.period?.includes('yearly'),
+          p.planCode.startsWith(planCode.split("_")[0]) &&
+          p.period?.includes("yearly"),
       );
 
     return nonLegacy
       ?.filter((v) => {
         if (showAnnual) {
-          return (
-            v.period?.includes('yearly') || !hasYearlyVariant(v.planCode)
-          );
+          return v.period?.includes("yearly") || !hasYearlyVariant(v.planCode);
         }
-        return v.period?.includes('monthly') || !v.period;
+        return v.period?.includes("monthly") || !v.period;
       })
       .sort((a, b) => a.amountCents - b.amountCents);
   }, [plans, showAnnual]);
@@ -159,13 +155,13 @@ export function PlanSelector({
         name="Enterprise"
         description="Have technical or compliance requirements?"
         enterpriseHighlights={[
-          '100M+ runs per month',
-          'Custom SLAs & uptime guarantees',
-          'Dedicated support & onboarding',
-          'SSO / SAML & audit logging',
-          'Bring your own cloud',
+          "100M+ runs per month",
+          "Custom SLAs & uptime guarantees",
+          "Dedicated support & onboarding",
+          "SSO / SAML & audit logging",
+          "Bring your own cloud",
         ]}
-        onSelect={() => window.open(enterpriseContactUrl, '_blank')}
+        onSelect={() => window.open(enterpriseContactUrl, "_blank")}
         buttonLabel="Contact Us"
       />
     </div>
@@ -209,7 +205,7 @@ function PlanCard({
     <Card
       variant="light"
       className={`bg-transparent ring-1 border-none flex flex-col ${
-        isActive ? 'ring-primary' : 'ring-border/50'
+        isActive ? "ring-primary" : "ring-border/50"
       }`}
     >
       <CardHeader className="p-4 border-b border-border/50">
@@ -230,7 +226,7 @@ function PlanCard({
                 {price}
               </span>
               <span className="text-xs text-muted-foreground ml-1">
-                / mo {!showAnnual ? ' + usage' : ''}
+                / mo {!showAnnual ? " + usage" : ""}
               </span>
               {couponBadge && (
                 <Badge
@@ -247,9 +243,7 @@ function PlanCard({
               )}
             </>
           ) : (
-            <span className="text-sm text-muted-foreground">
-              {description}
-            </span>
+            <span className="text-sm text-muted-foreground">{description}</span>
           )}
         </div>
 
@@ -275,7 +269,7 @@ function PlanCard({
                   {group.features.map((f) => (
                     <li
                       key={f.featureId}
-                      className={`flex items-start gap-2 text-sm ${!f.included ? 'opacity-40' : ''}`}
+                      className={`flex items-start gap-2 text-sm ${!f.included ? "opacity-40" : ""}`}
                     >
                       {f.included ? (
                         <CheckIcon className="size-3.5 mt-0.5 shrink-0 text-primary" />
@@ -286,8 +280,8 @@ function PlanCard({
                         <span
                           className={
                             f.included
-                              ? 'text-foreground'
-                              : 'text-muted-foreground'
+                              ? "text-foreground"
+                              : "text-muted-foreground"
                           }
                         >
                           {f.display?.primaryText ?? f.name}
@@ -309,10 +303,10 @@ function PlanCard({
         <Button
           variant={
             isActive || isUpcoming
-              ? 'outline'
+              ? "outline"
               : isUpgrade
-                ? 'default'
-                : 'outline'
+                ? "default"
+                : "outline"
           }
           size="sm"
           disabled={isActive || isUpcoming || isLoading}
@@ -322,13 +316,11 @@ function PlanCard({
           {isLoading ? (
             <Spinner />
           ) : isActive ? (
-            'Current Plan'
+            "Current Plan"
           ) : isUpcoming ? (
-            'Upcoming Plan'
+            "Upcoming Plan"
           ) : (
-            buttonLabel ||
-            selectLabel ||
-            (isUpgrade ? 'Upgrade' : 'Downgrade')
+            buttonLabel || selectLabel || (isUpgrade ? "Upgrade" : "Downgrade")
           )}
         </Button>
       </CardContent>

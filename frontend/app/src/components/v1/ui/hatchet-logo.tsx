@@ -1,10 +1,10 @@
-import { cn } from '@/lib/utils';
-import React from 'react';
+import { cn } from "@/lib/utils";
+import React from "react";
 
 type HatchetLogoProps = React.SVGAttributes<SVGSVGElement> & {
   title?: string;
-  colorVariant?: 'brand' | 'inherit';
-  variant?: 'lockup' | 'mark' | 'wordmark';
+  colorVariant?: "brand" | "inherit";
+  variant?: "lockup" | "mark" | "wordmark";
 };
 
 /**
@@ -12,31 +12,27 @@ type HatchetLogoProps = React.SVGAttributes<SVGSVGElement> & {
  * Uses `currentColor` so it automatically adapts to theme via text color.
  */
 export function HatchetLogo({
-  title = 'Hatchet',
-  colorVariant = 'brand',
-  variant = 'lockup',
+  title = "Hatchet",
+  colorVariant = "brand",
+  variant = "lockup",
   className,
   ...props
 }: HatchetLogoProps) {
-  const isMarkOnly = variant === 'mark';
-  const isWordmarkOnly = variant === 'wordmark';
+  const isMarkOnly = variant === "mark";
+  const isWordmarkOnly = variant === "wordmark";
 
   return (
     <svg
       viewBox={
-        isMarkOnly
-          ? '0 0 33 24'
-          : isWordmarkOnly
-            ? '41 0 96 24'
-            : '0 0 137 24'
+        isMarkOnly ? "0 0 33 24" : isWordmarkOnly ? "41 0 96 24" : "0 0 137 24"
       }
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
       aria-label={title}
       className={cn(
-        colorVariant === 'brand' &&
-          'text-[rgb(0,26,56)] dark:text-[rgb(184,217,255)]',
+        colorVariant === "brand" &&
+          "text-[rgb(0,26,56)] dark:text-[rgb(184,217,255)]",
         className,
       )}
       {...props}

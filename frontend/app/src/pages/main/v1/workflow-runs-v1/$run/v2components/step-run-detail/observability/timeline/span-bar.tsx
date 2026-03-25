@@ -2,11 +2,11 @@ import {
   getBarColor,
   hasErrorInTree,
   isQueuedOnlyRoot,
-} from '../utils/span-tree-utils';
-import { ROW_HEIGHT, type FlatSpanRow } from './trace-timeline-utils';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { cn } from '@/lib/utils';
-import { memo, type MouseEvent } from 'react';
+} from "../utils/span-tree-utils";
+import { ROW_HEIGHT, type FlatSpanRow } from "./trace-timeline-utils";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
+import { cn } from "@/lib/utils";
+import { memo, type MouseEvent } from "react";
 
 interface SpanBarProps {
   row: FlatSpanRow;
@@ -61,9 +61,7 @@ export const SpanBar = memo(function SpanBar({
     // visualize scheduling + worker dispatch latency instead of hiding it.
     const snappedDurMs = qEndMs - qStartMs;
     qLeftPct =
-      timelineMaxMs > 0
-        ? ((qStartMs - visMinStart) / timelineMaxMs) * 100
-        : 0;
+      timelineMaxMs > 0 ? ((qStartMs - visMinStart) / timelineMaxMs) * 100 : 0;
     qWidthPct = timelineMaxMs > 0 ? (snappedDurMs / timelineMaxMs) * 100 : 0;
   }
 
@@ -77,24 +75,24 @@ export const SpanBar = memo(function SpanBar({
   return (
     <div
       className={cn(
-        'relative shrink-0 transition-colors',
-        isSelected && 'bg-primary/8',
-        isBarDimmed && 'opacity-40',
+        "relative shrink-0 transition-colors",
+        isSelected && "bg-primary/8",
+        isBarDimmed && "opacity-40",
       )}
       style={{ height: ROW_HEIGHT }}
     >
       {q && (
         <div
           className={cn(
-            'absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px] border border-dashed',
-            !noTransition && 'transition-all',
+            "absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px] border border-dashed",
+            !noTransition && "transition-all",
             (row.span.inProgress || isQueuedOnlyRoot(row.span)) &&
-              'animate-pulse',
+              "animate-pulse",
             row.span.inProgress
-              ? 'border-yellow-500 bg-yellow-500/10'
+              ? "border-yellow-500 bg-yellow-500/10"
               : hasErrorInTree(row.span)
-                ? 'border-red-500 bg-red-500/10'
-                : 'border-green-500 bg-green-500/10',
+                ? "border-red-500 bg-red-500/10"
+                : "border-green-500 bg-green-500/10",
           )}
           style={{
             left: `${qLeftPct}%`,
@@ -110,15 +108,15 @@ export const SpanBar = memo(function SpanBar({
       {!hideExecutionBar && (
         <div
           className={cn(
-            'absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px]',
+            "absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px]",
             getBarColor(row.span),
-            !noTransition && 'transition-all',
-            row.span.inProgress && 'animate-pulse',
+            !noTransition && "transition-all",
+            row.span.inProgress && "animate-pulse",
             isSelected
-              ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+              ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
               : isHovered
-                ? 'ring-1 ring-foreground/20'
-                : '',
+                ? "ring-1 ring-foreground/20"
+                : "",
           )}
           style={{
             left: `${leftPct}%`,

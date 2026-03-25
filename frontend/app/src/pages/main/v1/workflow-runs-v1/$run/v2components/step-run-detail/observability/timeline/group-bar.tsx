@@ -2,9 +2,9 @@ import {
   ROW_HEIGHT,
   type FlatGroupRow,
   type SpanGroupInfo,
-} from './trace-timeline-utils';
-import { cn } from '@/lib/utils';
-import { memo, type MouseEvent } from 'react';
+} from "./trace-timeline-utils";
+import { cn } from "@/lib/utils";
+import { memo, type MouseEvent } from "react";
 
 interface GroupBarProps {
   row: FlatGroupRow;
@@ -45,21 +45,21 @@ export const GroupBar = memo(function GroupBar({
   return (
     <div
       className={cn(
-        'relative shrink-0 transition-colors',
-        isSelected && 'bg-primary/8',
+        "relative shrink-0 transition-colors",
+        isSelected && "bg-primary/8",
       )}
       style={{ height: ROW_HEIGHT }}
     >
       <div
         className={cn(
-          'absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px]',
-          !noTransition && 'transition-all',
-          hasErrors ? 'bg-red-500' : 'bg-green-500',
+          "absolute bottom-[10px] top-[10px] cursor-pointer rounded-[2px]",
+          !noTransition && "transition-all",
+          hasErrors ? "bg-red-500" : "bg-green-500",
           isSelected
-            ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+            ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
             : isHovered
-              ? 'ring-1 ring-foreground/20'
-              : '',
+              ? "ring-1 ring-foreground/20"
+              : "",
         )}
         style={{
           left: `${leftPct}%`,

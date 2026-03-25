@@ -1,28 +1,28 @@
-import { createFilterSchema, CreateFilterFormData } from '../schemas';
-import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
+import { createFilterSchema, CreateFilterFormData } from "../schemas";
+import { FilterOption } from "@/components/v1/molecules/data-table/data-table-toolbar";
+import { Button } from "@/components/v1/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+} from "@/components/v1/ui/dialog";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
-import { Textarea } from '@/components/v1/ui/textarea';
-import { V1CreateFilterRequest } from '@/lib/api';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Filter } from 'lucide-react';
-import { useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+} from "@/components/v1/ui/select";
+import { Textarea } from "@/components/v1/ui/textarea";
+import { V1CreateFilterRequest } from "@/lib/api";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Filter } from "lucide-react";
+import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
 
 interface FilterCreateFormProps {
   isOpen: boolean;
@@ -44,10 +44,10 @@ function FilterCreateForm({
   const form = useForm<CreateFilterFormData>({
     resolver: zodResolver(createFilterSchema),
     defaultValues: {
-      workflowId: '',
-      scope: '',
-      expression: '',
-      payload: '',
+      workflowId: "",
+      scope: "",
+      expression: "",
+      payload: "",
     },
   });
 
@@ -61,7 +61,7 @@ function FilterCreateForm({
 
   const onSubmit = async (data: CreateFilterFormData) => {
     try {
-      const payloadText = data.payload.trim() || '{}';
+      const payloadText = data.payload.trim() || "{}";
       const payloadObj = JSON.parse(payloadText);
       setPayloadError(null);
 
@@ -73,10 +73,10 @@ function FilterCreateForm({
       onClose();
     } catch (error) {
       if (error instanceof SyntaxError) {
-        setPayloadError('The filter payload must be valid JSON');
+        setPayloadError("The filter payload must be valid JSON");
         return;
       }
-      console.error('Failed to create filter:', error);
+      console.error("Failed to create filter:", error);
     }
   };
 
@@ -103,19 +103,13 @@ function FilterCreateForm({
               name="workflowId"
               control={control}
               render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                >
+                <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a workflow" />
                   </SelectTrigger>
                   <SelectContent>
                     {workflowNameFilters.map((workflow) => (
-                      <SelectItem
-                        key={workflow.value}
-                        value={workflow.value}
-                      >
+                      <SelectItem key={workflow.value} value={workflow.value}>
                         {workflow.label}
                       </SelectItem>
                     ))}
@@ -134,13 +128,11 @@ function FilterCreateForm({
             <Label htmlFor="create-scope">Scope *</Label>
             <Input
               id="create-scope"
-              {...register('scope')}
+              {...register("scope")}
               placeholder="e.g., event, step, workflow"
             />
             {errors.scope && (
-              <p className="text-sm text-red-600">
-                {errors.scope.message}
-              </p>
+              <p className="text-sm text-red-600">{errors.scope.message}</p>
             )}
           </div>
 
@@ -148,7 +140,7 @@ function FilterCreateForm({
             <Label htmlFor="create-expression">Expression *</Label>
             <Textarea
               id="create-expression"
-              {...register('expression')}
+              {...register("expression")}
               placeholder="Enter your filter expression..."
               className="min-h-[100px] font-mono"
             />
@@ -163,11 +155,11 @@ function FilterCreateForm({
             <Label htmlFor="create-payload">Payload (JSON)</Label>
             <Textarea
               id="create-payload"
-              {...register('payload')}
+              {...register("payload")}
               placeholder='{"key": "value"} or leave empty for {}'
               className="min-h-[80px] font-mono text-sm"
               onChange={(e) => {
-                register('payload').onChange(e);
+                register("payload").onChange(e);
                 setPayloadError(null);
               }}
             />
@@ -182,7 +174,7 @@ function FilterCreateForm({
             Cancel
           </Button>
           <Button onClick={handleSubmit(onSubmit)} disabled={isCreating}>
-            {isCreating ? 'Creating...' : 'Create Filter'}
+            {isCreating ? "Creating..." : "Create Filter"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -194,7 +186,7 @@ export function FilterCreateButton({
   workflowNameFilters,
   onCreate,
   isCreating,
-}: Omit<FilterCreateFormProps, 'isOpen' | 'onClose'>) {
+}: Omit<FilterCreateFormProps, "isOpen" | "onClose">) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (

@@ -1,4 +1,4 @@
-import { formatDuration } from '../utils/format-utils';
+import { formatDuration } from "../utils/format-utils";
 
 interface CursorOverlayProps {
   activePct: number;
@@ -18,10 +18,10 @@ export function CursorOverlay({ activePct, totalMs }: CursorOverlayProps) {
           left: `${activePct * 100}%`,
           transform:
             activePct < 0.08
-              ? 'none'
+              ? "none"
               : activePct > 0.92
-                ? 'translateX(-100%)'
-                : 'translateX(-50%)',
+                ? "translateX(-100%)"
+                : "translateX(-50%)",
         }}
       >
         {formatDuration(totalMs * activePct)}

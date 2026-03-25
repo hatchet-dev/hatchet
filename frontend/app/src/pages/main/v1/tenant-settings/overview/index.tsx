@@ -1,17 +1,17 @@
-import { UpdateTenantForm } from './components/update-tenant-form';
-import { Alert, AlertDescription } from '@/components/v1/ui/alert';
-import { Button } from '@/components/v1/ui/button';
-import { Spinner } from '@/components/v1/ui/loading';
-import { Separator } from '@/components/v1/ui/separator';
-import { Switch } from '@/components/v1/ui/switch';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import api, { UpdateTenantRequest } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
-import { useApiError } from '@/lib/hooks';
-import { capitalize } from '@/lib/utils';
-import { Label } from '@radix-ui/react-label';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { UpdateTenantForm } from "./components/update-tenant-form";
+import { Alert, AlertDescription } from "@/components/v1/ui/alert";
+import { Button } from "@/components/v1/ui/button";
+import { Spinner } from "@/components/v1/ui/loading";
+import { Separator } from "@/components/v1/ui/separator";
+import { Switch } from "@/components/v1/ui/switch";
+import { useCurrentTenantId, useTenantDetails } from "@/hooks/use-tenant";
+import api, { UpdateTenantRequest } from "@/lib/api";
+import { cloudApi } from "@/lib/api/api";
+import { useApiError } from "@/lib/hooks";
+import { capitalize } from "@/lib/utils";
+import { Label } from "@radix-ui/react-label";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 export default function TenantSettings() {
   const { tenant } = useTenantDetails();
@@ -20,7 +20,7 @@ export default function TenantSettings() {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
-          {capitalize(tenant?.name || '')} Overview
+          {capitalize(tenant?.name || "")} Overview
         </h2>
         <Separator className="my-4" />
         <UpdateTenant />
@@ -40,7 +40,7 @@ const UpdateTenant: React.FC = () => {
   const { handleApiError } = useApiError({});
 
   const updateMutation = useMutation({
-    mutationKey: ['tenant:update'],
+    mutationKey: ["tenant:update"],
     mutationFn: async (data: UpdateTenantRequest) => {
       await api.tenantUpdate(tenantId, data);
     },
@@ -77,7 +77,7 @@ const AnalyticsOptOut: React.FC = () => {
   const { handleApiError } = useApiError({});
 
   const updateMutation = useMutation({
-    mutationKey: ['tenant:update'],
+    mutationKey: ["tenant:update"],
     mutationFn: async (data: UpdateTenantRequest) => {
       await api.tenantUpdate(tenantId, data);
     },
@@ -135,7 +135,7 @@ const AnalyticsOptOut: React.FC = () => {
 
 const InactivityTimeout: React.FC = () => {
   const { data: cloudMetadata } = useQuery({
-    queryKey: ['metadata'],
+    queryKey: ["metadata"],
     queryFn: async () => {
       const res = await cloudApi.metadataGet();
       return res.data;
@@ -144,27 +144,26 @@ const InactivityTimeout: React.FC = () => {
 
   const formatTimeoutMs = (timeoutMs: number | undefined) => {
     if (!timeoutMs || timeoutMs <= 0) {
-      return 'Disabled';
+      return "Disabled";
     }
 
     const minutes = Math.floor(timeoutMs / 60000);
     if (minutes < 60) {
-      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+      return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
     }
 
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
 
     if (remainingMinutes === 0) {
-      return `${hours} hour${hours !== 1 ? 's' : ''}`;
+      return `${hours} hour${hours !== 1 ? "s" : ""}`;
     }
 
-    return `${hours} hour${hours !== 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
+    return `${hours} hour${hours !== 1 ? "s" : ""} ${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""}`;
   };
 
   const isDisabled =
-    !cloudMetadata?.inactivityLogoutMs ||
-    cloudMetadata.inactivityLogoutMs <= 0;
+    !cloudMetadata?.inactivityLogoutMs || cloudMetadata.inactivityLogoutMs <= 0;
 
   return (
     <>
@@ -175,21 +174,21 @@ const InactivityTimeout: React.FC = () => {
       {isDisabled ? (
         <>
           <p className="my-4 text-gray-700 dark:text-gray-300">
-            Inactivity timeout is currently <strong>disabled</strong>.
-            This feature automatically logs out users after a period of
-            inactivity to enhance security.
+            Inactivity timeout is currently <strong>disabled</strong>. This
+            feature automatically logs out users after a period of inactivity to
+            enhance security.
           </p>
           <Alert>
             <AlertDescription>
-              To enable inactivity timeout for your tenant, please
-              contact support.
+              To enable inactivity timeout for your tenant, please contact
+              support.
             </AlertDescription>
           </Alert>
         </>
       ) : (
         <>
           <p className="my-4 text-gray-700 dark:text-gray-300">
-            Current inactivity logout timeout:{' '}
+            Current inactivity logout timeout:{" "}
             <strong>
               {formatTimeoutMs(cloudMetadata?.inactivityLogoutMs)}
             </strong>

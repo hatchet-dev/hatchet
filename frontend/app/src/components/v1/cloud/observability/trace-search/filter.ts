@@ -1,6 +1,6 @@
-import type { ParsedTraceQuery } from './types';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
+import type { ParsedTraceQuery } from "./types";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
+import { OtelStatusCode } from "@/lib/api/generated/data-contracts";
 
 export type FilteredSpanTree = OtelSpanTree & {
   matchesFilter: boolean;

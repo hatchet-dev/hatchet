@@ -1,6 +1,6 @@
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { OrganizationMember } from '@/lib/api/generated/cloud/data-contracts';
+import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { OrganizationMember } from "@/lib/api/generated/cloud/data-contracts";
 
 interface DeleteMemberModalProps {
   open: boolean;
@@ -30,12 +30,12 @@ export function DeleteMemberModal({
       description={
         <div className="space-y-3">
           <p>
-            Are you sure you want to remove{' '}
-            <strong>{member.email}</strong> from {organizationName}?
+            Are you sure you want to remove <strong>{member.email}</strong> from{" "}
+            {organizationName}?
           </p>
           <p className="text-sm text-muted-foreground">
-            This action cannot be undone. The member will lose access to
-            this organization and all its tenants immediately.
+            This action cannot be undone. The member will lose access to this
+            organization and all its tenants immediately.
           </p>
         </div>
       }

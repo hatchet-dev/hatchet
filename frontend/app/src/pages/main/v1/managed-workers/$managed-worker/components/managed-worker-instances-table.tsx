@@ -1,12 +1,12 @@
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { Button } from '@/components/v1/ui/button';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { queries } from '@/lib/api';
-import { Instance } from '@/lib/api/generated/cloud/data-contracts';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { Button } from "@/components/v1/ui/button";
+import { Loading } from "@/components/v1/ui/loading.tsx";
+import { useRefetchInterval } from "@/contexts/refetch-interval-context";
+import { queries } from "@/lib/api";
+import { Instance } from "@/lib/api/generated/cloud/data-contracts";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 
 type InstanceWithMetadata = Instance & {
   metadata: {
@@ -43,7 +43,7 @@ export function ManagedWorkerInstancesTable({
   const instanceColumns = useMemo(
     () => [
       {
-        columnLabel: 'Name',
+        columnLabel: "Name",
         cellRenderer: (instance: InstanceWithMetadata) => (
           <div className="text-md min-w-fit whitespace-nowrap p-2">
             {instance.name}
@@ -51,13 +51,13 @@ export function ManagedWorkerInstancesTable({
         ),
       },
       {
-        columnLabel: 'State',
+        columnLabel: "State",
         cellRenderer: (instance: InstanceWithMetadata) => (
           <div className="whitespace-nowrap">{instance.state}</div>
         ),
       },
       {
-        columnLabel: 'Commit',
+        columnLabel: "Commit",
         cellRenderer: (instance: InstanceWithMetadata) => (
           <div className="whitespace-nowrap">
             {instance.commitSha.substring(0, 7)}
@@ -82,11 +82,11 @@ export function ManagedWorkerInstancesTable({
             listManagedWorkerInstancesQuery.refetch();
             setRotate(!rotate);
           }}
-          variant={'outline'}
+          variant={"outline"}
           aria-label="Refresh instances list"
         >
           <ArrowPathIcon
-            className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+            className={`size-4 transition-transform ${rotate ? "rotate-180" : ""}`}
           />
         </Button>
       </div>
@@ -94,8 +94,7 @@ export function ManagedWorkerInstancesTable({
         <SimpleTable columns={instanceColumns} data={dataWithMetadata} />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          There are no instances currently active for this managed worker
-          pool.
+          There are no instances currently active for this managed worker pool.
         </div>
       )}
     </div>

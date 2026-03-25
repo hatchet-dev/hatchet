@@ -1,8 +1,8 @@
-import { ManagedWorkerBuildLogs } from './managed-worker-build-logs';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Spinner } from '@/components/v1/ui/loading';
-import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { ManagedWorkerBuildLogs } from "./managed-worker-build-logs";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { Spinner } from "@/components/v1/ui/loading";
+import { queries } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 export function ManagedWorkerBuild({ buildId }: { buildId: string }) {
   const getBuildQuery = useQuery({
@@ -17,9 +17,7 @@ export function ManagedWorkerBuild({ buildId }: { buildId: string }) {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <h4 className="text-lg font-semibold text-foreground">
-        Build Overview
-      </h4>
+      <h4 className="text-lg font-semibold text-foreground">Build Overview</h4>
       <div className="flex flex-row gap-4">
         <div className="flex flex-col gap-2">
           <div className="text-sm text-gray-700 dark:text-gray-300">

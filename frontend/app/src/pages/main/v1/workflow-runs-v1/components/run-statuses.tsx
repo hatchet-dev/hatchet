@@ -1,22 +1,22 @@
-import { V1TaskStatus } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { CircleMinus } from 'lucide-react';
+import { V1TaskStatus } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { CircleMinus } from "lucide-react";
 
 function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
   if (eventType === undefined) {
-    return 'border-transparent rounded-full bg-muted';
+    return "border-transparent rounded-full bg-muted";
   }
   switch (eventType) {
     case V1TaskStatus.CANCELLED:
-      return 'border-transparent rounded-full bg-orange-500';
+      return "border-transparent rounded-full bg-orange-500";
     case V1TaskStatus.FAILED:
-      return 'border-transparent rounded-full bg-red-500';
+      return "border-transparent rounded-full bg-red-500";
     case V1TaskStatus.RUNNING:
-      return 'border-transparent rounded-full bg-yellow-500';
+      return "border-transparent rounded-full bg-yellow-500";
     case V1TaskStatus.QUEUED:
-      return 'border-transparent rounded-full bg-slate-500';
+      return "border-transparent rounded-full bg-slate-500";
     case V1TaskStatus.COMPLETED:
-      return 'border-transparent rounded-full bg-green-500';
+      return "border-transparent rounded-full bg-green-500";
     default: {
       const exhaustivenessCheck: never = eventType;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);
@@ -37,5 +37,5 @@ export function V1RunIndicator({
 
   const indicator = createV2IndicatorVariant(status);
 
-  return <div className={cn(indicator, 'h-[6px] w-[6px] rounded-full')} />;
+  return <div className={cn(indicator, "h-[6px] w-[6px] rounded-full")} />;
 }

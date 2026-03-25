@@ -6,30 +6,30 @@ import {
   MIN_EXPANDED_SIDEBAR_WIDTH,
   RESIZE_DRAG_THRESHOLD_PX,
   useSidebar,
-} from '@/components/hooks/use-sidebar';
-import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
+} from "@/components/hooks/use-sidebar";
+import { HelpDropdown } from "@/components/v1/nav/help-dropdown";
 import {
   SidebarButtonPrimary,
   SidebarButtonSecondary,
-} from '@/components/v1/nav/sidebar-buttons';
-import { Button } from '@/components/v1/ui/button';
+} from "@/components/v1/nav/sidebar-buttons";
+import { Button } from "@/components/v1/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import { cn } from '@/lib/utils';
-import { ChevronLeftIcon, ChevronRightIcon } from '@radix-ui/react-icons';
-import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router';
+} from "@/components/v1/ui/dropdown-menu";
+import { useTenantDetails } from "@/hooks/use-tenant";
+import { cn } from "@/lib/utils";
+import { ChevronLeftIcon, ChevronRightIcon } from "@radix-ui/react-icons";
+import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import React, {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 
 export interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
   navItems: SideNavSection[];
@@ -87,7 +87,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       return;
     }
 
-    setSidebarOpen('closed');
+    setSidebarOpen("closed");
   }, [isWide, setSidebarOpen]);
 
   const renderCollapsed = (() => {
@@ -129,10 +129,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       }
 
       const deltaX = e.clientX - startX;
-      if (
-        !didDragRef.current &&
-        Math.abs(deltaX) >= RESIZE_DRAG_THRESHOLD_PX
-      ) {
+      if (!didDragRef.current && Math.abs(deltaX) >= RESIZE_DRAG_THRESHOLD_PX) {
         didDragRef.current = true;
       }
       const newWidth = Math.max(
@@ -225,14 +222,14 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       return;
     }
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'col-resize';
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
@@ -252,7 +249,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     setIsResizing(false);
   }, [setStoredCollapsed, storedCollapsed]);
 
-  if (sidebarOpen === 'closed') {
+  if (sidebarOpen === "closed") {
     return null;
   }
 
@@ -263,9 +260,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       className={cn(
         // On mobile, overlay the content area (which is already positioned below the fixed header).
         // On desktop, participate in the grid as a fixed-width sidebar.
-        'absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:bg-[unset] md:dark:bg-[unset]',
-        !isResizing &&
-          'md:transition-[width] md:duration-200 md:ease-in-out',
+        "absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:bg-[unset] md:dark:bg-[unset]",
+        !isResizing && "md:transition-[width] md:duration-200 md:ease-in-out",
         className,
       )}
       style={
@@ -284,8 +280,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       {/* Desktop-only drag handle */}
       <div
         className={cn(
-          'absolute right-0 top-0 bottom-0 z-20 hidden w-1 cursor-col-resize transition-colors hover:bg-blue-500/20 md:block',
-          isResizing && 'bg-blue-500/30',
+          "absolute right-0 top-0 bottom-0 z-20 hidden w-1 cursor-col-resize transition-colors hover:bg-blue-500/20 md:block",
+          isResizing && "bg-blue-500/30",
         )}
         data-cy="v1-sidebar-resize-handle"
         onMouseDown={handleMouseDown}
@@ -303,18 +299,14 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
           <Button
             variant="ghost"
             size="icon"
-            hoverText={
-              storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
-            }
+            hoverText={storedCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             hoverTextSide="right"
-            aria-label={
-              storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
-            }
+            aria-label={storedCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
               // A small pill that sits inside the gutter (no overflow required)
-              'absolute right-0 top-1/2 z-30 hidden h-8 w-5 -translate-y-1/2 rounded-l-md border border-r-0 bg-secondary/90 text-secondary-foreground shadow-sm opacity-0 backdrop-blur transition-opacity md:flex',
-              'opacity-100',
-              isResizing && 'pointer-events-none opacity-0',
+              "absolute right-0 top-1/2 z-30 hidden h-8 w-5 -translate-y-1/2 rounded-l-md border border-r-0 bg-secondary/90 text-secondary-foreground shadow-sm opacity-0 backdrop-blur transition-opacity md:flex",
+              "opacity-100",
+              isResizing && "pointer-events-none opacity-0",
             )}
             data-cy="v1-sidebar-resize-toggle"
             onMouseDown={(e) => {
@@ -355,10 +347,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                       const activeFuzzy = item.activeFuzzy ?? false;
                       const active = isActive(activeTo, activeFuzzy);
 
-                      if (
-                        item.children &&
-                        item.children.length > 0
-                      ) {
+                      if (item.children && item.children.length > 0) {
                         return (
                           <DropdownMenu key={item.key}>
                             <DropdownMenuTrigger asChild>
@@ -369,9 +358,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                 hoverTextSide="right"
                                 aria-label={item.name}
                                 className={cn(
-                                  'w-10',
-                                  active &&
-                                    'bg-slate-200 dark:bg-slate-800',
+                                  "w-10",
+                                  active && "bg-slate-200 dark:bg-slate-800",
                                 )}
                               >
                                 {item.icon({
@@ -414,9 +402,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           hoverTextSide="right"
                           aria-label={item.name}
                           className={cn(
-                            'w-10',
-                            active &&
-                              'bg-slate-200 dark:bg-slate-800',
+                            "w-10",
+                            active && "bg-slate-200 dark:bg-slate-800",
                           )}
                           onClick={() => {
                             navigate({
@@ -473,10 +460,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           name={item.name}
                           icon={item.icon({
                             collapsed: false,
-                            active: isActive(
-                              item.to,
-                              item.activeFuzzy,
-                            ),
+                            active: isActive(item.to, item.activeFuzzy),
                           })}
                           collapsibleChildren={
                             item.children?.map((child) => (

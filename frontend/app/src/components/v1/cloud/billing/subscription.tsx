@@ -1,38 +1,38 @@
-import { PlanSelector } from './plan-selector';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
+import { PlanSelector } from "./plan-selector";
+import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from '@/components/v1/ui/card';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading';
-import { Separator } from '@/components/v1/ui/separator';
-import { Switch } from '@/components/v1/ui/switch';
+} from "@/components/v1/ui/card";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading";
+import { Separator } from "@/components/v1/ui/separator";
+import { Switch } from "@/components/v1/ui/switch";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+} from "@/components/v1/ui/tooltip";
+import { useCurrentTenantId, useTenantDetails } from "@/hooks/use-tenant";
+import { queries } from "@/lib/api";
+import { cloudApi } from "@/lib/api/api";
 import {
   TenantSubscription,
   SubscriptionPlan,
   SubscriptionPlanCode,
   SubscriptionPeriod,
   Coupon,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { useApiError } from '@/lib/hooks';
-import queryClient from '@/query-client';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import React, { useEffect, useMemo, useState } from 'react';
+} from "@/lib/api/generated/cloud/data-contracts";
+import { useApiError } from "@/lib/hooks";
+import queryClient from "@/query-client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import React, { useEffect, useMemo, useState } from "react";
 
 interface SubscriptionProps {
   active?: TenantSubscription;
@@ -42,10 +42,10 @@ interface SubscriptionProps {
 }
 
 function formatCurrency(cents: number, period?: string) {
-  const monthly = period === 'yearly' ? cents / 100 / 12 : cents / 100;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  const monthly = period === "yearly" ? cents / 100 / 12 : cents / 100;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
   }).format(monthly);
 }
 
@@ -76,13 +76,13 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       return null;
     }
 
-    const currencyCode = (creditBalanceQuery.data?.currency || 'USD')
+    const currencyCode = (creditBalanceQuery.data?.currency || "USD")
       .toUpperCase()
       .slice(0, 3);
     let formatted: string;
     try {
-      formatted = new Intl.NumberFormat('en-US', {
-        style: 'currency',
+      formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
         currency: currencyCode,
       }).format(Math.abs(balanceCents) / 100);
     } catch {
@@ -111,7 +111,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       }
       setPortalLoading(true);
       const link = await cloudApi.billingPortalLinkGet(tenantId);
-      window.open(link.data.url, '_blank');
+      window.open(link.data.url, "_blank");
     } catch (e) {
       handleApiError(e as any);
     } finally {
@@ -120,9 +120,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   };
 
   const subscriptionMutation = useMutation({
-    mutationKey: ['user:update:logout'],
+    mutationKey: ["user:update:logout"],
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split('_');
+      const [plan, period] = plan_code.split("_");
       setLoading(plan_code);
       const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
         plan: plan as SubscriptionPlanCode,
@@ -131,7 +131,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       return response.data;
     },
     onSuccess: async (data) => {
-      if (data && 'checkoutUrl' in data) {
+      if (data && "checkoutUrl" in data) {
         window.location.href = data.checkoutUrl;
         return;
       }
@@ -151,21 +151,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   });
 
   const activePlanCode = useMemo(() => {
-    if (!active?.plan || active.plan === 'free') {
-      return 'free';
+    if (!active?.plan || active.plan === "free") {
+      return "free";
     }
-    return [active.plan, active.period].filter((x) => !!x).join('_');
+    return [active.plan, active.period].filter((x) => !!x).join("_");
   }, [active]);
 
   useEffect(() => {
-    return setShowAnnual(active?.period?.includes('yearly') || false);
+    return setShowAnnual(active?.period?.includes("yearly") || false);
   }, [active]);
 
   const upcomingPlanCode = useMemo(() => {
     if (!upcoming?.plan) {
       return null;
     }
-    return [upcoming.plan, upcoming.period].filter((x) => !!x).join('_');
+    return [upcoming.plan, upcoming.period].filter((x) => !!x).join("_");
   }, [upcoming]);
 
   const activePlanAmountCents = useMemo(
@@ -178,10 +178,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       return null;
     }
     const date = new Date(active.endsAt);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   }, [active?.endsAt]);
 
@@ -193,38 +193,36 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   }, [active, activePlanCode, plans]);
 
   const enterpriseContactUrl = useMemo(() => {
-    const baseUrl = 'https://cal.com/team/hatchet/website-demo';
+    const baseUrl = "https://cal.com/team/hatchet/website-demo";
     if (!tenant) {
       return baseUrl;
     }
-    const tenantName = tenant.name || 'Unknown';
+    const tenantName = tenant.name || "Unknown";
     const tenantUuid = tenant.metadata?.id || tenantId;
     const notes = `Custom pricing request for tenant '${tenantName}' (${tenantUuid})`;
     return `${baseUrl}?notes=${encodeURIComponent(notes)}`;
   }, [tenant, tenantId]);
 
-  const isDedicatedPlan = active?.plan === 'dedicated';
+  const isDedicatedPlan = active?.plan === "dedicated";
 
   return (
     <>
       <ConfirmDialog
         isOpen={!!isChangeConfirmOpen}
-        title={'Confirm Plan Change'}
+        title={"Confirm Plan Change"}
         submitVariant="default"
         description={
           <>
-            Are you sure you'd like to change to the{' '}
-            <span className="font-semibold">
-              {isChangeConfirmOpen?.name}
-            </span>{' '}
+            Are you sure you'd like to change to the{" "}
+            <span className="font-semibold">{isChangeConfirmOpen?.name}</span>{" "}
             plan?
             <br />
             <br />
-            Upgrades will be prorated and downgrades will take effect at
-            the end of the billing period.
+            Upgrades will be prorated and downgrades will take effect at the end
+            of the billing period.
           </>
         }
-        submitLabel={'Change Plan'}
+        submitLabel={"Change Plan"}
         onSubmit={async () => {
           await subscriptionMutation.mutateAsync({
             plan_code: isChangeConfirmOpen!.planCode,
@@ -247,7 +245,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               variant="outline"
               disabled={portalLoading}
             >
-              {portalLoading ? <Spinner /> : 'Manage Billing'}
+              {portalLoading ? <Spinner /> : "Manage Billing"}
             </Button>
           </div>
         ) : (
@@ -276,7 +274,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       </CardTitle>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {creditBalance.description ||
-                          'Applied to upcoming invoices.'}
+                          "Applied to upcoming invoices."}
                       </p>
                     </div>
                     <div className="text-right">
@@ -285,11 +283,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       </div>
                       {creditBalance.expires && (
                         <p className="mt-1 text-xs text-muted-foreground whitespace-nowrap">
-                          Expires{' '}
-                          <RelativeDate
-                            date={creditBalance.expires}
-                            future
-                          />
+                          Expires{" "}
+                          <RelativeDate date={creditBalance.expires} future />
                         </p>
                       )}
                     </div>
@@ -313,7 +308,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     size="sm"
                     disabled={portalLoading}
                   >
-                    {portalLoading ? <Spinner /> : 'Manage Billing'}
+                    {portalLoading ? <Spinner /> : "Manage Billing"}
                   </Button>
                 </CardHeader>
                 <CardContent className="p-4">
@@ -327,14 +322,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger>
-                                <Badge variant="queued">
-                                  Legacy
-                                </Badge>
+                                <Badge variant="queued">Legacy</Badge>
                               </TooltipTrigger>
                               <TooltipContent side="right">
-                                You're on a legacy plan which is
-                                no longer offered. Contact us if
-                                you have any questions.
+                                You're on a legacy plan which is no longer
+                                offered. Contact us if you have any questions.
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -371,31 +363,30 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="inProgress">
-                          Scheduled Change
-                        </Badge>
+                        <Badge variant="inProgress">Scheduled Change</Badge>
                       </div>
                       <p className="text-sm text-foreground">
-                        Switching to{' '}
+                        Switching to{" "}
                         <span className="font-semibold">
                           {plans?.find(
                             (p) =>
                               p.planCode ===
                               [upcoming.plan, upcoming.period]
                                 .filter((x) => !!x)
-                                .join('_'),
+                                .join("_"),
                           )?.name || upcoming.plan}
                         </span>
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Takes effect on{' '}
-                        {new Date(
-                          upcoming.startedAt,
-                        ).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
+                        Takes effect on{" "}
+                        {new Date(upcoming.startedAt).toLocaleDateString(
+                          "en-US",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          },
+                        )}
                       </p>
                     </div>
                   </div>
@@ -405,7 +396,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
             <div className="flex flex-row items-center justify-between mb-4">
               <p className="text-sm text-muted-foreground">
-                For plan details, visit{' '}
+                For plan details, visit{" "}
                 <a
                   href="https://hatchet.run/pricing"
                   className="text-primary/70 hover:text-primary hover:underline"
@@ -413,14 +404,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   rel="noreferrer"
                 >
                   our pricing page
-                </a>{' '}
-                or{' '}
+                </a>{" "}
+                or{" "}
                 <a
                   href="https://hatchet.run/office-hours"
                   className="text-primary/70 hover:text-primary hover:underline"
                 >
                   contact us
-                </a>{' '}
+                </a>{" "}
                 for custom requirements.
               </p>
 
@@ -432,10 +423,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     setShowAnnual((checkedState) => !checkedState);
                   }}
                 />
-                <Label
-                  htmlFor="sa"
-                  className="text-sm whitespace-nowrap"
-                >
+                <Label htmlFor="sa" className="text-sm whitespace-nowrap">
                   Annual Billing
                   <Badge variant="inProgress" className="ml-2">
                     Save up to 20%

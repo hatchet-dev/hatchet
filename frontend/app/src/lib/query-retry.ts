@@ -1,4 +1,4 @@
-import { isAxiosError } from 'axios';
+import { isAxiosError } from "axios";
 
 /**
  * Default TanStack Query retry policy:

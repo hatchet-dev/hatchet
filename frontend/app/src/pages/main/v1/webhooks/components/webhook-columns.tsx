@@ -1,16 +1,16 @@
-import { useWebhooks } from '../hooks/use-webhooks';
-import { EditWebhookModal } from '../index';
-import { Button } from '@/components/v1/ui/button';
+import { useWebhooks } from "../hooks/use-webhooks";
+import { EditWebhookModal } from "../index";
+import { Button } from "@/components/v1/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import { V1Webhook } from '@/lib/api';
-import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Check, Copy, Edit, Loader, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+} from "@/components/v1/ui/dropdown-menu";
+import { V1Webhook } from "@/lib/api";
+import { DotsVerticalIcon } from "@radix-ui/react-icons";
+import { Check, Copy, Edit, Loader, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 export const WebhookActionsCell = ({ webhook }: { webhook: V1Webhook }) => {
   const { mutations, createWebhookURL } = useWebhooks(() =>

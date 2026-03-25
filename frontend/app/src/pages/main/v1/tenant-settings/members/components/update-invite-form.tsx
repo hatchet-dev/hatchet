@@ -1,24 +1,24 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
+} from "@/components/v1/ui/dialog";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
-import { TenantInvite, TenantMemberRole } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
+} from "@/components/v1/ui/select";
+import { TenantInvite, TenantMemberRole } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 
 const schema = z.object({
   role: z.enum([
@@ -52,14 +52,13 @@ export function UpdateInviteForm({
     },
   });
 
-  const roleError =
-    errors.role?.message?.toString() || props.fieldErrors?.role;
+  const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
   return (
     <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Update invite</DialogTitle>
       </DialogHeader>
-      <div className={cn('grid gap-6', className)}>
+      <div className={cn("grid gap-6", className)}>
         <form
           onSubmit={handleSubmit((d) => {
             props.onSubmit(d);
@@ -89,21 +88,14 @@ export function UpdateInviteForm({
                   return (
                     <Select onValueChange={field.onChange} {...field}>
                       <SelectTrigger className="w-[180px]">
-                        <SelectValue
-                          id="role"
-                          placeholder="Role..."
-                        />
+                        <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
                         {!props.isCloudEnabled && (
-                          <SelectItem value="OWNER">
-                            Owner
-                          </SelectItem>
+                          <SelectItem value="OWNER">Owner</SelectItem>
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="MEMBER">
-                          Member
-                        </SelectItem>
+                        <SelectItem value="MEMBER">Member</SelectItem>
                       </SelectContent>
                     </Select>
                   );

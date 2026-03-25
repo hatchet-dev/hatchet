@@ -1,5 +1,5 @@
-import type { VisibleRange } from './trace-timeline-utils';
-import { useState, useCallback, useRef, type RefObject } from 'react';
+import type { VisibleRange } from "./trace-timeline-utils";
+import { useState, useCallback, useRef, type RefObject } from "react";
 
 export type BrushRange = { lo: number; hi: number };
 
@@ -37,10 +37,7 @@ export function useBrushZoom(
           return;
         }
         const r = barsRef.current.getBoundingClientRect();
-        const pct = Math.max(
-          0,
-          Math.min(1, (ev.clientX - r.left) / r.width),
-        );
+        const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
         const lo = Math.min(startPct, pct);
         const hi = Math.max(startPct, pct);
         if (hi - lo > 0.005) {
@@ -49,18 +46,15 @@ export function useBrushZoom(
       };
 
       const onUp = (ev: PointerEvent) => {
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
 
         if (!barsRef.current) {
           setBrushRange(null);
           return;
         }
         const r = barsRef.current.getBoundingClientRect();
-        const pct = Math.max(
-          0,
-          Math.min(1, (ev.clientX - r.left) / r.width),
-        );
+        const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
         const lo = Math.min(startPct, pct);
         const hi = Math.max(startPct, pct);
 
@@ -75,16 +69,13 @@ export function useBrushZoom(
               0,
               (newStartMs - v.traceMinStart) / v.traceTotalMs,
             ),
-            endPct: Math.min(
-              1,
-              (newEndMs - v.traceMinStart) / v.traceTotalMs,
-            ),
+            endPct: Math.min(1, (newEndMs - v.traceMinStart) / v.traceTotalMs),
           });
         }
       };
 
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
     },
     [barsRef, onRangeChange],
   );

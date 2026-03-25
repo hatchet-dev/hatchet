@@ -1,23 +1,23 @@
-import { CreateSNSDialog } from './components/create-sns-dialog';
-import { DeleteSNSForm } from './components/delete-sns-form';
+import { CreateSNSDialog } from "./components/create-sns-dialog";
+import { DeleteSNSForm } from "./components/delete-sns-form";
 import {
   CopyIngestURL,
   SNSActions,
-} from './components/sns-integrations-columns';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+} from "./components/sns-integrations-columns";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { Button } from "@/components/v1/ui/button";
+import { Separator } from "@/components/v1/ui/separator";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
 import api, {
   CreateSNSIntegrationRequest,
   SNSIntegration,
   queries,
-} from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
-import { Dialog } from '@radix-ui/react-dialog';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
+} from "@/lib/api";
+import { useApiError } from "@/lib/hooks";
+import { Dialog } from "@radix-ui/react-dialog";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
 
 export default function Ingestors() {
   return (
@@ -27,8 +27,7 @@ export default function Ingestors() {
           Ingestors
         </h2>
         <p className="my-4 text-gray-700 dark:text-gray-300">
-          Ingestors are integrations that allow you to send events to
-          Hatchet.
+          Ingestors are integrations that allow you to send events to Hatchet.
         </p>
         <Separator className="my-4" />
         <SNSIntegrationsList />
@@ -49,25 +48,25 @@ function SNSIntegrationsList() {
   const snsColumns = useMemo(
     () => [
       {
-        columnLabel: 'Topic ARN',
+        columnLabel: "Topic ARN",
         cellRenderer: (integration: SNSIntegration) => (
           <div>{integration.topicArn}</div>
         ),
       },
       {
-        columnLabel: 'Ingest URL',
+        columnLabel: "Ingest URL",
         cellRenderer: (integration: SNSIntegration) => (
-          <CopyIngestURL ingestUrl={integration.ingestUrl || ''} />
+          <CopyIngestURL ingestUrl={integration.ingestUrl || ""} />
         ),
       },
       {
-        columnLabel: 'Created',
+        columnLabel: "Created",
         cellRenderer: (integration: SNSIntegration) => (
           <RelativeDate date={integration.metadata.createdAt} />
         ),
       },
       {
-        columnLabel: 'Actions',
+        columnLabel: "Actions",
         cellRenderer: (integration: SNSIntegration) => (
           <SNSActions
             integration={integration}
@@ -87,10 +86,7 @@ function SNSIntegrationsList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           SNS Integrations
         </h3>
-        <Button
-          key="create-api-token"
-          onClick={() => setShowSNSDialog(true)}
-        >
+        <Button key="create-api-token" onClick={() => setShowSNSDialog(true)}>
           Create SNS Endpoint
         </Button>
       </div>
@@ -102,8 +98,8 @@ function SNSIntegrationsList() {
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No SNS integrations found. Create an endpoint to receive events
-          from AWS SNS.
+          No SNS integrations found. Create an endpoint to receive events from
+          AWS SNS.
         </div>
       )}
       {showSNSDialog && (
@@ -148,7 +144,7 @@ function CreateSNSIntegration({
   });
 
   const createSNSIntegrationMutation = useMutation({
-    mutationKey: ['sns:create', tenantId],
+    mutationKey: ["sns:create", tenantId],
     mutationFn: async (data: CreateSNSIntegrationRequest) => {
       const res = await api.snsCreate(tenantId, data);
       return res.data;
@@ -185,7 +181,7 @@ function DeleteSNSIntegration({
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['sns:delete', tenantId, snsIntegration],
+    mutationKey: ["sns:delete", tenantId, snsIntegration],
     mutationFn: async () => {
       await api.snsDelete(snsIntegration.metadata.id);
     },

@@ -1,16 +1,16 @@
 import {
   ActionType,
   BaseTaskRunActionParams,
-} from '../../task-runs-v1/actions';
-import { TaskRunColumnKeys } from '../components/v1/task-runs-columns';
-import { useMetrics } from './use-metrics';
-import { useRuns } from './use-runs';
-import { useRunsTableFilters } from './use-runs-table-filters';
-import { useToolbarFilters } from './use-toolbar-filters';
-import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
-import { PaginationState, Updater } from '@tanstack/react-table';
-import { createContext, useContext, useMemo, useState } from 'react';
+} from "../../task-runs-v1/actions";
+import { TaskRunColumnKeys } from "../components/v1/task-runs-columns";
+import { useMetrics } from "./use-metrics";
+import { useRuns } from "./use-runs";
+import { useRunsTableFilters } from "./use-runs-table-filters";
+import { useToolbarFilters } from "./use-toolbar-filters";
+import { V1TaskRunMetrics, V1TaskSummary } from "@/lib/api";
+import { RowSelectionState, VisibilityState } from "@tanstack/react-table";
+import { PaginationState, Updater } from "@tanstack/react-table";
+import { createContext, useContext, useMemo, useState } from "react";
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -165,7 +165,7 @@ export const RunsProvider = ({
         : {
             filter: {
               ...filters.apiFilters,
-              since: filters.apiFilters.since || '',
+              since: filters.apiFilters.since || "",
             },
           },
     [selectedRuns, filters.apiFilters],
@@ -285,7 +285,7 @@ export const useRunsContext = () => {
   const context = useContext(RunsContext);
 
   if (!context) {
-    throw new Error('useRunsContext must be used within a RunsProvider');
+    throw new Error("useRunsContext must be used within a RunsProvider");
   }
 
   return context;

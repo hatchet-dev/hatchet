@@ -4,10 +4,10 @@ import {
   getArrowByType,
   getDateByType,
   setDateByType,
-} from './time-picker-utils';
-import { Input } from '@/components/v1/ui/input';
-import { cn } from '@/lib/utils';
-import React from 'react';
+} from "./time-picker-utils";
+import { Input } from "@/components/v1/ui/input";
+import { cn } from "@/lib/utils";
+import React from "react";
 
 interface TimePickerInputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -42,7 +42,7 @@ const TimePickerInput = React.forwardRef<
     ref,
   ) => {
     const [flag, setFlag] = React.useState<boolean>(false);
-    const [prevIntKey, setPrevIntKey] = React.useState<string>('0');
+    const [prevIntKey, setPrevIntKey] = React.useState<string>("0");
 
     /**
      * allow the user to enter the second digit within 2 seconds
@@ -67,32 +67,28 @@ const TimePickerInput = React.forwardRef<
        * If picker is '12hours' and the first digit is 0, then the second digit is automatically set to 1.
        * The second entered digit will break the condition and the value will be set to 10-12.
        */
-      if (picker === '12hours') {
-        if (
-          flag &&
-          calculatedValue.slice(1, 2) === '1' &&
-          prevIntKey === '0'
-        ) {
-          return '0' + key;
+      if (picker === "12hours") {
+        if (flag && calculatedValue.slice(1, 2) === "1" && prevIntKey === "0") {
+          return "0" + key;
         }
       }
 
-      return !flag ? '0' + key : calculatedValue.slice(1, 2) + key;
+      return !flag ? "0" + key : calculatedValue.slice(1, 2) + key;
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Tab') {
+      if (e.key === "Tab") {
         return;
       }
       e.preventDefault();
-      if (e.key === 'ArrowRight') {
+      if (e.key === "ArrowRight") {
         onRightFocus?.();
       }
-      if (e.key === 'ArrowLeft') {
+      if (e.key === "ArrowLeft") {
         onLeftFocus?.();
       }
-      if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
-        const step = e.key === 'ArrowUp' ? 1 : -1;
+      if (["ArrowUp", "ArrowDown"].includes(e.key)) {
+        const step = e.key === "ArrowUp" ? 1 : -1;
         const newValue = getArrowByType(calculatedValue, step, picker);
         if (flag) {
           setFlag(false);
@@ -100,8 +96,8 @@ const TimePickerInput = React.forwardRef<
         const tempDate = new Date(date);
         setDate(setDateByType(tempDate, newValue, picker, period));
       }
-      if (e.key >= '0' && e.key <= '9') {
-        if (picker === '12hours') {
+      if (e.key >= "0" && e.key <= "9") {
+        if (picker === "12hours") {
           setPrevIntKey(e.key);
         }
 
@@ -125,7 +121,7 @@ const TimePickerInput = React.forwardRef<
         id={id || picker}
         name={name || picker}
         className={cn(
-          'w-[48px] text-center font-mono text-xs tabular-nums caret-transparent focus:bg-accent focus:text-accent-foreground [&::-webkit-inner-spin-button]:appearance-none',
+          "w-[48px] text-center font-mono text-xs tabular-nums caret-transparent focus:bg-accent focus:text-accent-foreground [&::-webkit-inner-spin-button]:appearance-none",
           className,
         )}
         value={value || valueToTwoDigits(parseInt(calculatedValue))}
@@ -147,6 +143,6 @@ const TimePickerInput = React.forwardRef<
   },
 );
 
-TimePickerInput.displayName = 'TimePickerInput';
+TimePickerInput.displayName = "TimePickerInput";
 
 export { TimePickerInput };

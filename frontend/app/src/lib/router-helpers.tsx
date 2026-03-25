@@ -2,11 +2,11 @@ import {
   Outlet as TanStackOutlet,
   useLocation,
   useNavigate as useTanStackNavigate,
-} from '@tanstack/react-router';
-import type { NavigateOptions } from '@tanstack/react-router';
-import { createContext, useContext, useMemo } from 'react';
+} from "@tanstack/react-router";
+import type { NavigateOptions } from "@tanstack/react-router";
+import { createContext, useContext, useMemo } from "react";
 
-type SearchNavigateOptions = Pick<NavigateOptions, 'replace' | 'state'>;
+type SearchNavigateOptions = Pick<NavigateOptions, "replace" | "state">;
 
 const OutletContext = createContext<unknown>(undefined);
 
@@ -42,7 +42,7 @@ export function useSearchParams(): [
   const navigate = useTanStackNavigate();
 
   const searchParams = useMemo(
-    () => new URLSearchParams(location.searchStr ?? ''),
+    () => new URLSearchParams(location.searchStr ?? ""),
     [location.searchStr],
   );
 
@@ -56,8 +56,8 @@ export function useSearchParams(): [
         ) => URLSearchParams | string | Record<string, unknown>),
     options?: SearchNavigateOptions,
   ) => {
-    const prev = new URLSearchParams(location.searchStr ?? '');
-    const resolved = typeof init === 'function' ? init(prev) : init;
+    const prev = new URLSearchParams(location.searchStr ?? "");
+    const resolved = typeof init === "function" ? init(prev) : init;
 
     let searchObject: Record<string, unknown>;
     if (resolved instanceof URLSearchParams) {
@@ -69,7 +69,7 @@ export function useSearchParams(): [
           searchObject[key] = value;
         }
       });
-    } else if (typeof resolved === 'string') {
+    } else if (typeof resolved === "string") {
       const params = new URLSearchParams(resolved);
       searchObject = {};
       params.forEach((value, key) => {
@@ -83,7 +83,7 @@ export function useSearchParams(): [
       searchObject = {};
       Object.entries(resolved || {}).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          if (typeof value === 'string') {
+          if (typeof value === "string") {
             try {
               searchObject[key] = JSON.parse(value);
             } catch {
@@ -111,10 +111,10 @@ export function getOptionalStringParam(
   params: unknown,
   key: string,
 ): string | undefined {
-  if (!params || typeof params !== 'object') {
+  if (!params || typeof params !== "object") {
     return undefined;
   }
 
   const value = Reflect.get(params, key);
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === "string" ? value : undefined;
 }

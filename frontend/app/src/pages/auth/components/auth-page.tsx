@@ -1,11 +1,11 @@
-import useApiMeta from '../hooks/use-api-meta';
-import useErrorParam from '../hooks/use-error-param';
-import { AuthLayout } from './auth-layout';
-import { AuthLegalText } from './auth-legal-text';
-import { OrContinueWith, SocialAuthButtons } from './social-auth';
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { Loading } from '@/components/v1/ui/loading';
-import React from 'react';
+import useApiMeta from "../hooks/use-api-meta";
+import useErrorParam from "../hooks/use-error-param";
+import { AuthLayout } from "./auth-layout";
+import { AuthLegalText } from "./auth-legal-text";
+import { OrContinueWith, SocialAuthButtons } from "./social-auth";
+import { HatchetLogo } from "@/components/v1/ui/hatchet-logo";
+import { Loading } from "@/components/v1/ui/loading";
+import React from "react";
 
 export function AuthPage({
   title,
@@ -24,14 +24,14 @@ export function AuthPage({
   }
 
   const schemes = meta?.auth?.schemes || [];
-  const basicEnabled = schemes.includes('basic');
-  const googleEnabled = schemes.includes('google');
-  const githubEnabled = schemes.includes('github');
+  const basicEnabled = schemes.includes("basic");
+  const googleEnabled = schemes.includes("google");
+  const githubEnabled = schemes.includes("github");
 
   const providers = [
-    googleEnabled && 'google',
-    githubEnabled && 'github',
-  ].filter(Boolean) as Array<'google' | 'github'>;
+    googleEnabled && "google",
+    githubEnabled && "github",
+  ].filter(Boolean) as Array<"google" | "github">;
 
   const sections = [
     providers.length > 0 && <SocialAuthButtons providers={providers} />,

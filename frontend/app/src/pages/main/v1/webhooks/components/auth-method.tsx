@@ -1,5 +1,5 @@
-import { V1WebhookAuthType } from '@/lib/api';
-import { Key, ShieldCheck, UserCheck } from 'lucide-react';
+import { V1WebhookAuthType } from "@/lib/api";
+import { Key, ShieldCheck, UserCheck } from "lucide-react";
 
 export const AuthMethod = ({
   authMethod,

@@ -1,14 +1,14 @@
-import type { SearchSuggestion } from './search-bar-with-filters';
+import type { SearchSuggestion } from "./search-bar-with-filters";
 
-export interface FilterSuggestion extends SearchSuggestion<'key' | 'value'> {
-  type: 'key' | 'value';
+export interface FilterSuggestion extends SearchSuggestion<"key" | "value"> {
+  type: "key" | "value";
   label: string;
   value: string;
   description?: string;
   color?: string;
 }
 
-export type AutocompleteMode = 'key' | 'value' | 'none';
+export type AutocompleteMode = "key" | "value" | "none";
 
 export interface AutocompleteState<
   T extends FilterSuggestion = FilterSuggestion,
@@ -29,7 +29,7 @@ export interface TextToken {
 export type QueryToken = FilterToken | TextToken;
 
 export function isFilterToken(token: QueryToken): token is FilterToken {
-  return 'key' in token;
+  return "key" in token;
 }
 
 const TOKEN_REGEX = /(\S+?):(\S+)|(\S+)/g;
@@ -57,11 +57,11 @@ export function applySuggestion(
   filterKeys: FilterSuggestion[],
 ): string {
   const trimmed = query.trimEnd();
-  const words = trimmed.split(' ');
-  const lastWord = words.pop() || '';
+  const words = trimmed.split(" ");
+  const lastWord = words.pop() || "";
 
-  if (suggestion.type === 'value') {
-    const prefix = lastWord.slice(0, lastWord.indexOf(':') + 1);
+  if (suggestion.type === "value") {
+    const prefix = lastWord.slice(0, lastWord.indexOf(":") + 1);
     words.push(prefix + suggestion.value);
   } else {
     const isPartialKey = filterKeys.some((key) =>
@@ -74,5 +74,5 @@ export function applySuggestion(
     }
   }
 
-  return words.filter(Boolean).join(' ');
+  return words.filter(Boolean).join(" ");
 }

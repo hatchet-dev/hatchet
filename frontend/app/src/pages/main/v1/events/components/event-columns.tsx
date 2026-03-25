@@ -1,34 +1,34 @@
-import { AdditionalMetadata } from './additional-metadata';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
-import { V1Event } from '@/lib/api';
-import { ColumnDef } from '@tanstack/react-table';
+import { AdditionalMetadata } from "./additional-metadata";
+import { DataTableColumnHeader } from "@/components/v1/molecules/data-table/data-table-column-header";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
+import { V1Event } from "@/lib/api";
+import { ColumnDef } from "@tanstack/react-table";
 
 export const EventColumn = {
-  id: 'Event ID',
-  key: 'Event',
-  seenAt: 'Seen at',
-  workflowId: 'Workflow',
-  status: 'Status',
-  runs: 'Runs',
-  metadata: 'Metadata',
-  payload: 'Payload',
-  scope: 'Scope',
+  id: "Event ID",
+  key: "Event",
+  seenAt: "Seen at",
+  workflowId: "Workflow",
+  status: "Status",
+  runs: "Runs",
+  metadata: "Metadata",
+  payload: "Payload",
+  scope: "Scope",
 };
 
 type EventColumnKeys = keyof typeof EventColumn;
 
-export const idKey: EventColumnKeys = 'id';
-export const keyKey: EventColumnKeys = 'key';
-const seenAtKey: EventColumnKeys = 'seenAt';
-export const workflowKey: EventColumnKeys = 'workflowId';
-export const statusKey: EventColumnKeys = 'status';
-const runsKey: EventColumnKeys = 'runs';
-export const metadataKey: EventColumnKeys = 'metadata';
-const payloadKey: EventColumnKeys = 'payload';
-export const scopeKey: EventColumnKeys = 'scope';
+export const idKey: EventColumnKeys = "id";
+export const keyKey: EventColumnKeys = "key";
+const seenAtKey: EventColumnKeys = "seenAt";
+export const workflowKey: EventColumnKeys = "workflowId";
+export const statusKey: EventColumnKeys = "status";
+const runsKey: EventColumnKeys = "runs";
+export const metadataKey: EventColumnKeys = "metadata";
+const payloadKey: EventColumnKeys = "payload";
+export const scopeKey: EventColumnKeys = "scope";
 
 export const columns = ({
   onRowClick,
@@ -132,10 +132,7 @@ export const columns = ({
     {
       accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={EventColumn.metadata}
-        />
+        <DataTableColumnHeader column={column} title={EventColumn.metadata} />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -163,10 +160,7 @@ export const columns = ({
     {
       accessorKey: payloadKey,
       header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={EventColumn.payload}
-        />
+        <DataTableColumnHeader column={column} title={EventColumn.payload} />
       ),
       cell: ({ row }) => {
         if (!row.original.payload) {
@@ -205,7 +199,7 @@ export const columns = ({
 };
 
 type BadgeProps = {
-  variant: 'failed' | 'successful' | 'inProgress' | 'cancelled' | 'queued';
+  variant: "failed" | "successful" | "inProgress" | "cancelled" | "queued";
   count: number;
   label: string;
 };
@@ -218,11 +212,11 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
   const numQueued = event.workflowRunSummary?.queued || 0;
 
   const badges: BadgeProps[] = [
-    { variant: 'failed', count: numFailed, label: 'Failed' },
-    { variant: 'successful', count: numSucceeded, label: 'Succeeded' },
-    { variant: 'inProgress', count: numRunning, label: 'Running' },
-    { variant: 'cancelled', count: numCancelled, label: 'Cancelled' },
-    { variant: 'queued', count: numQueued, label: 'Queued' },
+    { variant: "failed", count: numFailed, label: "Failed" },
+    { variant: "successful", count: numSucceeded, label: "Succeeded" },
+    { variant: "inProgress", count: numRunning, label: "Running" },
+    { variant: "cancelled", count: numCancelled, label: "Cancelled" },
+    { variant: "queued", count: numQueued, label: "Queued" },
   ];
 
   return (

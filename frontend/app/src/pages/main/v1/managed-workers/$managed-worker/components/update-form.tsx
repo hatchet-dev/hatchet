@@ -6,49 +6,49 @@ import {
   regions,
   ScalingType,
   scalingTypes,
-} from '../../create/components/create-worker-form';
-import { UpgradeMessage } from '../../create/components/create-worker-form';
+} from "../../create/components/create-worker-form";
+import { UpgradeMessage } from "../../create/components/create-worker-form";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/v1/ui/accordion';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
-import { Button } from '@/components/v1/ui/button';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+} from "@/components/v1/ui/accordion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/v1/ui/alert";
+import { Button } from "@/components/v1/ui/button";
+import { Checkbox } from "@/components/v1/ui/checkbox";
+import EnvGroupArray, { KeyValueType } from "@/components/v1/ui/envvar";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from "@/components/v1/ui/select";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/components/v1/ui/tabs';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
+} from "@/components/v1/ui/tabs";
+import { useCurrentTenantId, useTenantDetails } from "@/hooks/use-tenant";
+import { queries } from "@/lib/api";
 import {
   ManagedWorker,
   ManagedWorkerRegion,
-} from '@/lib/api/generated/cloud/data-contracts';
+} from "@/lib/api/generated/cloud/data-contracts";
 import {
   ComputeType,
   managedCompute,
-} from '@/lib/can/features/managed-compute';
-import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
+} from "@/lib/can/features/managed-compute";
+import { ExclamationTriangleIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
@@ -137,8 +137,7 @@ export default function UpdateWorkerForm({
     defaultValues: {
       name: managedWorker.name,
       buildConfig: {
-        githubInstallationId:
-          managedWorker.buildConfig?.githubInstallationId,
+        githubInstallationId: managedWorker.buildConfig?.githubInstallationId,
         githubRepositoryBranch:
           managedWorker.buildConfig?.githubRepositoryBranch,
         githubRepositoryName:
@@ -150,8 +149,8 @@ export default function UpdateWorkerForm({
           dockerfilePath: step.dockerfilePath,
         })) || [
           {
-            buildDir: '.',
-            dockerfilePath: './Dockerfile',
+            buildDir: ".",
+            dockerfilePath: "./Dockerfile",
           },
         ],
       },
@@ -187,22 +186,19 @@ export default function UpdateWorkerForm({
                         managedWorker.runtimeConfigs[0].autoscaling
                           .utilizationScaleDownThreshold,
                       increment:
-                        managedWorker.runtimeConfigs[0].autoscaling
-                          .increment,
+                        managedWorker.runtimeConfigs[0].autoscaling.increment,
                       minAwakeReplicas:
                         managedWorker.runtimeConfigs[0].autoscaling
                           .minAwakeReplicas,
                       maxReplicas:
-                        managedWorker.runtimeConfigs[0].autoscaling
-                          .maxReplicas,
+                        managedWorker.runtimeConfigs[0].autoscaling.maxReplicas,
                       scaleToZero:
-                        managedWorker.runtimeConfigs[0].autoscaling
-                          .scaleToZero,
+                        managedWorker.runtimeConfigs[0].autoscaling.scaleToZero,
                       fly: {
-                        autoscalingKey: 'dashboard',
+                        autoscalingKey: "dashboard",
                         currentReplicas:
-                          managedWorker.runtimeConfigs[0]
-                            .autoscaling.minAwakeReplicas,
+                          managedWorker.runtimeConfigs[0].autoscaling
+                            .minAwakeReplicas,
                       },
                     }
                   : undefined,
@@ -212,7 +208,7 @@ export default function UpdateWorkerForm({
   });
 
   const [machineType, setMachineType] = useState<string>(
-    '1 CPU, 1 GB RAM (shared CPU)',
+    "1 CPU, 1 GB RAM (shared CPU)",
   );
 
   // Set initial machine type based on current worker configuration
@@ -234,12 +230,12 @@ export default function UpdateWorkerForm({
     }
   }, [managedWorker]);
 
-  const region = watch('runtimeConfig.regions');
-  const installation = watch('buildConfig.githubInstallationId');
-  const repoOwner = watch('buildConfig.githubRepositoryOwner');
-  const repoName = watch('buildConfig.githubRepositoryName');
+  const region = watch("runtimeConfig.regions");
+  const installation = watch("buildConfig.githubInstallationId");
+  const repoOwner = watch("buildConfig.githubRepositoryOwner");
+  const repoName = watch("buildConfig.githubRepositoryName");
   const repoOwnerName = getRepoOwnerName(repoOwner, repoName);
-  const branch = watch('buildConfig.githubRepositoryBranch');
+  const branch = watch("buildConfig.githubRepositoryBranch");
 
   const listInstallationsQuery = useQuery({
     ...queries.github.listInstallations(tenantId),
@@ -250,18 +246,13 @@ export default function UpdateWorkerForm({
   });
 
   const listBranchesQuery = useQuery({
-    ...queries.github.listBranches(
-      tenantId,
-      installation,
-      repoOwner,
-      repoName,
-    ),
+    ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
   });
 
   const [secrets, setSecrets] = useState<KeyValueType[]>(
     managedWorker.directSecrets?.map((secret) => ({
       key: secret.key,
-      value: secret.hint || '',
+      value: secret.hint || "",
       hidden: false,
       locked: false,
       deleted: false,
@@ -273,8 +264,8 @@ export default function UpdateWorkerForm({
   const [scalingType, setScalingType] = useState<ScalingType>(
     managedWorker.runtimeConfigs?.length == 1 &&
       managedWorker.runtimeConfigs[0].autoscaling != undefined
-      ? 'Autoscaling'
-      : 'Static',
+      ? "Autoscaling"
+      : "Static",
   );
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
@@ -290,8 +281,7 @@ export default function UpdateWorkerForm({
   const secretsError =
     errors.secrets?.add?.message?.toString() || fieldErrors?.secrets;
   const cpuKindError =
-    errors.runtimeConfig?.cpuKind?.message?.toString() ||
-    fieldErrors?.cpuKind;
+    errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
   const cpusError =
     errors.runtimeConfig?.cpus?.message?.toString() || fieldErrors?.cpus;
   const memoryMbError =
@@ -341,7 +331,7 @@ export default function UpdateWorkerForm({
       !installation
     ) {
       setValue(
-        'buildConfig.githubInstallationId',
+        "buildConfig.githubInstallationId",
         managedWorker.buildConfig?.githubInstallationId ||
           listInstallationsQuery.data.rows[0].metadata.id,
       );
@@ -349,16 +339,16 @@ export default function UpdateWorkerForm({
   }, [managedWorker, listInstallationsQuery, setValue, installation]);
 
   useEffect(() => {
-    if (!getValues('runtimeConfig')) {
-      setValue('runtimeConfig', {
+    if (!getValues("runtimeConfig")) {
+      setValue("runtimeConfig", {
         numReplicas: 1,
-        cpuKind: 'shared',
+        cpuKind: "shared",
         cpus: 1,
         memoryMb: 1024,
         regions: [ManagedWorkerRegion.Sjc],
       });
-      setMachineType('1 CPU, 1 GB RAM (shared CPU)');
-      setValue('runtimeConfig.regions', [ManagedWorkerRegion.Sjc]);
+      setMachineType("1 CPU, 1 GB RAM (shared CPU)");
+      setValue("runtimeConfig.regions", [ManagedWorkerRegion.Sjc]);
     }
   }, [getValues, setValue]);
 
@@ -384,12 +374,10 @@ export default function UpdateWorkerForm({
     // Split secrets into add/update/delete
     const toAdd = secrets.filter((s) => !s.id && !s.deleted);
     const toUpdate = secrets.filter((s) => s.id && !s.deleted && s.isEditing);
-    const toDelete = secrets
-      .filter((s) => s.id && s.deleted)
-      .map((s) => s.id!);
+    const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
 
     setValue(
-      'secrets.add',
+      "secrets.add",
       toAdd.map((s) => ({
         key: s.key,
         value: s.value,
@@ -397,7 +385,7 @@ export default function UpdateWorkerForm({
     );
 
     setValue(
-      'secrets.update',
+      "secrets.update",
       toUpdate.map((s) => ({
         id: s.id!,
         key: s.key,
@@ -405,7 +393,7 @@ export default function UpdateWorkerForm({
       })),
     );
 
-    setValue('secrets.delete', toDelete);
+    setValue("secrets.delete", toDelete);
   }, [secrets, setValue]);
 
   // if there are no github accounts linked, ask the user to link one
@@ -416,17 +404,15 @@ export default function UpdateWorkerForm({
     return (
       <Alert>
         <ExclamationTriangleIcon className="size-4" />
-        <AlertTitle className="font-semibold">
-          Link a Github account
-        </AlertTitle>
+        <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
         <AlertDescription>
-          You don't have any Github accounts linked. Please{' '}
+          You don't have any Github accounts linked. Please{" "}
           <a
             href="/api/v1/cloud/users/github-app/start"
             className="text-indigo-400"
           >
             link a Github account
-          </a>{' '}
+          </a>{" "}
           first.
         </AlertDescription>
       </Alert>
@@ -444,7 +430,7 @@ export default function UpdateWorkerForm({
 
     return (
       <SelectItem key={machine.title} value={machine.title}>
-        {machine.title} {!allowed && '🔒'}
+        {machine.title} {!allowed && "🔒"}
       </SelectItem>
     );
   };
@@ -462,13 +448,13 @@ export default function UpdateWorkerForm({
             You do not have permission to update this service.
           </AlertTitle>
           <AlertDescription>
-            Please make sure your linked{' '}
+            Please make sure your linked{" "}
             <a
               href={`/tenants/${tenantId}/tenant-settings/github`}
               className="text-indigo-400"
             >
               Github account
-            </a>{' '}
+            </a>{" "}
             has write access to the repository.
           </AlertDescription>
         </Alert>
@@ -511,37 +497,20 @@ export default function UpdateWorkerForm({
                       value={installation}
                       onValueChange={(value) => {
                         field.onChange(value);
-                        setValue(
-                          'buildConfig.githubRepositoryOwner',
-                          '',
-                        );
-                        setValue(
-                          'buildConfig.githubRepositoryName',
-                          '',
-                        );
-                        setValue(
-                          'buildConfig.githubRepositoryBranch',
-                          '',
-                        );
+                        setValue("buildConfig.githubRepositoryOwner", "");
+                        setValue("buildConfig.githubRepositoryName", "");
+                        setValue("buildConfig.githubRepositoryBranch", "");
                       }}
                     >
                       <SelectTrigger className="w-fit">
-                        <SelectValue
-                          id="role"
-                          placeholder="Choose account"
-                        />
+                        <SelectValue id="role" placeholder="Choose account" />
                       </SelectTrigger>
                       <SelectContent>
-                        {listInstallationsQuery.data?.rows.map(
-                          (i) => (
-                            <SelectItem
-                              key={i.metadata.id}
-                              value={i.metadata.id}
-                            >
-                              {i.account_name}
-                            </SelectItem>
-                          ),
-                        )}
+                        {listInstallationsQuery.data?.rows.map((i) => (
+                          <SelectItem key={i.metadata.id} value={i.metadata.id}>
+                            {i.account_name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   );
@@ -565,17 +534,14 @@ export default function UpdateWorkerForm({
                       onValueChange={(value) => {
                         // get the correct repository id from the repo owner name
                         setValue(
-                          'buildConfig.githubRepositoryOwner',
-                          getRepoOwner(value) || '',
+                          "buildConfig.githubRepositoryOwner",
+                          getRepoOwner(value) || "",
                         );
                         setValue(
-                          'buildConfig.githubRepositoryName',
-                          getRepoName(value) || '',
+                          "buildConfig.githubRepositoryName",
+                          getRepoName(value) || "",
                         );
-                        setValue(
-                          'buildConfig.githubRepositoryBranch',
-                          '',
-                        );
+                        setValue("buildConfig.githubRepositoryBranch", "");
                       }}
                     >
                       <SelectTrigger className="w-fit">
@@ -589,10 +555,7 @@ export default function UpdateWorkerForm({
                           <SelectItem
                             key={i.repo_owner + i.repo_name}
                             value={
-                              getRepoOwnerName(
-                                i.repo_owner,
-                                i.repo_name,
-                              ) || ''
+                              getRepoOwnerName(i.repo_owner, i.repo_name) || ""
                             }
                           >
                             {i.repo_owner}/{i.repo_name}
@@ -621,17 +584,11 @@ export default function UpdateWorkerForm({
                   return (
                     <Select onValueChange={field.onChange} {...field}>
                       <SelectTrigger className="w-fit">
-                        <SelectValue
-                          id="role"
-                          placeholder="Choose branch"
-                        />
+                        <SelectValue id="role" placeholder="Choose branch" />
                       </SelectTrigger>
                       <SelectContent>
                         {listBranchesQuery.data?.map((i) => (
-                          <SelectItem
-                            key={i.branch_name}
-                            value={i.branch_name}
-                          >
+                          <SelectItem key={i.branch_name} value={i.branch_name}>
                             {i.branch_name}
                           </SelectItem>
                         ))}
@@ -662,9 +619,7 @@ export default function UpdateWorkerForm({
                 }}
               />
               {buildDirError && (
-                <div className="text-sm text-red-500">
-                  {buildDirError}
-                </div>
+                <div className="text-sm text-red-500">{buildDirError}</div>
               )}
               <Label htmlFor="dockerfile">Path to Dockerfile</Label>
               <Controller
@@ -705,9 +660,7 @@ export default function UpdateWorkerForm({
                   // Update the secrets state with the new values
                   setSecrets((prev) => {
                     const newSecrets = prev.map((s) => {
-                      const updated = updatedSecrets.find(
-                        (u) => u.id === s.id,
-                      );
+                      const updated = updatedSecrets.find((u) => u.id === s.id);
                       return updated ? { ...s, ...updated } : s;
                     });
                     return newSecrets;
@@ -715,9 +668,7 @@ export default function UpdateWorkerForm({
                 }}
               />
               {secretsError && (
-                <div className="text-sm text-red-500">
-                  {secretsError}
-                </div>
+                <div className="text-sm text-red-500">{secretsError}</div>
               )}
               <Label>Machine Configuration</Label>
               <div className="grid gap-4 pt-4">
@@ -726,22 +677,17 @@ export default function UpdateWorkerForm({
                   value={region?.toString()}
                   onValueChange={(value) => {
                     // find the region object from the value
-                    const region = regions.find(
-                      (i) => i.value === value,
-                    );
+                    const region = regions.find((i) => i.value === value);
 
                     if (!region) {
                       return;
                     }
 
-                    setValue('runtimeConfig.regions', [region.value]);
+                    setValue("runtimeConfig.regions", [region.value]);
                   }}
                 >
                   <SelectTrigger className="w-fit">
-                    <SelectValue
-                      id="region"
-                      placeholder="Choose region"
-                    />
+                    <SelectValue id="region" placeholder="Choose region" />
                   </SelectTrigger>
                   <SelectContent>
                     {regions.map((i) => (
@@ -766,16 +712,16 @@ export default function UpdateWorkerForm({
                           );
                           setMachineType(value);
                           setValue(
-                            'runtimeConfig.cpus',
+                            "runtimeConfig.cpus",
                             machineType?.cpus || 1,
                           );
                           setValue(
-                            'runtimeConfig.memoryMb',
+                            "runtimeConfig.memoryMb",
                             machineType?.memoryMb || 1024,
                           );
                           setValue(
-                            'runtimeConfig.cpuKind',
-                            machineType?.cpuKind || 'shared',
+                            "runtimeConfig.cpuKind",
+                            machineType?.cpuKind || "shared",
                           );
                         }}
                       >
@@ -786,9 +732,7 @@ export default function UpdateWorkerForm({
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          {machineTypes.map(
-                            renderMachineTypeSelectItem,
-                          )}
+                          {machineTypes.map(renderMachineTypeSelectItem)}
                         </SelectContent>
                       </Select>
                     );
@@ -800,42 +744,30 @@ export default function UpdateWorkerForm({
                   />
                 )}
                 {cpuKindError && (
-                  <div className="text-sm text-red-500">
-                    {cpuKindError}
-                  </div>
+                  <div className="text-sm text-red-500">{cpuKindError}</div>
                 )}
                 {cpusError && (
-                  <div className="text-sm text-red-500">
-                    {cpusError}
-                  </div>
+                  <div className="text-sm text-red-500">{cpusError}</div>
                 )}
                 {memoryMbError && (
-                  <div className="text-sm text-red-500">
-                    {memoryMbError}
-                  </div>
+                  <div className="text-sm text-red-500">{memoryMbError}</div>
                 )}
                 <Label>Scaling Method</Label>
                 <Tabs
                   defaultValue="Static"
                   value={scalingType}
                   onValueChange={(value) => {
-                    if (value === 'Static') {
-                      setScalingType('Static');
-                      setValue('runtimeConfig.numReplicas', 1);
-                      setValue(
-                        'runtimeConfig.autoscaling',
-                        undefined,
-                      );
+                    if (value === "Static") {
+                      setScalingType("Static");
+                      setValue("runtimeConfig.numReplicas", 1);
+                      setValue("runtimeConfig.autoscaling", undefined);
                       return;
                     } else {
-                      setScalingType('Autoscaling');
-                      setValue(
-                        'runtimeConfig.numReplicas',
-                        undefined,
-                      );
-                      setValue('runtimeConfig.autoscaling', {
-                        waitDuration: '1m',
-                        rollingWindowDuration: '2m',
+                      setScalingType("Autoscaling");
+                      setValue("runtimeConfig.numReplicas", undefined);
+                      setValue("runtimeConfig.autoscaling", {
+                        waitDuration: "1m",
+                        rollingWindowDuration: "2m",
                         utilizationScaleUpThreshold: 0.75,
                         utilizationScaleDownThreshold: 0.25,
                         increment: 1,
@@ -843,7 +775,7 @@ export default function UpdateWorkerForm({
                         minAwakeReplicas: 1,
                         maxReplicas: 10,
                         fly: {
-                          autoscalingKey: 'dashboard',
+                          autoscalingKey: "dashboard",
                           currentReplicas: 1,
                         },
                       });
@@ -852,22 +784,13 @@ export default function UpdateWorkerForm({
                 >
                   <TabsList layout="underlined">
                     {scalingTypes.map((type) => (
-                      <TabsTrigger
-                        variant="underlined"
-                        value={type}
-                        key={type}
-                      >
+                      <TabsTrigger variant="underlined" value={type} key={type}>
                         {type}
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  <TabsContent
-                    value="Static"
-                    className="grid gap-4 pt-4"
-                  >
-                    <Label htmlFor="numReplicas">
-                      Number of replicas
-                    </Label>
+                  <TabsContent value="Static" className="grid gap-4 pt-4">
+                    <Label htmlFor="numReplicas">Number of replicas</Label>
                     <Controller
                       control={control}
                       name="runtimeConfig.numReplicas"
@@ -877,13 +800,11 @@ export default function UpdateWorkerForm({
                             {...field}
                             type="number"
                             onChange={(e) => {
-                              if (e.target.value === '') {
+                              if (e.target.value === "") {
                                 field.onChange(e.target.value);
                                 return;
                               }
-                              field.onChange(
-                                parseInt(e.target.value),
-                              );
+                              field.onChange(parseInt(e.target.value));
                             }}
                             min={0}
                             max={16}
@@ -899,13 +820,8 @@ export default function UpdateWorkerForm({
                       </div>
                     )}
                   </TabsContent>
-                  <TabsContent
-                    value="Autoscaling"
-                    className="grid gap-4 pt-4"
-                  >
-                    <Label htmlFor="minAwakeReplicas">
-                      Min Replicas
-                    </Label>
+                  <TabsContent value="Autoscaling" className="grid gap-4 pt-4">
+                    <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
                     <Controller
                       control={control}
                       name="runtimeConfig.autoscaling.minAwakeReplicas"
@@ -916,12 +832,10 @@ export default function UpdateWorkerForm({
                             id="minAwakeReplicas"
                             type="number"
                             onChange={(e) => {
-                              field.onChange(
-                                parseInt(e.target.value),
-                              );
+                              field.onChange(parseInt(e.target.value));
 
                               setValue(
-                                'runtimeConfig.autoscaling.fly.currentReplicas',
+                                "runtimeConfig.autoscaling.fly.currentReplicas",
                                 parseInt(e.target.value),
                               );
                             }}
@@ -945,9 +859,7 @@ export default function UpdateWorkerForm({
                             id="maxReplicas"
                             type="number"
                             onChange={(e) => {
-                              field.onChange(
-                                parseInt(e.target.value),
-                              );
+                              field.onChange(parseInt(e.target.value));
                             }}
                           />
                         );
@@ -965,8 +877,7 @@ export default function UpdateWorkerForm({
                         return (
                           <div className="flex flex-row items-center gap-4">
                             <Label htmlFor="scaleToZero">
-                              Scale to zero during periods of
-                              inactivity?
+                              Scale to zero during periods of inactivity?
                             </Label>
                             <Checkbox
                               checked={field.value}
@@ -987,13 +898,11 @@ export default function UpdateWorkerForm({
                           Advanced autoscaling settings
                         </AccordionTrigger>
                         <AccordionContent className="flex flex-col gap-4">
-                          <Label htmlFor="waitDuration">
-                            Wait Duration
-                          </Label>
+                          <Label htmlFor="waitDuration">Wait Duration</Label>
                           <div className="text-sm text-muted-foreground">
-                            How long to wait between autoscaling
-                            events. For example: 10s (10 seconds),
-                            5m (5 minutes), 1h (1 hour).
+                            How long to wait between autoscaling events. For
+                            example: 10s (10 seconds), 5m (5 minutes), 1h (1
+                            hour).
                           </div>
                           <Controller
                             control={control}
@@ -1017,12 +926,10 @@ export default function UpdateWorkerForm({
                             Rolling Window Duration
                           </Label>
                           <div className="text-sm text-muted-foreground">
-                            The amount of time to look at
-                            utilization metrics for autoscaling.
-                            Lower values will lead to faster
-                            scale-up and scale-down. Example: 2m
-                            (2 minutes), 5m (5 minutes), 1h (1
-                            hour).
+                            The amount of time to look at utilization metrics
+                            for autoscaling. Lower values will lead to faster
+                            scale-up and scale-down. Example: 2m (2 minutes), 5m
+                            (5 minutes), 1h (1 hour).
                           </div>
                           <Controller
                             control={control}
@@ -1039,20 +946,17 @@ export default function UpdateWorkerForm({
                           />
                           {autoscalingRollingWindowDurationError && (
                             <div className="text-sm text-red-500">
-                              {
-                                autoscalingRollingWindowDurationError
-                              }
+                              {autoscalingRollingWindowDurationError}
                             </div>
                           )}
                           <Label htmlFor="utilizationScaleUpThreshold">
                             Utilization Scale Up Threshold
                           </Label>
                           <div className="text-sm text-muted-foreground">
-                            A value between 0 and 1 which
-                            represents the utilization threshold
-                            at which to scale up. For example,
-                            0.75 means that if the utilization is
-                            above 75%, scale up.
+                            A value between 0 and 1 which represents the
+                            utilization threshold at which to scale up. For
+                            example, 0.75 means that if the utilization is above
+                            75%, scale up.
                           </div>
                           <Controller
                             control={control}
@@ -1067,11 +971,7 @@ export default function UpdateWorkerForm({
                                   max={1}
                                   step={0.01}
                                   onChange={(e) => {
-                                    field.onChange(
-                                      parseFloat(
-                                        e.target.value,
-                                      ),
-                                    );
+                                    field.onChange(parseFloat(e.target.value));
                                   }}
                                 />
                               );
@@ -1079,20 +979,17 @@ export default function UpdateWorkerForm({
                           />
                           {autoscalingUtilizationScaleUpThresholdError && (
                             <div className="text-sm text-red-500">
-                              {
-                                autoscalingUtilizationScaleUpThresholdError
-                              }
+                              {autoscalingUtilizationScaleUpThresholdError}
                             </div>
                           )}
                           <Label htmlFor="utilizationScaleDownThreshold">
                             Utilization Scale Down Threshold
                           </Label>
                           <div className="text-sm text-muted-foreground">
-                            A value between 0 and 1 which
-                            represents the utilization threshold
-                            at which to scale down. For example,
-                            0.25 means that if the utilization is
-                            below 25%, scale down.
+                            A value between 0 and 1 which represents the
+                            utilization threshold at which to scale down. For
+                            example, 0.25 means that if the utilization is below
+                            25%, scale down.
                           </div>
                           <Controller
                             control={control}
@@ -1107,11 +1004,7 @@ export default function UpdateWorkerForm({
                                   max={1}
                                   step={0.01}
                                   onChange={(e) => {
-                                    field.onChange(
-                                      parseFloat(
-                                        e.target.value,
-                                      ),
-                                    );
+                                    field.onChange(parseFloat(e.target.value));
                                   }}
                                 />
                               );
@@ -1119,17 +1012,13 @@ export default function UpdateWorkerForm({
                           />
                           {autoscalingUtilizationScaleDownThresholdError && (
                             <div className="text-sm text-red-500">
-                              {
-                                autoscalingUtilizationScaleDownThresholdError
-                              }
+                              {autoscalingUtilizationScaleDownThresholdError}
                             </div>
                           )}
-                          <Label htmlFor="increment">
-                            Scaling Increment
-                          </Label>
+                          <Label htmlFor="increment">Scaling Increment</Label>
                           <div className="text-sm text-muted-foreground">
-                            The number of replicas to scale by
-                            when scaling up or down.
+                            The number of replicas to scale by when scaling up
+                            or down.
                           </div>
                           <Controller
                             control={control}
@@ -1141,11 +1030,7 @@ export default function UpdateWorkerForm({
                                   id="increment"
                                   type="number"
                                   onChange={(e) => {
-                                    field.onChange(
-                                      parseInt(
-                                        e.target.value,
-                                      ),
-                                    );
+                                    field.onChange(parseInt(e.target.value));
                                   }}
                                 />
                               );

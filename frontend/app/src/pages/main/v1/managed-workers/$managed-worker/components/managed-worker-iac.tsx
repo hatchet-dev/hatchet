@@ -1,4 +1,4 @@
-import { ManagedWorkerIaCLogs } from './managed-worker-iac-logs';
+import { ManagedWorkerIaCLogs } from "./managed-worker-iac-logs";
 
 export function ManagedWorkerIaC({
   managedWorkerId,

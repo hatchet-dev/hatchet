@@ -2,15 +2,15 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/v1/ui/popover';
+} from "@/components/v1/ui/popover";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
-import { TagIcon } from '@heroicons/react/24/outline';
-import { memo } from 'react';
+} from "@/components/v1/ui/tooltip";
+import { TagIcon } from "@heroicons/react/24/outline";
+import { memo } from "react";
 
 export interface AdditionalMetadataClick {
   key: string;
@@ -23,7 +23,7 @@ interface AdditionalMetadataProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
-  align?: 'start' | 'center' | 'end';
+  align?: "start" | "center" | "end";
 }
 
 export const AdditionalMetadata = memo(
@@ -32,8 +32,8 @@ export const AdditionalMetadata = memo(
     onClick,
     isOpen,
     onOpenChange,
-    title = 'Metadata',
-    align = 'end',
+    title = "Metadata",
+    align = "end",
   }: AdditionalMetadataProps) {
     const metadataEntries = Object.entries(metadata || {});
 
@@ -62,8 +62,8 @@ export const AdditionalMetadata = memo(
               <div className="mb-3 flex items-center gap-2 border-b pb-2">
                 <TagIcon className="size-4 text-muted-foreground" />
                 <span className="text-sm font-medium">
-                  {title} ({metadataCount}{' '}
-                  {metadataCount === 1 ? 'item' : 'items'})
+                  {title} ({metadataCount}{" "}
+                  {metadataCount === 1 ? "item" : "items"})
                 </span>
               </div>
               <div className="max-h-60 space-y-2 overflow-y-auto">
@@ -90,10 +90,7 @@ export const AdditionalMetadata = memo(
                                 {getDisplayValue(value)}
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent
-                              side="left"
-                              className="max-w-xs"
-                            >
+                            <TooltipContent side="left" className="max-w-xs">
                               <pre className="whitespace-pre-wrap text-xs">
                                 {JSON.stringify(value, null, 2)}
                               </pre>
@@ -115,23 +112,22 @@ export const AdditionalMetadata = memo(
       prevProps.isOpen === nextProps.isOpen &&
       prevProps.onClick === nextProps.onClick &&
       prevProps.onOpenChange === nextProps.onOpenChange &&
-      JSON.stringify(prevProps.metadata) ===
-        JSON.stringify(nextProps.metadata)
+      JSON.stringify(prevProps.metadata) === JSON.stringify(nextProps.metadata)
     );
   },
 );
 
 const getDisplayValue = (value: any): string => {
   if (value === null) {
-    return 'null';
+    return "null";
   }
   if (value === undefined) {
-    return 'undefined';
+    return "undefined";
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return value.length > 50 ? `${value.substring(0, 50)}...` : value;
   }
-  if (typeof value === 'object') {
+  if (typeof value === "object") {
     const jsonStr = JSON.stringify(value);
     return jsonStr.length > 50 ? `${jsonStr.substring(0, 50)}...` : jsonStr;
   }

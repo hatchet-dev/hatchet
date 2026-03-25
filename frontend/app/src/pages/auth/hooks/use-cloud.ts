@@ -1,11 +1,11 @@
-import { cloudApi } from '@/lib/api/api';
+import { cloudApi } from "@/lib/api/api";
 import {
   APICloudMetadata,
   FeatureFlags,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { useApiError } from '@/lib/hooks';
-import { useQuery } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
+} from "@/lib/api/generated/cloud/data-contracts";
+import { useApiError } from "@/lib/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 
 export const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
   // @ts-expect-error errors is returned when this is oss
@@ -13,14 +13,14 @@ export const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
 };
 
 export const getCloudMetadataQuery = {
-  queryKey: ['cloud-metadata:get'],
+  queryKey: ["cloud-metadata:get"],
   retry: false,
   queryFn: async () => {
     try {
       const { data: meta } = await cloudApi.metadataGet();
       const isCloudEnabled = metadataIndicatesCloudEnabled(meta);
       if (isCloudEnabled) {
-        console.log('🪓☁️');
+        console.log("🪓☁️");
 
         return {
           ...meta,
@@ -28,12 +28,12 @@ export const getCloudMetadataQuery = {
         };
       }
 
-      console.log('\x1b[33m🪓 Thanks for self-hosting Hatchet!\x1b[0m');
-      console.log('For support, please contact support@hatchet.run,');
-      console.log('Join our Discord server at https://hatchet.run/discord,');
-      console.log('or visit https://docs.hatchet.run/self-hosting');
+      console.log("\x1b[33m🪓 Thanks for self-hosting Hatchet!\x1b[0m");
+      console.log("For support, please contact support@hatchet.run,");
+      console.log("Join our Discord server at https://hatchet.run/discord,");
+      console.log("or visit https://docs.hatchet.run/self-hosting");
     } catch (e) {
-      console.error('Failed to get cloud metadata', e);
+      console.error("Failed to get cloud metadata", e);
     }
 
     return {
@@ -76,7 +76,7 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
   }
 
   const featureFlagsQuery = useQuery({
-    queryKey: ['feature-flags:list', tenantId],
+    queryKey: ["feature-flags:list", tenantId],
     retry: false,
     enabled: cloudMetaQuery.data?.isCloudEnabled && !!tenantId,
     queryFn: async () => {

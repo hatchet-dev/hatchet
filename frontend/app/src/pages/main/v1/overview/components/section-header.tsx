@@ -1,5 +1,5 @@
-import { OnboardingBadge } from './onboarding-badge';
-import { Separator } from '@/components/v1/ui/separator';
+import { OnboardingBadge } from "./onboarding-badge";
+import { Separator } from "@/components/v1/ui/separator";
 
 export function SectionHeader({
   title,

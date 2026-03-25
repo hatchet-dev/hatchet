@@ -1,4 +1,4 @@
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
+import { HatchetLogo } from "@/components/v1/ui/hatchet-logo";
 
 // TODO-DESIGN
 export function HeroPanel() {
@@ -15,8 +15,7 @@ export function HeroPanel() {
             The last orchestrator you’ll ever need
           </h1>
           <p className="mt-4 text-base text-balance dark:text-[#b8d9ff77] dark:mix-blend-plus-lighter">
-            Run fast and reliable workflows for background jobs and
-            agents.
+            Run fast and reliable workflows for background jobs and agents.
           </p>
         </div>
       </div>

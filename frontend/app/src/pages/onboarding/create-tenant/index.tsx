@@ -1,13 +1,13 @@
-import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
-import { queries } from '@/lib/api';
-import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
-import { useLoaderData, useNavigate } from '@tanstack/react-router';
+import { NewTenantSaverForm } from "@/components/forms/new-tenant-saver-form";
+import { queries } from "@/lib/api";
+import queryClient from "@/query-client";
+import { appRoutes } from "@/router";
+import { useLoaderData, useNavigate } from "@tanstack/react-router";
 
 export default function CreateTenant() {
   const navigate = useNavigate();
   const { organizations } = useLoaderData({
-    from: '/onboarding/create-tenant',
+    from: "/onboarding/create-tenant",
   });
 
   const defaultOrganizationId =
@@ -18,20 +18,18 @@ export default function CreateTenant() {
   return (
     <div className="max-h-full overflow-y-auto">
       <div className="mx-auto max-w-6xl space-y-6 p-6">
-        <h1 className="text-2xl font-bold text-center">
-          Create a new tenant
-        </h1>
+        <h1 className="text-2xl font-bold text-center">Create a new tenant</h1>
 
         <div className="flex justify-center">
           <NewTenantSaverForm
             defaultOrganizationId={defaultOrganizationId}
             afterSave={(result) => {
               const tenantId =
-                result.type === 'cloud'
+                result.type === "cloud"
                   ? result.tenant.id
                   : result.tenant.metadata.id;
 
-              if (result.type === 'cloud') {
+              if (result.type === "cloud") {
                 void queryClient
                   .prefetchQuery(queries.cloud.subscriptionPlans())
                   .catch(() => {

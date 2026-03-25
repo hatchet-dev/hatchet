@@ -1,67 +1,67 @@
-import { Badge, BadgeProps } from '@/components/v1/ui/badge';
-import { HoverCard, HoverCardTrigger } from '@/components/v1/ui/hover-card';
+import { Badge, BadgeProps } from "@/components/v1/ui/badge";
+import { HoverCard, HoverCardTrigger } from "@/components/v1/ui/hover-card";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+} from "@/components/v1/ui/tooltip";
 import {
   JobRunStatus,
   StepRunStatus,
   V1TaskStatus,
   WorkflowRunStatus,
-} from '@/lib/api';
-import { capitalize } from '@/lib/utils';
-import { HoverCardContent } from '@radix-ui/react-hover-card';
+} from "@/lib/api";
+import { capitalize } from "@/lib/utils";
+import { HoverCardContent } from "@radix-ui/react-hover-card";
 
 type RunStatusType =
-  `${StepRunStatus | WorkflowRunStatus | JobRunStatus | 'SCHEDULED'}`;
+  `${StepRunStatus | WorkflowRunStatus | JobRunStatus | "SCHEDULED"}`;
 
 type RunStatusVariant = {
   text: string;
-  variant: BadgeProps['variant'];
+  variant: BadgeProps["variant"];
 };
 
 function createRunStatusVariant(status: RunStatusType): RunStatusVariant {
   switch (status) {
-    case 'SUCCEEDED':
-      return { text: 'Succeeded', variant: 'successful' };
-    case 'FAILED':
-      return { text: 'Failed', variant: 'failed' };
-    case 'CANCELLED':
-      return { text: 'Cancelled', variant: 'cancelled' };
-    case 'CANCELLING':
-      return { text: 'Cancelling', variant: 'cancelled' };
-    case 'RUNNING':
-      return { text: 'Running', variant: 'inProgress' };
-    case 'QUEUED':
-      return { text: 'Queued', variant: 'queued' };
-    case 'PENDING':
-      return { text: 'Pending', variant: 'queued' };
-    case 'PENDING_ASSIGNMENT':
-      return { text: 'Pending', variant: 'queued' };
-    case 'ASSIGNED':
-      return { text: 'Assigned', variant: 'inProgress' };
-    case 'SCHEDULED':
-      return { text: 'Scheduled', variant: 'queued' };
+    case "SUCCEEDED":
+      return { text: "Succeeded", variant: "successful" };
+    case "FAILED":
+      return { text: "Failed", variant: "failed" };
+    case "CANCELLED":
+      return { text: "Cancelled", variant: "cancelled" };
+    case "CANCELLING":
+      return { text: "Cancelling", variant: "cancelled" };
+    case "RUNNING":
+      return { text: "Running", variant: "inProgress" };
+    case "QUEUED":
+      return { text: "Queued", variant: "queued" };
+    case "PENDING":
+      return { text: "Pending", variant: "queued" };
+    case "PENDING_ASSIGNMENT":
+      return { text: "Pending", variant: "queued" };
+    case "ASSIGNED":
+      return { text: "Assigned", variant: "inProgress" };
+    case "SCHEDULED":
+      return { text: "Scheduled", variant: "queued" };
     default:
-      return { text: 'Unknown', variant: 'outline' };
+      return { text: "Unknown", variant: "outline" };
   }
 }
 
 function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
   switch (status) {
     case V1TaskStatus.COMPLETED:
-      return { text: 'Succeeded', variant: 'successful' };
+      return { text: "Succeeded", variant: "successful" };
     case V1TaskStatus.FAILED:
-      return { text: 'Failed', variant: 'failed' };
+      return { text: "Failed", variant: "failed" };
     case V1TaskStatus.CANCELLED:
-      return { text: 'Cancelled', variant: 'cancelled' };
+      return { text: "Cancelled", variant: "cancelled" };
     case V1TaskStatus.RUNNING:
-      return { text: 'Running', variant: 'inProgress' };
+      return { text: "Running", variant: "inProgress" };
     case V1TaskStatus.QUEUED:
-      return { text: 'Queued', variant: 'queued' };
+      return { text: "Queued", variant: "queued" };
     default: {
       const exhaustivenessCheck: never = status;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);
@@ -70,8 +70,8 @@ function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
 }
 
 const RUN_STATUS_REASONS: Record<string, string> = {
-  TIMED_OUT: 'Runtime Timed Out',
-  SCHEDULING_TIMED_OUT: 'Scheduling Timed Out',
+  TIMED_OUT: "Runtime Timed Out",
+  SCHEDULING_TIMED_OUT: "Scheduling Timed Out",
 };
 
 const RUN_STATUS_VARIANTS_REASON_OVERRIDES: Record<
@@ -79,12 +79,12 @@ const RUN_STATUS_VARIANTS_REASON_OVERRIDES: Record<
   RunStatusVariant
 > = {
   TIMED_OUT: {
-    text: 'Timed Out',
-    variant: 'failed',
+    text: "Timed Out",
+    variant: "failed",
   },
   SCHEDULING_TIMED_OUT: {
-    text: 'Timed Out',
-    variant: 'failed',
+    text: "Timed Out",
+    variant: "failed",
   },
 };
 
@@ -120,9 +120,7 @@ export function RunStatus({
         <TooltipTrigger>
           <StatusBadge />
         </TooltipTrigger>
-        <TooltipContent>
-          {RUN_STATUS_REASONS[reason] || reason}
-        </TooltipContent>
+        <TooltipContent>{RUN_STATUS_REASONS[reason] || reason}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
@@ -144,7 +142,7 @@ export function V1RunStatus({
   const StatusBadge = () => (
     <Badge variant={variant} className={className}>
       <span className="flex items-center gap-1">
-        {capitalize(isEvicted ? 'Running' : text)}
+        {capitalize(isEvicted ? "Running" : text)}
         {isEvicted && (
           <TooltipProvider>
             <Tooltip>

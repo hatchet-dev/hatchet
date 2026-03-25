@@ -2,20 +2,20 @@ import {
   GithubAccountCell,
   GithubLinkCell,
   GithubSettingsCell,
-} from './components/github-installations-columns';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
-import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
-import { useApiError } from '@/lib/hooks';
-import useCloud from '@/pages/auth/hooks/use-cloud';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
-import invariant from 'tiny-invariant';
+} from "./components/github-installations-columns";
+import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { Button } from "@/components/v1/ui/button";
+import { Separator } from "@/components/v1/ui/separator";
+import { useCurrentTenantId, useTenantDetails } from "@/hooks/use-tenant";
+import { queries } from "@/lib/api";
+import { cloudApi } from "@/lib/api/api";
+import { GithubAppInstallation } from "@/lib/api/generated/cloud/data-contracts";
+import { useApiError } from "@/lib/hooks";
+import useCloud from "@/pages/auth/hooks/use-cloud";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import invariant from "tiny-invariant";
 
 export default function Github() {
   const { cloud } = useCloud();
@@ -66,12 +66,12 @@ function GithubInstallationsList() {
 
   const linkInstallationToTenantMutation = useMutation({
     mutationKey: [
-      'github-app:update:installation',
+      "github-app:update:installation",
       tenantId,
       installationToLink,
     ],
     mutationFn: async () => {
-      invariant(installationToLink, 'installationToLink should be set');
+      invariant(installationToLink, "installationToLink should be set");
       const res = await cloudApi.githubAppUpdateInstallation(
         installationToLink,
         {
@@ -90,13 +90,13 @@ function GithubInstallationsList() {
   const githubColumns = useMemo(
     () => [
       {
-        columnLabel: 'Account name',
+        columnLabel: "Account name",
         cellRenderer: (installation: GithubAppInstallation) => (
           <GithubAccountCell installation={installation} />
         ),
       },
       {
-        columnLabel: 'Link to tenant?',
+        columnLabel: "Link to tenant?",
         cellRenderer: (installation: GithubAppInstallation) => (
           <GithubLinkCell
             installation={installation}
@@ -107,7 +107,7 @@ function GithubInstallationsList() {
         ),
       },
       {
-        columnLabel: 'Github Settings',
+        columnLabel: "Github Settings",
         cellRenderer: (installation: GithubAppInstallation) => (
           <GithubSettingsCell installation={installation} />
         ),
@@ -138,15 +138,14 @@ function GithubInstallationsList() {
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No Github accounts linked. Link an account to integrate with
-          CI/CD.
+          No Github accounts linked. Link an account to integrate with CI/CD.
         </div>
       )}
       <ConfirmDialog
         title={`Are you sure?`}
         description={`Linking this app to ${tenant?.name} will allow other members of the tenant to view this installation. Users will only be able to deploy to repositories that they have access to.`}
-        submitLabel={'Yes, link to tenant'}
-        submitVariant={'default'}
+        submitLabel={"Yes, link to tenant"}
+        submitVariant={"default"}
         onSubmit={linkInstallationToTenantMutation.mutate}
         onCancel={function (): void {
           setInstallationToLink(undefined);

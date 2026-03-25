@@ -1,5 +1,5 @@
-import { formatDuration } from '../utils/format-utils';
-import type { TimeRange } from './minimap-types';
+import { formatDuration } from "../utils/format-utils";
+import type { TimeRange } from "./minimap-types";
 
 interface DragAnnotationProps {
   visibleRange: TimeRange;
@@ -22,8 +22,8 @@ export function DragAnnotation({ visibleRange, totalMs }: DragAnnotationProps) {
         style={{
           left: `${visibleRange.startPct * 100}%`,
           width: `${(visibleRange.endPct - visibleRange.startPct) * 100}%`,
-          top: '50%',
-          transform: 'translateY(-50%)',
+          top: "50%",
+          transform: "translateY(-50%)",
         }}
       >
         <span className="shrink-0 whitespace-nowrap rounded bg-foreground/90 px-1 py-px font-mono text-[10px] leading-tight text-background">

@@ -1,20 +1,20 @@
-import { Button } from '@/components/v1/ui/button';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { Button } from "@/components/v1/ui/button";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
-import { Switch } from '@/components/v1/ui/switch';
-import { TenantAlertingSettings } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
+} from "@/components/v1/ui/select";
+import { Switch } from "@/components/v1/ui/switch";
+import { TenantAlertingSettings } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 
 const schema = z.object({
   maxAlertingFrequency: z.string(),
@@ -57,8 +57,7 @@ export function UpdateTenantAlertingSettings({
   });
 
   const freqError =
-    errors.maxAlertingFrequency?.message?.toString() ||
-    props.fieldErrors?.role;
+    errors.maxAlertingFrequency?.message?.toString() || props.fieldErrors?.role;
 
   return (
     <div>
@@ -68,20 +67,17 @@ export function UpdateTenantAlertingSettings({
             ...d,
             enableWorkflowRunFailureAlerts: enabledWorkflowAlerting,
             enableExpiringTokenAlerts: enabledExpiringTokenAlerting,
-            enableTenantResourceLimitAlerts:
-              enableTenantResourceLimitAlerts,
+            enableTenantResourceLimitAlerts: enableTenantResourceLimitAlerts,
           });
         })}
-        className={cn('grid gap-6', className)}
+        className={cn("grid gap-6", className)}
       >
         <div className="flex items-center space-x-2">
           <Switch
             id="eta"
             checked={enabledExpiringTokenAlerting}
             onClick={() => {
-              setEnabledExpiringTokenAlerting(
-                (checkedState) => !checkedState,
-              );
+              setEnabledExpiringTokenAlerting((checkedState) => !checkedState);
             }}
           />
           <Label htmlFor="eta" className="text-sm">
@@ -107,9 +103,7 @@ export function UpdateTenantAlertingSettings({
             id="awrf"
             checked={enabledWorkflowAlerting}
             onClick={() => {
-              setEnabledWorkflowAlerting(
-                (checkedState) => !checkedState,
-              );
+              setEnabledWorkflowAlerting((checkedState) => !checkedState);
             }}
           />
           <Label htmlFor="awrf" className="text-sm">
@@ -136,13 +130,9 @@ export function UpdateTenantAlertingSettings({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="5m">
-                          5 minutes
-                        </SelectItem>
+                        <SelectItem value="5m">5 minutes</SelectItem>
                         <SelectItem value="1h">1 hour</SelectItem>
-                        <SelectItem value="24h">
-                          24 hours
-                        </SelectItem>
+                        <SelectItem value="24h">24 hours</SelectItem>
                       </SelectContent>
                     </Select>
                   );

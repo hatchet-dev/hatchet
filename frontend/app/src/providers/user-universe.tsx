@@ -1,38 +1,36 @@
-import api, { cloudApi } from '@/lib/api/api';
+import api, { cloudApi } from "@/lib/api/api";
 import {
   OrganizationForUser,
   OrganizationForUserList,
   TenantStatusType,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { Tenant, TenantMember } from '@/lib/api/generated/data-contracts';
-import useCloud from '@/pages/auth/hooks/use-cloud';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useMemo } from 'react';
-import invariant from 'tiny-invariant';
+} from "@/lib/api/generated/cloud/data-contracts";
+import { Tenant, TenantMember } from "@/lib/api/generated/data-contracts";
+import useCloud from "@/pages/auth/hooks/use-cloud";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, useMemo } from "react";
+import invariant from "tiny-invariant";
 
 // The user's universe: the tenants they belong to, and if we're in the cloud environment, the organizations those tenants belong to
 
 type UserUniverse = {
   isCloudEnabled: boolean;
   isLoaded: boolean;
-  organizations: OrganizationForUserList['rows'] | null;
+  organizations: OrganizationForUserList["rows"] | null;
   tenantMemberships: TenantMember[] | null;
   invalidate: () => void;
 } & (
   | ({
       isCloudEnabled: true;
       get: () => Promise<{
-        organizations: OrganizationForUserList['rows'];
+        organizations: OrganizationForUserList["rows"];
         tenantMemberships: TenantMember[];
       }>;
     } & (
       | {
           isLoaded: true;
-          organizations: OrganizationForUserList['rows'];
+          organizations: OrganizationForUserList["rows"];
           tenantMemberships: TenantMember[];
-          getOrganizationForTenant: (
-            tenantId: string,
-          ) => OrganizationForUser;
+          getOrganizationForTenant: (tenantId: string) => OrganizationForUser;
           getTenantWithTenantId: (tenantId: string) => Tenant;
         }
       | {
@@ -73,7 +71,7 @@ type PossibleQueryResponses = {
 } & (
   | {
       isCloudEnabled: true;
-      organizations: OrganizationForUserList['rows'];
+      organizations: OrganizationForUserList["rows"];
     }
   | {
       isCloudEnabled: false;
@@ -88,7 +86,7 @@ export const userUniverseQuery = ({
   isCloudEnabled: boolean;
   isCloudLoaded: boolean;
 }) => ({
-  queryKey: ['user-universe', isCloudEnabled],
+  queryKey: ["user-universe", isCloudEnabled],
   queryFn: async (): Promise<PossibleQueryResponses> => {
     const [organizationsResponse, tenantMembershipsResponse] =
       await Promise.all([
@@ -139,7 +137,7 @@ export const userUniverseQuery = ({
 
     tenantMemberships.sort((a, b) => {
       return a.tenant.name.localeCompare(b.tenant.name, undefined, {
-        sensitivity: 'base',
+        sensitivity: "base",
       });
     });
 
@@ -149,7 +147,7 @@ export const userUniverseQuery = ({
         const tenantA = getTenantWithTenantId(a.id);
         const tenantB = getTenantWithTenantId(b.id);
         return tenantA.name.localeCompare(tenantB.name, undefined, {
-          sensitivity: 'base',
+          sensitivity: "base",
         });
       });
     });
@@ -185,7 +183,7 @@ export function UserUniverseProvider({
 
   const invalidate = useCallback(() => {
     queryClient.resetQueries({
-      queryKey: ['user-universe'],
+      queryKey: ["user-universe"],
     });
   }, [queryClient]);
 
@@ -211,7 +209,7 @@ export function UserUniverseProvider({
 
     if (isCloudEnabled) {
       const getWithOrganizations = get as () => Promise<{
-        organizations: OrganizationForUserList['rows'];
+        organizations: OrganizationForUserList["rows"];
         tenantMemberships: TenantMember[];
       }>;
 
@@ -222,10 +220,7 @@ export function UserUniverseProvider({
 
         const tenantIdToOrganization = new Map<string, OrganizationForUser>(
           organizations.flatMap((organization) =>
-            organization.tenants.map((tenant) => [
-              tenant.id,
-              organization,
-            ]),
+            organization.tenants.map((tenant) => [tenant.id, organization]),
           ),
         );
         const getOrganizationForTenant = (tenantId: string) => {
@@ -244,8 +239,7 @@ export function UserUniverseProvider({
           invalidate,
           getOrganizationForTenant,
           getTenantWithTenantId:
-            tenantMembershipAndOrganizationsQuery.data
-              .getTenantWithTenantId,
+            tenantMembershipAndOrganizationsQuery.data.getTenantWithTenantId,
         };
       }
 
@@ -270,14 +264,12 @@ export function UserUniverseProvider({
             isLoaded: tenantMembershipAndOrganizationsAreLoaded,
             organizations: null,
             tenantMemberships:
-              tenantMembershipAndOrganizationsQuery.data
-                .tenantMemberships,
+              tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
             get: getWithoutOrganizations,
             invalidate,
             getOrganizationForTenant: null,
             getTenantWithTenantId:
-              tenantMembershipAndOrganizationsQuery.data
-                .getTenantWithTenantId,
+              tenantMembershipAndOrganizationsQuery.data.getTenantWithTenantId,
           }
         : {
             isCloudEnabled,
@@ -303,7 +295,7 @@ export function useUserUniverse() {
   const context = useContext(UserUniverseContext);
   invariant(
     context,
-    'useUserUniverse must be used within UserUniverseProvider',
+    "useUserUniverse must be used within UserUniverseProvider",
   );
   return context;
 }

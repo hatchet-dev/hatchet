@@ -1,12 +1,12 @@
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
+import { Button } from "@/components/v1/ui/button";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading.tsx";
+import { useTenantDetails } from "@/hooks/use-tenant";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 const schema = z.object({
   name: z.string().max(255).min(1),
@@ -36,11 +36,10 @@ export function UpdateTenantForm({
     },
   });
 
-  const nameError =
-    errors.name?.message?.toString() || props.fieldErrors?.role;
+  const nameError = errors.name?.message?.toString() || props.fieldErrors?.role;
 
   return (
-    <div className={cn('grid gap-6', className)}>
+    <div className={cn("grid gap-6", className)}>
       <form
         onSubmit={handleSubmit((d) => {
           props.onSubmit(d);
@@ -50,7 +49,7 @@ export function UpdateTenantForm({
           <div className="grid gap-2">
             <Label htmlFor="email">Name</Label>
             <Input
-              {...register('name')}
+              {...register("name")}
               id="name"
               placeholder="My Tenant"
               type="name"

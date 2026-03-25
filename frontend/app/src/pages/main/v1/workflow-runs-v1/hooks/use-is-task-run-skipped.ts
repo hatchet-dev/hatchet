@@ -1,7 +1,7 @@
-import { queries, V1TaskEventType } from '@/lib/api';
-import { appRoutes } from '@/router';
-import { useQuery } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
+import { queries, V1TaskEventType } from "@/lib/api";
+import { appRoutes } from "@/router";
+import { useQuery } from "@tanstack/react-query";
+import { useParams } from "@tanstack/react-router";
 
 type UseIsTaskRunSkippedProps = {
   taskRunId: string;

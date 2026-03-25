@@ -1,25 +1,25 @@
-import { TabOption } from './step-run-detail/step-run-detail';
+import { TabOption } from "./step-run-detail/step-run-detail";
 import {
   getAutocomplete,
   applySuggestion,
-} from '@/components/v1/cloud/logging/log-search/autocomplete';
-import { parseLogQuery } from '@/components/v1/cloud/logging/log-search/parser';
-import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-search/types';
-import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
-import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
-import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
-import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
-import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { V1LogLine, V1LogLineOrderByDirection } from '@/lib/api';
-import api from '@/lib/api/api';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+} from "@/components/v1/cloud/logging/log-search/autocomplete";
+import { parseLogQuery } from "@/components/v1/cloud/logging/log-search/parser";
+import type { AutocompleteSuggestion } from "@/components/v1/cloud/logging/log-search/types";
+import { LOG_LEVEL_TO_API } from "@/components/v1/cloud/logging/log-search/types";
+import { LogLine } from "@/components/v1/cloud/logging/log-search/use-logs";
+import { LogViewer } from "@/components/v1/cloud/logging/log-viewer";
+import { SearchBarWithFilters } from "@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters";
+import { useSidePanel } from "@/hooks/use-side-panel";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { V1LogLine, V1LogLineOrderByDirection } from "@/lib/api";
+import api from "@/lib/api/api";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 
 const LOGS_PER_PAGE = 100;
 
 function logKey(log: LogLine): string {
-  return `${log.timestamp ?? ''}-${log.line ?? ''}`;
+  return `${log.timestamp ?? ""}-${log.line ?? ""}`;
 }
 
 function mapToLogLines(rows: V1LogLine[]): LogLine[] {
@@ -40,15 +40,15 @@ interface WorkflowRunLogsProps {
 export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
   const { tenantId } = useCurrentTenantId();
   const sidePanel = useSidePanel();
-  const [queryString, setQueryString] = useState('');
+  const [queryString, setQueryString] = useState("");
   const parsedQuery = useMemo(() => parseLogQuery(queryString), [queryString]);
 
   // Stable string key so the query key doesn't use an array reference
-  const taskExternalIdsKey = taskExternalIds.join(',');
+  const taskExternalIdsKey = taskExternalIds.join(",");
 
   const logsQuery = useInfiniteQuery({
     queryKey: [
-      'workflow-run-logs',
+      "workflow-run-logs",
       taskExternalIdsKey,
       parsedQuery.level,
       parsedQuery.search,
@@ -103,7 +103,7 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
   const handleViewRun = useCallback(
     (taskRunId: string) => {
       sidePanel.open({
-        type: 'task-run-details',
+        type: "task-run-details",
         content: {
           taskRunId,
           defaultOpenTab: TabOption.Output,
@@ -126,14 +126,14 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
         placeholder="Search logs..."
         filterChips={[
           {
-            key: 'level:',
-            label: 'Level',
-            description: 'Filter by log level',
+            key: "level:",
+            label: "Level",
+            description: "Filter by log level",
           },
           {
-            key: 'attempt:',
-            label: 'Attempt',
-            description: 'Filter by attempt number',
+            key: "attempt:",
+            label: "Attempt",
+            description: "Filter by attempt number",
           },
         ]}
       />

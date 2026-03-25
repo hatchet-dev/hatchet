@@ -1,6 +1,6 @@
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { queries, V1TaskStatus } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+import { queries, V1TaskStatus } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const { isLoading, data } = useQuery({
@@ -14,7 +14,7 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const outputData =
     (data.status === V1TaskStatus.FAILED
       ? data.errorMessage
-      : JSON.stringify(data.output, null, 2)) || '';
+      : JSON.stringify(data.output, null, 2)) || "";
 
   return (
     <CodeHighlighter

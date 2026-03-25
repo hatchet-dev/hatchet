@@ -3,10 +3,10 @@ import {
   PortalTooltipTrigger,
   PortalTooltipContent,
   PortalTooltipProvider,
-} from '@/components/v1/ui/portal-tooltip';
-import { format, parseISO } from 'date-fns';
-import React, { useEffect, useMemo, useState } from 'react';
-import TimeAgo from 'timeago-react';
+} from "@/components/v1/ui/portal-tooltip";
+import { format, parseISO } from "date-fns";
+import React, { useEffect, useMemo, useState } from "react";
+import TimeAgo from "timeago-react";
 
 interface RelativeDateProps {
   date?: Date | string;
@@ -14,15 +14,15 @@ interface RelativeDateProps {
 }
 
 const RelativeDate: React.FC<RelativeDateProps> = ({
-  date = '',
+  date = "",
   future = false,
 }) => {
   const formattedDate = useMemo(
-    () => (typeof date === 'string' ? parseISO(date) : date),
+    () => (typeof date === "string" ? parseISO(date) : date),
     [date],
   );
 
-  const [countdown, setCountdown] = useState('');
+  const [countdown, setCountdown] = useState("");
 
   useEffect(() => {
     if (future) {
@@ -31,7 +31,7 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
         const timeDiff = formattedDate.getTime() - currentDate.getTime();
 
         if (timeDiff <= 0) {
-          setCountdown('');
+          setCountdown("");
           return;
         }
 
@@ -39,9 +39,7 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
         const hours = Math.floor(
           (timeDiff % (1000 * 3600 * 24)) / (1000 * 3600),
         );
-        const minutes = Math.floor(
-          (timeDiff % (1000 * 3600)) / (1000 * 60),
-        );
+        const minutes = Math.floor((timeDiff % (1000 * 3600)) / (1000 * 60));
         const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
 
         const countdownParts = [];
@@ -56,7 +54,7 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
         }
         countdownParts.push(`${seconds}s`);
 
-        setCountdown(countdownParts.join(' '));
+        setCountdown(countdownParts.join(" "));
       };
 
       updateCountdown();
@@ -68,7 +66,7 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
     }
   }, [formattedDate, future]);
 
-  if (date == '0001-01-01T00:00:00Z') {
+  if (date == "0001-01-01T00:00:00Z") {
     return null;
   }
 
@@ -90,7 +88,7 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
           </span>
         </PortalTooltipTrigger>
         <PortalTooltipContent side="top">
-          {format(formattedDate, 'yyyy-MM-dd HH:mm:ss.SSS zzz')}
+          {format(formattedDate, "yyyy-MM-dd HH:mm:ss.SSS zzz")}
         </PortalTooltipContent>
       </PortalTooltip>
     </PortalTooltipProvider>

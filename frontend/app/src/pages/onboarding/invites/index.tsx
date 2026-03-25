@@ -1,23 +1,23 @@
-import { Button } from '@/components/v1/ui/button';
-import { useAnalytics } from '@/hooks/use-analytics';
-import { useOrganizations } from '@/hooks/use-organizations';
+import { Button } from "@/components/v1/ui/button";
+import { useAnalytics } from "@/hooks/use-analytics";
+import { useOrganizations } from "@/hooks/use-organizations";
 import {
   pendingInvitesQuery,
   usePendingInvites,
-} from '@/hooks/use-pending-invites';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { Tenant, TenantInvite } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
-import type { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
-import { useApiError } from '@/lib/hooks';
-import { metadataIndicatesCloudEnabled } from '@/pages/auth/hooks/use-cloud';
-import { useUserUniverse } from '@/providers/user-universe';
-import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
-import { useMutation } from '@tanstack/react-query';
-import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
-import { useCallback, useEffect, useState } from 'react';
-import invariant from 'tiny-invariant';
+} from "@/hooks/use-pending-invites";
+import { useTenantDetails } from "@/hooks/use-tenant";
+import api, { Tenant, TenantInvite } from "@/lib/api";
+import { cloudApi } from "@/lib/api/api";
+import type { OrganizationInvite } from "@/lib/api/generated/cloud/data-contracts";
+import { useApiError } from "@/lib/hooks";
+import { metadataIndicatesCloudEnabled } from "@/pages/auth/hooks/use-cloud";
+import { useUserUniverse } from "@/providers/user-universe";
+import queryClient from "@/query-client";
+import { appRoutes } from "@/router";
+import { useMutation } from "@tanstack/react-query";
+import { redirect, useLoaderData, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import invariant from "tiny-invariant";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {
@@ -76,7 +76,7 @@ const OrganizationInviteList = ({
             className="flex flex-col space-y-2 text-center"
           >
             <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-              You have been invited to join an organization by{' '}
+              You have been invited to join an organization by{" "}
               <strong>{invite.inviterEmail}</strong> on Hatchet.
             </p>
             <div className="flex flex-row justify-center gap-2">
@@ -90,13 +90,10 @@ const OrganizationInviteList = ({
                     },
                     {
                       onSuccess: async () => {
-                        capture('onboarding_org_invite_rejected', {
+                        capture("onboarding_org_invite_rejected", {
                           invite_id: invite.metadata.id,
                         });
-                        onDealtWithInvite(
-                          invite.organizationId,
-                          false,
-                        );
+                        onDealtWithInvite(invite.organizationId, false);
                       },
                     },
                   );
@@ -113,16 +110,12 @@ const OrganizationInviteList = ({
                     },
                     {
                       onSuccess: async () => {
-                        capture('onboarding_org_invite_accepted', {
+                        capture("onboarding_org_invite_accepted", {
                           invite_id: invite.metadata.id,
                         });
                         invalidateUserUniverse();
-                        const refetchingUserUniversePromise =
-                          getUserUniverse();
-                        onDealtWithInvite(
-                          invite.organizationId,
-                          true,
-                        );
+                        const refetchingUserUniversePromise = getUserUniverse();
+                        onDealtWithInvite(invite.organizationId, true);
                         return refetchingUserUniversePromise;
                       },
                     },
@@ -152,7 +145,7 @@ const TenantInviteList = ({
     useUserUniverse();
 
   const acceptMutation = useMutation({
-    mutationKey: ['tenant-invite:accept'],
+    mutationKey: ["tenant-invite:accept"],
     mutationFn: async (data: {
       tenantId: string;
       inner: { invite: string };
@@ -170,19 +163,19 @@ const TenantInviteList = ({
       );
 
       if (membership?.tenant) {
-        capture('onboarding_tenant_invite_accepted', {
+        capture("onboarding_tenant_invite_accepted", {
           tenant_id: tenantId,
         });
         onDealtWithInvite(tenantId, true);
       } else {
-        throw new Error('Tenant not found after accepting invite');
+        throw new Error("Tenant not found after accepting invite");
       }
     },
     onError: handleApiError,
   });
 
   const rejectMutation = useMutation({
-    mutationKey: ['tenant-invite:reject'],
+    mutationKey: ["tenant-invite:reject"],
     mutationFn: async (data: { invite: string; tenantId: string }) => {
       await api.tenantInviteReject(data);
       return { inviteId: data.invite, tenantId: data.tenantId };
@@ -194,7 +187,7 @@ const TenantInviteList = ({
       inviteId: string;
       tenantId: string;
     }) => {
-      capture('onboarding_tenant_invite_rejected', {
+      capture("onboarding_tenant_invite_rejected", {
         invite_id: inviteId,
       });
       onDealtWithInvite(tenantId, false);
@@ -211,8 +204,8 @@ const TenantInviteList = ({
             className="flex flex-col space-y-2 text-center"
           >
             <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-              You have been invited to join the{' '}
-              <strong>{invite.tenantName}</strong> tenant by{' '}
+              You have been invited to join the{" "}
+              <strong>{invite.tenantName}</strong> tenant by{" "}
               <strong>{invite.email}</strong> on Hatchet.
             </p>
             <div className="flex flex-row justify-center gap-2">
@@ -253,8 +246,8 @@ export default function Invites() {
   const { capture } = useAnalytics();
   const navigate = useNavigate();
   const [lastAcceptedInvite, setLastAcceptedInvite] = useState<
-    | { type: 'tenant'; tenantId: string }
-    | { type: 'organization'; organizationId: string }
+    | { type: "tenant"; tenantId: string }
+    | { type: "organization"; organizationId: string }
     | null
   >(null);
   const { isCloudEnabled, tenantMemberships, organizations } =
@@ -299,7 +292,7 @@ export default function Invites() {
       return;
     }
 
-    if (lastAcceptedInvite.type === 'tenant') {
+    if (lastAcceptedInvite.type === "tenant") {
       const tenant = getTenant(lastAcceptedInvite.tenantId);
       if (tenant) {
         setTenantAssociatedWithLastAcceptedInvite(tenant);
@@ -345,7 +338,7 @@ export default function Invites() {
   ]);
 
   useEffect(() => {
-    capture('onboarding_invites_viewed', {
+    capture("onboarding_invites_viewed", {
       tenant_invites_count: tenantInvites.length,
       org_invites_count: orgInvites.length,
       total_invites: tenantInvites.length + orgInvites.length,
@@ -362,10 +355,10 @@ export default function Invites() {
 
   const header =
     totalInvites > 1
-      ? 'Join your teams'
+      ? "Join your teams"
       : tenantInvites.length > 0
-        ? 'Join ' + tenantInvites[0].tenantName
-        : 'Join ' + orgInvites[0].inviterEmail + "'s organization";
+        ? "Join " + tenantInvites[0].tenantName
+        : "Join " + orgInvites[0].inviterEmail + "'s organization";
 
   return (
     <div className="flex h-full w-full flex-1 flex-row">
@@ -382,15 +375,14 @@ export default function Invites() {
               onDealtWithInvite={(organizationId, accepted) => {
                 if (accepted) {
                   setLastAcceptedInvite({
-                    type: 'organization',
+                    type: "organization",
                     organizationId,
                   });
                 }
 
                 setOrgInvites((prevOrgInvites) =>
                   prevOrgInvites.filter(
-                    (invite) =>
-                      invite.organizationId !== organizationId,
+                    (invite) => invite.organizationId !== organizationId,
                   ),
                 );
               }}
@@ -399,7 +391,7 @@ export default function Invites() {
               tenantInvites={tenantInvites}
               onDealtWithInvite={(tenantId, accepted) => {
                 if (accepted) {
-                  setLastAcceptedInvite({ type: 'tenant', tenantId });
+                  setLastAcceptedInvite({ type: "tenant", tenantId });
                 }
 
                 setTenantInvites((prevTenantInvites) =>

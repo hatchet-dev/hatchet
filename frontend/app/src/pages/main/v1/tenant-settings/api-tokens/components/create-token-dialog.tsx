@@ -1,29 +1,29 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading';
-import { SecretCopier } from '@/components/v1/ui/secret-copier';
+} from "@/components/v1/ui/dialog";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading";
+import { SecretCopier } from "@/components/v1/ui/secret-copier";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
-import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
+} from "@/components/v1/ui/select";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 
 const EXPIRES_IN_OPTS = {
-  '3 months': `${3 * 30 * 24 * 60 * 60}s`,
-  '1 year': `${365 * 24 * 60 * 60}s`,
-  '100 years': `${100 * 365 * 24 * 60 * 60}s`,
+  "3 months": `${3 * 30 * 24 * 60 * 60}s`,
+  "1 year": `${365 * 24 * 60 * 60}s`,
+  "100 years": `${100 * 365 * 24 * 60 * 60}s`,
 };
 
 const schema = z.object({
@@ -53,8 +53,7 @@ export function CreateTokenDialog({
     resolver: zodResolver(schema),
   });
 
-  const nameError =
-    errors.name?.message?.toString() || props.fieldErrors?.name;
+  const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
 
   if (token) {
     return (
@@ -63,13 +62,13 @@ export function CreateTokenDialog({
           <DialogTitle>Keep it secret, keep it safe</DialogTitle>
         </DialogHeader>
         <p className="text-sm">
-          This is the only time we will show you this token. Make sure to
-          copy it somewhere safe.
+          This is the only time we will show you this token. Make sure to copy
+          it somewhere safe.
         </p>
         <SecretCopier
           secrets={{ HATCHET_CLIENT_TOKEN: token }}
           className="text-sm"
-          maxWidth={'calc(700px - 4rem)'}
+          maxWidth={"calc(700px - 4rem)"}
           copy
         />
       </DialogContent>
@@ -81,7 +80,7 @@ export function CreateTokenDialog({
       <DialogHeader>
         <DialogTitle>Create a new API token</DialogTitle>
       </DialogHeader>
-      <div className={cn('grid gap-6', className)}>
+      <div className={cn("grid gap-6", className)}>
         <form
           onSubmit={handleSubmit((d) => {
             props.onSubmit(d);
@@ -91,7 +90,7 @@ export function CreateTokenDialog({
             <div className="grid gap-2">
               <Label htmlFor="email">Name</Label>
               <Input
-                {...register('name')}
+                {...register("name")}
                 id="api-token-name"
                 placeholder="My Token"
                 autoCapitalize="none"
@@ -105,7 +104,7 @@ export function CreateTokenDialog({
             <Label htmlFor="expiresIn">Expires In</Label>
             <Controller
               control={control}
-              defaultValue={EXPIRES_IN_OPTS['100 years']}
+              defaultValue={EXPIRES_IN_OPTS["100 years"]}
               name="expiresIn"
               render={({ field }) => {
                 return (
@@ -117,13 +116,11 @@ export function CreateTokenDialog({
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(EXPIRES_IN_OPTS).map(
-                        ([label, value]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ),
-                      )}
+                      {Object.entries(EXPIRES_IN_OPTS).map(([label, value]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 );

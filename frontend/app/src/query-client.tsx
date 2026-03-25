@@ -1,5 +1,5 @@
-import { defaultQueryRetry } from '@/lib/query-retry';
-import { QueryClient } from '@tanstack/react-query';
+import { defaultQueryRetry } from "@/lib/query-retry";
+import { QueryClient } from "@tanstack/react-query";
 
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {

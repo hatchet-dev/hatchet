@@ -1,7 +1,7 @@
-import { getSpanColor } from '../utils/span-tree-utils';
-import type { SpanMarker } from './minimap-types';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { cn } from '@/lib/utils';
+import { getSpanColor } from "../utils/span-tree-utils";
+import type { SpanMarker } from "./minimap-types";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
+import { cn } from "@/lib/utils";
 
 interface SpanMarkersProps {
   markers: SpanMarker[];
@@ -24,10 +24,10 @@ export function SpanMarkers({
         <div
           key={i}
           className={cn(
-            'absolute inset-y-[6px] flex cursor-pointer flex-col justify-center transition-[transform,opacity]',
-            m.hasErrorInTree ? 'z-[3]' : 'z-[2]',
-            hoveredIdx === i && 'z-[5] scale-x-150',
-            !m.visible && 'opacity-[0.01]',
+            "absolute inset-y-[6px] flex cursor-pointer flex-col justify-center transition-[transform,opacity]",
+            m.hasErrorInTree ? "z-[3]" : "z-[2]",
+            hoveredIdx === i && "z-[5] scale-x-150",
+            !m.visible && "opacity-[0.01]",
           )}
           style={{ left: `${m.pct * 100}%`, width: 6 }}
           onPointerDown={(e) => {
@@ -50,9 +50,7 @@ export function SpanMarkers({
             onTooltipPosChange(null);
           }}
         >
-          <div
-            className={cn('flex-1 rounded-full', getSpanColor(m.span))}
-          />
+          <div className={cn("flex-1 rounded-full", getSpanColor(m.span))} />
         </div>
       ))}
     </>

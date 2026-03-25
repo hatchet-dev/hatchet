@@ -1,6 +1,6 @@
-import { TimePickerInput } from './time-picker-input';
-import { Label } from '@/components/v1/ui/label';
-import * as React from 'react';
+import { TimePickerInput } from "./time-picker-input";
+import { Label } from "@/components/v1/ui/label";
+import * as React from "react";
 
 interface TimePickerProps {
   date: Date | undefined;

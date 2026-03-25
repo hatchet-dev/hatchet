@@ -1,8 +1,8 @@
-import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
-import { Button } from '@/components/v1/ui/button';
-import { appRoutes } from '@/router';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import { useNavigate } from '@tanstack/react-router';
+import { NewOrganizationSaverForm } from "@/components/forms/new-organization-saver-form";
+import { Button } from "@/components/v1/ui/button";
+import { appRoutes } from "@/router";
+import { XMarkIcon } from "@heroicons/react/24/outline";
+import { useNavigate } from "@tanstack/react-router";
 
 export default function OrganizationsNew() {
   const navigate = useNavigate();

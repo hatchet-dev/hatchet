@@ -1,10 +1,10 @@
-import { getAutocomplete, applySuggestion } from './autocomplete';
-import type { AutocompleteSuggestion } from './types';
-import { useLogsContext } from './use-logs';
-import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
+import { getAutocomplete, applySuggestion } from "./autocomplete";
+import type { AutocompleteSuggestion } from "./types";
+import { useLogsContext } from "./use-logs";
+import { SearchBarWithFilters } from "@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters";
 
 export function LogSearchInput({
-  placeholder = 'Search logs...',
+  placeholder = "Search logs...",
   className,
 }: {
   placeholder?: string;
@@ -24,14 +24,14 @@ export function LogSearchInput({
       className={className}
       filterChips={[
         {
-          key: 'level:',
-          label: 'Level',
-          description: 'Filter by log level',
+          key: "level:",
+          label: "Level",
+          description: "Filter by log level",
         },
         {
-          key: 'attempt:',
-          label: 'Attempt',
-          description: 'Filter by attempt number',
+          key: "attempt:",
+          label: "Attempt",
+          description: "Filter by attempt number",
         },
       ]}
     />

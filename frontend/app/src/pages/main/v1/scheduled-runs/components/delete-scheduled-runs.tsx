@@ -1,15 +1,15 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Spinner } from '@/components/v1/ui/loading';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { ScheduledWorkflows } from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
+} from "@/components/v1/ui/dialog";
+import { Spinner } from "@/components/v1/ui/loading";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import api, { ScheduledWorkflows } from "@/lib/api";
+import { useApiError } from "@/lib/hooks";
+import { useMutation } from "@tanstack/react-query";
 
 interface DeleteScheduledRunFormProps {
   isFutureRun: boolean;
@@ -32,7 +32,7 @@ export function DeleteScheduledRun({
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['scheduled-run:delete', tenantId, scheduledRun],
+    mutationKey: ["scheduled-run:delete", tenantId, scheduledRun],
     mutationFn: async () => {
       if (!scheduledRun) {
         return;
@@ -79,13 +79,13 @@ function DeleteScheduledRunForm({
           Are you sure you want to delete the scheduled run?
           {isFutureRun ? (
             <>
-              This action will prevent the run from running in the future
-              and cannot be undone.
+              This action will prevent the run from running in the future and
+              cannot be undone.
             </>
           ) : (
             <>
-              This action will delete the scheduled run trigger, but will
-              not affect the run itself and cannot be undone.
+              This action will delete the scheduled run trigger, but will not
+              affect the run itself and cannot be undone.
             </>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { RiCheckboxCircleFill } from 'react-icons/ri';
+import { RiCheckboxCircleFill } from "react-icons/ri";
 
 export type OnboardingBadgeProps = {
   completed: boolean;

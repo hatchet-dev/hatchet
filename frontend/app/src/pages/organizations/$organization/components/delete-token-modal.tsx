@@ -1,6 +1,6 @@
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { useOrganizations } from '@/hooks/use-organizations';
-import { ManagementToken } from '@/lib/api/generated/cloud/data-contracts';
+import { ConfirmDialog } from "@/components/v1/molecules/confirm-dialog";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { ManagementToken } from "@/lib/api/generated/cloud/data-contracts";
 
 interface DeleteTokenModalProps {
   open: boolean;
@@ -30,13 +30,12 @@ export function DeleteTokenModal({
       description={
         <div className="space-y-3">
           <p>
-            Are you sure you want to delete the management token{' '}
+            Are you sure you want to delete the management token{" "}
             <strong>"{token.name}"</strong> from {organizationName}?
           </p>
           <p className="text-sm text-muted-foreground">
-            This action cannot be undone. Any applications or services
-            using this token will immediately lose access and may break
-            functionality.
+            This action cannot be undone. Any applications or services using
+            this token will immediately lose access and may break functionality.
           </p>
           <div className="text-sm text-muted-foreground">
             <p className="mb-1 font-medium">Potential consequences:</p>

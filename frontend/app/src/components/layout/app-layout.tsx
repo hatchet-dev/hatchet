@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils';
-import { ReactNode } from 'react';
+import { cn } from "@/lib/utils";
+import { ReactNode } from "react";
 
 type AppLayoutProps = {
   header: ReactNode;
@@ -24,10 +24,10 @@ export function AppLayout({
   return (
     <div
       className={cn(
-        'grid h-full w-full min-h-0 min-w-0 overflow-hidden',
+        "grid h-full w-full min-h-0 min-w-0 overflow-hidden",
         hasFooter
-          ? 'grid-rows-[64px_minmax(0,1fr)_auto]'
-          : 'grid-rows-[64px_minmax(0,1fr)]',
+          ? "grid-rows-[64px_minmax(0,1fr)_auto]"
+          : "grid-rows-[64px_minmax(0,1fr)]",
         className,
       )}
     >
@@ -36,8 +36,8 @@ export function AppLayout({
       <div className="min-h-0 min-w-0 overflow-hidden">
         <div
           className={cn(
-            'h-full w-full min-h-0 min-w-0',
-            contentScroll ? 'overflow-auto' : 'overflow-hidden',
+            "h-full w-full min-h-0 min-w-0",
+            contentScroll ? "overflow-auto" : "overflow-hidden",
           )}
         >
           {children}

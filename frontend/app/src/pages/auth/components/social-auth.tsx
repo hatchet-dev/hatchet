@@ -1,21 +1,21 @@
-import { Button } from '@/components/v1/ui/button';
-import { Icons } from '@/components/v1/ui/icons';
-import React from 'react';
+import { Button } from "@/components/v1/ui/button";
+import { Icons } from "@/components/v1/ui/icons";
+import React from "react";
 
-export type SocialAuthProvider = 'google' | 'github';
+export type SocialAuthProvider = "google" | "github";
 
 const PROVIDER_CONFIG: Record<
   SocialAuthProvider,
   { href: string; label: string; icon: React.ReactNode }
 > = {
   google: {
-    href: '/api/v1/users/google/start',
-    label: 'Google',
+    href: "/api/v1/users/google/start",
+    label: "Google",
     icon: <Icons.google className="size-4" />,
   },
   github: {
-    href: '/api/v1/users/github/start',
-    label: 'GitHub',
+    href: "/api/v1/users/github/start",
+    label: "GitHub",
     icon: <Icons.gitHub className="size-4" />,
   },
 };

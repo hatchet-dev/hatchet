@@ -1,6 +1,6 @@
-import { ToolbarType } from '../data-table/data-table-toolbar';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
+import { ToolbarType } from "../data-table/data-table-toolbar";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -9,29 +9,29 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from '@/components/v1/ui/command';
-import { Input } from '@/components/v1/ui/input';
+} from "@/components/v1/ui/command";
+import { Input } from "@/components/v1/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/v1/ui/popover';
-import { Separator } from '@/components/v1/ui/separator';
-import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import { BiX } from 'react-icons/bi';
-import { z } from 'zod';
+} from "@/components/v1/ui/popover";
+import { Separator } from "@/components/v1/ui/separator";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
+import * as React from "react";
+import { useForm } from "react-hook-form";
+import { BiX } from "react-icons/bi";
+import { z } from "zod";
 
 const keyValuePairSchema = z.object({
-  key: z.string().min(1, 'Key is required'),
-  value: z.string().min(1, 'Value is required'),
+  key: z.string().min(1, "Key is required"),
+  value: z.string().min(1, "Value is required"),
 });
 
 const arrayInputSchema = z.object({
-  values: z.string().min(1, 'At least one value is required'),
+  values: z.string().min(1, "At least one value is required"),
 });
 
 type KeyValuePair = z.infer<typeof keyValuePairSchema>;
@@ -62,25 +62,19 @@ export function Combobox({
   searchValue?: string;
   emptyMessage?: string;
 }) {
-  const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>(
-    {
-      resolver: zodResolver(
-        type === ToolbarType.KeyValue
-          ? keyValuePairSchema
-          : arrayInputSchema,
-      ),
-      defaultValues:
-        type === ToolbarType.KeyValue
-          ? { key: '', value: '' }
-          : { values: '' },
-    },
-  );
+  const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>({
+    resolver: zodResolver(
+      type === ToolbarType.KeyValue ? keyValuePairSchema : arrayInputSchema,
+    ),
+    defaultValues:
+      type === ToolbarType.KeyValue ? { key: "", value: "" } : { values: "" },
+  });
 
   const submit = (data: KeyValuePair | ArrayInput) => {
-    if ('key' in data) {
+    if ("key" in data) {
       values.push(`${data.key}:${data.value}`);
     } else {
-      data.values.split(',').forEach((value) => values.push(value.trim()));
+      data.values.split(",").forEach((value) => values.push(value.trim()));
     }
     setValues(values);
     reset();
@@ -109,8 +103,8 @@ export function Combobox({
               >
                 {type == ToolbarType.Radio
                   ? // get the label of the value
-                    options?.find(({ value }) => value == values[0])
-                      ?.label || values[0]
+                    options?.find(({ value }) => value == values[0])?.label ||
+                    values[0]
                   : values.length}
               </Badge>
               <div className="hidden space-x-1 lg:flex">
@@ -128,8 +122,8 @@ export function Combobox({
                       variant="secondary"
                       className="flex items-center space-x-1 rounded-sm px-1 font-normal"
                     >
-                      {options?.find(({ value }) => value == option)
-                        ?.label || option}
+                      {options?.find(({ value }) => value == option)?.label ||
+                        option}
                       <Button
                         variant="ghost"
                         size="xs"
@@ -174,13 +168,13 @@ export function Combobox({
                   <Input
                     type="text"
                     placeholder="Key"
-                    {...register('key')}
+                    {...register("key")}
                     className="flex-1"
                   />
                   <Input
                     type="text"
                     placeholder="Value"
-                    {...register('value')}
+                    {...register("value")}
                     className="flex-1"
                   />
                 </div>
@@ -189,7 +183,7 @@ export function Combobox({
                   <Input
                     type="text"
                     placeholder="Enter values (comma-separated)"
-                    {...register('values')}
+                    {...register("values")}
                     className="w-full"
                   />
                 </div>
@@ -202,7 +196,7 @@ export function Combobox({
                   onClick={() => setValues([])}
                   className="mt-2"
                   size="sm"
-                  variant={'ghost'}
+                  variant={"ghost"}
                   fullWidth
                 >
                   Reset
@@ -221,21 +215,17 @@ export function Combobox({
             />
             <CommandList>
               <CommandEmpty className="py-2 text-center text-sm text-muted-foreground">
-                {emptyMessage || 'No results found.'}
+                {emptyMessage || "No results found."}
               </CommandEmpty>
               <CommandGroup>
                 {options?.map((option) => {
-                  const isSelected =
-                    values.indexOf(option.value) != -1;
+                  const isSelected = values.indexOf(option.value) != -1;
                   return (
                     <CommandItem
                       key={option.value}
                       onSelect={() => {
                         if (isSelected) {
-                          values.splice(
-                            values.indexOf(option.value),
-                            1,
-                          );
+                          values.splice(values.indexOf(option.value), 1);
                         } else {
                           if (type === ToolbarType.Radio) {
                             setValues([option.value]);
@@ -249,13 +239,13 @@ export function Combobox({
                     >
                       <div
                         className={cn(
-                          'mr-2 flex size-4 items-center justify-center rounded-sm border border-primary',
+                          "mr-2 flex size-4 items-center justify-center rounded-sm border border-primary",
                           isSelected
-                            ? 'bg-primary text-primary-foreground'
-                            : 'opacity-50 [&_svg]:invisible',
+                            ? "bg-primary text-primary-foreground"
+                            : "opacity-50 [&_svg]:invisible",
                         )}
                       >
-                        <CheckIcon className={cn('size-4')} />
+                        <CheckIcon className={cn("size-4")} />
                       </div>
                       {option.icon && (
                         <option.icon className="mr-2 size-4 text-gray-700 dark:text-gray-300" />

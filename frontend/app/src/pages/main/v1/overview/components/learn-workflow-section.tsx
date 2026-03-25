@@ -1,41 +1,41 @@
-import { SectionHeader } from './section-header';
-import { Button } from '@/components/v1/ui/button';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Spinner } from '@/components/v1/ui/loading';
+import { SectionHeader } from "./section-header";
+import { Button } from "@/components/v1/ui/button";
+import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+import { Spinner } from "@/components/v1/ui/loading";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/components/v1/ui/tabs';
-import { TriggerWorkflowForm } from '@/pages/main/v1/workflows/$workflow/components/trigger-workflow-form';
-import { CheckIcon, ChevronRightIcon } from '@radix-ui/react-icons';
-import { useEffect, useState, type ReactNode } from 'react';
+} from "@/components/v1/ui/tabs";
+import { TriggerWorkflowForm } from "@/pages/main/v1/workflows/$workflow/components/trigger-workflow-form";
+import { CheckIcon, ChevronRightIcon } from "@radix-ui/react-icons";
+import { useEffect, useState, type ReactNode } from "react";
 
 export const workflowStepOptions = {
-  install: { value: 'install', label: 'Install the CLI' },
-  profile: { value: 'profile', label: 'Set your profile' },
-  quickstart: { value: 'quickstart', label: 'Project quickstart' },
-  runTask: { value: 'runTask', label: 'Run a task' },
-  aiDocs: { value: 'aiDocs', label: 'Install Docs MCP (optional)' },
+  install: { value: "install", label: "Install the CLI" },
+  profile: { value: "profile", label: "Set your profile" },
+  quickstart: { value: "quickstart", label: "Project quickstart" },
+  runTask: { value: "runTask", label: "Run a task" },
+  aiDocs: { value: "aiDocs", label: "Install Docs MCP (optional)" },
 } as const;
 
 export const workflowLanguageOptions = {
-  python: { value: 'python', label: 'Python' },
-  typescript: { value: 'typescript', label: 'TypeScript' },
-  go: { value: 'go', label: 'Go' },
+  python: { value: "python", label: "Python" },
+  typescript: { value: "typescript", label: "TypeScript" },
+  go: { value: "go", label: "Go" },
 } as const;
 
 export const installMethodOptions = {
-  native: { value: 'native', label: 'Native (Recommended)' },
-  homebrew: { value: 'homebrew', label: 'Homebrew' },
+  native: { value: "native", label: "Native (Recommended)" },
+  homebrew: { value: "homebrew", label: "Homebrew" },
 } as const;
 
 export type WorkflowStepKey = keyof typeof workflowStepOptions;
 export type WorkflowLanguageKey =
-  (typeof workflowLanguageOptions)[keyof typeof workflowLanguageOptions]['value'];
+  (typeof workflowLanguageOptions)[keyof typeof workflowLanguageOptions]["value"];
 export type InstallMethod =
-  (typeof installMethodOptions)[keyof typeof installMethodOptions]['value'];
+  (typeof installMethodOptions)[keyof typeof installMethodOptions]["value"];
 
 export function LearnWorkflowSection({
   tenantName,
@@ -70,13 +70,13 @@ export function LearnWorkflowSection({
   installMethod: InstallMethod;
   onInstallMethodChange: (installMethod: InstallMethod) => void;
 }) {
-  const profileName = tenantName?.trim() || 'local';
+  const profileName = tenantName?.trim() || "local";
   const escapeForDoubleQuotes = (value: string) =>
     value
-      .replace(/\\/g, '\\\\')
+      .replace(/\\/g, "\\\\")
       .replace(/"/g, '\\"')
-      .replace(/\$/g, '\\$')
-      .replace(/`/g, '\\`');
+      .replace(/\$/g, "\\$")
+      .replace(/`/g, "\\`");
 
   const [showTriggerWorkflow, setShowTriggerWorkflow] = useState(false);
   const [hasCopiedProfileToken, setHasCopiedProfileToken] = useState(false);
@@ -103,17 +103,15 @@ export function LearnWorkflowSection({
             className="w-full"
           >
             <TabsList className="mt-2 bg-muted ring-1 ring-border/50 rounded-lg p-0 gap-0.5 dark:bg-muted/20 dark:ring-inset">
-              {Object.entries(installMethodOptions).map(
-                ([key, value]) => (
-                  <TabsTrigger
-                    key={key}
-                    value={value.value}
-                    className="rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset"
-                  >
-                    {value.label}
-                  </TabsTrigger>
-                ),
-              )}
+              {Object.entries(installMethodOptions).map(([key, value]) => (
+                <TabsTrigger
+                  key={key}
+                  value={value.value}
+                  className="rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset"
+                >
+                  {value.label}
+                </TabsTrigger>
+              ))}
             </TabsList>
 
             <TabsContent
@@ -195,9 +193,7 @@ export function LearnWorkflowSection({
             )}
           </div>
           {profileTokenError && (
-            <div className="text-sm text-red-500">
-              {profileTokenError}
-            </div>
+            <div className="text-sm text-red-500">{profileTokenError}</div>
           )}
           {profileToken && (
             <div
@@ -222,9 +218,7 @@ export function LearnWorkflowSection({
               className="w-fit gap-2 bg-muted/70"
               disabled={!profileToken || !hasCopiedProfileToken}
               onClick={() =>
-                onSelectedTabChange(
-                  workflowStepOptions.quickstart.value,
-                )
+                onSelectedTabChange(workflowStepOptions.quickstart.value)
               }
             >
               Continue
@@ -235,9 +229,7 @@ export function LearnWorkflowSection({
               size="default"
               className="w-fit"
               onClick={() =>
-                onSelectedTabChange(
-                  workflowStepOptions.quickstart.value,
-                )
+                onSelectedTabChange(workflowStepOptions.quickstart.value)
               }
             >
               Skip
@@ -251,9 +243,8 @@ export function LearnWorkflowSection({
       content: (
         <>
           <p className="text-sm">
-            Run the quickstart command to clone an example project
-            repository and follow the instructions to cd into the project
-            directory..
+            Run the quickstart command to clone an example project repository
+            and follow the instructions to cd into the project directory..
           </p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
@@ -277,9 +268,7 @@ export function LearnWorkflowSection({
             {hasActiveWorker ? (
               <>
                 <CheckIcon className="size-5 text-green-500" />
-                <span className="text-sm font-medium">
-                  Worker is connected
-                </span>
+                <span className="text-sm font-medium">Worker is connected</span>
               </>
             ) : (
               <>
@@ -309,8 +298,8 @@ export function LearnWorkflowSection({
       content: (
         <>
           <p className="text-sm">
-            With the worker running, you can now open a new terminal and
-            run the following command to trigger a task run:
+            With the worker running, you can now open a new terminal and run the
+            following command to trigger a task run:
           </p>
 
           <div className="space-y-3">
@@ -321,8 +310,8 @@ export function LearnWorkflowSection({
               copy
             />
             <p className="text-sm">
-              You can view the script to understand how to trigger a task
-              run from your own codebase.
+              You can view the script to understand how to trigger a task run
+              from your own codebase.
             </p>
           </div>
 
@@ -355,7 +344,7 @@ export function LearnWorkflowSection({
             copy
           />
           <p className="text-sm text-muted-foreground">
-            See the{' '}
+            See the{" "}
             <a
               href="https://docs.hatchet.run/home/install-docs-mcp"
               target="_blank"
@@ -363,7 +352,7 @@ export function LearnWorkflowSection({
               className="underline hover:text-foreground"
             >
               full setup guide
-            </a>{' '}
+            </a>{" "}
             for manual configuration options.
           </p>
           <Button
@@ -387,10 +376,7 @@ export function LearnWorkflowSection({
         show={showTriggerWorkflow}
         onClose={() => setShowTriggerWorkflow(false)}
       />
-      <SectionHeader
-        title="Setup your local environment"
-        showOnboardingBadge
-      />
+      <SectionHeader title="Setup your local environment" showOnboardingBadge />
       <Tabs
         value={selectedTab}
         onValueChange={(value) => {
@@ -408,7 +394,7 @@ export function LearnWorkflowSection({
               key={step.value}
               value={step.value}
               className={
-                'text-xs text-muted-foreground rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent data-[state=active]:shadow-none'
+                "text-xs text-muted-foreground rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
               }
             >
               <div className="flex items-center gap-2">

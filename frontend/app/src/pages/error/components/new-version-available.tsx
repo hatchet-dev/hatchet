@@ -1,9 +1,9 @@
-import { ErrorPageLayout } from './layout';
-import { Badge } from '@/components/v1/ui/badge';
-import { Button } from '@/components/v1/ui/button';
-import { appRoutes } from '@/router';
-import { useLocation, useNavigate } from '@tanstack/react-router';
-import { CloudDownload, Home } from 'lucide-react';
+import { ErrorPageLayout } from "./layout";
+import { Badge } from "@/components/v1/ui/badge";
+import { Button } from "@/components/v1/ui/button";
+import { appRoutes } from "@/router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
+import { CloudDownload, Home } from "lucide-react";
 
 export function NewVersionAvailable() {
   const navigate = useNavigate();
@@ -11,8 +11,8 @@ export function NewVersionAvailable() {
 
   const queryParams = new URLSearchParams(location.search);
 
-  if (!queryParams.has('updated')) {
-    queryParams.set('updated', 'true');
+  if (!queryParams.has("updated")) {
+    queryParams.set("updated", "true");
     const updatedUrl = `${location.pathname}?${queryParams.toString()}`;
     window.location.href = updatedUrl;
   }
@@ -27,9 +27,7 @@ export function NewVersionAvailable() {
           <Button onClick={() => window.location.reload()}>Reload</Button>
           <Button
             leftIcon={<Home className="h-4 w-4" />}
-            onClick={() =>
-              navigate({ to: appRoutes.authenticatedRoute.to })
-            }
+            onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
             variant="outline"
           >
             Dashboard
@@ -47,9 +45,7 @@ export function NewVersionAvailable() {
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Path
         </div>
-        <div className="break-all text-foreground/90">
-          {location.pathname}
-        </div>
+        <div className="break-all text-foreground/90">{location.pathname}</div>
       </div>
     </ErrorPageLayout>
   );

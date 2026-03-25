@@ -3,9 +3,9 @@ import {
   CardContent,
   CardFooter,
   CardHeader,
-} from '@/components/v1/ui/card';
-import { cn } from '@/lib/utils';
-import { PropsWithChildren, ReactNode } from 'react';
+} from "@/components/v1/ui/card";
+import { cn } from "@/lib/utils";
+import { PropsWithChildren, ReactNode } from "react";
 
 export function ErrorPageLayout({
   title,
@@ -25,7 +25,7 @@ export function ErrorPageLayout({
     <div className="flex h-full w-full flex-1 flex-row items-center justify-center p-6">
       <Card
         className={cn(
-          'w-full max-w-xl border-border/60 bg-background shadow-sm',
+          "w-full max-w-xl border-border/60 bg-background shadow-sm",
           className,
         )}
       >

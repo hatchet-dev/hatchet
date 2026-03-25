@@ -1,8 +1,8 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/v1/ui/avatar';
-import { Button } from '@/components/v1/ui/button';
-import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
-import { CheckCircleIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
-import { GearIcon } from '@radix-ui/react-icons';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/v1/ui/avatar";
+import { Button } from "@/components/v1/ui/button";
+import { GithubAppInstallation } from "@/lib/api/generated/cloud/data-contracts";
+import { CheckCircleIcon, PlusCircleIcon } from "@heroicons/react/24/outline";
+import { GearIcon } from "@radix-ui/react-icons";
 
 export function GithubAccountCell({
   installation,
@@ -38,7 +38,7 @@ export function GithubLinkCell({
       </Button>
     );
   }
-  return installation.type == 'installation' ? (
+  return installation.type == "installation" ? (
     <Button
       variant="outline"
       onClick={() => onLinkToTenant(installation.metadata.id)}

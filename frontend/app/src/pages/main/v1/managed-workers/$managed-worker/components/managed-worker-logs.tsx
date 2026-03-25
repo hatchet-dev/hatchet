@@ -1,15 +1,15 @@
-import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
-import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { queries } from '@/lib/api';
-import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
-import { ListCloudLogsQuery } from '@/lib/api/queries';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import { useQuery } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { LogLine } from "@/components/v1/cloud/logging/log-search/use-logs";
+import { LogViewer } from "@/components/v1/cloud/logging/log-viewer";
+import { DateTimePicker } from "@/components/v1/molecules/time-picker/date-time-picker";
+import { Button } from "@/components/v1/ui/button";
+import { Input } from "@/components/v1/ui/input";
+import { useRefetchInterval } from "@/contexts/refetch-interval-context";
+import { queries } from "@/lib/api";
+import { ManagedWorker } from "@/lib/api/generated/cloud/data-contracts";
+import { ListCloudLogsQuery } from "@/lib/api/queries";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 
 export function ManagedWorkerLogs({
   managedWorker,
@@ -19,7 +19,7 @@ export function ManagedWorkerLogs({
   const [queryParams, setQueryParams] = useState<ListCloudLogsQuery>({});
   const [beforeInput, setBeforeInput] = useState<Date | undefined>();
   const [afterInput, setAfterInput] = useState<Date | undefined>();
-  const [searchInput, setSearchInput] = useState<string>('');
+  const [searchInput, setSearchInput] = useState<string>("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | undefined>();
   const [mergedLogs, setMergedLogs] = useState<LogLine[]>([]);
   const [rotate, setRotate] = useState(false);
@@ -27,7 +27,7 @@ export function ManagedWorkerLogs({
 
   const getLogsQuery = useQuery({
     ...queries.cloud.getManagedWorkerLogs(
-      managedWorker?.metadata.id || '',
+      managedWorker?.metadata.id || "",
       queryParams,
     ),
     enabled: !!managedWorker,
@@ -77,7 +77,7 @@ export function ManagedWorkerLogs({
         ...queryParams,
         before: beforeInput?.toISOString(),
         after: lastLog.timestamp,
-        direction: 'forward',
+        direction: "forward",
       });
     }
   };
@@ -95,7 +95,7 @@ export function ManagedWorkerLogs({
         ...queryParams,
         before: firstLog.timestamp,
         after: afterInput?.toISOString(),
-        direction: 'backward',
+        direction: "backward",
       });
     }
   };
@@ -133,11 +133,7 @@ export function ManagedWorkerLogs({
             className="h-8 w-[150px] lg:w-[250px]"
           />
           {/* hidden button for submitting input */}
-          <button
-            type="submit"
-            className="hidden"
-            formTarget="search-input"
-          />
+          <button type="submit" className="hidden" formTarget="search-input" />
         </form>
         <div className="flex flex-row gap-4">
           <DateTimePicker
@@ -155,11 +151,11 @@ export function ManagedWorkerLogs({
             className="h-8 px-2 lg:px-3"
             size="sm"
             onClick={refreshLogs}
-            variant={datesMatchSearch ? 'outline' : 'default'}
+            variant={datesMatchSearch ? "outline" : "default"}
             aria-label="Refresh logs"
           >
             <ArrowPathIcon
-              className={`size-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+              className={`size-4 transition-transform ${rotate ? "rotate-180" : ""}`}
             />
           </Button>
         </div>
@@ -180,7 +176,7 @@ const mergeLogs = (existingLogs: LogLine[], newLogs: LogLine[]): LogLine[] => {
   const uniqueLogs = Array.from(
     new Map(
       combinedLogs.map((log) => [
-        (log.timestamp || '') + (log.instance || '') + (log.line || ''),
+        (log.timestamp || "") + (log.instance || "") + (log.line || ""),
         log,
       ]),
     ).values(),
@@ -189,9 +185,9 @@ const mergeLogs = (existingLogs: LogLine[], newLogs: LogLine[]): LogLine[] => {
   // sort logs by timestamp with collisions resolved by log line
   uniqueLogs.sort((a, b) => {
     if (a.timestamp === b.timestamp) {
-      return (a.line || '') < (b.line || '') ? -1 : 1;
+      return (a.line || "") < (b.line || "") ? -1 : 1;
     }
-    return (a.timestamp || '') < (b.timestamp || '') ? -1 : 1;
+    return (a.timestamp || "") < (b.timestamp || "") ? -1 : 1;
   });
 
   // NOTE: this was used to truncate log lines to 300, but was causing issues with the scroll position

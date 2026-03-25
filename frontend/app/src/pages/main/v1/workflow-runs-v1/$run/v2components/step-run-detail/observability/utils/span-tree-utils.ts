@@ -1,5 +1,5 @@
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
+import { OtelStatusCode } from "@/lib/api/generated/data-contracts";
 
 export function hasErrorInTree(span: OtelSpanTree): boolean {
   if (span.hasErrorInSubtree !== undefined) {
@@ -12,20 +12,20 @@ export function hasErrorInTree(span: OtelSpanTree): boolean {
 }
 
 export function isEngineSpan(span: OtelSpanTree): boolean {
-  return span.spanAttributes?.['hatchet.span_source'] === 'engine';
+  return span.spanAttributes?.["hatchet.span_source"] === "engine";
 }
 
 export function isEngineSurrogateParent(span: OtelSpanTree): boolean {
   return (
     isEngineSpan(span) &&
-    span.spanName === 'hatchet.start_step_run' &&
+    span.spanName === "hatchet.start_step_run" &&
     span.children.length > 0 &&
     span.children.some((c) => !isEngineSpan(c))
   );
 }
 
 export function isQueuedOnlyRoot(span: OtelSpanTree): boolean {
-  if (!span.spanId.startsWith('__synthetic_') || !span.queuedPhase) {
+  if (!span.spanId.startsWith("__synthetic_") || !span.queuedPhase) {
     return false;
   }
   const hasRunningChild = span.children.some((c) => c.inProgress);
@@ -37,10 +37,10 @@ export function isQueuedOnly(span: OtelSpanTree): boolean {
 }
 
 const ENGINE_SPAN_DISPLAY_NAMES: Record<string, string> = {
-  'hatchet.engine.queued': 'Queued',
-  'hatchet.engine.scheduling': 'Scheduling',
-  'hatchet.engine.retry_backoff': 'Retry Backoff',
-  'hatchet.engine.workflow_run': 'Workflow Run',
+  "hatchet.engine.queued": "Queued",
+  "hatchet.engine.scheduling": "Scheduling",
+  "hatchet.engine.retry_backoff": "Retry Backoff",
+  "hatchet.engine.workflow_run": "Workflow Run",
 };
 
 // O11Y-FIXME: there is a naming consistency issue on the SDKs
@@ -48,54 +48,54 @@ export function getDisplayName(span: OtelSpanTree): string {
   if (ENGINE_SPAN_DISPLAY_NAMES[span.spanName]) {
     return ENGINE_SPAN_DISPLAY_NAMES[span.spanName];
   }
-  if (!span.spanName.startsWith('hatchet.')) {
+  if (!span.spanName.startsWith("hatchet.")) {
     return span.spanName;
   }
-  if (span.spanAttributes?.['hatchet.task_name']) {
-    return span.spanAttributes['hatchet.task_name'];
+  if (span.spanAttributes?.["hatchet.task_name"]) {
+    return span.spanAttributes["hatchet.task_name"];
   }
-  if (span.spanAttributes?.['hatchet.step_name']) {
-    return span.spanAttributes['hatchet.step_name'];
+  if (span.spanAttributes?.["hatchet.step_name"]) {
+    return span.spanAttributes["hatchet.step_name"];
   }
-  if (span.spanAttributes?.['hatchet.workflow_name']) {
-    return span.spanAttributes['hatchet.workflow_name'];
+  if (span.spanAttributes?.["hatchet.workflow_name"]) {
+    return span.spanAttributes["hatchet.workflow_name"];
   }
-  const actionId = span.spanAttributes?.['hatchet.action_id'];
-  if (actionId?.includes(':')) {
-    return actionId.split(':')[0];
+  const actionId = span.spanAttributes?.["hatchet.action_id"];
+  if (actionId?.includes(":")) {
+    return actionId.split(":")[0];
   }
   return span.spanName;
 }
 
 export function getStableKey(span: OtelSpanTree): string {
-  return span.spanName === 'hatchet.start_step_run' &&
-    span.spanAttributes?.['hatchet.step_run_id']
-    ? span.spanAttributes['hatchet.step_run_id']
+  return span.spanName === "hatchet.start_step_run" &&
+    span.spanAttributes?.["hatchet.step_run_id"]
+    ? span.spanAttributes["hatchet.step_run_id"]
     : span.spanId;
 }
 
 export function getSpanColor(span: OtelSpanTree): string {
   if (span.inProgress) {
-    return 'bg-yellow-500';
+    return "bg-yellow-500";
   }
   if (hasErrorInTree(span)) {
-    return 'bg-red-500';
+    return "bg-red-500";
   }
-  return 'bg-green-500';
+  return "bg-green-500";
 }
 
 export function isQueuedEngineSpan(span: OtelSpanTree): boolean {
-  return isEngineSpan(span) && span.spanName === 'hatchet.engine.queued';
+  return isEngineSpan(span) && span.spanName === "hatchet.engine.queued";
 }
 
 export function statusLabel(code: string): string {
   switch (code) {
     case OtelStatusCode.OK:
-      return 'OK';
+      return "OK";
     case OtelStatusCode.ERROR:
-      return 'Error';
+      return "Error";
     default:
-      return 'Unset';
+      return "Unset";
   }
 }
 
@@ -104,28 +104,28 @@ export function effectiveStatusLabel(
   queuedOnly: boolean,
 ): string {
   if (queuedOnly) {
-    return 'Queued';
+    return "Queued";
   }
   if (span.inProgress) {
-    return 'In Progress';
+    return "In Progress";
   }
   if (span.statusCode !== OtelStatusCode.ERROR && hasErrorInTree(span)) {
-    return 'Error (child)';
+    return "Error (child)";
   }
   return statusLabel(span.statusCode);
 }
 
 export function getBarColor(span: OtelSpanTree): string {
   if (span.inProgress) {
-    return 'bg-yellow-500';
+    return "bg-yellow-500";
   }
   if (isEngineSpan(span)) {
     return span.statusCode === OtelStatusCode.ERROR
-      ? 'bg-red-500'
-      : 'bg-green-500';
+      ? "bg-red-500"
+      : "bg-green-500";
   }
   if (hasErrorInTree(span)) {
-    return 'bg-red-500';
+    return "bg-red-500";
   }
-  return 'bg-green-500';
+  return "bg-green-500";
 }

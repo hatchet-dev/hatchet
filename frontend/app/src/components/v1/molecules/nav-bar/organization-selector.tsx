@@ -1,33 +1,33 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
-} from '@/components/v1/ui/command';
-import { useAnalytics } from '@/hooks/use-analytics';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
-import { cn } from '@/lib/utils';
-import { useUserUniverse } from '@/providers/user-universe';
-import { appRoutes } from '@/router';
+} from "@/components/v1/ui/command";
+import { useAnalytics } from "@/hooks/use-analytics";
+import { useTenantDetails } from "@/hooks/use-tenant";
+import { OrganizationForUser } from "@/lib/api/generated/cloud/data-contracts";
+import { cn } from "@/lib/utils";
+import { useUserUniverse } from "@/providers/user-universe";
+import { appRoutes } from "@/router";
 import {
   BuildingOffice2Icon,
   CheckIcon,
   ChevronUpDownIcon,
   Cog6ToothIcon,
   PlusIcon,
-} from '@heroicons/react/24/outline';
+} from "@heroicons/react/24/outline";
 import {
   Popover,
   PopoverContent,
   PopoverPortal,
   PopoverTrigger,
-} from '@radix-ui/react-popover';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useState, useMemo, useCallback } from 'react';
-import invariant from 'tiny-invariant';
+} from "@radix-ui/react-popover";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useState, useMemo, useCallback } from "react";
+import invariant from "tiny-invariant";
 
 export function OrganizationSelector({ className }: { className?: string }) {
   const navigate = useNavigate();
@@ -61,7 +61,7 @@ export function OrganizationSelector({ className }: { className?: string }) {
         return a.isOwner ? -1 : 1;
       }
       return a.name.localeCompare(b.name, undefined, {
-        sensitivity: 'base',
+        sensitivity: "base",
       });
     });
   }, [organizations]);
@@ -72,7 +72,7 @@ export function OrganizationSelector({ className }: { className?: string }) {
       const firstTenant = org.tenants.at(0);
       invariant(firstTenant);
 
-      capture('organization_selector_clicked', {
+      capture("organization_selector_clicked", {
         organization_id: org.metadata.id,
       });
 
@@ -105,7 +105,7 @@ export function OrganizationSelector({ className }: { className?: string }) {
       open={open}
       onOpenChange={(open) => {
         if (open) {
-          capture('organization_selector_opened');
+          capture("organization_selector_opened");
         }
         setOpen(open);
       }}
@@ -118,8 +118,8 @@ export function OrganizationSelector({ className }: { className?: string }) {
           aria-expanded={open}
           aria-label="Select an organization"
           className={cn(
-            'w-[150px] md:w-[200px] justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
-            open && 'bg-muted/30',
+            "w-[150px] md:w-[200px] justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30",
+            open && "bg-muted/30",
             className,
           )}
           disabled={triggerDisabled}
@@ -127,7 +127,7 @@ export function OrganizationSelector({ className }: { className?: string }) {
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BuildingOffice2Icon className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">
-              {currentOrg?.name ?? 'Loading…'}
+              {currentOrg?.name ?? "Loading…"}
             </span>
           </div>
           {(!isTenantLoaded || !isUniverseLoaded) && !open ? (
@@ -162,20 +162,17 @@ export function OrganizationSelector({ className }: { className?: string }) {
                       <div className="ml-2 flex flex-shrink-0 items-center gap-1">
                         <CheckIcon
                           className={cn(
-                            'size-4',
-                            currentOrg?.metadata.id ===
-                              org.metadata.id
-                              ? 'opacity-100'
-                              : 'opacity-0',
+                            "size-4",
+                            currentOrg?.metadata.id === org.metadata.id
+                              ? "opacity-100"
+                              : "opacity-0",
                           )}
                         />
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
-                          onClick={(e) =>
-                            handleSettingsClick(e, org)
-                          }
+                          onClick={(e) => handleSettingsClick(e, org)}
                           title="Settings"
                         >
                           <Cog6ToothIcon className="size-3" />

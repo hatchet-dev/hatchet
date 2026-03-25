@@ -1,16 +1,16 @@
-import { TokenActions } from './components/api-tokens-columns';
-import { CreateTokenDialog } from './components/create-token-dialog';
-import { RevokeTokenForm } from './components/revoke-token-form';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { Button } from '@/components/v1/ui/button';
-import { Dialog } from '@/components/v1/ui/dialog';
-import { Separator } from '@/components/v1/ui/separator';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
+import { TokenActions } from "./components/api-tokens-columns";
+import { CreateTokenDialog } from "./components/create-token-dialog";
+import { RevokeTokenForm } from "./components/revoke-token-form";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { SimpleTable } from "@/components/v1/molecules/simple-table/simple-table";
+import { Button } from "@/components/v1/ui/button";
+import { Dialog } from "@/components/v1/ui/dialog";
+import { Separator } from "@/components/v1/ui/separator";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import api, { APIToken, CreateAPITokenRequest, queries } from "@/lib/api";
+import { useApiError } from "@/lib/hooks";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
@@ -24,23 +24,23 @@ export default function APITokens() {
   const tokenColumns = useMemo(
     () => [
       {
-        columnLabel: 'Name',
+        columnLabel: "Name",
         cellRenderer: (token: APIToken) => <div>{token.name}</div>,
       },
       {
-        columnLabel: 'Created',
+        columnLabel: "Created",
         cellRenderer: (token: APIToken) => (
           <RelativeDate date={token.metadata.createdAt} />
         ),
       },
       {
-        columnLabel: 'Expires',
+        columnLabel: "Expires",
         cellRenderer: (token: APIToken) => (
           <div>{new Date(token.expiresAt).toLocaleDateString()}</div>
         ),
       },
       {
-        columnLabel: 'Actions',
+        columnLabel: "Actions",
         cellRenderer: (token: APIToken) => (
           <TokenActions
             token={token}
@@ -70,8 +70,8 @@ export default function APITokens() {
           </Button>
         </div>
         <p className="my-4 text-gray-700 dark:text-gray-300">
-          API tokens are used by workers to connect with the Hatchet API
-          and engine.
+          API tokens are used by workers to connect with the Hatchet API and
+          engine.
         </p>
         <Separator className="my-4" />
         {(listTokensQuery.data?.rows || []).length > 0 ? (
@@ -81,8 +81,7 @@ export default function APITokens() {
           />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No API tokens found. Create a token to allow workers to
-            connect.
+            No API tokens found. Create a token to allow workers to connect.
           </div>
         )}
 
@@ -127,7 +126,7 @@ function CreateToken({
   });
 
   const createTokenMutation = useMutation({
-    mutationKey: ['api-token:create', tenantId],
+    mutationKey: ["api-token:create", tenantId],
     mutationFn: async (data: CreateAPITokenRequest) => {
       const res = await api.apiTokenCreate(tenantId, data);
       return res.data;
@@ -164,7 +163,7 @@ function RevokeToken({
   const { handleApiError } = useApiError({});
 
   const revokeMutation = useMutation({
-    mutationKey: ['api-token:revoke', tenantId, apiToken],
+    mutationKey: ["api-token:revoke", tenantId, apiToken],
     mutationFn: async () => {
       await api.apiTokenUpdateRevoke(apiToken.metadata.id);
     },

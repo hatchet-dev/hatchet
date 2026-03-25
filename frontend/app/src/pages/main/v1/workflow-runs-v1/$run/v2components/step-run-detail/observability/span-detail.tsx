@@ -1,26 +1,26 @@
-import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
-import { formatDuration, formatTimestamp } from './utils/format-utils';
-import { isQueuedOnly, statusLabel } from './utils/span-tree-utils';
-import { useLiveClock } from './utils/use-live-clock';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
-import { Button } from '@/components/v1/ui/button';
-import { useSidePanel } from '@/hooks/use-side-panel';
-import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
-import { cn } from '@/lib/utils';
-import { Filter, Minus, PanelRight, Plus, X } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import type { SpanGroupInfo } from "./timeline/trace-timeline-utils";
+import { formatDuration, formatTimestamp } from "./utils/format-utils";
+import { isQueuedOnly, statusLabel } from "./utils/span-tree-utils";
+import { useLiveClock } from "./utils/use-live-clock";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
+import type { ParsedTraceQuery } from "@/components/v1/cloud/observability/trace-search";
+import { Button } from "@/components/v1/ui/button";
+import { useSidePanel } from "@/hooks/use-side-panel";
+import { OtelStatusCode } from "@/lib/api/generated/data-contracts";
+import { cn } from "@/lib/utils";
+import { Filter, Minus, PanelRight, Plus, X } from "lucide-react";
+import { useCallback, useMemo } from "react";
 
 function FilterWithBadgeIcon({
   className,
   variant,
 }: {
   className?: string;
-  variant: 'plus' | 'minus';
+  variant: "plus" | "minus";
 }) {
-  const Badge = variant === 'plus' ? Plus : Minus;
+  const Badge = variant === "plus" ? Plus : Minus;
   return (
-    <span className={cn('relative inline-flex size-3.5', className)}>
+    <span className={cn("relative inline-flex size-3.5", className)}>
       <Filter className="size-full" />
       <Badge
         className="pointer-events-none absolute -bottom-0.5 -right-0.5 size-2.5"
@@ -33,12 +33,12 @@ function FilterWithBadgeIcon({
 
 function statusDotColor(code: string): string {
   if (code === OtelStatusCode.ERROR) {
-    return 'bg-red-500';
+    return "bg-red-500";
   }
   if (code === OtelStatusCode.OK) {
-    return 'bg-green-500';
+    return "bg-green-500";
   }
-  return 'bg-slate-500';
+  return "bg-slate-500";
 }
 
 interface ChildError {
@@ -54,8 +54,8 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
     const child = stack.pop()!;
     if (child.statusCode === OtelStatusCode.ERROR && child.statusMessage) {
       const taskName =
-        child.spanAttributes?.['hatchet.step_name'] ??
-        child.spanAttributes?.['hatchet.task_name'];
+        child.spanAttributes?.["hatchet.step_name"] ??
+        child.spanAttributes?.["hatchet.task_name"];
       errors.push({
         span: child,
         spanName: taskName ?? child.spanName,
@@ -72,7 +72,7 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
   return errors;
 }
 
-const HATCHET_ATTR_PREFIX = 'hatchet.';
+const HATCHET_ATTR_PREFIX = "hatchet.";
 
 function partitionAttributes(attrs: Record<string, string> | undefined) {
   const hatchet: [string, string][] = [];
@@ -104,7 +104,7 @@ function isFilterActive(
   if (!activeFilters) {
     return false;
   }
-  if (key.toLowerCase() === 'status') {
+  if (key.toLowerCase() === "status") {
     return activeFilters.status === value.toLowerCase();
   }
   return activeFilters.attributes.some(([k, v]) => k === key && v === value);
@@ -153,10 +153,10 @@ function AttrTable({
                           size="icon"
                           variant="ghost"
                           className={cn(
-                            'size-6 shrink-0 transition-opacity',
+                            "size-6 shrink-0 transition-opacity",
                             active
-                              ? 'opacity-100'
-                              : 'opacity-0 group-hover:opacity-100',
+                              ? "opacity-100"
+                              : "opacity-0 group-hover:opacity-100",
                           )}
                           hoverText={
                             active
@@ -221,15 +221,15 @@ export function SpanDetail({
   }
 
   const status = queuedOnlySpan
-    ? { label: 'Queued', dot: 'bg-yellow-500' }
+    ? { label: "Queued", dot: "bg-yellow-500" }
     : span.inProgress
-      ? { label: 'In Progress', dot: 'bg-blue-500' }
+      ? { label: "In Progress", dot: "bg-blue-500" }
       : {
           label: statusLabel(span.statusCode),
           dot: statusDotColor(span.statusCode),
         };
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
-  const taskRunId = span.spanAttributes?.['hatchet.step_run_id'];
+  const taskRunId = span.spanAttributes?.["hatchet.step_run_id"];
   const { open } = useSidePanel();
 
   const handleOpenTaskRun = useCallback(() => {
@@ -237,7 +237,7 @@ export function SpanDetail({
       return;
     }
     open({
-      type: 'task-run-details',
+      type: "task-run-details",
       content: {
         taskRunId,
         showViewTaskRunButton: true,
@@ -291,14 +291,12 @@ export function SpanDetail({
         </div>
       </div>
 
-      <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
+      <div className={cn("grid gap-4", q ? "grid-cols-4" : "grid-cols-3")}>
         {q && (
           <div>
-            <span className="text-xs text-muted-foreground">
-              Queue Time
-            </span>
+            <span className="text-xs text-muted-foreground">Queue Time</span>
             <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-              {formatDuration(queueNs, { unit: 'ns', precise: true })}
+              {formatDuration(queueNs, { unit: "ns", precise: true })}
             </p>
           </div>
         )}
@@ -306,9 +304,9 @@ export function SpanDetail({
           <span className="text-xs text-muted-foreground">Duration</span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
             {queuedOnlySpan
-              ? '–'
+              ? "–"
               : formatDuration(durationNs, {
-                  unit: 'ns',
+                  unit: "ns",
                   precise: true,
                 })}
           </p>
@@ -316,9 +314,7 @@ export function SpanDetail({
         <div>
           <span className="text-xs text-muted-foreground">Status</span>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <span
-              className={cn('size-2 shrink-0 rounded-full', status.dot)}
-            />
+            <span className={cn("size-2 shrink-0 rounded-full", status.dot)} />
             <span className="font-mono text-sm text-foreground">
               {status.label}
             </span>
@@ -347,8 +343,8 @@ export function SpanDetail({
         <div className="flex flex-col gap-2">
           <h4 className="text-xs font-medium uppercase tracking-wider text-red-400">
             {childErrors.length === 1
-              ? '1 Error'
-              : `${childErrors.length} Errors`}{' '}
+              ? "1 Error"
+              : `${childErrors.length} Errors`}{" "}
             in child spans
           </h4>
           {childErrors.map((err, i) => (
@@ -415,7 +411,7 @@ export function GroupDetail({
             {group.totalCount.toLocaleString()} spans
             {group.errorCount > 0 && (
               <span className="text-red-500">
-                {' '}
+                {" "}
                 · {group.errorCount.toLocaleString()} errors
               </span>
             )}
@@ -442,25 +438,19 @@ export function GroupDetail({
           </p>
         </div>
         <div>
-          <span className="text-xs text-muted-foreground">
-            Avg Duration
-          </span>
+          <span className="text-xs text-muted-foreground">Avg Duration</span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
             {formatDuration(avgMs, { precise: true })}
           </p>
         </div>
         <div>
-          <span className="text-xs text-muted-foreground">
-            Min Duration
-          </span>
+          <span className="text-xs text-muted-foreground">Min Duration</span>
           <p className="mt-0.5 font-mono text-sm text-foreground">
             {formatDuration(minMs, { precise: true })}
           </p>
         </div>
         <div>
-          <span className="text-xs text-muted-foreground">
-            Max Duration
-          </span>
+          <span className="text-xs text-muted-foreground">Max Duration</span>
           <p className="mt-0.5 font-mono text-sm text-foreground">
             {formatDuration(maxMs, { precise: true })}
           </p>

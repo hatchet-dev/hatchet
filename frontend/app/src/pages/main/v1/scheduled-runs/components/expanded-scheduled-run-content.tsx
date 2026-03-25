@@ -1,11 +1,11 @@
-import { RunStatus } from '../../workflow-runs/components/run-statuses';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Separator } from '@/components/v1/ui/separator';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { ScheduledWorkflows } from '@/lib/api';
-import { appRoutes } from '@/router';
-import { Link } from '@tanstack/react-router';
+import { RunStatus } from "../../workflow-runs/components/run-statuses";
+import RelativeDate from "@/components/v1/molecules/relative-date";
+import { CodeHighlighter } from "@/components/v1/ui/code-highlighter";
+import { Separator } from "@/components/v1/ui/separator";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { ScheduledWorkflows } from "@/lib/api";
+import { appRoutes } from "@/router";
+import { Link } from "@tanstack/react-router";
 
 export function ExpandedScheduledRunContent({
   scheduledRun,
@@ -18,9 +18,7 @@ export function ExpandedScheduledRunContent({
     <div className="w-full">
       <div className="space-y-6">
         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 border-b pb-4 text-sm">
-          <span className="font-medium text-muted-foreground">
-            Workflow
-          </span>
+          <span className="font-medium text-muted-foreground">Workflow</span>
           <Link
             to={appRoutes.tenantWorkflowRoute.to}
             params={{
@@ -32,18 +30,14 @@ export function ExpandedScheduledRunContent({
             {scheduledRun.workflowName}
           </Link>
 
-          <span className="font-medium text-muted-foreground">
-            Trigger At
-          </span>
+          <span className="font-medium text-muted-foreground">Trigger At</span>
           <span className="font-medium">
             <RelativeDate date={scheduledRun.triggerAt} />
           </span>
 
           <span className="font-medium text-muted-foreground">Status</span>
           <div>
-            <RunStatus
-              status={scheduledRun.workflowRunStatus || 'SCHEDULED'}
-            />
+            <RunStatus status={scheduledRun.workflowRunStatus || "SCHEDULED"} />
           </div>
 
           {scheduledRun.workflowRunId && (
@@ -59,15 +53,12 @@ export function ExpandedScheduledRunContent({
                 }}
                 className="truncate font-medium hover:underline"
               >
-                {scheduledRun.workflowRunName ||
-                  scheduledRun.workflowRunId}
+                {scheduledRun.workflowRunName || scheduledRun.workflowRunId}
               </Link>
             </>
           )}
 
-          <span className="font-medium text-muted-foreground">
-            Created At
-          </span>
+          <span className="font-medium text-muted-foreground">Created At</span>
           <span className="font-medium">
             <RelativeDate date={scheduledRun.metadata.createdAt} />
           </span>

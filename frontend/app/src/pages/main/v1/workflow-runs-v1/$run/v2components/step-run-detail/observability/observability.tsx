@@ -1,28 +1,28 @@
-import { TaskRunTrace } from './task-run-trace';
-import { isQueuedOnlyRoot } from './utils/span-tree-utils';
+import { TaskRunTrace } from "./task-run-trace";
+import { isQueuedOnlyRoot } from "./utils/span-tree-utils";
 import {
   convertOtelSpansToOtelSpanTree,
   type TaskSummaryForSynthesis,
-} from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
-import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
+} from "@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree";
+import type { RelevantOpenTelemetrySpanProperties } from "@/components/v1/agent-prism/span-tree-type";
 import {
   filterSpanTrees,
   parseTraceQuery,
   TraceSearchInput,
   type TraceAutocompleteContext,
-} from '@/components/v1/cloud/observability/trace-search';
-import { Loading } from '@/components/v1/ui/loading';
-import api from '@/lib/api/api';
-import { appRoutes } from '@/router';
-import { useQuery } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+} from "@/components/v1/cloud/observability/trace-search";
+import { Loading } from "@/components/v1/ui/loading";
+import api from "@/lib/api/api";
+import { appRoutes } from "@/router";
+import { useQuery } from "@tanstack/react-query";
+import { useParams } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
 }
 
-const GO_ZERO_TIME = '0001-01-01T00:00:00Z';
+const GO_ZERO_TIME = "0001-01-01T00:00:00Z";
 
 const pickSpan = (
   span: RelevantOpenTelemetrySpanProperties,
@@ -92,7 +92,7 @@ export const Observability = (props: ObservabilityProps) => {
   const runExternalId = props.taskRunId ?? props.workflowRunExternalId;
   const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
 
-  const [queryString, setQueryString] = useState('');
+  const [queryString, setQueryString] = useState("");
 
   const GRACE_PERIOD_MS = 15_000;
   const [inGracePeriod, setInGracePeriod] = useState(false);
@@ -145,8 +145,7 @@ export const Observability = (props: ObservabilityProps) => {
   }, [workflowRunCreatedAt, workflowRunStartedAt]);
 
   const spanTrees = useMemo(() => {
-    let trees: ReturnType<typeof convertOtelSpansToOtelSpanTree> | null =
-      null;
+    let trees: ReturnType<typeof convertOtelSpansToOtelSpanTree> | null = null;
     const hasTraceRows = !!(traces && hasAtLeastOneElement(traces));
     const timingForSynthesis = hasTraceRows ? undefined : workflowRunTiming;
     const convertOptions = {
@@ -162,7 +161,7 @@ export const Observability = (props: ObservabilityProps) => {
       );
     } else {
       const pendingTasks = tasks?.filter(
-        (t) => t.status === 'QUEUED' || t.status === 'RUNNING',
+        (t) => t.status === "QUEUED" || t.status === "RUNNING",
       );
       if (pendingTasks && pendingTasks.length > 0) {
         trees = convertOtelSpansToOtelSpanTree(
@@ -207,7 +206,7 @@ export const Observability = (props: ObservabilityProps) => {
     const token = `${key}:${value}`;
     setQueryString((prev) => {
       const parts = prev.split(/\s+/).filter((p) => p !== token);
-      return parts.join(' ');
+      return parts.join(" ");
     });
   }, []);
 
@@ -227,13 +226,13 @@ export const Observability = (props: ObservabilityProps) => {
         )}
         <div className="py-4 text-sm text-muted-foreground">
           {spanTrees ? (
-            'No spans match the current filter.'
+            "No spans match the current filter."
           ) : (
             <>
-              No traces found. To collect traces, use the{' '}
+              No traces found. To collect traces, use the{" "}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">
                 HatchetInstrumentor
-              </code>{' '}
+              </code>{" "}
               in your SDK.
             </>
           )}

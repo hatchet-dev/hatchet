@@ -1,9 +1,9 @@
-import { HeroPanel } from './hero-panel';
-import { CSSProperties, PropsWithChildren } from 'react';
+import { HeroPanel } from "./hero-panel";
+import { CSSProperties, PropsWithChildren } from "react";
 
 export function AuthLayout({ children }: PropsWithChildren) {
   const bgContentStyle = {
-    '--noise-url': 'url("/noise.png")',
+    "--noise-url": 'url("/noise.png")',
   } as CSSProperties;
 
   return (

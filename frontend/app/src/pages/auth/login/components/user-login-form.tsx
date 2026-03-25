@@ -1,16 +1,16 @@
-import { Alert, AlertDescription } from '@/components/v1/ui/alert';
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
-import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
+import { Alert, AlertDescription } from "@/components/v1/ui/alert";
+import { Button } from "@/components/v1/ui/button";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading.tsx";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 const schema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters long'),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters long"),
 });
 
 interface UserLoginFormProps {
@@ -28,8 +28,8 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
     formState: { errors, isValid, touchedFields, submitCount },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
-    reValidateMode: 'onChange',
+    mode: "onChange",
+    reValidateMode: "onChange",
   });
 
   const emailError =
@@ -43,7 +43,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
       : undefined) || props.fieldErrors?.password;
 
   return (
-    <div className={cn('grid gap-6', className)}>
+    <div className={cn("grid gap-6", className)}>
       <form
         onSubmit={handleSubmit((d) => {
           props.onSubmit(d);
@@ -53,7 +53,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
-              {...register('email')}
+              {...register("email")}
               id="email"
               placeholder="name@example.com"
               type="email"
@@ -69,7 +69,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
           <div className="grid gap-2">
             <Label htmlFor="password">Password</Label>
             <Input
-              {...register('password')}
+              {...register("password")}
               id="password"
               placeholder="Password"
               type="password"
@@ -81,9 +81,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
           </div>
           {props.errors && props.errors.length > 0 && (
             <Alert variant="destructive">
-              <AlertDescription>
-                {props.errors.join(' ')}
-              </AlertDescription>
+              <AlertDescription>{props.errors.join(" ")}</AlertDescription>
             </Alert>
           )}
           <Button disabled={props.isLoading || !isValid}>

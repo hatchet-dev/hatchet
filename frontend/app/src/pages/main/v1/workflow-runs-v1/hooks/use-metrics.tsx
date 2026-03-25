@@ -1,7 +1,7 @@
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { useRefetchInterval } from "@/contexts/refetch-interval-context";
+import { useCurrentTenantId } from "@/hooks/use-tenant";
+import { queries } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 export const useMetrics = ({
   workflow,
@@ -40,13 +40,11 @@ export const useMetrics = ({
 
   const runStatusCounts = rawStatusCounts || [];
 
-  const { data: queueMetricsRaw, isLoading: isQueueMetricsLoading } = useQuery(
-    {
-      ...queries.metrics.getStepRunQueueMetrics(tenantId),
-      refetchInterval: 5000,
-      enabled: showQueueMetrics,
-    },
-  );
+  const { data: queueMetricsRaw, isLoading: isQueueMetricsLoading } = useQuery({
+    ...queries.metrics.getStepRunQueueMetrics(tenantId),
+    refetchInterval: 5000,
+    enabled: showQueueMetrics,
+  });
 
   const queueMetrics = queueMetricsRaw?.queues || {};
 

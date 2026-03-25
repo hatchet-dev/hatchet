@@ -1,24 +1,24 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from "@/components/v1/ui/button";
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading';
-import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
+} from "@/components/v1/ui/dialog";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 const passwordSchema = z
   .string()
-  .min(8, 'Passwords must be at least 8 characters in length')
+  .min(8, "Passwords must be at least 8 characters in length")
   .max(255)
   .regex(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/,
-    'Passwords must contain an upper and lowercase letter, and at least one number',
+    "Passwords must contain an upper and lowercase letter, and at least one number",
   );
 
 const schema = z
@@ -30,8 +30,8 @@ const schema = z
   .superRefine(({ newPassword, confirmNewPassword }, ctx) => {
     if (newPassword !== confirmNewPassword) {
       ctx.addIssue({
-        code: 'custom',
-        message: 'Passwords do not match',
+        code: "custom",
+        message: "Passwords do not match",
       });
     }
   });
@@ -56,14 +56,14 @@ export function ChangePasswordDialog({
   });
 
   // @ts-expect-error - zod doesn't have a good way to get the global error
-  const globalError = errors[''] as z.ZodIssue;
+  const globalError = errors[""] as z.ZodIssue;
 
   return (
     <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
         <DialogTitle>Change Password</DialogTitle>
       </DialogHeader>
-      <div className={cn('grid gap-6', className)}>
+      <div className={cn("grid gap-6", className)}>
         <form
           onSubmit={handleSubmit((d) => {
             props.onSubmit(d);
@@ -73,7 +73,7 @@ export function ChangePasswordDialog({
             <div className="grid gap-2">
               <Label htmlFor="email">Current Password</Label>
               <Input
-                {...register('password')}
+                {...register("password")}
                 id="current-password"
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -94,7 +94,7 @@ export function ChangePasswordDialog({
             <div className="grid gap-2">
               <Label htmlFor="email">New Password</Label>
               <Input
-                {...register('newPassword')}
+                {...register("newPassword")}
                 id="new-password"
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -110,7 +110,7 @@ export function ChangePasswordDialog({
             <div className="grid gap-2">
               <Label htmlFor="email">Confirm New Password</Label>
               <Input
-                {...register('confirmNewPassword')}
+                {...register("confirmNewPassword")}
                 id="confirm-new-password"
                 autoCapitalize="none"
                 autoCorrect="off"

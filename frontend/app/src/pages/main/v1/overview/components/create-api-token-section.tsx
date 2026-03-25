@@ -1,15 +1,15 @@
-import { SectionHeader } from './section-header';
-import { Button } from '@/components/v1/ui/button';
+import { SectionHeader } from "./section-header";
+import { Button } from "@/components/v1/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Spinner } from '@/components/v1/ui/loading';
-import { ChevronDownIcon } from '@radix-ui/react-icons';
+} from "@/components/v1/ui/dropdown-menu";
+import { Input } from "@/components/v1/ui/input";
+import { Label } from "@/components/v1/ui/label";
+import { Spinner } from "@/components/v1/ui/loading";
+import { ChevronDownIcon } from "@radix-ui/react-icons";
 
 export function CreateApiTokenSection({
   tokenName,
@@ -35,7 +35,7 @@ export function CreateApiTokenSection({
   const selectedLabel =
     Object.entries(expiresInOptions).find(
       ([, value]) => value === expiresIn,
-    )?.[0] || 'Select an option';
+    )?.[0] || "Select an option";
 
   return (
     <div>

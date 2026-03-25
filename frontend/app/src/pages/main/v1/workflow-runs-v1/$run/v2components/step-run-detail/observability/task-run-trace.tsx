@@ -1,23 +1,23 @@
-import { TraceMinimap } from './minimap/trace-minimap';
-import { SpanDetail, GroupDetail } from './span-detail';
+import { TraceMinimap } from "./minimap/trace-minimap";
+import { SpanDetail, GroupDetail } from "./span-detail";
 import {
   TraceTimeline,
   LABEL_WIDTH,
   type VisibleRange,
-} from './timeline/trace-timeline';
-import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
-import { getStableKey } from './utils/span-tree-utils';
-import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+} from "./timeline/trace-timeline";
+import type { SpanGroupInfo } from "./timeline/trace-timeline-utils";
+import { getStableKey } from "./utils/span-tree-utils";
+import { findTimeRange } from "@/components/v1/agent-prism/agent-prism-data";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
 import type {
   FilteredSpanTree,
   ParsedTraceQuery,
-} from '@/components/v1/cloud/observability/trace-search';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+} from "@/components/v1/cloud/observability/trace-search";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Selection =
-  | { kind: 'span'; span: OtelSpanTree }
-  | { kind: 'group'; group: SpanGroupInfo };
+  | { kind: "span"; span: OtelSpanTree }
+  | { kind: "group"; group: SpanGroupInfo };
 
 function findSpanInTrees(
   nodes: OtelSpanTree[],
@@ -44,7 +44,7 @@ function findSpanByTaskRunId(
     const key = getStableKey(node);
     if (
       key === taskRunId ||
-      node.spanAttributes?.['hatchet.step_run_id'] === taskRunId
+      node.spanAttributes?.["hatchet.step_run_id"] === taskRunId
     ) {
       return { span: node, ancestorKeys };
     }
@@ -114,9 +114,7 @@ export function TaskRunTrace({
   });
 
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
-  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(
-    null,
-  );
+  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
 
   const lastFocusedRef = useRef<string | undefined>();
   useEffect(() => {
@@ -136,18 +134,18 @@ export function TaskRunTrace({
       next.add(getStableKey(result.span));
       return next;
     });
-    setSelection({ kind: 'span', span: result.span });
+    setSelection({ kind: "span", span: result.span });
   }, [focusedTaskRunId, spanTrees]);
 
   const resolvedSelection = useMemo((): Selection | undefined => {
     if (!selection) {
       return undefined;
     }
-    if (selection.kind === 'group') {
+    if (selection.kind === "group") {
       return selection;
     }
     const fresh = findSpanInTrees(spanTrees, selection.span.spanId);
-    return fresh ? { kind: 'span', span: fresh } : selection;
+    return fresh ? { kind: "span", span: fresh } : selection;
   }, [selection, spanTrees]);
 
   const expandAncestors = useCallback(
@@ -172,9 +170,9 @@ export function TaskRunTrace({
     (span: OtelSpanTree) => {
       expandAncestors(span);
       setSelection((prev) =>
-        prev?.kind === 'span' && prev.span.spanId === span.spanId
+        prev?.kind === "span" && prev.span.spanId === span.spanId
           ? undefined
-          : { kind: 'span', span },
+          : { kind: "span", span },
       );
     },
     [expandAncestors],
@@ -183,16 +181,16 @@ export function TaskRunTrace({
   const handleMinimapSpanSelect = useCallback(
     (span: OtelSpanTree, _ancestorSpanIds: string[]) => {
       expandAncestors(span);
-      setSelection({ kind: 'span', span });
+      setSelection({ kind: "span", span });
     },
     [expandAncestors],
   );
 
   const handleGroupSelect = useCallback((group: SpanGroupInfo) => {
     setSelection((prev) =>
-      prev?.kind === 'group' && prev.group.groupId === group.groupId
+      prev?.kind === "group" && prev.group.groupId === group.groupId
         ? undefined
-        : { kind: 'group', group },
+        : { kind: "group", group },
     );
   }, []);
 
@@ -236,12 +234,12 @@ export function TaskRunTrace({
         groupVisibleCounts={groupVisibleCounts}
         onShowMore={handleShowMore}
         selectedSpan={
-          resolvedSelection?.kind === 'span'
+          resolvedSelection?.kind === "span"
             ? resolvedSelection.span
             : undefined
         }
         selectedGroupId={
-          resolvedSelection?.kind === 'group'
+          resolvedSelection?.kind === "group"
             ? resolvedSelection.group.groupId
             : undefined
         }
@@ -252,7 +250,7 @@ export function TaskRunTrace({
         externalCursorPct={minimapHoverPct}
         onCursorPctChange={setTimelineHoverPct}
       />
-      {resolvedSelection?.kind === 'span' && (
+      {resolvedSelection?.kind === "span" && (
         <SpanDetail
           span={resolvedSelection.span}
           onClose={handleDetailClose}
@@ -262,7 +260,7 @@ export function TaskRunTrace({
           onSpanSelect={handleSpanSelect}
         />
       )}
-      {resolvedSelection?.kind === 'group' && (
+      {resolvedSelection?.kind === "group" && (
         <GroupDetail
           group={resolvedSelection.group}
           onClose={handleDetailClose}

@@ -1,6 +1,6 @@
-import { getDisplayName, hasErrorInTree } from '../utils/span-tree-utils';
-import type { SpanMarker } from './minimap-types';
-import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import { getDisplayName, hasErrorInTree } from "../utils/span-tree-utils";
+import type { SpanMarker } from "./minimap-types";
+import type { OtelSpanTree } from "@/components/v1/agent-prism/span-tree-type";
 
 export function collectSpanMarkers(
   trees: OtelSpanTree[],

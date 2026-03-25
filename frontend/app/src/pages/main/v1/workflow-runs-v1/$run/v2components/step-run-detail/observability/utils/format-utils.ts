@@ -1,5 +1,5 @@
 interface FormatDurationOpts {
-  unit?: 'ns' | 'ms';
+  unit?: "ns" | "ms";
   precise?: boolean;
 }
 
@@ -7,15 +7,15 @@ export function formatDuration(
   value: number,
   opts: FormatDurationOpts = {},
 ): string {
-  const { unit = 'ms', precise = false } = opts;
-  const ms = unit === 'ns' ? value / 1_000_000 : value;
+  const { unit = "ms", precise = false } = opts;
+  const ms = unit === "ns" ? value / 1_000_000 : value;
 
   if (precise) {
-    if (unit === 'ns' && ms < 1) {
+    if (unit === "ns" && ms < 1) {
       return `${(value / 1_000).toFixed(1)}µs`;
     }
     if (ms < 1) {
-      return '<1ms';
+      return "<1ms";
     }
     if (ms < 1000) {
       return `${ms.toFixed(ms < 10 ? 2 : 1)}ms`;
@@ -29,10 +29,10 @@ export function formatDuration(
   }
 
   if (ms <= 0) {
-    return '0s';
+    return "0s";
   }
   if (ms < 1) {
-    return '<1ms';
+    return "<1ms";
   }
   if (ms < 1000) {
     return `${Math.round(ms)}ms`;
@@ -48,16 +48,16 @@ export function formatDuration(
 export function formatTimestamp(iso: string, opts?: { ms?: boolean }): string {
   const d = new Date(iso);
   const base = d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(opts?.ms ? {} : { year: 'numeric' }),
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
+    month: "short",
+    day: "numeric",
+    ...(opts?.ms ? {} : { year: "numeric" }),
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: true,
   });
   if (opts?.ms) {
-    const millis = String(d.getMilliseconds()).padStart(3, '0');
+    const millis = String(d.getMilliseconds()).padStart(3, "0");
     return `${base}.${millis}`;
   }
   return base;
