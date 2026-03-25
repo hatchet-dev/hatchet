@@ -160,7 +160,7 @@ class Context:
     def worker_labels(self) -> list[WorkerLabel]:
         return self._worker_labels
 
-    def upsert_labels(self, labels: list[WorkerLabel]) -> None:
+    def upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
         self._dispatcher_client.upsert_worker_labels(self.worker_id, labels)
 
         prior_label_dict = {
@@ -178,8 +178,8 @@ class Context:
             WorkerLabel(key=key, value=value) for key, value in prior_label_dict.items()
         ]
 
-    async def aio_upsert_labels(self, labels: list[WorkerLabel]) -> None:
-        await asyncio.to_thread(self.upsert_labels, labels)
+    async def aio_upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
+        await asyncio.to_thread(self.upsert_worker_labels, labels)
 
     @property
     def data(self) -> ActionPayload:

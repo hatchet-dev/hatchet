@@ -175,6 +175,7 @@ class Runner:
 
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
+        self.worker_id: str | None = None
 
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
@@ -183,8 +184,8 @@ class Runner:
         return f"{self.config.server_url}/workflow-runs/{action.workflow_run_id}?tenant={action.tenant_id}"
 
     def run(self, action: Action) -> None:
-        if self.worker_context.id() is None:
-            self.worker_context._worker_id = action.worker_id
+        if self.worker_id is None:
+            self.worker_id = action.worker_id
 
             if isinstance(self.durable_event_listener, DurableEventListener):
                 self.durable_event_listener_task = asyncio.create_task(
