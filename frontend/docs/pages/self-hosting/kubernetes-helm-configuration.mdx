@@ -75,3 +75,33 @@ seed:
     DEFAULT_TENANT_SLUG: "default"
     DEFAULT_TENANT_ID: "707d0855-80ab-4e1f-a156-f1c4546cbf52"
 ````
+
+## Pod Security Standards
+
+The Helm charts support Kubernetes [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) (PSS) at the `restricted` level. By default, no security context is applied for backward compatibility. To enable PSA restricted compliance, set the following values:
+
+```yaml
+# Pod-level security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level security context
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# Disable shared process namespace (required for PSA restricted)
+shareProcessNamespace: false
+```
+
+This requires Hatchet Docker images that include a non-root user (UID 1000). See [hatchet-dev/hatchet#3356](https://github.com/hatchet-dev/hatchet/pull/3356) for the image changes.
