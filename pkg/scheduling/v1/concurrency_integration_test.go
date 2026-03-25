@@ -362,8 +362,8 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		tenantId := uuid.New()
 		tenant, err := r.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
 			ID:   &tenantId,
-			Name: "concurrency-chain-test",
-			Slug: fmt.Sprintf("concurrency-chain-test-%s", tenantId.String()),
+			Name: "concurrency-contention-test",
+			Slug: fmt.Sprintf("concurrency-contention-test-%s", tenantId.String()),
 		})
 		require.NoError(t, err)
 
@@ -383,14 +383,14 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		schedulingPool.SetTenants([]*sqlcv1.Tenant{tenant})
 		resultsChan := schedulingPool.GetConcurrencyResultsCh()
 
-		desc := "test workflow for chained concurrency"
+		desc := "test workflow for concurrency contention"
 		cancelNewest := "CANCEL_NEWEST"
 		groupRR := "GROUP_ROUND_ROBIN"
 		var maxRunsGate1 int32 = 3
 		var maxRunsGate2 int32 = 1
 
 		_, err = r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
-			Name:        "chained-concurrency-test",
+			Name:        "concurrency-contention-test",
 			Description: &desc,
 			Tasks: []repo.CreateStepOpts{
 				{
