@@ -27,7 +27,8 @@ export default function Ingestors() {
           Ingestors
         </h2>
         <p className="my-4 text-gray-700 dark:text-gray-300">
-          Ingestors are integrations that allow you to send events to Hatchet.
+          Ingestors are integrations that allow you to send events to
+          Hatchet.
         </p>
         <Separator className="my-4" />
         <SNSIntegrationsList />
@@ -86,7 +87,10 @@ function SNSIntegrationsList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           SNS Integrations
         </h3>
-        <Button key="create-api-token" onClick={() => setShowSNSDialog(true)}>
+        <Button
+          key="create-api-token"
+          onClick={() => setShowSNSDialog(true)}
+        >
           Create SNS Endpoint
         </Button>
       </div>
@@ -98,8 +102,8 @@ function SNSIntegrationsList() {
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No SNS integrations found. Create an endpoint to receive events from
-          AWS SNS.
+          No SNS integrations found. Create an endpoint to receive events
+          from AWS SNS.
         </div>
       )}
       {showSNSDialog && (

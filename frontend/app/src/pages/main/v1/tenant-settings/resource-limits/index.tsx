@@ -84,7 +84,9 @@ export default function ResourceLimits() {
         cellRenderer: (limit: TenantResourceLimit) =>
           !limit.window
             ? 'N/A'
-            : limit.lastRefill && <RelativeDate date={limit.lastRefill} />,
+            : limit.lastRefill && (
+                <RelativeDate date={limit.lastRefill} />
+              ),
       },
     ],
     [],
@@ -120,8 +122,9 @@ export default function ResourceLimits() {
                 <ExclamationTriangleIcon className="size-4" />
                 <AlertTitle>Unauthorized</AlertTitle>
                 <AlertDescription>
-                  You do not have permission to view billing information. Only
-                  tenant owners can access billing details.
+                  You do not have permission to view billing
+                  information. Only tenant owners can access billing
+                  details.
                 </AlertDescription>
               </Alert>
             )}
@@ -135,8 +138,8 @@ export default function ResourceLimits() {
         <Separator className="my-4" />
         <p className="text-sm text-muted-foreground mb-4">
           Resource limits control usage within your tenant. When a limit is
-          reached, the system will take action based on the limit type. Upgrade
-          your plan or{' '}
+          reached, the system will take action based on the limit type.
+          Upgrade your plan or{' '}
           <a
             href="https://hatchet.run/office-hours"
             className="text-primary/70 hover:text-primary hover:underline"
@@ -147,7 +150,10 @@ export default function ResourceLimits() {
         </p>
 
         {resourceLimits.length > 0 ? (
-          <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
+          <SimpleTable
+            columns={resourceLimitColumns}
+            data={resourceLimits}
+          />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
             No resource limits configured.

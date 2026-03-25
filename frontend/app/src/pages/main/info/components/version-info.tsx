@@ -21,7 +21,9 @@ export const VersionInfo: React.FC = () => {
 
   if (isError || !data?.version) {
     const errorMessage =
-      error instanceof Error ? error.message : 'Failed to fetch version info';
+      error instanceof Error
+        ? error.message
+        : 'Failed to fetch version info';
     return <div className="text-xs text-red-500">{errorMessage}</div>;
   }
 

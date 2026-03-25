@@ -7,6 +7,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/v1/ui/command';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
@@ -24,7 +25,6 @@ import {
   PopoverTrigger,
 } from '@radix-ui/react-popover';
 import { useState, useMemo } from 'react';
-import { useAnalytics } from '@/hooks/use-analytics';
 
 export function TenantSelector({ className }: { className?: string }) {
   const { setTenant, tenant } = useTenantDetails();
@@ -52,12 +52,15 @@ export function TenantSelector({ className }: { className?: string }) {
     : [];
 
   return (
-    <Popover open={open} onOpenChange={(open) => {
+    <Popover
+      open={open}
+      onOpenChange={(open) => {
         if (open) {
           capture('tenant_selector_opened');
         }
         setOpen(open);
-      }}>
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -107,12 +110,16 @@ export function TenantSelector({ className }: { className?: string }) {
                       setOpen(false);
                     }}
                     data-cy={
-                      t.slug ? `tenant-switcher-item-${t.slug}` : undefined
+                      t.slug
+                        ? `tenant-switcher-item-${t.slug}`
+                        : undefined
                     }
                     className="cursor-pointer text-sm hover:bg-accent focus:bg-accent"
                   >
                     <div className="flex w-full items-center justify-between">
-                      <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {t.name}
+                      </span>
                       <CheckIcon
                         className={cn(
                           'ml-2 size-4',
@@ -135,7 +142,8 @@ export function TenantSelector({ className }: { className?: string }) {
                     data-cy="new-tenant"
                     onSelect={() => {
                       globalEmitter.emit('create-new-tenant', {
-                        defaultOrganizationId: currentOrg?.metadata.id,
+                        defaultOrganizationId:
+                          currentOrg?.metadata.id,
                       });
                       setOpen(false);
                     }}

@@ -122,7 +122,10 @@ export default function TenantLogsPage() {
             value={timeWindow}
             onValueChange={(value) => {
               if (value === 'custom') {
-                setCustomTimeRange(chartSince, new Date().toISOString());
+                setCustomTimeRange(
+                  chartSince,
+                  new Date().toISOString(),
+                );
               } else {
                 setTimeWindow(value as TimeWindow);
               }

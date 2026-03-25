@@ -138,11 +138,15 @@ export const Observability = (props: ObservabilityProps) => {
         ? workflowRunStartedAt
         : undefined;
 
-    return { createdAt: workflowRunCreatedAt, startedAt: normalizedStartedAt };
+    return {
+      createdAt: workflowRunCreatedAt,
+      startedAt: normalizedStartedAt,
+    };
   }, [workflowRunCreatedAt, workflowRunStartedAt]);
 
   const spanTrees = useMemo(() => {
-    let trees: ReturnType<typeof convertOtelSpansToOtelSpanTree> | null = null;
+    let trees: ReturnType<typeof convertOtelSpansToOtelSpanTree> | null =
+      null;
     const hasTraceRows = !!(traces && hasAtLeastOneElement(traces));
     const timingForSynthesis = hasTraceRows ? undefined : workflowRunTiming;
     const convertOptions = {

@@ -54,15 +54,15 @@ export function getTraceAutocomplete(
 
   if (lastWord.startsWith('status:')) {
     const partial = lastWord.slice(7).toLowerCase();
-    const suggestions = SPAN_STATUSES.filter((s) => s.startsWith(partial)).map(
-      (s) => ({
-        type: 'value' as const,
-        label: s,
-        value: s,
-        description: STATUS_DESCRIPTIONS[s],
-        color: SPAN_STATUS_COLORS[s],
-      }),
-    );
+    const suggestions = SPAN_STATUSES.filter((s) =>
+      s.startsWith(partial),
+    ).map((s) => ({
+      type: 'value' as const,
+      label: s,
+      value: s,
+      description: STATUS_DESCRIPTIONS[s],
+      color: SPAN_STATUS_COLORS[s],
+    }));
     return { mode: 'value', suggestions };
   }
 

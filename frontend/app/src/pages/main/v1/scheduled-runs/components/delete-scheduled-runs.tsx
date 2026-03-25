@@ -79,13 +79,13 @@ function DeleteScheduledRunForm({
           Are you sure you want to delete the scheduled run?
           {isFutureRun ? (
             <>
-              This action will prevent the run from running in the future and
-              cannot be undone.
+              This action will prevent the run from running in the future
+              and cannot be undone.
             </>
           ) : (
             <>
-              This action will delete the scheduled run trigger, but will not
-              affect the run itself and cannot be undone.
+              This action will delete the scheduled run trigger, but will
+              not affect the run itself and cannot be undone.
             </>
           )}
         </div>

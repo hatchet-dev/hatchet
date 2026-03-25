@@ -19,7 +19,10 @@ export function TraceSearchInput({
   className?: string;
 }) {
   return (
-    <SearchBarWithFilters<TraceAutocompleteSuggestion, TraceAutocompleteContext>
+    <SearchBarWithFilters<
+      TraceAutocompleteSuggestion,
+      TraceAutocompleteContext
+    >
       value={value}
       onChange={onChange}
       onSubmit={onChange}

@@ -111,7 +111,10 @@ export function useLogs({
     queryFn: async ({ pageParam }) => {
       const params: V1LogLineListQuery = {
         limit: LOGS_PER_PAGE,
-        ...(pageParam && { since: pageParam.since, until: pageParam.until }),
+        ...(pageParam && {
+          since: pageParam.since,
+          until: pageParam.until,
+        }),
         ...(parsedQuery.level && {
           levels: [parsedQuery.level.toUpperCase() as V1LogLineLevel],
         }),
@@ -184,7 +187,10 @@ export function useLogs({
           ...(parsedQuery.attempt && { attempt: parsedQuery.attempt }),
         };
 
-        const response = await api.v1LogLineList(taskRun.metadata.id, params);
+        const response = await api.v1LogLineList(
+          taskRun.metadata.id,
+          params,
+        );
         const newRows = response.data.rows;
 
         if (newRows && newRows.length > 0) {
@@ -282,7 +288,10 @@ export function useLogs({
 
   const availableAttempts = useMemo(
     () =>
-      Array.from({ length: (taskRun?.retryCount ?? 0) + 1 }, (_, i) => i + 1),
+      Array.from(
+        { length: (taskRun?.retryCount ?? 0) + 1 },
+        (_, i) => i + 1,
+      ),
     [taskRun?.retryCount],
   );
 

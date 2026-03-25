@@ -133,7 +133,11 @@ export function ManagedWorkerLogs({
             className="h-8 w-[150px] lg:w-[250px]"
           />
           {/* hidden button for submitting input */}
-          <button type="submit" className="hidden" formTarget="search-input" />
+          <button
+            type="submit"
+            className="hidden"
+            formTarget="search-input"
+          />
         </form>
         <div className="flex flex-row gap-4">
           <DateTimePicker

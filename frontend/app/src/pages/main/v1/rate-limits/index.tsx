@@ -16,7 +16,9 @@ export default function RateLimits() {
 }
 
 function RateLimitsTable() {
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    {},
+  );
 
   const {
     data,

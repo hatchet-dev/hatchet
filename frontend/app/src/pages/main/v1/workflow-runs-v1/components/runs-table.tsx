@@ -273,7 +273,9 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
           columnFilters={filters.columnFilters}
           setColumnFilters={(updaterOrValue) => {
             if (typeof updaterOrValue === 'function') {
-              filters.setColumnFilters(updaterOrValue(filters.columnFilters));
+              filters.setColumnFilters(
+                updaterOrValue(filters.columnFilters),
+              );
             } else {
               filters.setColumnFilters(updaterOrValue);
             }

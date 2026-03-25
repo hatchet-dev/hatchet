@@ -146,7 +146,8 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
                   taskRun,
                   graphVariant: 'none',
                   onClick: () => onClick(taskRun?.metadata.id),
-                  childWorkflowsCount: taskRun?.numSpawnedChildren || 0,
+                  childWorkflowsCount:
+                    taskRun?.numSpawnedChildren || 0,
                   taskName: shapeItem.taskName,
                   isSkipped: taskRun
                     ? skippedTaskIds.has(taskRun.metadata.id)

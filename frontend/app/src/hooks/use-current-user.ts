@@ -7,8 +7,13 @@ import { useAppContext } from '@/providers/app-context';
  * Maintains backward compatibility with the old API.
  */
 export function useCurrentUser() {
-  const { user, isUserLoading, isUserError, userError, invalidateCurrentUser } =
-    useAppContext();
+  const {
+    user,
+    isUserLoading,
+    isUserError,
+    userError,
+    invalidateCurrentUser,
+  } = useAppContext();
 
   return {
     currentUser: user,

@@ -204,7 +204,9 @@ export const useRunsTableFilters = (
   const setAdditionalMetadata = useCallback(
     ({ key, value }: { key: string; value: string }) => {
       const existing = selectedAdditionalMetadata || [];
-      const filtered = existing.filter((m: string) => m.split(':')[0] !== key);
+      const filtered = existing.filter(
+        (m: string) => m.split(':')[0] !== key,
+      );
       const newMetadata = [...filtered, `${key}:${value}`];
 
       const newColumnFilters = columnFilters

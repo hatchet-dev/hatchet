@@ -185,7 +185,10 @@ export default function ScheduledRunsTable({
             if (selectedIds.length > 0) {
               setCancelParams({ scheduledRunIds: selectedIds });
             } else {
-              setCancelParams({ scheduledRunIds: [], filter: actionFilter });
+              setCancelParams({
+                scheduledRunIds: [],
+                filter: actionFilter,
+              });
             }
           }}
         >
@@ -284,7 +287,8 @@ export default function ScheduledRunsTable({
             setRescheduleParams({ scheduledRunIds: [row.metadata.id] });
           },
           selectedAdditionalMetaJobId,
-          handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
+          handleSetSelectedAdditionalMetaJobId:
+            setSelectedAdditionalMetaJobId,
           onRowClick: (row) => {
             open({
               type: 'scheduled-run-details',

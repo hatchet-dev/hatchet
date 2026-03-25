@@ -356,7 +356,10 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 <TabsTrigger variant="underlined" value="input">
                   Input
                 </TabsTrigger>
-                <TabsTrigger variant="underlined" value="additional-metadata">
+                <TabsTrigger
+                  variant="underlined"
+                  value="additional-metadata"
+                >
                   Additional Metadata
                 </TabsTrigger>
               </TabsList>

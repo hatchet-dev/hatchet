@@ -42,7 +42,9 @@ export function CodeHighlighter({
   const { theme } = useTheme();
 
   return (
-    <div className={cn('relative h-fit w-full rounded-lg bg-muted', className)}>
+    <div
+      className={cn('relative h-fit w-full rounded-lg bg-muted', className)}
+    >
       <SyntaxHighlighter
         language={language}
         style={theme == 'dark' ? anOldHope : atomOneLight}

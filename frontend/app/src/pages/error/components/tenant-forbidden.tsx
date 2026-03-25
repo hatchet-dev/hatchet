@@ -39,7 +39,9 @@ function TenantPickerItem({
       <div className="flex h-5 w-5 items-center justify-center">
         <div className="h-2 w-2 rounded-full bg-green-500" />
       </div>
-      <span className="min-w-0 flex-1 truncate">{membership.tenant?.name}</span>
+      <span className="min-w-0 flex-1 truncate">
+        {membership.tenant?.name}
+      </span>
     </button>
   );
 }
@@ -236,7 +238,9 @@ export function TenantForbidden() {
                 .sort((a, b) =>
                   (a.tenant?.name ?? '')
                     .toLowerCase()
-                    .localeCompare((b.tenant?.name ?? '').toLowerCase()),
+                    .localeCompare(
+                      (b.tenant?.name ?? '').toLowerCase(),
+                    ),
                 )
                 .map((membership) => (
                   <TenantPickerItem
@@ -252,7 +256,8 @@ export function TenantForbidden() {
       <div className="flex flex-row flex-wrap items-center justify-center gap-2">
         {!!currentUser?.email && (
           <div className="text-xs text-muted-foreground">
-            Signed in as <span className="font-mono">{currentUser.email}</span>
+            Signed in as{' '}
+            <span className="font-mono">{currentUser.email}</span>
           </div>
         )}
         <Button

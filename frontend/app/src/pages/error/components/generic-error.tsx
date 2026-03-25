@@ -29,7 +29,9 @@ export function GenericError({
             Reload
           </Button>
           <Button
-            onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+            onClick={() =>
+              navigate({ to: appRoutes.authenticatedRoute.to })
+            }
             variant="outline"
           >
             Dashboard
@@ -47,7 +49,9 @@ export function GenericError({
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Path
         </div>
-        <div className="break-all text-foreground/90">{location.pathname}</div>
+        <div className="break-all text-foreground/90">
+          {location.pathname}
+        </div>
       </div>
     </ErrorPageLayout>
   );

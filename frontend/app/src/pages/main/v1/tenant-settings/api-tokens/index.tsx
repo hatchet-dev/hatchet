@@ -70,8 +70,8 @@ export default function APITokens() {
           </Button>
         </div>
         <p className="my-4 text-gray-700 dark:text-gray-300">
-          API tokens are used by workers to connect with the Hatchet API and
-          engine.
+          API tokens are used by workers to connect with the Hatchet API
+          and engine.
         </p>
         <Separator className="my-4" />
         {(listTokensQuery.data?.rows || []).length > 0 ? (
@@ -81,7 +81,8 @@ export default function APITokens() {
           />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No API tokens found. Create a token to allow workers to connect.
+            No API tokens found. Create a token to allow workers to
+            connect.
           </div>
         )}
 

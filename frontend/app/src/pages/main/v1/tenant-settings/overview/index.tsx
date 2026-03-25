@@ -163,7 +163,8 @@ const InactivityTimeout: React.FC = () => {
   };
 
   const isDisabled =
-    !cloudMetadata?.inactivityLogoutMs || cloudMetadata.inactivityLogoutMs <= 0;
+    !cloudMetadata?.inactivityLogoutMs ||
+    cloudMetadata.inactivityLogoutMs <= 0;
 
   return (
     <>
@@ -174,14 +175,14 @@ const InactivityTimeout: React.FC = () => {
       {isDisabled ? (
         <>
           <p className="my-4 text-gray-700 dark:text-gray-300">
-            Inactivity timeout is currently <strong>disabled</strong>. This
-            feature automatically logs out users after a period of inactivity to
-            enhance security.
+            Inactivity timeout is currently <strong>disabled</strong>.
+            This feature automatically logs out users after a period of
+            inactivity to enhance security.
           </p>
           <Alert>
             <AlertDescription>
-              To enable inactivity timeout for your tenant, please contact
-              support.
+              To enable inactivity timeout for your tenant, please
+              contact support.
             </AlertDescription>
           </Alert>
         </>

@@ -50,7 +50,9 @@ export const TimelineTickHeader = memo(function TimelineTickHeader({
                   : 'translateX(-50%)',
           }}
         >
-          {formatDuration(timelineMaxMs * effectiveCursorPct + visOffsetMs)}
+          {formatDuration(
+            timelineMaxMs * effectiveCursorPct + visOffsetMs,
+          )}
         </div>
       )}
 
@@ -77,7 +79,9 @@ export const TimelineTickHeader = memo(function TimelineTickHeader({
             <div className="h-px flex-1 bg-primary" />
           </div>
           <span className="shrink-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-medium leading-tight text-primary-foreground">
-            {formatDuration(timelineMaxMs * (brushRange.hi - brushRange.lo))}
+            {formatDuration(
+              timelineMaxMs * (brushRange.hi - brushRange.lo),
+            )}
           </span>
           <div className="flex min-w-1 flex-1 items-center">
             <div className="h-px flex-1 bg-primary" />

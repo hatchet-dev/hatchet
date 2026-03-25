@@ -107,7 +107,10 @@ function AccountDropdown({ user }: { user?: User }) {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none" data-cy="user-name">
+            <p
+              className="text-sm font-medium leading-none"
+              data-cy="user-name"
+            >
               {user?.name || user?.email}
             </p>
             <p className="text-xs leading-none text-gray-700 dark:text-gray-300">
@@ -130,7 +133,10 @@ function AccountDropdown({ user }: { user?: User }) {
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem variant="interactive" onClick={() => toggleTheme()}>
+        <DropdownMenuItem
+          variant="interactive"
+          onClick={() => toggleTheme()}
+        >
           {theme === 'dark' ? (
             <BiSun className="mr-2 size-4" />
           ) : (
@@ -214,7 +220,9 @@ function GlobalNotificationDropdown({
             <p className="text-sm font-medium leading-none flex flex-col gap-1 ">
               {label}
               <span className="text-xs text-muted-foreground">
-                <RelativeDate date={'2025-12-13T15:06:48.888358-05:00'} />
+                <RelativeDate
+                  date={'2025-12-13T15:06:48.888358-05:00'}
+                />
               </span>
             </p>
           </div>
@@ -366,10 +374,14 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
                     {index > 0 && <BreadcrumbSeparator />}
                     <BreadcrumbItem>
                       {crumb.isCurrentPage ? (
-                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                        <BreadcrumbPage>
+                          {crumb.label}
+                        </BreadcrumbPage>
                       ) : (
                         <BreadcrumbLink asChild>
-                          <Link to={crumb.href}>{crumb.label}</Link>
+                          <Link to={crumb.href}>
+                            {crumb.label}
+                          </Link>
                         </BreadcrumbLink>
                       )}
                     </BreadcrumbItem>
@@ -388,10 +400,12 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
             content={
               <div className="space-y-3">
                 <p className="text-xs text-foreground/80">
-                  You can continue running tasks, but once the limit is reached,
-                  execution will pause until your daily credits reset. <br />
+                  You can continue running tasks, but once the limit is
+                  reached, execution will pause until your daily
+                  credits reset. <br />
                   <br />
-                  Consider upgrading your plan or wait for the next reset.
+                  Consider upgrading your plan or wait for the next
+                  reset.
                 </p>
                 <Button variant="outline" size="sm">
                   See plans

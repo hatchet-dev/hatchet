@@ -212,12 +212,17 @@ function AuthenticatedInner() {
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
-    if (pathname === '/' && tenantMemberships && tenantMemberships.length > 0) {
+    if (
+      pathname === '/' &&
+      tenantMemberships &&
+      tenantMemberships.length > 0
+    ) {
       const lastTenantId = lastTenant?.metadata.id;
 
       const lastTenantInMemberships = lastTenantId
-        ? tenantMemberships.find((m) => m.tenant?.metadata.id === lastTenantId)
-            ?.tenant
+        ? tenantMemberships.find(
+            (m) => m.tenant?.metadata.id === lastTenantId,
+          )?.tenant
         : undefined;
 
       // If the cached tenant isn't in the current user's memberships (e.g. user switched),
@@ -231,8 +236,7 @@ function AuthenticatedInner() {
 
       if (targetTenant) {
         // Check if tenant has workflows to decide where to redirect
-        api
-          .workflowList(targetTenant.metadata.id, { limit: 1 })
+        api.workflowList(targetTenant.metadata.id, { limit: 1 })
           .then((response) => {
             const hasWorkflows =
               response.data.rows && response.data.rows.length > 0;
@@ -354,7 +358,10 @@ function AuthenticatedInner() {
           <OutletWithContext context={ctx} />
         </AppLayout>
 
-        <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
+        <Dialog
+          open={newTenantModalOpen}
+          onOpenChange={setNewTenantModalOpen}
+        >
           <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
             <DialogHeader>
               <DialogTitle>Create New Tenant</DialogTitle>
@@ -427,9 +434,9 @@ function AuthenticatedInner() {
                   Welcome to Hatchet
                 </DialogTitle>
                 <DialogDescription className="text-center text-base text-muted-foreground">
-                  You&apos;re on the free plan with generous limits to get
-                  started. We&apos;ll let you know when you&apos;re getting
-                  close.
+                  You&apos;re on the free plan with generous limits to
+                  get started. We&apos;ll let you know when you&apos;re
+                  getting close.
                 </DialogDescription>
               </div>
               <ul className="w-full text-left text-base space-y-2.5 rounded-md border border-border/50 bg-muted/30 p-5">
@@ -439,8 +446,13 @@ function AuthenticatedInner() {
                   </li>
                 ) : (
                   welcomePlansQuery.data?.freeLimits?.map((fl) => (
-                    <li key={fl.featureId} className="flex justify-between">
-                      <span className="text-muted-foreground">{fl.name}</span>
+                    <li
+                      key={fl.featureId}
+                      className="flex justify-between"
+                    >
+                      <span className="text-muted-foreground">
+                        {fl.name}
+                      </span>
                       <span className="font-medium">
                         {fl.limit.toLocaleString()}
                       </span>
@@ -449,8 +461,8 @@ function AuthenticatedInner() {
                 )}
               </ul>
               <p className="text-sm text-muted-foreground">
-                You can upgrade anytime from Billing &amp; Limits in your tenant
-                settings.
+                You can upgrade anytime from Billing &amp; Limits in
+                your tenant settings.
               </p>
               <div className="flex w-full flex-col gap-2">
                 <Button
@@ -483,7 +495,8 @@ function AuthenticatedInner() {
                     }
                   }}
                 >
-                  Add a payment method to remove limits, no commitment required
+                  Add a payment method to remove limits, no commitment
+                  required
                 </Button>
               </div>
             </div>

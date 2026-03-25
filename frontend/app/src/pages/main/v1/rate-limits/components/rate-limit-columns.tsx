@@ -80,7 +80,10 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
   {
     accessorKey: windowKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={RateLimitColumn.window} />
+      <DataTableColumnHeader
+        column={column}
+        title={RateLimitColumn.window}
+      />
     ),
     cell: ({ row }) => {
       return <div>{capitalize(row.original.window)}</div>;

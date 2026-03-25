@@ -294,7 +294,9 @@ export function SpanDetail({
       <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
         {q && (
           <div>
-            <span className="text-xs text-muted-foreground">Queue Time</span>
+            <span className="text-xs text-muted-foreground">
+              Queue Time
+            </span>
             <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
               {formatDuration(queueNs, { unit: 'ns', precise: true })}
             </p>
@@ -305,13 +307,18 @@ export function SpanDetail({
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
             {queuedOnlySpan
               ? '–'
-              : formatDuration(durationNs, { unit: 'ns', precise: true })}
+              : formatDuration(durationNs, {
+                  unit: 'ns',
+                  precise: true,
+                })}
           </p>
         </div>
         <div>
           <span className="text-xs text-muted-foreground">Status</span>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <span className={cn('size-2 shrink-0 rounded-full', status.dot)} />
+            <span
+              className={cn('size-2 shrink-0 rounded-full', status.dot)}
+            />
             <span className="font-mono text-sm text-foreground">
               {status.label}
             </span>
@@ -435,19 +442,25 @@ export function GroupDetail({
           </p>
         </div>
         <div>
-          <span className="text-xs text-muted-foreground">Avg Duration</span>
+          <span className="text-xs text-muted-foreground">
+            Avg Duration
+          </span>
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
             {formatDuration(avgMs, { precise: true })}
           </p>
         </div>
         <div>
-          <span className="text-xs text-muted-foreground">Min Duration</span>
+          <span className="text-xs text-muted-foreground">
+            Min Duration
+          </span>
           <p className="mt-0.5 font-mono text-sm text-foreground">
             {formatDuration(minMs, { precise: true })}
           </p>
         </div>
         <div>
-          <span className="text-xs text-muted-foreground">Max Duration</span>
+          <span className="text-xs text-muted-foreground">
+            Max Duration
+          </span>
           <p className="mt-0.5 font-mono text-sm text-foreground">
             {formatDuration(maxMs, { precise: true })}
           </p>

@@ -94,7 +94,8 @@ export function ManagedWorkerInstancesTable({
         <SimpleTable columns={instanceColumns} data={dataWithMetadata} />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          There are no instances currently active for this managed worker pool.
+          There are no instances currently active for this managed worker
+          pool.
         </div>
       )}
     </div>

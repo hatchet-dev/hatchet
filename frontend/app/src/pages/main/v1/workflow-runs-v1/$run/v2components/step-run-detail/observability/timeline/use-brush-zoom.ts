@@ -37,7 +37,10 @@ export function useBrushZoom(
           return;
         }
         const r = barsRef.current.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+        const pct = Math.max(
+          0,
+          Math.min(1, (ev.clientX - r.left) / r.width),
+        );
         const lo = Math.min(startPct, pct);
         const hi = Math.max(startPct, pct);
         if (hi - lo > 0.005) {
@@ -54,7 +57,10 @@ export function useBrushZoom(
           return;
         }
         const r = barsRef.current.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+        const pct = Math.max(
+          0,
+          Math.min(1, (ev.clientX - r.left) / r.width),
+        );
         const lo = Math.min(startPct, pct);
         const hi = Math.max(startPct, pct);
 
@@ -69,7 +75,10 @@ export function useBrushZoom(
               0,
               (newStartMs - v.traceMinStart) / v.traceTotalMs,
             ),
-            endPct: Math.min(1, (newEndMs - v.traceMinStart) / v.traceTotalMs),
+            endPct: Math.min(
+              1,
+              (newEndMs - v.traceMinStart) / v.traceTotalMs,
+            ),
           });
         }
       };

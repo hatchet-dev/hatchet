@@ -124,7 +124,9 @@ function useSidePanelData(): SidePanelData {
         return {
           isDocs: false,
           component: (
-            <FilterDetailView filterId={props.content.filter.metadata.id} />
+            <FilterDetailView
+              filterId={props.content.filter.metadata.id}
+            />
           ),
         };
       case 'scheduled-run-details':

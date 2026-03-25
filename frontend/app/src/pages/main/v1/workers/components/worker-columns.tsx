@@ -188,7 +188,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       );
 
       if (entries.length === 0) {
-        return <div className="text-xs text-muted-foreground">No slots</div>;
+        return (
+          <div className="text-xs text-muted-foreground">No slots</div>
+        );
       }
 
       return (
@@ -197,12 +199,19 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
             const available = capacity?.available;
             const limit = capacity?.limit;
             const label =
-              available !== undefined ? `${available} / ${limit}` : `${limit}`;
+              available !== undefined
+                ? `${available} / ${limit}`
+                : `${limit}`;
 
             return (
-              <div key={slotType} className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{slotType}</span>:{' '}
-                {label}
+              <div
+                key={slotType}
+                className="text-xs text-muted-foreground"
+              >
+                <span className="font-medium text-foreground">
+                  {slotType}
+                </span>
+                : {label}
               </div>
             );
           })}

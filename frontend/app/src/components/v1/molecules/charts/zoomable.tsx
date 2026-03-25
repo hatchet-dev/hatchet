@@ -260,7 +260,9 @@ function ChildBarChart<T extends string>({
           content={
             <ChartTooltipContent
               className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
-              labelFormatter={(value) => new Date(value).toLocaleString()}
+              labelFormatter={(value) =>
+                new Date(value).toLocaleString()
+              }
             />
           }
         />
@@ -338,7 +340,9 @@ function ChildLineChart<T extends string>({
           content={
             <ChartTooltipContent
               className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
-              labelFormatter={(value) => new Date(value).toLocaleString()}
+              labelFormatter={(value) =>
+                new Date(value).toLocaleString()
+              }
             />
           }
         />
@@ -418,7 +422,9 @@ function ChildAreaChart<T extends string>({
           content={
             <ChartTooltipContent
               className="w-[150px] font-mono text-xs sm:w-[200px] sm:text-xs"
-              labelFormatter={(value) => new Date(value).toLocaleString()}
+              labelFormatter={(value) =>
+                new Date(value).toLocaleString()
+              }
             />
           }
         />

@@ -149,7 +149,9 @@ export function SidebarProvider({
           setSidebarOpen(open);
         },
         toggleSidebarOpen: () => {
-          setSidebarOpen((state) => (state === 'open' ? 'closed' : 'open'));
+          setSidebarOpen((state) =>
+            state === 'open' ? 'closed' : 'open',
+          );
         },
         isWide,
         sidebarWidth,

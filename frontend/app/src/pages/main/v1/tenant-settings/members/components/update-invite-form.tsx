@@ -52,7 +52,8 @@ export function UpdateInviteForm({
     },
   });
 
-  const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
+  const roleError =
+    errors.role?.message?.toString() || props.fieldErrors?.role;
   return (
     <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
       <DialogHeader>
@@ -88,14 +89,21 @@ export function UpdateInviteForm({
                   return (
                     <Select onValueChange={field.onChange} {...field}>
                       <SelectTrigger className="w-[180px]">
-                        <SelectValue id="role" placeholder="Role..." />
+                        <SelectValue
+                          id="role"
+                          placeholder="Role..."
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {!props.isCloudEnabled && (
-                          <SelectItem value="OWNER">Owner</SelectItem>
+                          <SelectItem value="OWNER">
+                            Owner
+                          </SelectItem>
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="MEMBER">Member</SelectItem>
+                        <SelectItem value="MEMBER">
+                          Member
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   );

@@ -39,7 +39,9 @@ export function BulkRescheduleScheduledRuns({
   }, [initialRuns]);
 
   const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
-  const [filterCount, setFilterCount] = useState<number | undefined>(undefined);
+  const [filterCount, setFilterCount] = useState<number | undefined>(
+    undefined,
+  );
   const [isFilterCountLoading, setIsFilterCountLoading] = useState(false);
   const [filterCountError, setFilterCountError] = useState<string | undefined>(
     undefined,
@@ -229,7 +231,9 @@ export function BulkRescheduleScheduledRuns({
         phase: 'running',
         processed: 0,
         total:
-          scheduledRunIds.length > 0 ? scheduledRunIds.length : filterCount,
+          scheduledRunIds.length > 0
+            ? scheduledRunIds.length
+            : filterCount,
       });
 
       const allUpdatedIds: string[] = [];
@@ -261,7 +265,10 @@ export function BulkRescheduleScheduledRuns({
           const batchSize = 500;
           for (let i = 0; i < ids.length; i += batchSize) {
             const chunkIds = ids.slice(i, i + batchSize);
-            const chunkUpdates = chunkIds.map((id) => ({ id, triggerAt }));
+            const chunkUpdates = chunkIds.map((id) => ({
+              id,
+              triggerAt,
+            }));
             const res = await api.workflowScheduledBulkUpdate(tenantId, {
               updates: chunkUpdates,
             });
@@ -398,7 +405,9 @@ export function BulkRescheduleScheduledRuns({
           <div className="rounded-md border p-3">
             <div className="flex flex-row items-center justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-sm font-medium">New trigger time</div>
+                <div className="text-sm font-medium">
+                  New trigger time
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {isFilterMode
                     ? 'This will apply to all scheduled runs matching the current filters.'
@@ -465,7 +474,10 @@ export function BulkRescheduleScheduledRuns({
           {!updateMutation.isPending && progress.phase !== 'running' && (
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground">
-                Type <span className="font-mono">{expectedConfirmation}</span>{' '}
+                Type{' '}
+                <span className="font-mono">
+                  {expectedConfirmation}
+                </span>{' '}
                 to confirm.
               </div>
               <Input

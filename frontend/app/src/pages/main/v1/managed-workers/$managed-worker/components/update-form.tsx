@@ -137,7 +137,8 @@ export default function UpdateWorkerForm({
     defaultValues: {
       name: managedWorker.name,
       buildConfig: {
-        githubInstallationId: managedWorker.buildConfig?.githubInstallationId,
+        githubInstallationId:
+          managedWorker.buildConfig?.githubInstallationId,
         githubRepositoryBranch:
           managedWorker.buildConfig?.githubRepositoryBranch,
         githubRepositoryName:
@@ -186,19 +187,22 @@ export default function UpdateWorkerForm({
                         managedWorker.runtimeConfigs[0].autoscaling
                           .utilizationScaleDownThreshold,
                       increment:
-                        managedWorker.runtimeConfigs[0].autoscaling.increment,
+                        managedWorker.runtimeConfigs[0].autoscaling
+                          .increment,
                       minAwakeReplicas:
                         managedWorker.runtimeConfigs[0].autoscaling
                           .minAwakeReplicas,
                       maxReplicas:
-                        managedWorker.runtimeConfigs[0].autoscaling.maxReplicas,
+                        managedWorker.runtimeConfigs[0].autoscaling
+                          .maxReplicas,
                       scaleToZero:
-                        managedWorker.runtimeConfigs[0].autoscaling.scaleToZero,
+                        managedWorker.runtimeConfigs[0].autoscaling
+                          .scaleToZero,
                       fly: {
                         autoscalingKey: 'dashboard',
                         currentReplicas:
-                          managedWorker.runtimeConfigs[0].autoscaling
-                            .minAwakeReplicas,
+                          managedWorker.runtimeConfigs[0]
+                            .autoscaling.minAwakeReplicas,
                       },
                     }
                   : undefined,
@@ -246,7 +250,12 @@ export default function UpdateWorkerForm({
   });
 
   const listBranchesQuery = useQuery({
-    ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
+    ...queries.github.listBranches(
+      tenantId,
+      installation,
+      repoOwner,
+      repoName,
+    ),
   });
 
   const [secrets, setSecrets] = useState<KeyValueType[]>(
@@ -281,7 +290,8 @@ export default function UpdateWorkerForm({
   const secretsError =
     errors.secrets?.add?.message?.toString() || fieldErrors?.secrets;
   const cpuKindError =
-    errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
+    errors.runtimeConfig?.cpuKind?.message?.toString() ||
+    fieldErrors?.cpuKind;
   const cpusError =
     errors.runtimeConfig?.cpus?.message?.toString() || fieldErrors?.cpus;
   const memoryMbError =
@@ -374,7 +384,9 @@ export default function UpdateWorkerForm({
     // Split secrets into add/update/delete
     const toAdd = secrets.filter((s) => !s.id && !s.deleted);
     const toUpdate = secrets.filter((s) => s.id && !s.deleted && s.isEditing);
-    const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
+    const toDelete = secrets
+      .filter((s) => s.id && s.deleted)
+      .map((s) => s.id!);
 
     setValue(
       'secrets.add',
@@ -404,7 +416,9 @@ export default function UpdateWorkerForm({
     return (
       <Alert>
         <ExclamationTriangleIcon className="size-4" />
-        <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
+        <AlertTitle className="font-semibold">
+          Link a Github account
+        </AlertTitle>
         <AlertDescription>
           You don't have any Github accounts linked. Please{' '}
           <a
@@ -497,20 +511,37 @@ export default function UpdateWorkerForm({
                       value={installation}
                       onValueChange={(value) => {
                         field.onChange(value);
-                        setValue('buildConfig.githubRepositoryOwner', '');
-                        setValue('buildConfig.githubRepositoryName', '');
-                        setValue('buildConfig.githubRepositoryBranch', '');
+                        setValue(
+                          'buildConfig.githubRepositoryOwner',
+                          '',
+                        );
+                        setValue(
+                          'buildConfig.githubRepositoryName',
+                          '',
+                        );
+                        setValue(
+                          'buildConfig.githubRepositoryBranch',
+                          '',
+                        );
                       }}
                     >
                       <SelectTrigger className="w-fit">
-                        <SelectValue id="role" placeholder="Choose account" />
+                        <SelectValue
+                          id="role"
+                          placeholder="Choose account"
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        {listInstallationsQuery.data?.rows.map((i) => (
-                          <SelectItem key={i.metadata.id} value={i.metadata.id}>
-                            {i.account_name}
-                          </SelectItem>
-                        ))}
+                        {listInstallationsQuery.data?.rows.map(
+                          (i) => (
+                            <SelectItem
+                              key={i.metadata.id}
+                              value={i.metadata.id}
+                            >
+                              {i.account_name}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
                   );
@@ -541,7 +572,10 @@ export default function UpdateWorkerForm({
                           'buildConfig.githubRepositoryName',
                           getRepoName(value) || '',
                         );
-                        setValue('buildConfig.githubRepositoryBranch', '');
+                        setValue(
+                          'buildConfig.githubRepositoryBranch',
+                          '',
+                        );
                       }}
                     >
                       <SelectTrigger className="w-fit">
@@ -555,7 +589,10 @@ export default function UpdateWorkerForm({
                           <SelectItem
                             key={i.repo_owner + i.repo_name}
                             value={
-                              getRepoOwnerName(i.repo_owner, i.repo_name) || ''
+                              getRepoOwnerName(
+                                i.repo_owner,
+                                i.repo_name,
+                              ) || ''
                             }
                           >
                             {i.repo_owner}/{i.repo_name}
@@ -584,11 +621,17 @@ export default function UpdateWorkerForm({
                   return (
                     <Select onValueChange={field.onChange} {...field}>
                       <SelectTrigger className="w-fit">
-                        <SelectValue id="role" placeholder="Choose branch" />
+                        <SelectValue
+                          id="role"
+                          placeholder="Choose branch"
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {listBranchesQuery.data?.map((i) => (
-                          <SelectItem key={i.branch_name} value={i.branch_name}>
+                          <SelectItem
+                            key={i.branch_name}
+                            value={i.branch_name}
+                          >
                             {i.branch_name}
                           </SelectItem>
                         ))}
@@ -619,7 +662,9 @@ export default function UpdateWorkerForm({
                 }}
               />
               {buildDirError && (
-                <div className="text-sm text-red-500">{buildDirError}</div>
+                <div className="text-sm text-red-500">
+                  {buildDirError}
+                </div>
               )}
               <Label htmlFor="dockerfile">Path to Dockerfile</Label>
               <Controller
@@ -660,7 +705,9 @@ export default function UpdateWorkerForm({
                   // Update the secrets state with the new values
                   setSecrets((prev) => {
                     const newSecrets = prev.map((s) => {
-                      const updated = updatedSecrets.find((u) => u.id === s.id);
+                      const updated = updatedSecrets.find(
+                        (u) => u.id === s.id,
+                      );
                       return updated ? { ...s, ...updated } : s;
                     });
                     return newSecrets;
@@ -668,7 +715,9 @@ export default function UpdateWorkerForm({
                 }}
               />
               {secretsError && (
-                <div className="text-sm text-red-500">{secretsError}</div>
+                <div className="text-sm text-red-500">
+                  {secretsError}
+                </div>
               )}
               <Label>Machine Configuration</Label>
               <div className="grid gap-4 pt-4">
@@ -677,7 +726,9 @@ export default function UpdateWorkerForm({
                   value={region?.toString()}
                   onValueChange={(value) => {
                     // find the region object from the value
-                    const region = regions.find((i) => i.value === value);
+                    const region = regions.find(
+                      (i) => i.value === value,
+                    );
 
                     if (!region) {
                       return;
@@ -687,7 +738,10 @@ export default function UpdateWorkerForm({
                   }}
                 >
                   <SelectTrigger className="w-fit">
-                    <SelectValue id="region" placeholder="Choose region" />
+                    <SelectValue
+                      id="region"
+                      placeholder="Choose region"
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {regions.map((i) => (
@@ -732,7 +786,9 @@ export default function UpdateWorkerForm({
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          {machineTypes.map(renderMachineTypeSelectItem)}
+                          {machineTypes.map(
+                            renderMachineTypeSelectItem,
+                          )}
                         </SelectContent>
                       </Select>
                     );
@@ -744,13 +800,19 @@ export default function UpdateWorkerForm({
                   />
                 )}
                 {cpuKindError && (
-                  <div className="text-sm text-red-500">{cpuKindError}</div>
+                  <div className="text-sm text-red-500">
+                    {cpuKindError}
+                  </div>
                 )}
                 {cpusError && (
-                  <div className="text-sm text-red-500">{cpusError}</div>
+                  <div className="text-sm text-red-500">
+                    {cpusError}
+                  </div>
                 )}
                 {memoryMbError && (
-                  <div className="text-sm text-red-500">{memoryMbError}</div>
+                  <div className="text-sm text-red-500">
+                    {memoryMbError}
+                  </div>
                 )}
                 <Label>Scaling Method</Label>
                 <Tabs
@@ -760,11 +822,17 @@ export default function UpdateWorkerForm({
                     if (value === 'Static') {
                       setScalingType('Static');
                       setValue('runtimeConfig.numReplicas', 1);
-                      setValue('runtimeConfig.autoscaling', undefined);
+                      setValue(
+                        'runtimeConfig.autoscaling',
+                        undefined,
+                      );
                       return;
                     } else {
                       setScalingType('Autoscaling');
-                      setValue('runtimeConfig.numReplicas', undefined);
+                      setValue(
+                        'runtimeConfig.numReplicas',
+                        undefined,
+                      );
                       setValue('runtimeConfig.autoscaling', {
                         waitDuration: '1m',
                         rollingWindowDuration: '2m',
@@ -784,13 +852,22 @@ export default function UpdateWorkerForm({
                 >
                   <TabsList layout="underlined">
                     {scalingTypes.map((type) => (
-                      <TabsTrigger variant="underlined" value={type} key={type}>
+                      <TabsTrigger
+                        variant="underlined"
+                        value={type}
+                        key={type}
+                      >
                         {type}
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  <TabsContent value="Static" className="grid gap-4 pt-4">
-                    <Label htmlFor="numReplicas">Number of replicas</Label>
+                  <TabsContent
+                    value="Static"
+                    className="grid gap-4 pt-4"
+                  >
+                    <Label htmlFor="numReplicas">
+                      Number of replicas
+                    </Label>
                     <Controller
                       control={control}
                       name="runtimeConfig.numReplicas"
@@ -804,7 +881,9 @@ export default function UpdateWorkerForm({
                                 field.onChange(e.target.value);
                                 return;
                               }
-                              field.onChange(parseInt(e.target.value));
+                              field.onChange(
+                                parseInt(e.target.value),
+                              );
                             }}
                             min={0}
                             max={16}
@@ -820,8 +899,13 @@ export default function UpdateWorkerForm({
                       </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="Autoscaling" className="grid gap-4 pt-4">
-                    <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
+                  <TabsContent
+                    value="Autoscaling"
+                    className="grid gap-4 pt-4"
+                  >
+                    <Label htmlFor="minAwakeReplicas">
+                      Min Replicas
+                    </Label>
                     <Controller
                       control={control}
                       name="runtimeConfig.autoscaling.minAwakeReplicas"
@@ -832,7 +916,9 @@ export default function UpdateWorkerForm({
                             id="minAwakeReplicas"
                             type="number"
                             onChange={(e) => {
-                              field.onChange(parseInt(e.target.value));
+                              field.onChange(
+                                parseInt(e.target.value),
+                              );
 
                               setValue(
                                 'runtimeConfig.autoscaling.fly.currentReplicas',
@@ -859,7 +945,9 @@ export default function UpdateWorkerForm({
                             id="maxReplicas"
                             type="number"
                             onChange={(e) => {
-                              field.onChange(parseInt(e.target.value));
+                              field.onChange(
+                                parseInt(e.target.value),
+                              );
                             }}
                           />
                         );
@@ -877,7 +965,8 @@ export default function UpdateWorkerForm({
                         return (
                           <div className="flex flex-row items-center gap-4">
                             <Label htmlFor="scaleToZero">
-                              Scale to zero during periods of inactivity?
+                              Scale to zero during periods of
+                              inactivity?
                             </Label>
                             <Checkbox
                               checked={field.value}
@@ -898,11 +987,13 @@ export default function UpdateWorkerForm({
                           Advanced autoscaling settings
                         </AccordionTrigger>
                         <AccordionContent className="flex flex-col gap-4">
-                          <Label htmlFor="waitDuration">Wait Duration</Label>
+                          <Label htmlFor="waitDuration">
+                            Wait Duration
+                          </Label>
                           <div className="text-sm text-muted-foreground">
-                            How long to wait between autoscaling events. For
-                            example: 10s (10 seconds), 5m (5 minutes), 1h (1
-                            hour).
+                            How long to wait between autoscaling
+                            events. For example: 10s (10 seconds),
+                            5m (5 minutes), 1h (1 hour).
                           </div>
                           <Controller
                             control={control}
@@ -926,10 +1017,12 @@ export default function UpdateWorkerForm({
                             Rolling Window Duration
                           </Label>
                           <div className="text-sm text-muted-foreground">
-                            The amount of time to look at utilization metrics
-                            for autoscaling. Lower values will lead to faster
-                            scale-up and scale-down. Example: 2m (2 minutes), 5m
-                            (5 minutes), 1h (1 hour).
+                            The amount of time to look at
+                            utilization metrics for autoscaling.
+                            Lower values will lead to faster
+                            scale-up and scale-down. Example: 2m
+                            (2 minutes), 5m (5 minutes), 1h (1
+                            hour).
                           </div>
                           <Controller
                             control={control}
@@ -946,17 +1039,20 @@ export default function UpdateWorkerForm({
                           />
                           {autoscalingRollingWindowDurationError && (
                             <div className="text-sm text-red-500">
-                              {autoscalingRollingWindowDurationError}
+                              {
+                                autoscalingRollingWindowDurationError
+                              }
                             </div>
                           )}
                           <Label htmlFor="utilizationScaleUpThreshold">
                             Utilization Scale Up Threshold
                           </Label>
                           <div className="text-sm text-muted-foreground">
-                            A value between 0 and 1 which represents the
-                            utilization threshold at which to scale up. For
-                            example, 0.75 means that if the utilization is above
-                            75%, scale up.
+                            A value between 0 and 1 which
+                            represents the utilization threshold
+                            at which to scale up. For example,
+                            0.75 means that if the utilization is
+                            above 75%, scale up.
                           </div>
                           <Controller
                             control={control}
@@ -971,7 +1067,11 @@ export default function UpdateWorkerForm({
                                   max={1}
                                   step={0.01}
                                   onChange={(e) => {
-                                    field.onChange(parseFloat(e.target.value));
+                                    field.onChange(
+                                      parseFloat(
+                                        e.target.value,
+                                      ),
+                                    );
                                   }}
                                 />
                               );
@@ -979,17 +1079,20 @@ export default function UpdateWorkerForm({
                           />
                           {autoscalingUtilizationScaleUpThresholdError && (
                             <div className="text-sm text-red-500">
-                              {autoscalingUtilizationScaleUpThresholdError}
+                              {
+                                autoscalingUtilizationScaleUpThresholdError
+                              }
                             </div>
                           )}
                           <Label htmlFor="utilizationScaleDownThreshold">
                             Utilization Scale Down Threshold
                           </Label>
                           <div className="text-sm text-muted-foreground">
-                            A value between 0 and 1 which represents the
-                            utilization threshold at which to scale down. For
-                            example, 0.25 means that if the utilization is below
-                            25%, scale down.
+                            A value between 0 and 1 which
+                            represents the utilization threshold
+                            at which to scale down. For example,
+                            0.25 means that if the utilization is
+                            below 25%, scale down.
                           </div>
                           <Controller
                             control={control}
@@ -1004,7 +1107,11 @@ export default function UpdateWorkerForm({
                                   max={1}
                                   step={0.01}
                                   onChange={(e) => {
-                                    field.onChange(parseFloat(e.target.value));
+                                    field.onChange(
+                                      parseFloat(
+                                        e.target.value,
+                                      ),
+                                    );
                                   }}
                                 />
                               );
@@ -1012,13 +1119,17 @@ export default function UpdateWorkerForm({
                           />
                           {autoscalingUtilizationScaleDownThresholdError && (
                             <div className="text-sm text-red-500">
-                              {autoscalingUtilizationScaleDownThresholdError}
+                              {
+                                autoscalingUtilizationScaleDownThresholdError
+                              }
                             </div>
                           )}
-                          <Label htmlFor="increment">Scaling Increment</Label>
+                          <Label htmlFor="increment">
+                            Scaling Increment
+                          </Label>
                           <div className="text-sm text-muted-foreground">
-                            The number of replicas to scale by when scaling up
-                            or down.
+                            The number of replicas to scale by
+                            when scaling up or down.
                           </div>
                           <Controller
                             control={control}
@@ -1030,7 +1141,11 @@ export default function UpdateWorkerForm({
                                   id="increment"
                                   type="number"
                                   onChange={(e) => {
-                                    field.onChange(parseInt(e.target.value));
+                                    field.onChange(
+                                      parseInt(
+                                        e.target.value,
+                                      ),
+                                    );
                                   }}
                                 />
                               );

@@ -61,7 +61,10 @@ function countParents(nodes: OtelSpanTree[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const node of nodes) {
     if (node.parentSpanId) {
-      counts.set(node.parentSpanId, (counts.get(node.parentSpanId) ?? 0) + 1);
+      counts.set(
+        node.parentSpanId,
+        (counts.get(node.parentSpanId) ?? 0) + 1,
+      );
     }
   }
   return counts;
@@ -642,7 +645,9 @@ function wrapMultipleRoots(
     }
   }
 
-  const hasError = rootSpans.some((s) => s.statusCode === OtelStatusCode.ERROR);
+  const hasError = rootSpans.some(
+    (s) => s.statusCode === OtelStatusCode.ERROR,
+  );
 
   const actionId = rootSpans
     .map((s) => s.spanAttributes?.[ATTR.ACTION_ID])

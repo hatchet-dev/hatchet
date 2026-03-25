@@ -211,7 +211,8 @@ function EmailGroupsList() {
         <SimpleTable columns={emailGroupColumns} data={groups} />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No email groups found. Create a group to receive alerts via email.
+          No email groups found. Create a group to receive alerts via
+          email.
         </div>
       )}
       {showGroupsDialog && (
@@ -321,7 +322,9 @@ function SlackWebhooksList() {
     () => [
       {
         columnLabel: 'Team',
-        cellRenderer: (webhook: SlackWebhook) => <div>{webhook.teamName}</div>,
+        cellRenderer: (webhook: SlackWebhook) => (
+          <div>{webhook.teamName}</div>
+        ),
       },
       {
         columnLabel: 'Channel',
@@ -368,7 +371,8 @@ function SlackWebhooksList() {
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No Slack webhooks found. Add a webhook to receive alerts in Slack.
+          No Slack webhooks found. Add a webhook to receive alerts in
+          Slack.
         </div>
       )}
       {deleteSlack && (

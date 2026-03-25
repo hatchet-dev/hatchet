@@ -24,7 +24,9 @@ export default function CreateOrganization() {
           <NewOrganizationSaverForm
             defaultOrganizationName={user?.name}
             afterSave={({ organization, tenant }) => {
-              queryClient.prefetchQuery(queries.cloud.subscriptionPlans());
+              queryClient.prefetchQuery(
+                queries.cloud.subscriptionPlans(),
+              );
               navigate({
                 to: appRoutes.tenantOverviewRoute.to,
                 params: { tenant: tenant.id },

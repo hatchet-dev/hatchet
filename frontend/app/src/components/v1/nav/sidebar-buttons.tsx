@@ -89,7 +89,9 @@ export function SidebarButtonPrimary(
       : false;
 
   const selected =
-    collapsibleChildren.length > 0 ? open : Boolean(matchRoute({ to, params }));
+    collapsibleChildren.length > 0
+      ? open
+      : Boolean(matchRoute({ to, params }));
 
   const primaryLink = (
     <Link to={to} params={params} onClick={onNavLinkClick}>
@@ -97,7 +99,8 @@ export function SidebarButtonPrimary(
         variant="ghost"
         className={cn(
           'w-full justify-start pl-2 min-w-0 overflow-hidden [&_svg]:text-muted-foreground/50',
-          selected && 'bg-slate-200 dark:bg-slate-800 [&_svg]:text-primary',
+          selected &&
+            'bg-slate-200 dark:bg-slate-800 [&_svg]:text-primary',
         )}
       >
         {icon}

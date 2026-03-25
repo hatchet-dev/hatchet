@@ -300,13 +300,15 @@ export function Waterfall({
       newExpandedTasks.delete(taskId);
 
       const descendants =
-        taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
+        taskRelationships.taskDescendantsMap.get(taskId) ||
+        new Set<string>();
       descendants.forEach((descendantId) => {
         newExpandedTasks.delete(descendantId);
       });
 
       const processDescendants = (parentId: string) => {
-        const children = taskRelationships.taskParentMap.get(parentId) || [];
+        const children =
+          taskRelationships.taskParentMap.get(parentId) || [];
         children.forEach((childId) => {
           newExpandedTasks.delete(childId);
           processDescendants(childId);
@@ -489,8 +491,14 @@ export function Waterfall({
               : startedAt;
 
         const offset = Math.max(0, (queuedAt - globalMinTime) / 1000);
-        const startedOffset = Math.max(0, (startedAt - globalMinTime) / 1000);
-        const finishedOffset = Math.max(0, (finishedAt - globalMinTime) / 1000);
+        const startedOffset = Math.max(
+          0,
+          (startedAt - globalMinTime) / 1000,
+        );
+        const finishedOffset = Math.max(
+          0,
+          (finishedAt - globalMinTime) / 1000,
+        );
 
         const queuedDuration = Math.max(0, startedOffset - offset);
         const ranDuration = Math.max(0, finishedOffset - startedOffset);
@@ -636,7 +644,13 @@ export function Waterfall({
         />
       );
     },
-    [workflowRunId, selectedTaskId, handleBarClick, toggleTask, processedData],
+    [
+      workflowRunId,
+      selectedTaskId,
+      handleBarClick,
+      toggleTask,
+      processedData,
+    ],
   );
 
   if (
@@ -789,7 +803,11 @@ const Tick = ({
   workflowRunId: string;
   selectedTaskId?: string;
   handleBarClick: (task: ProcessedTaskData) => void;
-  toggleTask: (taskId: string, hasChildren: boolean, taskDepth: number) => void;
+  toggleTask: (
+    taskId: string,
+    hasChildren: boolean,
+    taskDepth: number,
+  ) => void;
   processedData: ProcessedData;
 }) => {
   const task = processedData.data.find((t) => t.id === payload.value);
@@ -828,7 +846,11 @@ const Tick = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (task.hasChildren) {
-                        toggleTask(task.id, task.hasChildren, task.depth);
+                        toggleTask(
+                          task.id,
+                          task.hasChildren,
+                          task.depth,
+                        );
                       }
                     }}
                   >
@@ -840,7 +862,9 @@ const Tick = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {task.isExpanded ? 'Collapse children' : 'Expand children'}
+                  {task.isExpanded
+                    ? 'Collapse children'
+                    : 'Expand children'}
                 </TooltipContent>
               </BaseTooltip>
             </TooltipProvider>
@@ -851,7 +875,9 @@ const Tick = ({
                 <TooltipTrigger>
                   <Loader className="h-4 animate-[spin_3s_linear_infinite]" />
                 </TooltipTrigger>
-                <TooltipContent>This task has not started</TooltipContent>
+                <TooltipContent>
+                  This task has not started
+                </TooltipContent>
               </BaseTooltip>
             </TooltipProvider>
           )}

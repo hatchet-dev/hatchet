@@ -92,13 +92,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               ref={ref}
               {...props}
             >
-              {leftIcon && <span className="-ml-1 mr-2">{leftIcon}</span>}
+              {leftIcon && (
+                <span className="-ml-1 mr-2">{leftIcon}</span>
+              )}
               <Slottable>{children}</Slottable>
-              {rightIcon && <span className="-mr-1 ml-2">{rightIcon}</span>}
+              {rightIcon && (
+                <span className="-mr-1 ml-2">{rightIcon}</span>
+              )}
             </Comp>
           </TooltipTrigger>
           {hoverText && (
-            <TooltipContent side={hoverTextSide}>{hoverText}</TooltipContent>
+            <TooltipContent side={hoverTextSide}>
+              {hoverText}
+            </TooltipContent>
           )}
         </Tooltip>
       </TooltipProvider>

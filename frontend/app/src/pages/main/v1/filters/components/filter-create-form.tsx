@@ -103,13 +103,19 @@ function FilterCreateForm({
               name="workflowId"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a workflow" />
                   </SelectTrigger>
                   <SelectContent>
                     {workflowNameFilters.map((workflow) => (
-                      <SelectItem key={workflow.value} value={workflow.value}>
+                      <SelectItem
+                        key={workflow.value}
+                        value={workflow.value}
+                      >
                         {workflow.label}
                       </SelectItem>
                     ))}
@@ -132,7 +138,9 @@ function FilterCreateForm({
               placeholder="e.g., event, step, workflow"
             />
             {errors.scope && (
-              <p className="text-sm text-red-600">{errors.scope.message}</p>
+              <p className="text-sm text-red-600">
+                {errors.scope.message}
+              </p>
             )}
           </div>
 

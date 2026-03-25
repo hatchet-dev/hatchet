@@ -70,7 +70,9 @@ export const columns: (
           table.getIsAllPageRowsSelected() ||
           (table.getIsSomePageRowsSelected() && 'indeterminate')
         }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        onCheckedChange={(value) =>
+          table.toggleAllPageRowsSelected(!!value)
+        }
         aria-label="Select all"
         className="translate-y-[2px]"
       />
@@ -109,7 +111,10 @@ export const columns: (
   {
     accessorKey: taskNameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={TaskRunColumn.taskName} />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.taskName}
+      />
     ),
     cell: ({ row }) => {
       if (row.getCanExpand()) {
@@ -156,7 +161,10 @@ export const columns: (
   {
     accessorKey: workflowKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={TaskRunColumn.workflow} />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.workflow}
+      />
     ),
     cell: ({ row }) => {
       const workflowId = row.original.workflowId;
@@ -286,7 +294,10 @@ export const columns: (
   {
     accessorKey: durationKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={TaskRunColumn.duration} />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.duration}
+      />
     ),
     cell: ({ row }) => {
       const startedAt = row.original.startedAt;
@@ -324,7 +335,10 @@ export const columns: (
           onClick={onAdditionalMetadataClick}
           isOpen={selectedAdditionalMetaRunId === row.original.metadata.id}
           onOpenChange={(open) => {
-            onAdditionalMetadataOpenChange(row.original.metadata.id, open);
+            onAdditionalMetadataOpenChange(
+              row.original.metadata.id,
+              open,
+            );
           }}
         />
       );

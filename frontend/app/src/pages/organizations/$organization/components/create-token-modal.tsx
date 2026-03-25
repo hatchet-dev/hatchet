@@ -122,8 +122,8 @@ export function CreateTokenModal({
                 <strong>Token created successfully!</strong>
               </div>
               <p className="text-xs text-green-700">
-                Make sure to copy your token now. You won't be able to see it
-                again!
+                Make sure to copy your token now. You won't be able to
+                see it again!
               </p>
             </div>
 
@@ -170,13 +170,19 @@ export function CreateTokenModal({
                 control={control}
                 name="duration"
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select duration..." />
                     </SelectTrigger>
                     <SelectContent>
                       {durationOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                        >
                           {option.label}
                         </SelectItem>
                       ))}
@@ -185,7 +191,9 @@ export function CreateTokenModal({
                 )}
               />
               {durationError && (
-                <div className="text-sm text-red-500">{durationError}</div>
+                <div className="text-sm text-red-500">
+                  {durationError}
+                </div>
               )}
               <p className="text-sm text-muted-foreground">
                 How long the token should remain valid.
@@ -194,15 +202,20 @@ export function CreateTokenModal({
                 <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
                   <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   <span>
-                    Tokens that never expire pose a security risk. Consider
-                    using a shorter duration and rotating tokens regularly.
+                    Tokens that never expire pose a security risk.
+                    Consider using a shorter duration and rotating
+                    tokens regularly.
                   </span>
                 </div>
               )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={createTokenLoading}>

@@ -36,7 +36,8 @@ export function UpdateTenantForm({
     },
   });
 
-  const nameError = errors.name?.message?.toString() || props.fieldErrors?.role;
+  const nameError =
+    errors.name?.message?.toString() || props.fieldErrors?.role;
 
   return (
     <div className={cn('grid gap-6', className)}>

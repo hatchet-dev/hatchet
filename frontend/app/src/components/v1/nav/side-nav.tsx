@@ -129,7 +129,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
       }
 
       const deltaX = e.clientX - startX;
-      if (!didDragRef.current && Math.abs(deltaX) >= RESIZE_DRAG_THRESHOLD_PX) {
+      if (
+        !didDragRef.current &&
+        Math.abs(deltaX) >= RESIZE_DRAG_THRESHOLD_PX
+      ) {
         didDragRef.current = true;
       }
       const newWidth = Math.max(
@@ -261,7 +264,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
         // On mobile, overlay the content area (which is already positioned below the fixed header).
         // On desktop, participate in the grid as a fixed-width sidebar.
         'absolute inset-x-0 top-0 bottom-0 z-[100] w-full overflow-hidden bg-slate-100 dark:bg-slate-900 md:relative md:inset-auto md:top-0 md:bottom-auto md:h-full md:bg-[unset] md:dark:bg-[unset]',
-        !isResizing && 'md:transition-[width] md:duration-200 md:ease-in-out',
+        !isResizing &&
+          'md:transition-[width] md:duration-200 md:ease-in-out',
         className,
       )}
       style={
@@ -299,9 +303,13 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
           <Button
             variant="ghost"
             size="icon"
-            hoverText={storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            hoverText={
+              storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+            }
             hoverTextSide="right"
-            aria-label={storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={
+              storedCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+            }
             className={cn(
               // A small pill that sits inside the gutter (no overflow required)
               'absolute right-0 top-1/2 z-30 hidden h-8 w-5 -translate-y-1/2 rounded-l-md border border-r-0 bg-secondary/90 text-secondary-foreground shadow-sm opacity-0 backdrop-blur transition-opacity md:flex',
@@ -347,7 +355,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                       const activeFuzzy = item.activeFuzzy ?? false;
                       const active = isActive(activeTo, activeFuzzy);
 
-                      if (item.children && item.children.length > 0) {
+                      if (
+                        item.children &&
+                        item.children.length > 0
+                      ) {
                         return (
                           <DropdownMenu key={item.key}>
                             <DropdownMenuTrigger asChild>
@@ -359,10 +370,14 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                 aria-label={item.name}
                                 className={cn(
                                   'w-10',
-                                  active && 'bg-slate-200 dark:bg-slate-800',
+                                  active &&
+                                    'bg-slate-200 dark:bg-slate-800',
                                 )}
                               >
-                                {item.icon({ collapsed: true, active })}
+                                {item.icon({
+                                  collapsed: true,
+                                  active,
+                                })}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
@@ -400,7 +415,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           aria-label={item.name}
                           className={cn(
                             'w-10',
-                            active && 'bg-slate-200 dark:bg-slate-800',
+                            active &&
+                              'bg-slate-200 dark:bg-slate-800',
                           )}
                           onClick={() => {
                             navigate({
@@ -457,7 +473,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                           name={item.name}
                           icon={item.icon({
                             collapsed: false,
-                            active: isActive(item.to, item.activeFuzzy),
+                            active: isActive(
+                              item.to,
+                              item.activeFuzzy,
+                            ),
                           })}
                           collapsibleChildren={
                             item.children?.map((child) => (

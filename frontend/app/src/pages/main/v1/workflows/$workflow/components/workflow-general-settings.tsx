@@ -89,7 +89,9 @@ function SettingsSection({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <p className="text-sm italic text-gray-500 dark:text-gray-400">{message}</p>
+    <p className="text-sm italic text-gray-500 dark:text-gray-400">
+      {message}
+    </p>
   );
 }
 
@@ -212,7 +214,10 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
             a.stepReadableId.localeCompare(b.stepReadableId),
         )}
       columns={[
-        { columnLabel: 'Scope', cellRenderer: (row) => formatScope(row.scope) },
+        {
+          columnLabel: 'Scope',
+          cellRenderer: (row) => formatScope(row.scope),
+        },
         { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
         { columnLabel: 'Max', cellRenderer: (row) => row.maxRuns },
         {

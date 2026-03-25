@@ -141,7 +141,8 @@ export default function ExpandedWorkflow() {
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Updated{' '}
             {relativeDate(
-              workflow.versions && workflow.versions[0].metadata.updatedAt,
+              workflow.versions &&
+                workflow.versions[0].metadata.updatedAt,
             )}
           </div>
         </div>
@@ -164,11 +165,17 @@ export default function ExpandedWorkflow() {
           <TabsContent value="runs" className="min-h-0 flex-1">
             <RecentRunsList />
           </TabsContent>
-          <TabsContent value="settings" className="min-h-0 flex-1 pt-4 pb-8">
-            {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
+          <TabsContent
+            value="settings"
+            className="min-h-0 flex-1 pt-4 pb-8"
+          >
+            {workflowVersionQuery.isLoading ||
+            !workflowVersionQuery.data ? (
               <Loading />
             ) : (
-              <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
+              <WorkflowGeneralSettings
+                workflow={workflowVersionQuery.data}
+              />
             )}
 
             <div className="mt-8">
@@ -184,8 +191,8 @@ export default function ExpandedWorkflow() {
                           Delete Workflow
                         </h4>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                          Permanently delete this workflow and all its data.
-                          This action cannot be undone.
+                          Permanently delete this workflow and all
+                          its data. This action cannot be undone.
                         </p>
                       </div>
                       <Button

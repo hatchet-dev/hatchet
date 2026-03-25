@@ -30,7 +30,9 @@ type UserUniverse = {
           isLoaded: true;
           organizations: OrganizationForUserList['rows'];
           tenantMemberships: TenantMember[];
-          getOrganizationForTenant: (tenantId: string) => OrganizationForUser;
+          getOrganizationForTenant: (
+            tenantId: string,
+          ) => OrganizationForUser;
           getTenantWithTenantId: (tenantId: string) => Tenant;
         }
       | {
@@ -220,7 +222,10 @@ export function UserUniverseProvider({
 
         const tenantIdToOrganization = new Map<string, OrganizationForUser>(
           organizations.flatMap((organization) =>
-            organization.tenants.map((tenant) => [tenant.id, organization]),
+            organization.tenants.map((tenant) => [
+              tenant.id,
+              organization,
+            ]),
           ),
         );
         const getOrganizationForTenant = (tenantId: string) => {
@@ -239,7 +244,8 @@ export function UserUniverseProvider({
           invalidate,
           getOrganizationForTenant,
           getTenantWithTenantId:
-            tenantMembershipAndOrganizationsQuery.data.getTenantWithTenantId,
+            tenantMembershipAndOrganizationsQuery.data
+              .getTenantWithTenantId,
         };
       }
 
@@ -264,12 +270,14 @@ export function UserUniverseProvider({
             isLoaded: tenantMembershipAndOrganizationsAreLoaded,
             organizations: null,
             tenantMemberships:
-              tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
+              tenantMembershipAndOrganizationsQuery.data
+                .tenantMemberships,
             get: getWithoutOrganizations,
             invalidate,
             getOrganizationForTenant: null,
             getTenantWithTenantId:
-              tenantMembershipAndOrganizationsQuery.data.getTenantWithTenantId,
+              tenantMembershipAndOrganizationsQuery.data
+                .getTenantWithTenantId,
           }
         : {
             isCloudEnabled,

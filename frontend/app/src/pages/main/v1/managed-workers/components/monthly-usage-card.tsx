@@ -42,7 +42,9 @@ export function MonthlyUsageCard({
   // If cost is negative or has credits remaining, show credits
   const showingCredits = cost < 0 || hasCreditsRemaining;
   const amount = Math.abs(
-    showingCredits && creditsRemaining !== undefined ? creditsRemaining : cost,
+    showingCredits && creditsRemaining !== undefined
+      ? creditsRemaining
+      : cost,
   );
   const formattedAmount = new Intl.NumberFormat('en-US', {
     style: 'currency',

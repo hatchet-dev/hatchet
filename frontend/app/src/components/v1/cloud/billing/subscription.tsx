@@ -214,12 +214,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         description={
           <>
             Are you sure you'd like to change to the{' '}
-            <span className="font-semibold">{isChangeConfirmOpen?.name}</span>{' '}
+            <span className="font-semibold">
+              {isChangeConfirmOpen?.name}
+            </span>{' '}
             plan?
             <br />
             <br />
-            Upgrades will be prorated and downgrades will take effect at the end
-            of the billing period.
+            Upgrades will be prorated and downgrades will take effect at
+            the end of the billing period.
           </>
         }
         submitLabel={'Change Plan'}
@@ -284,7 +286,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       {creditBalance.expires && (
                         <p className="mt-1 text-xs text-muted-foreground whitespace-nowrap">
                           Expires{' '}
-                          <RelativeDate date={creditBalance.expires} future />
+                          <RelativeDate
+                            date={creditBalance.expires}
+                            future
+                          />
                         </p>
                       )}
                     </div>
@@ -322,11 +327,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger>
-                                <Badge variant="queued">Legacy</Badge>
+                                <Badge variant="queued">
+                                  Legacy
+                                </Badge>
                               </TooltipTrigger>
                               <TooltipContent side="right">
-                                You're on a legacy plan which is no longer
-                                offered. Contact us if you have any questions.
+                                You're on a legacy plan which is
+                                no longer offered. Contact us if
+                                you have any questions.
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -363,7 +371,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="inProgress">Scheduled Change</Badge>
+                        <Badge variant="inProgress">
+                          Scheduled Change
+                        </Badge>
                       </div>
                       <p className="text-sm text-foreground">
                         Switching to{' '}
@@ -379,14 +389,13 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Takes effect on{' '}
-                        {new Date(upcoming.startedAt).toLocaleDateString(
-                          'en-US',
-                          {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          },
-                        )}
+                        {new Date(
+                          upcoming.startedAt,
+                        ).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
                       </p>
                     </div>
                   </div>
@@ -423,7 +432,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     setShowAnnual((checkedState) => !checkedState);
                   }}
                 />
-                <Label htmlFor="sa" className="text-sm whitespace-nowrap">
+                <Label
+                  htmlFor="sa"
+                  className="text-sm whitespace-nowrap"
+                >
                   Annual Billing
                   <Badge variant="inProgress" className="ml-2">
                     Save up to 20%
@@ -439,7 +451,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               showAnnual={showAnnual}
               onSelectPlan={(plan) => {
                 if (!billing?.hasPaymentMethods) {
-                  subscriptionMutation.mutate({ plan_code: plan.planCode });
+                  subscriptionMutation.mutate({
+                    plan_code: plan.planCode,
+                  });
                 } else {
                   setChangeConfirmOpen(plan);
                 }

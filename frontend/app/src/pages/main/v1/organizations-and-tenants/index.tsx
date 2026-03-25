@@ -188,21 +188,26 @@ const OrganizationMembersTable = ({
             <TableRow key={member.metadata.id}>
               <TableCell>{member.email}</TableCell>
               <TableCell>
-                <span className="font-medium">{capitalize(member.role)}</span>
+                <span className="font-medium">
+                  {capitalize(member.role)}
+                </span>
               </TableCell>
             </TableRow>
           ))}
           {pendingInvites.map((invite) => (
             <TableRow
               key={
-                'metadata' in invite ? invite.metadata.id : invite.inviteeEmail
+                'metadata' in invite
+                  ? invite.metadata.id
+                  : invite.inviteeEmail
               }
               className="text-muted-foreground"
             >
               <TableCell>{invite.inviteeEmail}</TableCell>
               <TableCell>
                 Invited{' '}
-                {'expires' in invite && formatInviteExpiry(invite.expires)}
+                {'expires' in invite &&
+                  formatInviteExpiry(invite.expires)}
               </TableCell>
             </TableRow>
           ))}
@@ -273,7 +278,9 @@ const OrganizationList = ({
                   tenantMembers={tenantMembers}
                   tenantInvites={tenantInvites}
                   onInviteMember={(tenantId) =>
-                    globalEmitter.emit('create-tenant-invite', { tenantId })
+                    globalEmitter.emit('create-tenant-invite', {
+                      tenantId,
+                    })
                   }
                 />
               ) : (
@@ -293,10 +300,13 @@ const OrganizationList = ({
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      globalEmitter.emit('create-organization-invite', {
-                        organizationId: org.metadata.id,
-                        organizationName: org.name,
-                      })
+                      globalEmitter.emit(
+                        'create-organization-invite',
+                        {
+                          organizationId: org.metadata.id,
+                          organizationName: org.name,
+                        },
+                      )
                     }
                   >
                     Invite new member to {org.name}
@@ -360,32 +370,36 @@ export default function OrganizationsPage() {
             return next;
           });
 
-          setOrganizationRefetchPromises((previousOrganizationRefetches) => {
-            const nextOrganizationRefetches = new Map(
-              previousOrganizationRefetches,
-            );
-            const existingRequest =
-              nextOrganizationRefetches.get(organizationId);
-            if (existingRequest) {
-              existingRequest.cancel();
-            }
-            const request = fetchOrganizationInvites(organizationId);
-            request.promise.then((organizationInvites) =>
-              setOrganizationInvites((previousOrganizationInvites) => {
-                const nextOrganizationInvites = new Map(
-                  previousOrganizationInvites,
-                );
-                nextOrganizationInvites.set(
-                  organizationId,
-                  organizationInvites,
-                );
-                return nextOrganizationInvites;
-              }),
-            );
+          setOrganizationRefetchPromises(
+            (previousOrganizationRefetches) => {
+              const nextOrganizationRefetches = new Map(
+                previousOrganizationRefetches,
+              );
+              const existingRequest =
+                nextOrganizationRefetches.get(organizationId);
+              if (existingRequest) {
+                existingRequest.cancel();
+              }
+              const request = fetchOrganizationInvites(organizationId);
+              request.promise.then((organizationInvites) =>
+                setOrganizationInvites(
+                  (previousOrganizationInvites) => {
+                    const nextOrganizationInvites = new Map(
+                      previousOrganizationInvites,
+                    );
+                    nextOrganizationInvites.set(
+                      organizationId,
+                      organizationInvites,
+                    );
+                    return nextOrganizationInvites;
+                  },
+                ),
+              );
 
-            nextOrganizationRefetches.set(organizationId, request);
-            return nextOrganizationRefetches;
-          });
+              nextOrganizationRefetches.set(organizationId, request);
+              return nextOrganizationRefetches;
+            },
+          );
         },
       ),
     [],

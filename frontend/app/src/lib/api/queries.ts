@@ -33,11 +33,13 @@ export const queries = createQueryKeyStore({
   cloud: {
     billing: (tenant: string) => ({
       queryKey: ['billing-state:get', tenant],
-      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+      queryFn: async () =>
+        (await cloudApi.tenantBillingStateGet(tenant)).data,
     }),
     creditBalance: (tenant: string) => ({
       queryKey: ['credit-balance:get', tenant],
-      queryFn: async () => (await cloudApi.tenantCreditBalanceGet(tenant)).data,
+      queryFn: async () =>
+        (await cloudApi.tenantCreditBalanceGet(tenant)).data,
     }),
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
@@ -55,7 +57,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['compute-cost:get', tenant],
       queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,
     }),
-    createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({
+    createComputeDemoTemplate: (
+      tenant: string,
+      template: TemplateOptions,
+    ) => ({
       queryKey: ['compute-demo-template:create', tenant, template],
       queryFn: async () =>
         (
@@ -115,7 +120,11 @@ export const queries = createQueryKeyStore({
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
     ) => ({
-      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId, query],
+      queryKey: [
+        'managed-worker:get:memory-metrics',
+        managedWorkerId,
+        query,
+      ],
       queryFn: async () =>
         (await cloudApi.metricsMemoryGet(managedWorkerId, query)).data,
     }),
@@ -132,7 +141,10 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await cloudApi.managedWorkerEventsList(managedWorkerId)).data,
     }),
-    workflowRunMetrics: (tenant: string, query: WorkflowRunEventsMetrics) => ({
+    workflowRunMetrics: (
+      tenant: string,
+      query: WorkflowRunEventsMetrics,
+    ) => ({
       queryKey: ['workflow-run:metrics', tenant, query],
       queryFn: async () =>
         (await cloudApi.workflowRunEventsGetMetrics(tenant, query)).data,
@@ -151,7 +163,8 @@ export const queries = createQueryKeyStore({
   alertingSettings: {
     get: (tenant: string) => ({
       queryKey: ['tenant-alerting-settings:get', tenant],
-      queryFn: async () => (await api.tenantAlertingSettingsGet(tenant)).data,
+      queryFn: async () =>
+        (await api.tenantAlertingSettingsGet(tenant)).data,
     }),
   },
   tenantResourcePolicy: {
@@ -253,7 +266,8 @@ export const queries = createQueryKeyStore({
     }),
     get: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get', tenant, workflowRun],
-      queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
+      queryFn: async () =>
+        (await api.workflowRunGet(tenant, workflowRun)).data,
     }),
     getInput: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get:input', tenant, workflowRun],
@@ -268,7 +282,8 @@ export const queries = createQueryKeyStore({
     listStepRunEvents: (tenantId: string, workflowRun: string) => ({
       queryKey: ['workflow-run:list:step-run-events', workflowRun],
       queryFn: async () =>
-        (await api.workflowRunListStepRunEvents(tenantId, workflowRun)).data,
+        (await api.workflowRunListStepRunEvents(tenantId, workflowRun))
+          .data,
     }),
   },
   v1Webhooks: {
@@ -354,7 +369,8 @@ export const queries = createQueryKeyStore({
         if (taskRunId) {
           return (await api.v1TaskEventList(taskRunId, query)).data;
         } else if (workflowRunId) {
-          return (await api.v1WorkflowRunTaskEventsList(workflowRunId)).data;
+          return (await api.v1WorkflowRunTaskEventsList(workflowRunId))
+            .data;
         } else {
           throw new Error('Either task or workflowRunId must be set');
         }
@@ -395,7 +411,8 @@ export const queries = createQueryKeyStore({
     }),
     getSchema: (tenant: string, stepRun: string) => ({
       queryKey: ['step-run:get:schema', stepRun],
-      queryFn: async () => (await api.stepRunGetSchema(tenant, stepRun)).data,
+      queryFn: async () =>
+        (await api.stepRunGetSchema(tenant, stepRun)).data,
     }),
     listEvents: (stepRun: string) => ({
       queryKey: ['step-run:list:events', stepRun],

@@ -75,7 +75,8 @@ export function groupSiblings(
   children: OtelSpanTree[],
   parentSpanId?: string,
 ): Array<
-  { kind: 'span'; span: OtelSpanTree } | { kind: 'group'; group: SpanGroupInfo }
+  | { kind: 'span'; span: OtelSpanTree }
+  | { kind: 'group'; group: SpanGroupInfo }
 > {
   if (children.length <= GROUP_THRESHOLD) {
     return children.map((span) => ({ kind: 'span' as const, span }));

@@ -58,8 +58,9 @@ function VerifyEmailInner() {
               </h1>
             </div>
             <div className="my-4 text-sm">
-              Please contact your Hatchet instance administrator to verify your
-              email. Refresh this page once your email has been verified.
+              Please contact your Hatchet instance administrator to
+              verify your email. Refresh this page once your email has
+              been verified.
             </div>
           </div>
         </div>

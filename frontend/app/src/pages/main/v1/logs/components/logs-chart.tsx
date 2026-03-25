@@ -59,7 +59,10 @@ function formatXAxis(tickItem: string, minDate: Date, maxDate: Date): string {
   } else if (timeDiff > oneDay) {
     return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   } else {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 }
 
@@ -147,21 +150,27 @@ export function LogsChart({ metrics, since, until, onZoom }: LogsChartProps) {
               stackId="normal"
               fill={CHART_CONFIG.WARN.color}
               isAnimationActive={false}
-              minPointSize={(value) => (value != null && value > 0 ? 2 : 0)}
+              minPointSize={(value) =>
+                value != null && value > 0 ? 2 : 0
+              }
             />
             <Bar
               dataKey="DEBUG"
               stackId="normal"
               fill={CHART_CONFIG.DEBUG.color}
               isAnimationActive={false}
-              minPointSize={(value) => (value != null && value > 0 ? 2 : 0)}
+              minPointSize={(value) =>
+                value != null && value > 0 ? 2 : 0
+              }
             />
             <Bar
               dataKey="ERROR"
               stackId="error"
               fill={CHART_CONFIG.ERROR.color}
               isAnimationActive={false}
-              minPointSize={(value) => (value != null && value > 0 ? 2 : 0)}
+              minPointSize={(value) =>
+                value != null && value > 0 ? 2 : 0
+              }
             />
 
             {refAreaLeft && refAreaRight && (

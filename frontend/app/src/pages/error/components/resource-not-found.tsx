@@ -67,7 +67,9 @@ export function ResourceNotFound({
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Requested path
         </div>
-        <div className="break-all text-foreground/90">{location.pathname}</div>
+        <div className="break-all text-foreground/90">
+          {location.pathname}
+        </div>
       </div>
     </ErrorPageLayout>
   );

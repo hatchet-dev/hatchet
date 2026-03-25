@@ -119,7 +119,8 @@ export function SupportSection() {
               GMT-5 Eastern Standard Time
             </span>
             <p className="text-sm text-muted-foreground whitespace-nowrap">
-              Weekdays <span className="text-primary">09:00 - 17:00</span>
+              Weekdays{' '}
+              <span className="text-primary">09:00 - 17:00</span>
             </p>
           </CardContent>
         </Card>

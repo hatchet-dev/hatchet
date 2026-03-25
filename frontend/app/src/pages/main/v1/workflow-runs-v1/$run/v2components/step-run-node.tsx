@@ -70,11 +70,14 @@ export default memo(({ data }: { data: NodeData }) => {
                     {data.taskName}
                   </div>
                 </div>
-                {data.taskRun?.finishedAt && data.taskRun?.startedAt && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatDuration(finishedAtEpoch - startedAtEpoch)}
-                  </div>
-                )}
+                {data.taskRun?.finishedAt &&
+                  data.taskRun?.startedAt && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatDuration(
+                        finishedAtEpoch - startedAtEpoch,
+                      )}
+                    </div>
+                  )}
               </div>
 
               {(variant == 'default' || variant == 'output_only') && (

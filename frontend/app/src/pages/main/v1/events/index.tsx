@@ -28,9 +28,9 @@ import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 export default function Events() {
-  const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
-    null,
-  );
+  const [openMetadataPopover, setOpenMetadataPopover] = useState<
+    string | null
+  >(null);
   const [openPayloadPopover, setOpenPayloadPopover] = useState<string | null>(
     null,
   );
@@ -172,7 +172,9 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="font-medium text-muted-foreground">Seen</span>
+            <span className="font-medium text-muted-foreground">
+              Seen
+            </span>
             <span className="font-medium">
               <RelativeDate date={event.metadata.createdAt} />
             </span>
@@ -204,7 +206,9 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
           )}
 
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-foreground">Runs</h3>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">
+              Runs
+            </h3>
             <Separator className="mb-3" />
             <EventWorkflowRunsList event={event} />
           </div>
@@ -255,7 +259,9 @@ function FiltersSection({
       {
         columnLabel: 'Workflow',
         cellRenderer: (filter: V1Filter) => (
-          <div className="w-full">{workflowIdToName[filter.workflowId]}</div>
+          <div className="w-full">
+            {workflowIdToName[filter.workflowId]}
+          </div>
         ),
       },
       {

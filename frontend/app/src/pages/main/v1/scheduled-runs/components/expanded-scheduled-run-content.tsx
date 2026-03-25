@@ -18,23 +18,32 @@ export function ExpandedScheduledRunContent({
     <div className="w-full">
       <div className="space-y-6">
         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 border-b pb-4 text-sm">
-          <span className="font-medium text-muted-foreground">Workflow</span>
+          <span className="font-medium text-muted-foreground">
+            Workflow
+          </span>
           <Link
             to={appRoutes.tenantWorkflowRoute.to}
-            params={{ tenant: tenantId, workflow: scheduledRun.workflowId }}
+            params={{
+              tenant: tenantId,
+              workflow: scheduledRun.workflowId,
+            }}
             className="truncate font-medium hover:underline"
           >
             {scheduledRun.workflowName}
           </Link>
 
-          <span className="font-medium text-muted-foreground">Trigger At</span>
+          <span className="font-medium text-muted-foreground">
+            Trigger At
+          </span>
           <span className="font-medium">
             <RelativeDate date={scheduledRun.triggerAt} />
           </span>
 
           <span className="font-medium text-muted-foreground">Status</span>
           <div>
-            <RunStatus status={scheduledRun.workflowRunStatus || 'SCHEDULED'} />
+            <RunStatus
+              status={scheduledRun.workflowRunStatus || 'SCHEDULED'}
+            />
           </div>
 
           {scheduledRun.workflowRunId && (
@@ -44,15 +53,21 @@ export function ExpandedScheduledRunContent({
               </span>
               <Link
                 to={appRoutes.tenantRunRoute.to}
-                params={{ tenant: tenantId, run: scheduledRun.workflowRunId }}
+                params={{
+                  tenant: tenantId,
+                  run: scheduledRun.workflowRunId,
+                }}
                 className="truncate font-medium hover:underline"
               >
-                {scheduledRun.workflowRunName || scheduledRun.workflowRunId}
+                {scheduledRun.workflowRunName ||
+                  scheduledRun.workflowRunId}
               </Link>
             </>
           )}
 
-          <span className="font-medium text-muted-foreground">Created At</span>
+          <span className="font-medium text-muted-foreground">
+            Created At
+          </span>
           <span className="font-medium">
             <RelativeDate date={scheduledRun.metadata.createdAt} />
           </span>

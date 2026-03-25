@@ -90,7 +90,9 @@ export const useRuns = ({
     return Object.entries(rowSelection)
       .filter(([, selected]) => !!selected)
       .map(([id]) => {
-        const findRow = (rows: V1TaskSummary[]): V1TaskSummary | undefined => {
+        const findRow = (
+          rows: V1TaskSummary[],
+        ): V1TaskSummary | undefined => {
           for (const row of rows) {
             if (row.metadata.id === id) {
               return row;

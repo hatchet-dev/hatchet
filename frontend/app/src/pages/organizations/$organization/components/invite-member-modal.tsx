@@ -57,10 +57,13 @@ export function InviteMemberModal({
 
   const inviteMemberMutation = useMutation({
     mutationFn: async (data: { email: string }) => {
-      const result = await cloudApi.organizationInviteCreate(organizationId, {
-        inviteeEmail: data.email,
-        role: OrganizationMemberRoleType.OWNER,
-      });
+      const result = await cloudApi.organizationInviteCreate(
+        organizationId,
+        {
+          inviteeEmail: data.email,
+          role: OrganizationMemberRoleType.OWNER,
+        },
+      );
       return result.data;
     },
     onSuccess: () => {
@@ -95,7 +98,9 @@ export function InviteMemberModal({
         </DialogHeader>
 
         <form
-          onSubmit={handleSubmit((data) => inviteMemberMutation.mutate(data))}
+          onSubmit={handleSubmit((data) =>
+            inviteMemberMutation.mutate(data),
+          )}
           className="space-y-4"
         >
           <div className="space-y-2">
@@ -127,7 +132,10 @@ export function InviteMemberModal({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={inviteMemberMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={inviteMemberMutation.isPending}
+            >
               {inviteMemberMutation.isPending
                 ? 'Sending...'
                 : 'Send Invitation'}

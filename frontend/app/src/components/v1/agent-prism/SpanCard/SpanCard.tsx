@@ -337,7 +337,9 @@ export const SpanCard: FC<SpanCardProps> = ({
   return (
     <li
       role="treeitem"
-      aria-selected={state.isSelected ? true : selectedSpan ? false : undefined}
+      aria-selected={
+        state.isSelected ? true : selectedSpan ? false : undefined
+      }
       aria-expanded={state.hasChildren ? state.isExpanded : undefined}
       className="list-none"
     >
@@ -373,7 +375,10 @@ export const SpanCard: FC<SpanCardProps> = ({
         >
           <div className="flex flex-nowrap">
             {connectors.map((connector, idx) => (
-              <SpanCardConnector key={`${connector}-${idx}`} type={connector} />
+              <SpanCardConnector
+                key={`${connector}-${idx}`}
+                type={connector}
+              />
             ))}
 
             {hasExpandButtonAsFirstChild && (
@@ -384,7 +389,9 @@ export const SpanCard: FC<SpanCardProps> = ({
                   onToggleClick={eventHandlers.handleToggleClick}
                 />
 
-                {state.isExpanded && <SpanCardConnector type="vertical" />}
+                {state.isExpanded && (
+                  <SpanCardConnector type="vertical" />
+                )}
               </div>
             )}
           </div>

@@ -34,8 +34,9 @@ export function DeleteTokenModal({
             <strong>"{token.name}"</strong> from {organizationName}?
           </p>
           <p className="text-sm text-muted-foreground">
-            This action cannot be undone. Any applications or services using
-            this token will immediately lose access and may break functionality.
+            This action cannot be undone. Any applications or services
+            using this token will immediately lose access and may break
+            functionality.
           </p>
           <div className="text-sm text-muted-foreground">
             <p className="mb-1 font-medium">Potential consequences:</p>

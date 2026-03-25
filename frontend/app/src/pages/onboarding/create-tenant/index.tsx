@@ -18,7 +18,9 @@ export default function CreateTenant() {
   return (
     <div className="max-h-full overflow-y-auto">
       <div className="mx-auto max-w-6xl space-y-6 p-6">
-        <h1 className="text-2xl font-bold text-center">Create a new tenant</h1>
+        <h1 className="text-2xl font-bold text-center">
+          Create a new tenant
+        </h1>
 
         <div className="flex justify-center">
           <NewTenantSaverForm

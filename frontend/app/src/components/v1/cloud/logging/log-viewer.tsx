@@ -131,7 +131,9 @@ export function LogViewer({
       if (!a.timestamp || !b.timestamp) {
         return 0;
       }
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      return (
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
     });
   }, [logs]);
 
@@ -181,7 +183,11 @@ export function LogViewer({
     wasInTopRegionRef.current = isInTopRegion;
 
     const isInBottomRegion = isScrollingDown && scrollPercentage > 0.7;
-    if (isInBottomRegion && !wasInBottomRegionRef.current && onScrollToBottom) {
+    if (
+      isInBottomRegion &&
+      !wasInBottomRegionRef.current &&
+      onScrollToBottom
+    ) {
       onScrollToBottom();
     }
     wasInBottomRegionRef.current = isInBottomRegion;
@@ -213,7 +219,9 @@ export function LogViewer({
           'rounded-lg border bg-background flex items-center justify-center',
         )}
       >
-        <span className="text-sm text-muted-foreground">Loading logs...</span>
+        <span className="text-sm text-muted-foreground">
+          Loading logs...
+        </span>
       </div>
     );
   }
@@ -317,7 +325,9 @@ export function LogViewer({
                 {log.level ? (
                   <LevelBadge level={log.level} />
                 ) : (
-                  <span className="text-xs text-muted-foreground/50">—</span>
+                  <span className="text-xs text-muted-foreground/50">
+                    —
+                  </span>
                 )}
               </div>
               {hasInstance && (
@@ -350,10 +360,13 @@ export function LogViewer({
               <div
                 className={cn(
                   'px-3 py-1.5 font-mono text-xs text-foreground truncate',
-                  selectedLogIndex === ix && 'whitespace-normal break-words',
+                  selectedLogIndex === ix &&
+                    'whitespace-normal break-words',
                 )}
                 onClick={() => {
-                  setSelectedLogIndex((prev) => (prev === ix ? undefined : ix));
+                  setSelectedLogIndex((prev) =>
+                    prev === ix ? undefined : ix,
+                  );
                 }}
                 onMouseEnter={(e) => {
                   const el = e.currentTarget;

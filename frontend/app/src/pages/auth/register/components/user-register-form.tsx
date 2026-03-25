@@ -107,7 +107,9 @@ export function UserRegisterForm({
           </div>
           {props.errors && props.errors.length > 0 && (
             <Alert variant="destructive">
-              <AlertDescription>{props.errors.join(' ')}</AlertDescription>
+              <AlertDescription>
+                {props.errors.join(' ')}
+              </AlertDescription>
             </Alert>
           )}
           <Button disabled={props.isLoading || !isValid}>

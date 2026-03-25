@@ -26,8 +26,8 @@ export function TokenSuccessDialog({
           <DialogTitle>Keep it secret, keep it safe</DialogTitle>
         </DialogHeader>
         <p className="text-sm">
-          This is the only time we will show you this token. Make sure to copy
-          it somewhere safe.
+          This is the only time we will show you this token. Make sure to
+          copy it somewhere safe.
         </p>
         <SecretCopier
           secrets={{ HATCHET_CLIENT_TOKEN: token }}

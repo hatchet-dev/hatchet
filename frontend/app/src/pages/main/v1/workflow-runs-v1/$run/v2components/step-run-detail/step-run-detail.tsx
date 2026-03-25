@@ -144,7 +144,10 @@ export const TaskRunDetail = ({
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
             {taskRun.status && (
-              <V1RunIndicator status={taskRun.status} isSkipped={isSkipped} />
+              <V1RunIndicator
+                status={taskRun.status}
+                isSkipped={isSkipped}
+              />
             )}
             <h3 className="flex flex-row items-center gap-4 font-mono text-lg font-semibold leading-tight tracking-tight text-foreground">
               {taskRun.displayName || 'Task Run Detail'}
@@ -166,14 +169,18 @@ export const TaskRunDetail = ({
               <TaskRunActionButton
                 actionType="replay"
                 paramOverrides={{ externalIds: [taskRunId] }}
-                disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+                disabled={
+                  !TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)
+                }
                 showModal={false}
                 showLabel
               />
               <TaskRunActionButton
                 actionType="cancel"
                 paramOverrides={{ externalIds: [taskRunId] }}
-                disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+                disabled={TASK_RUN_TERMINAL_STATUSES.includes(
+                  taskRun.status,
+                )}
                 showModal={false}
                 showLabel
               />
@@ -185,7 +192,9 @@ export const TaskRunDetail = ({
               showViewTaskRunButton={showViewTaskRunButton || false}
             />
             <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
-            <CopyWorkflowConfigButton workflowConfig={taskRun.workflowConfig} />
+            <CopyWorkflowConfigButton
+              workflowConfig={taskRun.workflowConfig}
+            />
           </div>
         </div>
       </div>
@@ -223,7 +232,10 @@ export const TaskRunDetail = ({
             }}
           >
             <TabsList layout="underlined">
-              <TabsTrigger variant="underlined" value={TabOption.Activity}>
+              <TabsTrigger
+                variant="underlined"
+                value={TabOption.Activity}
+              >
                 Activity
               </TabsTrigger>
               <TabsTrigger variant="underlined" value={TabOption.Output}>
@@ -249,7 +261,9 @@ export const TaskRunDetail = ({
                 className="side-responsive-layout"
               >
                 <span className="side-responsive-inner flex">
-                  <span className="side-sm:hidden block">Metadata</span>
+                  <span className="side-sm:hidden block">
+                    Metadata
+                  </span>
                   <span className="side-sm:block hidden">
                     Additional Metadata
                   </span>
@@ -267,7 +281,10 @@ export const TaskRunDetail = ({
                 />
               </div>
             </TabsContent>
-            <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
+            <TabsContent
+              value={TabOption.ChildWorkflowRuns}
+              className="mt-4"
+            >
               <div className="flex flex-col h-96">
                 <RunsProvider
                   tableKey={`child-runs-${taskRunId}`}
@@ -297,7 +314,10 @@ export const TaskRunDetail = ({
               )}
             </TabsContent>
             <TabsContent value={TabOption.Logs}>
-              <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
+              <TaskRunLogs
+                resetTrigger={logsResetKey}
+                taskRun={taskRun}
+              />
             </TabsContent>
             <TabsContent value={TabOption.AdditionalMetadata}>
               <CodeHighlighter
@@ -305,7 +325,11 @@ export const TaskRunDetail = ({
                 maxHeight="400px"
                 minHeight="400px"
                 language="json"
-                code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
+                code={JSON.stringify(
+                  taskRun.additionalMetadata ?? {},
+                  null,
+                  2,
+                )}
               />
             </TabsContent>
           </Tabs>
@@ -313,7 +337,9 @@ export const TaskRunDetail = ({
         <TabsContent value="observability" className="min-h-0 flex-1">
           <Observability
             taskRunId={taskRunId}
-            isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+            isRunning={
+              !TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)
+            }
             tasks={[
               {
                 externalId: taskRun.metadata.id,
@@ -394,7 +420,9 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   });
 
   return (
-    <div className="flex flex-row items-center gap-4">{interleavedTimings}</div>
+    <div className="flex flex-row items-center gap-4">
+      {interleavedTimings}
+    </div>
   );
 };
 

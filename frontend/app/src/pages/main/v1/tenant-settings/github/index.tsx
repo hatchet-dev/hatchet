@@ -138,7 +138,8 @@ function GithubInstallationsList() {
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No Github accounts linked. Link an account to integrate with CI/CD.
+          No Github accounts linked. Link an account to integrate with
+          CI/CD.
         </div>
       )}
       <ConfirmDialog

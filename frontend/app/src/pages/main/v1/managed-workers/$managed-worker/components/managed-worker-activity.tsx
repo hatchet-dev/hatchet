@@ -68,7 +68,9 @@ function EventList({
   const { refetchInterval } = useRefetchInterval();
 
   const getLogsQuery = useQuery({
-    ...queries.cloud.listManagedWorkerEvents(managedWorker!.metadata.id || ''),
+    ...queries.cloud.listManagedWorkerEvents(
+      managedWorker!.metadata.id || '',
+    ),
     enabled: !!managedWorker,
     refetchInterval,
   });

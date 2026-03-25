@@ -68,7 +68,11 @@ const TimePickerInput = React.forwardRef<
        * The second entered digit will break the condition and the value will be set to 10-12.
        */
       if (picker === '12hours') {
-        if (flag && calculatedValue.slice(1, 2) === '1' && prevIntKey === '0') {
+        if (
+          flag &&
+          calculatedValue.slice(1, 2) === '1' &&
+          prevIntKey === '0'
+        ) {
           return '0' + key;
         }
       }

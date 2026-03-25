@@ -32,13 +32,18 @@ describe('Tenants: switching', () => {
 
     // Refresh the SPA so memberships reflect the created tenants.
     cy.visit('/');
-    cy.location('pathname', { timeout: 30000 }).should('include', '/tenants/');
+    cy.location('pathname', { timeout: 30000 }).should(
+      'include',
+      '/tenants/',
+    );
 
     cy.get('button[aria-label="Select a tenant"]')
       .filter(':visible')
       .first()
       .as('tenantSwitcher');
-    cy.get('@tenantSwitcher').should('not.be.disabled').click({ force: true });
+    cy.get('@tenantSwitcher')
+      .should('not.be.disabled')
+      .click({ force: true });
 
     cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
     cy.get(`[data-cy="tenant-switcher-item-${tenant1Slug}"]`)
@@ -51,7 +56,9 @@ describe('Tenants: switching', () => {
       .first()
       .should('contain.text', tenant1Name)
       .as('tenantSwitcher2');
-    cy.get('@tenantSwitcher2').should('not.be.disabled').click({ force: true });
+    cy.get('@tenantSwitcher2')
+      .should('not.be.disabled')
+      .click({ force: true });
 
     cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
     cy.get(`[data-cy="tenant-switcher-item-${tenant2Slug}"]`)
@@ -106,7 +113,9 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .as('tenantSwitcher');
-    cy.get('@tenantSwitcher').should('not.be.disabled').click({ force: true });
+    cy.get('@tenantSwitcher')
+      .should('not.be.disabled')
+      .click({ force: true });
     cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
     cy.get(`[data-cy="tenant-switcher-item-${tenant1Slug}"]`)
       .should('exist')
@@ -117,7 +126,9 @@ describe('Tenants: switching', () => {
       .first()
       .should('contain.text', tenant1Name)
       .as('tenantSwitcher2');
-    cy.get('@tenantSwitcher2').should('not.be.disabled').click({ force: true });
+    cy.get('@tenantSwitcher2')
+      .should('not.be.disabled')
+      .click({ force: true });
     cy.get('[data-cy="tenant-switcher-list"]').should('be.visible');
     cy.get(`[data-cy="tenant-switcher-item-${tenant2Slug}"]`)
       .should('exist')
@@ -141,7 +152,8 @@ describe('Tenants: switching', () => {
     // get stuck on the previous user's tenant and lands on a valid authenticated route.
     cy.location('pathname', { timeout: 30000 }).should((pathname) => {
       expect(pathname).to.satisfy(
-        (p: string) => p.includes('/tenants/') || p.includes('/onboarding/'),
+        (p: string) =>
+          p.includes('/tenants/') || p.includes('/onboarding/'),
       );
     });
   });

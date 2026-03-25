@@ -27,14 +27,21 @@ describe('layout: viewports', () => {
         cy.viewport(vp.width, vp.height);
         cy.visit('/auth/login');
 
-        cy.location('pathname', { timeout: 30000 }).should('eq', '/auth/login');
+        cy.location('pathname', { timeout: 30000 }).should(
+          'eq',
+          '/auth/login',
+        );
         cy.get('[data-cy="auth-title"]', { timeout: 30000 })
           .should('be.visible')
           .and('contain', 'Log in');
 
         // Ensure the legal text is reachable (scroll container is the auth route wrapper).
-        cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
-        cy.get('[data-cy="auth-title"]').scrollIntoView().should('be.visible');
+        cy.get('[data-cy="auth-legal"]')
+          .scrollIntoView()
+          .should('be.visible');
+        cy.get('[data-cy="auth-title"]')
+          .scrollIntoView()
+          .should('be.visible');
       });
 
       it(`[${vp.name}] register: can reach top and bottom content`, () => {
@@ -49,8 +56,12 @@ describe('layout: viewports', () => {
           .should('be.visible')
           .and('contain', 'Create an account');
 
-        cy.get('[data-cy="auth-legal"]').scrollIntoView().should('be.visible');
-        cy.get('[data-cy="auth-title"]').scrollIntoView().should('be.visible');
+        cy.get('[data-cy="auth-legal"]')
+          .scrollIntoView()
+          .should('be.visible');
+        cy.get('[data-cy="auth-title"]')
+          .scrollIntoView()
+          .should('be.visible');
       });
     }
   });
@@ -108,7 +119,9 @@ describe('layout: viewports', () => {
         // Collapsed sidebar should also be scrollable on wide viewports.
         if (vp.width >= 768) {
           // Collapse via the resize edge click (no drag).
-          cy.get('[data-cy="v1-sidebar-resize-handle"]').click({ force: true });
+          cy.get('[data-cy="v1-sidebar-resize-handle"]').click({
+            force: true,
+          });
 
           cy.get('[data-cy="v1-sidebar-scroll-collapsed"]').then(($el) => {
             const el = $el.get(0);

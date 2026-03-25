@@ -64,8 +64,8 @@ function DeleteCronForm({ className, ...props }: DeleteCronFormProps) {
       </DialogHeader>
       <div>
         <div className="mb-4 text-sm text-foreground">
-          Are you sure you want to delete the cron job? This action will prevent
-          the run from running in the future and cannot be undone.
+          Are you sure you want to delete the cron job? This action will
+          prevent the run from running in the future and cannot be undone.
         </div>
         <div className="flex flex-row justify-end gap-4">
           <Button

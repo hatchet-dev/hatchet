@@ -24,8 +24,8 @@ export function DeleteSNSForm({ className, ...props }: DeleteSNSFormProps) {
       <div>
         <div className="mb-4 text-sm text-foreground">
           Are you sure you want to revoke the SNS integration on Topic ARN{' '}
-          {props.snsIntegration.topicArn}? This action will immediately prevent
-          any SNS events from being sent to the Hatchet subscriber.
+          {props.snsIntegration.topicArn}? This action will immediately
+          prevent any SNS events from being sent to the Hatchet subscriber.
         </div>
         <div className="flex flex-row gap-4">
           <Button

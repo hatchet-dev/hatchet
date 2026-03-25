@@ -85,7 +85,9 @@ export function CreateSNSDialog({
                 disabled={props.isLoading}
               />
               {topicArnError && (
-                <div className="text-sm text-red-500">{topicArnError}</div>
+                <div className="text-sm text-red-500">
+                  {topicArnError}
+                </div>
               )}
             </div>
             <Button disabled={props.isLoading}>

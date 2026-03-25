@@ -316,8 +316,8 @@ export function TriggerWorkflowForm({
         <DialogHeader className="gap-2">
           <DialogTitle>Trigger Run</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Trigger a workflow to run now, at a scheduled time, or on a cron
-            schedule.
+            Trigger a workflow to run now, at a scheduled time, or on a
+            cron schedule.
           </DialogDescription>
         </DialogHeader>
 
@@ -388,7 +388,9 @@ export function TriggerWorkflowForm({
             <TabsContent value="now"></TabsContent>
             <TabsContent value="schedule">
               <div className="mt-4">
-                <div className="mb-2 font-bold">Select Date and Time</div>
+                <div className="mb-2 font-bold">
+                  Select Date and Time
+                </div>
                 <div className="flex gap-2">
                   <DateTimePicker
                     date={scheduleTime}
@@ -408,7 +410,9 @@ export function TriggerWorkflowForm({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
+                      const newTime = new Date(
+                        scheduleTime || new Date(),
+                      );
                       newTime.setSeconds(newTime.getSeconds() + 15);
                       setScheduleTime(newTime);
                     }}
@@ -419,7 +423,9 @@ export function TriggerWorkflowForm({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
+                      const newTime = new Date(
+                        scheduleTime || new Date(),
+                      );
                       newTime.setMinutes(newTime.getMinutes() + 1);
                       setScheduleTime(newTime);
                     }}
@@ -430,7 +436,9 @@ export function TriggerWorkflowForm({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
+                      const newTime = new Date(
+                        scheduleTime || new Date(),
+                      );
                       newTime.setMinutes(newTime.getMinutes() + 5);
                       setScheduleTime(newTime);
                     }}
@@ -441,7 +449,9 @@ export function TriggerWorkflowForm({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
+                      const newTime = new Date(
+                        scheduleTime || new Date(),
+                      );
                       newTime.setMinutes(newTime.getMinutes() + 15);
                       setScheduleTime(newTime);
                     }}
@@ -452,7 +462,9 @@ export function TriggerWorkflowForm({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
+                      const newTime = new Date(
+                        scheduleTime || new Date(),
+                      );
                       newTime.setMinutes(newTime.getMinutes() + 60);
                       setScheduleTime(newTime);
                     }}

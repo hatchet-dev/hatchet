@@ -114,7 +114,9 @@ export function TaskRunTrace({
   });
 
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
-  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
+  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(
+    null,
+  );
 
   const lastFocusedRef = useRef<string | undefined>();
   useEffect(() => {

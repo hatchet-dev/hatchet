@@ -51,7 +51,10 @@ const ManagedWorkerCard: React.FC<{ data: ManagedWorker }> = ({ data }) => {
           Created <RelativeDate date={data.metadata?.createdAt} />
         </p>
         {data.buildConfig && (
-          <GithubButton buildConfig={data.buildConfig} prefix="Deploys from" />
+          <GithubButton
+            buildConfig={data.buildConfig}
+            prefix="Deploys from"
+          />
         )}
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
           {totReplicas} {totReplicas == 1 ? 'instance' : 'instances'} with{' '}
@@ -62,7 +65,10 @@ const ManagedWorkerCard: React.FC<{ data: ManagedWorker }> = ({ data }) => {
         <div className="text-background-secondary text-sm">
           <Link
             to={appRoutes.tenantManagedWorkerRoute.to}
-            params={{ tenant: tenantId, managedWorker: data.metadata?.id }}
+            params={{
+              tenant: tenantId,
+              managedWorker: data.metadata?.id,
+            }}
           >
             <Button>View Compute Instance</Button>
           </Link>

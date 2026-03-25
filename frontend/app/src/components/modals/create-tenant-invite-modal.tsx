@@ -41,7 +41,11 @@ const CreateTenantInviteForm = ({
 }: CreateTenantInviteFormProps) => {
   const availableRoles = props.isCloudEnabled
     ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
-    : [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.MEMBER];
+    : [
+        TenantMemberRole.OWNER,
+        TenantMemberRole.ADMIN,
+        TenantMemberRole.MEMBER,
+      ];
 
   const schema = z.object({
     email: z.string().email('Invalid email address'),
@@ -100,14 +104,21 @@ const CreateTenantInviteForm = ({
                   return (
                     <Select onValueChange={field.onChange} {...field}>
                       <SelectTrigger className="w-[180px]">
-                        <SelectValue id="role" placeholder="Role..." />
+                        <SelectValue
+                          id="role"
+                          placeholder="Role..."
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {!props.isCloudEnabled && (
-                          <SelectItem value="OWNER">Owner</SelectItem>
+                          <SelectItem value="OWNER">
+                            Owner
+                          </SelectItem>
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="MEMBER">Member</SelectItem>
+                        <SelectItem value="MEMBER">
+                          Member
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   );

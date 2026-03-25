@@ -178,7 +178,9 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
             <Label htmlFor="workflow">Workflow</Label>
             <Input
               id="workflow"
-              value={workflowIdToName[filter.workflowId] || filter.workflowId}
+              value={
+                workflowIdToName[filter.workflowId] || filter.workflowId
+              }
               disabled
               className="bg-muted disabled:cursor-text"
             />
@@ -194,7 +196,9 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                   placeholder="Enter scope"
                 />
                 {errors.scope && (
-                  <p className="text-sm text-red-600">{errors.scope.message}</p>
+                  <p className="text-sm text-red-600">
+                    {errors.scope.message}
+                  </p>
                 )}
               </>
             ) : (
@@ -248,7 +252,9 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
                   }}
                 />
                 {payloadError && (
-                  <p className="text-sm text-red-600">{payloadError}</p>
+                  <p className="text-sm text-red-600">
+                    {payloadError}
+                  </p>
                 )}
               </>
             ) : (
@@ -268,8 +274,8 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
           <DialogHeader>
             <DialogTitle>Delete Filter</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this filter? This action cannot be
-              undone.
+              Are you sure you want to delete this filter? This action
+              cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -45,7 +45,9 @@ export function SimpleTable<
           {data.map((row) => (
             <TableRow key={row.metadata.id}>
               {columns.map(({ columnLabel, cellRenderer }) => (
-                <TableCell key={columnLabel}>{cellRenderer(row)}</TableCell>
+                <TableCell key={columnLabel}>
+                  {cellRenderer(row)}
+                </TableCell>
               ))}
             </TableRow>
           ))}

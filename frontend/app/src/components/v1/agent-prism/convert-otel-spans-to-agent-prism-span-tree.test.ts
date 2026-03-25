@@ -196,7 +196,10 @@ describe('convertOtelSpansToOtelSpanTree', () => {
 
       assert.ok(stepRun, 'step run should exist');
       assert.ok(stepRun.queuedPhase, 'should have queuedPhase');
-      assert.strictEqual(stepRun.queuedPhase.spanName, 'hatchet.engine.queued');
+      assert.strictEqual(
+        stepRun.queuedPhase.spanName,
+        'hatchet.engine.queued',
+      );
     });
   });
 
@@ -424,9 +427,14 @@ describe('convertOtelSpansToOtelSpanTree', () => {
         engineQueued('charge', parentSpan),
       ]);
 
-      const tree = convertOtelSpansToOtelSpanTree(spans, undefined, undefined, {
-        enableTraceInProgressSynthesis: false,
-      });
+      const tree = convertOtelSpansToOtelSpanTree(
+        spans,
+        undefined,
+        undefined,
+        {
+          enableTraceInProgressSynthesis: false,
+        },
+      );
       const root = tree[0];
 
       const queuedRows = root.children.filter(
@@ -587,7 +595,12 @@ describe('convertOtelSpansToOtelSpanTree', () => {
           'otel-send-notification',
           dagStepRunId,
         ),
-        sdkRunWorkflow('rw3', sdkDagSpanId, 'otel-other-task', dagStepRunId),
+        sdkRunWorkflow(
+          'rw3',
+          sdkDagSpanId,
+          'otel-other-task',
+          dagStepRunId,
+        ),
         engineQueued('notif1', 'rw1'),
         engineQueued('notif2', 'rw2'),
         engineQueued('other', 'rw3'),
@@ -645,7 +658,12 @@ describe('convertOtelSpansToOtelSpanTree', () => {
           'otel-send-notification',
           dagStepRunId,
         ),
-        sdkRunWorkflow('rw3', sdkDagSpanId, 'otel-other-task', dagStepRunId),
+        sdkRunWorkflow(
+          'rw3',
+          sdkDagSpanId,
+          'otel-other-task',
+          dagStepRunId,
+        ),
       ]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);
@@ -688,7 +706,12 @@ describe('convertOtelSpansToOtelSpanTree', () => {
           'otel-send-notification',
           dagStepRunId,
         ),
-        sdkRunWorkflow('rw3', sdkDagSpanId, 'otel-other-task', dagStepRunId),
+        sdkRunWorkflow(
+          'rw3',
+          sdkDagSpanId,
+          'otel-other-task',
+          dagStepRunId,
+        ),
       ]);
 
       const tree = convertOtelSpansToOtelSpanTree(spans);

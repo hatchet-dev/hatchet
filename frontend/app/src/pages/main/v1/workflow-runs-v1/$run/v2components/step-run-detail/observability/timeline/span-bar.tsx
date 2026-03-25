@@ -61,7 +61,9 @@ export const SpanBar = memo(function SpanBar({
     // visualize scheduling + worker dispatch latency instead of hiding it.
     const snappedDurMs = qEndMs - qStartMs;
     qLeftPct =
-      timelineMaxMs > 0 ? ((qStartMs - visMinStart) / timelineMaxMs) * 100 : 0;
+      timelineMaxMs > 0
+        ? ((qStartMs - visMinStart) / timelineMaxMs) * 100
+        : 0;
     qWidthPct = timelineMaxMs > 0 ? (snappedDurMs / timelineMaxMs) * 100 : 0;
   }
 

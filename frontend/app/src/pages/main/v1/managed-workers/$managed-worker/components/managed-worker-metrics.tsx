@@ -151,7 +151,9 @@ export function ManagedWorkerMetrics({
             <DateTimePicker
               key="before"
               label="Before"
-              date={finishedBefore ? new Date(finishedBefore) : undefined}
+              date={
+                finishedBefore ? new Date(finishedBefore) : undefined
+              }
               setDate={(date) => {
                 setFinishedBefore(date?.toISOString());
               }}
@@ -166,14 +168,19 @@ export function ManagedWorkerMetrics({
               } else {
                 setCustomTimeRange([
                   getCreatedAfterFromTimeRange(value) ||
-                    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                    new Date(
+                      Date.now() - 24 * 60 * 60 * 1000,
+                    ).toISOString(),
                   new Date().toISOString(),
                 ]);
               }
             }}
           >
             <SelectTrigger className="w-fit">
-              <SelectValue id="timerange" placeholder="Choose time range" />
+              <SelectValue
+                id="timerange"
+                placeholder="Choose time range"
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="1h">1 hour</SelectItem>

@@ -280,7 +280,9 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
                 <TableCell colSpan={columns.length} className="h-full">
                   <div className="flex h-full w-full flex-col items-center justify-center pt-8">
                     {emptyState || (
-                      <p className="text-lg font-semibold">No results.</p>
+                      <p className="text-lg font-semibold">
+                        No results.
+                      </p>
                     )}
                   </div>
                 </TableCell>

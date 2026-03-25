@@ -48,7 +48,11 @@ export const useScheduledRuns = ({
 
   const paramKey = `scheduled-runs-${key}`;
   const {
-    state: { w: selectedWorkflowIds, s: selectedStatuses, m: selectedMetadata },
+    state: {
+      w: selectedWorkflowIds,
+      s: selectedStatuses,
+      m: selectedMetadata,
+    },
     columnFilters,
     setColumnFilters,
     resetFilters,

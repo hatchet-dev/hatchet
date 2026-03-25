@@ -91,12 +91,16 @@ export const TenantTable = ({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-muted-foreground">{tenant.slug}</span>
+                    <span className="text-muted-foreground">
+                      {tenant.slug}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {members != null ? (
                       <button
-                        onClick={() => toggleExpanded(tenant.metadata.id)}
+                        onClick={() =>
+                          toggleExpanded(tenant.metadata.id)
+                        }
                         className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
                       >
                         <ChevronRightIcon
@@ -111,7 +115,9 @@ export const TenantTable = ({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => onInviteMember(tenant.metadata.id)}
+                        onClick={() =>
+                          onInviteMember(tenant.metadata.id)
+                        }
                         leftIcon={<PlusIcon className="size-4" />}
                       >
                         Invite new member
@@ -147,11 +153,14 @@ export const TenantTable = ({
                       className="bg-muted/30 text-muted-foreground"
                     >
                       <TableCell>
-                        <span className="text-sm">{invite.email}</span>
+                        <span className="text-sm">
+                          {invite.email}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">
-                          Invited {formatInviteExpiry(invite.expires)}
+                          Invited{' '}
+                          {formatInviteExpiry(invite.expires)}
                         </span>
                       </TableCell>
                       <TableCell />

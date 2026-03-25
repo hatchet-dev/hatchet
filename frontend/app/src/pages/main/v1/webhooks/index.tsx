@@ -67,9 +67,13 @@ export default function Webhooks() {
         columnLabel: 'Event Key',
         cellRenderer: (webhook: V1Webhook) => {
           const text = webhook.eventKeyExpression || '';
-          const truncated = text.length > 25 ? `${text.slice(0, 25)}...` : text;
+          const truncated =
+            text.length > 25 ? `${text.slice(0, 25)}...` : text;
           return (
-            <code className="rounded bg-muted px-2 py-1 text-xs" title={text}>
+            <code
+              className="rounded bg-muted px-2 py-1 text-xs"
+              title={text}
+            >
               {truncated}
             </code>
           );
@@ -79,12 +83,18 @@ export default function Webhooks() {
         columnLabel: 'Scope',
         cellRenderer: (webhook: V1Webhook) => {
           if (!webhook.scopeExpression) {
-            return <span className="text-xs text-muted-foreground">—</span>;
+            return (
+              <span className="text-xs text-muted-foreground">—</span>
+            );
           }
           const text = webhook.scopeExpression;
-          const truncated = text.length > 25 ? `${text.slice(0, 25)}...` : text;
+          const truncated =
+            text.length > 25 ? `${text.slice(0, 25)}...` : text;
           return (
-            <code className="rounded bg-muted px-2 py-1 text-xs" title={text}>
+            <code
+              className="rounded bg-muted px-2 py-1 text-xs"
+              title={text}
+            >
               {truncated}
             </code>
           );
@@ -358,8 +368,8 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
         <div className="ml-1 flex flex-row items-center gap-x-2">
           <AlertTriangle className="size-4 text-yellow-500" />
           <p className="text-xs text-muted-foreground">
-            Select <span className="font-semibold">application/json</span> as
-            the content type in your GitHub webhook settings.
+            Select <span className="font-semibold">application/json</span>{' '}
+            as the content type in your GitHub webhook settings.
           </p>
         </div>
       );
@@ -486,10 +496,14 @@ const CreateWebhookModal = () => {
               className="h-10"
             />
             {errors.name && (
-              <p className="text-xs text-red-500">{errors.name.message}</p>
+              <p className="text-xs text-red-500">
+                {errors.name.message}
+              </p>
             )}
             <div className="flex flex-col items-start gap-2 text-xs text-muted-foreground">
-              <span className="">Send incoming webhook requests to:</span>
+              <span className="">
+                Send incoming webhook requests to:
+              </span>
               <div className="flex flex-row items-center gap-2">
                 <code className="max-w-full rounded bg-muted px-2 py-1 font-mono text-xs">
                   {createWebhookURL(webhookName)}
@@ -529,7 +543,11 @@ const CreateWebhookModal = () => {
               </SelectTrigger>
               <SelectContent>
                 {Object.values(V1WebhookSourceName).map((source) => (
-                  <SelectItem key={source} value={source} className="h-10">
+                  <SelectItem
+                    key={source}
+                    value={source}
+                    className="h-10"
+                  >
                     <div className="flex h-10 flex-row items-center gap-x-2">
                       <SourceName sourceName={source} />
                       <span className="max-w-full truncate text-sm">
@@ -546,7 +564,9 @@ const CreateWebhookModal = () => {
                 >
                   <div className="flex flex-row items-center gap-x-2">
                     <Lightbulb className="size-4 text-yellow-500" />
-                    <span>Want a new source added? Reach out to support</span>
+                    <span>
+                      Want a new source added? Reach out to support
+                    </span>
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -555,8 +575,12 @@ const CreateWebhookModal = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="eventKeyExpression" className="text-sm font-medium">
-              Event Key Expression <span className="text-red-500">*</span>
+            <Label
+              htmlFor="eventKeyExpression"
+              className="text-sm font-medium"
+            >
+              Event Key Expression{' '}
+              <span className="text-red-500">*</span>
             </Label>
             <Input
               id="eventKeyExpression"
@@ -594,8 +618,8 @@ const CreateWebhookModal = () => {
                     <code className="rounded bg-background px-1.5 py-0.5 text-foreground">
                       input.type
                     </code>{' '}
-                    works well since Slack interactive payloads don't have a
-                    top-level `id` field.
+                    works well since Slack interactive payloads don't
+                    have a top-level `id` field.
                   </p>
                 </div>
               )}
@@ -603,7 +627,10 @@ const CreateWebhookModal = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="scopeExpression" className="text-sm font-medium">
+            <Label
+              htmlFor="scopeExpression"
+              className="text-sm font-medium"
+            >
               Scope Expression{' '}
               <span className="text-muted-foreground">(optional)</span>
             </Label>
@@ -620,15 +647,18 @@ const CreateWebhookModal = () => {
             )}
             <div className="pl-1 text-xs text-muted-foreground">
               <p>
-                CEL expression to extract the scope from the webhook payload.
-                Used to filter which workflows to trigger based on event
-                filters.
+                CEL expression to extract the scope from the webhook
+                payload. Used to filter which workflows to trigger based
+                on event filters.
               </p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="staticPayload" className="text-sm font-medium">
+            <Label
+              htmlFor="staticPayload"
+              className="text-sm font-medium"
+            >
               Static Payload{' '}
               <span className="text-muted-foreground">(optional)</span>
             </Label>
@@ -645,8 +675,9 @@ const CreateWebhookModal = () => {
             )}
             <div className="pl-1 text-xs text-muted-foreground">
               <p>
-                JSON object to merge into the webhook payload. Static payload
-                fields take precedence over incoming payload fields.
+                JSON object to merge into the webhook payload. Static
+                payload fields take precedence over incoming payload
+                fields.
               </p>
             </div>
           </div>
@@ -655,7 +686,10 @@ const CreateWebhookModal = () => {
             <div className="space-y-4 border-l-2 border-gray-200 pl-4">
               {sourceName === V1WebhookSourceName.GENERIC && (
                 <div className="space-y-2">
-                  <Label htmlFor="authType" className="text-sm font-medium">
+                  <Label
+                    htmlFor="authType"
+                    className="text-sm font-medium"
+                  >
                     Authentication Type
                   </Label>
                   <Select
@@ -669,13 +703,19 @@ const CreateWebhookModal = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={V1WebhookAuthType.BASIC}>
-                        <AuthMethod authMethod={V1WebhookAuthType.BASIC} />
+                        <AuthMethod
+                          authMethod={V1WebhookAuthType.BASIC}
+                        />
                       </SelectItem>
                       <SelectItem value={V1WebhookAuthType.API_KEY}>
-                        <AuthMethod authMethod={V1WebhookAuthType.API_KEY} />
+                        <AuthMethod
+                          authMethod={V1WebhookAuthType.API_KEY}
+                        />
                       </SelectItem>
                       <SelectItem value={V1WebhookAuthType.HMAC}>
-                        <AuthMethod authMethod={V1WebhookAuthType.HMAC} />
+                        <AuthMethod
+                          authMethod={V1WebhookAuthType.HMAC}
+                        />
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -784,7 +824,8 @@ export const EditWebhookModal = ({
               htmlFor="edit-eventKeyExpression"
               className="text-sm font-medium"
             >
-              Event Key Expression <span className="text-red-500">*</span>
+              Event Key Expression{' '}
+              <span className="text-red-500">*</span>
             </Label>
             <Input
               id="edit-eventKeyExpression"
@@ -798,7 +839,8 @@ export const EditWebhookModal = ({
               </p>
             )}
             <p className="text-xs text-muted-foreground">
-              CEL expression to extract the event key from the webhook payload.
+              CEL expression to extract the event key from the webhook
+              payload.
             </p>
           </div>
 
@@ -827,7 +869,10 @@ export const EditWebhookModal = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-staticPayload" className="text-sm font-medium">
+            <Label
+              htmlFor="edit-staticPayload"
+              className="text-sm font-medium"
+            >
               Static Payload{' '}
               <span className="text-muted-foreground">(optional)</span>
             </Label>

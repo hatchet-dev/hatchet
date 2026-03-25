@@ -40,11 +40,13 @@ export const useMetrics = ({
 
   const runStatusCounts = rawStatusCounts || [];
 
-  const { data: queueMetricsRaw, isLoading: isQueueMetricsLoading } = useQuery({
-    ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval: 5000,
-    enabled: showQueueMetrics,
-  });
+  const { data: queueMetricsRaw, isLoading: isQueueMetricsLoading } = useQuery(
+    {
+      ...queries.metrics.getStepRunQueueMetrics(tenantId),
+      refetchInterval: 5000,
+      enabled: showQueueMetrics,
+    },
+  );
 
   const queueMetrics = queueMetricsRaw?.queues || {};
 

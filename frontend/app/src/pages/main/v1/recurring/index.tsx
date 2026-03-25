@@ -25,7 +25,9 @@ export default function CronsTable() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    {},
+  );
 
   const {
     crons,

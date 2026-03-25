@@ -135,7 +135,9 @@ const EnvGroupArray: React.FC<PropsType> = ({
             <Input
               placeholder={entry.hint}
               value={entry.isEditing ? entry.value : undefined}
-              onChange={(e) => handleValueChange(i, 'value', e.target.value)}
+              onChange={(e) =>
+                handleValueChange(i, 'value', e.target.value)
+              }
               type="password"
               disabled={disabled || entry.locked || entry.deleted}
               className={cn(
@@ -164,7 +166,8 @@ const EnvGroupArray: React.FC<PropsType> = ({
             <Button
               variant="ghost"
               onClick={() =>
-                !entry.locked && handleValueChange(i, 'hidden', !entry.hidden)
+                !entry.locked &&
+                handleValueChange(i, 'hidden', !entry.hidden)
               }
               disabled={entry.locked || entry.deleted}
             >

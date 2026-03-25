@@ -49,7 +49,9 @@ const WorkflowRunVisualizer = ({
         shape.flatMap((shapeItem) =>
           shapeItem.childrenStepIds.map((childId) => {
             const child = shape.find((t) => t.stepId === childId);
-            const childTaskRun = taskRuns.find((t) => t.stepId === childId);
+            const childTaskRun = taskRuns.find(
+              (t) => t.stepId === childId,
+            );
 
             if (!child) {
               return null;
@@ -179,7 +181,9 @@ const WorkflowRunVisualizer = ({
         }}
         maxZoom={1}
         connectionLineStyle={
-          theme === 'dark' ? connectionLineStyleDark : connectionLineStyleLight
+          theme === 'dark'
+            ? connectionLineStyleDark
+            : connectionLineStyleLight
         }
         snapToGrid={true}
       />

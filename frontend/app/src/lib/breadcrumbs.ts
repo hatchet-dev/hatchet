@@ -189,7 +189,10 @@ export function generateBreadcrumbs(
       continue;
     }
 
-    const label = getTenantedPathLabel(segments.slice(0, 2 + i + 1), tenantId);
+    const label = getTenantedPathLabel(
+      segments.slice(0, 2 + i + 1),
+      tenantId,
+    );
 
     if (label) {
       breadcrumbs.push({

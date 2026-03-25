@@ -59,20 +59,21 @@ export function DeleteTenantModal({
         <div>
           <div className="mb-4 space-y-3 text-sm text-foreground">
             <p>
-              Are you sure you want to archive <strong>{tenantName}</strong>{' '}
-              from {organizationName}?
+              Are you sure you want to archive{' '}
+              <strong>{tenantName}</strong> from {organizationName}?
             </p>
             <p className="text-sm text-muted-foreground">
-              The tenant will be archived and kept for 30 days before being
-              permanently deleted. During this period, you can contact{' '}
+              The tenant will be archived and kept for 30 days before
+              being permanently deleted. During this period, you can
+              contact{' '}
               <a
                 href="mailto:support@hatchet.run"
                 className="text-primary underline"
               >
                 support@hatchet.run
               </a>{' '}
-              to unarchive the tenant if needed. After 30 days, the tenant and
-              all associated data will be permanently removed.
+              to unarchive the tenant if needed. After 30 days, the
+              tenant and all associated data will be permanently removed.
             </p>
             <div className="space-y-2 pt-2">
               <label className="text-sm font-medium">

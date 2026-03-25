@@ -36,7 +36,9 @@ export function CodeEditor({
   const monacoRef = useRef<Monaco | null>(null);
 
   const hasJsonSchema =
-    (language === 'json' && jsonSchema && Object.keys(jsonSchema).length > 0) ??
+    (language === 'json' &&
+      jsonSchema &&
+      Object.keys(jsonSchema).length > 0) ??
     false;
 
   const configureJsonSchema = useCallback(

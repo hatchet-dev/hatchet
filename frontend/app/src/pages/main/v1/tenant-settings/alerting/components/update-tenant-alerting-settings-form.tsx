@@ -57,7 +57,8 @@ export function UpdateTenantAlertingSettings({
   });
 
   const freqError =
-    errors.maxAlertingFrequency?.message?.toString() || props.fieldErrors?.role;
+    errors.maxAlertingFrequency?.message?.toString() ||
+    props.fieldErrors?.role;
 
   return (
     <div>
@@ -67,7 +68,8 @@ export function UpdateTenantAlertingSettings({
             ...d,
             enableWorkflowRunFailureAlerts: enabledWorkflowAlerting,
             enableExpiringTokenAlerts: enabledExpiringTokenAlerting,
-            enableTenantResourceLimitAlerts: enableTenantResourceLimitAlerts,
+            enableTenantResourceLimitAlerts:
+              enableTenantResourceLimitAlerts,
           });
         })}
         className={cn('grid gap-6', className)}
@@ -77,7 +79,9 @@ export function UpdateTenantAlertingSettings({
             id="eta"
             checked={enabledExpiringTokenAlerting}
             onClick={() => {
-              setEnabledExpiringTokenAlerting((checkedState) => !checkedState);
+              setEnabledExpiringTokenAlerting(
+                (checkedState) => !checkedState,
+              );
             }}
           />
           <Label htmlFor="eta" className="text-sm">
@@ -103,7 +107,9 @@ export function UpdateTenantAlertingSettings({
             id="awrf"
             checked={enabledWorkflowAlerting}
             onClick={() => {
-              setEnabledWorkflowAlerting((checkedState) => !checkedState);
+              setEnabledWorkflowAlerting(
+                (checkedState) => !checkedState,
+              );
             }}
           />
           <Label htmlFor="awrf" className="text-sm">
@@ -130,9 +136,13 @@ export function UpdateTenantAlertingSettings({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="5m">5 minutes</SelectItem>
+                        <SelectItem value="5m">
+                          5 minutes
+                        </SelectItem>
                         <SelectItem value="1h">1 hour</SelectItem>
-                        <SelectItem value="24h">24 hours</SelectItem>
+                        <SelectItem value="24h">
+                          24 hours
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   );

@@ -53,7 +53,9 @@ export const columns = ({
             table.getIsAllPageRowsSelected() ||
             (table.getIsSomePageRowsSelected() && 'indeterminate')
           }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          onCheckedChange={(value) =>
+            table.toggleAllPageRowsSelected(!!value)
+          }
           aria-label="Select all"
           className="translate-y-[2px]"
         />
@@ -72,7 +74,10 @@ export const columns = ({
     {
       accessorKey: idKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={ScheduledRunColumn.id} />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.id}
+        />
       ),
       cell: ({ row }) => (
         <div
@@ -98,7 +103,9 @@ export const columns = ({
           className="cursor-pointer"
           onClick={() => onRowClick?.(row.original)}
         >
-          <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+          <RunStatus
+            status={row.original.workflowRunStatus || 'SCHEDULED'}
+          />
         </div>
       ),
       enableSorting: false,
@@ -136,7 +143,10 @@ export const columns = ({
           <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
             <Link
               to={appRoutes.tenantWorkflowRoute.to}
-              params={{ tenant: tenantId, workflow: row.original.workflowId }}
+              params={{
+                tenant: tenantId,
+                workflow: row.original.workflowId,
+              }}
             >
               {row.original.workflowName}
             </Link>
@@ -162,10 +172,14 @@ export const columns = ({
         return (
           <AdditionalMetadata
             metadata={row.original.additionalMetadata}
-            isOpen={selectedAdditionalMetaJobId === row.original.metadata.id}
+            isOpen={
+              selectedAdditionalMetaJobId === row.original.metadata.id
+            }
             onOpenChange={(open) => {
               if (open) {
-                handleSetSelectedAdditionalMetaJobId(row.original.metadata.id);
+                handleSetSelectedAdditionalMetaJobId(
+                  row.original.metadata.id,
+                );
               } else {
                 handleSetSelectedAdditionalMetaJobId(null);
               }

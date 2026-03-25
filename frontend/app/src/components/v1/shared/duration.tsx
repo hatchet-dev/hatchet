@@ -138,7 +138,10 @@ export function Duration({
       <PortalTooltip>
         <PortalTooltipTrigger asChild>
           <span
-            className={cn(!asChild && durationVariants({ variant }), className)}
+            className={cn(
+              !asChild && durationVariants({ variant }),
+              className,
+            )}
             {...props}
           >
             {content}

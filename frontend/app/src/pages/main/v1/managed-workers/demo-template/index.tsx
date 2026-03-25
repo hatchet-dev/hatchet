@@ -36,7 +36,9 @@ export default function DemoTemplate() {
   const { tenantId } = useCurrentTenantId();
   const [deploying, setDeploying] = useState(false);
   const [deployed, setDeployed] = useState(false);
-  const [deployedWorkerId, setDeployedWorkerId] = useState<string | null>(null);
+  const [deployedWorkerId, setDeployedWorkerId] = useState<string | null>(
+    null,
+  );
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
   const [deploymentStatus, setDeploymentStatus] = useState<string>('');
   const [isSimulation] = useState(false);
@@ -71,7 +73,9 @@ export default function DemoTemplate() {
 
         // In a real implementation, we would fetch the demo workflow ID here
         if (isSimulation) {
-          setWorkflowId(`sim-wf-${Math.random().toString(36).substring(2, 7)}`);
+          setWorkflowId(
+            `sim-wf-${Math.random().toString(36).substring(2, 7)}`,
+          );
         }
       }
     },
@@ -267,8 +271,7 @@ export default function DemoTemplate() {
       }, 1500);
     } else {
       // Call the real API to generate a token
-      api
-        .apiTokenCreate(tenantId, { name: 'demo-template-token' })
+      api.apiTokenCreate(tenantId, { name: 'demo-template-token' })
         .then((response: any) => {
           if (response.data && response.data.token) {
             setApiToken(response.data.token);
@@ -308,42 +311,42 @@ print(result)
     go: `package main
 
 import (
-	"fmt"
+  "fmt"
 
-	v1_workflows "github.com/hatchet-dev/hatchet/examples/go/tasks"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-	"github.com/joho/godotenv"
+  v1_workflows "github.com/hatchet-dev/hatchet/examples/go/tasks"
+  v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+  "github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+  "github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		panic(err)
-	}
+  err := godotenv.Load()
+  if err != nil {
+    panic(err)
+  }
 
-	hatchet, err := v1.NewHatchetClient()
+  hatchet, err := v1.NewHatchetClient()
 
-	if err != nil {
-		panic(err)
-	}
+  if err != nil {
+    panic(err)
+  }
 
-	simple := v1.WorkflowFactory[any, any](
-		workflow.CreateOpts[any]{
-			Name: "first-workflow",
-		},
-		&hatchet,
-	)
+  simple := v1.WorkflowFactory[any, any](
+    workflow.CreateOpts[any]{
+      Name: "first-workflow",
+    },
+    &hatchet,
+  )
 
-	result, err := simple.Run(v1_workflows.SimpleInput{
-		Message: "Hello, World!",
-	})
+  result, err := simple.Run(v1_workflows.SimpleInput{
+    Message: "Hello, World!",
+  })
 
-	if err != nil {
-		panic(err)
-	}
+  if err != nil {
+    panic(err)
+  }
 
-	fmt.Println(result)
+  fmt.Println(result)
 }
 `,
   };
@@ -387,7 +390,9 @@ func main() {
                       <span className="mr-2 flex items-center text-primary">
                         •
                       </span>
-                      <span>1 managed service (limited resources)</span>
+                      <span>
+                        1 managed service (limited resources)
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2 flex items-center text-primary">
@@ -427,7 +432,9 @@ func main() {
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
-                            value={TemplateOptions.QUICKSTART_TYPESCRIPT}
+                            value={
+                              TemplateOptions.QUICKSTART_TYPESCRIPT
+                            }
                             id="typescript"
                             className="mr-2"
                           />
@@ -485,7 +492,9 @@ func main() {
                       >
                         <div className="flex items-center space-x-3">
                           <RadioGroupItem
-                            value={TemplateOptions.QUICKSTART_PYTHON}
+                            value={
+                              TemplateOptions.QUICKSTART_PYTHON
+                            }
                             id="python"
                             className="mr-2"
                           />
@@ -497,7 +506,8 @@ func main() {
                               Python
                             </Label>
                             <p className="text-sm text-muted-foreground">
-                              Simple, readable syntax for rapid development.
+                              Simple, readable syntax for rapid
+                              development.
                             </p>
                           </div>
                         </div>
@@ -533,7 +543,9 @@ func main() {
                     <div
                       className="cursor-pointer"
                       onClick={() =>
-                        handleLanguageSelection(TemplateOptions.QUICKSTART_GO)
+                        handleLanguageSelection(
+                          TemplateOptions.QUICKSTART_GO,
+                        )
                       }
                     >
                       <Card
@@ -553,12 +565,14 @@ func main() {
                               Go
                             </Label>
                             <p className="text-sm text-muted-foreground">
-                              Efficient, concurrent programming language.
+                              Efficient, concurrent programming
+                              language.
                             </p>
                           </div>
                         </div>
 
-                        {selectedTemplate === TemplateOptions.QUICKSTART_GO && (
+                        {selectedTemplate ===
+                          TemplateOptions.QUICKSTART_GO && (
                           <div className="mt-4 border-t pt-4">
                             <div className="flex items-center justify-between">
                               <a
@@ -586,7 +600,10 @@ func main() {
                   </RadioGroup>
                 </div>
 
-                <Button onClick={handleConfirmInfo} className="mt-2 w-fit">
+                <Button
+                  onClick={handleConfirmInfo}
+                  className="mt-2 w-fit"
+                >
                   Continue
                 </Button>
               </div>
@@ -613,20 +630,23 @@ func main() {
                         {selectedTemplate
                           .replace('QUICKSTART_', '')
                           .toLowerCase()}{' '}
-                        demo template. This will create a managed service and
-                        workflow that you can use to explore the features.
+                        demo template. This will create a managed
+                        service and workflow that you can use to
+                        explore the features.
                       </p>
 
                       <div className="mb-6 rounded-lg bg-muted/30 p-4">
-                        <h4 className="mb-2 font-medium">What happens next:</h4>
+                        <h4 className="mb-2 font-medium">
+                          What happens next:
+                        </h4>
                         <ul className="space-y-2">
                           <li className="flex items-start">
                             <span className="mr-2 flex items-center text-primary">
                               •
                             </span>
                             <span>
-                              A service will be provisioned with the necessary
-                              resources
+                              A service will be provisioned with
+                              the necessary resources
                             </span>
                           </li>
                           <li className="flex items-start">
@@ -634,7 +654,8 @@ func main() {
                               •
                             </span>
                             <span>
-                              A sample workflow will be created and registered
+                              A sample workflow will be created
+                              and registered
                             </span>
                           </li>
                           <li className="flex items-start">
@@ -642,8 +663,8 @@ func main() {
                               •
                             </span>
                             <span>
-                              You'll be able to monitor the activity in your
-                              dashboard
+                              You'll be able to monitor the
+                              activity in your dashboard
                             </span>
                           </li>
                         </ul>
@@ -661,10 +682,15 @@ func main() {
                             <span>{deploymentStatus}</span>
                             {deployedWorkerId && (
                               <Link
-                                to={appRoutes.tenantManagedWorkerRoute.to}
+                                to={
+                                  appRoutes
+                                    .tenantManagedWorkerRoute
+                                    .to
+                                }
                                 params={{
                                   tenant: tenantId,
-                                  managedWorker: deployedWorkerId,
+                                  managedWorker:
+                                    deployedWorkerId,
                                 }}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -699,10 +725,14 @@ func main() {
                           </div>
                           <Button
                             onClick={handleDeploy}
-                            disabled={deploying || (!isSimulation && isPending)}
+                            disabled={
+                              deploying ||
+                              (!isSimulation && isPending)
+                            }
                             className="min-w-32"
                           >
-                            {deploying || (!isSimulation && isPending)
+                            {deploying ||
+                            (!isSimulation && isPending)
                               ? 'Deploying...'
                               : isSimulation
                                 ? 'Simulate Deploy'
@@ -737,12 +767,13 @@ func main() {
                       {selectedTemplate
                         .replace('QUICKSTART_', '')
                         .toLowerCase()}{' '}
-                      demo template has been successfully deployed. You can now
-                      explore the managed service features.
+                      demo template has been successfully deployed.
+                      You can now explore the managed service
+                      features.
                       {isSimulation && (
                         <span className="mt-2 block font-medium text-amber-500">
-                          Note: This was a simulated deployment. No actual
-                          resources were created.
+                          Note: This was a simulated deployment. No
+                          actual resources were created.
                         </span>
                       )}
                     </p>
@@ -760,8 +791,8 @@ func main() {
                         Trigger a Remote Run Programmatically
                       </h4>
                       <p className="mb-4 text-sm text-muted-foreground">
-                        Run the following code locally to execute a task on the
-                        deployed service.
+                        Run the following code locally to execute a
+                        task on the deployed service.
                       </p>
 
                       {!apiToken ? (
@@ -786,8 +817,9 @@ func main() {
                           </div>
 
                           <p className="mb-2 text-sm text-muted-foreground">
-                            This is the only time we will show you this auth
-                            token. Make sure to copy it now.
+                            This is the only time we will show you
+                            this auth token. Make sure to copy it
+                            now.
                           </p>
 
                           <CodeHighlighter
@@ -802,9 +834,13 @@ func main() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => setTokenRevealed(!tokenRevealed)}
+                              onClick={() =>
+                                setTokenRevealed(!tokenRevealed)
+                              }
                             >
-                              {tokenRevealed ? 'Hide Token' : 'Reveal Token'}
+                              {tokenRevealed
+                                ? 'Hide Token'
+                                : 'Reveal Token'}
                             </Button>
                             <Button
                               variant="outline"
@@ -818,7 +854,9 @@ func main() {
                         </>
                       )}
                       <div className="mt-2 border-t pt-4">
-                        <h5 className="mb-2 font-medium">Example Code</h5>
+                        <h5 className="mb-2 font-medium">
+                          Example Code
+                        </h5>
                         <Tabs
                           value={selectedCodeTab}
                           onValueChange={setSelectedCodeTab}
@@ -828,17 +866,29 @@ func main() {
                             <TabsTrigger value="typescript">
                               TypeScript
                             </TabsTrigger>
-                            <TabsTrigger value="python">Python</TabsTrigger>
-                            <TabsTrigger value="go">Go</TabsTrigger>
+                            <TabsTrigger value="python">
+                              Python
+                            </TabsTrigger>
+                            <TabsTrigger value="go">
+                              Go
+                            </TabsTrigger>
                           </TabsList>
-                          <TabsContent value="typescript" className="mt-0">
+                          <TabsContent
+                            value="typescript"
+                            className="mt-0"
+                          >
                             <CodeHighlighter
-                              code={triggerCodeExamples.typescript}
+                              code={
+                                triggerCodeExamples.typescript
+                              }
                               language="typescript"
                               copy
                             />
                           </TabsContent>
-                          <TabsContent value="python" className="mt-0">
+                          <TabsContent
+                            value="python"
+                            className="mt-0"
+                          >
                             <CodeHighlighter
                               code={triggerCodeExamples.python}
                               language="python"
@@ -867,7 +917,8 @@ func main() {
                         •
                       </span>
                       <span>
-                        View your deployed service to see logs and metrics
+                        View your deployed service to see logs and
+                        metrics
                       </span>
                     </li>
                     <li className="flex items-start">
@@ -875,14 +926,17 @@ func main() {
                         •
                       </span>
                       <span>
-                        Three demo task runs have been triggered for you
+                        Three demo task runs have been triggered for
+                        you
                       </span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2 mt-0.5 flex items-center text-primary">
                         •
                       </span>
-                      <span>Use the API to trigger additional task runs</span>
+                      <span>
+                        Use the API to trigger additional task runs
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2 mt-0.5 flex items-center text-primary">

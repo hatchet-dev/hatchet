@@ -6,8 +6,7 @@ const cardVariants = cva('rounded-lg border', {
   variants: {
     variant: {
       default: 'rounded-xl bg-card text-card-foreground shadow',
-      light:
-        'bg-gray-50/50 border-gray-200 dark:bg-gray-800/20 dark:border-gray-700',
+      light: 'bg-gray-50/50 border-gray-200 dark:bg-gray-800/20 dark:border-gray-700',
     },
   },
   defaultVariants: {

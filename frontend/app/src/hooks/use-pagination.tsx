@@ -134,7 +134,9 @@ export const usePagination = ({ key }: UsePaginationProps) => {
       setSearchParams((prev) => {
         const currentPagination = parsePaginationParam(prev, paramKey);
         const newPagination =
-          typeof updater === 'function' ? updater(currentPagination) : updater;
+          typeof updater === 'function'
+            ? updater(currentPagination)
+            : updater;
 
         return {
           ...Object.fromEntries(prev.entries()),

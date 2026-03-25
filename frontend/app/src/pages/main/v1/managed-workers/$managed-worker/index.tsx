@@ -67,7 +67,9 @@ export default function ExpandedWorkflow() {
   const deleteManagedWorkerMutation = useMutation({
     mutationKey: ['managed-worker:delete', params.managedWorker],
     mutationFn: async () => {
-      const res = await cloudApi.managedWorkerDelete(managedWorker.metadata.id);
+      const res = await cloudApi.managedWorkerDelete(
+        managedWorker.metadata.id,
+      );
       return res.data;
     },
     onSuccess: () => {

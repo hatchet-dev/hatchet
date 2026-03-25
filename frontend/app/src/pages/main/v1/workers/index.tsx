@@ -39,7 +39,9 @@ export default function Workers() {
     resetFilters,
   } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    {},
+  );
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),

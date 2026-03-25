@@ -90,7 +90,10 @@ export const AdditionalMetadata = memo(
                                 {getDisplayValue(value)}
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-xs">
+                            <TooltipContent
+                              side="left"
+                              className="max-w-xs"
+                            >
                               <pre className="whitespace-pre-wrap text-xs">
                                 {JSON.stringify(value, null, 2)}
                               </pre>
@@ -112,7 +115,8 @@ export const AdditionalMetadata = memo(
       prevProps.isOpen === nextProps.isOpen &&
       prevProps.onClick === nextProps.onClick &&
       prevProps.onOpenChange === nextProps.onOpenChange &&
-      JSON.stringify(prevProps.metadata) === JSON.stringify(nextProps.metadata)
+      JSON.stringify(prevProps.metadata) ===
+        JSON.stringify(nextProps.metadata)
     );
   },
 );

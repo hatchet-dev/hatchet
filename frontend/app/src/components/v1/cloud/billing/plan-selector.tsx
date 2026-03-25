@@ -76,7 +76,9 @@ export function PlanSelector({
   const plans = plansQuery.data?.plans;
 
   const sortedPlans = useMemo(() => {
-    const nonLegacy = plans?.filter((v) => !v.legacy && v.planCode !== 'free');
+    const nonLegacy = plans?.filter(
+      (v) => !v.legacy && v.planCode !== 'free',
+    );
 
     const hasYearlyVariant = (planCode: string) =>
       nonLegacy?.some(
@@ -88,7 +90,9 @@ export function PlanSelector({
     return nonLegacy
       ?.filter((v) => {
         if (showAnnual) {
-          return v.period?.includes('yearly') || !hasYearlyVariant(v.planCode);
+          return (
+            v.period?.includes('yearly') || !hasYearlyVariant(v.planCode)
+          );
         }
         return v.period?.includes('monthly') || !v.period;
       })
@@ -243,7 +247,9 @@ function PlanCard({
               )}
             </>
           ) : (
-            <span className="text-sm text-muted-foreground">{description}</span>
+            <span className="text-sm text-muted-foreground">
+              {description}
+            </span>
           )}
         </div>
 
@@ -320,7 +326,9 @@ function PlanCard({
           ) : isUpcoming ? (
             'Upcoming Plan'
           ) : (
-            buttonLabel || selectLabel || (isUpgrade ? 'Upgrade' : 'Downgrade')
+            buttonLabel ||
+            selectLabel ||
+            (isUpgrade ? 'Upgrade' : 'Downgrade')
           )}
         </Button>
       </CardContent>

@@ -50,7 +50,9 @@ export function SpanMarkers({
             onTooltipPosChange(null);
           }}
         >
-          <div className={cn('flex-1 rounded-full', getSpanColor(m.span))} />
+          <div
+            className={cn('flex-1 rounded-full', getSpanColor(m.span))}
+          />
         </div>
       ))}
     </>

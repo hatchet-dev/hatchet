@@ -24,8 +24,8 @@ export function DeleteSlackForm({ className, ...props }: DeleteSlackFormProps) {
       <div>
         <div className="mb-4 text-sm text-foreground">
           Are you sure you want to delete the Slack webhook for channel{' '}
-          {props.slackWebhook.channelName} in team {props.slackWebhook.teamName}
-          ?
+          {props.slackWebhook.channelName} in team{' '}
+          {props.slackWebhook.teamName}?
         </div>
         <div className="flex flex-row gap-4">
           <Button

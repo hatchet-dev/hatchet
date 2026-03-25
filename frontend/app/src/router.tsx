@@ -177,7 +177,10 @@ const tenantRoute = createRoute({
     );
 
     if (!hasAccess) {
-      throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+      throw new Response('Forbidden', {
+        status: 403,
+        statusText: 'Forbidden',
+      });
     }
 
     // Optionally warm the tenant details cache, since most tenant pages expect it.

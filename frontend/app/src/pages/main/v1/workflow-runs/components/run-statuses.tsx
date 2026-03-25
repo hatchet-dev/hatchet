@@ -120,7 +120,9 @@ export function RunStatus({
         <TooltipTrigger>
           <StatusBadge />
         </TooltipTrigger>
-        <TooltipContent>{RUN_STATUS_REASONS[reason] || reason}</TooltipContent>
+        <TooltipContent>
+          {RUN_STATUS_REASONS[reason] || reason}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

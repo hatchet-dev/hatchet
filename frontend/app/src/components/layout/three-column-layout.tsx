@@ -29,7 +29,10 @@ export function ThreeColumnLayout({
       <div className="col-start-1 row-start-1 min-h-0">{sidebar}</div>
 
       <div
-        className={cn('col-start-2 row-start-1 min-h-0 min-w-0', mainClassName)}
+        className={cn(
+          'col-start-2 row-start-1 min-h-0 min-w-0',
+          mainClassName,
+        )}
         style={
           mainContainerType === 'inline-size'
             ? { containerType: 'inline-size' }

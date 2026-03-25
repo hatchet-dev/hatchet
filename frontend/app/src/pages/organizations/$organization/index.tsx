@@ -108,7 +108,9 @@ export default function OrganizationPage() {
     handleUpdateOrganization(orgId, editedName.trim(), () => {
       setIsEditingName(false);
       setEditedName('');
-      queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
+      queryClient.invalidateQueries({
+        queryKey: ['organization:get', orgId],
+      });
     });
   };
 
@@ -253,9 +255,13 @@ export default function OrganizationPage() {
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => {
-        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
+        const detailed = detailedTenants.find(
+          (t) => t?.metadata.id === row.id,
+        );
         return (
-          <span className="font-medium">{detailed?.name || 'Loading...'}</span>
+          <span className="font-medium">
+            {detailed?.name || 'Loading...'}
+          </span>
         );
       },
     },
@@ -275,9 +281,13 @@ export default function OrganizationPage() {
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => {
-        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
+        const detailed = detailedTenants.find(
+          (t) => t?.metadata.id === row.id,
+        );
         return (
-          <span className="text-muted-foreground">{detailed?.slug || '-'}</span>
+          <span className="text-muted-foreground">
+            {detailed?.slug || '-'}
+          </span>
         );
       },
     },
@@ -427,19 +437,21 @@ export default function OrganizationPage() {
   const tokenColumns = [
     {
       columnLabel: 'Name',
-      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
-        <span className="font-medium">{row.name}</span>
-      ),
+      cellRenderer: (
+        row: ManagementToken & { metadata: { id: string } },
+      ) => <span className="font-medium">{row.name}</span>,
     },
     {
       columnLabel: 'Expiry',
-      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
-        <span>{formatExpirationDate(row.expiresAt)}</span>
-      ),
+      cellRenderer: (
+        row: ManagementToken & { metadata: { id: string } },
+      ) => <span>{formatExpirationDate(row.expiresAt)}</span>,
     },
     {
       columnLabel: 'Actions',
-      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+      cellRenderer: (
+        row: ManagementToken & { metadata: { id: string } },
+      ) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -499,7 +511,9 @@ export default function OrganizationPage() {
                 variant="ghost"
                 className="h-7 w-7 shrink-0 p-0"
                 onClick={handleSaveEdit}
-                disabled={updateOrganizationLoading || !editedName.trim()}
+                disabled={
+                  updateOrganizationLoading || !editedName.trim()
+                }
               >
                 <CheckIcon className="size-3.5" />
               </Button>
@@ -602,26 +616,35 @@ export default function OrganizationPage() {
                   <div className="flex items-center justify-center py-8">
                     <Loading />
                   </div>
-                ) : organization.tenants && organization.tenants.length > 0 ? (
+                ) : organization.tenants &&
+                  organization.tenants.length > 0 ? (
                   <SimpleTable
                     data={organization.tenants
                       .filter(
-                        (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
+                        (tenant) =>
+                          tenant.status !==
+                          TenantStatusType.ARCHIVED,
                       )
-                      .map((t) => ({ ...t, metadata: { id: t.id } }))}
+                      .map((t) => ({
+                        ...t,
+                        metadata: { id: t.id },
+                      }))}
                     columns={tenantColumns}
                   />
                 ) : (
                   <div className="py-16 text-center">
                     <BuildingOffice2Icon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <h3 className="mb-2 text-lg font-medium">No Tenants Yet</h3>
+                    <h3 className="mb-2 text-lg font-medium">
+                      No Tenants Yet
+                    </h3>
                     <p className="mb-4 text-muted-foreground">
                       Add your first tenant to get started.
                     </p>
                     <Button
                       onClick={() => {
                         globalEmitter.emit('create-new-tenant', {
-                          defaultOrganizationId: organization.metadata.id,
+                          defaultOrganizationId:
+                            organization.metadata.id,
                         });
                       }}
                       leftIcon={<PlusIcon className="size-4" />}
@@ -635,7 +658,8 @@ export default function OrganizationPage() {
 
             {activeSection === 'members' && (
               <div className="space-y-8">
-                {organization.members && organization.members.length > 0 ? (
+                {organization.members &&
+                organization.members.length > 0 ? (
                   <SimpleTable
                     data={organization.members}
                     columns={memberColumns}
@@ -643,9 +667,12 @@ export default function OrganizationPage() {
                 ) : (
                   <div className="py-16 text-center">
                     <UserIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <h3 className="mb-2 text-lg font-medium">No Members Yet</h3>
+                    <h3 className="mb-2 text-lg font-medium">
+                      No Members Yet
+                    </h3>
                     <p className="mb-4 text-muted-foreground">
-                      Members will appear here when they join this organization.
+                      Members will appear here when they join this
+                      organization.
                     </p>
                   </div>
                 )}
@@ -678,10 +705,12 @@ export default function OrganizationPage() {
                   managementTokensQuery.data.rows &&
                   managementTokensQuery.data.rows.length > 0 ? (
                   <SimpleTable
-                    data={managementTokensQuery.data.rows.map((t) => ({
-                      ...t,
-                      metadata: { id: t.id },
-                    }))}
+                    data={managementTokensQuery.data.rows.map(
+                      (t) => ({
+                        ...t,
+                        metadata: { id: t.id },
+                      }),
+                    )}
                     columns={tokenColumns}
                   />
                 ) : (
@@ -758,7 +787,9 @@ export default function OrganizationPage() {
 
       {(() => {
         const foundTenant = tenantToArchive
-          ? detailedTenants.find((t) => t?.metadata.id === tenantToArchive.id)
+          ? detailedTenants.find(
+              (t) => t?.metadata.id === tenantToArchive.id,
+            )
           : undefined;
         return (
           tenantToArchive &&
@@ -774,7 +805,9 @@ export default function OrganizationPage() {
                 queryClient.invalidateQueries({
                   queryKey: ['organization:get', orgId],
                 });
-                queryClient.invalidateQueries({ queryKey: ['tenant:get'] });
+                queryClient.invalidateQueries({
+                  queryKey: ['tenant:get'],
+                });
               }}
             />
           )

@@ -125,7 +125,11 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
         autocompleteContext={[]}
         placeholder="Search logs..."
         filterChips={[
-          { key: 'level:', label: 'Level', description: 'Filter by log level' },
+          {
+            key: 'level:',
+            label: 'Level',
+            description: 'Filter by log level',
+          },
           {
             key: 'attempt:',
             label: 'Attempt',

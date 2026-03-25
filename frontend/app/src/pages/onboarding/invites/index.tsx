@@ -93,7 +93,10 @@ const OrganizationInviteList = ({
                         capture('onboarding_org_invite_rejected', {
                           invite_id: invite.metadata.id,
                         });
-                        onDealtWithInvite(invite.organizationId, false);
+                        onDealtWithInvite(
+                          invite.organizationId,
+                          false,
+                        );
                       },
                     },
                   );
@@ -114,8 +117,12 @@ const OrganizationInviteList = ({
                           invite_id: invite.metadata.id,
                         });
                         invalidateUserUniverse();
-                        const refetchingUserUniversePromise = getUserUniverse();
-                        onDealtWithInvite(invite.organizationId, true);
+                        const refetchingUserUniversePromise =
+                          getUserUniverse();
+                        onDealtWithInvite(
+                          invite.organizationId,
+                          true,
+                        );
                         return refetchingUserUniversePromise;
                       },
                     },
@@ -382,7 +389,8 @@ export default function Invites() {
 
                 setOrgInvites((prevOrgInvites) =>
                   prevOrgInvites.filter(
-                    (invite) => invite.organizationId !== organizationId,
+                    (invite) =>
+                      invite.organizationId !== organizationId,
                   ),
                 );
               }}

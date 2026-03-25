@@ -155,7 +155,9 @@ const ChartTooltipContent = React.forwardRef<
         return null;
       }
 
-      return <div className={cn('font-medium', labelClassName)}>{value}</div>;
+      return (
+        <div className={cn('font-medium', labelClassName)}>{value}</div>
+      );
     }, [
       label,
       labelFormatter,
@@ -184,8 +186,13 @@ const ChartTooltipContent = React.forwardRef<
         <div className="grid gap-1.5">
           {payload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || 'value'}`;
-            const itemConfig = getPayloadConfigFromPayload(config, item, key);
-            const indicatorColor = color || item.payload.fill || item.color;
+            const itemConfig = getPayloadConfigFromPayload(
+              config,
+              item,
+              key,
+            );
+            const indicatorColor =
+              color || item.payload.fill || item.color;
 
             return (
               <div
@@ -196,7 +203,13 @@ const ChartTooltipContent = React.forwardRef<
                 )}
               >
                 {formatter && item?.value !== undefined && item.name ? (
-                  formatter(item.value, item.name, item, index, item.payload)
+                  formatter(
+                    item.value,
+                    item.name,
+                    item,
+                    index,
+                    item.payload,
+                  )
                 ) : (
                   <>
                     {itemConfig?.icon ? (
@@ -211,7 +224,9 @@ const ChartTooltipContent = React.forwardRef<
                               'w-1': indicator === 'line',
                               'w-0 border-[1.5px] border-dashed bg-transparent':
                                 indicator === 'dashed',
-                              'my-0.5': nestLabel && indicator === 'dashed',
+                              'my-0.5':
+                                nestLabel &&
+                                indicator === 'dashed',
                             },
                           )}
                           style={
@@ -264,7 +279,13 @@ const ChartLegendContent = React.forwardRef<
     }
 >(
   (
-    { className, hideIcon = false, payload, verticalAlign = 'bottom', nameKey },
+    {
+      className,
+      hideIcon = false,
+      payload,
+      verticalAlign = 'bottom',
+      nameKey,
+    },
     ref,
   ) => {
     const { config } = useChart();
@@ -284,7 +305,11 @@ const ChartLegendContent = React.forwardRef<
       >
         {payload.map((item) => {
           const key = `${nameKey || item.dataKey || 'value'}`;
-          const itemConfig = getPayloadConfigFromPayload(config, item, key);
+          const itemConfig = getPayloadConfigFromPayload(
+            config,
+            item,
+            key,
+          );
 
           return (
             <div

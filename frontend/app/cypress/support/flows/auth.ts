@@ -49,7 +49,9 @@ export function loginSession(
             .clear()
             .type(tenantName);
           cy.contains('button', 'Create Tenant').click();
-          cy.wait('@createTenant').its('response.statusCode').should('eq', 200);
+          cy.wait('@createTenant')
+            .its('response.statusCode')
+            .should('eq', 200);
         }
 
         // If the user has pending invites, accept the first one to proceed
@@ -58,7 +60,9 @@ export function loginSession(
             'acceptInvite',
           );
           cy.contains('button', 'Accept').first().click();
-          cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
+          cy.wait('@acceptInvite')
+            .its('response.statusCode')
+            .should('eq', 200);
         }
       });
 

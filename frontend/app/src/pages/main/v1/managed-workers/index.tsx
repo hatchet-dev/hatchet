@@ -131,9 +131,9 @@ export default function ManagedWorkers() {
             Plan Upgrade Required
           </h3>
           <p className="mb-4 text-muted-foreground">
-            You've reached the maximum number of services ({workerPoolCount}/
-            {getWorkerPoolLimit()}) allowed on your current plan. Upgrade to
-            create more services.
+            You've reached the maximum number of services (
+            {workerPoolCount}/{getWorkerPoolLimit()}) allowed on your
+            current plan. Upgrade to create more services.
           </p>
           <div className="flex justify-end gap-3">
             <Button

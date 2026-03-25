@@ -146,7 +146,10 @@ export const TimelineLabels = memo(function TimelineLabels({
                 size="xs"
                 className="truncate text-sm"
                 onClick={() =>
-                  onShowMore(row.groupId, row.currentVisible + SHOW_MORE_BATCH)
+                  onShowMore(
+                    row.groupId,
+                    row.currentVisible + SHOW_MORE_BATCH,
+                  )
                 }
               >
                 Show {Math.min(row.remaining, SHOW_MORE_BATCH)} more

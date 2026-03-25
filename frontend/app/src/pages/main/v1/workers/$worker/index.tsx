@@ -204,7 +204,11 @@ export default function WorkerDetail() {
             <WorkerStatus status={worker.status} health={healthy} />
             <DropdownMenu>
               <DropdownMenuTrigger>
-                <Button aria-label="Worker Actions" size="icon" variant="ghost">
+                <Button
+                  aria-label="Worker Actions"
+                  size="icon"
+                  variant="ghost"
+                >
                   <BiDotsVertical />
                 </Button>
               </DropdownMenuTrigger>
@@ -213,12 +217,13 @@ export default function WorkerDetail() {
                   disabled={worker.status === 'INACTIVE'}
                   onClick={() => {
                     updateWorker.mutate({
-                      isPaused: worker.status === 'PAUSED' ? false : true,
+                      isPaused:
+                        worker.status === 'PAUSED' ? false : true,
                     });
                   }}
                 >
-                  {worker.status === 'PAUSED' ? 'Resume' : 'Pause'} Step Run
-                  Assignment
+                  {worker.status === 'PAUSED' ? 'Resume' : 'Pause'}{' '}
+                  Step Run Assignment
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -253,7 +258,9 @@ export default function WorkerDetail() {
                     Last Listener Established
                   </div>
                   <div className="font-medium text-gray-900 dark:text-gray-100">
-                    <RelativeDate date={worker.lastListenerEstablished} />
+                    <RelativeDate
+                      date={worker.lastListenerEstablished}
+                    />
                   </div>
                 </div>
               )}
@@ -290,7 +297,9 @@ export default function WorkerDetail() {
                     const available = capacity?.available;
                     const limit = capacity?.limit ?? 0;
                     const showAvailability = available !== undefined;
-                    const used = showAvailability ? limit - available : 0;
+                    const used = showAvailability
+                      ? limit - available
+                      : 0;
                     const usedPercentage =
                       showAvailability && limit > 0
                         ? Math.round((used / limit) * 100)
@@ -314,7 +323,9 @@ export default function WorkerDetail() {
                             <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50">
                               <div
                                 className="h-full bg-emerald-300 dark:bg-emerald-500 transition-all"
-                                style={{ width: `${usedPercentage}%` }}
+                                style={{
+                                  width: `${usedPercentage}%`,
+                                }}
                               />
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -353,7 +364,9 @@ export default function WorkerDetail() {
                 <CardContent className="space-y-2 text-sm">
                   {worker.runtimeInfo?.os && (
                     <div>
-                      <div className="text-gray-500 dark:text-gray-400">OS</div>
+                      <div className="text-gray-500 dark:text-gray-400">
+                        OS
+                      </div>
                       <div className="font-medium text-gray-900 dark:text-gray-100">
                         {worker.runtimeInfo.os}
                       </div>
@@ -365,7 +378,9 @@ export default function WorkerDetail() {
                         Runtime
                       </div>
                       <div className="font-medium text-gray-900 dark:text-gray-100">
-                        {capitalize(worker.runtimeInfo.language ?? '')}{' '}
+                        {capitalize(
+                          worker.runtimeInfo.language ?? '',
+                        )}{' '}
                         {worker.runtimeInfo.languageVersion}
                       </div>
                     </div>
@@ -402,11 +417,15 @@ export default function WorkerDetail() {
               <CardHeader>
                 <CardTitle>Worker Labels</CardTitle>
                 <CardDescription>
-                  Key-value pairs used to prioritize step assignment to specific
-                  workers.{' '}
+                  Key-value pairs used to prioritize step assignment to
+                  specific workers.{' '}
                   <DocsButton
                     variant="text"
-                    doc={docsPages.v1['advanced-assignment']['worker-affinity']}
+                    doc={
+                      docsPages.v1['advanced-assignment'][
+                        'worker-affinity'
+                      ]
+                    }
                     label="Learn more"
                     scrollTo={'specifying-worker-labels'}
                   />
@@ -457,7 +476,9 @@ export default function WorkerDetail() {
                     size="sm"
                     onClick={() => setShowAllActions(true)}
                   >
-                    Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                    Show{' '}
+                    {registeredWorkflows.length -
+                      N_ACTIONS_TO_PREVIEW}{' '}
                     more
                   </Button>
                 </div>

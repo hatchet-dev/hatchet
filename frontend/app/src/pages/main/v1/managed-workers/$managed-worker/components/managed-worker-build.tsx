@@ -17,7 +17,9 @@ export function ManagedWorkerBuild({ buildId }: { buildId: string }) {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <h4 className="text-lg font-semibold text-foreground">Build Overview</h4>
+      <h4 className="text-lg font-semibold text-foreground">
+        Build Overview
+      </h4>
       <div className="flex flex-row gap-4">
         <div className="flex flex-col gap-2">
           <div className="text-sm text-gray-700 dark:text-gray-300">

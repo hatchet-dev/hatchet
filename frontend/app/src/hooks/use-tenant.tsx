@@ -123,8 +123,8 @@ export function useTenantDetails() {
   const resourcePolicyQuery = useQuery({
     queryKey: ['tenant-resource-policy:get', tenant?.metadata.id],
     queryFn: async () => {
-      return (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? '')).data
-        .limits;
+      return (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? ''))
+        .data.limits;
     },
     enabled: !!tenant?.metadata.id,
   });
@@ -197,7 +197,8 @@ export function useTenantDetails() {
     setTenant,
     create: createTenantMutation,
     update: {
-      mutate: (data: UpdateTenantRequest) => updateTenantMutation.mutate(data),
+      mutate: (data: UpdateTenantRequest) =>
+        updateTenantMutation.mutate(data),
       mutateAsync: (data: UpdateTenantRequest) =>
         updateTenantMutation.mutateAsync(data),
       isPending: updateTenantMutation.isPending,

@@ -56,7 +56,10 @@ export const columns = ({
     {
       accessorKey: expressionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.expression} />
+        <DataTableColumnHeader
+          column={column}
+          title={CronColumn.expression}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4 whitespace-nowrap">
@@ -68,7 +71,10 @@ export const columns = ({
     {
       accessorKey: descriptionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.description} />
+        <DataTableColumnHeader
+          column={column}
+          title={CronColumn.description}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -80,7 +86,10 @@ export const columns = ({
     {
       accessorKey: timezoneKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.timezone} />
+        <DataTableColumnHeader
+          column={column}
+          title={CronColumn.timezone}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -107,14 +116,20 @@ export const columns = ({
     {
       accessorKey: workflowKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.workflow} />
+        <DataTableColumnHeader
+          column={column}
+          title={CronColumn.workflow}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
             <Link
               to={appRoutes.tenantWorkflowRoute.to}
-              params={{ tenant: tenantId, workflow: row.original.workflowId }}
+              params={{
+                tenant: tenantId,
+                workflow: row.original.workflowId,
+              }}
             >
               {row.original.workflowName}
             </Link>
@@ -127,7 +142,10 @@ export const columns = ({
     {
       accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.metadata} />
+        <DataTableColumnHeader
+          column={column}
+          title={CronColumn.metadata}
+        />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -153,7 +171,10 @@ export const columns = ({
     {
       accessorKey: createdAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.createdAt} />
+        <DataTableColumnHeader
+          column={column}
+          title={CronColumn.createdAt}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -170,7 +191,8 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div>
-          {isUpdatePending && updatingCronId === row.original.metadata.id ? (
+          {isUpdatePending &&
+          updatingCronId === row.original.metadata.id ? (
             <Spinner />
           ) : row.original.enabled ? (
             <Check className="size-4 text-emerald-500" />
@@ -202,7 +224,8 @@ export const columns = ({
                 label: row.original.enabled ? 'Disable' : 'Enable',
                 onClick: () => onEnableClick(row.original),
                 disabled:
-                  isUpdatePending && updatingCronId === row.original.metadata.id
+                  isUpdatePending &&
+                  updatingCronId === row.original.metadata.id
                     ? 'Update in progress'
                     : undefined,
               },

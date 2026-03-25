@@ -241,7 +241,11 @@ export const AuthSetup = ({
           return <APIKeyAuth register={register} />;
         case V1WebhookAuthType.HMAC:
           return (
-            <HMACAuth register={register} watch={watch} setValue={setValue} />
+            <HMACAuth
+              register={register}
+              watch={watch}
+              setValue={setValue}
+            />
           );
         default:
           const exhaustiveCheck: never = authMethod;

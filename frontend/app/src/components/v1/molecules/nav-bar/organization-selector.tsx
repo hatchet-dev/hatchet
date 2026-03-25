@@ -6,6 +6,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { cn } from '@/lib/utils';
@@ -27,7 +28,6 @@ import {
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useState, useMemo, useCallback } from 'react';
 import invariant from 'tiny-invariant';
-import { useAnalytics } from '@/hooks/use-analytics';
 
 export function OrganizationSelector({ className }: { className?: string }) {
   const navigate = useNavigate();
@@ -60,7 +60,9 @@ export function OrganizationSelector({ className }: { className?: string }) {
       if (a.isOwner !== b.isOwner) {
         return a.isOwner ? -1 : 1;
       }
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      return a.name.localeCompare(b.name, undefined, {
+        sensitivity: 'base',
+      });
     });
   }, [organizations]);
 
@@ -99,12 +101,15 @@ export function OrganizationSelector({ className }: { className?: string }) {
     !isTenantLoaded || !isUniverseLoaded || !organizations?.length;
 
   return (
-    <Popover open={open} onOpenChange={(open) => {
+    <Popover
+      open={open}
+      onOpenChange={(open) => {
         if (open) {
           capture('organization_selector_opened');
         }
         setOpen(open);
-      }}>
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -158,7 +163,8 @@ export function OrganizationSelector({ className }: { className?: string }) {
                         <CheckIcon
                           className={cn(
                             'size-4',
-                            currentOrg?.metadata.id === org.metadata.id
+                            currentOrg?.metadata.id ===
+                              org.metadata.id
                               ? 'opacity-100'
                               : 'opacity-0',
                           )}
@@ -167,7 +173,9 @@ export function OrganizationSelector({ className }: { className?: string }) {
                           variant="ghost"
                           size="sm"
                           className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
-                          onClick={(e) => handleSettingsClick(e, org)}
+                          onClick={(e) =>
+                            handleSettingsClick(e, org)
+                          }
                           title="Settings"
                         >
                           <Cog6ToothIcon className="size-3" />

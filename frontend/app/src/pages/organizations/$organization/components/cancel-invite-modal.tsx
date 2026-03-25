@@ -31,11 +31,13 @@ export function CancelInviteModal({
         <div className="space-y-3">
           <p>
             Are you sure you want to cancel the invitation for{' '}
-            <strong>{invite.inviteeEmail}</strong> to join {organizationName}?
+            <strong>{invite.inviteeEmail}</strong> to join{' '}
+            {organizationName}?
           </p>
           <p className="text-sm text-muted-foreground">
-            This action cannot be undone. The invitation will be permanently
-            deleted and the invited user will no longer be able to accept it.
+            This action cannot be undone. The invitation will be
+            permanently deleted and the invited user will no longer be
+            able to accept it.
           </p>
         </div>
       }

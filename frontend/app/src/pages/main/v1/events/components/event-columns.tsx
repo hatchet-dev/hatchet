@@ -132,7 +132,10 @@ export const columns = ({
     {
       accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={EventColumn.metadata} />
+        <DataTableColumnHeader
+          column={column}
+          title={EventColumn.metadata}
+        />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -160,7 +163,10 @@ export const columns = ({
     {
       accessorKey: payloadKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={EventColumn.payload} />
+        <DataTableColumnHeader
+          column={column}
+          title={EventColumn.payload}
+        />
       ),
       cell: ({ row }) => {
         if (!row.original.payload) {

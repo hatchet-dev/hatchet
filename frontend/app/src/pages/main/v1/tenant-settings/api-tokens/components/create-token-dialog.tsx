@@ -53,7 +53,8 @@ export function CreateTokenDialog({
     resolver: zodResolver(schema),
   });
 
-  const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
+  const nameError =
+    errors.name?.message?.toString() || props.fieldErrors?.name;
 
   if (token) {
     return (
@@ -62,8 +63,8 @@ export function CreateTokenDialog({
           <DialogTitle>Keep it secret, keep it safe</DialogTitle>
         </DialogHeader>
         <p className="text-sm">
-          This is the only time we will show you this token. Make sure to copy
-          it somewhere safe.
+          This is the only time we will show you this token. Make sure to
+          copy it somewhere safe.
         </p>
         <SecretCopier
           secrets={{ HATCHET_CLIENT_TOKEN: token }}
@@ -116,11 +117,13 @@ export function CreateTokenDialog({
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(EXPIRES_IN_OPTS).map(([label, value]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
+                      {Object.entries(EXPIRES_IN_OPTS).map(
+                        ([label, value]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
                     </SelectContent>
                   </Select>
                 );

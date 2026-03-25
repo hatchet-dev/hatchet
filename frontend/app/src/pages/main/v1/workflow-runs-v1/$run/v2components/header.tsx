@@ -51,7 +51,9 @@ export const V1RunDetailHeader = () => {
             <TaskRunActionButton
               actionType="cancel"
               paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
-              disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
+              disabled={TASK_RUN_TERMINAL_STATUSES.includes(
+                workflowRun.status,
+              )}
               showModal={false}
               showLabel
             />
@@ -108,7 +110,10 @@ const V1RunSummary = () => {
     );
   }
 
-  if (workflowRun.status === V1TaskStatus.CANCELLED && workflowRun.finishedAt) {
+  if (
+    workflowRun.status === V1TaskStatus.CANCELLED &&
+    workflowRun.finishedAt
+  ) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Cancelled '}
@@ -126,7 +131,10 @@ const V1RunSummary = () => {
     );
   }
 
-  if (workflowRun.status === V1TaskStatus.COMPLETED && workflowRun.finishedAt) {
+  if (
+    workflowRun.status === V1TaskStatus.COMPLETED &&
+    workflowRun.finishedAt
+  ) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Succeeded '}
@@ -158,7 +166,9 @@ const V1RunSummary = () => {
   });
 
   return (
-    <div className="flex flex-row items-center gap-4">{interleavedTimings}</div>
+    <div className="flex flex-row items-center gap-4">
+      {interleavedTimings}
+    </div>
   );
 };
 

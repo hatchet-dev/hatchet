@@ -99,7 +99,8 @@ const dropdownMenuItemVariants = cva(
   {
     variants: {
       variant: {
-        default: 'cursor-default focus:bg-accent focus:text-accent-foreground',
+        default:
+          'cursor-default focus:bg-accent focus:text-accent-foreground',
         interactive:
           'cursor-pointer hover:bg-primary/10 focus:bg-primary/10 focus:text-accent-foreground',
         static: 'cursor-default hover:bg-transparent focus:bg-transparent',

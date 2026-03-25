@@ -303,7 +303,8 @@ export function SearchBarWithFilters<
         // If the dropdown is open with suggestions, Enter autocompletes (like Tab)
         // Otherwise, Enter submits the search
         if (isOpen && suggestions.length > 0) {
-          const indexToApply = selectedIndex !== undefined ? selectedIndex : 0;
+          const indexToApply =
+            selectedIndex !== undefined ? selectedIndex : 0;
           if (suggestions[indexToApply]) {
             handleSelect(indexToApply);
           }
@@ -343,7 +344,8 @@ export function SearchBarWithFilters<
       } else if (e.key === 'Tab') {
         e.preventDefault();
         // Tab autocompletes - apply the selected suggestion or first one if none selected
-        const indexToApply = selectedIndex !== undefined ? selectedIndex : 0;
+        const indexToApply =
+          selectedIndex !== undefined ? selectedIndex : 0;
         if (suggestions[indexToApply]) {
           handleSelect(indexToApply);
         }
@@ -363,7 +365,10 @@ export function SearchBarWithFilters<
         <div className="flex items-center gap-2">
           {suggestion.color && (
             <div
-              className={cn(suggestion.color, 'h-[6px] w-[6px] rounded-full')}
+              className={cn(
+                suggestion.color,
+                'h-[6px] w-[6px] rounded-full',
+              )}
             />
           )}
           {suggestion.type === 'key' ? (
@@ -371,7 +376,9 @@ export function SearchBarWithFilters<
               {suggestion.label}:
             </code>
           ) : (
-            <span className="py-0.5 font-mono text-xs">{suggestion.label}</span>
+            <span className="py-0.5 font-mono text-xs">
+              {suggestion.label}
+            </span>
           )}
         </div>
         {suggestion.description && (
@@ -462,7 +469,10 @@ export function SearchBarWithFilters<
                     }
 
                     const colonIdx = segment.text.indexOf(':');
-                    const prefix = segment.text.slice(0, colonIdx + 1);
+                    const prefix = segment.text.slice(
+                      0,
+                      colonIdx + 1,
+                    );
                     const suffix = segment.text.slice(colonIdx + 1);
 
                     return (
@@ -471,7 +481,9 @@ export function SearchBarWithFilters<
                           {prefix}
                         </span>
                         {suffix && (
-                          <span style={{ color: FILTER_VALUE_COLOR }}>
+                          <span
+                            style={{ color: FILTER_VALUE_COLOR }}
+                          >
                             {suffix}
                           </span>
                         )}

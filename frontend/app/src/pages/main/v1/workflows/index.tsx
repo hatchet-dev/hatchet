@@ -16,7 +16,9 @@ import { useState } from 'react';
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    {},
+  );
 
   const {
     workflows,

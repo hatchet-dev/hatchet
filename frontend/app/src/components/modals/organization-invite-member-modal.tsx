@@ -94,7 +94,9 @@ export const OrganizationInviteMemberModal = ({
         </DialogHeader>
 
         <form
-          onSubmit={handleSubmit((data) => inviteMemberMutation.mutate(data))}
+          onSubmit={handleSubmit((data) =>
+            inviteMemberMutation.mutate(data),
+          )}
           className="space-y-4"
         >
           <div className="space-y-2">
@@ -122,7 +124,10 @@ export const OrganizationInviteMemberModal = ({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={inviteMemberMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={inviteMemberMutation.isPending}
+            >
               {inviteMemberMutation.isPending
                 ? 'Sending...'
                 : 'Send Invitation'}

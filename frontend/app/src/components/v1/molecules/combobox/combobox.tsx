@@ -62,13 +62,19 @@ export function Combobox({
   searchValue?: string;
   emptyMessage?: string;
 }) {
-  const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>({
-    resolver: zodResolver(
-      type === ToolbarType.KeyValue ? keyValuePairSchema : arrayInputSchema,
-    ),
-    defaultValues:
-      type === ToolbarType.KeyValue ? { key: '', value: '' } : { values: '' },
-  });
+  const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>(
+    {
+      resolver: zodResolver(
+        type === ToolbarType.KeyValue
+          ? keyValuePairSchema
+          : arrayInputSchema,
+      ),
+      defaultValues:
+        type === ToolbarType.KeyValue
+          ? { key: '', value: '' }
+          : { values: '' },
+    },
+  );
 
   const submit = (data: KeyValuePair | ArrayInput) => {
     if ('key' in data) {
@@ -103,8 +109,8 @@ export function Combobox({
               >
                 {type == ToolbarType.Radio
                   ? // get the label of the value
-                    options?.find(({ value }) => value == values[0])?.label ||
-                    values[0]
+                    options?.find(({ value }) => value == values[0])
+                      ?.label || values[0]
                   : values.length}
               </Badge>
               <div className="hidden space-x-1 lg:flex">
@@ -122,8 +128,8 @@ export function Combobox({
                       variant="secondary"
                       className="flex items-center space-x-1 rounded-sm px-1 font-normal"
                     >
-                      {options?.find(({ value }) => value == option)?.label ||
-                        option}
+                      {options?.find(({ value }) => value == option)
+                        ?.label || option}
                       <Button
                         variant="ghost"
                         size="xs"
@@ -219,13 +225,17 @@ export function Combobox({
               </CommandEmpty>
               <CommandGroup>
                 {options?.map((option) => {
-                  const isSelected = values.indexOf(option.value) != -1;
+                  const isSelected =
+                    values.indexOf(option.value) != -1;
                   return (
                     <CommandItem
                       key={option.value}
                       onSelect={() => {
                         if (isSelected) {
-                          values.splice(values.indexOf(option.value), 1);
+                          values.splice(
+                            values.indexOf(option.value),
+                            1,
+                          );
                         } else {
                           if (type === ToolbarType.Radio) {
                             setValues([option.value]);

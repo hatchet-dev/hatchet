@@ -56,7 +56,10 @@ export function useZodColumnFilters<T extends z.ZodType>(
           filters.push({ id: columnId, value });
         } else if (typeof value === 'string' && value.length > 0) {
           filters.push({ id: columnId, value });
-        } else if (typeof value === 'number' || typeof value === 'boolean') {
+        } else if (
+          typeof value === 'number' ||
+          typeof value === 'boolean'
+        ) {
           filters.push({ id: columnId, value });
         }
       }
@@ -69,7 +72,9 @@ export function useZodColumnFilters<T extends z.ZodType>(
     (updater: Updater<ColumnFiltersState>) => {
       const currentColumnFilters = columnFilters;
       const newColumnFilters =
-        typeof updater === 'function' ? updater(currentColumnFilters) : updater;
+        typeof updater === 'function'
+          ? updater(currentColumnFilters)
+          : updater;
 
       const newQueryState = { ...state };
 

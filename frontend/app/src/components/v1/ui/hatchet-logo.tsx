@@ -24,7 +24,11 @@ export function HatchetLogo({
   return (
     <svg
       viewBox={
-        isMarkOnly ? '0 0 33 24' : isWordmarkOnly ? '41 0 96 24' : '0 0 137 24'
+        isMarkOnly
+          ? '0 0 33 24'
+          : isWordmarkOnly
+            ? '41 0 96 24'
+            : '0 0 137 24'
       }
       fill="none"
       xmlns="http://www.w3.org/2000/svg"

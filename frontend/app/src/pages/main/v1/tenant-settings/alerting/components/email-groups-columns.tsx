@@ -60,7 +60,8 @@ export function EmailGroupActions({
               }
             : {
                 label: alertTenantEmailsSet ? 'Disable' : 'Enable',
-                onClick: () => onToggleMembersClick(!alertTenantEmailsSet),
+                onClick: () =>
+                  onToggleMembersClick(!alertTenantEmailsSet),
               },
         ]}
       />

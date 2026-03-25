@@ -65,15 +65,24 @@ export function BillingRequired({
                   </h4>
                   <div className="mt-2 grid gap-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">CPU:</span>
-                      <span className="font-medium">$0.01/hour/CPU</span>
+                      <span className="text-muted-foreground">
+                        CPU:
+                      </span>
+                      <span className="font-medium">
+                        $0.01/hour/CPU
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Memory:</span>
-                      <span className="font-medium">$0.01/hour/GB RAM</span>
+                      <span className="text-muted-foreground">
+                        Memory:
+                      </span>
+                      <span className="font-medium">
+                        $0.01/hour/GB RAM
+                      </span>
                     </div>
                     {hasCredits &&
-                      computeCostQuery.data?.creditsRemaining !== undefined && (
+                      computeCostQuery.data?.creditsRemaining !==
+                        undefined && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">
                             Monthly Free Credits:
@@ -82,7 +91,10 @@ export function BillingRequired({
                             {new Intl.NumberFormat('en-US', {
                               style: 'currency',
                               currency: 'USD',
-                            }).format(computeCostQuery.data.creditsRemaining)}
+                            }).format(
+                              computeCostQuery.data
+                                .creditsRemaining,
+                            )}
                           </span>
                         </div>
                       )}
@@ -94,19 +106,27 @@ export function BillingRequired({
             <div className="mb-8 flex justify-center rounded-lg bg-muted/30 p-6">
               <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-left text-sm">
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">•</span>
+                  <span className="mr-2 flex items-center text-primary">
+                    •
+                  </span>
                   <span>Auto-scaling workers based on slots</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">•</span>
+                  <span className="mr-2 flex items-center text-primary">
+                    •
+                  </span>
                   <span>Zero infrastructure headaches</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">•</span>
+                  <span className="mr-2 flex items-center text-primary">
+                    •
+                  </span>
                   <span>Multiple regions and machine types</span>
                 </div>
                 <div className="flex items-start">
-                  <span className="mr-2 flex items-center text-primary">•</span>
+                  <span className="mr-2 flex items-center text-primary">
+                    •
+                  </span>
                   <span>No cold starts</span>
                 </div>
               </div>

@@ -104,7 +104,9 @@ function FilterControl<TData>({
                         : undefined
                     }
                     setDate={(date) =>
-                      config.onCreatedAfterChange?.(date?.toISOString())
+                      config.onCreatedAfterChange?.(
+                        date?.toISOString(),
+                      )
                     }
                     triggerClassName="w-full"
                   />
@@ -118,7 +120,9 @@ function FilterControl<TData>({
                         : undefined
                     }
                     setDate={(date) =>
-                      config.onFinishedBeforeChange?.(date?.toISOString())
+                      config.onFinishedBeforeChange?.(
+                        date?.toISOString(),
+                      )
                     }
                     triggerClassName="w-full"
                   />
@@ -131,9 +135,13 @@ function FilterControl<TData>({
             <div className="space-y-1">
               <Select
                 value={
-                  config.isCustomTimeRange ? 'custom' : config.currentTimeWindow
+                  config.isCustomTimeRange
+                    ? 'custom'
+                    : config.currentTimeWindow
                 }
-                onValueChange={(value) => config.onTimeWindowChange?.(value)}
+                onValueChange={(value) =>
+                  config.onTimeWindowChange?.(value)
+                }
               >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose time range" />
@@ -197,8 +205,12 @@ function FilterControl<TData>({
                     className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1 text-xs"
                   >
                     <div className="flex items-center gap-1 font-mono">
-                      <span className="font-medium text-blue-600">{key}</span>
-                      <span className="text-muted-foreground">{separator}</span>
+                      <span className="font-medium text-blue-600">
+                        {key}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {separator}
+                      </span>
                       <span className="text-green-600">{value}</span>
                     </div>
                     <Button
@@ -209,7 +221,9 @@ function FilterControl<TData>({
                           (_, i) => i !== index,
                         );
                         column?.setFilterValue(
-                          newValues.length > 0 ? newValues : undefined,
+                          newValues.length > 0
+                            ? newValues
+                            : undefined,
                         );
                       }}
                     >
@@ -224,7 +238,9 @@ function FilterControl<TData>({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Key</label>
+                <label className="text-xs text-muted-foreground">
+                  Key
+                </label>
                 <Input
                   ref={keyInputRef}
                   placeholder="ENV"
@@ -242,7 +258,9 @@ function FilterControl<TData>({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Value</label>
+                <label className="text-xs text-muted-foreground">
+                  Value
+                </label>
                 <Input
                   ref={valueInputRef}
                   placeholder="PRODUCTION"
@@ -297,7 +315,9 @@ function FilterControl<TData>({
                     className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1 text-xs"
                   >
                     <div className="flex items-center gap-1 font-mono">
-                      <span className="text-muted-foreground">{val}</span>
+                      <span className="text-muted-foreground">
+                        {val}
+                      </span>
                     </div>
                     <Button
                       variant="icon"
@@ -307,7 +327,9 @@ function FilterControl<TData>({
                           (_, i) => i !== index,
                         );
                         column?.setFilterValue(
-                          newValues.length > 0 ? newValues : undefined,
+                          newValues.length > 0
+                            ? newValues
+                            : undefined,
                         );
                       }}
                     >
@@ -391,20 +413,29 @@ function FilterControl<TData>({
                         onCheckedChange={(checked) => {
                           let newValue;
                           if (checked) {
-                            newValue = [...selectedValues, option.value];
+                            newValue = [
+                              ...selectedValues,
+                              option.value,
+                            ];
                             if (subColumn && option.subOptions) {
-                              subColumn.setFilterValue(undefined);
+                              subColumn.setFilterValue(
+                                undefined,
+                              );
                             }
                           } else {
                             newValue = selectedValues.filter(
                               (v) => v !== option.value,
                             );
                             if (subColumn) {
-                              subColumn.setFilterValue(undefined);
+                              subColumn.setFilterValue(
+                                undefined,
+                              );
                             }
                           }
                           column?.setFilterValue(
-                            newValue.length > 0 ? newValue : undefined,
+                            newValue.length > 0
+                              ? newValue
+                              : undefined,
                           );
                         }}
                       />
@@ -423,7 +454,8 @@ function FilterControl<TData>({
                         );
                         const subIsChecked =
                           isChecked &&
-                          (subValue === undefined || subValue === sub.value);
+                          (subValue === undefined ||
+                            subValue === sub.value);
 
                         return (
                           <div
@@ -434,58 +466,80 @@ function FilterControl<TData>({
                               id={`${filter.columnId}-${option.value}-${sub.value}`}
                               checked={subIsChecked}
                               onCheckedChange={(checked) => {
-                                const subColumnId = option.subFilterColumnId!;
-                                table.setColumnFilters((prev) => {
-                                  const next = prev.filter(
-                                    (f) =>
-                                      f.id !== filter.columnId &&
-                                      f.id !== subColumnId,
-                                  );
-
-                                  if (checked) {
-                                    const newStatuses = isChecked
-                                      ? selectedValues
-                                      : [...selectedValues, option.value];
-                                    next.push({
-                                      id: filter.columnId,
-                                      value: newStatuses,
-                                    });
-                                    if (!isChecked) {
-                                      // Running was off → turn on with just this sub
-                                      next.push({
-                                        id: subColumnId,
-                                        value: sub.value,
-                                      });
-                                    } else if (subValue === otherSub) {
-                                      // other was the only one, now both → ALL (no sub-filter)
-                                    } else if (subValue === undefined) {
-                                      // both already checked → stay ALL
-                                    }
-                                  } else if (subValue === undefined) {
-                                    // both checked, uncheck this → keep other
-                                    next.push({
-                                      id: filter.columnId,
-                                      value: selectedValues,
-                                    });
-                                    next.push({
-                                      id: subColumnId,
-                                      value: otherSub,
-                                    });
-                                  } else {
-                                    // only this was checked, uncheck → remove Running
-                                    const without = selectedValues.filter(
-                                      (v) => v !== option.value,
+                                const subColumnId =
+                                  option.subFilterColumnId!;
+                                table.setColumnFilters(
+                                  (prev) => {
+                                    const next = prev.filter(
+                                      (f) =>
+                                        f.id !==
+                                          filter.columnId &&
+                                        f.id !==
+                                          subColumnId,
                                     );
-                                    if (without.length > 0) {
+
+                                    if (checked) {
+                                      const newStatuses =
+                                        isChecked
+                                          ? selectedValues
+                                          : [
+                                              ...selectedValues,
+                                              option.value,
+                                            ];
                                       next.push({
                                         id: filter.columnId,
-                                        value: without,
+                                        value: newStatuses,
                                       });
+                                      if (!isChecked) {
+                                        // Running was off → turn on with just this sub
+                                        next.push({
+                                          id: subColumnId,
+                                          value: sub.value,
+                                        });
+                                      } else if (
+                                        subValue ===
+                                        otherSub
+                                      ) {
+                                        // other was the only one, now both → ALL (no sub-filter)
+                                      } else if (
+                                        subValue ===
+                                        undefined
+                                      ) {
+                                        // both already checked → stay ALL
+                                      }
+                                    } else if (
+                                      subValue === undefined
+                                    ) {
+                                      // both checked, uncheck this → keep other
+                                      next.push({
+                                        id: filter.columnId,
+                                        value: selectedValues,
+                                      });
+                                      next.push({
+                                        id: subColumnId,
+                                        value: otherSub,
+                                      });
+                                    } else {
+                                      // only this was checked, uncheck → remove Running
+                                      const without =
+                                        selectedValues.filter(
+                                          (v) =>
+                                            v !==
+                                            option.value,
+                                        );
+                                      if (
+                                        without.length > 0
+                                      ) {
+                                        next.push({
+                                          id: filter.columnId,
+                                          value: without,
+                                        });
+                                      }
                                     }
-                                  }
 
-                                  return next;
-                                });
+                                    return next;
+                                  },
+                                );
                               }}
                             />
                             <Label
@@ -562,7 +616,10 @@ export function DataTableOptions<TData>({
       cf?.filter((f) => {
         if (
           f.id === statusKey &&
-          arraysEqual(f.value as V1TaskStatus[], Object.values(V1TaskStatus))
+          arraysEqual(
+            f.value as V1TaskStatus[],
+            Object.values(V1TaskStatus),
+          )
         ) {
           return false;
         }
@@ -763,7 +820,8 @@ function ColumnsContent<TData>({
             .getAllColumns()
             .filter(
               (column) =>
-                typeof column.accessorFn !== 'undefined' && column.getCanHide(),
+                typeof column.accessorFn !== 'undefined' &&
+                column.getCanHide(),
             )
             .map((column) => {
               const columnName =
@@ -862,7 +920,10 @@ export function DataTableOptionsContent<TData>({
             activeFiltersCount={activeFiltersCount}
           />
         ) : hasVisibleColumns && showColumnVisibility ? (
-          <ColumnsContent table={table} columnKeyToName={columnKeyToName} />
+          <ColumnsContent
+            table={table}
+            columnKeyToName={columnKeyToName}
+          />
         ) : (
           <div className="p-6 text-center text-sm text-muted-foreground">
             No options available
@@ -875,7 +936,9 @@ export function DataTableOptionsContent<TData>({
   return (
     <Tabs
       value={selectedTab}
-      onValueChange={(value) => setSelectedTab(value as 'filters' | 'columns')}
+      onValueChange={(value) =>
+        setSelectedTab(value as 'filters' | 'columns')
+      }
       className="w-full rounded-none p-0"
     >
       <TabsList className="grid w-full grid-cols-2 rounded-none bg-muted/30 px-2">

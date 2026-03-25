@@ -105,11 +105,15 @@ function MembersList() {
     () => [
       {
         columnLabel: 'Name',
-        cellRenderer: (member: TenantMember) => <div>{member.user.name}</div>,
+        cellRenderer: (member: TenantMember) => (
+          <div>{member.user.name}</div>
+        ),
       },
       {
         columnLabel: 'Email',
-        cellRenderer: (member: TenantMember) => <div>{member.user.email}</div>,
+        cellRenderer: (member: TenantMember) => (
+          <div>{member.user.email}</div>
+        ),
       },
       {
         columnLabel: 'Joined',
@@ -125,11 +129,15 @@ function MembersList() {
     () => [
       {
         columnLabel: 'Name',
-        cellRenderer: (member: TenantMember) => <div>{member.user.name}</div>,
+        cellRenderer: (member: TenantMember) => (
+          <div>{member.user.name}</div>
+        ),
       },
       {
         columnLabel: 'Email',
-        cellRenderer: (member: TenantMember) => <div>{member.user.email}</div>,
+        cellRenderer: (member: TenantMember) => (
+          <div>{member.user.email}</div>
+        ),
       },
       {
         columnLabel: 'Role',
@@ -369,7 +377,8 @@ function InvitesList() {
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No invites found. Create an invite to add new members to your tenant.
+          No invites found. Create an invite to add new members to your
+          tenant.
         </div>
       )}
       {updateInvite && (

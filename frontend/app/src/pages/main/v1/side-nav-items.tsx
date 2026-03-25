@@ -259,7 +259,9 @@ export function sideNavItems(opts: {
                 to: appRoutes.tenantManagedWorkersRoute.to,
                 icon: ({ collapsed }: { collapsed: boolean }) => (
                   <RiCpuLine
-                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                    className={
+                      collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'
+                    }
                   />
                 ),
               },

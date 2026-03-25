@@ -23,9 +23,10 @@ export function RevokeTokenForm({ className, ...props }: RevokeTokenFormProps) {
       </DialogHeader>
       <div>
         <div className="mb-4 text-sm text-foreground">
-          Are you sure you want to revoke the API token {props.apiToken.name}?
-          This action will immediately prevent any services running with this
-          token from dispatching events or executing steps.
+          Are you sure you want to revoke the API token{' '}
+          {props.apiToken.name}? This action will immediately prevent any
+          services running with this token from dispatching events or
+          executing steps.
         </div>
         <div className="flex flex-row gap-4">
           <Button

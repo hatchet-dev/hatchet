@@ -321,7 +321,9 @@ export default function CreateWorkerForm({
   const repoOwnerName = getRepoOwnerName(repoOwner, repoName);
   const branch = watch('buildConfig.githubRepositoryBranch');
   const numReplicas = watch('runtimeConfig.numReplicas');
-  const autoscalingMaxReplicas = watch('runtimeConfig.autoscaling.maxReplicas');
+  const autoscalingMaxReplicas = watch(
+    'runtimeConfig.autoscaling.maxReplicas',
+  );
 
   const listInstallationsQuery = useQuery({
     ...queries.github.listInstallations(tenantId),
@@ -332,7 +334,12 @@ export default function CreateWorkerForm({
   });
 
   const listBranchesQuery = useQuery({
-    ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
+    ...queries.github.listBranches(
+      tenantId,
+      installation,
+      repoOwner,
+      repoName,
+    ),
   });
 
   // Check if the current replica count exceeds the plan limit
@@ -370,7 +377,8 @@ export default function CreateWorkerForm({
   const secretsError =
     errors.secrets?.add?.message?.toString() || fieldErrors?.secrets;
   const cpuKindError =
-    errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
+    errors.runtimeConfig?.cpuKind?.message?.toString() ||
+    fieldErrors?.cpuKind;
   const cpusError =
     errors.runtimeConfig?.cpus?.message?.toString() || fieldErrors?.cpus;
   const memoryMbError =
@@ -476,7 +484,8 @@ export default function CreateWorkerForm({
         <Step title="Build configuration">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Configure the Github repository the service should deploy from.
+              Configure the Github repository the service should deploy
+              from.
             </div>
 
             <div className="grid max-w-3xl gap-4">
@@ -489,9 +498,18 @@ export default function CreateWorkerForm({
                     <Select
                       onValueChange={(value) => {
                         field.onChange(value);
-                        setValue('buildConfig.githubRepositoryOwner', '');
-                        setValue('buildConfig.githubRepositoryName', '');
-                        setValue('buildConfig.githubRepositoryBranch', '');
+                        setValue(
+                          'buildConfig.githubRepositoryOwner',
+                          '',
+                        );
+                        setValue(
+                          'buildConfig.githubRepositoryName',
+                          '',
+                        );
+                        setValue(
+                          'buildConfig.githubRepositoryBranch',
+                          '',
+                        );
                       }}
                     >
                       <div className="text-sm text-muted-foreground">
@@ -505,14 +523,22 @@ export default function CreateWorkerForm({
                         </a>
                       </div>
                       <SelectTrigger className="w-fit">
-                        <SelectValue id="role" placeholder="Choose account" />
+                        <SelectValue
+                          id="role"
+                          placeholder="Choose account"
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        {listInstallationsQuery.data?.rows.map((i) => (
-                          <SelectItem key={i.metadata.id} value={i.metadata.id}>
-                            {i.account_name}
-                          </SelectItem>
-                        ))}
+                        {listInstallationsQuery.data?.rows.map(
+                          (i) => (
+                            <SelectItem
+                              key={i.metadata.id}
+                              value={i.metadata.id}
+                            >
+                              {i.account_name}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
                   );
@@ -542,7 +568,10 @@ export default function CreateWorkerForm({
                           'buildConfig.githubRepositoryName',
                           getRepoName(value) || '',
                         );
-                        setValue('buildConfig.githubRepositoryBranch', '');
+                        setValue(
+                          'buildConfig.githubRepositoryBranch',
+                          '',
+                        );
                       }}
                     >
                       <SelectTrigger className="w-fit">
@@ -556,7 +585,10 @@ export default function CreateWorkerForm({
                           <SelectItem
                             key={i.repo_owner + i.repo_name}
                             value={
-                              getRepoOwnerName(i.repo_owner, i.repo_name) || ''
+                              getRepoOwnerName(
+                                i.repo_owner,
+                                i.repo_name,
+                              ) || ''
                             }
                           >
                             {i.repo_owner}/{i.repo_name}
@@ -585,11 +617,17 @@ export default function CreateWorkerForm({
                   return (
                     <Select onValueChange={field.onChange} {...field}>
                       <SelectTrigger className="w-fit">
-                        <SelectValue id="role" placeholder="Choose branch" />
+                        <SelectValue
+                          id="role"
+                          placeholder="Choose branch"
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {listBranchesQuery.data?.map((i) => (
-                          <SelectItem key={i.branch_name} value={i.branch_name}>
+                          <SelectItem
+                            key={i.branch_name}
+                            value={i.branch_name}
+                          >
                             {i.branch_name}
                           </SelectItem>
                         ))}
@@ -620,7 +658,9 @@ export default function CreateWorkerForm({
                 }}
               />
               {buildDirError && (
-                <div className="text-sm text-red-500">{buildDirError}</div>
+                <div className="text-sm text-red-500">
+                  {buildDirError}
+                </div>
               )}
               <Label htmlFor="dockerfile">Path to Dockerfile</Label>
               <Controller
@@ -674,7 +714,9 @@ export default function CreateWorkerForm({
               <Select
                 value={region?.toString()}
                 onValueChange={(value) => {
-                  const region = regions.find((i) => i.value === value);
+                  const region = regions.find(
+                    (i) => i.value === value,
+                  );
                   if (!region) {
                     return;
                   }
@@ -682,7 +724,10 @@ export default function CreateWorkerForm({
                 }}
               >
                 <SelectTrigger className="w-fit">
-                  <SelectValue id="region" placeholder="Choose region" />
+                  <SelectValue
+                    id="region"
+                    placeholder="Choose region"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {regions.map((i) => (
@@ -706,7 +751,10 @@ export default function CreateWorkerForm({
                           (i) => i.title === value,
                         );
                         setMachineType(value);
-                        setValue('runtimeConfig.cpus', machineType?.cpus || 1);
+                        setValue(
+                          'runtimeConfig.cpus',
+                          machineType?.cpus || 1,
+                        );
                         setValue(
                           'runtimeConfig.memoryMb',
                           machineType?.memoryMb || 1024,
@@ -724,7 +772,9 @@ export default function CreateWorkerForm({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {machineTypes.map(renderMachineTypeSelectItem)}
+                        {machineTypes.map(
+                          renderMachineTypeSelectItem,
+                        )}
                       </SelectContent>
                     </Select>
                   );
@@ -782,7 +832,11 @@ export default function CreateWorkerForm({
               >
                 <TabsList layout="underlined">
                   {scalingTypes.map((type) => (
-                    <TabsTrigger variant="underlined" value={type} key={type}>
+                    <TabsTrigger
+                      variant="underlined"
+                      value={type}
+                      key={type}
+                    >
                       {type}
                     </TabsTrigger>
                   ))}
@@ -804,7 +858,9 @@ export default function CreateWorkerForm({
                               field.onChange(e.target.value);
                               return;
                             }
-                            field.onChange(parseInt(e.target.value));
+                            field.onChange(
+                              parseInt(e.target.value),
+                            );
                           }}
                           min={0}
                           id="numReplicas"
@@ -824,8 +880,13 @@ export default function CreateWorkerForm({
                     </div>
                   )}
                 </TabsContent>
-                <TabsContent value="Autoscaling" className="grid gap-4 pt-4">
-                  <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
+                <TabsContent
+                  value="Autoscaling"
+                  className="grid gap-4 pt-4"
+                >
+                  <Label htmlFor="minAwakeReplicas">
+                    Min Replicas
+                  </Label>
                   <Controller
                     control={control}
                     name="runtimeConfig.autoscaling.minAwakeReplicas"
@@ -836,7 +897,9 @@ export default function CreateWorkerForm({
                           id="minAwakeReplicas"
                           type="number"
                           onChange={(e) => {
-                            const minValue = parseInt(e.target.value);
+                            const minValue = parseInt(
+                              e.target.value,
+                            );
                             field.onChange(minValue);
 
                             setValue(
@@ -872,8 +935,9 @@ export default function CreateWorkerForm({
                     name="runtimeConfig.autoscaling.maxReplicas"
                     render={({ field }) => {
                       const minReplicas =
-                        watch('runtimeConfig.autoscaling.minAwakeReplicas') ||
-                        1;
+                        watch(
+                          'runtimeConfig.autoscaling.minAwakeReplicas',
+                        ) || 1;
                       return (
                         <Input
                           {...field}
@@ -881,7 +945,9 @@ export default function CreateWorkerForm({
                           min={minReplicas}
                           type="number"
                           onChange={(e) => {
-                            const maxValue = parseInt(e.target.value);
+                            const maxValue = parseInt(
+                              e.target.value,
+                            );
                             // Ensure max replicas is never less than min replicas
                             const validatedMax = Math.max(
                               maxValue,
@@ -891,7 +957,8 @@ export default function CreateWorkerForm({
 
                             if (validatedMax !== maxValue) {
                               // If we had to adjust the value, update the input
-                              e.target.value = validatedMax.toString();
+                              e.target.value =
+                                validatedMax.toString();
                             }
                           }}
                         />
@@ -915,7 +982,8 @@ export default function CreateWorkerForm({
                       return (
                         <div className="flex flex-row items-center gap-4">
                           <Label htmlFor="scaleToZero">
-                            Scale to zero during periods of inactivity?
+                            Scale to zero during periods of
+                            inactivity?
                           </Label>
                           <Checkbox
                             checked={field.value}
@@ -936,11 +1004,13 @@ export default function CreateWorkerForm({
                         Advanced autoscaling settings
                       </AccordionTrigger>
                       <AccordionContent className="flex flex-col gap-4">
-                        <Label htmlFor="waitDuration">Wait Duration</Label>
+                        <Label htmlFor="waitDuration">
+                          Wait Duration
+                        </Label>
                         <div className="text-sm text-muted-foreground">
-                          How long to wait between autoscaling events. For
-                          example: 10s (10 seconds), 5m (5 minutes), 1h (1
-                          hour).
+                          How long to wait between autoscaling
+                          events. For example: 10s (10 seconds), 5m
+                          (5 minutes), 1h (1 hour).
                         </div>
                         <Controller
                           control={control}
@@ -964,10 +1034,11 @@ export default function CreateWorkerForm({
                           Rolling Window Duration
                         </Label>
                         <div className="text-sm text-muted-foreground">
-                          The amount of time to look at utilization metrics for
-                          autoscaling. Lower values will lead to faster scale-up
-                          and scale-down. Example: 2m (2 minutes), 5m (5
-                          minutes), 1h (1 hour).
+                          The amount of time to look at utilization
+                          metrics for autoscaling. Lower values
+                          will lead to faster scale-up and
+                          scale-down. Example: 2m (2 minutes), 5m
+                          (5 minutes), 1h (1 hour).
                         </div>
                         <Controller
                           control={control}
@@ -984,17 +1055,19 @@ export default function CreateWorkerForm({
                         />
                         {autoscalingRollingWindowDurationError && (
                           <div className="text-sm text-red-500 dark:text-red-400">
-                            {autoscalingRollingWindowDurationError}
+                            {
+                              autoscalingRollingWindowDurationError
+                            }
                           </div>
                         )}
                         <Label htmlFor="utilizationScaleUpThreshold">
                           Utilization Scale Up Threshold
                         </Label>
                         <div className="text-sm text-muted-foreground">
-                          A value between 0 and 1 which represents the
-                          utilization threshold at which to scale up. For
-                          example, 0.75 means that if the utilization is above
-                          75%, scale up.
+                          A value between 0 and 1 which represents
+                          the utilization threshold at which to
+                          scale up. For example, 0.75 means that if
+                          the utilization is above 75%, scale up.
                         </div>
                         <Controller
                           control={control}
@@ -1009,7 +1082,11 @@ export default function CreateWorkerForm({
                                 max={1}
                                 step={0.01}
                                 onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
+                                  field.onChange(
+                                    parseFloat(
+                                      e.target.value,
+                                    ),
+                                  );
                                 }}
                               />
                             );
@@ -1017,17 +1094,20 @@ export default function CreateWorkerForm({
                         />
                         {autoscalingUtilizationScaleUpThresholdError && (
                           <div className="text-sm text-red-500 dark:text-red-400">
-                            {autoscalingUtilizationScaleUpThresholdError}
+                            {
+                              autoscalingUtilizationScaleUpThresholdError
+                            }
                           </div>
                         )}
                         <Label htmlFor="utilizationScaleDownThreshold">
                           Utilization Scale Down Threshold
                         </Label>
                         <div className="text-sm text-muted-foreground">
-                          A value between 0 and 1 which represents the
-                          utilization threshold at which to scale down. For
-                          example, 0.25 means that if the utilization is below
-                          25%, scale down.
+                          A value between 0 and 1 which represents
+                          the utilization threshold at which to
+                          scale down. For example, 0.25 means that
+                          if the utilization is below 25%, scale
+                          down.
                         </div>
                         <Controller
                           control={control}
@@ -1042,7 +1122,11 @@ export default function CreateWorkerForm({
                                 max={1}
                                 step={0.01}
                                 onChange={(e) => {
-                                  field.onChange(parseFloat(e.target.value));
+                                  field.onChange(
+                                    parseFloat(
+                                      e.target.value,
+                                    ),
+                                  );
                                 }}
                               />
                             );
@@ -1050,13 +1134,17 @@ export default function CreateWorkerForm({
                         />
                         {autoscalingUtilizationScaleDownThresholdError && (
                           <div className="text-sm text-red-500 dark:text-red-400">
-                            {autoscalingUtilizationScaleDownThresholdError}
+                            {
+                              autoscalingUtilizationScaleDownThresholdError
+                            }
                           </div>
                         )}
-                        <Label htmlFor="increment">Scaling Increment</Label>
+                        <Label htmlFor="increment">
+                          Scaling Increment
+                        </Label>
                         <div className="text-sm text-muted-foreground">
-                          The number of replicas to scale by when scaling up or
-                          down.
+                          The number of replicas to scale by when
+                          scaling up or down.
                         </div>
                         <Controller
                           control={control}
@@ -1068,7 +1156,9 @@ export default function CreateWorkerForm({
                                 id="increment"
                                 type="number"
                                 onChange={(e) => {
-                                  field.onChange(parseInt(e.target.value));
+                                  field.onChange(
+                                    parseInt(e.target.value),
+                                  );
                                 }}
                               />
                             );
@@ -1127,16 +1217,20 @@ export default function CreateWorkerForm({
                 <ul className="list-inside list-disc space-y-1 text-sm text-red-700 dark:text-red-300">
                   {!isComputeAllowed && (
                     <li>
-                      The selected machine type is not available on your current
-                      plan
+                      The selected machine type is not available on
+                      your current plan
                     </li>
                   )}
                   {!isReplicaCountAllowed && (
-                    <li>The number of replicas exceeds your plan's limit</li>
+                    <li>
+                      The number of replicas exceeds your plan's
+                      limit
+                    </li>
                   )}
                   {!isAutoscalingMaxReplicasAllowed && (
                     <li>
-                      The maximum autoscaling replicas exceeds your plan's limit
+                      The maximum autoscaling replicas exceeds your
+                      plan's limit
                     </li>
                   )}
                 </ul>

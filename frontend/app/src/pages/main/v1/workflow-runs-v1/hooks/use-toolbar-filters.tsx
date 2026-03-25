@@ -77,16 +77,23 @@ export const useToolbarFilters = ({
       }
     },
     onCreatedAfterChange: (date?: string) => {
-      if (filterActions.isCustomTimeRange && filterActions.apiFilters.until) {
+      if (
+        filterActions.isCustomTimeRange &&
+        filterActions.apiFilters.until
+      ) {
         filterActions.setCustomTimeRange({
           start:
-            date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            date ||
+            new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
           end: filterActions.apiFilters.until,
         });
       }
     },
     onFinishedBeforeChange: (date?: string) => {
-      if (filterActions.isCustomTimeRange && filterActions.apiFilters.since) {
+      if (
+        filterActions.isCustomTimeRange &&
+        filterActions.apiFilters.since
+      ) {
         filterActions.setCustomTimeRange({
           start: filterActions.apiFilters.since,
           end: date || new Date().toISOString(),

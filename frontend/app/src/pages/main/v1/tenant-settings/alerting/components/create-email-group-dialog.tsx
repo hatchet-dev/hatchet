@@ -74,7 +74,9 @@ export function CreateEmailGroupDialog({
                 }}
               />
               {emailsError && (
-                <div className="text-sm text-red-500">{emailsError}</div>
+                <div className="text-sm text-red-500">
+                  {emailsError}
+                </div>
               )}
             </div>
             <Button disabled={props.isLoading}>
