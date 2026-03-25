@@ -2978,7 +2978,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		dagIdsToLock = append(dagIdsToLock, dagId)
 	}
 
-	successfullyLockedDAGs, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
+	successfullyLockedDAGIds, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
 		Dagids:        dagIdsToLock,
 		Tenantid:      tenantId,
 		Mininsertedat: minInsertedAt,
@@ -2990,8 +2990,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	successfullyLockedDAGsMap := make(map[int64]bool)
 
-	for _, dag := range successfullyLockedDAGs {
-		successfullyLockedDAGsMap[dag.ID] = true
+	for _, dagId := range successfullyLockedDAGIds {
+		successfullyLockedDAGsMap[dagId] = true
 	}
 
 	// Discard tasks which can't be replayed. Discard rules are as follows:

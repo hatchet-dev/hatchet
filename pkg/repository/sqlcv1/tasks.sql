@@ -769,8 +769,7 @@ ORDER BY
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 SELECT
-    id,
-    inserted_at
+    id
 FROM
     v1_dag
 WHERE

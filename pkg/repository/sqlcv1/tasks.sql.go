@@ -2144,8 +2144,7 @@ func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasks
 
 const lockDAGsForReplay = `-- name: LockDAGsForReplay :many
 SELECT
-    id,
-    inserted_at
+    id
 FROM
     v1_dag
 WHERE
@@ -2162,26 +2161,21 @@ type LockDAGsForReplayParams struct {
 	Tenantid      uuid.UUID          `json:"tenantid"`
 }
 
-type LockDAGsForReplayRow struct {
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-}
-
 // Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 // We skip locked tasks because replays are the only thing that can lock a DAG for updates
-func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsForReplayParams) ([]*LockDAGsForReplayRow, error) {
+func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsForReplayParams) ([]int64, error) {
 	rows, err := db.Query(ctx, lockDAGsForReplay, arg.Dagids, arg.Mininsertedat, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*LockDAGsForReplayRow
+	var items []int64
 	for rows.Next() {
-		var i LockDAGsForReplayRow
-		if err := rows.Scan(&i.ID, &i.InsertedAt); err != nil {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
