@@ -16,15 +16,17 @@ import { useNavigate } from '@tanstack/react-router';
 import { RiNotification3Line } from 'react-icons/ri';
 
 const colorToTailwind: Record<NotificationColor, string> = {
+  blue: 'bg-blue-500',
   green: 'bg-green-500',
   yellow: 'bg-yellow-500',
   red: 'bg-red-500',
 };
 
 const colorPriority: Record<NotificationColor, number> = {
-  green: 0,
-  yellow: 1,
-  red: 2,
+  blue: 0,
+  green: 1,
+  yellow: 2,
+  red: 3,
 };
 
 const getMostSevereColor = (notifications: Notification[]): NotificationColor =>

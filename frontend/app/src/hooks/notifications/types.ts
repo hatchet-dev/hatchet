@@ -1,4 +1,4 @@
-export type NotificationColor = 'green' | 'yellow' | 'red';
+export type NotificationColor = 'blue' | 'green' | 'yellow' | 'red';
 
 export type Notification = {
   color: NotificationColor;
