@@ -24,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `run_no_wait()`, `aio_run_no_wait()`, `run_many_no_wait()`, and `aio_run_many_no_wait()` are deprecated in favor of `run(wait_for_result=False)`, `aio_run(wait_for_result=False)`, `run_many(wait_for_result=False)`, and `aio_run_many(wait_for_result=False)` respectively.
 - Passing duration parameters (e.g. `schedule_timeout`, `execution_timeout`) as strings is deprecated. Use `timedelta` objects instead.
 - Non-async durable tasks are deprecated. Please convert durable task functions to async.
-- Passing `worker_labels` as a `dict` to `hatchet.worker()` is deprecated. Use a `list[WorkerLabel]` with the `key` field set instead.
 - Passing `desired_worker_labels` as a `dict` to task decorators (`@workflow.task`, `@hatchet.task`, etc.) is deprecated. Use a `list[DesiredWorkerLabel]` with the `key` field set instead.
 - Passing `desired_worker_label` as a `dict` to `TriggerWorkflowOptions` is deprecated. Use a `list[DesiredWorkerLabel]` with the `key` field set instead.
 - Passing `priority` as an `int` to task and workflow decorators is deprecated. Use `Priority.LOW`, `Priority.MEDIUM`, or `Priority.HIGH` instead.
@@ -38,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Context.done` is deprecated. Use `Context.is_cancelled` instead.
 - `Context.fetch_task_run_error()` is deprecated. Use `Context.get_task_run_error()` instead.
 - Deprecates a number of internal properties and methods on the `Worker` and `Context` that are not intended for public use. These will be removed in v2.0.0.
+- Accessing `ctx.worker` is now deprecated. Use the various properties on the context directly, such as `ctx.worker_id` instead of `ctx.worker.id()`.
+
 ## [1.29.3] - 2026-03-23
 
 ### Changed
