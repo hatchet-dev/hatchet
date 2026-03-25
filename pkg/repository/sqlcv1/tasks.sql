@@ -768,15 +768,22 @@ ORDER BY
 
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 SELECT
-    id
+    d.id,
+    d.inserted_at
 FROM
-    v1_dag
+    v1_dag d
+JOIN
+    input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
-    id = ANY(@dagIds::bigint[])
-    AND inserted_at >= @minInsertedAt::TIMESTAMPTZ
-    AND tenant_id = @tenantId::uuid
-ORDER BY id
+    d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND d.tenant_id = @tenantId::uuid
+ORDER BY d.id
 -- We skip locked tasks because replays are the only thing that can lock a DAG for updates
 FOR UPDATE SKIP LOCKED;
 
@@ -785,7 +792,11 @@ FOR UPDATE SKIP LOCKED;
 -- match the length of steps in the DAG. This assumes that we have a lock on DAGs so concurrent replays
 -- don't interfere with each other. It also does not check for whether the tasks are running, as that's
 -- checked in a different query. It returns DAGs which cannot be replayed.
-WITH dags_to_step_counts AS (
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+), dags_to_step_counts AS (
     SELECT
         d.id,
         d.external_id,
@@ -795,6 +806,8 @@ WITH dags_to_step_counts AS (
     FROM
         v1_dag d
     JOIN
+        input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
+    JOIN
         v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
     JOIN
         "WorkflowVersion" wv ON wv."id" = d.workflow_version_id
@@ -803,8 +816,7 @@ WITH dags_to_step_counts AS (
     LEFT JOIN
         "Step" s ON s."jobId" = j."id"
     WHERE
-        d.id = ANY(@dagIds::bigint[])
-        AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
         AND d.tenant_id = @tenantId::uuid
     GROUP BY
         d.id,
