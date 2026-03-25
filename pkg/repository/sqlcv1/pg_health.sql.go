@@ -157,7 +157,7 @@ SELECT
     relname AS tablename,
     heap_blks_read,
     heap_blks_hit,
-    heap_blks_hit + heap_blks_read AS total_reads,
+    (heap_blks_hit + heap_blks_read)::BIGINT AS total_reads,
     ROUND(
         100.0 * heap_blks_hit / NULLIF(heap_blks_hit + heap_blks_read, 0),
         2
@@ -177,7 +177,7 @@ type CheckQueryCachesRow struct {
 	Tablename        pgtype.Text `json:"tablename"`
 	HeapBlksRead     pgtype.Int8 `json:"heap_blks_read"`
 	HeapBlksHit      pgtype.Int8 `json:"heap_blks_hit"`
-	TotalReads       int32       `json:"total_reads"`
+	TotalReads       int64       `json:"total_reads"`
 	CacheHitRatioPct float64     `json:"cache_hit_ratio_pct"`
 	TotalSize        string      `json:"total_size"`
 }
