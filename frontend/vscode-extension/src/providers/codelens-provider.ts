@@ -9,20 +9,7 @@ import { parseRubyWorkflows, detectRubyWorkflowDeclarations } from '../parser/ru
 import { parseGoWorkflows, detectGoWorkflowDeclarations } from '../parser/go-parser';
 import { detectTsWorkflowDeclarations } from '../parser/workflow-parser';
 import type { WorkflowAnnotationCache } from '../analysis/annotation-cache';
-
-// ─── Module-level annotation cache ───────────────────────────────────────────
-
-let _annotationCache: WorkflowAnnotationCache | undefined;
-
-/**
- * Register the workspace annotation cache.  Call this once from `activate`
- * before the CodeLens provider begins serving requests.
- */
-export function setAnnotationCache(cache: WorkflowAnnotationCache): void {
-  _annotationCache = cache;
-}
-
-// ─── Language dispatchers ─────────────────────────────────────────────────────
+import type { WorkflowFactoryAnnotation } from '../parser/jsdoc-annotations';
 
 /**
  * Fast, Pass-1-only scan: return one `WorkflowDeclaration` per workflow
@@ -32,15 +19,12 @@ export function detectWorkflowDeclarations(
   text: string,
   languageId: string,
   fileName: string,
+  annotations: ReadonlyMap<string, WorkflowFactoryAnnotation> = new Map(),
 ): WorkflowDeclaration[] {
   switch (languageId) {
     case 'typescript':
     case 'typescriptreact':
-      return detectTsWorkflowDeclarations(
-        text,
-        fileName,
-        _annotationCache?.getAll() ?? new Map(),
-      );
+      return detectTsWorkflowDeclarations(text, fileName, annotations);
     case 'python':
       return detectPyWorkflowDeclarations(text);
     case 'ruby':
@@ -61,8 +45,9 @@ export function computeFallbackWorkflow(
   languageId: string,
   fileName: string,
   decl: WorkflowDeclaration,
+  annotations: ReadonlyMap<string, WorkflowFactoryAnnotation> = new Map(),
 ): ParsedWorkflow {
-  const workflows = parseWorkflowsForDocument(text, languageId, fileName);
+  const workflows = parseWorkflowsForDocument(text, languageId, fileName, annotations);
   const match = workflows.find((w) => w.varName === decl.varName);
   return (
     match ?? {
@@ -74,21 +59,16 @@ export function computeFallbackWorkflow(
   );
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-/**
- * Route to the appropriate language-specific full parser.
- * Returns an empty array for unsupported language IDs.
- */
 function parseWorkflowsForDocument(
   text: string,
   languageId: string,
   fileName: string,
+  annotations: ReadonlyMap<string, WorkflowFactoryAnnotation> = new Map(),
 ): ParsedWorkflow[] {
   switch (languageId) {
     case 'typescript':
     case 'typescriptreact':
-      return parseWorkflows(text, fileName, _annotationCache?.getAll() ?? new Map());
+      return parseWorkflows(text, fileName, annotations);
     case 'python':
       return parsePythonWorkflows(text);
     case 'ruby':
@@ -100,28 +80,23 @@ function parseWorkflowsForDocument(
   }
 }
 
-/**
- * Quick heuristic: only run the full parser on files that look like Hatchet
- * workflow files.  Avoids unnecessary work on unrelated source files.
- */
-function looksLikeHatchetDocument(text: string, languageId: string): boolean {
+function looksLikeHatchetDocument(
+  text: string,
+  languageId: string,
+  annotations: ReadonlyMap<string, WorkflowFactoryAnnotation>,
+): boolean {
   switch (languageId) {
     case 'typescript':
     case 'typescriptreact': {
       if (
         text.includes('@hatchet-dev/typescript-sdk') ||
-        // Match .workflow( and .workflow<T>(
         /\.workflow\s*[<(]/.test(text) ||
         text.includes('@hatchet-workflow')
       ) {
         return true;
       }
-      // Check if the text calls any annotated factory function
-      const annotated = _annotationCache?.getAll();
-      if (annotated) {
-        for (const fnName of annotated.keys()) {
-          if (text.includes(fnName)) return true;
-        }
+      for (const fnName of annotations.keys()) {
+        if (text.includes(fnName)) return true;
       }
       return false;
     }
@@ -136,23 +111,18 @@ function looksLikeHatchetDocument(text: string, languageId: string): boolean {
   }
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
-
-/**
- * Provides "$(graph) Show Hatchet DAG" CodeLens actions above each
- * workflow declaration in supported language files.
- */
 export class HatchetCodeLensProvider implements vscode.CodeLensProvider {
   private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
 
+  private readonly _annotationCache: WorkflowAnnotationCache | undefined;
+
   constructor(annotationCache?: WorkflowAnnotationCache) {
-    if (annotationCache) {
-      annotationCache.onDidChange(() => this.refresh());
-    }
+    this._annotationCache = annotationCache;
+    // Refresh subscription is managed by the caller (extension.ts) so the
+    // returned Disposable can be added to context.subscriptions for cleanup.
   }
 
-  /** Call this when the document changes to refresh lenses. */
   refresh(): void {
     this._onDidChangeCodeLenses.fire();
   }
@@ -162,23 +132,22 @@ export class HatchetCodeLensProvider implements vscode.CodeLensProvider {
     _token: vscode.CancellationToken,
   ): vscode.CodeLens[] {
     const text = document.getText();
+    const annotations = this._annotationCache?.getAll() ?? new Map();
 
-    if (!looksLikeHatchetDocument(text, document.languageId)) {
+    if (!looksLikeHatchetDocument(text, document.languageId, annotations)) {
       return [];
     }
 
     let decls: WorkflowDeclaration[];
     try {
-      decls = detectWorkflowDeclarations(text, document.languageId, document.fileName);
+      decls = detectWorkflowDeclarations(text, document.languageId, document.fileName, annotations);
     } catch {
       return [];
     }
 
-    // Parse the full workflow list once and index by varName so we don't
-    // re-run the heavy parser once per declaration inside the map below.
     let allWorkflows: ParsedWorkflow[];
     try {
-      allWorkflows = parseWorkflowsForDocument(text, document.languageId, document.fileName);
+      allWorkflows = parseWorkflowsForDocument(text, document.languageId, document.fileName, annotations);
     } catch {
       allWorkflows = [];
     }
@@ -192,12 +161,7 @@ export class HatchetCodeLensProvider implements vscode.CodeLensProvider {
         tasks: [],
       };
 
-      const range = new vscode.Range(
-        decl.declarationLine,
-        0,
-        decl.declarationLine,
-        0,
-      );
+      const range = new vscode.Range(decl.declarationLine, 0, decl.declarationLine, 0);
 
       const command: vscode.Command = {
         title: `$(graph) Show Hatchet DAG — ${decl.name}`,

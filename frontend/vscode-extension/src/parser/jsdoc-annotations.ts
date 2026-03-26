@@ -1,11 +1,6 @@
 import * as ts from 'typescript';
 
-/**
- * Metadata extracted from a `@hatchet-workflow` JSDoc annotation on a
- * factory function.
- */
 export interface WorkflowFactoryAnnotation {
-  /** The factory function name (e.g. 'createWorkflowBuilder') */
   functionName: string;
   /**
    * Method on the returned object used to register tasks.
@@ -36,12 +31,16 @@ export function scanFileForWorkflowAnnotations(
   // Quick bail — avoid full parse cost on files that have no annotation
   if (!sourceText.includes('@hatchet-workflow')) return [];
 
+  const scriptKind = fileName.toLowerCase().endsWith('.tsx')
+    ? ts.ScriptKind.TSX
+    : ts.ScriptKind.TS;
+
   const sourceFile = ts.createSourceFile(
     fileName,
     sourceText,
     ts.ScriptTarget.ESNext,
     /*setParentNodes*/ true,
-    ts.ScriptKind.TS,
+    scriptKind,
   );
 
   const results: WorkflowFactoryAnnotation[] = [];
@@ -65,8 +64,6 @@ export function scanFileForWorkflowAnnotations(
   visit(sourceFile);
   return results;
 }
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function tryExtract(node: ts.Node, functionName: string): WorkflowFactoryAnnotation | undefined {
   const tags = ts.getJSDocTags(node);

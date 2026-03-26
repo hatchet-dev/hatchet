@@ -13,24 +13,17 @@ export interface ParsedTask {
 }
 
 export interface ParsedWorkflow {
-  /** The workflow's display name (from `.workflow({ name: '...' })`) */
   name: string;
-  /** Variable name of the workflow object (e.g., `dag`) */
   varName: string;
-  /** 0-based line number of the workflow declaration — used for CodeLens placement */
+  /** 0-based line number — used for CodeLens placement */
   declarationLine: number;
   tasks: ParsedTask[];
 }
 
-/**
- * Minimal workflow entry — enough for CodeLens. Tasks resolved later via LSP.
- */
+/** Minimal workflow entry — enough for CodeLens. Tasks resolved later via LSP. */
 export interface WorkflowDeclaration {
-  /** Workflow display name */
   name: string;
-  /** Source variable name (e.g. "dag", "DAG_WORKFLOW") */
   varName: string;
-  /** 0-based line of the workflow declaration */
   declarationLine: number;
   /** 0-based column of the varName identifier — feeds LSP position query */
   declarationCharacter: number;
@@ -41,8 +34,6 @@ export interface WorkflowDeclaration {
    */
   annotation?: WorkflowFactoryAnnotation;
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getPropertyValue(
   obj: ts.ObjectLiteralExpression,
@@ -111,7 +102,6 @@ function findNameInObjectLiteral(obj: ts.ObjectLiteralExpression): string | unde
       if (val) return val;
     }
 
-    // Recurse into nested object literals
     if (ts.isObjectLiteralExpression(prop.initializer)) {
       const nested = findNameInObjectLiteral(prop.initializer);
       if (nested) return nested;
@@ -133,8 +123,6 @@ function extractWorkflowNameFromArgs(call: ts.CallExpression): string | undefine
   }
   return undefined;
 }
-
-// ─── Main parser ─────────────────────────────────────────────────────────────
 
 /**
  * Parse a TypeScript source file and return all Hatchet workflow declarations.
@@ -160,7 +148,6 @@ export function parseWorkflows(
     ts.ScriptKind.TS,
   );
 
-  // ── Pass 1: find workflow declarations ──────────────────────────────────
   const workflowVars = new Map<
     string,
     { name: string; declarationLine: number; annotation?: WorkflowFactoryAnnotation }
@@ -174,7 +161,6 @@ export function parseWorkflows(
         const init = decl.initializer;
         if (!init) continue;
 
-        // ── Built-in: something.workflow({...}) or workflow({...})
         if (isWorkflowCall(init)) {
           const workflowName = extractWorkflowName(init);
           if (workflowName) {
@@ -185,7 +171,6 @@ export function parseWorkflows(
           }
         }
 
-        // ── Annotated factory: createWorkflowBuilder({...})
         if (ts.isCallExpression(init)) {
           const calleeName = getCalleeIdentifierName(init);
           if (calleeName) {
@@ -216,7 +201,6 @@ export function parseWorkflows(
     return [];
   }
 
-  // ── Pass 2: find task declarations ──────────────────────────────────────
   const tasksByWorkflow = new Map<string, ParsedTask[]>();
   const anonCounters = new Map<string, number>();
 
@@ -317,7 +301,6 @@ export function parseWorkflows(
 
   visitForTasks(sourceFile);
 
-  // ── Build output ─────────────────────────────────────────────────────────
   const results: ParsedWorkflow[] = [];
 
   for (const [varName, { name, declarationLine }] of workflowVars) {
@@ -327,8 +310,6 @@ export function parseWorkflows(
 
   return results;
 }
-
-// ─── Shape helpers ───────────────────────────────────────────────────────────
 
 /**
  * Determine whether a CallExpression matches the pattern `*.workflow({...})`.
@@ -345,9 +326,6 @@ function isWorkflowCall(expr: ts.Expression): expr is ts.CallExpression {
   return false;
 }
 
-/**
- * Extract the `name` string from a `.workflow({ name: '...' })` call.
- */
 function extractWorkflowName(call: ts.CallExpression): string | undefined {
   const arg = call.arguments[0];
   if (!arg || !ts.isObjectLiteralExpression(arg)) return undefined;
@@ -359,8 +337,6 @@ function extractWorkflowName(call: ts.CallExpression): string | undefined {
 function sanitizeVarId(name: string): string {
   return name.replace(/[^a-zA-Z0-9_$]/g, '_');
 }
-
-// ─── Fast detection (Phase 1 / CodeLens) ─────────────────────────────────────
 
 /**
  * Fast, Pass-1-only scan: return one `WorkflowDeclaration` per workflow
@@ -393,7 +369,6 @@ export function detectTsWorkflowDeclarations(
         const init = decl.initializer;
         if (!init) continue;
 
-        // ── Built-in .workflow() detection ──────────────────────────────
         if (isWorkflowCall(init)) {
           const workflowName = extractWorkflowName(init);
           if (!workflowName) continue;
@@ -410,7 +385,6 @@ export function detectTsWorkflowDeclarations(
           continue;
         }
 
-        // ── Annotated factory detection ──────────────────────────────────
         if (ts.isCallExpression(init)) {
           const calleeName = getCalleeIdentifierName(init);
           if (!calleeName) continue;

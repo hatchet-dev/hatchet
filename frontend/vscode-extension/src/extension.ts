@@ -4,7 +4,6 @@ import {
   HatchetCodeLensProvider,
   detectWorkflowDeclarations,
   computeFallbackWorkflow,
-  setAnnotationCache,
 } from './providers/codelens-provider';
 import type { WorkflowDeclaration, ParsedWorkflow } from './parser/workflow-parser';
 import { WorkflowAnnotationCache } from './analysis/annotation-cache';
@@ -12,18 +11,15 @@ import { WorkflowAnnotationCache } from './analysis/annotation-cache';
 const SUPPORTED_LANGUAGES = ['typescript', 'typescriptreact', 'python', 'ruby', 'go'];
 
 let codeLensProvider: HatchetCodeLensProvider | undefined;
+let annotationCache: WorkflowAnnotationCache | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
-  // ── Annotation cache (must be set up before CodeLens provider is used) ─
-  const annotationCache = new WorkflowAnnotationCache();
-  setAnnotationCache(annotationCache);
-
-  // ── CodeLens provider (registered for each supported language) ────────
+  annotationCache = new WorkflowAnnotationCache();
   codeLensProvider = new HatchetCodeLensProvider(annotationCache);
 
-  // Refresh lenses whenever the annotation cache changes (e.g. after initial
-  // workspace scan or when annotated factory files are edited).
-  annotationCache.onDidChange(() => codeLensProvider?.refresh());
+  context.subscriptions.push(
+    annotationCache.onDidChange(() => codeLensProvider?.refresh()),
+  );
 
   for (const lang of SUPPORTED_LANGUAGES) {
     context.subscriptions.push(
@@ -35,7 +31,6 @@ export function activate(context: vscode.ExtensionContext): void {
   // which triggers codeLensProvider.refresh() via the subscription above.
   void annotationCache.initialize(context);
 
-  // ── Command: hatchet.showDag ───────────────────────────────────────────
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'hatchet.showDag',
@@ -43,12 +38,8 @@ export function activate(context: vscode.ExtensionContext): void {
         const activeEditor = vscode.window.activeTextEditor;
 
         if (!decl) {
-          // Command invoked from the command palette without arguments — try
-          // to detect a workflow declaration in the active document.
           if (!activeEditor) {
-            vscode.window.showWarningMessage(
-              'Hatchet: Open a workflow file first.',
-            );
+            vscode.window.showWarningMessage('Hatchet: Open a workflow file first.');
             return;
           }
           const doc = activeEditor.document;
@@ -61,7 +52,10 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
           decl = decls[0];
-          fallback = computeFallbackWorkflow(text, doc.languageId, doc.fileName, decl);
+          fallback = computeFallbackWorkflow(
+            text, doc.languageId, doc.fileName, decl,
+            annotationCache?.getAll() ?? new Map(),
+          );
           documentUri = doc.uri;
         }
 
@@ -88,21 +82,21 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  // ── Re-parse on document changes ──────────────────────────────────────
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (!SUPPORTED_LANGUAGES.includes(e.document.languageId)) return;
       codeLensProvider?.refresh();
 
-      // If a panel is open, schedule a debounced re-analysis.
       const doc = e.document;
       const text = doc.getText();
       const decls = tryDetectDeclarations(doc);
       if (decls.length > 0) {
-        // Prefer the workflow the panel is already showing; fall back to first.
         const decl =
           decls.find((d) => d.varName === DagPanel.currentVarName) ?? decls[0];
-        const fallback = computeFallbackWorkflow(text, doc.languageId, doc.fileName, decl);
+        const fallback = computeFallbackWorkflow(
+          text, doc.languageId, doc.fileName, decl,
+          annotationCache?.getAll() ?? new Map(),
+        );
         DagPanel.scheduleUpdate(decl, fallback, doc.uri);
       }
     }),
@@ -120,14 +114,13 @@ export function deactivate(): void {
   // VS Code will dispose all registered subscriptions automatically.
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function tryDetectDeclarations(document: vscode.TextDocument): WorkflowDeclaration[] {
   try {
     return detectWorkflowDeclarations(
       document.getText(),
       document.languageId,
       document.fileName,
+      annotationCache?.getAll() ?? new Map(),
     );
   } catch {
     return [];

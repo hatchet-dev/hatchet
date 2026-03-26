@@ -108,8 +108,6 @@ export class LspAnalyzer {
   }
 }
 
-// ─── Location-level task extraction ──────────────────────────────────────────
-
 function extractTaskAtLocation(
   lines: string[],
   refLineOffset: number,
@@ -133,8 +131,6 @@ function extractTaskAtLocation(
       return undefined;
   }
 }
-
-// ─── TypeScript ───────────────────────────────────────────────────────────────
 
 function extractTsTask(
   lines: string[],
@@ -168,7 +164,7 @@ function extractTsTask(
   let parentVarIds: string[] = [];
 
   if (trimmedContent.startsWith("'") || trimmedContent.startsWith('"') || trimmedContent.startsWith('`')) {
-    // ── Positional-name form: task('step1', { parents: [...] }) ──────────
+    // positional form: task('name', { parents: [...] })
     const nameM = /^['"`]([^'"`\n]+)['"`]/.exec(trimmedContent);
     displayName = nameM?.[1] ?? taskVarId;
 
@@ -178,7 +174,7 @@ function extractTsTask(
       ? parentsM[1].split(',').map((s) => s.trim()).filter((s) => /^\w+$/.test(s))
       : [];
   } else {
-    // ── Options-object form: task({ name: '...', parents: [...] }) ───────
+    // options-object form: task({ name: '...', parents: [...] })
     const nameM = /name\s*:\s*['"`]([^'"`]+)['"`]/.exec(parenContent);
     displayName = nameM?.[1] ?? taskVarId;
 
@@ -202,8 +198,6 @@ function extractTsTask(
   };
 }
 
-// ─── Python ───────────────────────────────────────────────────────────────────
-
 function extractPyTask(
   lines: string[],
   refLineOffset: number,
@@ -217,13 +211,11 @@ function extractPyTask(
   const decRe = new RegExp(`^@${escapeRegex(varName)}\\.task\\s*\\(`);
   if (!decRe.test(refLine.trimStart())) return undefined;
 
-  // Collect decorator paren content
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   if (parenIdx === -1) return undefined;
   const parenContent = collectSimpleContent(fullText, parenIdx);
 
-  // Extract parents=[id1, id2, ...]
   const parentsM = /parents\s*=\s*\[([^\]]*)\]/.exec(parenContent);
   const parentVarIds: string[] = parentsM
     ? parentsM[1]
@@ -232,7 +224,6 @@ function extractPyTask(
         .filter((s) => /^\w+$/.test(s))
     : [];
 
-  // Scan forward for `def` or `async def`
   let funcName: string | undefined;
   let defOffset = refLineOffset;
   for (let j = refLineOffset + 1; j < Math.min(refLineOffset + 10, lines.length); j++) {
@@ -254,8 +245,6 @@ function extractPyTask(
   };
 }
 
-// ─── Go ───────────────────────────────────────────────────────────────────────
-
 function extractGoTask(
   lines: string[],
   refLineOffset: number,
@@ -276,12 +265,10 @@ function extractGoTask(
   const taskName = m[2];
   const varId = assignedVar && assignedVar !== '_' ? assignedVar : sanitizeVarId(taskName);
 
-  // Collect full NewTask(...) args with brace-aware depth
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   const taskArgs = parenIdx !== -1 ? collectBraceAwareContent(fullText, parenIdx) : '';
 
-  // Extract WithParents(p1, p2)
   const parentsM = /WithParents\s*\(([^)]*)\)/.exec(taskArgs);
   const parentVarIds: string[] = parentsM
     ? parentsM[1]
@@ -298,8 +285,6 @@ function extractGoTask(
     fileUri,
   };
 }
-
-// ─── Ruby ─────────────────────────────────────────────────────────────────────
 
 function extractRubyTask(
   lines: string[],
@@ -321,13 +306,11 @@ function extractRubyTask(
   const taskSymbolName = m[2];
   const varId = assignedConst ?? taskSymbolName;
 
-  // Collect paren content
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   if (parenIdx === -1) return undefined;
   const parenContent = collectSimpleContent(fullText, parenIdx);
 
-  // Extract parents: [STEP1, STEP2, :step3]
   const parentsM = /parents:\s*\[([^\]]*)\]/.exec(parenContent);
   const parentVarIds: string[] = parentsM
     ? parentsM[1]
@@ -348,9 +331,6 @@ function extractRubyTask(
   };
 }
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
-
-/** Escape special regex characters in a literal string. */
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
