@@ -34,7 +34,14 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 		offset = 0
 	}
 
-	result, err := t.config.V1.OLAP().ListSpansForRun(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId, offset, limit)
+	olap := t.config.V1.OLAP()
+
+	traceId, err := olap.LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := olap.ListSpansByTraceId(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
 	if err != nil {
 		return nil, err
 	}

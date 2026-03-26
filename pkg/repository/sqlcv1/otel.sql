@@ -117,34 +117,3 @@ ORDER BY start_time ASC
 OFFSET COALESCE(@spanOffset::BIGINT, 0)
 LIMIT COALESCE(@spanLimit::BIGINT, 1000)
 ;
-
--- name: LookUpTraceIdsForRun :many
-SELECT DISTINCT trace_id
-FROM (
-    SELECT trace_id
-    FROM v1_otel_trace_lookup_olap
-    WHERE
-        tenant_id = @tenantId::UUID
-        AND external_id = @externalId::UUID
-    UNION
-    SELECT DISTINCT trace_id
-    FROM v1_otel_trace_olap
-    WHERE
-        tenant_id = @tenantId::UUID
-        AND (
-            task_run_external_id = @externalId::UUID
-            OR workflow_run_external_id = @externalId::UUID
-        )
-) sub
-;
-
--- name: ListSpansByTraceIds :many
-SELECT *
-FROM v1_otel_trace_olap
-WHERE
-    tenant_id = @tenantId::UUID
-    AND trace_id = ANY(@traceIds::BYTEA[])
-ORDER BY start_time ASC
-OFFSET COALESCE(@spanOffset::BIGINT, 0)
-LIMIT COALESCE(@spanLimit::BIGINT, 1000)
-;

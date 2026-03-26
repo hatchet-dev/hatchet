@@ -285,8 +285,6 @@ type OLAPRepository interface {
 
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
-	ListSpansForRun(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID, offset, limit int64) (*ListSpansResult, error)
-	LookUpTraceIdsForRun(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) ([][]byte, error)
 	CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 	LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error)
 }
@@ -3750,64 +3748,6 @@ func (o *OLAPRepositoryImpl) ListSpansByTraceId(ctx context.Context, tenantId uu
 	return &ListSpansResult{Rows: spans, Total: int64(len(spans))}, nil
 }
 
-func (o *OLAPRepositoryImpl) LookUpTraceIdsForRun(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) ([][]byte, error) {
-	traceIds, err := o.queries.LookUpTraceIdsForRun(ctx, o.pool, sqlcv1.LookUpTraceIdsForRunParams{
-		Tenantid:   tenantId,
-		Externalid: externalId,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error looking up trace ids for run: %w", err)
-	}
-
-	return traceIds, nil
-}
-
-func (o *OLAPRepositoryImpl) ListSpansForRun(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID, offset, limit int64) (*ListSpansResult, error) {
-	traceIds, err := o.LookUpTraceIdsForRun(ctx, tenantId, externalId)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(traceIds) == 0 {
-		return &ListSpansResult{Rows: []*OtelSpanRow{}, Total: 0}, nil
-	}
-
-	rows, err := o.queries.ListSpansByTraceIds(ctx, o.pool, sqlcv1.ListSpansByTraceIdsParams{
-		Tenantid:   tenantId,
-		Traceids:   traceIds,
-		Spanoffset: offset,
-		Spanlimit:  limit,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error listing otel spans for run: %w", err)
-	}
-
-	spans := make([]*OtelSpanRow, 0, len(rows))
-
-	for _, r := range rows {
-		spans = append(spans, &OtelSpanRow{
-			TraceID:            hex.EncodeToString(r.TraceID),
-			SpanID:             hex.EncodeToString(r.SpanID),
-			ParentSpanID:       r.ParentSpanID,
-			SpanName:           r.SpanName,
-			SpanKind:           r.SpanKind,
-			ServiceName:        r.ServiceName,
-			StatusCode:         r.StatusCode,
-			StatusMessage:      r.StatusMessage,
-			DurationNs:         r.DurationNs,
-			StartTime:          r.StartTime,
-			ResourceAttributes: r.ResourceAttributes,
-			SpanAttributes:     r.SpanAttributes,
-			ScopeName:          r.ScopeName,
-			ScopeVersion:       r.ScopeVersion,
-			RetryCount:         r.RetryCount,
-		})
-	}
-
-	return &ListSpansResult{Rows: spans, Total: int64(len(spans))}, nil
-}
 
 func extractServiceName(resourceAttrsJSON json.RawMessage) string {
 	if len(resourceAttrsJSON) == 0 {
