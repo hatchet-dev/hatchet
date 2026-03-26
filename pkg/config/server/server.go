@@ -285,6 +285,12 @@ type ConfigFileRuntime struct {
 	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
 	SchedulerConcurrencyPollingMaxInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
 
+	// WorkflowRunPollingMinInterval is the minimum interval for polling workflow runs in the dispatcher
+	WorkflowRunPollingMinInterval time.Duration `mapstructure:"workflowRunPollingMinInterval" json:"workflowRunPollingMinInterval,omitempty" default:"1s"`
+
+	// WorkflowRunPollingMaxInterval is the maximum interval for polling workflow runs in the dispatcher
+	WorkflowRunPollingMaxInterval time.Duration `mapstructure:"workflowRunPollingMaxInterval" json:"workflowRunPollingMaxInterval,omitempty" default:"2s"`
+
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
@@ -691,6 +697,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
+	_ = v.BindEnv("runtime.workflowRunPollingMinInterval", "SERVER_WORKFLOW_RUN_POLLING_MIN_INTERVAL")
+	_ = v.BindEnv("runtime.workflowRunPollingMaxInterval", "SERVER_WORKFLOW_RUN_POLLING_MAX_INTERVAL")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")

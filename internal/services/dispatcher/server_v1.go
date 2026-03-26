@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -431,14 +432,23 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return nil
 	}
 
-	f := func(msg *msgqueue.Message) error {
-		wg.Add(1)
-		defer wg.Done()
+	iterCh := make(chan []uuid.UUID, 100)
+	notifyCh := make(chan struct{}, 1)
 
-		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
-			if err := iter(matchedWorkflowRunIds); err != nil {
-				s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+	enqueue := func(ids []uuid.UUID) {
+		select {
+		case iterCh <- ids:
+			select {
+			case notifyCh <- struct{}{}:
+			default:
 			}
+		default:
+		}
+	}
+
+	f := func(msg *msgqueue.Message) error {
+		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
+			enqueue(matchedWorkflowRunIds)
 		}
 
 		return nil
@@ -477,9 +487,41 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		}
 	}()
 
+	// serial worker: drains iterCh whenever notified, ensuring at most one iter in flight
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-notifyCh:
+				var ids []uuid.UUID
+			drain:
+				for {
+					select {
+					case batch := <-iterCh:
+						ids = append(ids, batch...)
+					default:
+						break drain
+					}
+				}
+
+				if len(ids) == 0 {
+					continue
+				}
+
+				if err := iter(ids); err != nil {
+					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				}
+			}
+		}
+	}()
+
 	// new goroutine to poll every second for finished workflow runs which are not ackd
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := randomticker.NewRandomTicker(s.minWorkflowRunPollingInterval, s.maxWorkflowRunPollingInterval)
 
 		for {
 			select {
@@ -488,12 +530,8 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			case <-ticker.C:
 				workflowRunIds := acks.getNonAckdWorkflowRuns()
 
-				if len(workflowRunIds) == 0 {
-					continue
-				}
-
-				if err := iter(workflowRunIds); err != nil {
-					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				if len(workflowRunIds) > 0 {
+					enqueue(workflowRunIds)
 				}
 			}
 		}

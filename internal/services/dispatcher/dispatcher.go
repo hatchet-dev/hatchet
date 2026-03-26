@@ -47,6 +47,8 @@ type DispatcherImpl struct {
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
+	minWorkflowRunPollingInterval       time.Duration
+	maxWorkflowRunPollingInterval       time.Duration
 
 	dispatcherId uuid.UUID
 	workers      *workers
@@ -134,6 +136,8 @@ type DispatcherOpts struct {
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
 	version                             string
+	minWorkflowRunPollingInterval       time.Duration
+	maxWorkflowRunPollingInterval       time.Duration
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -150,6 +154,8 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		defaultMaxWorkerLockAcquisitionTime: 250 * time.Millisecond,
 		workflowRunBufferSize:               1000,
 		streamEventBufferTimeout:            5 * time.Second,
+		minWorkflowRunPollingInterval:       1 * time.Second,
+		maxWorkflowRunPollingInterval:       2 * time.Second,
 	}
 }
 
@@ -231,6 +237,18 @@ func WithAnalytics(a analytics.Analytics) DispatcherOpt {
 	}
 }
 
+func WithMinWorkflowRunPollingInterval(interval time.Duration) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.minWorkflowRunPollingInterval = interval
+	}
+}
+
+func WithMaxWorkflowRunPollingInterval(interval time.Duration) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.maxWorkflowRunPollingInterval = interval
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -283,6 +301,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
+		minWorkflowRunPollingInterval:       opts.minWorkflowRunPollingInterval,
+		maxWorkflowRunPollingInterval:       opts.maxWorkflowRunPollingInterval,
 	}, nil
 }
 
