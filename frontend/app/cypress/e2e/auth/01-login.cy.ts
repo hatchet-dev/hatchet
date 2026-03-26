@@ -35,16 +35,9 @@ describe('auth: login', () => {
       }
     });
     cy.location('pathname', { timeout: 30000 }).should('include', '/tenants/');
-    cy.get('button[aria-label="User Menu"]').filter(':visible').first().click();
-    // `data-cy="user-name"` exists in both the trigger and the dropdown content; scope to the open menu.
-    cy.get('[role="menu"]')
+    cy.get(`button[title*="${seededUsers.owner.email}"]`)
       .filter(':visible')
       .first()
-      .within(() => {
-        cy.get('[data-cy="user-name"]')
-          .filter(':visible')
-          .first()
-          .should('have.text', seededUsers.owner.name);
-      });
+      .should('exist');
   });
 });

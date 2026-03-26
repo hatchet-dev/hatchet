@@ -53,6 +53,7 @@ export function Notifications() {
           variant="icon"
           title={ariaLabel}
           aria-label={ariaLabel}
+          data-cy="notifications-button"
           className="relative gap-1.5 rounded-full border border-border px-2.5"
         >
           <RiNotification3Line className="size-4" />
