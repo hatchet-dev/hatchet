@@ -23,6 +23,8 @@ import { Button } from '@/components/v1/ui/button';
 import { ChevronsDownUp, ChevronsUpDown, XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
+
 type Selection =
   | { kind: 'span'; span: OtelSpanTree }
   | { kind: 'group'; group: SpanGroupInfo };
@@ -141,8 +143,6 @@ export function TaskRunTrace({
   activeFilters,
   onAddFilter,
   onRemoveFilter,
-  showInContext,
-  onToggleShowInContext,
   contextTaskRunId,
   onClearFilters,
 }: {
@@ -151,8 +151,6 @@ export function TaskRunTrace({
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
-  showInContext?: boolean;
-  onToggleShowInContext?: () => void;
   contextTaskRunId?: string;
   onClearFilters?: () => void;
 }) {
@@ -251,19 +249,15 @@ export function TaskRunTrace({
     }
   }
 
-  const pendingContextExpandRef = useRef(false);
+  const contextExpandRef = useRef<string | null>(null);
 
-  const handleToggleContext = useCallback(() => {
-    if (!showInContext) {
-      pendingContextExpandRef.current = true;
-    }
-    onToggleShowInContext?.();
-  }, [showInContext, onToggleShowInContext]);
-
-  if (pendingContextExpandRef.current && showInContext && contextTaskRunId) {
-    pendingContextExpandRef.current = false;
+  if (
+    contextTaskRunId &&
+    contextExpandRef.current !== CONTEXT_EXPAND_SENTINEL
+  ) {
     const result = findSpanByTaskRunId(spanTrees, contextTaskRunId);
     if (result) {
+      contextExpandRef.current = CONTEXT_EXPAND_SENTINEL;
       setExpandedSpansIds((prev) => {
         const next = new Set(prev);
         for (const id of result.ancestorKeys) {
@@ -272,7 +266,6 @@ export function TaskRunTrace({
         next.add(getStableKey(result.span));
         return next;
       });
-      setSelectedSpanId(result.span.spanId);
     }
   }
 
@@ -462,23 +455,6 @@ export function TaskRunTrace({
                 )}
                 {isAllExpanded ? 'collapse all' : 'expand all'}
               </Button>
-              {onToggleShowInContext && (
-                <>
-                  <span className="text-xs text-muted-foreground">|</span>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="gap-1 text-xs"
-                    onClick={handleToggleContext}
-                  >
-                    {showInContext
-                      ? contextTaskRunId
-                        ? 'show task only'
-                        : 'show run only'
-                      : 'show in context'}
-                  </Button>
-                </>
-              )}
             </div>
             <div className="min-w-0 flex-1 pr-10">
               <div className="flex justify-end pb-1">

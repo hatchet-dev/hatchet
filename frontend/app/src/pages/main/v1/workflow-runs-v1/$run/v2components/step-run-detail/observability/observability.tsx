@@ -35,20 +35,59 @@ function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
 }
 
-function pruneOtherWorkflowRuns(
-  node: OtelSpanTree,
-  currentRunId: string,
-): OtelSpanTree {
-  const filteredChildren = node.children
-    .filter((child) => {
-      if (child.spanName === SPAN.ENGINE_WORKFLOW_RUN) {
-        const childRunId = child.spanAttributes?.[ATTR.WORKFLOW_RUN_ID];
-        return childRunId === currentRunId;
-      }
-      return true;
-    })
-    .map((child) => pruneOtherWorkflowRuns(child, currentRunId));
-  return { ...node, children: filteredChildren };
+function collectAllSpanIds(node: OtelSpanTree, ids: Set<string>): void {
+  ids.add(node.spanId);
+  node.children.forEach((child) => collectAllSpanIds(child, ids));
+}
+
+function findAncestorSpanIds(
+  nodes: OtelSpanTree[],
+  targetSpanId: string,
+  path: string[] = [],
+): string[] | undefined {
+  for (const node of nodes) {
+    if (node.spanId === targetSpanId) {
+      return path;
+    }
+    const found = findAncestorSpanIds(node.children, targetSpanId, [
+      ...path,
+      node.spanId,
+    ]);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+function findWorkflowRunSpan(
+  nodes: OtelSpanTree[],
+  runId: string,
+): OtelSpanTree | undefined {
+  for (const node of nodes) {
+    if (
+      node.spanName === SPAN.ENGINE_WORKFLOW_RUN &&
+      node.spanAttributes?.[ATTR.WORKFLOW_RUN_ID] === runId
+    ) {
+      return node;
+    }
+    const found = findWorkflowRunSpan(node.children, runId);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+function markContextOnly<T extends OtelSpanTree>(
+  trees: T[],
+  relevantIds: Set<string>,
+): T[] {
+  return trees.map((node) => ({
+    ...node,
+    isContextOnly: !relevantIds.has(node.spanId),
+    children: markContextOnly(node.children, relevantIds),
+  })) as T[];
 }
 
 const GO_ZERO_TIME = '0001-01-01T00:00:00Z';
@@ -125,7 +164,6 @@ export const Observability = (props: ObservabilityProps) => {
   const { queryString, setQueryString } = useRunDetailSearch();
 
   const GRACE_PERIOD_MS = 15_000;
-  const [showInContext, setShowInContext] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
   useEffect(() => {
     if (isRunning) {
@@ -156,25 +194,6 @@ export const Observability = (props: ObservabilityProps) => {
     () => buildAutocompleteContext(traces ?? []),
     [traces],
   );
-
-  const hasMultipleWorkflowRuns = useMemo(() => {
-    if (!traces) {
-      return false;
-    }
-    const runIds = new Set<string>();
-    for (const span of traces) {
-      const id = span.spanAttributes?.[ATTR.WORKFLOW_RUN_ID];
-      if (id) {
-        runIds.add(id);
-      }
-      if (runIds.size > 1) {
-        return true;
-      }
-    }
-    return false;
-  }, [traces]);
-
-  const showContextToggle = !!props.taskRunId || hasMultipleWorkflowRuns;
 
   const workflowRunTiming = useMemo(() => {
     if (!workflowRunCreatedAt) {
@@ -224,44 +243,61 @@ export const Observability = (props: ObservabilityProps) => {
       return null;
     }
 
-    if (!showInContext) {
-      if (props.taskRunId) {
-        const subtree = findSubtreeByTaskRunId(trees, props.taskRunId);
-        if (subtree) {
-          subtree.inProgress = isRunning && !isQueuedOnlyRoot(subtree);
-          return [subtree];
-        }
-      } else if (props.workflowRunExternalId) {
-        trees = trees.map((t) =>
-          pruneOtherWorkflowRuns(t, props.workflowRunExternalId),
-        );
-      }
-    }
-
     trees[0].inProgress = isRunning && !isQueuedOnlyRoot(trees[0]);
 
     return trees;
-  }, [
-    traces,
-    workflowRunTiming,
-    showInContext,
-    props.taskRunId,
-    props.workflowRunExternalId,
-    isRunning,
-    tasks,
-  ]);
+  }, [traces, workflowRunTiming, isRunning, tasks]);
 
   const parsedQuery = useMemo(
     () => parseTraceQuery(queryString),
     [queryString],
   );
 
+  const relevantSpanIds = useMemo(() => {
+    if (!spanTrees) {
+      return undefined;
+    }
+
+    if (props.taskRunId) {
+      const subtree = findSubtreeByTaskRunId(spanTrees, props.taskRunId);
+      if (subtree) {
+        const ids = new Set<string>();
+        collectAllSpanIds(subtree, ids);
+        const ancestors = findAncestorSpanIds(spanTrees, subtree.spanId);
+        if (ancestors) {
+          ancestors.forEach((id) => ids.add(id));
+        }
+        return ids;
+      }
+    } else if (props.workflowRunExternalId) {
+      const wfSpan = findWorkflowRunSpan(
+        spanTrees,
+        props.workflowRunExternalId,
+      );
+      if (wfSpan) {
+        const ids = new Set<string>();
+        collectAllSpanIds(wfSpan, ids);
+        const ancestors = findAncestorSpanIds(spanTrees, wfSpan.spanId);
+        if (ancestors) {
+          ancestors.forEach((id) => ids.add(id));
+        }
+        return ids;
+      }
+    }
+
+    return undefined;
+  }, [spanTrees, props.taskRunId, props.workflowRunExternalId]);
+
   const filteredTrees = useMemo(() => {
     if (!spanTrees) {
       return null;
     }
-    return filterSpanTrees(spanTrees, parsedQuery);
-  }, [spanTrees, parsedQuery]);
+    const filtered = filterSpanTrees(spanTrees, parsedQuery);
+    if (!relevantSpanIds) {
+      return filtered;
+    }
+    return markContextOnly(filtered, relevantSpanIds);
+  }, [spanTrees, parsedQuery, relevantSpanIds]);
 
   const handleAddFilter = useCallback(
     (key: string, value: string) => {
@@ -386,10 +422,6 @@ export const Observability = (props: ObservabilityProps) => {
         activeFilters={parsedQuery}
         onAddFilter={handleAddFilter}
         onRemoveFilter={handleRemoveFilter}
-        showInContext={showContextToggle ? showInContext : undefined}
-        onToggleShowInContext={
-          showContextToggle ? () => setShowInContext((v) => !v) : undefined
-        }
         contextTaskRunId={props.taskRunId}
         onClearFilters={queryString ? () => setQueryString('') : undefined}
       />

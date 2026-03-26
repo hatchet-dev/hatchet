@@ -85,6 +85,7 @@ function LabelRow({
   childOfSelected,
   hovered,
   dimmed,
+  contextOnly,
   onClick,
   onMouseEnter,
   onMouseLeave,
@@ -95,6 +96,7 @@ function LabelRow({
   childOfSelected?: boolean;
   hovered?: boolean;
   dimmed?: boolean;
+  contextOnly?: boolean;
   onClick?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -107,7 +109,7 @@ function LabelRow({
         'flex shrink-0 items-center px-2',
         onClick && 'cursor-pointer transition-colors',
         rowHighlightClass({ hovered, selected, childOfSelected }),
-        dimmed && 'opacity-40',
+        dimmed ? 'opacity-40' : contextOnly && 'opacity-50',
       )}
       style={{ height: ROW_HEIGHT }}
       onClick={onClick}
@@ -235,6 +237,7 @@ export const TimelineLabels = memo(function TimelineLabels({
             childOfSelected={selectedDescendantIds.has(row.span.spanId)}
             hovered={hoveredRowKey === row.rowKey}
             dimmed={!row.matchesFilter}
+            contextOnly={row.isContextOnly}
             data-row-key={row.rowKey}
             onClick={() => {
               if (row.hasChildren) {

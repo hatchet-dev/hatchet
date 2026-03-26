@@ -22,6 +22,10 @@ function getMatchesFilter(span: OtelSpanTree): boolean {
   return (span as { matchesFilter?: boolean }).matchesFilter ?? true;
 }
 
+function getIsContextOnly(span: OtelSpanTree): boolean {
+  return (span as { isContextOnly?: boolean }).isContextOnly ?? false;
+}
+
 export const ROW_HEIGHT = 40;
 export const CONNECTOR_WIDTH = 12;
 export const CONNECTOR_GAP = 8;
@@ -47,6 +51,7 @@ export type FlatSpanRow = {
   hasChildren: boolean;
   isExpanded: boolean;
   matchesFilter: boolean;
+  isContextOnly: boolean;
 };
 
 export type FlatGroupRow = {
@@ -168,6 +173,7 @@ export function flattenTree(
       hasChildren,
       isExpanded,
       matchesFilter: getMatchesFilter(span),
+      isContextOnly: getIsContextOnly(span),
     });
 
     if (isExpanded) {

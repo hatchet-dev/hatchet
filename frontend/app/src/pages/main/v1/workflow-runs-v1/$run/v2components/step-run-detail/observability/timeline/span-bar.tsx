@@ -54,6 +54,7 @@ export const SpanBar = memo(function SpanBar({
     timelineMaxMs > 0 ? ((startMs - visMinStart) / timelineMaxMs) * 100 : 0;
   const widthPct = timelineMaxMs > 0 ? (durationMs / timelineMaxMs) * 100 : 0;
   const isBarDimmed = !row.matchesFilter;
+  const isBarContextOnly = row.isContextOnly;
   const noTransition = hasAnyInProgress || hasAnyLiveQueued;
 
   const q = row.span.queuedPhase;
@@ -87,7 +88,7 @@ export const SpanBar = memo(function SpanBar({
           selected: isSelected,
           childOfSelected: isChildOfSelected,
         }),
-        isBarDimmed && 'opacity-40',
+        isBarDimmed ? 'opacity-40' : isBarContextOnly && 'opacity-50',
       )}
       style={{ height: ROW_HEIGHT }}
     >
