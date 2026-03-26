@@ -14,7 +14,7 @@ describe('v1 sidebar: resize + collapse', () => {
       },
     });
 
-    cy.get('button[aria-label="User Menu"]', { timeout: 30000 }).should(
+    cy.get('[data-cy="notifications-button"]', { timeout: 30000 }).should(
       'be.visible',
     );
     cy.location('pathname', { timeout: 30000 }).should(
@@ -30,7 +30,7 @@ describe('v1 sidebar: resize + collapse', () => {
   };
 
   const waitForShell = () => {
-    cy.get('button[aria-label="User Menu"]', { timeout: 30000 }).should(
+    cy.get('[data-cy="notifications-button"]', { timeout: 30000 }).should(
       'be.visible',
     );
     cy.get('[data-cy="v1-sidebar"]').should('be.visible');
