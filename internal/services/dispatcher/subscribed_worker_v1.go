@@ -173,7 +173,7 @@ func (worker *subscribedWorker) CancelTask(
 				WorkerId:       &worker.workerId,
 				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
 				EventTimestamp: time.Now().UTC(),
-				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.timeout),
+				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.Timeout),
 			},
 		)
 		if err != nil {
