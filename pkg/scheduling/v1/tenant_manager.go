@@ -86,8 +86,8 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 		concurrencyResultsCh:          concurrencyResultsCh,
 		strategyIdsToParentIds:        strategyIdsToParentIds,
 		parentIdsToStrategyIds:        parentIdsToStrategyIds,
-		concurrencyAdvisoryLock:       timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerConcurrencyPollingMinInterval),
-		concurrencyParentAdvisoryLock: timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerConcurrencyPollingMinInterval),
+		concurrencyAdvisoryLock:       timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
+		concurrencyParentAdvisoryLock: timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
