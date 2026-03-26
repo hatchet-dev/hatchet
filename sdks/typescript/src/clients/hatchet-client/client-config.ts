@@ -2,6 +2,7 @@ import { ChannelCredentials } from 'nice-grpc';
 import { z } from 'zod';
 import type { Context } from '@hatchet/v1/client/worker/context';
 import { Logger, LogLevel } from '@util/logger';
+import { LanguageModel } from 'ai';
 
 const ClientTLSConfigSchema = z.object({
   tls_strategy: z.enum(['tls', 'mtls', 'none']).optional(),
@@ -136,5 +137,6 @@ export type ClientConfig = Omit<
 } & {
   logger: LogConstructor;
   middleware?: TaskMiddleware;
+  defaultLanguageModel?: LanguageModel;
 };
 export type ClientTLSConfig = z.infer<typeof ClientTLSConfigSchema>;

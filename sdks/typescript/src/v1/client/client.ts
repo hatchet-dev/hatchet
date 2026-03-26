@@ -66,6 +66,28 @@ import {
 } from '../types';
 import { AdminClient } from './admin';
 import { DurableContext } from './worker/context';
+import { CreateToolboxOpts, Toolbox, ToolDeclaration } from "./toolbox";
+import { LanguageModel } from 'ai';
+
+export interface AgentDeclaration<
+  InputSchema extends z.ZodType,
+  OutputSchema extends z.ZodType
+> extends TaskWorkflowDeclaration<z.infer<InputSchema>, z.infer<OutputSchema>> {
+  inputSchema: InputSchema;
+  outputSchema: OutputSchema;
+  description: string;
+}
+
+export abstract class Registerable {
+  abstract get register(): BaseWorkflowDeclaration<any, any>[];
+}
+
+type BaseOrRegisterable = BaseWorkflowDeclaration<any, any> | Registerable;
+
+interface StartOptions extends CreateWorkerOpts {
+  name?: string;
+  register?: Array<BaseOrRegisterable> | Array<Array<BaseOrRegisterable>>;
+}
 
 type MergeIfNonEmpty<Base, Extra extends Record<string, any>> = keyof Extra extends never
   ? Base
@@ -92,6 +114,9 @@ export class HatchetClient<
   private _axiosConfig: AxiosRequestConfig | undefined;
   private _clientFactory: ClientFactory;
   private _credentials: ChannelCredentials;
+  private toolboxes: Map<string, Toolbox<any>> = new Map();
+  private workflowToFilePath: Map<string, string> = new Map();
+  private registry: Map<string, BaseOrRegisterable> = new Map();
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -118,6 +143,7 @@ export class HatchetClient<
   tenantId: string;
 
   logger: Logger;
+  defaultLanguageModel: LanguageModel | undefined;
 
   _isV1: boolean | undefined = true;
 
@@ -130,12 +156,14 @@ export class HatchetClient<
    * @param config - Optional configuration for the client
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
+   * @param defaultLanguageModel
    * @internal
    */
   constructor(
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
-    axiosConfig?: AxiosRequestConfig
+    axiosConfig?: AxiosRequestConfig,
+    defaultLanguageModel?: LanguageModel
   ) {
     try {
       const loaded = ConfigLoader.loadClientConfig(config, {
@@ -153,6 +181,7 @@ export class HatchetClient<
       const clientConfig = {
         ...valid,
         logger: logConstructor,
+        defaultLanguageModel: defaultLanguageModel,
       };
 
       this._config = clientConfig;
@@ -174,6 +203,7 @@ export class HatchetClient<
 
       this._options = options;
       this._axiosConfig = axiosConfig;
+      this.defaultLanguageModel = this.config.defaultLanguageModel;
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`, { cause: e });
@@ -729,5 +759,123 @@ export class HatchetClient<
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
     return this.runs.runRef(id);
+  }
+
+  /**
+   * Creates a new agent with Zod schema validation.
+   * @template InputSchema The Zod schema for input validation
+   * @template OutputSchema The Zod schema for output validation
+   * @param options Agent configuration options including input and output schemas
+   * @returns An AgentDeclaration instance
+   */
+  agent<
+    InputSchema extends z.ZodType,
+    OutputSchema extends z.ZodType
+  >(
+    options: {
+      name: string;
+      description: string;
+      inputSchema: InputSchema;
+      outputSchema: OutputSchema;
+      fn: (
+        input: z.infer<InputSchema>,
+        ctx: DurableContext<z.infer<InputSchema>>
+      ) => Promise<z.infer<OutputSchema>>;
+    } & Omit<CreateDurableTaskWorkflowOpts<z.infer<InputSchema>, z.infer<OutputSchema>>, 'fn'>
+  ): AgentDeclaration<InputSchema, OutputSchema>;
+
+  /**
+   * Implementation of the agent method.
+   */
+  agent(options: any): AgentDeclaration<any, any> {
+    const { inputSchema, outputSchema, fn, description, ...rest } = options;
+
+    const wrappedFn = async (input: any, ctx?: any) => {
+      const validatedInput = inputSchema.parse(input);
+      const result = await fn(validatedInput, ctx);
+      return outputSchema.parse(result);
+    };
+
+    const declaration = CreateDurableTaskWorkflow(
+      { ...rest, fn: wrappedFn },
+      this
+    ) as AgentDeclaration<any, any>;
+    declaration.inputSchema = inputSchema;
+    declaration.outputSchema = outputSchema;
+    declaration.description = description;
+    const agent = declaration as AgentDeclaration<any, any>;
+    this.registry.set(agent.name, agent);
+    return agent;
+  }
+
+  /**
+   * Creates a new tool with Zod schema validation.
+   * @template Name The literal type of the tool name
+   * @template InputSchema The Zod schema for input validation
+   * @template OutputSchema The Zod schema for output validation
+   * @param options Tool configuration options including input and output schemas
+   * @returns A ToolDeclaration instance
+   */
+  tool<Name extends string, InputSchema extends z.ZodType, OutputSchema extends z.ZodType>(
+    options: {
+      name: Name;
+      description: string;
+      inputSchema: InputSchema;
+      outputSchema: OutputSchema;
+      fn: (input: z.infer<InputSchema>, ctx?: any) => Promise<z.infer<OutputSchema>>;
+    } & Omit<CreateTaskWorkflowOpts<z.infer<InputSchema>, z.infer<OutputSchema>>, 'fn'>
+  ): ToolDeclaration<InputSchema, OutputSchema> & { name: Name };
+
+  /**
+   * Implementation of the tool method.
+   */
+  tool(options: any): ToolDeclaration<any, any> & { name: string } {
+    const { inputSchema, outputSchema, fn, description, ...rest } = options;
+
+    // Wrap the function to validate input and output
+    const wrappedFn = async (input: any, ctx?: any) => {
+      const validatedInput = inputSchema.parse(input);
+      const result = await fn(validatedInput, ctx);
+      return outputSchema.parse(result);
+    };
+
+    const declaration = CreateTaskWorkflow({ ...rest, fn: wrappedFn }, this) as ToolDeclaration<any, any>;
+
+    // Add schema information to the declaration
+    declaration.inputSchema = inputSchema;
+    declaration.outputSchema = outputSchema;
+    declaration.description = description;
+
+    // Preserve the literal type of the `name` field through a cast so callers
+    // can discriminate on `name` later.
+    const tool = declaration as typeof declaration & { name: typeof options.name };
+    this.registry.set(tool.name, tool);
+    return tool;
+  }
+
+  /**
+   * Creates a new toolbox.
+   * @param options The toolbox configuration options
+   * @returns A Toolbox instance
+   */
+  toolbox<T extends ReadonlyArray<ToolDeclaration<any, any>>>(
+    options: CreateToolboxOpts<T>
+  ): Toolbox<T> {
+    const toolbox = new Toolbox(options, this);
+    // Store the toolbox with a generated key based on tool names
+    const toolboxKey = Array.from(options.tools)
+      .map((t) => t.name)
+      .sort()
+      .join(':');
+    this.toolboxes.set(toolboxKey, toolbox);
+    this.registry.set(toolboxKey, toolbox);
+    return toolbox;
+  }
+
+  /**
+   * Gets a toolbox by its key (used internally)
+   */
+  _getToolbox(key: string): Toolbox<any> | undefined {
+    return this.toolboxes.get(key);
   }
 }
