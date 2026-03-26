@@ -189,21 +189,15 @@ describe('v1 sidebar: resize + collapse', () => {
     expectSidebarWidthStyle(56);
   });
 
-  it('collapsed: settings flyout renders and has a visible panel background', () => {
+  it('collapsed: settings items are always visible without a flyout', () => {
     visitAuthed({ width: 1280, height: 800 });
 
     // Collapse.
     cy.get('[data-cy="v1-sidebar-resize-handle"]').click({ force: true });
+    expectSidebarWidthStyle(56);
 
-    // Open settings flyout.
-    cy.get('button[aria-label="General"]').click({ force: true });
-    cy.get('[role="menu"]').filter(':visible').first().as('settingsMenu');
-    cy.get('@settingsMenu').contains('Overview').should('be.visible');
-
-    // Content should have the bg-secondary class (explicit panel surface).
-    cy.get('@settingsMenu')
-      .invoke('attr', 'class')
-      // UI uses popover surfaces; accept either explicit secondary surface or popover surface.
-      .should('match', /\bbg-(secondary|popover)\b/);
+    // Settings items exist directly — no flyout needed.
+    cy.get('button[aria-label="API Tokens"]').scrollIntoView().should('be.visible');
+    cy.get('button[aria-label="Members"]').scrollIntoView().should('be.visible');
   });
 });
