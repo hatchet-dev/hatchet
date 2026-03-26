@@ -30,10 +30,10 @@ type TracerOpts struct {
 	CollectorAuth string
 }
 
-func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
+func InitTracer(opts *TracerOpts) (func() error, error) {
 	if opts.CollectorURL == "" {
 		// no-op
-		return func(context.Context) error {
+		return func() error {
 			return nil
 		}, nil
 	}
@@ -92,20 +92,27 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 			return nil, fmt.Errorf("failed to parse traceIdRatio: %w", err)
 		}
 	}
-
-	otel.SetTracerProvider(
-		sdktrace.NewTracerProvider(
-			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
-			sdktrace.WithBatcher(
-				exporter,
-				sdktrace.WithMaxQueueSize(sdktrace.DefaultMaxQueueSize*10),
-				sdktrace.WithMaxExportBatchSize(sdktrace.DefaultMaxExportBatchSize*10),
-			),
-			sdktrace.WithResource(resources),
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
+		sdktrace.WithBatcher(
+			exporter,
+			sdktrace.WithMaxQueueSize(sdktrace.DefaultMaxQueueSize*10),
+			sdktrace.WithMaxExportBatchSize(sdktrace.DefaultMaxExportBatchSize*10),
 		),
+		sdktrace.WithResource(resources),
+	)
+	otel.SetTracerProvider(
+		tracerProvider,
 	)
 
-	return exporter.Shutdown, nil
+	return func() error {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+		defer cancel()
+		if err := tracerProvider.Shutdown(timeoutCtx); err != nil {
+			return err
+		}
+		return exporter.Shutdown(timeoutCtx)
+	}, nil
 }
 
 func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {

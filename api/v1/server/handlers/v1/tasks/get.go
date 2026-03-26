@@ -1,6 +1,9 @@
 package tasks
 
 import (
+	"errors"
+
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -53,9 +56,12 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	workflowVersion, _, _, _, _, _, err := t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), task.TenantID, taskWithData.WorkflowVersionID)
+	var workflowVersion *sqlcv1.GetWorkflowVersionByIdRow
 
-	if err != nil {
+	workflowVersion, _, _, _, _, _, err = t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx.Request().Context(), task.TenantID, taskWithData.WorkflowVersionID)
+
+	// a workflow version or the workflow itself may be deleted but we still want to return the task details
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
