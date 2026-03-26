@@ -3911,16 +3911,16 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 
 	// CleanupV1PausedWorkflowQueueItem
 	eg.Go(runCleanup("cleanup-v1-paused-workflow-queue-item", func(ctx context.Context, tx sqlcv1.DBTX) error {
-	    result, err := r.queries.CleanupV1PausedWorkflowQueueItem(ctx, tx, batchSize)
-	    if err != nil {
-	        return fmt.Errorf("error cleaning up v1_paused_workflow_queue_items: %v", err)
-	    }
-	    if result.RowsAffected() == batchSize {
-	        mu.Lock()
-	        shouldContinue = true
-	        mu.Unlock()
-	    }
-	    return nil
+		result, err := r.queries.CleanupV1PausedWorkflowQueueItem(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_paused_workflow_queue_items: %v", err)
+		}
+		if result.RowsAffected() == batchSize {
+			mu.Lock()
+			shouldContinue = true
+			mu.Unlock()
+		}
+		return nil
 	}))
 
 	// CleanupMatchWithMatchConditions

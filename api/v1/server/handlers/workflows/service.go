@@ -10,7 +10,7 @@ import (
 )
 
 type WorkflowService struct {
-	config *server.ServerConfig
+	config      *server.ServerConfig
 	proxyCancel *proxy.Proxy[admincontracts.CancelTasksRequest, admincontracts.CancelTasksResponse]
 }
 
@@ -20,7 +20,7 @@ func NewWorkflowService(config *server.ServerConfig) *WorkflowService {
 	})
 
 	return &WorkflowService{
-		config: config,
+		config:      config,
 		proxyCancel: proxyCancel,
 	}
 }
