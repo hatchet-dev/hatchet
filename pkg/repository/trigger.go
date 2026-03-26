@@ -2324,7 +2324,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		return nil, fmt.Errorf("failed to list workflows for names: %w", err)
 	}
 
-
 	// each (workflowVersionId, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0, len(opts))
 
