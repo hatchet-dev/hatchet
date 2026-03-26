@@ -197,7 +197,11 @@ describe('v1 sidebar: resize + collapse', () => {
     expectSidebarWidthStyle(56);
 
     // Settings items exist directly — no flyout needed.
-    cy.get('button[aria-label="API Tokens"]').scrollIntoView().should('be.visible');
-    cy.get('button[aria-label="Members"]').scrollIntoView().should('be.visible');
+    cy.get('button[aria-label="API Tokens"]')
+      .scrollIntoView()
+      .should('be.visible');
+    cy.get('button[aria-label="Members"]')
+      .scrollIntoView()
+      .should('be.visible');
   });
 });
