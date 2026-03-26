@@ -64,25 +64,3 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: pnpm run publish
-
-      - name: Upload .vsix as release artifact
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: vscode/v${{ steps.version.outputs.VERSION }}
-          files: frontend/vscode-extension/hatchet-${{ steps.version.outputs.VERSION }}.vsix
-          name: Hatchet VS Code Extension v${{ steps.version.outputs.VERSION }}
-          body: |
-            ## Hatchet VS Code Extension v${{ steps.version.outputs.VERSION }}
-
-            ### Installation
-            **From VS Code Marketplace:** Search for "Hatchet" in the Extensions panel.
-
-            **Manual install:**
-            ```
-            code --install-extension hatchet-${{ steps.version.outputs.VERSION }}.vsix
-            ```
-
-            ### Usage
-            Open any TypeScript file that declares a Hatchet workflow — a
-            "$(graph) Show Hatchet DAG" CodeLens will appear above each
-            `hatchet.workflow(...)` declaration.
