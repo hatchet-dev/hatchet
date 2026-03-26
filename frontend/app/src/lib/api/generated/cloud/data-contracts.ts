@@ -944,7 +944,7 @@ export interface AuditLog {
   /** The action that was performed */
   action: string;
   /** The correlation ID */
-  correlationId: string;
+  correlationId?: string;
   /** The ID of the resource */
   resourceId: string;
   /** The type of the resource */
