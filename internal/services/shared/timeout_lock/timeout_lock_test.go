@@ -1,4 +1,4 @@
-package dispatcher
+package timeout_lock
 
 import (
 	"sync"

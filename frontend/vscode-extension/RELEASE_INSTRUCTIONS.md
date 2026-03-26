@@ -31,7 +31,7 @@ sips -z 128 128 frontend/vscode-extension/assets/icon.png
 
 ### Option A — Automated via git tag (recommended)
 
-Pushing a tag of the form `vscode/vX.Y.Z` triggers `.github/workflows/vscode-release.yml`, which:
+Bumping the version in `package.json` triggers `.github/workflows/vscode-release.yml`, which:
 - installs deps, runs `pnpm build:prod`, packages the `.vsix`, publishes to the Marketplace, and uploads the `.vsix` as a GitHub Release artifact.
 
 ```bash
@@ -42,13 +42,13 @@ vim frontend/vscode-extension/package.json
 # 2. Commit the version bump
 git add frontend/vscode-extension/package.json
 git commit -m "chore(vscode): bump extension version to X.Y.Z"
-
-# 3. Push the tag
-git tag vscode/vX.Y.Z
 git push origin vscode/vX.Y.Z
+
+# 3. Open up a PR targeting main
+gh pr create --web --base main
 ```
 
-The workflow runs automatically. Monitor it at:
+Once merged, the release workflow runs automatically. Monitor it at:
 https://github.com/hatchet-dev/hatchet/actions/workflows/vscode-release.yml
 
 ### Option B — Manual release
