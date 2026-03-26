@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ParsedTask, ParsedWorkflow, WorkflowDeclaration } from '../parser/workflow-parser';
+import type { WorkflowFactoryAnnotation } from '../parser/jsdoc-annotations';
 import { isWithinWorkspace } from '../utils/workspace';
 
 /**
@@ -75,6 +76,7 @@ export class LspAnalyzer {
               decl.varName,
               doc.languageId,
               location.uri,
+              decl.annotation,
             ) ?? null;
           } catch {
             return null;
@@ -115,11 +117,12 @@ function extractTaskAtLocation(
   varName: string,
   languageId: string,
   fileUri: vscode.Uri,
+  annotation?: WorkflowFactoryAnnotation,
 ): ParsedTask | undefined {
   switch (languageId) {
     case 'typescript':
     case 'typescriptreact': // .tsx files are valid in TS SDK projects
-      return extractTsTask(lines, refLineOffset, absoluteStartLine, varName, fileUri);
+      return extractTsTask(lines, refLineOffset, absoluteStartLine, varName, fileUri, annotation);
     case 'python':
       return extractPyTask(lines, refLineOffset, absoluteStartLine, varName, fileUri);
     case 'go':
@@ -139,40 +142,56 @@ function extractTsTask(
   absoluteStartLine: number,
   varName: string,
   fileUri: vscode.Uri,
+  annotation?: WorkflowFactoryAnnotation,
 ): ParsedTask | undefined {
+  const taskMethod = annotation?.taskMethod ?? 'task';
+  const taskParentsProp = annotation?.taskParentsProp ?? 'parents';
   const refLine = lines[refLineOffset];
 
-  // Match: [const/let varId = ]varName.task({
+  // Match: [const/let varId = ]varName.<taskMethod>(
   const taskRe = new RegExp(
-    `(?:(?:const|let)\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.task\\s*\\(`,
+    `(?:(?:const|let)\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.${escapeRegex(taskMethod)}\\s*\\(`,
   );
   const m = taskRe.exec(refLine);
   if (!m) return undefined;
 
   const taskVarId = m[1]; // may be undefined (anonymous task)
 
-  // Build text from the reference line onward and locate the opening paren
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   if (parenIdx === -1) return undefined;
 
   const parenContent = collectBraceAwareContent(fullText, parenIdx);
+  const trimmedContent = parenContent.trimStart();
 
-  // Extract name: '...' or name: "..."
-  const nameM = /name\s*:\s*['"`]([^'"`]+)['"`]/.exec(parenContent);
-  const displayName = nameM?.[1] ?? taskVarId;
+  let displayName: string | undefined;
+  let parentVarIds: string[] = [];
+
+  if (trimmedContent.startsWith("'") || trimmedContent.startsWith('"') || trimmedContent.startsWith('`')) {
+    // ── Positional-name form: task('step1', { parents: [...] }) ──────────
+    const nameM = /^['"`]([^'"`\n]+)['"`]/.exec(trimmedContent);
+    displayName = nameM?.[1] ?? taskVarId;
+
+    const parentsRe = new RegExp(`${escapeRegex(taskParentsProp)}\\s*:\\s*\\[([^\\]]*)\\]`);
+    const parentsM = parentsRe.exec(parenContent);
+    parentVarIds = parentsM
+      ? parentsM[1].split(',').map((s) => s.trim()).filter((s) => /^\w+$/.test(s))
+      : [];
+  } else {
+    // ── Options-object form: task({ name: '...', parents: [...] }) ───────
+    const nameM = /name\s*:\s*['"`]([^'"`]+)['"`]/.exec(parenContent);
+    displayName = nameM?.[1] ?? taskVarId;
+
+    const parentsRe = new RegExp(`${escapeRegex(taskParentsProp)}\\s*:\\s*\\[([^\\]]*)\\]`);
+    const parentsM = parentsRe.exec(parenContent);
+    parentVarIds = parentsM
+      ? parentsM[1].split(',').map((s) => s.trim()).filter((s) => /^\w+$/.test(s))
+      : [];
+  }
+
   if (!displayName) return undefined;
 
   const varId = taskVarId ?? sanitizeVarId(displayName);
-
-  // Extract parents: [id1, id2]
-  const parentsM = /parents\s*:\s*\[([^\]]*)\]/.exec(parenContent);
-  const parentVarIds: string[] = parentsM
-    ? parentsM[1]
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => /^\w+$/.test(s))
-    : [];
 
   return {
     varId,

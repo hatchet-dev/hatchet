@@ -8,6 +8,19 @@ import { parsePythonWorkflows, detectPyWorkflowDeclarations } from '../parser/py
 import { parseRubyWorkflows, detectRubyWorkflowDeclarations } from '../parser/ruby-parser';
 import { parseGoWorkflows, detectGoWorkflowDeclarations } from '../parser/go-parser';
 import { detectTsWorkflowDeclarations } from '../parser/workflow-parser';
+import type { WorkflowAnnotationCache } from '../analysis/annotation-cache';
+
+// ─── Module-level annotation cache ───────────────────────────────────────────
+
+let _annotationCache: WorkflowAnnotationCache | undefined;
+
+/**
+ * Register the workspace annotation cache.  Call this once from `activate`
+ * before the CodeLens provider begins serving requests.
+ */
+export function setAnnotationCache(cache: WorkflowAnnotationCache): void {
+  _annotationCache = cache;
+}
 
 // ─── Language dispatchers ─────────────────────────────────────────────────────
 
@@ -23,7 +36,11 @@ export function detectWorkflowDeclarations(
   switch (languageId) {
     case 'typescript':
     case 'typescriptreact':
-      return detectTsWorkflowDeclarations(text, fileName);
+      return detectTsWorkflowDeclarations(
+        text,
+        fileName,
+        _annotationCache?.getAll() ?? new Map(),
+      );
     case 'python':
       return detectPyWorkflowDeclarations(text);
     case 'ruby':
@@ -71,7 +88,7 @@ function parseWorkflowsForDocument(
   switch (languageId) {
     case 'typescript':
     case 'typescriptreact':
-      return parseWorkflows(text, fileName);
+      return parseWorkflows(text, fileName, _annotationCache?.getAll() ?? new Map());
     case 'python':
       return parsePythonWorkflows(text);
     case 'ruby':
@@ -90,12 +107,24 @@ function parseWorkflowsForDocument(
 function looksLikeHatchetDocument(text: string, languageId: string): boolean {
   switch (languageId) {
     case 'typescript':
-    case 'typescriptreact':
-      return (
+    case 'typescriptreact': {
+      if (
         text.includes('@hatchet-dev/typescript-sdk') ||
         // Match .workflow( and .workflow<T>(
-        /\.workflow\s*[<(]/.test(text)
-      );
+        /\.workflow\s*[<(]/.test(text) ||
+        text.includes('@hatchet-workflow')
+      ) {
+        return true;
+      }
+      // Check if the text calls any annotated factory function
+      const annotated = _annotationCache?.getAll();
+      if (annotated) {
+        for (const fnName of annotated.keys()) {
+          if (text.includes(fnName)) return true;
+        }
+      }
+      return false;
+    }
     case 'python':
       return text.includes('hatchet_sdk') || /\.workflow\s*\(/.test(text);
     case 'ruby':
@@ -116,6 +145,12 @@ function looksLikeHatchetDocument(text: string, languageId: string): boolean {
 export class HatchetCodeLensProvider implements vscode.CodeLensProvider {
   private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+
+  constructor(annotationCache?: WorkflowAnnotationCache) {
+    if (annotationCache) {
+      annotationCache.onDidChange(() => this.refresh());
+    }
+  }
 
   /** Call this when the document changes to refresh lenses. */
   refresh(): void {

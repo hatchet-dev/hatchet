@@ -4,22 +4,36 @@ import {
   HatchetCodeLensProvider,
   detectWorkflowDeclarations,
   computeFallbackWorkflow,
+  setAnnotationCache,
 } from './providers/codelens-provider';
 import type { WorkflowDeclaration, ParsedWorkflow } from './parser/workflow-parser';
+import { WorkflowAnnotationCache } from './analysis/annotation-cache';
 
 const SUPPORTED_LANGUAGES = ['typescript', 'typescriptreact', 'python', 'ruby', 'go'];
 
 let codeLensProvider: HatchetCodeLensProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  // ── Annotation cache (must be set up before CodeLens provider is used) ─
+  const annotationCache = new WorkflowAnnotationCache();
+  setAnnotationCache(annotationCache);
+
   // ── CodeLens provider (registered for each supported language) ────────
-  codeLensProvider = new HatchetCodeLensProvider();
+  codeLensProvider = new HatchetCodeLensProvider(annotationCache);
+
+  // Refresh lenses whenever the annotation cache changes (e.g. after initial
+  // workspace scan or when annotated factory files are edited).
+  annotationCache.onDidChange(() => codeLensProvider?.refresh());
 
   for (const lang of SUPPORTED_LANGUAGES) {
     context.subscriptions.push(
       vscode.languages.registerCodeLensProvider({ language: lang }, codeLensProvider),
     );
   }
+
+  // Initialize asynchronously — when scan completes, cache fires onDidChange
+  // which triggers codeLensProvider.refresh() via the subscription above.
+  void annotationCache.initialize(context);
 
   // ── Command: hatchet.showDag ───────────────────────────────────────────
   context.subscriptions.push(
