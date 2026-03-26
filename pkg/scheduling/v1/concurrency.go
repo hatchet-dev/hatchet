@@ -126,9 +126,7 @@ func (c *ConcurrencyManager) acquireStrategyLocks() bool {
 
 func (c *ConcurrencyManager) releaseStrategyLocks() {
 	c.advisoryLock.Release(c.strategy.ID)
-	if c.strategy.ParentStrategyID.Valid {
-		c.advisoryParentLock.Release(c.strategy.ParentStrategyID.Int64)
-	}
+	c.advisoryParentLock.Release(c.strategy.ParentStrategyID.Int64)
 }
 
 func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
@@ -165,11 +163,12 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		// locks will delay scheduling until next polling tick
 		if acquired := c.acquireStrategyLocks(); !acquired {
 			span.End()
-			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("could not acquire in-memory advisory lock for strategy id %d", c.strategy.ID))
+			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("(concurrency loop) could not acquire in-memory advisory lock for strategy id %d, tenant id %s", c.strategy.ID, c.strategy.TenantID))
 			continue
 		}
 		start := time.Now()
 		results, err := c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
+		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()
 			c.l.Error().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
@@ -180,7 +179,6 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
 		}
-		c.releaseStrategyLocks()
 		c.resultsCh <- &ConcurrencyResults{
 			RunConcurrencyResult: results,
 			TenantId:             c.tenantId,
@@ -209,7 +207,7 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 
 		if acquired := c.acquireStrategyLocks(); !acquired {
 			span.End()
-			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("could not acquire in-memory advisory lock for strategy id %d", c.strategy.ID))
+			c.l.Error().Ctx(ctx).Msg(fmt.Sprintf("(check active loop) could not acquire in-memory advisory lock for strategy id %d, tenant id %s", c.strategy.ID, c.strategy.TenantID))
 			continue
 		}
 		start := time.Now()
