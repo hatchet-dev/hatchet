@@ -343,6 +343,8 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	if workflowVersion != nil {
 		summary.WorkflowVersionId = &workflowVersion.WorkflowVersion.ID
+	} else if taskWithData.WorkflowVersionID != uuid.Nil {
+		summary.WorkflowVersionId = &taskWithData.WorkflowVersionID
 	}
 
 	if isEvicted {
@@ -396,6 +398,8 @@ func ToWorkflowRunDetails(
 
 	if workflowVersion != nil {
 		parsedWorkflowRun.WorkflowVersionId = &workflowVersion.WorkflowVersion.ID
+	} else if workflowRun.WorkflowVersionId != uuid.Nil {
+		parsedWorkflowRun.WorkflowVersionId = &workflowRun.WorkflowVersionId
 	}
 
 	shapeRows := make([]gen.WorkflowRunShapeItemForWorkflowRunDetails, len(shape))
