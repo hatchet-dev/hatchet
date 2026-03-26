@@ -341,6 +341,13 @@ export function TaskRunTrace({
     [],
   );
 
+  const handleEscapeReset = useCallback(() => {
+    setSelectedSpanId(undefined);
+    setSelectedGroupId(undefined);
+    setVisibleRange({ startPct: 0, endPct: 1 });
+    onClearFilters?.();
+  }, [setSelectedSpanId, setSelectedGroupId, onClearFilters]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') {
@@ -350,21 +357,11 @@ export function TaskRunTrace({
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         return;
       }
-
-      setSelectedSpanId(undefined);
-      setSelectedGroupId(undefined);
-      setVisibleRange({ startPct: 0, endPct: 1 });
-      onClearFilters?.();
+      handleEscapeReset();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [
-    resolvedSelection,
-    isZoomed,
-    setSelectedSpanId,
-    setSelectedGroupId,
-    onClearFilters,
-  ]);
+  }, [handleEscapeReset]);
 
   const hasSelection = !!resolvedSelection;
   const containerRef = useRef<HTMLDivElement>(null);

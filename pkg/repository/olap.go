@@ -3748,7 +3748,6 @@ func (o *OLAPRepositoryImpl) ListSpansByTraceId(ctx context.Context, tenantId uu
 	return &ListSpansResult{Rows: spans, Total: int64(len(spans))}, nil
 }
 
-
 func extractServiceName(resourceAttrsJSON json.RawMessage) string {
 	if len(resourceAttrsJSON) == 0 {
 		return "unknown"

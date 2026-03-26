@@ -1,4 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from './alert';
+import { Button } from './button';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 import { type ReactNode, useCallback, useState } from 'react';
@@ -69,13 +70,14 @@ export function OnboardingCard({
       )}
     >
       {dismissible && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={dismiss}
-          className="absolute right-2 top-2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="absolute right-2 top-2 size-6 text-muted-foreground"
         >
           <X className="size-3.5" />
-        </button>
+        </Button>
       )}
 
       <div className="flex items-start gap-3">
