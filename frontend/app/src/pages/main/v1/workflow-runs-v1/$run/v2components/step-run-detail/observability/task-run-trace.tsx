@@ -471,7 +471,11 @@ export function TaskRunTrace({
                     className="gap-1 text-xs"
                     onClick={handleToggleContext}
                   >
-                    {showInContext ? 'show task only' : 'show in context'}
+                    {showInContext
+                      ? contextTaskRunId
+                        ? 'show task only'
+                        : 'show run only'
+                      : 'show in context'}
                   </Button>
                 </>
               )}

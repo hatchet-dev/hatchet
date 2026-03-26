@@ -26,7 +26,7 @@ import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config
 import { OTelAttribute, type ActionOTelAttributeValue } from '../util/opentelemetry';
 import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
-import { setHatchetSpanAttributes } from './hatchet-span-context';
+import { setHatchetSpanAttributes, hatchetSpanAttributes } from './hatchet-span-context';
 import type { HatchetBspConfig } from './hatchet-exporter';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
 import { ScheduleClient, CreateScheduledRunInput } from '../v1/client/features/schedules';
@@ -90,6 +90,19 @@ function extractContext(carrier: Carrier | undefined | null): OtelContext {
 
 function injectContext(carrier: Carrier): void {
   propagation.inject(context.active(), carrier);
+}
+
+function injectSourceInfo(carrier: Carrier): void {
+  const store = hatchetSpanAttributes.getStore();
+  if (!store) return;
+
+  const wfRunId = store['hatchet.workflow_run_id'];
+  const stepRunId = store['hatchet.step_run_id'];
+
+  if (typeof wfRunId === 'string' && typeof stepRunId === 'string') {
+    carrier['hatchet__source_workflow_run_id'] = wfRunId;
+    carrier['hatchet__source_step_run_id'] = stepRunId;
+  }
 }
 
 function getActionOtelAttributes(
@@ -341,6 +354,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           (span: Span) => {
             const enhancedMetadata: Carrier = { ...(options.additionalMetadata ?? {}) };
             injectContext(enhancedMetadata);
+            injectSourceInfo(enhancedMetadata);
 
             const enhancedOptions: PushEventOptions = {
               ...options,
@@ -395,6 +409,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
                 ...((input.additionalMetadata as Carrier) ?? {}),
               };
               injectContext(enhancedMetadata);
+              injectSourceInfo(enhancedMetadata);
               return {
                 ...input,
                 additionalMetadata: enhancedMetadata,

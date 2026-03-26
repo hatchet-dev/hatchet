@@ -59,10 +59,24 @@ const ENGINE_SPAN_DISPLAY_NAMES: Record<string, string> = {
   'hatchet.engine.scheduling': 'Scheduling',
   'hatchet.engine.retry_backoff': 'Retry Backoff',
   'hatchet.engine.workflow_run': 'Workflow Run',
+  'hatchet.engine.event': 'Event',
+  'hatchet.engine.event_emitted': 'Event Emitted',
 };
 
 // O11Y-FIXME: there is a naming consistency issue on the SDKs
 export function getDisplayName(span: OtelSpanTree): string {
+  if (span.spanName === 'hatchet.engine.workflow_run') {
+    const name = span.spanAttributes?.['hatchet.workflow_name'];
+    return name ? `workflow: ${name}` : 'workflow run';
+  }
+  if (span.spanName === 'hatchet.engine.event') {
+    const key = span.spanAttributes?.['hatchet.event_key'];
+    return key ? `event: ${key}` : 'event';
+  }
+  if (span.spanName === 'hatchet.engine.event_emitted') {
+    const key = span.spanAttributes?.['hatchet.event_key'];
+    return key ? `event emitted: ${key}` : 'event emitted';
+  }
   if (ENGINE_SPAN_DISPLAY_NAMES[span.spanName]) {
     return ENGINE_SPAN_DISPLAY_NAMES[span.spanName];
   }

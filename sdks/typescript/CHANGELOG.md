@@ -4,6 +4,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.1] - 2026-03-25
+
+### Changed
+
+- Event source info (`hatchet__source_workflow_run_id`, `hatchet__source_step_run_id`) is now injected into event metadata at the `EventClient` level, so cross-workflow trace linking works even without the OTel instrumentor enabled.
+
 ## [1.18.0] - 2026-03-18
 
 ### Added

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -19,6 +20,46 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
+
+// SourceInfo carries the workflow/step run context so the event client can
+// inject hatchet__source_* keys into event metadata for cross-workflow tracing.
+type SourceInfo struct {
+	WorkflowRunID string
+	StepRunID     string
+}
+
+type sourceInfoKeyType struct{}
+
+var sourceInfoKey = sourceInfoKeyType{}
+
+// WithSourceInfo stores source workflow/step run IDs in the context.
+// Called by the opentelemetry middleware so Push/BulkPush can propagate them.
+func WithSourceInfo(ctx context.Context, info SourceInfo) context.Context {
+	return context.WithValue(ctx, sourceInfoKey, info)
+}
+
+// hatchetContextProvider lets us extract source IDs directly from a
+// HatchetContext without importing pkg/worker (avoids import cycle).
+type hatchetContextProvider interface {
+	WorkflowRunId() string
+	StepRunId() string
+}
+
+func getSourceInfo(ctx context.Context) (SourceInfo, bool) {
+	if info, ok := ctx.Value(sourceInfoKey).(SourceInfo); ok {
+		return info, true
+	}
+
+	if hCtx, ok := ctx.(hatchetContextProvider); ok {
+		wfID := hCtx.WorkflowRunId()
+		srID := hCtx.StepRunId()
+		if wfID != "" || srID != "" {
+			return SourceInfo{WorkflowRunID: wfID, StepRunID: srID}, true
+		}
+	}
+
+	return SourceInfo{}, false
+}
 
 type pushOpt struct {
 	additionalMetadata map[string]string
@@ -113,6 +154,8 @@ func WithFilterScope(scope *string) PushOpFunc {
 }
 
 func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error {
+	sourceInfo, _ := getSourceInfo(ctx)
+
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/client")
 	ctx, span := tracer.Start(ctx, "hatchet.push_event",
 		trace.WithSpanKind(trace.SpanKindProducer),
@@ -149,6 +192,11 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 		}
 	}
 
+	if opts.additionalMetadata == nil {
+		opts.additionalMetadata = make(map[string]string)
+	}
+	injectTraceContext(ctx, opts.additionalMetadata, sourceInfo)
+
 	additionalMetaBytes, err := a.getAdditionalMetaBytes(&opts.additionalMetadata)
 
 	if err != nil {
@@ -174,6 +222,8 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 }
 
 func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error {
+	sourceInfo, _ := getSourceInfo(ctx)
+
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/client")
 	ctx, span := tracer.Start(ctx, "hatchet.bulk_push_event",
 		trace.WithSpanKind(trace.SpanKindProducer),
@@ -196,6 +246,10 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 			return err
 		}
 		md := p.AdditionalMetadata
+		if md == nil {
+			md = make(map[string]string)
+		}
+		injectTraceContext(ctx, md, sourceInfo)
 		eMetadata, err := a.getAdditionalMetaBytes(&md)
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
@@ -262,6 +316,21 @@ func (a *eventClientImpl) PutStreamEvent(ctx context.Context, taskRunId string, 
 	_, err := a.client.PutStreamEvent(a.ctx.newContext(ctx), request)
 
 	return err
+}
+
+// injectTraceContext adds traceparent and source workflow/step run IDs into the
+// metadata map so triggered workflow runs inherit the trace and can be linked
+// back to the emitting step.
+func injectTraceContext(ctx context.Context, meta map[string]string, info SourceInfo) {
+	carrier := propagation.MapCarrier(meta)
+	propagation.TraceContext{}.Inject(ctx, carrier)
+
+	if info.WorkflowRunID != "" {
+		meta["hatchet__source_workflow_run_id"] = info.WorkflowRunID
+	}
+	if info.StepRunID != "" {
+		meta["hatchet__source_step_run_id"] = info.StepRunID
+	}
 }
 
 func (e *eventClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte, error) {

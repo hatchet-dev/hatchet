@@ -9,22 +9,30 @@ import invariant from 'tiny-invariant';
 // Span name & attribute constants
 // ---------------------------------------------------------------------------
 
-const SPAN = {
+export const SPAN = {
   START_STEP_RUN: 'hatchet.start_step_run',
   ENGINE_START_STEP_RUN: 'hatchet.engine.start_step_run',
   ENGINE_QUEUED: 'hatchet.engine.queued',
+  ENGINE_WORKFLOW_RUN: 'hatchet.engine.workflow_run',
+  ENGINE_EVENT: 'hatchet.engine.event',
+  ENGINE_EVENT_EMITTED: 'hatchet.engine.event_emitted',
   RUN_WORKFLOW: 'hatchet.run_workflow',
   START_WORKFLOW: 'hatchet.start_workflow',
 } as const;
 
-const ATTR = {
+export const ATTR = {
   STEP_RUN_ID: 'hatchet.step_run_id',
   STEP_NAME: 'hatchet.step_name',
   SPAN_SOURCE: 'hatchet.span_source',
   ACTION_ID: 'hatchet.action_id',
   WORKFLOW_NAME: 'hatchet.workflow_name',
+  WORKFLOW_RUN_ID: 'hatchet.workflow_run_id',
   TASK_NAME: 'hatchet.task_name',
   INSTRUMENTOR: 'instrumentor',
+  EVENT_KEY: 'hatchet.event_key',
+  EVENT_ID: 'hatchet.event_id',
+  TRIGGERED_WORKFLOW_RUN_IDS: 'hatchet.triggered_workflow_run_ids',
+  CHILD_WORKFLOW_RUN_ID: 'hatchet.child_workflow_run_id',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -195,6 +203,11 @@ function deduplicateStepRunSpans(nodes: OtelSpanTree[]): void {
   const toRemove = new Set<string>();
   for (const { sdk, engine } of byStepRunId.values()) {
     if (sdk && engine) {
+      for (const child of engine.children) {
+        if (!sdk.children.some((c) => c.spanId === child.spanId)) {
+          sdk.children.push(child);
+        }
+      }
       toRemove.add(engine.spanId);
     }
   }
@@ -230,6 +243,43 @@ function mergeQueuedSpans(nodes: OtelSpanTree[]): void {
 
   for (const node of nodes) {
     mergeQueuedSpans(node.children);
+  }
+}
+
+function nestChildWorkflowRunsUnderProducers(nodes: OtelSpanTree[]): void {
+  const producerByChildRunId = new Map<string, OtelSpanTree>();
+  for (const node of nodes) {
+    if (node.spanName === SPAN.RUN_WORKFLOW) {
+      const childId = node.spanAttributes?.[ATTR.CHILD_WORKFLOW_RUN_ID];
+      if (childId) {
+        producerByChildRunId.set(childId, node);
+      }
+    }
+  }
+
+  if (producerByChildRunId.size > 0) {
+    const reparented = new Set<string>();
+    for (const node of nodes) {
+      if (node.spanName !== SPAN.ENGINE_WORKFLOW_RUN) {
+        continue;
+      }
+      const runId = node.spanAttributes?.[ATTR.WORKFLOW_RUN_ID];
+      if (!runId) {
+        continue;
+      }
+      const producer = producerByChildRunId.get(runId);
+      if (producer) {
+        producer.children.push(node);
+        reparented.add(node.spanId);
+      }
+    }
+    if (reparented.size > 0) {
+      removeByPredicate(nodes, (n) => reparented.has(n.spanId));
+    }
+  }
+
+  for (const node of nodes) {
+    nestChildWorkflowRunsUnderProducers(node.children);
   }
 }
 
@@ -678,6 +728,63 @@ function wrapMultipleRoots(
 }
 
 // ---------------------------------------------------------------------------
+// Pipeline: finalize roots (normal path with real engine spans)
+// ---------------------------------------------------------------------------
+
+function isEngineRootSpan(node: OtelSpanTree): boolean {
+  return (
+    node.spanName === SPAN.ENGINE_WORKFLOW_RUN ||
+    node.spanName === SPAN.ENGINE_EVENT
+  );
+}
+
+function computeDurationFromChildren(node: OtelSpanTree): void {
+  if (node.durationNs > 0 || node.children.length === 0) {
+    return;
+  }
+  const startMs = new Date(node.createdAt).getTime();
+  let latestEnd = startMs;
+  for (const child of node.children) {
+    if (child.durationNs <= 0) {
+      continue;
+    }
+    const childStart = new Date(child.createdAt).getTime();
+    const childEnd = childStart + child.durationNs / 1e6;
+    if (childEnd > latestEnd) {
+      latestEnd = childEnd;
+    }
+  }
+  if (latestEnd > startMs) {
+    node.durationNs = (latestEnd - startMs) * 1e6;
+  }
+}
+
+function finalizeRoots(
+  rootSpans: OtelSpanTree[],
+  workflowRunTiming?: WorkflowRunTiming,
+): OtelSpanTree[] {
+  const hasEngineRoot = rootSpans.some(isEngineRootSpan);
+
+  if (hasEngineRoot || rootSpans.length <= 1) {
+    if (workflowRunTiming && rootSpans.length > 0) {
+      const target = rootSpans.find(isEngineRootSpan) ?? rootSpans[0];
+      attachWorkflowQueuedPhase(target, workflowRunTiming);
+    }
+    for (const root of rootSpans) {
+      if (isEngineRootSpan(root)) {
+        computeDurationFromChildren(root);
+      }
+      if (computeSubtreeFlags(root)) {
+        root.inProgress = true;
+      }
+    }
+    return rootSpans;
+  }
+
+  return wrapMultipleRoots(rootSpans, workflowRunTiming);
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline: handle "no spans" path (only task summaries / timing)
 // ---------------------------------------------------------------------------
 
@@ -734,6 +841,7 @@ export const convertOtelSpansToOtelSpanTree = (
 
   deduplicateStepRunSpans(rootSpans);
   mergeQueuedSpans(rootSpans);
+  nestChildWorkflowRunsUnderProducers(rootSpans);
 
   if (enableTraceInProgressSynthesis) {
     synthesizeInProgressSpans(rootSpans, spanMap);
@@ -755,7 +863,7 @@ export const convertOtelSpansToOtelSpanTree = (
 
   sortChildrenStable(rootSpans);
 
-  return wrapMultipleRoots(rootSpans, workflowRunTiming);
+  return finalizeRoots(rootSpans, workflowRunTiming);
 };
 
 // ---------------------------------------------------------------------------
@@ -767,7 +875,11 @@ export function findSubtreeByTaskRunId(
   taskRunId: string,
 ): OtelSpanTree | undefined {
   for (const node of nodes) {
-    if (getStepRunId(node) === taskRunId) {
+    if (
+      getStepRunId(node) === taskRunId ||
+      (node.spanName === SPAN.ENGINE_WORKFLOW_RUN &&
+        node.spanAttributes?.[ATTR.WORKFLOW_RUN_ID] === taskRunId)
+    ) {
       return node;
     }
     const found = findSubtreeByTaskRunId(node.children, taskRunId);

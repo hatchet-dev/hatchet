@@ -2,11 +2,16 @@ import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TaskRunTrace } from './task-run-trace';
 import { hasOnlyEngineSpans, isQueuedOnlyRoot } from './utils/span-tree-utils';
 import {
+  ATTR,
+  SPAN,
   convertOtelSpansToOtelSpanTree,
   findSubtreeByTaskRunId,
   type TaskSummaryForSynthesis,
 } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
-import type { RelevantOpenTelemetrySpanProperties } from '@/components/v1/agent-prism/span-tree-type';
+import type {
+  OtelSpanTree,
+  RelevantOpenTelemetrySpanProperties,
+} from '@/components/v1/agent-prism/span-tree-type';
 import {
   filterSpanTrees,
   parseTraceQuery,
@@ -28,6 +33,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
+}
+
+function pruneOtherWorkflowRuns(
+  node: OtelSpanTree,
+  currentRunId: string,
+): OtelSpanTree {
+  const filteredChildren = node.children
+    .filter((child) => {
+      if (child.spanName === SPAN.ENGINE_WORKFLOW_RUN) {
+        const childRunId = child.spanAttributes?.[ATTR.WORKFLOW_RUN_ID];
+        return childRunId === currentRunId;
+      }
+      return true;
+    })
+    .map((child) => pruneOtherWorkflowRuns(child, currentRunId));
+  return { ...node, children: filteredChildren };
 }
 
 const GO_ZERO_TIME = '0001-01-01T00:00:00Z';
@@ -136,6 +157,25 @@ export const Observability = (props: ObservabilityProps) => {
     [traces],
   );
 
+  const hasMultipleWorkflowRuns = useMemo(() => {
+    if (!traces) {
+      return false;
+    }
+    const runIds = new Set<string>();
+    for (const span of traces) {
+      const id = span.spanAttributes?.[ATTR.WORKFLOW_RUN_ID];
+      if (id) {
+        runIds.add(id);
+      }
+      if (runIds.size > 1) {
+        return true;
+      }
+    }
+    return false;
+  }, [traces]);
+
+  const showContextToggle = !!props.taskRunId || hasMultipleWorkflowRuns;
+
   const workflowRunTiming = useMemo(() => {
     if (!workflowRunCreatedAt) {
       return undefined;
@@ -184,12 +224,17 @@ export const Observability = (props: ObservabilityProps) => {
       return null;
     }
 
-    // prune tree to only include the subtree for the focused task run
-    if (props.taskRunId && !showInContext) {
-      const subtree = findSubtreeByTaskRunId(trees, props.taskRunId);
-      if (subtree) {
-        subtree.inProgress = isRunning && !isQueuedOnlyRoot(subtree);
-        return [subtree];
+    if (!showInContext) {
+      if (props.taskRunId) {
+        const subtree = findSubtreeByTaskRunId(trees, props.taskRunId);
+        if (subtree) {
+          subtree.inProgress = isRunning && !isQueuedOnlyRoot(subtree);
+          return [subtree];
+        }
+      } else if (props.workflowRunExternalId) {
+        trees = trees.map((t) =>
+          pruneOtherWorkflowRuns(t, props.workflowRunExternalId),
+        );
       }
     }
 
@@ -198,11 +243,12 @@ export const Observability = (props: ObservabilityProps) => {
     return trees;
   }, [
     traces,
-    tasks,
-    isRunning,
     workflowRunTiming,
-    props.taskRunId,
     showInContext,
+    props.taskRunId,
+    props.workflowRunExternalId,
+    isRunning,
+    tasks,
   ]);
 
   const parsedQuery = useMemo(
@@ -340,9 +386,9 @@ export const Observability = (props: ObservabilityProps) => {
         activeFilters={parsedQuery}
         onAddFilter={handleAddFilter}
         onRemoveFilter={handleRemoveFilter}
-        showInContext={props.taskRunId ? showInContext : undefined}
+        showInContext={showContextToggle ? showInContext : undefined}
         onToggleShowInContext={
-          props.taskRunId ? () => setShowInContext((v) => !v) : undefined
+          showContextToggle ? () => setShowInContext((v) => !v) : undefined
         }
         contextTaskRunId={props.taskRunId}
         onClearFilters={queryString ? () => setQueryString('') : undefined}
