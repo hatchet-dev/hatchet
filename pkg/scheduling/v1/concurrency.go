@@ -126,7 +126,9 @@ func (c *ConcurrencyManager) acquireStrategyLocks() bool {
 
 func (c *ConcurrencyManager) releaseStrategyLocks() {
 	c.advisoryLock.Release(c.strategy.ID)
-	c.advisoryParentLock.Release(c.strategy.ParentStrategyID.Int64)
+	if c.strategy.ParentStrategyID.Valid {
+		c.advisoryParentLock.Release(c.strategy.ParentStrategyID.Int64)
+	}
 }
 
 func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
