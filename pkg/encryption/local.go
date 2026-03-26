@@ -185,6 +185,9 @@ func handleFromBytes(keysetBytes []byte, masterKey tink.AEAD) (*keyset.Handle, e
 	return handle, nil
 }
 
+// InsecureHandleFromBytes reconstructs a keyset.Handle from a base64 raw-encoded JSON
+// keyset without using a master key. It should only be used with public or cleartext
+// keysets in trusted environments, as the key material is not encrypted at rest.
 func InsecureHandleFromBytes(keysetBytes []byte) (*keyset.Handle, error) {
 	// base64-decode bytes
 	keysetJsonBytes := make([]byte, base64.RawStdEncoding.DecodedLen(len(keysetBytes)))

@@ -32,15 +32,34 @@ func Middleware(config *server.ServerConfig) echo.MiddlewareFunc {
 					return c.NoContent(http.StatusForbidden)
 				}
 
-				c.Response().Header().Set("Access-Control-Allow-Origin", allowOrigin)
-				c.Response().Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-				c.Response().Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-exchange-token")
+				h := c.Response().Header()
+				h.Set("Access-Control-Allow-Origin", allowOrigin)
+				h.Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+
+				// Reflect the requested headers when present so clients sending additional
+				// non-simple headers (e.g. X-Request-Id) are not blocked. Fall back to the
+				// static allowlist to preserve existing behaviour when none are requested.
+				if requested := c.Request().Header.Get("Access-Control-Request-Headers"); requested != "" {
+					h.Set("Access-Control-Allow-Headers", requested)
+				} else {
+					h.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-exchange-token")
+				}
+
+				// When echoing a specific origin, add Vary: Origin so caches do not serve
+				// one origin's preflight response to a different origin.
+				if allowOrigin != "*" {
+					h.Add("Vary", "Origin")
+				}
 
 				return c.NoContent(http.StatusOK)
 			}
 
 			if matched {
-				c.Response().Header().Set("Access-Control-Allow-Origin", allowOrigin)
+				h := c.Response().Header()
+				h.Set("Access-Control-Allow-Origin", allowOrigin)
+				if allowOrigin != "*" {
+					h.Add("Vary", "Origin")
+				}
 			}
 
 			return next(c)

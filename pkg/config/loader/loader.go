@@ -639,7 +639,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	if cf.Auth.ControlPlaneExchangeTokenConfig.Enabled {
 		if cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeyset == "" && cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeysetFile == "" {
-			return nil, nil, fmt.Errorf("control plane exchange token is required when exchange token config is enabled")
+			return nil, nil, fmt.Errorf("control plane exchange token JWT public keyset is required when exchange token config is enabled (set jwtPublicKeyset or jwtPublicKeysetFile)")
 		}
 
 		publicJwt := cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeyset
@@ -651,7 +651,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				return nil, nil, fmt.Errorf("could not read control plane exchange token JWT public keyset file: %w", keyErr)
 			}
 
-			publicJwt = string(keysetBytes)
+			publicJwt = strings.TrimSpace(string(keysetBytes))
 		}
 
 		publicJWTHandle, handleErr := encryption.InsecureHandleFromBytes([]byte(publicJwt))
@@ -763,6 +763,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		for _, controller := range strings.Split(cf.PausedControllers, " ") {
 			pausedControllers[controller] = true
 		}
+	}
+
+	if cf.Runtime.AllowedOriginsString != "" {
+		cf.Runtime.AllowedOrigins = getStrArr(cf.Runtime.AllowedOriginsString)
 	}
 
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {

@@ -269,6 +269,18 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		c.Set("user", user)
 		c.Set("is_exchange_token", true)
 
+		ctx = context.WithValue(ctx, analytics.UserIDKey, userId)
+		ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
+		ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
+
+		span := trace.SpanFromContext(ctx)
+		telemetry.WithAttributes(span,
+			telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+			telemetry.AttributeKV{Key: "user.id", Value: userId},
+		)
+
+		c.SetRequest(c.Request().WithContext(ctx))
+
 		return nil
 	}
 

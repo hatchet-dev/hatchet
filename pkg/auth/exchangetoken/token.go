@@ -25,6 +25,14 @@ type exchangeTokenClientImpl struct {
 }
 
 func NewExchangeTokenClient(publicJWTHandle *keyset.Handle, opts *ExchangeTokenOpts) (ExchangeTokenClient, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("opts must not be nil")
+	}
+
+	if opts.Issuer == "" || opts.Audience == "" {
+		return nil, fmt.Errorf("opts.Issuer and opts.Audience must not be empty")
+	}
+
 	verifier, err := jwt.NewVerifier(publicJWTHandle)
 
 	if err != nil {
@@ -80,7 +88,7 @@ func (j *exchangeTokenClientImpl) ValidateExchangeToken(ctx context.Context, tok
 		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse tenant_id claim: %v", err)
 	}
 
-	// ensure the subject of the token matches the tenantId
+	// ensure the subject of the token is the user ID
 	if hasSubject := verifiedJwt.HasSubject(); !hasSubject {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have subject claim")
 	}

@@ -277,10 +277,16 @@ type ConfigFileRuntime struct {
 	// ReplayEnabled controls whether the server enables replay for tasks
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
 
-	// AllowedOrigins is a list of origin patterns permitted for CORS preflight requests.
+	// AllowedOrigins is a list of origin patterns permitted for CORS requests.
 	// Patterns may include wildcards, e.g. "https://*.hatchet.run".
 	// If empty, all origins are allowed ("*").
+	// Populated from AllowedOriginsString at startup; do not set directly via env.
 	AllowedOrigins []string `mapstructure:"allowedOrigins" json:"allowedOrigins,omitempty"`
+
+	// AllowedOriginsString is the raw space-separated value used for env binding
+	// (SERVER_ALLOWED_ORIGINS). Example: "https://app.example.com https://*.hatchet.run".
+	// The loader splits this into AllowedOrigins at startup.
+	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
 
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
@@ -441,8 +447,14 @@ type ConfigFileAuth struct {
 }
 
 type ConfigFileAuthControlPlaneExchangeToken struct {
-	// important: we only need the public keyset to validate the exchange token; Hatchet instances do not generate the private
-	// keyset
+	// JWTPublicKeyset and JWTPublicKeysetFile must contain a base64 raw-encoded (no padding)
+	// JSON keyset as produced by the Tink library. These are passed to
+	// encryption.InsecureHandleFromBytes, which expects base64-raw-encoded JSON — not a
+	// raw JSON file. Only the public keyset is needed here; Hatchet does not generate the
+	// private keyset.
+	//
+	// JWTPublicKeyset: inline base64-raw-encoded JSON keyset (single line, no whitespace).
+	// JWTPublicKeysetFile: path to a file whose entire contents are the same encoded value.
 	JWTPublicKeyset     string `mapstructure:"jwtPublicKeyset" json:"jwtPublicKeyset,omitempty"`
 	JWTPublicKeysetFile string `mapstructure:"jwtPublicKeysetFile" json:"jwtPublicKeysetFile,omitempty"`
 
@@ -734,7 +746,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
-	_ = v.BindEnv("runtime.allowedOrigins", "SERVER_ALLOWED_ORIGINS")
+	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
