@@ -1277,13 +1277,12 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 ]
             }
 
-        def basemodel_to_typeddict(validator):
-            type_name = validator.core_schema["config"]["title"]
+        def basemodel_to_schema(validator):
             fields = {k: type(locate(v["schema"]["type"]))
                       for k, v in validator.core_schema["schema"]["fields"].items()}
-            return TypedDict(type_name, fields)
+            return fields
 
-        input_schema = basemodel_to_typeddict(self.input_validator)
+        input_schema = basemodel_to_schema(self.input_validator)
 
         return SdkMcpTool(
             name=self.name,

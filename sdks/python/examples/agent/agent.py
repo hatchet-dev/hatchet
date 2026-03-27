@@ -24,6 +24,7 @@ async def main() -> None:
             prompt="What's the temperature in San Francisco?",
             options=options,
     ):
+        print(message)
         # ResultMessage is the final message after all tool calls complete
         if isinstance(message, ResultMessage) and message.subtype == "success":
             print(message.result)
