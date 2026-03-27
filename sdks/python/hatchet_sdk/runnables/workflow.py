@@ -17,9 +17,7 @@ from typing import (
     overload, TypedDict,
 )
 
-from claude_agent_sdk import SdkMcpTool
 from google.protobuf import timestamp_pb2
-from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
 from hatchet_sdk.clients.admin import (
@@ -68,6 +66,8 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
+    from mcp.types import ToolAnnotations
+    from claude_agent_sdk import SdkMcpTool
 
 
 T = TypeVar("T")
@@ -1256,12 +1256,18 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def mcp_tool(
             self,
             description: str,
-            annotations: ToolAnnotations | None = None,
-        ) -> SdkMcpTool[TWorkflowInput]:
+            annotations: "ToolAnnotations | None" = None,
+        ) -> "SdkMcpTool[TWorkflowInput]":
+        try:
+            from claude_agent_sdk import SdkMcpTool
+        except (RuntimeError, ImportError, ModuleNotFoundError) as e:
+            raise ModuleNotFoundError(
+                "To use the mcp_tool method, you must install Hatchet's `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`"
+            ) from e
 
         async def handler(args: dict) -> dict[str, Any]:
-            self.input_validator.validate_python(args)
-            result = (await self.aio_run(args)).get(self.name)
+            validated_input = self.input_validator_type.model_validate(args)
+            result = (await self.aio_run(validated_input)).get(self.name)
             return {
                 "content": [
                     {
