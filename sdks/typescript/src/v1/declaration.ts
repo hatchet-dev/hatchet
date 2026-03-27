@@ -410,7 +410,7 @@ export class BaseWorkflowDeclaration<
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
-      sticky:
+      desiredWorkerId:
         !Array.isArray(options) && options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
       childKey: !Array.isArray(options) ? options?.childKey : undefined,
     };
@@ -434,8 +434,10 @@ export class BaseWorkflowDeclaration<
               options: {
                 ...runOpts,
                 ...(perInputOpts ?? {}),
-                childIndex: (runOpts.childIndex ?? 0) + i,
-                sticky: perInputOpts?.sticky ? parentRunContext?.desiredWorkerId : runOpts.sticky,
+                childIndex: (runOpts.childIndex ?? 0) + i + batchIndex,
+                desiredWorkerId: perInputOpts?.sticky
+                  ? parentRunContext?.desiredWorkerId
+                  : runOpts.desiredWorkerId,
               },
             };
           })
