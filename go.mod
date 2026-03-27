@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
-	github.com/aws/aws-sdk-go-v2 v1.41.4
+	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.2
 	github.com/charmbracelet/bubbles v1.0.0
