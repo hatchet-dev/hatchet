@@ -3,6 +3,7 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
+from pydoc import locate
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -13,10 +14,12 @@ from typing import (
     TypeVar,
     cast,
     get_type_hints,
-    overload,
+    overload, TypedDict,
 )
 
+from claude_agent_sdk import SdkMcpTool
 from google.protobuf import timestamp_pb2
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
 from hatchet_sdk.clients.admin import (
@@ -1250,6 +1253,39 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             case _:
                 raise ValueError("Invalid task type")
 
+    def mcp_tool(
+            self,
+            description: str,
+            annotations: ToolAnnotations | None = None,
+        ) -> SdkMcpTool[TWorkflowInput]:
+
+        async def handler(args: dict) -> dict[str, Any]:
+            self.input_validator.validate_python(args)
+            result = (await self.aio_run(args)).get(self.name)
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": result.get("text")
+                    }
+                ]
+            }
+
+        def basemodel_to_typeddict(validator):
+            type_name = validator.core_schema["config"]["title"]
+            fields = {k: type(locate(v["schema"]["type"]))
+                      for k, v in validator.core_schema["schema"]["fields"].items()}
+            return TypedDict(type_name, fields)
+
+        input_schema = basemodel_to_typeddict(self.input_validator)
+
+        return SdkMcpTool(
+            name=self.name,
+            description=description,
+            input_schema=input_schema,
+            handler=handler,
+            annotations=annotations,
+        )
 
 class TaskRunRef(Generic[TWorkflowInput, R]):
     def __init__(

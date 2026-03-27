@@ -76,6 +76,7 @@ otel = [
   "opentelemetry-exporter-otlp-proto-http",
 ]
 v0-sdk = ["cel-python"]
+claude = ["claude-agent-sdk", "mcp"]
 
 [build-system]
 requires = ["poetry-core"]
