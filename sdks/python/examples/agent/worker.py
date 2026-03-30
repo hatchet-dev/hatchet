@@ -1,4 +1,4 @@
-# > Simple
+# > Agent
 import httpx
 from pydantic import BaseModel
 
@@ -44,6 +44,7 @@ async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureC
         text=f"Temperature in {input.location_name}: {data['current']['temperature_2m']}°F"
     )
 
+# !!
 
 def main() -> None:
     worker = hatchet.worker("test-worker", workflows=[temp_workflow])
