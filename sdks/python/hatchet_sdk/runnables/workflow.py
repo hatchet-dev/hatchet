@@ -64,9 +64,10 @@ from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
-    from hatchet_sdk import Hatchet
-    from mcp.types import ToolAnnotations
     from claude_agent_sdk import SdkMcpTool
+    from mcp.types import ToolAnnotations
+
+    from hatchet_sdk import Hatchet
 
 
 T = TypeVar("T")
