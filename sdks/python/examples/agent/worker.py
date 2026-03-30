@@ -6,9 +6,11 @@ from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet(debug=True)
 
+
 class TemperatureCoords(BaseModel):
     latitude: float
     longitude: float
+
 
 class TemperatureInput(BaseModel):
     location_name: str

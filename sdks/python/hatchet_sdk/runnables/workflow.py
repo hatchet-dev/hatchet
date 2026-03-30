@@ -1273,9 +1273,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         def handle_field(field: type) -> Any:
             if hasattr(field, "model_fields"):
-                return {k: handle_field(v.annotation) for k, v in field.model_fields.items()}
+                return {
+                    k: handle_field(v.annotation) for k, v in field.model_fields.items()
+                }
             return field
-
 
         def basemodel_to_schema(validator: TypeAdapter[TWorkflowInput]) -> Any:
             return handle_field(validator.core_schema["cls"])
