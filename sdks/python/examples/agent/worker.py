@@ -11,11 +11,14 @@ class TemperatureInput(BaseModel):
     latitude: float
     longitude: float
 
+
 class TemperatureContent(BaseModel):
     text: str
 
 
-temp_workflow = hatchet.workflow(name="get_temperature", input_validator=TemperatureInput)
+temp_workflow = hatchet.workflow(
+    name="get_temperature", input_validator=TemperatureInput
+)
 
 
 @temp_workflow.task(name="get_temperature")

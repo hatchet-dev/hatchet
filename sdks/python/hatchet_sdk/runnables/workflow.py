@@ -14,7 +14,8 @@ from typing import (
     TypeVar,
     cast,
     get_type_hints,
-    overload, TypedDict,
+    overload,
+    TypedDict,
 )
 
 from google.protobuf import timestamp_pb2
@@ -1254,10 +1255,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 raise ValueError("Invalid task type")
 
     def mcp_tool(
-            self,
-            description: str,
-            annotations: "ToolAnnotations | None" = None,
-        ) -> "SdkMcpTool[TWorkflowInput]":
+        self,
+        description: str,
+        annotations: "ToolAnnotations | None" = None,
+    ) -> "SdkMcpTool[TWorkflowInput]":
         try:
             from claude_agent_sdk import SdkMcpTool
         except (RuntimeError, ImportError, ModuleNotFoundError) as e:
@@ -1268,18 +1269,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         async def handler(args: dict) -> dict[str, Any]:
             validated_input = self.input_validator_type.model_validate(args)
             result = (await self.aio_run(validated_input)).get(self.name)
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": result.get("text")
-                    }
-                ]
-            }
+            return {"content": [{"type": "text", "text": result.get("text")}]}
 
         def basemodel_to_schema(validator):
-            fields = {k: type(locate(v["schema"]["type"]))
-                      for k, v in validator.core_schema["schema"]["fields"].items()}
+            fields = {
+                k: type(locate(v["schema"]["type"]))
+                for k, v in validator.core_schema["schema"]["fields"].items()
+            }
             return fields
 
         input_schema = basemodel_to_schema(self.input_validator)
@@ -1291,6 +1287,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             handler=handler,
             annotations=annotations,
         )
+
 
 class TaskRunRef(Generic[TWorkflowInput, R]):
     def __init__(
