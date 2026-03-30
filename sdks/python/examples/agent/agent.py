@@ -6,11 +6,17 @@ from claude_agent_sdk import (
     ResultMessage,
 )
 
-from examples.agent.worker import temp_workflow
+from examples.agent.worker import temp_workflow, get_temperature_standalone
 
 
 async def main() -> None:
+    # You can use a workflow
     temp_tool = temp_workflow.mcp_tool(
+        "Get the current temperature at a location",
+    )
+
+    # Or a standalone task
+    temp_tool = get_temperature_standalone.mcp_tool(
         "Get the current temperature at a location",
     )
 

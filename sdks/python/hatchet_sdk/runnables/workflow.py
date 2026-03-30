@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -60,7 +61,10 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
+from hatchet_sdk.utils.typing import (
+    CoroutineLike,
+    JSONSerializableMapping,
+)
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -615,6 +619,47 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         **DANGEROUS: This will delete a workflow and all of its data**
         """
         await self.client.workflows.aio_delete(self.id)
+
+    def _mcp_tool(
+        self,
+        handler: Any,
+        description: str,
+        annotations: "ToolAnnotations | None" = None,
+    ) -> "SdkMcpTool[TWorkflowInput]":
+        """
+        Creates a wrapper around the workflow enabling its usage in MCP server implementations.
+        Supports Claude's agent SDK, requires installing the `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`
+
+        For example:
+
+        ```python
+
+        wf = hatchet.workflow()
+
+        tool = wf.mcp_tool()
+        tool_server = create_sdk_mcp_server(
+            name="weather",
+            version="1.0.0",
+            tools=[temp_tool],
+        )
+        ```
+        """
+        try:
+            from claude_agent_sdk import SdkMcpTool
+        except (RuntimeError, ImportError, ModuleNotFoundError) as e:
+            raise ModuleNotFoundError(
+                "To use the mcp_tool method, you must install Hatchet's `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`"
+            ) from e
+
+        input_schema = self.input_validator.json_schema()
+
+        return SdkMcpTool(
+            name=self.name,
+            description=description,
+            input_schema=input_schema,
+            handler=handler,
+            annotations=annotations,
+        )
 
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
@@ -1276,29 +1321,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
         ```
         """
-        try:
-            from claude_agent_sdk import SdkMcpTool
-        except (RuntimeError, ImportError, ModuleNotFoundError) as e:
-            raise ModuleNotFoundError(
-                "To use the mcp_tool method, you must install Hatchet's `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`"
-            ) from e
 
         async def handler(args: TWorkflowInput) -> dict[str, Any]:
             res = await self.aio_run(args)
             if res:
-                result = res[self.name]
-                return {"content": [{"type": "text", "text": result.get("text")}]}
+                return {"content": [{"type": "text", "text": json.dumps(res)}]}
             return {}
 
-        input_schema = self.input_validator.json_schema()
-
-        return SdkMcpTool(
-            name=self.name,
-            description=description,
-            input_schema=input_schema,
-            handler=handler,
-            annotations=annotations,
-        )
+        return self._mcp_tool(handler, description, annotations)
 
 
 class TaskRunRef(Generic[TWorkflowInput, R]):
@@ -1662,3 +1692,41 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     @property
     def output_validator_type(self) -> type[R]:
         return cast(type[R], self._output_validator._type)
+
+    def mcp_tool(
+        self,
+        description: str,
+        annotations: "ToolAnnotations | None" = None,
+    ) -> "SdkMcpTool[TWorkflowInput]":
+        """
+        Creates a wrapper around the standalone task enabling its usage in MCP server implementations.
+        Supports Claude's agent SDK, requires installing the `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`
+
+        For example:
+
+        ```python
+
+        st = hatchet.task()
+
+        tool = st.mcp_tool()
+        tool_server = create_sdk_mcp_server(
+            name="weather",
+            version="1.0.0",
+            tools=[temp_tool],
+        )
+        ```
+        """
+
+        async def handler(args: TWorkflowInput) -> dict[str, Any]:
+            res = await self.aio_run(args)
+            if res:
+                if isinstance(res, BaseModel):
+                    serialized = res.model_dump_json()
+                elif dataclasses.is_dataclass(res):
+                    serialized = json.dumps(dataclasses.asdict(res))
+                else:
+                    serialized = json.dumps(res)
+                return {"content": [{"type": "text", "text": serialized}]}
+            return {}
+
+        return self._mcp_tool(handler, description, annotations)
