@@ -1,5 +1,4 @@
 import asyncio
-import dataclasses
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -1720,7 +1719,16 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         async def handler(args: TWorkflowInput) -> dict[str, Any]:
             res = await self.aio_run(args)
             if res:
-                return {"content": [{"type": "text", "text": self.output_validator.dump_json(res).decode("utf-8")}]}
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": self.output_validator.dump_json(res).decode(
+                                "utf-8"
+                            ),
+                        }
+                    ]
+                }
             return {}
 
         return self._mcp_tool(handler, description, annotations)
