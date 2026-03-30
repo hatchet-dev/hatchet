@@ -6,10 +6,13 @@ from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-
-class TemperatureInput(BaseModel):
+class TemperatureCoords(BaseModel):
     latitude: float
     longitude: float
+
+class TemperatureInput(BaseModel):
+    location_name: str
+    coords: TemperatureCoords
 
 
 class TemperatureContent(BaseModel):
@@ -27,8 +30,8 @@ async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureC
         response = await client.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
-                "latitude": input.latitude,
-                "longitude": input.longitude,
+                "latitude": input.coords.latitude,
+                "longitude": input.coords.longitude,
                 "current": "temperature_2m",
                 "temperature_unit": "fahrenheit",
             },
@@ -36,7 +39,7 @@ async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureC
         data = response.json()
 
     return TemperatureContent(
-        text=f"Temperature: {data['current']['temperature_2m']}°F"
+        text=f"Temperature in {input.location_name}: {data['current']['temperature_2m']}°F"
     )
 
 

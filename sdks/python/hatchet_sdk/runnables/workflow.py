@@ -3,7 +3,6 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
-from pydoc import locate
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -15,7 +14,6 @@ from typing import (
     cast,
     get_type_hints,
     overload,
-    TypedDict,
 )
 
 from google.protobuf import timestamp_pb2
@@ -1266,17 +1264,21 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 "To use the mcp_tool method, you must install Hatchet's `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`"
             ) from e
 
-        async def handler(args: dict) -> dict[str, Any]:
-            validated_input = self.input_validator_type.model_validate(args)
-            result = (await self.aio_run(validated_input)).get(self.name)
-            return {"content": [{"type": "text", "text": result.get("text")}]}
+        async def handler(args: TWorkflowInput) -> dict[str, Any]:
+            res = await self.aio_run(args)
+            if res:
+                result = res[self.name]
+                return {"content": [{"type": "text", "text": result.get("text")}]}
+            return {}
 
-        def basemodel_to_schema(validator):
-            fields = {
-                k: type(locate(v["schema"]["type"]))
-                for k, v in validator.core_schema["schema"]["fields"].items()
-            }
-            return fields
+        def handle_field(field: type) -> Any:
+            if hasattr(field, "model_fields"):
+                return {k: handle_field(v.annotation) for k, v in field.model_fields.items()}
+            return field
+
+
+        def basemodel_to_schema(validator: TypeAdapter[TWorkflowInput]) -> Any:
+            return handle_field(validator.core_schema["cls"])
 
         input_schema = basemodel_to_schema(self.input_validator)
 
