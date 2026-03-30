@@ -1323,9 +1323,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         async def handler(args: TWorkflowInput) -> dict[str, Any]:
             res = await self.aio_run(args)
-            if res:
-                return {"content": [{"type": "text", "text": json.dumps(res)}]}
-            return {}
+            if not res:
+                return {}
+            return {"content": [{"type": "text", "text": json.dumps(res)}]}
 
         return self._mcp_tool(handler, description, annotations)
 
@@ -1718,17 +1718,15 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         async def handler(args: TWorkflowInput) -> dict[str, Any]:
             res = await self.aio_run(args)
-            if res:
-                return {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": self.output_validator.dump_json(res).decode(
-                                "utf-8"
-                            ),
-                        }
-                    ]
-                }
-            return {}
+            if not res:
+                return {}
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": self.output_validator.dump_json(res).decode("utf-8"),
+                    }
+                ]
+            }
 
         return self._mcp_tool(handler, description, annotations)
