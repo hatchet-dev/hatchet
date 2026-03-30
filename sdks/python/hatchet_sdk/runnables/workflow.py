@@ -1720,13 +1720,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         async def handler(args: TWorkflowInput) -> dict[str, Any]:
             res = await self.aio_run(args)
             if res:
-                if isinstance(res, BaseModel):
-                    serialized = res.model_dump_json()
-                elif dataclasses.is_dataclass(res):
-                    serialized = json.dumps(dataclasses.asdict(res))
-                else:
-                    serialized = json.dumps(res)
-                return {"content": [{"type": "text", "text": serialized}]}
+                return {"content": [{"type": "text", "text": self.output_validator.dump_json(res).decode("utf-8")}]}
             return {}
 
         return self._mcp_tool(handler, description, annotations)
