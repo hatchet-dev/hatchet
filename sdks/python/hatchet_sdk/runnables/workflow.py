@@ -1258,6 +1258,24 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         description: str,
         annotations: "ToolAnnotations | None" = None,
     ) -> "SdkMcpTool[TWorkflowInput]":
+        """
+        Creates a wrapper around the workflow enabling its usage in MCP server implementations.
+        Supports Claude's agent SDK, requires installing the `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`
+
+        For example:
+
+        ```python
+
+        wf = hatchet.workflow()
+
+        tool = wf.mcp_tool()
+        tool_server = create_sdk_mcp_server(
+            name="weather",
+            version="1.0.0",
+            tools=[temp_tool],
+        )
+        ```
+        """
         try:
             from claude_agent_sdk import SdkMcpTool
         except (RuntimeError, ImportError, ModuleNotFoundError) as e:
@@ -1272,17 +1290,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 return {"content": [{"type": "text", "text": result.get("text")}]}
             return {}
 
-        def handle_field(field: type) -> Any:
-            if hasattr(field, "model_fields"):
-                return {
-                    k: handle_field(v.annotation) for k, v in field.model_fields.items()
-                }
-            return field
-
-        def basemodel_to_schema(validator: TypeAdapter[TWorkflowInput]) -> Any:
-            return handle_field(validator.core_schema["cls"])
-
-        input_schema = basemodel_to_schema(self.input_validator)
+        input_schema = self.input_validator.json_schema()
 
         return SdkMcpTool(
             name=self.name,

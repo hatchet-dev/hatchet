@@ -26,7 +26,7 @@ temp_workflow = hatchet.workflow(
 )
 
 
-@temp_workflow.task(name="get_temperature")
+@temp_workflow.task()
 async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureContent:
     async with httpx.AsyncClient() as client:
         response = await client.get(
@@ -46,7 +46,7 @@ async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureC
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", slots=1, workflows=[temp_workflow])
+    worker = hatchet.worker("test-worker", workflows=[temp_workflow])
     worker.start()
 
 

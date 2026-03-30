@@ -23,7 +23,7 @@ async def main() -> None:
 
     options = ClaudeAgentOptions(
         mcp_servers={"weather": weather_server},
-        allowed_tools=["mcp__weather__get_temperature"],
+        allowed_tools=[f"mcp__{weather_server["name"]}__{temp_tool.name}"],
     )
 
     async for message in query(
