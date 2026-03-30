@@ -26,6 +26,8 @@ type sharedConfig struct {
 	schedulerConcurrencyPollingMinInterval time.Duration
 
 	schedulerConcurrencyPollingMaxInterval time.Duration
+
+	schedulerAdvisoryLockTimeout time.Duration
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -52,6 +54,7 @@ func NewSchedulingPool(
 	schedulerConcurrencyRateLimit int,
 	schedulerConcurrencyPollingMinInterval time.Duration,
 	schedulerConcurrencyPollingMaxInterval time.Duration,
+	schedulerAdvisoryLockTimeout time.Duration,
 	optimisticSchedulingEnabled bool,
 	optimisticSlots int,
 ) (*SchedulingPool, func() error, error) {
@@ -68,6 +71,7 @@ func NewSchedulingPool(
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
 			schedulerConcurrencyPollingMaxInterval: schedulerConcurrencyPollingMaxInterval,
+			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,

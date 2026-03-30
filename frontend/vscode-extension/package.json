@@ -2,7 +2,7 @@
   "name": "hatchet",
   "displayName": "Hatchet",
   "description": "Visualize Hatchet workflow DAGs inline in your editor",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "hatchet",
   "license": "MIT",
   "repository": {
