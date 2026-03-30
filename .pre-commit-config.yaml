@@ -19,3 +19,21 @@ repos:
       - id: golangci-lint
         args: ["--config=.golangci.yml", "--allow-parallel-runners"]
         exclude: ^(examples/|sdks/guides/go/|sdks/go/examples/)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.8
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+        files: ^sdks/python/
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.1.0
+    hooks:
+      - id: black
+        files: ^sdks/python/
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (poetry)
+        entry: bash -c 'cd sdks/python && poetry run mypy . --config-file=pyproject.toml'
+        language: system
+        types: [python]
