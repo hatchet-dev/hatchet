@@ -18,6 +18,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 
 const LOGS_PER_PAGE = 100;
+const EMPTY_AUTOCOMPLETE_CONTEXT: LogAutocompleteContext = {};
 
 function logKey(log: LogLine): string {
   return `${log.timestamp ?? ''}-${log.line ?? ''}`;
@@ -123,7 +124,7 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
         onSubmit={setQueryString}
         getAutocomplete={(q, ctx) => getAutocomplete(q, ctx)}
         applySuggestion={applySuggestion}
-        autocompleteContext={{} as LogAutocompleteContext}
+        autocompleteContext={EMPTY_AUTOCOMPLETE_CONTEXT}
         placeholder="Search logs..."
         filterChips={[
           { key: 'level:', label: 'Level', description: 'Filter by log level' },
