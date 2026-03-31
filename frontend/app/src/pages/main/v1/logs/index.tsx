@@ -21,9 +21,14 @@ import {
 } from '@/components/v1/ui/select';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { XCircleIcon } from 'lucide-react';
+import posthog from 'posthog-js';
 import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
+  const isWorkflowFilterEnabled = posthog.isFeatureEnabled(
+    'log-workflow-filters',
+  );
+
   const {
     logs,
     isLoading,
@@ -50,8 +55,8 @@ export default function TenantLogsPage() {
   const sidePanel = useSidePanel();
 
   const autocompleteContext = useMemo<LogAutocompleteContext>(
-    () => ({ workflowNames }),
-    [workflowNames],
+    () => ({ workflowNames: isWorkflowFilterEnabled ? workflowNames : [] }),
+    [workflowNames, isWorkflowFilterEnabled],
   );
 
   const handleViewRun = useCallback(
@@ -85,7 +90,9 @@ export default function TenantLogsPage() {
             return {
               ...result,
               suggestions: result.suggestions.filter(
-                (s) => s.value !== 'attempt:',
+                (s) =>
+                  s.value !== 'attempt:' &&
+                  (isWorkflowFilterEnabled || s.value !== 'workflow:'), // only show workflow filter if feature is enabled
               ),
             };
           }}
@@ -98,11 +105,15 @@ export default function TenantLogsPage() {
               label: 'Level',
               description: 'Filter by log level',
             },
-            {
-              key: 'workflow:',
-              label: 'Workflow',
-              description: 'Filter by workflow name',
-            },
+            ...(isWorkflowFilterEnabled
+              ? [
+                  {
+                    key: 'workflow:',
+                    label: 'Workflow',
+                    description: 'Filter by workflow name',
+                  },
+                ]
+              : []),
           ]}
           className="flex-1"
         />
