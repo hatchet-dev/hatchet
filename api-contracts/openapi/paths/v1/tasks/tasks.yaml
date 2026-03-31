@@ -547,6 +547,28 @@ listLogs:
         required: false
         schema:
           type: integer
+      - description: The workflow id(s) to filter for
+        in: query
+        name: workflow_ids
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: The step id(s) to filter for
+        in: query
+        name: step_ids
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
     responses:
       "200":
         content:
