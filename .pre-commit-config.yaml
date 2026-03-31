@@ -19,21 +19,3 @@ repos:
       - id: golangci-lint
         args: ["--config=.golangci.yml", "--allow-parallel-runners"]
         exclude: ^(examples/|sdks/guides/go/|sdks/go/examples/)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.8
-    hooks:
-      - id: ruff-check
-        files: ^sdks/python/
-        args: [ --fix, "--config=sdks/python/pyproject.toml" ]
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 26.1.0
-    hooks:
-      - id: black
-        files: ^sdks/python/
-        exclude: "^(sdks/python/hatchet_sdk/contracts/|sdks/python/hatchet_sdk/v0/contracts/|sdks/python/site)"
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
-    hooks:
-      - id: mypy
-        args: ["--config-file=sdks/python/pyproject.toml"]
-        files: ^sdks/python/
