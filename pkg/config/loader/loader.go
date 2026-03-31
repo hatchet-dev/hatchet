@@ -172,6 +172,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	mainPoolUrl := databaseUrl
 	if cf.PgBouncerURL != "" {
 		mainPoolUrl = cf.PgBouncerURL
+
+		l.Info().Msgf("main pool will connect through pgbouncer")
 	}
 
 	config, err := pgxpool.ParseConfig(mainPoolUrl)
