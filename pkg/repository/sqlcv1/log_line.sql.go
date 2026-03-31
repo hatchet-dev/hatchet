@@ -94,6 +94,8 @@ type InsertLogLineParams struct {
 	Metadata       []byte             `json:"metadata"`
 	RetryCount     int32              `json:"retry_count"`
 	Level          V1LogLineLevel     `json:"level"`
+	WorkflowID     *uuid.UUID         `json:"workflow_id"`
+	StepID         *uuid.UUID         `json:"step_id"`
 }
 
 const listLogLines = `-- name: ListLogLines :many

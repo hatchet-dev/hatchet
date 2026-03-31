@@ -246,6 +246,8 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 				RetryCount:     int32(opts.RetryCount),
 				Level:          level,
 				Metadata:       opts.Metadata,
+				WorkflowID:     &opts.WorkflowId,
+				StepID:         &opts.StepId,
 			},
 		},
 	)

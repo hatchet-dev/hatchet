@@ -6,7 +6,9 @@ INSERT INTO v1_log_line (
     message,
     metadata,
     retry_count,
-    level
+    level,
+    workflow_id,
+    step_id
 ) VALUES (
     $1,
     $2,
@@ -14,7 +16,9 @@ INSERT INTO v1_log_line (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9
 );
 
 -- name: ListLogLines :many
