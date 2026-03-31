@@ -22,7 +22,12 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Duration) (int64, int64) {
+type executionEvent struct {
+	startedAt time.Time
+	duration  time.Duration
+}
+
+func run(ctx context.Context, config LoadTestConfig, executions chan<- executionEvent) (int64, int64) {
 	hatchet, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: config.Namespace,
@@ -44,7 +49,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 		l.Info().Msgf("executing %d took %s", input.ID, took)
 
 		mx.Lock()
-		executions <- took
+		executions <- executionEvent{input.CreatedAt, took}
 		// detect duplicate in executed slice
 		var duplicate bool
 		// for i := 0; i < len(executed)-1; i++ {

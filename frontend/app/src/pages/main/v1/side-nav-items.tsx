@@ -15,6 +15,7 @@ import {
   RiFunctionLine,
   RiToolsLine,
   RiPlayLargeLine,
+  RiFileTextLine,
   RiOrganizationChart,
 } from 'react-icons/ri';
 
@@ -172,6 +173,16 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantEventsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiPulseAiLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'logs',
+          name: 'Logs',
+          to: appRoutes.tenantLogsRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiFileTextLine
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),

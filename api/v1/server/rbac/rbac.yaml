@@ -112,7 +112,6 @@ roles:
       - V1CelDebug
       - V1WorkflowRunGetTimings
       - InfoGetVersion
-      - LogLineList
       - TenantMemberDelete
       - V1TaskGetPointMetrics
       - WorkflowScheduledDelete
@@ -142,3 +141,6 @@ roles:
       - WorkflowCronDelete
       - WorkflowCronGet
       - WorkflowCronUpdate
+      - V1ObservabilityGetTrace
+      - V1TenantLogLineList
+      - V1TenantLogLineGetPointMetrics

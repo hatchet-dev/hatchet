@@ -21,7 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/info"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
-	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/monitoring"
 	rate_limits "github.com/hatchet-dev/hatchet/api/v1/server/handlers/rate-limits"
@@ -32,6 +31,8 @@ import (
 	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -54,7 +55,7 @@ type apiService struct {
 	*tenants.TenantService
 	*events.EventService
 	*rate_limits.RateLimitService
-	*logs.LogService
+	*logs.LogsService
 	*workflows.WorkflowService
 	*workers.WorkerService
 	*metadata.MetadataService
@@ -72,32 +73,34 @@ type apiService struct {
 	*filtersv1.V1FiltersService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
+	*observability.V1ObservabilityService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
 	return &apiService{
-		UserService:           users.NewUserService(config),
-		TenantService:         tenants.NewTenantService(config),
-		EventService:          events.NewEventService(config),
-		RateLimitService:      rate_limits.NewRateLimitService(config),
-		LogService:            logs.NewLogService(config),
-		WorkflowService:       workflows.NewWorkflowService(config),
-		WorkflowRunsService:   workflowruns.NewWorkflowRunsService(config),
-		WorkerService:         workers.NewWorkerService(config),
-		MetadataService:       metadata.NewMetadataService(config),
-		APITokenService:       apitokens.NewAPITokenService(config),
-		StepRunService:        stepruns.NewStepRunService(config),
-		IngestorsService:      ingestors.NewIngestorsService(config),
-		SlackAppService:       slackapp.NewSlackAppService(config),
-		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
-		MonitoringService:     monitoring.NewMonitoringService(config),
-		InfoService:           info.NewInfoService(config),
-		TasksService:          tasks.NewTasksService(config),
-		V1WorkflowRunsService: workflowrunsv1.NewV1WorkflowRunsService(config),
-		V1EventsService:       eventsv1.NewV1EventsService(config),
-		V1FiltersService:      filtersv1.NewV1FiltersService(config),
-		V1WebhooksService:     webhooksv1.NewV1WebhooksService(config),
-		V1CELService:          celv1.NewV1CELService(config),
+		UserService:            users.NewUserService(config),
+		TenantService:          tenants.NewTenantService(config),
+		EventService:           events.NewEventService(config),
+		RateLimitService:       rate_limits.NewRateLimitService(config),
+		LogsService:            logs.NewLogsService(config),
+		WorkflowService:        workflows.NewWorkflowService(config),
+		WorkflowRunsService:    workflowruns.NewWorkflowRunsService(config),
+		WorkerService:          workers.NewWorkerService(config),
+		MetadataService:        metadata.NewMetadataService(config),
+		APITokenService:        apitokens.NewAPITokenService(config),
+		StepRunService:         stepruns.NewStepRunService(config),
+		IngestorsService:       ingestors.NewIngestorsService(config),
+		SlackAppService:        slackapp.NewSlackAppService(config),
+		WebhookWorkersService:  webhookworker.NewWebhookWorkersService(config),
+		MonitoringService:      monitoring.NewMonitoringService(config),
+		InfoService:            info.NewInfoService(config),
+		TasksService:           tasks.NewTasksService(config),
+		V1WorkflowRunsService:  workflowrunsv1.NewV1WorkflowRunsService(config),
+		V1EventsService:        eventsv1.NewV1EventsService(config),
+		V1FiltersService:       filtersv1.NewV1FiltersService(config),
+		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
+		V1CELService:           celv1.NewV1CELService(config),
+		V1ObservabilityService: observability.NewV1ObservabilityService(config),
 	}
 }
 

@@ -16,8 +16,9 @@ type OTelCollector interface {
 type OTelCollectorOpt func(*OTelCollectorOpts)
 
 type OTelCollectorOpts struct {
-	repo repository.Repository
-	l    *zerolog.Logger
+	repo         repository.Repository
+	l            *zerolog.Logger
+	maxBatchSize int
 }
 
 func WithRepository(r repository.Repository) OTelCollectorOpt {
@@ -29,6 +30,12 @@ func WithRepository(r repository.Repository) OTelCollectorOpt {
 func WithLogger(l *zerolog.Logger) OTelCollectorOpt {
 	return func(opts *OTelCollectorOpts) {
 		opts.l = l
+	}
+}
+
+func WithMaxBatchSize(n int) OTelCollectorOpt {
+	return func(opts *OTelCollectorOpts) {
+		opts.maxBatchSize = n
 	}
 }
 
@@ -50,7 +57,8 @@ func NewOTelCollector(fs ...OTelCollectorOpt) (OTelCollector, error) {
 	newLogger := opts.l.With().Str("service", "otel-collector").Logger()
 
 	return &otelCollectorImpl{
-		repo: opts.repo,
-		l:    &newLogger,
+		repo:         opts.repo,
+		l:            &newLogger,
+		maxBatchSize: opts.maxBatchSize,
 	}, nil
 }

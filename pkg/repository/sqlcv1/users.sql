@@ -108,11 +108,14 @@ RETURNING *;
 
 -- name: ListTenantMemberships :many
 SELECT
-    *
+    "TenantMember".*
 FROM
     "TenantMember"
+JOIN
+    "Tenant" ON "TenantMember"."tenantId" = "Tenant"."id"
 WHERE
-    "userId" = @userId::uuid;
+    "TenantMember"."userId" = @userId::uuid
+    AND "Tenant"."deletedAt" IS NULL;
 
 -- name: CreateUserSession :one
 INSERT INTO "UserSession" (

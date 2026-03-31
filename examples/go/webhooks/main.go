@@ -1,15 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 
-	"github.com/google/uuid"
-
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
-	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 func main() {
@@ -18,125 +14,156 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	ctx := context.Background()
-
-	// Generate a unique suffix for webhook names
-	suffix := uuid.New().String()[:8]
-
-	// List existing webhooks
-	fmt.Println("Listing existing webhooks...")
-	webhooks, err := client.Webhooks().List(ctx, rest.V1WebhookListParams{})
-	if err != nil {
-		log.Fatalf("failed to list webhooks: %v", err)
-	}
-	if webhooks.Rows != nil {
-		fmt.Printf("Found %d existing webhooks\n", len(*webhooks.Rows))
+	// > Stripe webhook task
+	type StripePaymentInput struct {
+		Type string `json:"type"`
+		Data struct {
+			Object struct {
+				Customer string `json:"customer"`
+				Amount   int    `json:"amount"`
+			} `json:"object"`
+		} `json:"data"`
 	}
 
-	// Create a webhook with Basic Auth
-	fmt.Println("\nCreating webhook with Basic Auth...")
-	basicWebhook, err := client.Webhooks().Create(ctx, features.CreateWebhookOpts{
-		Name:               fmt.Sprintf("test-basic-webhook-%s", suffix),
-		SourceName:         rest.GENERIC,
-		EventKeyExpression: "body.event_type",
-		Auth: features.BasicAuth{
-			Username: "testuser",
-			Password: "testpass",
+	stripePayment := client.NewStandaloneTask(
+		"handle-stripe-payment",
+		func(ctx hatchet.Context, input StripePaymentInput) (*struct {
+			Customer string `json:"customer"`
+			Amount   int    `json:"amount"`
+		}, error) {
+			fmt.Printf("Payment of %d from %s\n", input.Data.Object.Amount, input.Data.Object.Customer)
+			return &struct {
+				Customer string `json:"customer"`
+				Amount   int    `json:"amount"`
+			}{
+				Customer: input.Data.Object.Customer,
+				Amount:   input.Data.Object.Amount,
+			}, nil
 		},
-	})
-	if err != nil {
-		log.Fatalf("failed to create basic auth webhook: %v", err)
-	}
-	fmt.Printf("Created webhook: %s\n", basicWebhook.Name)
+		hatchet.WithWorkflowEvents("stripe:payment_intent.succeeded"),
+	)
 
-	// Get the webhook
-	fmt.Println("\nGetting webhook...")
-	retrieved, err := client.Webhooks().Get(ctx, basicWebhook.Name)
-	if err != nil {
-		log.Fatalf("failed to get webhook: %v", err)
+	// > GitHub webhook task
+	type GitHubPRInput struct {
+		Action      string `json:"action"`
+		PullRequest struct {
+			Number int    `json:"number"`
+			Title  string `json:"title"`
+		} `json:"pull_request"`
+		Repository struct {
+			FullName string `json:"full_name"`
+		} `json:"repository"`
 	}
-	fmt.Printf("Retrieved webhook: %s, AuthType: %s\n", retrieved.Name, retrieved.AuthType)
 
-	// Update the webhook
-	fmt.Println("\nUpdating webhook...")
-	eventKeyExpr := "body.type"
-	updated, err := client.Webhooks().Update(ctx, basicWebhook.Name, features.UpdateWebhookOpts{
-		EventKeyExpression: &eventKeyExpr,
-	})
-	if err != nil {
-		log.Fatalf("failed to update webhook: %v", err)
-	}
-	fmt.Printf("Updated webhook expression to: %s\n", updated.EventKeyExpression)
-
-	// Create a webhook with API Key Auth
-	fmt.Println("\nCreating webhook with API Key Auth...")
-	apiKeyWebhook, err := client.Webhooks().Create(ctx, features.CreateWebhookOpts{
-		Name:               fmt.Sprintf("test-apikey-webhook-%s", suffix),
-		SourceName:         rest.STRIPE,
-		EventKeyExpression: "body.type",
-		Auth: features.APIKeyAuth{
-			HeaderName: "X-API-Key",
-			APIKey:     "sk_test_123",
+	githubPR := client.NewStandaloneTask(
+		"handle-github-pr",
+		func(ctx hatchet.Context, input GitHubPRInput) (*struct {
+			Repo string `json:"repo"`
+			PR   int    `json:"pr"`
+		}, error) {
+			fmt.Printf("PR #%d opened on %s: %s\n", input.PullRequest.Number, input.Repository.FullName, input.PullRequest.Title)
+			return &struct {
+				Repo string `json:"repo"`
+				PR   int    `json:"pr"`
+			}{
+				Repo: input.Repository.FullName,
+				PR:   input.PullRequest.Number,
+			}, nil
 		},
-	})
-	if err != nil {
-		log.Fatalf("failed to create api key webhook: %v", err)
-	}
-	fmt.Printf("Created webhook: %s\n", apiKeyWebhook.Name)
+		hatchet.WithWorkflowEvents("github:pull_request:opened"),
+	)
 
-	// Create a webhook with HMAC Auth
-	fmt.Println("\nCreating webhook with HMAC Auth...")
-	hmacWebhook, err := client.Webhooks().Create(ctx, features.CreateWebhookOpts{
-		Name:               fmt.Sprintf("test-hmac-webhook-%s", suffix),
-		SourceName:         rest.GITHUB,
-		EventKeyExpression: "headers['X-GitHub-Event']",
-		Auth: features.HMACAuth{
-			SigningSecret:       "whsec_test123",
-			SignatureHeaderName: "X-Hub-Signature-256",
-			Algorithm:           rest.SHA256,
-			Encoding:            rest.HEX,
+	// > Slack event subscription task
+	type SlackEventInput struct {
+		Event struct {
+			Type    string `json:"type"`
+			User    string `json:"user"`
+			Text    string `json:"text"`
+			Channel string `json:"channel"`
+		} `json:"event"`
+	}
+
+	slackMention := client.NewStandaloneTask(
+		"handle-slack-mention",
+		func(ctx hatchet.Context, input SlackEventInput) (*struct {
+			Handled bool `json:"handled"`
+		}, error) {
+			fmt.Printf("Mentioned by %s in %s: %s\n", input.Event.User, input.Event.Channel, input.Event.Text)
+			return &struct {
+				Handled bool `json:"handled"`
+			}{Handled: true}, nil
 		},
-	})
+		hatchet.WithWorkflowEvents("slack:event:app_mention"),
+	)
+
+	// > Slack slash command task
+	type SlackCommandInput struct {
+		Command     string `json:"command"`
+		Text        string `json:"text"`
+		UserName    string `json:"user_name"`
+		ResponseURL string `json:"response_url"`
+	}
+
+	slackCommand := client.NewStandaloneTask(
+		"handle-slack-command",
+		func(ctx hatchet.Context, input SlackCommandInput) (*struct {
+			Command string `json:"command"`
+			Args    string `json:"args"`
+		}, error) {
+			fmt.Printf("%s ran %s %s\n", input.UserName, input.Command, input.Text)
+			return &struct {
+				Command string `json:"command"`
+				Args    string `json:"args"`
+			}{
+				Command: input.Command,
+				Args:    input.Text,
+			}, nil
+		},
+		hatchet.WithWorkflowEvents("slack:command:/deploy"),
+	)
+
+	// > Slack interaction task
+	type SlackInteractionInput struct {
+		Type    string `json:"type"`
+		Actions []struct {
+			ActionID string `json:"action_id"`
+		} `json:"actions"`
+		User struct {
+			Username string `json:"username"`
+		} `json:"user"`
+	}
+
+	slackInteraction := client.NewStandaloneTask(
+		"handle-slack-interaction",
+		func(ctx hatchet.Context, input SlackInteractionInput) (*struct {
+			Action string `json:"action"`
+		}, error) {
+			action := input.Actions[0]
+			fmt.Printf("%s clicked button: %s\n", input.User.Username, action.ActionID)
+			return &struct {
+				Action string `json:"action"`
+			}{Action: action.ActionID}, nil
+		},
+		hatchet.WithWorkflowEvents("slack:interaction:block_actions"),
+	)
+
+	worker, err := client.NewWorker("webhook-worker",
+		hatchet.WithWorkflows(
+			stripePayment,
+			githubPR,
+			slackMention,
+			slackCommand,
+			slackInteraction,
+		),
+	)
 	if err != nil {
-		log.Fatalf("failed to create hmac webhook: %v", err)
-	}
-	fmt.Printf("Created webhook: %s\n", hmacWebhook.Name)
-
-	// List webhooks again to see our new ones
-	fmt.Println("\nListing all webhooks...")
-	webhooks, err = client.Webhooks().List(ctx, rest.V1WebhookListParams{})
-	if err != nil {
-		log.Fatalf("failed to list webhooks: %v", err)
-	}
-	if webhooks.Rows != nil {
-		for _, w := range *webhooks.Rows {
-			fmt.Printf("  - %s (source: %s, auth: %s)\n", w.Name, w.SourceName, w.AuthType)
-		}
+		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// Clean up - delete the webhooks we created
-	fmt.Println("\nCleaning up - deleting test webhooks...")
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
 
-	err = client.Webhooks().Delete(ctx, basicWebhook.Name)
-	if err != nil {
-		log.Printf("failed to delete basic webhook: %v", err)
-	} else {
-		fmt.Printf("Deleted webhook: %s\n", basicWebhook.Name)
+	if err := worker.StartBlocking(interruptCtx); err != nil {
+		log.Fatalf("failed to start worker: %v", err)
 	}
-
-	err = client.Webhooks().Delete(ctx, apiKeyWebhook.Name)
-	if err != nil {
-		log.Printf("failed to delete apikey webhook: %v", err)
-	} else {
-		fmt.Printf("Deleted webhook: %s\n", apiKeyWebhook.Name)
-	}
-
-	err = client.Webhooks().Delete(ctx, hmacWebhook.Name)
-	if err != nil {
-		log.Printf("failed to delete hmac webhook: %v", err)
-	} else {
-		fmt.Printf("Deleted webhook: %s\n", hmacWebhook.Name)
-	}
-
-	fmt.Println("\nDone!")
 }

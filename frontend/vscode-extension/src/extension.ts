@@ -1,0 +1,128 @@
+import * as vscode from 'vscode';
+import { DagPanel } from './panel/dag-panel';
+import {
+  HatchetCodeLensProvider,
+  detectWorkflowDeclarations,
+  computeFallbackWorkflow,
+} from './providers/codelens-provider';
+import type { WorkflowDeclaration, ParsedWorkflow } from './parser/workflow-parser';
+import { WorkflowAnnotationCache } from './analysis/annotation-cache';
+
+const SUPPORTED_LANGUAGES = ['typescript', 'typescriptreact', 'python', 'ruby', 'go'];
+
+let codeLensProvider: HatchetCodeLensProvider | undefined;
+let annotationCache: WorkflowAnnotationCache | undefined;
+
+export function activate(context: vscode.ExtensionContext): void {
+  annotationCache = new WorkflowAnnotationCache();
+  codeLensProvider = new HatchetCodeLensProvider(annotationCache);
+
+  context.subscriptions.push(
+    annotationCache.onDidChange(() => codeLensProvider?.refresh()),
+  );
+
+  for (const lang of SUPPORTED_LANGUAGES) {
+    context.subscriptions.push(
+      vscode.languages.registerCodeLensProvider({ language: lang }, codeLensProvider),
+    );
+  }
+
+  // Initialize asynchronously — when scan completes, cache fires onDidChange
+  // which triggers codeLensProvider.refresh() via the subscription above.
+  void annotationCache.initialize(context);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'hatchet.showDag',
+      (decl?: WorkflowDeclaration, documentUri?: vscode.Uri, fallback?: ParsedWorkflow) => {
+        const activeEditor = vscode.window.activeTextEditor;
+
+        if (!decl) {
+          if (!activeEditor) {
+            vscode.window.showWarningMessage('Hatchet: Open a workflow file first.');
+            return;
+          }
+          const doc = activeEditor.document;
+          const text = doc.getText();
+          const decls = tryDetectDeclarations(doc);
+          if (decls.length === 0) {
+            vscode.window.showWarningMessage(
+              'Hatchet: No workflow declarations found in this file.',
+            );
+            return;
+          }
+          decl = decls[0];
+          fallback = computeFallbackWorkflow(
+            text, doc.languageId, doc.fileName, decl,
+            annotationCache?.getAll() ?? new Map(),
+          );
+          documentUri = doc.uri;
+        }
+
+        const targetUri = documentUri ?? activeEditor?.document.uri;
+        if (!targetUri) {
+          vscode.window.showErrorMessage(
+            'Hatchet: Unable to determine the source document for this workflow.',
+          );
+          return;
+        }
+
+        DagPanel.createOrShow(
+          context.extensionUri,
+          decl,
+          targetUri,
+          fallback ?? {
+            name: decl.name,
+            varName: decl.varName,
+            declarationLine: decl.declarationLine,
+            tasks: [],
+          },
+        );
+      },
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      if (!SUPPORTED_LANGUAGES.includes(e.document.languageId)) return;
+      codeLensProvider?.refresh();
+
+      const doc = e.document;
+      const text = doc.getText();
+      const decls = tryDetectDeclarations(doc);
+      if (decls.length > 0) {
+        const decl =
+          decls.find((d) => d.varName === DagPanel.currentVarName) ?? decls[0];
+        const fallback = computeFallbackWorkflow(
+          text, doc.languageId, doc.fileName, decl,
+          annotationCache?.getAll() ?? new Map(),
+        );
+        DagPanel.scheduleUpdate(decl, fallback, doc.uri);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (!editor || !SUPPORTED_LANGUAGES.includes(editor.document.languageId)) return;
+      codeLensProvider?.refresh();
+    }),
+  );
+}
+
+export function deactivate(): void {
+  // VS Code will dispose all registered subscriptions automatically.
+}
+
+function tryDetectDeclarations(document: vscode.TextDocument): WorkflowDeclaration[] {
+  try {
+    return detectWorkflowDeclarations(
+      document.getText(),
+      document.languageId,
+      document.fileName,
+      annotationCache?.getAll() ?? new Map(),
+    );
+  } catch {
+    return [];
+  }
+}

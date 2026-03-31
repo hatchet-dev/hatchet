@@ -681,6 +681,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerConcurrencyRateLimit,
 		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
 		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
 	)
@@ -753,6 +754,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
+		Observability:          cf.Observability,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,

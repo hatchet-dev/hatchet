@@ -18,4 +18,4 @@ repos:
     hooks:
       - id: golangci-lint
         args: ["--config=.golangci.yml", "--allow-parallel-runners"]
-        exclude: ^(examples/|sdks/guides/go/)
+        exclude: ^(examples/|sdks/guides/go/|sdks/go/examples/)

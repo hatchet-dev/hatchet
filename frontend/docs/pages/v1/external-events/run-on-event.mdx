@@ -7,7 +7,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 > This example assumes we have a [task](/v1/tasks) registered on a running [worker](/v1/workers).
 
-Run-on-event allows you to trigger one or more tasks when a specific event occurs. This is useful when you need to execute a task in response to an ephemeral event where the result is not important. See [Event-Driven Systems](/guides/event-driven) for a detailed guide. A few common use cases for event-triggered task runs are:
+Run-on-event allows you to trigger one or more tasks when a specific event occurs. This is useful when you need to execute a task in response to an ephemeral event where the result is not important. A few common use cases for event-triggered task runs are:
 
 1. Running a task when an ephemeral event is received, such as a webhook or a message from a queue.
 2. When you want to run multiple independent tasks in response to a single event. For instance, if you wanted to run a `send_welcome_email` task, and you also wanted to run a `grant_new_user_credits` task, and a `reward_referral` task, all triggered by the signup. In this case, you might declare all three of those tasks with an event trigger for `user:signup`, and then have them all kick off when that event happens.

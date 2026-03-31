@@ -5,20 +5,24 @@ import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invit
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
+import { Loading, Spinner } from '@/components/v1/ui/loading.tsx';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import {
   pendingInvitesQuery,
   usePendingInvites,
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { User } from '@/lib/api';
+import api, { User, queries } from '@/lib/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
@@ -28,7 +32,7 @@ import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   useLoaderData,
   useLocation,
@@ -57,6 +61,7 @@ export async function loader(_args: { request: Request }) {
 
 function AuthenticatedInner() {
   const { tenant } = useTenantDetails();
+  const { capture } = useAnalytics();
   const {
     currentUser,
     error: userError,
@@ -73,6 +78,7 @@ function AuthenticatedInner() {
   const [orgInviteModal, setOrgInviteModal] = useState<
     { organizationId: string; organizationName: string } | undefined
   >();
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -305,6 +311,22 @@ function AuthenticatedInner() {
     [],
   );
 
+  useEffect(() => {
+    const key = 'hatchet:show-welcome';
+    if (localStorage.getItem(key)) {
+      localStorage.removeItem(key);
+      setShowWelcome(true);
+      capture('welcome_modal_shown', {
+        tenant_id: tenant?.metadata.id,
+      });
+    }
+  }, [tenant?.metadata.id, capture]);
+
+  const welcomePlansQuery = useQuery({
+    ...queries.cloud.subscriptionPlans(),
+    enabled: showWelcome,
+  });
+
   if (!currentUser) {
     return <Loading />;
   }
@@ -347,6 +369,13 @@ function AuthenticatedInner() {
                     result.type === 'cloud'
                       ? result.tenant.id
                       : result.tenant.metadata.id;
+
+                  if (result.type === 'cloud') {
+                    void queryClient.prefetchQuery(
+                      queries.cloud.subscriptionPlans(),
+                    );
+                  }
+
                   navigate({
                     to: appRoutes.tenantOverviewRoute.to,
                     params: { tenant: tenantId },
@@ -381,6 +410,85 @@ function AuthenticatedInner() {
             }}
           />
         )}
+        <Dialog
+          open={showWelcome}
+          onOpenChange={(open) => {
+            if (!open) {
+              localStorage.removeItem('hatchet:show-welcome');
+              setShowWelcome(false);
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg text-center">
+            <div className="flex flex-col items-center gap-6">
+              <HatchetLogo variant="mark" className="h-10 w-10" />
+              <div className="space-y-2">
+                <DialogTitle className="text-center text-2xl">
+                  Welcome to Hatchet
+                </DialogTitle>
+                <DialogDescription className="text-center text-base text-muted-foreground">
+                  You&apos;re on the free plan with generous limits to get
+                  started. We&apos;ll let you know when you&apos;re getting
+                  close.
+                </DialogDescription>
+              </div>
+              <ul className="w-full text-left text-base space-y-2.5 rounded-md border border-border/50 bg-muted/30 p-5">
+                {welcomePlansQuery.isLoading ? (
+                  <li className="flex justify-center py-2">
+                    <Spinner />
+                  </li>
+                ) : (
+                  welcomePlansQuery.data?.freeLimits?.map((fl) => (
+                    <li key={fl.featureId} className="flex justify-between">
+                      <span className="text-muted-foreground">{fl.name}</span>
+                      <span className="font-medium">
+                        {fl.limit.toLocaleString()}
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+              <p className="text-sm text-muted-foreground">
+                You can upgrade anytime from Billing &amp; Limits in your tenant
+                settings.
+              </p>
+              <div className="flex w-full flex-col gap-2">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    capture('welcome_modal_dismissed', {
+                      tenant_id: tenant?.metadata.id,
+                      cta: 'get_started',
+                    });
+                    localStorage.removeItem('hatchet:show-welcome');
+                    setShowWelcome(false);
+                  }}
+                >
+                  Explore Hatchet for Free with Limits &rarr;
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    capture('welcome_modal_upgrade_clicked', {
+                      tenant_id: tenant?.metadata.id,
+                    });
+                    localStorage.removeItem('hatchet:show-welcome');
+                    setShowWelcome(false);
+                    if (tenant?.metadata.id) {
+                      navigate({
+                        to: '/tenants/$tenant/tenant-settings/billing-and-limits',
+                        params: { tenant: tenant.metadata.id },
+                      });
+                    }
+                  }}
+                >
+                  Add a payment method to remove limits, no commitment required
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </SupportChat>
     </PostHogProvider>
   );

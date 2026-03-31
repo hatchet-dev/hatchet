@@ -102,6 +102,7 @@ jobs:
           export SERVER_DEFAULT_ENGINE_VERSION=V1
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
           export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
+          export SERVER_OBSERVABILITY_ENABLED=true
 
           go run ./cmd/hatchet-admin quickstart
 

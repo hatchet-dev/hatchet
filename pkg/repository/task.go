@@ -541,20 +541,23 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		notFinalizedMap[task.ID] = true
 	}
 
-	dagsToCheck := make([]int64, 0)
+	dagIdsToCheck := make([]int64, 0)
+	dagInsertedAtsToCheck := make([]pgtype.Timestamptz, 0)
 	dagsToTasks := make(map[int64][]*sqlcv1.FlattenExternalIdsRow)
 
 	for _, task := range flattenedTasks {
 		if !notFinalizedMap[task.ID] && task.DagID.Valid {
-			dagsToCheck = append(dagsToCheck, task.DagID.Int64)
+			dagIdsToCheck = append(dagIdsToCheck, task.DagID.Int64)
+			dagInsertedAtsToCheck = append(dagInsertedAtsToCheck, task.DagInsertedAt)
 			dagsToTasks[task.DagID.Int64] = append(dagsToTasks[task.DagID.Int64], task)
 		}
 	}
 
 	// check DAGs
 	notFinalizedDags, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:   dagsToCheck,
-		Tenantid: tenantId,
+		Dagids:         dagIdsToCheck,
+		Daginsertedats: dagInsertedAtsToCheck,
+		Tenantid:       tenantId,
 	})
 
 	if err != nil {
@@ -2947,7 +2950,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	lockedTaskInsertedAts := make([]pgtype.Timestamptz, len(lockedTasks))
 	subtreeStepIds := make(map[int64]map[uuid.UUID]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[uuid.UUID]struct{})
-	dagIdsToLockMap := make(map[int64]struct{})
+	dagIdsToLockMap := make(map[int64]pgtype.Timestamptz)
 	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
 
 	for i, task := range lockedTasks {
@@ -2959,9 +2962,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 				subtreeStepIds[task.DagID.Int64] = make(map[uuid.UUID]bool)
 			}
 
-			dagIdsToLockMap[task.DagID.Int64] = struct{}{}
 			subtreeStepIds[task.DagID.Int64][task.StepID] = true
 			subtreeExternalIds[task.ExternalID] = struct{}{}
+
+			dagIdsToLockMap[task.DagID.Int64] = task.DagInsertedAt
 		}
 
 		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
@@ -2971,14 +2975,17 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	// lock all tasks in the DAGs
 	dagIdsToLock := make([]int64, 0, len(dagIdsToLockMap))
+	dagInsertedAtsToLock := make([]pgtype.Timestamptz, 0, len(dagIdsToLockMap))
 
-	for dagId := range dagIdsToLockMap {
+	for dagId, dagInsertedAt := range dagIdsToLockMap {
 		dagIdsToLock = append(dagIdsToLock, dagId)
+		dagInsertedAtsToLock = append(dagInsertedAtsToLock, dagInsertedAt)
 	}
 
-	successfullyLockedDAGIds, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
-		Dagids:   dagIdsToLock,
-		Tenantid: tenantId,
+	successfullyLockedDAGs, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
+		Dagids:         dagIdsToLock,
+		Daginsertedats: dagInsertedAtsToLock,
+		Tenantid:       tenantId,
 	})
 
 	if err != nil {
@@ -2986,9 +2993,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}
 
 	successfullyLockedDAGsMap := make(map[int64]bool)
+	successfullyLockedDAGIds := make([]int64, 0, len(successfullyLockedDAGs))
+	successfullyLockedDAGInsertedAts := make([]pgtype.Timestamptz, 0, len(successfullyLockedDAGs))
 
-	for _, dagId := range successfullyLockedDAGIds {
-		successfullyLockedDAGsMap[dagId] = true
+	for _, dag := range successfullyLockedDAGs {
+		successfullyLockedDAGsMap[dag.ID] = true
+		successfullyLockedDAGIds = append(successfullyLockedDAGIds, dag.ID)
+		successfullyLockedDAGInsertedAts = append(successfullyLockedDAGInsertedAts, dag.InsertedAt)
 	}
 
 	// Discard tasks which can't be replayed. Discard rules are as follows:
@@ -2998,8 +3009,9 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	dagIdsFailedPreflight := make(map[int64]bool)
 
 	preflightDAGs, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:   successfullyLockedDAGIds,
-		Tenantid: tenantId,
+		Dagids:         successfullyLockedDAGIds,
+		Daginsertedats: successfullyLockedDAGInsertedAts,
+		Tenantid:       tenantId,
 	})
 
 	if err != nil {

@@ -53,8 +53,6 @@ type Repository interface {
 	User() UserRepository
 	UserSession() UserSessionRepository
 	WorkflowSchedules() WorkflowScheduleRepository
-	OTelCollector() OTelCollectorRepository
-	OverwriteOTelCollectorRepository(o OTelCollectorRepository)
 }
 
 type repositoryImpl struct {
@@ -89,7 +87,6 @@ type repositoryImpl struct {
 	user              UserRepository
 	userSession       UserSessionRepository
 	workflowSchedules WorkflowScheduleRepository
-	otelcol           OTelCollectorRepository
 }
 
 func NewRepository(
@@ -123,7 +120,7 @@ func NewRepository(
 		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:         newSchedulerRepository(shared),
 		matches:           newMatchRepository(shared),
-		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
+		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),
 		logs:              newLogLineRepository(shared),
 		workers:           newWorkerRepository(shared),
 		workflows:         newWorkflowRepository(shared),
@@ -144,7 +141,6 @@ func NewRepository(
 		user:              newUserRepository(shared),
 		userSession:       newUserSessionRepository(shared),
 		workflowSchedules: newWorkflowScheduleRepository(shared),
-		otelcol:           newOTelCollectorRepository(shared),
 	}
 
 	return impl, func() error {
@@ -296,12 +292,4 @@ func (r *repositoryImpl) UserSession() UserSessionRepository {
 
 func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
 	return r.workflowSchedules
-}
-
-func (r *repositoryImpl) OTelCollector() OTelCollectorRepository {
-	return r.otelcol
-}
-
-func (r *repositoryImpl) OverwriteOTelCollectorRepository(o OTelCollectorRepository) {
-	r.otelcol = o
 }
