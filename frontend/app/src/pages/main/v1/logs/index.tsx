@@ -26,7 +26,7 @@ import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
   const isWorkflowFilterEnabled = posthog.isFeatureEnabled(
-    'log-workflow-filters',
+    'tenant-log-workflow-filter-enabled',
   );
 
   const {
