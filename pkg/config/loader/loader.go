@@ -276,19 +276,19 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	// Create a separate direct pool using DATABASE_URL for DDL operations. These operations are
 	// critical and cannot use the main pool if it's routed through pgbouncer, so a separate pool
 	// is justified.
-	directConfig, err := pgxpool.ParseConfig(databaseUrl)
+	ddlConfig, err := pgxpool.ParseConfig(databaseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
 
-	directConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
-	directConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
-	directConfig.MaxConnLifetime = cf.MaxConnLifetime
-	directConfig.MaxConnIdleTime = cf.MaxConnIdleTime
-	directConfig.AfterConnect = pgxpoolConnAfterConnect
-	directConfig.ConnConfig.Tracer = newOTelPgxTracer()
+	ddlConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
+	ddlConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
+	ddlConfig.MaxConnLifetime = cf.MaxConnLifetime
+	ddlConfig.MaxConnIdleTime = cf.MaxConnIdleTime
+	ddlConfig.AfterConnect = pgxpoolConnAfterConnect
+	ddlConfig.ConnConfig.Tracer = newOTelPgxTracer()
 
-	ddlPool, err := pgxpool.NewWithConfig(context.Background(), directConfig)
+	ddlPool, err := pgxpool.NewWithConfig(context.Background(), ddlConfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to direct database: %w", err)
 	}
