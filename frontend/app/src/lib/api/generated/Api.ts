@@ -248,10 +248,6 @@ export class Api<
       order_by_direction?: V1LogLineOrderByDirection;
       /** The attempt number to filter for */
       attempt?: number;
-      /** The workflow id(s) to filter for */
-      workflow_ids?: string[];
-      /** The step id(s) to filter for */
-      step_ids?: string[];
     },
     params: RequestParams = {},
   ) =>

@@ -38,6 +38,12 @@ type ListLogsOpts struct {
 
 	// (optional) a list of task external ids to filter by
 	TaskExternalIds []uuid.UUID
+
+	// (optional) a list of workflow ids to filter by
+	WorkflowIds []uuid.UUID
+
+	// (optional) a list of step ids to filter by
+	StepIds []uuid.UUID
 }
 
 type CreateLogLineOpts struct {

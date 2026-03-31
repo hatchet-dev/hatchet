@@ -35,6 +35,8 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		search           *string
 		orderByDirection *string
 		attempt          *int32
+		workflowIds      []uuid.UUID
+		stepIds          []uuid.UUID
 	)
 
 	if request.Params.Limit != nil {
