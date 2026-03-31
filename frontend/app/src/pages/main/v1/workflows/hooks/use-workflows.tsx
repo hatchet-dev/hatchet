@@ -48,7 +48,10 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     placeholderData: (data) => data,
   });
 
-  const workflows = listWorkflowQuery.data?.rows || [];
+  const workflows = useMemo(
+    () => listWorkflowQuery.data?.rows || [],
+    [listWorkflowQuery.data?.rows],
+  );
   const numWorkflows = listWorkflowQuery.data?.pagination?.num_pages || 0;
 
   const workflowNameToId = useMemo(

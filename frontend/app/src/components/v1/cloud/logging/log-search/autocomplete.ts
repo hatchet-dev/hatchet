@@ -27,12 +27,24 @@ const FILTER_KEYS: FilterSuggestion[] = [
     value: 'attempt:',
     description: 'Filter by attempt number',
   },
+  {
+    type: 'key',
+    label: 'workflow',
+    value: 'workflow:',
+    description: 'Filter by workflow name',
+  },
 ];
+
+export interface LogAutocompleteContext {
+  availableAttempts?: number[];
+  workflowNames?: string[];
+}
 
 export function getAutocomplete(
   query: string,
-  availableAttempts: number[],
+  context: LogAutocompleteContext,
 ): AutocompleteState {
+  const { availableAttempts = [], workflowNames = [] } = context;
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
 
@@ -60,7 +72,8 @@ export function getAutocomplete(
 
   if (lastWord.startsWith('attempt:')) {
     const partial = lastWord.slice(8);
-    const attempts = availableAttempts ?? [1, 2, 3];
+    const attempts =
+      availableAttempts.length > 0 ? availableAttempts : [1, 2, 3];
     const suggestions = attempts
       .filter((attempt) => String(attempt).startsWith(partial))
       .map((attempt) => ({
@@ -68,6 +81,20 @@ export function getAutocomplete(
         label: String(attempt),
         value: String(attempt),
         description: `Attempt ${attempt}`,
+      }));
+    return { mode: 'value', suggestions };
+  }
+
+  if (lastWord.startsWith('workflow:')) {
+    const partial = lastWord.slice(9).toLowerCase();
+    const suggestions = workflowNames
+      .filter((name) => name.toLowerCase().startsWith(partial))
+      .slice(0, 10)
+      .map((name) => ({
+        type: 'value' as const,
+        label: name,
+        value: name,
+        description: name,
       }));
     return { mode: 'value', suggestions };
   }

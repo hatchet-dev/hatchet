@@ -81,6 +81,14 @@ export function useTenantLogs() {
     [filters.q],
   );
 
+  const workflowIds = useMemo(() => {
+    if (!parsedQuery.workflow) {
+      return undefined;
+    }
+    const id = workflowNameToId[parsedQuery.workflow];
+    return id ? [id] : undefined;
+  }, [parsedQuery.workflow, workflowNameToId]);
+
   // Stable since: computed once per filter change, not on every render
   const [since, setSince] = useState(
     () => filters.since ?? getSinceFromTimeWindow(filters.tw),
@@ -104,6 +112,7 @@ export function useTenantLogs() {
       filters.until,
       parsedQuery.level,
       parsedQuery.search,
+      workflowIds,
     ],
     queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const response = await api.v1TenantLogLineList(tenantId, {
@@ -118,6 +127,7 @@ export function useTenantLogs() {
           levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
         }),
         ...(parsedQuery.search && { search: parsedQuery.search }),
+        ...(workflowIds && { workflow_ids: workflowIds }),
         order_by_direction: V1LogLineOrderByDirection.DESC,
       });
       return response.data;
@@ -163,6 +173,7 @@ export function useTenantLogs() {
       filters.until,
       parsedQuery.level,
       parsedQuery.search,
+      workflowIds,
     ],
     queryFn: async () => {
       const response = await api.v1TenantLogLineGetPointMetrics(tenantId, {
@@ -172,6 +183,7 @@ export function useTenantLogs() {
           levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
         }),
         ...(parsedQuery.search && { search: parsedQuery.search }),
+        ...(workflowIds && { workflow_ids: workflowIds }),
       });
       return response.data;
     },
@@ -248,5 +260,6 @@ export function useTenantLogs() {
     clearTimeRange,
     setCustomSince,
     setCustomUntil,
+    workflowNames: Object.keys(workflowNameToId),
   };
 }
