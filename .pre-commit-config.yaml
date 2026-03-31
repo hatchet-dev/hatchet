@@ -23,13 +23,14 @@ repos:
     rev: v0.15.8
     hooks:
       - id: ruff-check
-        args: [ --fix ]
         files: ^sdks/python/
+        args: [ --fix, "--config=sdks/python/pyproject.toml" ]
   - repo: https://github.com/psf/black-pre-commit-mirror
     rev: 26.1.0
     hooks:
       - id: black
         files: ^sdks/python/
+        args: ["--config=sdks/python/pyproject.toml"]
   - repo: local
     hooks:
       - id: mypy
