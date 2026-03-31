@@ -90,8 +90,7 @@ type repositoryImpl struct {
 }
 
 func NewRepository(
-	pool *pgxpool.Pool,
-	ddlPool *pgxpool.Pool,
+	pool, ddlPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
