@@ -37,10 +37,6 @@ otel = [
     "opentelemetry-exporter-otlp-proto-http>=1.28.0,<2",
 ]
 
-v0-sdk = [
-    "cel-python",
-]
-
 lint = [
     "mypy==1.19.1",
     "types-protobuf>=5.28.3.20241030",
