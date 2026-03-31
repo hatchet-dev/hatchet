@@ -48,6 +48,7 @@ lint = [
     "types-grpcio>=1.0.0",
 ]
 claude = ["claude-agent-sdk", "mcp"]
+openai = ["openai-agents"]
 
 test = [
     "pytest>=8.3.5,<9",

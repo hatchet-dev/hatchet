@@ -2,6 +2,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from enum import StrEnum
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -16,6 +17,7 @@ from typing import (
     overload,
 )
 
+from agents import FunctionTool
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
@@ -76,6 +78,9 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 P = ParamSpec("P")
 
+class MCPProvider(StrEnum):
+    CLAUDE =  "CLAUDE"
+    OPENAI =  "OPENAI"
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
     ## If the value is not the param default, it's set
@@ -621,10 +626,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def _mcp_tool(
         self,
+        provider: MCPProvider,
         handler: Any,
         description: str,
         annotations: "ToolAnnotations | None" = None,
-    ) -> "SdkMcpTool[TWorkflowInput]":
+    ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
         """
         Creates a wrapper around the workflow enabling its usage in MCP server implementations.
         Supports Claude's agent SDK, requires installing the `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`
@@ -643,22 +649,38 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
         ```
         """
-        try:
-            from claude_agent_sdk import SdkMcpTool
-        except (RuntimeError, ImportError, ModuleNotFoundError) as e:
-            raise ModuleNotFoundError(
-                "To use the mcp_tool method, you must install Hatchet's `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`"
-            ) from e
-
         input_schema = self.input_validator.json_schema()
+        match provider:
+            case MCPProvider.CLAUDE:
+                print("using claud")
+                try:
+                    from claude_agent_sdk import SdkMcpTool
+                except (RuntimeError, ImportError, ModuleNotFoundError) as e:
+                    raise ModuleNotFoundError(
+                        "To use the mcp_tool method, you must install Hatchet's `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`"
+                    ) from e
 
-        return SdkMcpTool(
-            name=self.name,
-            description=description,
-            input_schema=input_schema,
-            handler=handler,
-            annotations=annotations,
-        )
+
+                return SdkMcpTool(
+                    name=self.name,
+                    description=description,
+                    input_schema=input_schema,
+                    handler=handler,
+                    annotations=annotations,
+                )
+            case MCPProvider.OPENAI:
+                try:
+                    from agents import RunContextWrapper, FunctionTool
+                except (RuntimeError, ImportError, ModuleNotFoundError) as e:
+                    raise ModuleNotFoundError(
+                        "To use the mcp_tool method, you must install Hatchet's `openai` extra using (e.g.) `pip install hatchet-sdk[openai]`"
+                    ) from e
+                return FunctionTool(
+                    name=self.name,
+                    description=description,
+                    params_json_schema=input_schema,
+                    on_invoke_tool=handler,
+                )
 
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
@@ -1299,6 +1321,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def mcp_tool(
         self,
+        provider: MCPProvider,
         description: str,
         annotations: "ToolAnnotations | None" = None,
     ) -> "SdkMcpTool[TWorkflowInput]":
@@ -1327,7 +1350,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 return {}
             return {"content": [{"type": "text", "text": json.dumps(res)}]}
 
-        return self._mcp_tool(handler, description, annotations)
+        return self._mcp_tool(provider, handler, description, annotations)
 
 
 class TaskRunRef(Generic[TWorkflowInput, R]):
@@ -1694,6 +1717,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def mcp_tool(
         self,
+        provider: MCPProvider,
         description: str,
         annotations: "ToolAnnotations | None" = None,
     ) -> "SdkMcpTool[TWorkflowInput]":
@@ -1729,4 +1753,4 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 ]
             }
 
-        return self._mcp_tool(handler, description, annotations)
+        return self._mcp_tool(provider, handler, description, annotations)

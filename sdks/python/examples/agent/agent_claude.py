@@ -5,18 +5,20 @@ from claude_agent_sdk import (
     query,
     ResultMessage,
 )
-
+from hatchet_sdk.runnables.workflow import MCPProvider
 from examples.agent.worker import temp_workflow, get_temperature_standalone
 
 
 async def main() -> None:
     # You can use a workflow
     temperature_tool = temp_workflow.mcp_tool(
+        MCPProvider.CLAUDE,
         "Get the current temperature at a location",
     )
 
     # Or a standalone task
     temperature_tool = get_temperature_standalone.mcp_tool(
+        MCPProvider.CLAUDE,
         "Get the current temperature at a location",
     )
 
