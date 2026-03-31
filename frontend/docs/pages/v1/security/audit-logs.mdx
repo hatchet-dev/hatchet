@@ -1,0 +1,51 @@
+import { Callout } from "nextra/components";
+
+# Audit Logs
+
+Hatchet records audit logs for key actions performed across your organization, giving you visibility into who did what, when, and from where.
+
+<Callout type="info">
+  Audit logs are available on **Business** plans and above. If you're on the
+  open-source edition and need audit logging, [contact
+  us](https://hatchet.run/contact) to learn more about upgrading.
+</Callout>
+
+## What gets logged
+
+Every audit log entry captures the following:
+
+| Field              | Description                                                                      |
+| ------------------ | -------------------------------------------------------------------------------- |
+| **Actor**          | The user or API key that performed the action                                    |
+| **Action**         | The operation performed (e.g. `create`, `update`, `delete`)                      |
+| **Resource type**  | The type of resource acted upon (e.g. `workflow`, `worker`, `tenant`, `api_key`) |
+| **Resource ID**    | The specific resource that was affected                                          |
+| **IP address**     | The IP address of the actor                                                      |
+| **User agent**     | The user agent string of the request                                             |
+| **Timestamp**      | When the action occurred                                                         |
+| **Correlation ID** | An optional ID for grouping related actions together                             |
+
+## Actor types
+
+Audit log entries distinguish between two types of actors:
+
+- **User** — actions performed by a logged-in user through the dashboard or API
+- **API key** — actions performed programmatically via an API key
+
+## Viewing audit logs
+
+Organization admins can view audit logs in the Hatchet dashboard under the organization settings. Logs can be filtered by tenant and paginated for easier navigation.
+
+## API access
+
+Audit logs can also be retrieved programmatically via the Management API:
+
+```
+GET /api/v1/management/organizations/{organization}/audit-logs
+```
+
+Query parameters:
+
+- `tenant` — filter logs to a specific tenant
+- `page` — page number (1-indexed)
+- `pageSize` — results per page (1–1000)
