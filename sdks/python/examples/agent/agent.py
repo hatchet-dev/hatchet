@@ -11,12 +11,12 @@ from examples.agent.worker import temp_workflow, get_temperature_standalone
 
 async def main() -> None:
     # You can use a workflow
-    temp_tool = temp_workflow.mcp_tool(
+    temperature_tool = temp_workflow.mcp_tool(
         "Get the current temperature at a location",
     )
 
     # Or a standalone task
-    temp_tool = get_temperature_standalone.mcp_tool(
+    temperature_tool = get_temperature_standalone.mcp_tool(
         "Get the current temperature at a location",
     )
 
@@ -24,12 +24,12 @@ async def main() -> None:
     weather_server = create_sdk_mcp_server(
         name="weather",
         version="1.0.0",
-        tools=[temp_tool],
+        tools=[temperature_tool],
     )
 
     options = ClaudeAgentOptions(
         mcp_servers={"weather": weather_server},
-        allowed_tools=[f"mcp__{weather_server["name"]}__{temp_tool.name}"],
+        allowed_tools=[f"mcp__{weather_server["name"]}__{temperature_tool.name}"],
     )
 
     async for message in query(
