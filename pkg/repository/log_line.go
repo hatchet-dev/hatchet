@@ -64,6 +64,9 @@ type CreateLogLineOpts struct {
 
 	// the workflow id associated with the log line, used for partitioning logs
 	WorkflowId uuid.UUID
+
+	// the step id associated with the log line, used for partitioning logs
+	StepId uuid.UUID
 }
 
 type ListLogLineRow struct {
