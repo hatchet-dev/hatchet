@@ -6,7 +6,7 @@ import Keywords from "@/components/Keywords";
 
 # Tasks
 
-The fundamental unit of work in Hatchet is a **task**. At its most basic level, a task is just a function. You can invoke a task on its own (a "standalone" task), compose tasks into a [DAG workflow](/v1/workflows), or use [durable task composition](/v1/child-spawning) to spawn child tasks at runtime.
+The fundamental unit of work in Hatchet is a **task**. At its most basic level, a task is just a function. You can invoke a task on its own (a "standalone" task), compose tasks into a [DAG workflow](/v1/patterns/directed-acyclic-graphs), or use [durable task composition](/v1/child-spawning) to spawn child tasks at runtime.
 
 Every task you invoke is **durable** - Hatchet persists it, its state, and its results even after it finishes running.
 
