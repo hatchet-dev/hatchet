@@ -32,10 +32,9 @@ repos:
         files: ^sdks/python/
         args: ["--config=sdks/python/pyproject.toml"]
         exclude: "(sdks/python/hatchet_sdk/contracts/|sdks/python/hatchet_sdk/v0/contracts/|sdks/python/site)"
-  - repo: local
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
     hooks:
       - id: mypy
-        name: mypy (poetry)
-        entry: bash -c 'cd sdks/python && poetry run mypy . --config-file=pyproject.toml'
-        language: system
-        types: [python]
+        args: ["--config-file=sdks/python/pyproject.toml"]
+        files: ^sdks/python/
