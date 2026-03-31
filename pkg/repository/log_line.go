@@ -61,6 +61,9 @@ type CreateLogLineOpts struct {
 
 	// The retry count of the log line.
 	RetryCount int
+
+	// the workflow id associated with the log line, used for partitioning logs
+	WorkflowId uuid.UUID
 }
 
 type ListLogLineRow struct {

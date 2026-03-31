@@ -123,6 +123,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 		Level:          req.Level,
 		Metadata:       metadata,
 		RetryCount:     retryCount,
+		WorkflowId:     task.WorkflowID,
 	}
 
 	if apiErrors, err := i.v.ValidateAPI(opts); err != nil {
