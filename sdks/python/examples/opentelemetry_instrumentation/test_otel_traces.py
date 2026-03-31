@@ -124,9 +124,10 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
 
     assert run_workflow_span.span_attributes
 
-    assert hatchet.config.apply_namespace(
+    namespaced = hatchet.config.apply_namespace(
         run_workflow_span.span_attributes.get("hatchet.workflow_name")
-    ).startswith(otel_simple_task.name)
+    )
+    assert namespaced is not None and namespaced.startswith(otel_simple_task.name)
 
 
 @requires_observability
@@ -300,9 +301,10 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     ]
     assert len(run_workflow_spans) == 1
     assert run_workflow_spans[0].span_attributes
-    assert hatchet.config.apply_namespace(
+    namespaced = hatchet.config.apply_namespace(
         run_workflow_spans[0].span_attributes.get("hatchet.workflow_name")
-    ).startswith(otel_workflow.name)
+    )
+    assert namespaced is not None and namespaced.startswith(otel_workflow.name)
 
 
 @requires_observability
