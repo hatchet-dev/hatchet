@@ -98,7 +98,7 @@ type InsertLogLineParams struct {
 
 const listLogLines = `-- name: ListLogLines :many
 SELECT
-    id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata, retry_count
+    id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata, retry_count, workflow_id
 FROM
     v1_log_line l
 WHERE
@@ -159,6 +159,7 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 			&i.Level,
 			&i.Metadata,
 			&i.RetryCount,
+			&i.WorkflowID,
 		); err != nil {
 			return nil, err
 		}
