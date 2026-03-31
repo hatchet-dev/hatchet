@@ -19,13 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { XCircleIcon } from 'lucide-react';
-import posthog from 'posthog-js';
 import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
-  const isWorkflowFilterEnabled = posthog.isFeatureEnabled(
+  const isWorkflowFilterEnabled = useIsFeatureEnabled(
     'tenant-log-workflow-filter-enabled',
   );
 
