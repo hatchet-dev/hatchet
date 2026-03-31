@@ -1683,6 +1683,7 @@ CREATE TABLE v1_log_line (
     metadata JSONB,
     retry_count INTEGER NOT NULL DEFAULT 0,
     workflow_id UUID,
+    step_id UUID,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);

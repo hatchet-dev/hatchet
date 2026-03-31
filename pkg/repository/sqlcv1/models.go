@@ -3310,6 +3310,7 @@ type V1LogLine struct {
 	Metadata       []byte             `json:"metadata"`
 	RetryCount     int32              `json:"retry_count"`
 	WorkflowID     *uuid.UUID         `json:"workflow_id"`
+	StepID         *uuid.UUID         `json:"step_id"`
 }
 
 type V1LookupTable struct {
