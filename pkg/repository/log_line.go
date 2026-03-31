@@ -87,6 +87,8 @@ type GetLogLinePointMetricsOpts struct {
 	Search          *string
 	Levels          []string `validate:"omitnil,dive,oneof=INFO ERROR WARN DEBUG"`
 	TaskExternalIds []uuid.UUID
+	StepIds         []uuid.UUID
+	WorkflowIds     []uuid.UUID
 	BucketInterval  time.Duration `validate:"required"`
 }
 
@@ -273,6 +275,8 @@ func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tena
 		Tenantid:      tenantId,
 		Createdafter:  sqlchelpers.TimestamptzFromTime(opts.StartTimestamp),
 		Createdbefore: sqlchelpers.TimestamptzFromTime(opts.EndTimestamp),
+		WorkflowIds:   opts.WorkflowIds,
+		StepIds:       opts.StepIds,
 	}
 
 	if opts.Search != nil {

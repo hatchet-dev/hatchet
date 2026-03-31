@@ -2632,6 +2632,12 @@ type V1TenantLogLineGetPointMetricsParams struct {
 
 	// TaskExternalIds The task external ID(s) to filter by
 	TaskExternalIds *[]openapi_types.UUID `form:"taskExternalIds,omitempty" json:"taskExternalIds,omitempty"`
+
+	// WorkflowIds The workflow id(s) to filter for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// StepIds The step id(s) to filter for
+	StepIds *[]openapi_types.UUID `form:"step_ids,omitempty" json:"step_ids,omitempty"`
 }
 
 // V1TenantLogLineListParams defines parameters for V1TenantLogLineList.
@@ -7550,6 +7556,38 @@ func NewV1TenantLogLineGetPointMetricsRequest(server string, tenant openapi_type
 		if params.TaskExternalIds != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskExternalIds", runtime.ParamLocationQuery, *params.TaskExternalIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StepIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step_ids", runtime.ParamLocationQuery, *params.StepIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

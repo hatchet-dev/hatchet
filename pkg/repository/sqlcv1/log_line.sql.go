@@ -30,6 +30,8 @@ WHERE
     AND ($5::TEXT IS NULL OR message ILIKE CONCAT('%', $5::TEXT, '%'))
     AND ($6::v1_log_line_level[] IS NULL OR level = ANY($6::v1_log_line_level[]))
     AND ($7::BIGINT[] IS NULL OR task_id = ANY($7::BIGINT[]))
+    AND ($8::UUID[] IS NULL OR workflow_id = ANY($8::UUID[]))
+    AND ($9::UUID[] IS NULL OR step_id = ANY($9::UUID[]))
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
@@ -42,6 +44,8 @@ type GetLogLinePointMetricsParams struct {
 	Search        pgtype.Text        `json:"search"`
 	Levels        []V1LogLineLevel   `json:"levels"`
 	TaskIds       []int64            `json:"taskIds"`
+	WorkflowIds   []uuid.UUID        `json:"workflowIds"`
+	StepIds       []uuid.UUID        `json:"stepIds"`
 }
 
 type GetLogLinePointMetricsRow struct {
@@ -61,6 +65,8 @@ func (q *Queries) GetLogLinePointMetrics(ctx context.Context, db DBTX, arg GetLo
 		arg.Search,
 		arg.Levels,
 		arg.TaskIds,
+		arg.WorkflowIds,
+		arg.StepIds,
 	)
 	if err != nil {
 		return nil, err

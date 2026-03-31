@@ -72,6 +72,16 @@ func (t *LogsService) V1TenantLogLineGetPointMetrics(ctx echo.Context, request g
 		taskExternalIds = append(taskExternalIds, *request.Params.TaskExternalIds...)
 	}
 
+	var stepIds []uuid.UUID
+	if request.Params.StepIds != nil {
+		stepIds = append(stepIds, *request.Params.StepIds...)
+	}
+
+	var workflowIds []uuid.UUID
+	if request.Params.WorkflowIds != nil {
+		workflowIds = append(workflowIds, *request.Params.WorkflowIds...)
+	}
+
 	rows, err := t.config.V1.Logs().GetLogLinePointMetrics(reqCtx, tenantId, &v1.GetLogLinePointMetricsOpts{
 		StartTimestamp:  lowerBound,
 		EndTimestamp:    upperBound,
@@ -79,6 +89,8 @@ func (t *LogsService) V1TenantLogLineGetPointMetrics(ctx echo.Context, request g
 		Search:          search,
 		Levels:          levels,
 		TaskExternalIds: taskExternalIds,
+		StepIds:         stepIds,
+		WorkflowIds:     workflowIds,
 	})
 	if err != nil {
 		span.RecordError(err)

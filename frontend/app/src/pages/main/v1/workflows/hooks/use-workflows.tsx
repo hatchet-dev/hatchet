@@ -5,6 +5,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { useDebounce } from 'use-debounce';
 import { z } from 'zod';
 
@@ -50,6 +51,15 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const workflows = listWorkflowQuery.data?.rows || [];
   const numWorkflows = listWorkflowQuery.data?.pagination?.num_pages || 0;
 
+  const workflowNameToId = useMemo(
+    () =>
+      workflows.reduce(
+        (acc, wf) => ({ ...acc, [wf.name]: wf.metadata.id }),
+        {} as Record<string, string>,
+      ),
+    [workflows],
+  );
+
   return {
     workflows,
     numWorkflows,
@@ -63,5 +73,6 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     columnFilters,
     setColumnFilters,
     resetFilters,
+    workflowNameToId,
   };
 };

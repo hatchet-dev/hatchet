@@ -1,3 +1,4 @@
+import { useWorkflows } from '../../workflows/hooks/use-workflows';
 import { parseLogQuery } from '@/components/v1/cloud/logging/log-search/parser';
 import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
@@ -53,6 +54,7 @@ export function useTenantLogs() {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { workflowNameToId } = useWorkflows({ key: 'tenant-logs-view' });
 
   // URL-stored filter state
   const filters = useMemo<FilterState>(() => {

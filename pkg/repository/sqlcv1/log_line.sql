@@ -60,5 +60,7 @@ WHERE
     AND (sqlc.narg('search')::TEXT IS NULL OR message ILIKE CONCAT('%', sqlc.narg('search')::TEXT, '%'))
     AND (sqlc.narg('levels')::v1_log_line_level[] IS NULL OR level = ANY(sqlc.narg('levels')::v1_log_line_level[]))
     AND (sqlc.narg('taskIds')::BIGINT[] IS NULL OR task_id = ANY(sqlc.narg('taskIds')::BIGINT[]))
+    AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+    AND (sqlc.narg('stepIds')::UUID[] IS NULL OR step_id = ANY(sqlc.narg('stepIds')::UUID[]))
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
