@@ -111,11 +111,13 @@ WHERE
     AND ($5::TIMESTAMPTZ IS NULL OR l.created_at < $5::TIMESTAMPTZ)
     AND ($6::v1_log_line_level[] IS NULL OR l.level = ANY($6::v1_log_line_level[]))
     AND ($7::INTEGER IS NULL OR l.retry_count = ($7::INTEGER - 1))
+    AND ($8::UUID[] IS NULL OR l.workflow_id = ANY($8::UUID[]))
+    AND ($9::UUID[] IS NULL OR l.step_id = ANY($9::UUID[]))
 ORDER BY
-    CASE WHEN $8::TEXT = 'DESC' THEN l.created_at END DESC,
-    CASE WHEN $8::TEXT = 'ASC' THEN l.created_at END ASC
-LIMIT COALESCE($10::BIGINT, 1000)
-OFFSET COALESCE($9::BIGINT, 0)
+    CASE WHEN $10::TEXT = 'DESC' THEN l.created_at END DESC,
+    CASE WHEN $10::TEXT = 'ASC' THEN l.created_at END ASC
+LIMIT COALESCE($12::BIGINT, 1000)
+OFFSET COALESCE($11::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
@@ -126,6 +128,8 @@ type ListLogLinesParams struct {
 	Until            pgtype.Timestamptz `json:"until"`
 	Levels           []V1LogLineLevel   `json:"levels"`
 	Attempt          pgtype.Int4        `json:"attempt"`
+	WorkflowIds      []uuid.UUID        `json:"workflowIds"`
+	StepIds          []uuid.UUID        `json:"stepIds"`
 	Orderbydirection string             `json:"orderbydirection"`
 	Offset           pgtype.Int8        `json:"offset"`
 	Limit            pgtype.Int8        `json:"limit"`
@@ -140,6 +144,8 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Until,
 		arg.Levels,
 		arg.Attempt,
+		arg.WorkflowIds,
+		arg.StepIds,
 		arg.Orderbydirection,
 		arg.Offset,
 		arg.Limit,

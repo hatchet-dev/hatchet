@@ -116,6 +116,8 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	queryParams := sqlcv1.ListLogLinesParams{
 		Tenantid:         tenantId,
 		Orderbydirection: "ASC",
+		WorkflowIds:      opts.WorkflowIds,
+		StepIds:          opts.StepIds,
 	}
 
 	if opts.Search != nil {
