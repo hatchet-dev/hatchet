@@ -63,6 +63,7 @@
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "ts-proto": "^2.11.4",
+    "tsx": "^4.21.0",
     "typedoc": "^0.28.17",
     "typedoc-plugin-markdown": "^4.10.0",
     "typedoc-plugin-no-inherit": "^1.6.1",
@@ -70,7 +71,9 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.87",
     "@bufbuild/protobuf": "^2.11.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/qs": "^6.15.0",
     "abort-controller-x": "^0.4.3",
     "axios": "^1.13.5",

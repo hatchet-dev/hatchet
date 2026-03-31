@@ -12,7 +12,7 @@ import {
   ScheduledWorkflows,
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { z } from 'zod';
+import * as z from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
 import {
@@ -32,6 +32,10 @@ import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from '.
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
+import { SdkMcpToolDefinition} from '@anthropic-ai/claude-agent-sdk';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import {ZodType} from "zod";
+import {zodToJsonSchema} from "zod-to-json-schema";
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -1071,6 +1075,24 @@ export class TaskWorkflowDeclaration<
   // Returns the underlying task definition for this declaration.
   get taskDef() {
     return this.definition._tasks[0];
+  }
+
+  mcpTool(description: string, annotations?: any): SdkMcpToolDefinition {
+    const handler = async (args: { [x: string]: any; }, extra: unknown): Promise<CallToolResult> => {
+      const result = await this.run(args);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    };
+    console.log(this.name);
+    const inputValidator = this.definition.inputValidator! as z.ZodObject<any>;
+    return {
+      annotations: annotations,
+      description: description,
+      handler: handler,
+      name: this.name,
+      inputSchema: inputValidator.shape,
+    };
   }
 }
 
