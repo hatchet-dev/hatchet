@@ -10,9 +10,12 @@ const useFeatureFlags = () => {
     return !!posthog;
   }, []);
 
-  const isFeatureEnabled = (flagName: FeatureFlag): boolean => {
+  const isFeatureEnabled = (
+    flagName: FeatureFlag,
+    isEnabledIfNoPosthog: boolean,
+  ): boolean => {
     if (!isAvailable()) {
-      return false;
+      return isEnabledIfNoPosthog;
     }
 
     return posthog.isFeatureEnabled(flagName) ?? false;
@@ -23,7 +26,10 @@ const useFeatureFlags = () => {
   };
 };
 
-export const useIsFeatureEnabled = (flagName: FeatureFlag): boolean => {
+export const useIsFeatureEnabled = (
+  flagName: FeatureFlag,
+  isEnabledIfNoPosthog: boolean,
+): boolean => {
   const { isFeatureEnabled } = useFeatureFlags();
-  return isFeatureEnabled(flagName);
+  return isFeatureEnabled(flagName, isEnabledIfNoPosthog);
 };

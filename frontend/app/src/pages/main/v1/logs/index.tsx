@@ -27,6 +27,7 @@ import { useCallback, useMemo } from 'react';
 export default function TenantLogsPage() {
   const isWorkflowFilterEnabled = useIsFeatureEnabled(
     'tenant-log-workflow-filter-enabled',
+    true,
   );
 
   const {
