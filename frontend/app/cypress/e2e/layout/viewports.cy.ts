@@ -70,7 +70,7 @@ describe('layout: viewports', () => {
         });
 
         // Wait for the authenticated shell to load (avoids flaking on redirects/hydration).
-        cy.get('button[aria-label="User Menu"]', { timeout: 30000 }).should(
+        cy.get('[data-cy="notifications-button"]', { timeout: 30000 }).should(
           'be.visible',
         );
         cy.location('pathname', { timeout: 30000 }).should(

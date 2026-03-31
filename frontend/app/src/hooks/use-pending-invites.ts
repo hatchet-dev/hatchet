@@ -32,7 +32,7 @@ export const pendingInvitesQuery = (isCloudEnabled: boolean) => ({
       organizationInvites,
     };
   },
-  refetchInterval: 30000,
+  refetchInterval: 60_000,
 });
 
 export const usePendingInvites = () => {
