@@ -31,6 +31,7 @@ repos:
       - id: black
         files: ^sdks/python/
         args: ["--config=sdks/python/pyproject.toml"]
+        exclude: "(sdks/python/hatchet_sdk/contracts/|sdks/python/hatchet_sdk/v0/contracts/|sdks/python/site)"
   - repo: local
     hooks:
       - id: mypy
