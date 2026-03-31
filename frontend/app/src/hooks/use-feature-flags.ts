@@ -9,7 +9,6 @@ const useFeatureFlags = () => {
   const posthog = usePostHog();
 
   const isAvailable = useCallback(() => {
-    return false;
     // fixme: not sure if this is the correct way to check if posthog is initialized
     // couldn't find something definitive in the docs somehow and the chatbot wasn't very helpful
     return !!posthog && posthog.__loaded;
