@@ -33,6 +33,8 @@ const useFeatureFlags = () => {
 export const useIsFeatureEnabled = (
   flagName: FeatureFlag,
   // controls default behavior if PostHog is not initialized. if `true`, then the feature will be enabled
+  // this is useful for features that are being rolled out incrementally on Cloud, but should be enabled by default
+  // on the OSS regardless of whether or not PostHog is set up or if we've removed the flag
   isEnabledIfNoPosthog: boolean,
 ): boolean => {
   const { isFeatureEnabled } = useFeatureFlags();
