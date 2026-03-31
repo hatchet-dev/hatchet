@@ -57,7 +57,10 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const workflowNameToId = useMemo(
     () =>
       workflows.reduce(
-        (acc, wf) => ({ ...acc, [wf.name]: wf.metadata.id }),
+        (acc, wf) => {
+          acc[wf.name] = wf.metadata.id;
+          return acc;
+        },
         {} as Record<string, string>,
       ),
     [workflows],

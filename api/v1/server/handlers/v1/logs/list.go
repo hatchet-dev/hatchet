@@ -113,6 +113,8 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 		"has_search":            search != nil,
 		"has_levels":            len(levels) > 0,
 		"has_task_external_ids": len(taskExternalIds) > 0,
+		"has_workflow_ids":      len(workflowIds) > 0,
+		"has_step_ids":          len(stepIds) > 0,
 	})
 
 	rows := make([]gen.V1LogLine, len(logLines))
