@@ -16,6 +16,7 @@ import {
   APIError,
   APIErrors,
   APITokenList,
+  AuditLogList,
   AutumnWebhookEvent,
   Build,
   CreateManagedWorkerFromTemplateRequest,
@@ -1303,6 +1304,61 @@ export class Api<
       path: `/api/v1/management/organization-invites/${organizationInvite}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all audit logs for an organization
+   *
+   * @tags Management
+   * @name OrganizationListAuditLogs
+   * @summary List Audit Logs for Organization
+   * @request GET:/api/v1/management/organizations/{organization}/audit-logs
+   * @secure
+   */
+  organizationListAuditLogs = (
+    organization: string,
+    query?: {
+      /**
+       * The tenant ID belonging to the organization
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant?: string;
+      /**
+       * The maximum number of audit logs to return
+       * @format int32
+       * @min 1
+       * @max 1000
+       * @default 1000
+       */
+      limit?: number;
+      /**
+       * The number of audit logs to skip
+       * @format int32
+       * @min 0
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The start of the time range to filter audit logs (defaults to 24 hours ago)
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end of the time range to filter audit logs (defaults to now)
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<AuditLogList, APIError>({
+      path: `/api/v1/management/organizations/${organization}/audit-logs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
       ...params,
     });
 }
