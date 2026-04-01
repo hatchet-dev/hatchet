@@ -186,7 +186,7 @@ func newMatchRepository(s *sharedRepository) MatchRepository {
 	}
 }
 
-func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) (*EventMatchResults, error) {
+func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
 	eventMatches := make([]CreateMatchOpts, 0, len(signalMatches))
 
 	for _, signalMatch := range signalMatches {
@@ -196,7 +196,7 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 			switch condition.Kind {
 			case CreateExternalSignalConditionKindSLEEP:
 				if condition.SleepFor == nil {
-					return nil, fmt.Errorf("sleep condition requires a duration")
+					return fmt.Errorf("sleep condition requires a duration")
 				}
 
 				c, err := r.durableSleepCondition(
@@ -210,13 +210,13 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 				)
 
 				if err != nil {
-					return nil, err
+					return err
 				}
 
 				conditions = append(conditions, *c)
 			case CreateExternalSignalConditionKindUSEREVENT:
 				if condition.UserEventKey == nil {
-					return nil, fmt.Errorf("user event condition requires a user event key")
+					return fmt.Errorf("user event condition requires a user event key")
 				}
 
 				conditions = append(conditions, r.userEventCondition(
@@ -246,84 +246,7 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 		})
 	}
 
-	if err := r.createEventMatches(ctx, tx, tenantId, eventMatches); err != nil {
-		return nil, err
-	}
-
-	lookbackParams := sqlcv1.GetPreviousMatchingEventsByKeysWithScopeHintParams{
-		Tenantid: tenantId,
-	}
-
-	for _, signalMatch := range signalMatches {
-		for _, condition := range signalMatch.Conditions {
-			if condition.Kind != CreateExternalSignalConditionKindUSEREVENT {
-				continue
-			}
-			if condition.UserEventConsiderEventsSince == nil || condition.UserEventKey == nil || condition.UserEventScope == nil {
-				continue
-			}
-
-			key := *condition.UserEventKey
-
-			lookbackParams.Keys = append(lookbackParams.Keys, key)
-			lookbackParams.Seensinces = append(lookbackParams.Seensinces, sqlchelpers.TimestamptzFromTime(*condition.UserEventConsiderEventsSince))
-			lookbackParams.Scopes = append(lookbackParams.Scopes, *condition.UserEventScope)
-		}
-	}
-
-	previousEventsFound, err := r.queries.GetPreviousMatchingEventsByKeysWithScopeHint(ctx, tx, lookbackParams)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to look up recent user events for retroactive matching: %w", err)
-	}
-
-	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
-
-	for _, row := range previousEventsFound {
-		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
-			Id:         row.ID,
-			InsertedAt: row.SeenAt,
-			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-			TenantId:   tenantId,
-		})
-	}
-
-	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
-	}
-
-	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
-
-	for _, row := range previousEventsFound {
-		retrieveOpts := RetrievePayloadOpts{
-			Id:         row.ID,
-			InsertedAt: row.SeenAt,
-			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-			TenantId:   tenantId,
-		}
-
-		payload, ok := retrieveOptsToPayload[retrieveOpts]
-
-		if !ok {
-			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
-			payload = nil
-		}
-
-		retroCandidates = append(retroCandidates, CandidateEventMatch{
-			ID:             row.ExternalID,
-			EventTimestamp: row.SeenAt.Time,
-			Key:            row.Key,
-			Data:           payload,
-		})
-	}
-
-	if len(retroCandidates) > 0 {
-		return r.processEventMatches(ctx, tx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER)
-	}
-
-	return nil, nil
+	return r.createEventMatches(ctx, tx, tenantId, eventMatches)
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -340,7 +263,7 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 
 	defer rollback()
 
-	if _, err = m.registerSignalMatchConditions(ctx, tx, tenantId, signalMatches); err != nil {
+	if err = m.registerSignalMatchConditions(ctx, tx, tenantId, signalMatches); err != nil {
 		return err
 	}
 
