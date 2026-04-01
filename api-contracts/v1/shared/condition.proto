@@ -31,6 +31,7 @@ message SleepMatchCondition {
 message UserEventMatchCondition {
     BaseMatchCondition base = 1;
     string user_event_key = 2;
+    optional string event_scope = 3; // an optional scope for the user event condition (similar to scopes on event filters)
 }
 
 message TaskConditions {
