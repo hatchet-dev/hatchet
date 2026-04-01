@@ -68,9 +68,9 @@ from hatchet_sdk.utils.typing import (
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
-    from claude_agent_sdk import SdkMcpTool
-    from mcp.types import ToolAnnotations
     from agents import FunctionTool
+    from claude_agent_sdk import SdkMcpTool
+
     from hatchet_sdk import Hatchet
 
 
@@ -1266,7 +1266,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         provider: MCPProvider,
         description: str,
-        annotations: "ToolAnnotations | None" = None,
+        **kwargs: Any,
     ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
         """
         Creates a wrapper around the workflow enabling its usage in MCP server implementations.
@@ -1291,13 +1291,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             case MCPProvider.CLAUDE:
                 from .mcp.claude import workflow_to_claude_mcp
 
-                return workflow_to_claude_mcp(
-                    self, input_schema, description, annotations
-                )
+                return workflow_to_claude_mcp(self, input_schema, description, **kwargs)
             case MCPProvider.OPENAI:
                 from .mcp.openai import workflow_to_openai_mcp
 
-                return workflow_to_openai_mcp(self, input_schema, description)
+                return workflow_to_openai_mcp(self, input_schema, description, **kwargs)
             case _:
                 raise NotImplementedError()
 
@@ -1668,7 +1666,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         provider: MCPProvider,
         description: str,
-        annotations: "ToolAnnotations | None" = None,
+        **kwargs: Any,
     ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
         """
         Creates a wrapper around the standalone task enabling its usage in MCP server implementations.
@@ -1693,10 +1691,10 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             case MCPProvider.CLAUDE:
                 from .mcp.claude import task_to_claude_mcp
 
-                return task_to_claude_mcp(self, input_schema, description, annotations)
+                return task_to_claude_mcp(self, input_schema, description, **kwargs)
             case MCPProvider.OPENAI:
                 from .mcp.openai import task_to_openai_mcp
 
-                return task_to_openai_mcp(self, input_schema, description)
+                return task_to_openai_mcp(self, input_schema, description, **kwargs)
             case _:
                 raise NotImplementedError()
