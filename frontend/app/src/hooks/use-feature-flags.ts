@@ -14,7 +14,7 @@ export const useIsFeatureEnabled = (
 ): boolean => {
   const { tenantId } = useAppContext();
 
-  const { data } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['feature-flag', tenantId, flagName, isEnabledIfNoPosthog],
     queryFn: async () => {
       if (!tenantId) {
@@ -29,6 +29,13 @@ export const useIsFeatureEnabled = (
     },
     enabled: !!tenantId,
   });
+
+  if (isLoading || isFetching) {
+    // fixme: not sure if this is the right behavior here
+    // should we default to `isEnabledIfNoPosthog` while loading, or should we
+    // default to `false` until we know for sure?
+    return false
+  }
 
   return data?.isEnabled ?? isEnabledIfNoPosthog;
 };
