@@ -54,6 +54,25 @@ func Test_buildWorkflowRunRootSpan_inherits_sdk_traceparent(t *testing.T) {
 		"engine span's parent is the SDK producer span")
 }
 
+func Test_buildWorkflowRunRootSpan_ignores_synthetic_self_referencing_traceparent(t *testing.T) {
+	tenantID := uuid.New()
+	wfRunID := uuid.New()
+	wfID := uuid.New()
+	now := time.Now()
+
+	traceID := hex.EncodeToString(v1.DeriveWorkflowRunTraceID(wfRunID))
+	spanID := hex.EncodeToString(v1.DeriveWorkflowRunSpanID(wfRunID))
+	meta, _ := json.Marshal(map[string]string{
+		"traceparent": fmt.Sprintf("00-%s-%s-01", traceID, spanID),
+	})
+
+	span := buildWorkflowRunRootSpan(tenantID, wfRunID, wfID, "my-workflow", now, meta)
+
+	assert.Equal(t, v1.DeriveWorkflowRunSpanID(wfRunID), span.SpanID)
+	assert.Nil(t, span.ParentSpanID,
+		"must not self-reference when synthetic traceparent reuses the span's own ID")
+}
+
 func Test_buildEventSpan_creates_when_no_sdk_traceparent(t *testing.T) {
 	tenantID := uuid.New()
 	eventID := uuid.New()
