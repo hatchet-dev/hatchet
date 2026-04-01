@@ -1,7 +1,7 @@
 import asyncio
 
 from agents import Agent, Runner
-from examples.agent.worker import temperature_tool_openai
+from examples.agent.workflows import temperature_tool_openai
 
 
 async def main() -> None:

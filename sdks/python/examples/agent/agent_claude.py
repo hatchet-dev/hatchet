@@ -5,7 +5,7 @@ from claude_agent_sdk import (
     query,
     ResultMessage,
 )
-from examples.agent.worker import temperature_tool_claude
+from examples.agent.workflows import temperature_tool_claude
 
 
 async def main() -> None:
