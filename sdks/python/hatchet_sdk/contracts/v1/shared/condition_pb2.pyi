@@ -47,12 +47,14 @@ class SleepMatchCondition(_message.Message):
     def __init__(self, base: _Optional[_Union[BaseMatchCondition, _Mapping]] = ..., sleep_for: _Optional[str] = ...) -> None: ...
 
 class UserEventMatchCondition(_message.Message):
-    __slots__ = ("base", "user_event_key")
+    __slots__ = ("base", "user_event_key", "event_scope")
     BASE_FIELD_NUMBER: _ClassVar[int]
     USER_EVENT_KEY_FIELD_NUMBER: _ClassVar[int]
+    EVENT_SCOPE_FIELD_NUMBER: _ClassVar[int]
     base: BaseMatchCondition
     user_event_key: str
-    def __init__(self, base: _Optional[_Union[BaseMatchCondition, _Mapping]] = ..., user_event_key: _Optional[str] = ...) -> None: ...
+    event_scope: str
+    def __init__(self, base: _Optional[_Union[BaseMatchCondition, _Mapping]] = ..., user_event_key: _Optional[str] = ..., event_scope: _Optional[str] = ...) -> None: ...
 
 class TaskConditions(_message.Message):
     __slots__ = ("parent_override_conditions", "sleep_conditions", "user_event_conditions")
