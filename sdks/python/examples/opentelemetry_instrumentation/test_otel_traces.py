@@ -156,6 +156,8 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
 
     spans = await asyncio.to_thread(poll_for_trace, hatchet, run_id)
 
+    push_event_spans = [s for s in spans if s.span_name == "hatchet.push_event"]
+
     assert (
         len(spans) == 6
     ), "six spans: hatchet.engine.workflow_run, hatchet.engine.event, hatchet.engine.queued, hatchet.start_step_run, hatchet.engine.start_step_run, custom.child.span"
