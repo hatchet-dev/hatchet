@@ -32,12 +32,24 @@ export const STATIC_FILTER_KEYS: FilterSuggestion[] = [
     value: `${LOG_FILTER_KEYS.ATTEMPT}:`,
     description: 'Filter by attempt number',
   },
+  {
+    type: 'key',
+    label: 'workflow',
+    value: 'workflow:',
+    description: 'Filter by workflow name',
+  },
 ];
+
+export interface LogAutocompleteContext {
+  availableAttempts?: number[];
+  workflowNames?: string[];
+}
 
 export function getAutocomplete(
   query: string,
-  availableAttempts: number[],
+  context: LogAutocompleteContext,
 ): AutocompleteState {
+  const { availableAttempts = [] } = context;
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
 

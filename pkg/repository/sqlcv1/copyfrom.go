@@ -362,6 +362,8 @@ func (r iteratorForInsertLogLine) Values() ([]interface{}, error) {
 		r.rows[0].Metadata,
 		r.rows[0].RetryCount,
 		r.rows[0].Level,
+		r.rows[0].WorkflowID,
+		r.rows[0].StepID,
 	}, nil
 }
 
@@ -370,5 +372,5 @@ func (r iteratorForInsertLogLine) Err() error {
 }
 
 func (q *Queries) InsertLogLine(ctx context.Context, db DBTX, arg []InsertLogLineParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_log_line"}, []string{"tenant_id", "task_id", "task_inserted_at", "message", "metadata", "retry_count", "level"}, &iteratorForInsertLogLine{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_log_line"}, []string{"tenant_id", "task_id", "task_inserted_at", "message", "metadata", "retry_count", "level", "workflow_id", "step_id"}, &iteratorForInsertLogLine{rows: arg})
 }
