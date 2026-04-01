@@ -307,7 +307,7 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 		payload, ok := retrieveOptsToPayload[retrieveOpts]
 
 		if !ok {
-			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt)
+			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
 			payload = nil
 		}
 
