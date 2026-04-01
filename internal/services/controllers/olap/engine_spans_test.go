@@ -41,7 +41,7 @@ func Test_buildWorkflowRunRootSpan_inherits_sdk_traceparent(t *testing.T) {
 	sdkSpanID := "00f067aa0ba902b7"
 
 	meta, _ := json.Marshal(map[string]string{
-		"traceparent":                        fmt.Sprintf("00-%s-%s-01", sdkTraceID, sdkSpanID),
+		"traceparent":                         fmt.Sprintf("00-%s-%s-01", sdkTraceID, sdkSpanID),
 		"hatchet__traceparent_parent_span_id": sdkSpanID,
 	})
 
