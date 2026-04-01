@@ -6,7 +6,9 @@ INSERT INTO v1_log_line (
     message,
     metadata,
     retry_count,
-    level
+    level,
+    workflow_id,
+    step_id
 ) VALUES (
     $1,
     $2,
@@ -14,7 +16,9 @@ INSERT INTO v1_log_line (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9
 );
 
 -- name: ListLogLines :many
@@ -30,6 +34,8 @@ WHERE
     AND (sqlc.narg('until')::TIMESTAMPTZ IS NULL OR l.created_at < sqlc.narg('until')::TIMESTAMPTZ)
     AND (sqlc.narg('levels')::v1_log_line_level[] IS NULL OR l.level = ANY(sqlc.narg('levels')::v1_log_line_level[]))
     AND (sqlc.narg('attempt')::INTEGER IS NULL OR l.retry_count = (sqlc.narg('attempt')::INTEGER - 1))
+    AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR l.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+    AND (sqlc.narg('stepIds')::UUID[] IS NULL OR l.step_id = ANY(sqlc.narg('stepIds')::UUID[]))
 ORDER BY
     CASE WHEN @orderByDirection::TEXT = 'DESC' THEN l.created_at END DESC,
     CASE WHEN @orderByDirection::TEXT = 'ASC' THEN l.created_at END ASC
@@ -54,5 +60,7 @@ WHERE
     AND (sqlc.narg('search')::TEXT IS NULL OR message ILIKE CONCAT('%', sqlc.narg('search')::TEXT, '%'))
     AND (sqlc.narg('levels')::v1_log_line_level[] IS NULL OR level = ANY(sqlc.narg('levels')::v1_log_line_level[]))
     AND (sqlc.narg('taskIds')::BIGINT[] IS NULL OR task_id = ANY(sqlc.narg('taskIds')::BIGINT[]))
+    AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+    AND (sqlc.narg('stepIds')::UUID[] IS NULL OR step_id = ANY(sqlc.narg('stepIds')::UUID[]))
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
