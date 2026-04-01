@@ -23,7 +23,7 @@ async def main() -> None:
         tools=[temperature_tool],
     )
     result = await Runner.run(agent, "What's the temperature in San Francisco?")
-    print(result)
+    print(result.final_output)
 
 
 if __name__ == "__main__":

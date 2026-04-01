@@ -203,7 +203,7 @@ description = "High-level concurrency and networking framework on top of asyncio
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\" or extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"claude\" or extra == \"docs\""
 files = [
     {file = "anyio-4.13.0-py3-none-any.whl", hash = "sha256:08b310f9e24a9594186fd75b4f73f4a4152069e3853f1ed8bfbf58369f4ad708"},
     {file = "anyio-4.13.0.tar.gz", hash = "sha256:334b70e641fd2221c1505b3890c69882fe4a2df910cba14d97019b90b24439dc"},
@@ -356,7 +356,7 @@ description = "Python package for providing Mozilla's CA Bundle."
 optional = true
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"otel\" or extra == \"test\" or extra == \"claude\" or extra == \"docs\""
+markers = "extra == \"otel\" or extra == \"openai\" or extra == \"test\" or extra == \"claude\" or extra == \"docs\""
 files = [
     {file = "certifi-2026.2.25-py3-none-any.whl", hash = "sha256:027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa"},
     {file = "certifi-2026.2.25.tar.gz", hash = "sha256:e887ab5cee78ea814d3472169153c2d12cd43b14bd03329a39a9c6e2e80bfba7"},
@@ -369,7 +369,7 @@ description = "Foreign Function Interface for Python calling C code."
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "platform_python_implementation != \"PyPy\" and extra == \"claude\""
+markers = "(extra == \"openai\" or extra == \"claude\") and platform_python_implementation != \"PyPy\""
 files = [
     {file = "cffi-2.0.0-cp310-cp310-macosx_10_13_x86_64.whl", hash = "sha256:0cf2d91ecc3fcc0625c2c530fe004f82c110405f101548512cce44322fa8ac44"},
     {file = "cffi-2.0.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:f73b96c41e3b2adedc34a7356e64c8eb96e03a3782b535e043a986276ce12a49"},
@@ -467,7 +467,7 @@ description = "The Real First Universal Charset Detector. Open, modern and activ
 optional = true
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"otel\" or extra == \"test\""
+markers = "extra == \"otel\" or extra == \"openai\" or extra == \"test\""
 files = [
     {file = "charset_normalizer-3.4.6-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:2e1d8ca8611099001949d1cdfaefc510cf0f212484fe7c565f735b68c78c3c95"},
     {file = "charset_normalizer-3.4.6-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e25369dc110d58ddf29b949377a93e0716d72a24f62bad72b2b39f155949c1fd"},
@@ -632,7 +632,7 @@ description = "Composable command line interface toolkit"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\" and sys_platform != \"emscripten\" or extra == \"docs\" or extra == \"lint\""
+markers = "sys_platform != \"emscripten\" and (extra == \"openai\" or extra == \"claude\") or extra == \"docs\" or extra == \"lint\""
 files = [
     {file = "click-8.3.1-py3-none-any.whl", hash = "sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6"},
     {file = "click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a"},
@@ -648,7 +648,7 @@ description = "Cross-platform colored terminal text."
 optional = true
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main"]
-markers = "(extra == \"claude\" and sys_platform != \"emscripten\" or extra == \"docs\" or extra == \"lint\") and platform_system == \"Windows\" or extra == \"test\" and sys_platform == \"win32\" or extra == \"docs\" and platform_system == \"Windows\""
+markers = "(extra == \"openai\" or extra == \"claude\" or extra == \"docs\" or extra == \"lint\") and sys_platform != \"emscripten\" and platform_system == \"Windows\" or extra == \"openai\" or platform_system == \"Windows\" and (extra == \"docs\" or extra == \"lint\" or extra == \"openai\") or extra == \"test\" and sys_platform == \"win32\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -661,7 +661,7 @@ description = "cryptography is a package which provides cryptographic recipes an
 optional = true
 python-versions = "!=3.9.0,!=3.9.1,>=3.8"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "cryptography-46.0.6-cp311-abi3-macosx_10_9_universal2.whl", hash = "sha256:64235194bad039a10bb6d2d930ab3323baaec67e2ce36215fd0952fad0930ca8"},
     {file = "cryptography-46.0.6-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:26031f1e5ca62fcb9d1fcb34b2b60b390d1aacaa15dc8b895a9ed00968b97b30"},
@@ -735,7 +735,7 @@ description = "Distro - an OS platform information API"
 optional = true
 python-versions = ">=3.6"
 groups = ["main"]
-markers = "extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"docs\""
 files = [
     {file = "distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2"},
     {file = "distro-1.9.0.tar.gz", hash = "sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed"},
@@ -766,7 +766,7 @@ description = "Backport of PEP 654 (exception groups)"
 optional = true
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "(extra == \"claude\" or extra == \"docs\" or extra == \"test\") and python_version == \"3.10\""
+markers = "(extra == \"openai\" or extra == \"claude\" or extra == \"docs\" or extra == \"test\") and python_version == \"3.10\""
 files = [
     {file = "exceptiongroup-1.3.1-py3-none-any.whl", hash = "sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598"},
     {file = "exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219"},
@@ -998,6 +998,25 @@ protobuf = ">=4.25.8,<8.0.0"
 grpc = ["grpcio (>=1.44.0,<2.0.0)"]
 
 [[package]]
+name = "griffe"
+version = "1.15.0"
+description = "Signatures for entire Python programs. Extract the structure, the frame, the skeleton of your project, to generate API documentation or find breaking changes in your API."
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"openai\""
+files = [
+    {file = "griffe-1.15.0-py3-none-any.whl", hash = "sha256:6f6762661949411031f5fcda9593f586e6ce8340f0ba88921a0f2ef7a81eb9a3"},
+    {file = "griffe-1.15.0.tar.gz", hash = "sha256:7726e3afd6f298fbc3696e67958803e7ac843c1cfe59734b6251a40cdbfb5eea"},
+]
+
+[package.dependencies]
+colorama = ">=0.4"
+
+[package.extras]
+pypi = ["pip (>=24.0)", "platformdirs (>=4.2)", "wheel (>=0.42)"]
+
+[[package]]
 name = "griffelib"
 version = "2.0.2"
 description = "Signatures for entire Python programs. Extract the structure, the frame, the skeleton of your project, to generate API documentation or find breaking changes in your API."
@@ -1173,7 +1192,7 @@ description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"claude\" or extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"claude\" or extra == \"docs\""
 files = [
     {file = "h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"},
     {file = "h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1"},
@@ -1186,7 +1205,7 @@ description = "A minimal low-level HTTP client."
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"claude\" or extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"claude\" or extra == \"docs\""
 files = [
     {file = "httpcore-1.0.9-py3-none-any.whl", hash = "sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55"},
     {file = "httpcore-1.0.9.tar.gz", hash = "sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8"},
@@ -1209,7 +1228,7 @@ description = "The next generation HTTP client."
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"claude\" or extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"claude\" or extra == \"docs\""
 files = [
     {file = "httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad"},
     {file = "httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc"},
@@ -1235,7 +1254,7 @@ description = "Consume Server-Sent Event (SSE) messages with HTTPX."
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "httpx_sse-0.4.3-py3-none-any.whl", hash = "sha256:0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc"},
     {file = "httpx_sse-0.4.3.tar.gz", hash = "sha256:9b1ed0127459a66014aec3c56bebd93da3c1bc8bb6618c8082039a44889a755d"},
@@ -1320,7 +1339,7 @@ description = "Fast iterable JSON parser."
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"docs\""
 files = [
     {file = "jiter-0.13.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:2ffc63785fd6c7977defe49b9824ae6ce2b2e2b77ce539bdaf006c26da06342e"},
     {file = "jiter-0.13.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:4a638816427006c1e3f0013eb66d391d7a3acda99a7b0cf091eff4497ccea33a"},
@@ -1433,7 +1452,7 @@ description = "An implementation of JSON Schema validation for Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "jsonschema-4.26.0-py3-none-any.whl", hash = "sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce"},
     {file = "jsonschema-4.26.0.tar.gz", hash = "sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326"},
@@ -1456,7 +1475,7 @@ description = "The JSON Schema meta-schemas and vocabularies, exposed as a Regis
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe"},
     {file = "jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d"},
@@ -1707,7 +1726,7 @@ description = "Model Context Protocol SDK"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "mcp-1.26.0-py3-none-any.whl", hash = "sha256:904a21c33c25aa98ddbeb47273033c435e595bbacfdb177f4bd87f6dceebe1ca"},
     {file = "mcp-1.26.0.tar.gz", hash = "sha256:db6e2ef491eecc1a0d93711a76f28dec2e05999f93afd48795da1c1137142c66"},
@@ -2103,7 +2122,7 @@ description = "The official Python library for the openai API"
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"docs\""
 files = [
     {file = "openai-1.109.1-py3-none-any.whl", hash = "sha256:6bcaf57086cf59159b8e27447e4e7dd019db5d29a438072fbd49c290c7e65315"},
     {file = "openai-1.109.1.tar.gz", hash = "sha256:d173ed8dbca665892a6db099b4a2dfac624f94d20a93f46eb0b56aae940ed869"},
@@ -2124,6 +2143,37 @@ aiohttp = ["aiohttp", "httpx-aiohttp (>=0.1.8)"]
 datalib = ["numpy (>=1)", "pandas (>=1.2.3)", "pandas-stubs (>=1.1.0.11)"]
 realtime = ["websockets (>=13,<16)"]
 voice-helpers = ["numpy (>=2.0.2)", "sounddevice (>=0.5.1)"]
+
+[[package]]
+name = "openai-agents"
+version = "0.3.3"
+description = "OpenAI Agents SDK"
+optional = true
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "extra == \"openai\""
+files = [
+    {file = "openai_agents-0.3.3-py3-none-any.whl", hash = "sha256:aa2c74e010b923c09f166e63a51fae8c850c62df8581b84bafcbe5bd208d1505"},
+    {file = "openai_agents-0.3.3.tar.gz", hash = "sha256:b016381a6890e1cb6879eb23c53c35f8c2312be1117f1cd4e4b5e2463150839f"},
+]
+
+[package.dependencies]
+griffe = ">=1.5.6,<2"
+mcp = {version = ">=1.11.0,<2", markers = "python_version >= \"3.10\""}
+openai = ">=1.107.1,<2"
+pydantic = ">=2.10,<3"
+requests = ">=2.0,<3"
+types-requests = ">=2.0,<3"
+typing-extensions = ">=4.12.2,<5"
+
+[package.extras]
+encrypt = ["cryptography (>=45.0,<46)"]
+litellm = ["litellm (>=1.67.4.post1,<2)"]
+realtime = ["websockets (>=15.0,<16)"]
+redis = ["redis (>=6.4.0)"]
+sqlalchemy = ["asyncpg (>=0.29.0)", "sqlalchemy (>=2.0)"]
+viz = ["graphviz (>=0.17)"]
+voice = ["numpy (>=2.2.0,<3) ; python_version >= \"3.10\"", "websockets (>=15.0,<16)"]
 
 [[package]]
 name = "opentelemetry-api"
@@ -2639,7 +2689,7 @@ description = "C parser in Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "platform_python_implementation != \"PyPy\" and extra == \"claude\" and implementation_name != \"PyPy\""
+markers = "(extra == \"openai\" or extra == \"claude\") and platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
@@ -2869,7 +2919,7 @@ description = "JSON Web Token implementation in Python"
 optional = true
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c"},
     {file = "pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b"},
@@ -3050,7 +3100,7 @@ description = "A streaming multipart parser for Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "python_multipart-0.0.22-py3-none-any.whl", hash = "sha256:2b2cd894c83d21bf49d702499531c7bafd057d730c201782048f7945d82de155"},
     {file = "python_multipart-0.0.22.tar.gz", hash = "sha256:7340bef99a7e0032613f56dc36027b959fd3b30a787ed62d310e951f7c3a3a58"},
@@ -3119,7 +3169,7 @@ description = "Python for Window Extensions"
 optional = true
 python-versions = "*"
 groups = ["main"]
-markers = "extra == \"claude\" and sys_platform == \"win32\""
+markers = "(extra == \"openai\" or extra == \"claude\") and sys_platform == \"win32\""
 files = [
     {file = "pywin32-311-cp310-cp310-win32.whl", hash = "sha256:d03ff496d2a0cd4a5893504789d4a15399133fe82517455e78bad62efbb7f0a3"},
     {file = "pywin32-311-cp310-cp310-win_amd64.whl", hash = "sha256:797c2772017851984b97180b0bebe4b620bb86328e8a884bb626156295a63b3b"},
@@ -3250,7 +3300,7 @@ description = "JSON Referencing + Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "referencing-0.37.0-py3-none-any.whl", hash = "sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231"},
     {file = "referencing-0.37.0.tar.gz", hash = "sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8"},
@@ -3268,7 +3318,7 @@ description = "Python HTTP for Humans."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"otel\" or extra == \"test\""
+markers = "extra == \"otel\" or extra == \"openai\" or extra == \"test\""
 files = [
     {file = "requests-2.33.1-py3-none-any.whl", hash = "sha256:4e6d1ef462f3626a1f0a0a9c42dd93c63bad33f9f1c1937509b8c5c8718ab56a"},
     {file = "requests-2.33.1.tar.gz", hash = "sha256:18817f8c57c6263968bc123d237e3b8b08ac046f5456bd1e307ee8f4250d3517"},
@@ -3291,7 +3341,7 @@ description = "Python bindings to Rust's persistent data structures (rpds)"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "rpds_py-0.30.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:679ae98e00c0e8d68a7fda324e16b90fd5260945b45d3b824c892cec9eea3288"},
     {file = "rpds_py-0.30.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:4cc2206b76b4f576934f0ed374b10d7ca5f457858b157ca52064bdfc26b9fc00"},
@@ -3412,31 +3462,30 @@ files = [
 
 [[package]]
 name = "ruff"
-version = "0.15.0"
+version = "0.15.8"
 description = "An extremely fast Python linter and code formatter, written in Rust."
-optional = true
+optional = false
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"lint\""
 files = [
-    {file = "ruff-0.15.0-py3-none-linux_armv6l.whl", hash = "sha256:aac4ebaa612a82b23d45964586f24ae9bc23ca101919f5590bdb368d74ad5455"},
-    {file = "ruff-0.15.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:dcd4be7cc75cfbbca24a98d04d0b9b36a270d0833241f776b788d59f4142b14d"},
-    {file = "ruff-0.15.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:d747e3319b2bce179c7c1eaad3d884dc0a199b5f4d5187620530adf9105268ce"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:650bd9c56ae03102c51a5e4b554d74d825ff3abe4db22b90fd32d816c2e90621"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:a6664b7eac559e3048223a2da77769c2f92b43a6dfd4720cef42654299a599c9"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:6f811f97b0f092b35320d1556f3353bf238763420ade5d9e62ebd2b73f2ff179"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:761ec0a66680fab6454236635a39abaf14198818c8cdf691e036f4bc0f406b2d"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:940f11c2604d317e797b289f4f9f3fa5555ffe4fb574b55ed006c3d9b6f0eb78"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bcbca3d40558789126da91d7ef9a7c87772ee107033db7191edefa34e2c7f1b4"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:9a121a96db1d75fa3eb39c4539e607f628920dd72ff1f7c5ee4f1b768ac62d6e"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:5298d518e493061f2eabd4abd067c7e4fb89e2f63291c94332e35631c07c3662"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:afb6e603d6375ff0d6b0cee563fa21ab570fd15e65c852cb24922cef25050cf1"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_i686.whl", hash = "sha256:77e515f6b15f828b94dc17d2b4ace334c9ddb7d9468c54b2f9ed2b9c1593ef16"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:6f6e80850a01eb13b3e42ee0ebdf6e4497151b48c35051aab51c101266d187a3"},
-    {file = "ruff-0.15.0-py3-none-win32.whl", hash = "sha256:238a717ef803e501b6d51e0bdd0d2c6e8513fe9eec14002445134d3907cd46c3"},
-    {file = "ruff-0.15.0-py3-none-win_amd64.whl", hash = "sha256:dd5e4d3301dc01de614da3cdffc33d4b1b96fb89e45721f1598e5532ccf78b18"},
-    {file = "ruff-0.15.0-py3-none-win_arm64.whl", hash = "sha256:c480d632cc0ca3f0727acac8b7d053542d9e114a462a145d0b00e7cd658c515a"},
-    {file = "ruff-0.15.0.tar.gz", hash = "sha256:6bdea47cdbea30d40f8f8d7d69c0854ba7c15420ec75a26f463290949d7f7e9a"},
+    {file = "ruff-0.15.8-py3-none-linux_armv6l.whl", hash = "sha256:cbe05adeba76d58162762d6b239c9056f1a15a55bd4b346cfd21e26cd6ad7bc7"},
+    {file = "ruff-0.15.8-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:d3e3d0b6ba8dca1b7ef9ab80a28e840a20070c4b62e56d675c24f366ef330570"},
+    {file = "ruff-0.15.8-py3-none-macosx_11_0_arm64.whl", hash = "sha256:6ee3ae5c65a42f273f126686353f2e08ff29927b7b7e203b711514370d500de3"},
+    {file = "ruff-0.15.8-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:fdce027ada77baa448077ccc6ebb2fa9c3c62fd110d8659d601cf2f475858d94"},
+    {file = "ruff-0.15.8-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:12e617fc01a95e5821648a6df341d80456bd627bfab8a829f7cfc26a14a4b4a3"},
+    {file = "ruff-0.15.8-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:432701303b26416d22ba696c39f2c6f12499b89093b61360abc34bcc9bf07762"},
+    {file = "ruff-0.15.8-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:d910ae974b7a06a33a057cb87d2a10792a3b2b3b35e33d2699fdf63ec8f6b17a"},
+    {file = "ruff-0.15.8-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:2033f963c43949d51e6fdccd3946633c6b37c484f5f98c3035f49c27395a8ab8"},
+    {file = "ruff-0.15.8-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0f29b989a55572fb885b77464cf24af05500806ab4edf9a0fd8977f9759d85b1"},
+    {file = "ruff-0.15.8-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:ac51d486bf457cdc985a412fb1801b2dfd1bd8838372fc55de64b1510eff4bec"},
+    {file = "ruff-0.15.8-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:c9861eb959edab053c10ad62c278835ee69ca527b6dcd72b47d5c1e5648964f6"},
+    {file = "ruff-0.15.8-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:8d9a5b8ea13f26ae90838afc33f91b547e61b794865374f114f349e9036835fb"},
+    {file = "ruff-0.15.8-py3-none-musllinux_1_2_i686.whl", hash = "sha256:c2a33a529fb3cbc23a7124b5c6ff121e4d6228029cba374777bd7649cc8598b8"},
+    {file = "ruff-0.15.8-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:75e5cd06b1cf3f47a3996cfc999226b19aa92e7cce682dcd62f80d7035f98f49"},
+    {file = "ruff-0.15.8-py3-none-win32.whl", hash = "sha256:bc1f0a51254ba21767bfa9a8b5013ca8149dcf38092e6a9eb704d876de94dc34"},
+    {file = "ruff-0.15.8-py3-none-win_amd64.whl", hash = "sha256:04f79eff02a72db209d47d665ba7ebcad609d8918a134f86cb13dd132159fc89"},
+    {file = "ruff-0.15.8-py3-none-win_arm64.whl", hash = "sha256:cf891fa8e3bb430c0e7fac93851a5978fc99c8fa2c053b57b118972866f8e5f2"},
+    {file = "ruff-0.15.8.tar.gz", hash = "sha256:995f11f63597ee362130d1d5a327a87cb6f3f5eae3094c620bcc632329a4d26e"},
 ]
 
 [[package]]
@@ -3479,7 +3528,7 @@ description = "Sniff out which async library your code is running under"
 optional = true
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"docs\""
 files = [
     {file = "sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2"},
     {file = "sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc"},
@@ -3505,7 +3554,7 @@ description = "SSE plugin for Starlette"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\""
+markers = "extra == \"openai\" or extra == \"claude\""
 files = [
     {file = "sse_starlette-3.3.4-py3-none-any.whl", hash = "sha256:84bb06e58939a8b38d8341f1bc9792f06c2b53f48c608dd207582b664fc8f3c1"},
     {file = "sse_starlette-3.3.4.tar.gz", hash = "sha256:aaf92fc067af8a5427192895ac028e947b484ac01edbc3caf00e7e7137c7bef1"},
@@ -3528,7 +3577,7 @@ description = "The little ASGI library that shines."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\" or extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"claude\" or extra == \"docs\""
 files = [
     {file = "starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b"},
     {file = "starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149"},
@@ -3622,7 +3671,7 @@ description = "Fast, Extensible Progress Meter"
 optional = true
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"docs\""
+markers = "extra == \"openai\" or extra == \"docs\""
 files = [
     {file = "tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf"},
     {file = "tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb"},
@@ -3716,7 +3765,7 @@ description = "Typing stubs for requests"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"lint\""
+markers = "extra == \"lint\" or extra == \"openai\""
 files = [
     {file = "types_requests-2.33.0.20260327-py3-none-any.whl", hash = "sha256:fde0712be6d7c9a4d490042d6323115baf872d9a71a22900809d0432de15776e"},
     {file = "types_requests-2.33.0.20260327.tar.gz", hash = "sha256:f4f74f0b44f059e3db420ff17bd1966e3587cdd34062fe38a23cda97868f8dd8"},
@@ -3803,7 +3852,7 @@ description = "The lightning-fast ASGI server."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"claude\" and sys_platform != \"emscripten\" or extra == \"docs\""
+markers = "(extra == \"openai\" or extra == \"claude\") and sys_platform != \"emscripten\" or extra == \"docs\""
 files = [
     {file = "uvicorn-0.42.0-py3-none-any.whl", hash = "sha256:96c30f5c7abe6f74ae8900a70e92b85ad6613b745d4879eb9b16ccad15645359"},
     {file = "uvicorn-0.42.0.tar.gz", hash = "sha256:9b1f190ce15a2dd22e7758651d9b6d12df09a13d51ba5bf4fc33c383a48e1775"},
@@ -4121,10 +4170,11 @@ type = ["pytest-mypy"]
 claude = ["claude-agent-sdk", "mcp"]
 docs = ["bs4", "fastapi", "markdownify", "mkdocs", "mkdocstrings", "openai", "pydoclint", "types-beautifulsoup4", "uvicorn"]
 lint = ["black", "mypy", "psutil", "ruff", "types-grpcio", "types-protobuf", "types-psutil", "types-requests"]
+openai = ["openai-agents"]
 otel = ["opentelemetry-api", "opentelemetry-distro", "opentelemetry-exporter-otlp", "opentelemetry-exporter-otlp-proto-http", "opentelemetry-instrumentation", "opentelemetry-sdk"]
 test = ["psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "pytest-xdist", "requests"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "e7e62325cff5c76f0ddbf2ff28534d85844f5c059b097f093af4ea29f5bbfe69"
+content-hash = "8e23bcf3d017ab1da18649af98bfd468d55ac0bc3d344919e9516ef02b2bcbd7"

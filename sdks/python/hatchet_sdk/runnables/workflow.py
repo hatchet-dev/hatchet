@@ -17,7 +17,6 @@ from typing import (
     overload,
 )
 
-from agents import FunctionTool
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 
@@ -71,16 +70,18 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 if TYPE_CHECKING:
     from claude_agent_sdk import SdkMcpTool
     from mcp.types import ToolAnnotations
-
+    from agents import FunctionTool
     from hatchet_sdk import Hatchet
 
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
+
 class MCPProvider(StrEnum):
-    CLAUDE =  "CLAUDE"
-    OPENAI =  "OPENAI"
+    CLAUDE = "CLAUDE"
+    OPENAI = "OPENAI"
+
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
     ## If the value is not the param default, it's set
@@ -623,64 +624,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         **DANGEROUS: This will delete a workflow and all of its data**
         """
         await self.client.workflows.aio_delete(self.id)
-
-    def _mcp_tool(
-        self,
-        provider: MCPProvider,
-        handler: Any,
-        description: str,
-        annotations: "ToolAnnotations | None" = None,
-    ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
-        """
-        Creates a wrapper around the workflow enabling its usage in MCP server implementations.
-        Supports Claude's agent SDK, requires installing the `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`
-
-        For example:
-
-        ```python
-
-        wf = hatchet.workflow()
-
-        tool = wf.mcp_tool()
-        tool_server = create_sdk_mcp_server(
-            name="weather",
-            version="1.0.0",
-            tools=[temp_tool],
-        )
-        ```
-        """
-        input_schema = self.input_validator.json_schema()
-        match provider:
-            case MCPProvider.CLAUDE:
-                print("using claud")
-                try:
-                    from claude_agent_sdk import SdkMcpTool
-                except (RuntimeError, ImportError, ModuleNotFoundError) as e:
-                    raise ModuleNotFoundError(
-                        "To use the mcp_tool method, you must install Hatchet's `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`"
-                    ) from e
-
-
-                return SdkMcpTool(
-                    name=self.name,
-                    description=description,
-                    input_schema=input_schema,
-                    handler=handler,
-                    annotations=annotations,
-                )
-            case MCPProvider.OPENAI:
-                try:
-                    from agents import RunContextWrapper, FunctionTool
-                except (RuntimeError, ImportError, ModuleNotFoundError) as e:
-                    raise ModuleNotFoundError(
-                        "To use the mcp_tool method, you must install Hatchet's `openai` extra using (e.g.) `pip install hatchet-sdk[openai]`"
-                    ) from e
-                return FunctionTool(
-                    name=self.name,
-                    description=description,
-                    params_json_schema=input_schema,
-                    on_invoke_tool=handler,
-                )
 
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
@@ -1324,10 +1267,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         provider: MCPProvider,
         description: str,
         annotations: "ToolAnnotations | None" = None,
-    ) -> "SdkMcpTool[TWorkflowInput]":
+    ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
         """
         Creates a wrapper around the workflow enabling its usage in MCP server implementations.
-        Supports Claude's agent SDK, requires installing the `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`
+        Supports Claude and OpenAI agent SDKs, requires installing the `claude` or `openai` extra using (e.g.) `pip install hatchet-sdk[claude]`
 
         For example:
 
@@ -1339,18 +1282,24 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         tool_server = create_sdk_mcp_server(
             name="weather",
             version="1.0.0",
-            tools=[temp_tool],
+            tools=[tool],
         )
         ```
         """
+        input_schema = self.input_validator.json_schema()
+        match provider:
+            case MCPProvider.CLAUDE:
+                from .mcp.claude import workflow_to_claude_mcp
 
-        async def handler(args: TWorkflowInput) -> dict[str, Any]:
-            res = await self.aio_run(args)
-            if not res:
-                return {}
-            return {"content": [{"type": "text", "text": json.dumps(res)}]}
+                return workflow_to_claude_mcp(
+                    self, input_schema, description, annotations
+                )
+            case MCPProvider.OPENAI:
+                from .mcp.openai import workflow_to_openai_mcp
 
-        return self._mcp_tool(provider, handler, description, annotations)
+                return workflow_to_openai_mcp(self, input_schema, description)
+            case _:
+                raise NotImplementedError()
 
 
 class TaskRunRef(Generic[TWorkflowInput, R]):
@@ -1720,37 +1669,34 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         provider: MCPProvider,
         description: str,
         annotations: "ToolAnnotations | None" = None,
-    ) -> "SdkMcpTool[TWorkflowInput]":
+    ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
         """
         Creates a wrapper around the standalone task enabling its usage in MCP server implementations.
-        Supports Claude's agent SDK, requires installing the `claude` extra using (e.g.) `pip install hatchet-sdk[claude]`
+        Supports Claude and OpenAI agent SDKs, requires installing the `claude` or `openai` extra using (e.g.) `pip install hatchet-sdk[claude]`
 
         For example:
 
         ```python
 
-        st = hatchet.task()
+        t = hatchet.task()
 
-        tool = st.mcp_tool()
+        tool = t.mcp_tool()
         tool_server = create_sdk_mcp_server(
             name="weather",
             version="1.0.0",
-            tools=[temp_tool],
+            tools=[tool],
         )
         ```
         """
+        input_schema = self.input_validator.json_schema()
+        match provider:
+            case MCPProvider.CLAUDE:
+                from .mcp.claude import task_to_claude_mcp
 
-        async def handler(args: TWorkflowInput) -> dict[str, Any]:
-            res = await self.aio_run(args)
-            if not res:
-                return {}
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": self.output_validator.dump_json(res).decode("utf-8"),
-                    }
-                ]
-            }
+                return task_to_claude_mcp(self, input_schema, description, annotations)
+            case MCPProvider.OPENAI:
+                from .mcp.openai import task_to_openai_mcp
 
-        return self._mcp_tool(provider, handler, description, annotations)
+                return task_to_openai_mcp(self, input_schema, description)
+            case _:
+                raise NotImplementedError()
