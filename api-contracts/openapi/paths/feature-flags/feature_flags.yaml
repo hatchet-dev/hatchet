@@ -1,0 +1,49 @@
+evaluateFeatureFlag:
+  get:
+    x-resources: ["tenant"]
+    description: Evaluate a feature flag for a tenant
+    operationId: tenant:feature-flag:evaluate
+    parameters:
+      - description: The tenant ID
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The feature flag id to evaluate
+        in: query
+        name: featureFlagId
+        required: true
+        schema:
+          $ref: ../../components/schemas/_index.yaml#/FeatureFlagId
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/FeatureFlagEvaluationResult"
+        description: Successfully evaluated the feature flag for the tenant
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Evaluate a feature flag for a tenant
+    tags:
+      - Feature Flags
