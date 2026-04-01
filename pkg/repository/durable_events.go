@@ -1292,6 +1292,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				}
 			}
 		}
+
+		if err := lookbackOptTx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
+		}
 	}
 
 	return &IngestDurableTaskEventResult{
