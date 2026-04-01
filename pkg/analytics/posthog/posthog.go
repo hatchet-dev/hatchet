@@ -215,11 +215,13 @@ func (p *PosthogAnalytics) IsFeatureEnabled(_ context.Context, flagKey string, t
 	)
 
 	if err != nil {
+		p.l.Error().Err(err).Str("flag_key", flagKey).Str("tenant_id", tenantID.String()).Msg("error evaluating feature flag, returning default value")
 		return isEnabledIfNoPosthog, nil
 	}
 
 	enabled, ok := result.(bool)
 	if !ok {
+		p.l.Err(err).Msg("unexpected type for feature flag result, expected bool")
 		return isEnabledIfNoPosthog, nil
 	}
 

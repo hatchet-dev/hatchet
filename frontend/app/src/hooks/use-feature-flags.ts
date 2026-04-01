@@ -38,6 +38,10 @@ export const useIsFeatureEnabled = (
       return res.data;
     },
     enabled: !!tenantId,
+    retry: 2,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   if (isLoading || isFetching) {
