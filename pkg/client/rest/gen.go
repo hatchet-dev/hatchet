@@ -2883,6 +2883,9 @@ type EventListParams struct {
 type TenantFeatureFlagEvaluateParams struct {
 	// FeatureFlagId The feature flag id to evaluate
 	FeatureFlagId FeatureFlagId `form:"featureFlagId" json:"featureFlagId"`
+
+	// IsEnabledIfNoPosthog A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable
+	IsEnabledIfNoPosthog bool `form:"isEnabledIfNoPosthog" json:"isEnabledIfNoPosthog"`
 }
 
 // TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
@@ -10180,6 +10183,18 @@ func NewTenantFeatureFlagEvaluateRequest(server string, tenant openapi_types.UUI
 		queryValues := queryURL.Query()
 
 		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "featureFlagId", runtime.ParamLocationQuery, params.FeatureFlagId); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "isEnabledIfNoPosthog", runtime.ParamLocationQuery, params.IsEnabledIfNoPosthog); err != nil {
 			return nil, err
 		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 			return nil, err

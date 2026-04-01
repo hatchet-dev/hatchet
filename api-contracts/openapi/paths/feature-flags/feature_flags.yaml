@@ -19,6 +19,12 @@ evaluateFeatureFlag:
         required: true
         schema:
           $ref: ../../components/schemas/_index.yaml#/FeatureFlagId
+      - description: A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable
+        in: query
+        name: isEnabledIfNoPosthog
+        required: true
+        schema:
+          type: boolean
     responses:
       "200":
         content:

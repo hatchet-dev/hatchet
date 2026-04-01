@@ -205,7 +205,7 @@ func (p *PosthogAnalytics) Group(groupType string, groupKey string, data analyti
 	}
 }
 
-func (p *PosthogAnalytics) IsFeatureEnabled(_ context.Context, flagKey string, tenantID uuid.UUID) (bool, error) {
+func (p *PosthogAnalytics) IsFeatureEnabled(_ context.Context, flagKey string, tenantID uuid.UUID, isEnabledIfNoPosthog bool) (bool, error) {
 	result, err := (*p.client).IsFeatureEnabled(
 		posthog.FeatureFlagPayload{
 			Key:        flagKey,
@@ -215,12 +215,12 @@ func (p *PosthogAnalytics) IsFeatureEnabled(_ context.Context, flagKey string, t
 	)
 
 	if err != nil {
-		return false, err
+		return isEnabledIfNoPosthog, nil
 	}
 
 	enabled, ok := result.(bool)
 	if !ok {
-		return false, nil
+		return isEnabledIfNoPosthog, nil
 	}
 
 	return enabled, nil

@@ -14,6 +14,7 @@ func (s *V1FeatureFlagsService) TenantFeatureFlagEvaluate(ctx echo.Context, requ
 		ctx.Request().Context(),
 		string(request.Params.FeatureFlagId),
 		tenant.ID,
+		request.Params.IsEnabledIfNoPosthog,
 	)
 
 	if err != nil {

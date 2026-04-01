@@ -3570,6 +3570,8 @@ export class Api<
     query: {
       /** The feature flag id to evaluate */
       featureFlagId: FeatureFlagId;
+      /** A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable */
+      isEnabledIfNoPosthog: boolean;
     },
     params: RequestParams = {},
   ) =>
