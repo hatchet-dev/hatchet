@@ -3,8 +3,10 @@ package olap
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -183,7 +185,96 @@ func resolveTraceIDFromParent(pi *parentInfo, workflowRunExternalID uuid.UUID) [
 	return v1.DeriveWorkflowRunTraceID(workflowRunExternalID)
 }
 
+// traceIDFromTraceparent extracts the trace_id bytes from a traceparent stored
+// in additionalMetadata. Returns nil when no valid traceparent is present.
+func traceIDFromTraceparent(additionalMetadata []byte) []byte {
+	if len(additionalMetadata) == 0 {
+		return nil
+	}
+
+	var meta map[string]interface{}
+	if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
+		return nil
+	}
+
+	tp, _ := meta["traceparent"].(string)
+	if tp == "" {
+		return nil
+	}
+
+	parts := strings.Split(tp, "-")
+	if len(parts) != 4 || len(parts[1]) != 32 {
+		return nil
+	}
+
+	b, err := hex.DecodeString(parts[1])
+	if err != nil {
+		return nil
+	}
+
+	return b
+}
+
+// sdkParentSpanIDFromMetadata returns the SDK producer span_id stored by
+// ensureTraceparent when the SDK injected a traceparent.
+func sdkParentSpanIDFromMetadata(additionalMetadata []byte) []byte {
+	if len(additionalMetadata) == 0 {
+		return nil
+	}
+
+	var meta map[string]interface{}
+	if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
+		return nil
+	}
+
+	spanHex, _ := meta["hatchet__traceparent_parent_span_id"].(string)
+	if spanHex == "" || len(spanHex) != 16 {
+		return nil
+	}
+
+	b, err := hex.DecodeString(spanHex)
+	if err != nil {
+		return nil
+	}
+
+	return b
+}
+
+// spanIDFromTraceparent extracts the span_id bytes from a traceparent in
+// metadata. Used for raw event metadata where hatchet__traceparent_parent_span_id
+// has not been set.
+func spanIDFromTraceparent(additionalMetadata []byte) []byte {
+	if len(additionalMetadata) == 0 {
+		return nil
+	}
+
+	var meta map[string]interface{}
+	if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
+		return nil
+	}
+
+	tp, _ := meta["traceparent"].(string)
+	if tp == "" {
+		return nil
+	}
+
+	parts := strings.Split(tp, "-")
+	if len(parts) != 4 || len(parts[2]) != 16 {
+		return nil
+	}
+
+	b, err := hex.DecodeString(parts[2])
+	if err != nil {
+		return nil
+	}
+
+	return b
+}
+
 func resolveTraceID(additionalMetadata []byte, workflowRunExternalID uuid.UUID) []byte {
+	if traceID := traceIDFromTraceparent(additionalMetadata); traceID != nil {
+		return traceID
+	}
 	return resolveTraceIDFromParent(parseParentInfo(additionalMetadata), workflowRunExternalID)
 }
 
@@ -209,6 +300,18 @@ func buildWorkflowRunRootSpan(
 		}
 	}
 
+	// If the SDK injected a traceparent, use its trace_id and set the SDK
+	// producer span as the parent of this engine root span.
+	if sdkTraceID := traceIDFromTraceparent(additionalMetadata); sdkTraceID != nil {
+		traceID = sdkTraceID
+
+		if parentSpanID == nil {
+			if sdkParent := sdkParentSpanIDFromMetadata(additionalMetadata); sdkParent != nil {
+				parentSpanID = sdkParent
+			}
+		}
+	}
+
 	attrs, _ := json.Marshal(map[string]string{
 		"hatchet.span_source":     "engine",
 		"hatchet.workflow_run_id": workflowRunExternalID.String(),
@@ -229,6 +332,7 @@ func buildEventSpan(
 	eventKey string,
 	eventSeenAt time.Time,
 	workflowRunExternalID uuid.UUID,
+	eventAdditionalMetadata []byte,
 ) *v1.SpanData {
 	attrs, _ := json.Marshal(map[string]string{
 		"hatchet.span_source": "engine",
@@ -236,12 +340,20 @@ func buildEventSpan(
 		"hatchet.event_id":    eventExternalID.String(),
 	})
 
+	traceID := v1.DeriveWorkflowRunTraceID(workflowRunExternalID)
+	var parentSpanID []byte
+
+	if sdkTraceID := traceIDFromTraceparent(eventAdditionalMetadata); sdkTraceID != nil {
+		traceID = sdkTraceID
+		parentSpanID = spanIDFromTraceparent(eventAdditionalMetadata)
+	}
+
 	ts := safeUint64(eventSeenAt.UnixNano())
 	span := newEngineSpan(
 		tenantId, "hatchet.engine.event",
-		v1.DeriveWorkflowRunTraceID(workflowRunExternalID),
+		traceID,
 		deriveEventSpanID(eventExternalID, workflowRunExternalID),
-		nil, ts, ts, attrs,
+		parentSpanID, ts, ts, attrs,
 	)
 	wfRunID := workflowRunExternalID
 	span.WorkflowRunID = &wfRunID

@@ -698,7 +698,7 @@ func (tc *OLAPControllerImpl) emitEventSpans(ctx context.Context, tenantId uuid.
 			srcWfID, srcStepID, ok := parseSourceInfo(p.EventAdditionalMetadata)
 
 			if !ok {
-				spans = append(spans, buildEventSpan(tenantId, p.EventExternalId, p.EventKey, p.EventSeenAt, runExtID))
+				spans = append(spans, buildEventSpan(tenantId, p.EventExternalId, p.EventKey, p.EventSeenAt, runExtID, p.EventAdditionalMetadata))
 				tc.l.Debug().Ctx(ctx).Str("event_key", p.EventKey).Msg("event payload missing source info")
 				continue
 			}
