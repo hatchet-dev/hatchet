@@ -138,7 +138,7 @@ function deriveEngineParentContext(
   const parts = tp.split('-');
   if (parts.length !== 4 || parts[1].length !== 32) return null;
 
-  const traceId = parts[1];
+  const [, traceId] = parts;
   const spanId = deriveWorkflowRunSpanId(workflowRunId);
   if (!spanId) return null;
 
