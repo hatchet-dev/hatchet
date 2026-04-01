@@ -283,7 +283,7 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 		return nil, fmt.Errorf("failed to look up recent user events for retroactive matching: %w", err)
 	}
 
-	retrievePayloadOpts := make([]RetrievePayloadOpts, len(previousEventsFound))
+	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
 
 	for _, row := range previousEventsFound {
 		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
