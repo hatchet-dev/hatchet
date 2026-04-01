@@ -646,7 +646,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         Creates a wrapper around the workflow enabling its usage in MCP server implementations.
         Supports Claude and OpenAI agent SDKs, requires installing the `claude` or `openai` extra using (e.g.) `pip install hatchet-sdk[claude]`
 
-        For example:
+        :param provider: The Agent provider you are using the tool with
+        :param kwargs: Additional arguments that will be passed to the underlying MCP Tool object constructor.
 
         ```python
 
@@ -670,13 +671,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if isinstance(self, Workflow):
             match provider:
                 case MCPProvider.CLAUDE:
-                    from .mcp.claude import workflow_to_claude_mcp
+                    from hatchet_sdk.runnables.mcp.claude import workflow_to_claude_mcp
 
                     return workflow_to_claude_mcp(
                         self, input_schema, description, **kwargs
                     )
                 case MCPProvider.OPENAI:
-                    from .mcp.openai import workflow_to_openai_mcp
+                    from hatchet_sdk.runnables.mcp.openai import workflow_to_openai_mcp
 
                     return workflow_to_openai_mcp(
                         self, input_schema, description, **kwargs
@@ -684,11 +685,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         elif isinstance(self, Standalone):
             match provider:
                 case MCPProvider.CLAUDE:
-                    from .mcp.claude import task_to_claude_mcp
+                    from hatchet_sdk.runnables.mcp.claude import task_to_claude_mcp
 
                     return task_to_claude_mcp(self, input_schema, description, **kwargs)
                 case MCPProvider.OPENAI:
-                    from .mcp.openai import task_to_openai_mcp
+                    from hatchet_sdk.runnables.mcp.openai import task_to_openai_mcp
 
                     return task_to_openai_mcp(self, input_schema, description, **kwargs)
         else:
