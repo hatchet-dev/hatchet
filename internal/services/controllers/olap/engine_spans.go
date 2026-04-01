@@ -1,6 +1,7 @@
 package olap
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -306,7 +307,7 @@ func buildWorkflowRunRootSpan(
 		traceID = sdkTraceID
 
 		if parentSpanID == nil {
-			if sdkParent := spanIDFromTraceparent(additionalMetadata); sdkParent != nil {
+			if sdkParent := spanIDFromTraceparent(additionalMetadata); sdkParent != nil && !bytes.Equal(sdkParent, spanID) {
 				parentSpanID = sdkParent
 			}
 		}
