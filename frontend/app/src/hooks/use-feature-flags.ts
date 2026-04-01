@@ -1,42 +1,61 @@
-import { usePostHog } from 'posthog-js/react';
-import { useCallback } from 'react';
+import api from '@/lib/api';
+import { FeatureFlagId } from '@/lib/api/generated/data-contracts';
+import { useAppContext } from '@/providers/app-context';
+import { useQuery } from '@tanstack/react-query';
 
-export const FEATURE_FLAGS = ['tenant-log-workflow-filter-enabled'] as const;
+export { FeatureFlagId };
 
-type FeatureFlag = (typeof FEATURE_FLAGS)[number];
-
-const useFeatureFlags = () => {
-  const posthog = usePostHog();
-
-  const isAvailable = useCallback(() => {
-    // fixme: not sure if this is the correct way to check if posthog is initialized
-    // couldn't find something definitive in the docs somehow and the chatbot wasn't very helpful
-    return !!posthog && posthog.__loaded;
-  }, [posthog]);
-
-  const isFeatureEnabled = (
-    flagName: FeatureFlag,
-    isEnabledIfNoPosthog: boolean,
-  ): boolean => {
-    if (!isAvailable()) {
-      return isEnabledIfNoPosthog;
+type UseIsFeatureEnabledResult =
+  | {
+      isEnabled: boolean;
+      isLoading: false;
     }
-
-    return posthog.isFeatureEnabled(flagName) ?? false;
-  };
-
-  return {
-    isFeatureEnabled,
-  };
-};
+  | {
+      isEnabled: undefined;
+      isLoading: true;
+    };
 
 export const useIsFeatureEnabled = (
-  flagName: FeatureFlag,
+  flagName: FeatureFlagId,
   // controls default behavior if PostHog is not initialized. if `true`, then the feature will be enabled
   // this is useful for features that are being rolled out incrementally on Cloud, but should be enabled by default
   // on the OSS regardless of whether or not PostHog is set up or if we've removed the flag
   isEnabledIfNoPosthog: boolean,
-): boolean => {
-  const { isFeatureEnabled } = useFeatureFlags();
-  return isFeatureEnabled(flagName, isEnabledIfNoPosthog);
+): UseIsFeatureEnabledResult => {
+  const { tenantId } = useAppContext();
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['feature-flag', tenantId, flagName, isEnabledIfNoPosthog],
+    queryFn: async () => {
+      if (!tenantId) {
+        return { isEnabled: isEnabledIfNoPosthog };
+      }
+
+      const res = await api.tenantFeatureFlagEvaluate(tenantId, {
+        featureFlagId: flagName,
+        isEnabledIfNoPosthog,
+      });
+      return res.data;
+    },
+    enabled: !!tenantId,
+    retry: 2,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  if (isLoading || isFetching) {
+    // fixme: not sure if this is the right behavior here
+    // should we default to `isEnabledIfNoPosthog` while loading, or should we
+    // default to `false` until we know for sure?
+    return {
+      isEnabled: undefined,
+      isLoading: true,
+    };
+  }
+
+  return {
+    isEnabled: data?.isEnabled ?? isEnabledIfNoPosthog,
+    isLoading: isLoading || isFetching,
+  };
 };
