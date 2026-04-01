@@ -14,9 +14,7 @@ HYPERDX_OTEL_ENDPOINT = "localhost:4317"
 
 provider = TracerProvider()
 provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(endpoint=HYPERDX_OTEL_ENDPOINT, insecure=True)
-    )
+    BatchSpanProcessor(OTLPSpanExporter(endpoint=HYPERDX_OTEL_ENDPOINT, insecure=True))
 )
 
 set_tracer_provider(provider)

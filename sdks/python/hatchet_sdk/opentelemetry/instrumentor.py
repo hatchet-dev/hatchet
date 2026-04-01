@@ -130,7 +130,7 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         attrs = ctx_hatchet_span_attributes.get()
         if attrs and span.is_recording():
-            existing = getattr(span, "attributes", None) or {}
+            existing = span.attributes or {}
             for key, value in attrs.items():
                 if key not in existing:
                     span.set_attribute(key, value)
