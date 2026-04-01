@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Adds `mcp_tool` methods to Workflows and Standalone tasks providing compatibility with Claude MCP server tools.
+- Adds `mcp_tool` methods to Workflows and Standalone tasks providing compatibility with Claude and OpenAI MCP server tools.
 
 
 ## [1.29.3] - 2026-03-23
