@@ -146,14 +146,11 @@ type TriggerRepository interface {
 
 type TriggerRepositoryImpl struct {
 	*sharedRepository
-
-	enableDurableUserEventLog bool
 }
 
-func newTriggerRepository(s *sharedRepository, enableDurableUserEventLog bool) TriggerRepository {
+func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	return &TriggerRepositoryImpl{
-		sharedRepository:          s,
-		enableDurableUserEventLog: enableDurableUserEventLog,
+		sharedRepository: s,
 	}
 }
 
@@ -2000,24 +1997,22 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
-		if r.enableDurableUserEventLog {
-			createCoreEventsTenantIds = append(createCoreEventsTenantIds, tenantId)
-			createCoreEventsExternalIds = append(createCoreEventsExternalIds, opt.ExternalId)
-			createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
-			createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
-			eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
-			createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
-			if opt.Scope != nil {
-				createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
-			} else {
-				createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
-			}
+		createCoreEventsTenantIds = append(createCoreEventsTenantIds, tenantId)
+		createCoreEventsExternalIds = append(createCoreEventsExternalIds, opt.ExternalId)
+		createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
+		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
+		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
+		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
+		if opt.Scope != nil {
+			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
+		} else {
+			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
+		}
 
-			if opt.TriggeringWebhookName != nil {
-				createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
-			} else {
-				createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
-			}
+		if opt.TriggeringWebhookName != nil {
+			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
+		} else {
+			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
 		}
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
@@ -2177,20 +2172,18 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	if r.enableDurableUserEventLog {
-		createCoreEventOpts = &createCoreUserEventOpts{
-			params: sqlcv1.BulkCreateEventsParams{
-				Tenantids:              createCoreEventsTenantIds,
-				Externalids:            createCoreEventsExternalIds,
-				Seenats:                createCoreEventsSeenAts,
-				Keys:                   createCoreEventsKeys,
-				Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
-				Scopes:                 createCoreEventsScopes,
-				TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
-			},
-			externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
-			externalIdsToPayloads:          eventExternalIdsToPayloads,
-		}
+	createCoreEventOpts = &createCoreUserEventOpts{
+		params: sqlcv1.BulkCreateEventsParams{
+			Tenantids:              createCoreEventsTenantIds,
+			Externalids:            createCoreEventsExternalIds,
+			Seenats:                createCoreEventsSeenAts,
+			Keys:                   createCoreEventsKeys,
+			Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
+			Scopes:                 createCoreEventsScopes,
+			TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
+		},
+		externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
+		externalIdsToPayloads:          eventExternalIdsToPayloads,
 	}
 
 	return triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, nil
