@@ -644,26 +644,16 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
         """
         Creates a wrapper around the workflow enabling its usage in MCP server implementations.
-        Supports Claude and OpenAI agent SDKs, requires installing the `claude` or `openai` extra using (e.g.) `pip install hatchet-sdk[claude]`
+        Supports Claude and OpenAI agent SDKs, requires installing the `claude` or `openai` extra using (e.g.) `pip install hatchet-sdk[claude]`.
 
-        :param provider: The Agent provider you are using the tool with
-        :param kwargs: Additional arguments that will be passed to the underlying MCP Tool object constructor.
+        :param provider: The Agent provider you are using the tool with.
+        :param **kwargs: Additional arguments that will be passed to the underlying MCP Tool object constructor.
 
-        :returns: The MCP tool configuration object.
 
         :raises ValueError: if runnable does not have a description.
         :raises NotImplementedError: If provider does not exist.
-        ```python
 
-        wf = hatchet.workflow()
-
-        tool = wf.mcp_tool()
-        tool_server = create_sdk_mcp_server(
-            name="weather",
-            version="1.0.0",
-            tools=[tool],
-        )
-        ```
+        :returns: The MCP tool configuration object.
         """
         if not self.config.description:
             raise ValueError(
