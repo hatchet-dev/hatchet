@@ -188,7 +188,10 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     push_event_spans = [s for s in spans if s.span_name == "hatchet.push_event"]
     assert len(push_event_spans) == 1
     assert push_event_spans[0].span_attributes
-    assert push_event_spans[0].span_attributes.get("hatchet.event_key") == "otel:test-event"
+    assert (
+        push_event_spans[0].span_attributes.get("hatchet.event_key")
+        == "otel:test-event"
+    )
 
     engine_event_spans = [s for s in spans if s.span_name == "hatchet.engine.event"]
     assert len(engine_event_spans) == 1
