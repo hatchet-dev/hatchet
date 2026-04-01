@@ -2,12 +2,6 @@
 name = "hatchet-sdk"
 version = "1.29.4"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
-authors = [
-  "Alexander Belanger <alexander@hatchet.run>",
-  "Matt Kaye <matt@hatchet.run>",
-  "Gabe Ruttner <gabe@hatchet.run>",
-  "Mohammed Nafees <nafees@hatchet.run>",
-]
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10,<4"
