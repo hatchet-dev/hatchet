@@ -1,11 +1,17 @@
+import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TraceMinimap } from './minimap/trace-minimap';
 import { SpanDetail, GroupDetail } from './span-detail';
+import { TimeTickLabels } from './timeline/time-tick-labels';
 import {
   TraceTimeline,
   LABEL_WIDTH,
   type VisibleRange,
 } from './timeline/trace-timeline';
-import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
+import {
+  computeTimeTicks,
+  groupSiblings,
+  type SpanGroupInfo,
+} from './timeline/trace-timeline-utils';
 import { getStableKey } from './utils/span-tree-utils';
 import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
@@ -13,7 +19,11 @@ import type {
   FilteredSpanTree,
   ParsedTraceQuery,
 } from '@/components/v1/cloud/observability/trace-search';
+import { Button } from '@/components/v1/ui/button';
+import { ChevronsDownUp, ChevronsUpDown, XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
 
 type Selection =
   | { kind: 'span'; span: OtelSpanTree }
@@ -59,6 +69,43 @@ function findSpanByTaskRunId(
   return undefined;
 }
 
+function findGroupInTrees(
+  trees: OtelSpanTree[],
+  targetGroupId: string,
+  parentSpanId?: string,
+): SpanGroupInfo | undefined {
+  const items = groupSiblings(trees, parentSpanId);
+  for (const item of items) {
+    if (item.kind === 'group' && item.group.groupId === targetGroupId) {
+      return item.group;
+    }
+  }
+  for (const item of items) {
+    if (item.kind === 'span') {
+      const found = findGroupInTrees(
+        item.span.children,
+        targetGroupId,
+        item.span.spanId,
+      );
+      if (found) {
+        return found;
+      }
+    } else if (item.kind === 'group') {
+      for (const span of item.group.spans) {
+        const found = findGroupInTrees(
+          span.children,
+          targetGroupId,
+          span.spanId,
+        );
+        if (found) {
+          return found;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 function collectAncestorKeys(
   nodes: OtelSpanTree[],
   targetSpanId: string,
@@ -79,74 +126,160 @@ function collectAncestorKeys(
   return undefined;
 }
 
+function collectAllKeys(nodes: OtelSpanTree[]): string[] {
+  const keys: string[] = [];
+  for (const node of nodes) {
+    if (node.children.length > 0) {
+      keys.push(getStableKey(node));
+      keys.push(...collectAllKeys(node.children));
+    }
+  }
+  return keys;
+}
+
 export function TaskRunTrace({
   spanTrees,
   isRunning,
   activeFilters,
   onAddFilter,
   onRemoveFilter,
-  focusedTaskRunId,
+  contextTaskRunId,
+  onClearFilters,
 }: {
   spanTrees: FilteredSpanTree[];
   isRunning?: boolean;
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
-  focusedTaskRunId?: string;
+  contextTaskRunId?: string;
+  onClearFilters?: () => void;
 }) {
+  const {
+    focusedTaskRunId,
+    selectedSpanId,
+    setSelectedSpanId,
+    selectedGroupId,
+    setSelectedGroupId,
+  } = useRunDetailSearch();
+
   const { minStart, maxEnd } = useMemo(
     () => findTimeRange(spanTrees),
     [spanTrees],
   );
 
-  const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(
-    () => new Set(spanTrees.map((s) => s.spanId)),
+  const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(() => {
+    const set = new Set(spanTrees.map((s) => s.spanId));
+    if (selectedSpanId) {
+      const span = findSpanInTrees(spanTrees, selectedSpanId);
+      if (span) {
+        const ancestors = collectAncestorKeys(spanTrees, selectedSpanId);
+        if (ancestors) {
+          for (const id of ancestors) {
+            set.add(id);
+          }
+        }
+        set.add(getStableKey(span));
+      }
+    }
+    return set;
+  });
+
+  const allExpandableKeys = useMemo(
+    () => collectAllKeys(spanTrees),
+    [spanTrees],
   );
+  const isAllExpanded =
+    allExpandableKeys.length > 0 &&
+    allExpandableKeys.every((k) => expandedSpansIds.has(k));
+
+  const handleExpandAll = useCallback(() => {
+    setExpandedSpansIds((prev) => {
+      const next = new Set(prev);
+      for (const k of allExpandableKeys) {
+        next.add(k);
+      }
+      return next;
+    });
+  }, [allExpandableKeys]);
+
+  const handleCollapseAll = useCallback(() => {
+    setExpandedSpansIds(new Set());
+  }, []);
 
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Record<string, number>
   >({});
 
-  const [selection, setSelection] = useState<Selection | undefined>();
   const [visibleRange, setVisibleRange] = useState<VisibleRange>({
     startPct: 0,
     endPct: 1,
   });
 
+  const isZoomed = visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999;
+
+  const zoomedTicks = useMemo(() => {
+    if (!isZoomed) {
+      return null;
+    }
+    const totalMs = maxEnd - minStart;
+    const visStartMs = totalMs * visibleRange.startPct;
+    const visDurationMs =
+      totalMs * (visibleRange.endPct - visibleRange.startPct);
+    const { ticks } = computeTimeTicks(visDurationMs);
+    return { ticks, visDurationMs, visOffsetMs: visStartMs };
+  }, [isZoomed, minStart, maxEnd, visibleRange]);
+
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
   const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
 
-  const lastFocusedRef = useRef<string | undefined>();
-  useEffect(() => {
-    if (!focusedTaskRunId || focusedTaskRunId === lastFocusedRef.current) {
-      return;
-    }
+  const prevFocusedRef = useRef(focusedTaskRunId);
+  if (focusedTaskRunId && focusedTaskRunId !== prevFocusedRef.current) {
+    prevFocusedRef.current = focusedTaskRunId;
     const result = findSpanByTaskRunId(spanTrees, focusedTaskRunId);
-    if (!result) {
-      return;
+    if (result) {
+      setExpandedSpansIds((prev) => {
+        const next = new Set(prev);
+        for (const id of result.ancestorKeys) {
+          next.add(id);
+        }
+        next.add(getStableKey(result.span));
+        return next;
+      });
+      setSelectedSpanId(result.span.spanId);
     }
-    lastFocusedRef.current = focusedTaskRunId;
-    setExpandedSpansIds((prev) => {
-      const next = new Set(prev);
-      for (const id of result.ancestorKeys) {
-        next.add(id);
-      }
-      next.add(getStableKey(result.span));
-      return next;
-    });
-    setSelection({ kind: 'span', span: result.span });
-  }, [focusedTaskRunId, spanTrees]);
+  }
+
+  const contextExpandRef = useRef<string | null>(null);
+
+  if (
+    contextTaskRunId &&
+    contextExpandRef.current !== CONTEXT_EXPAND_SENTINEL
+  ) {
+    const result = findSpanByTaskRunId(spanTrees, contextTaskRunId);
+    if (result) {
+      contextExpandRef.current = CONTEXT_EXPAND_SENTINEL;
+      setExpandedSpansIds((prev) => {
+        const next = new Set(prev);
+        for (const id of result.ancestorKeys) {
+          next.add(id);
+        }
+        next.add(getStableKey(result.span));
+        return next;
+      });
+    }
+  }
 
   const resolvedSelection = useMemo((): Selection | undefined => {
-    if (!selection) {
-      return undefined;
+    if (selectedSpanId) {
+      const span = findSpanInTrees(spanTrees, selectedSpanId);
+      return span ? { kind: 'span', span } : undefined;
     }
-    if (selection.kind === 'group') {
-      return selection;
+    if (selectedGroupId) {
+      const group = findGroupInTrees(spanTrees, selectedGroupId);
+      return group ? { kind: 'group', group } : undefined;
     }
-    const fresh = findSpanInTrees(spanTrees, selection.span.spanId);
-    return fresh ? { kind: 'span', span: fresh } : selection;
-  }, [selection, spanTrees]);
+    return undefined;
+  }, [selectedSpanId, selectedGroupId, spanTrees]);
 
   const expandAncestors = useCallback(
     (span: OtelSpanTree) => {
@@ -169,34 +302,34 @@ export function TaskRunTrace({
   const handleSpanSelect = useCallback(
     (span: OtelSpanTree) => {
       expandAncestors(span);
-      setSelection((prev) =>
-        prev?.kind === 'span' && prev.span.spanId === span.spanId
-          ? undefined
-          : { kind: 'span', span },
+      setSelectedSpanId(
+        selectedSpanId === span.spanId ? undefined : span.spanId,
       );
     },
-    [expandAncestors],
+    [expandAncestors, selectedSpanId, setSelectedSpanId],
   );
 
   const handleMinimapSpanSelect = useCallback(
     (span: OtelSpanTree, _ancestorSpanIds: string[]) => {
       expandAncestors(span);
-      setSelection({ kind: 'span', span });
+      setSelectedSpanId(span.spanId);
     },
-    [expandAncestors],
+    [expandAncestors, setSelectedSpanId],
   );
 
-  const handleGroupSelect = useCallback((group: SpanGroupInfo) => {
-    setSelection((prev) =>
-      prev?.kind === 'group' && prev.group.groupId === group.groupId
-        ? undefined
-        : { kind: 'group', group },
-    );
-  }, []);
+  const handleGroupSelect = useCallback(
+    (group: SpanGroupInfo) => {
+      setSelectedGroupId(
+        selectedGroupId === group.groupId ? undefined : group.groupId,
+      );
+    },
+    [selectedGroupId, setSelectedGroupId],
+  );
 
   const handleDetailClose = useCallback(() => {
-    setSelection(undefined);
-  }, []);
+    setSelectedSpanId(undefined);
+    setSelectedGroupId(undefined);
+  }, [setSelectedSpanId, setSelectedGroupId]);
 
   const handleShowMore = useCallback(
     (groupId: string, newVisibleCount: number) => {
@@ -208,63 +341,239 @@ export function TaskRunTrace({
     [],
   );
 
+  const handleEscapeReset = useCallback(() => {
+    setSelectedSpanId(undefined);
+    setSelectedGroupId(undefined);
+    setVisibleRange({ startPct: 0, endPct: 1 });
+    onClearFilters?.();
+  }, [setSelectedSpanId, setSelectedGroupId, onClearFilters]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') {
+        return;
+      }
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+      handleEscapeReset();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleEscapeReset]);
+
+  const hasSelection = !!resolvedSelection;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState<number | undefined>();
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!hasSelection || !el) {
+      setContainerHeight(undefined);
+      return;
+    }
+
+    function measure() {
+      const top = el!.getBoundingClientRect().top;
+      setContainerHeight(window.innerHeight - top - 16);
+    }
+
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [hasSelection]);
+
+  useEffect(() => {
+    if (!resolvedSelection) {
+      return;
+    }
+    const key =
+      resolvedSelection.kind === 'span'
+        ? getStableKey(resolvedSelection.span)
+        : resolvedSelection.group.groupId;
+
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+      requestAnimationFrame(() => {
+        if (cancelled) {
+          return;
+        }
+        const scrollContainer = timelineScrollRef.current;
+        if (!scrollContainer) {
+          return;
+        }
+        const row = scrollContainer.querySelector(
+          `[data-row-key="${key}"]`,
+        ) as HTMLElement | null;
+        if (row) {
+          const rowTop = row.offsetTop;
+          const target = Math.max(0, rowTop - scrollContainer.clientHeight / 3);
+          scrollContainer.scrollTo({ top: target, behavior: 'smooth' });
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedSelection]);
+
   return (
-    <div className="my-4 flex min-w-0 flex-col gap-4 overflow-hidden">
-      <div className="flex min-w-0">
-        <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-        <div className="min-w-0 flex-1 pr-10">
-          <TraceMinimap
+    <div
+      ref={containerRef}
+      className="my-4 flex min-w-0 select-none flex-col gap-4"
+      style={containerHeight ? { height: containerHeight } : undefined}
+    >
+      <div
+        className={
+          hasSelection ? 'flex min-h-0 flex-1 flex-col' : 'flex flex-col'
+        }
+      >
+        <div className="shrink-0">
+          <div className="flex min-w-0">
+            <div
+              className="flex shrink-0 flex-wrap items-end gap-1 pb-1 pr-2"
+              style={{ width: LABEL_WIDTH }}
+            >
+              <Button
+                variant="ghost"
+                size="xs"
+                className="gap-1 text-xs"
+                onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
+              >
+                {isAllExpanded ? (
+                  <ChevronsDownUp className="size-3" />
+                ) : (
+                  <ChevronsUpDown className="size-3" />
+                )}
+                {isAllExpanded ? 'collapse all' : 'expand all'}
+              </Button>
+            </div>
+            <div className="min-w-0 flex-1 pr-10">
+              <div className="flex justify-end pb-1">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={`gap-1 text-xs ${isZoomed ? '' : 'invisible'}`}
+                  onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
+                  tabIndex={isZoomed ? undefined : -1}
+                >
+                  <XIcon className="size-3" />
+                  clear zoom
+                </Button>
+              </div>
+              <TraceMinimap
+                spanTrees={spanTrees}
+                minMs={minStart}
+                maxMs={maxEnd}
+                isRunning={isRunning}
+                visibleRange={visibleRange}
+                onRangeChange={setVisibleRange}
+                expandedSpanIds={expandedSpansIds}
+                onSpanSelect={handleMinimapSpanSelect}
+                externalHoverPct={timelineHoverPct}
+                onHoverPctChange={setMinimapHoverPct}
+              />
+            </div>
+          </div>
+          {isZoomed && (
+            <div className="flex min-w-0">
+              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+              <div className="min-w-0 flex-1 pr-10">
+                <svg
+                  className="h-5 w-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <line
+                    x1={visibleRange.startPct * 100}
+                    y1="0"
+                    x2="0"
+                    y2="100"
+                    className="stroke-border"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <line
+                    x1={visibleRange.endPct * 100}
+                    y1="0"
+                    x2="100"
+                    y2="100"
+                    className="stroke-border"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+              </div>
+            </div>
+          )}
+          {zoomedTicks && (
+            <div className="flex min-w-0">
+              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+              <div className="min-w-0 flex-1 pr-10">
+                <TimeTickLabels
+                  ticks={zoomedTicks.ticks}
+                  totalMs={zoomedTicks.visDurationMs}
+                  offsetMs={zoomedTicks.visOffsetMs}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        <div
+          ref={timelineScrollRef}
+          className={hasSelection ? 'min-h-0 flex-1 overflow-y-auto' : ''}
+        >
+          <TraceTimeline
             spanTrees={spanTrees}
-            minMs={minStart}
-            maxMs={maxEnd}
+            isRunning={isRunning}
+            expandedSpanIds={expandedSpansIds}
+            onExpandChange={setExpandedSpansIds}
+            groupVisibleCounts={groupVisibleCounts}
+            onShowMore={handleShowMore}
+            selectedSpan={
+              resolvedSelection?.kind === 'span'
+                ? resolvedSelection.span
+                : undefined
+            }
+            selectedGroupId={
+              resolvedSelection?.kind === 'group'
+                ? resolvedSelection.group.groupId
+                : undefined
+            }
+            onSpanSelect={handleSpanSelect}
+            onGroupSelect={handleGroupSelect}
             visibleRange={visibleRange}
             onRangeChange={setVisibleRange}
-            expandedSpanIds={expandedSpansIds}
-            onSpanSelect={handleMinimapSpanSelect}
-            externalHoverPct={timelineHoverPct}
-            onHoverPctChange={setMinimapHoverPct}
+            externalCursorPct={minimapHoverPct}
+            onCursorPctChange={setTimelineHoverPct}
           />
         </div>
       </div>
-      <TraceTimeline
-        spanTrees={spanTrees}
-        isRunning={isRunning}
-        expandedSpanIds={expandedSpansIds}
-        onExpandChange={setExpandedSpansIds}
-        groupVisibleCounts={groupVisibleCounts}
-        onShowMore={handleShowMore}
-        selectedSpan={
-          resolvedSelection?.kind === 'span'
-            ? resolvedSelection.span
-            : undefined
-        }
-        selectedGroupId={
-          resolvedSelection?.kind === 'group'
-            ? resolvedSelection.group.groupId
-            : undefined
-        }
-        onSpanSelect={handleSpanSelect}
-        onGroupSelect={handleGroupSelect}
-        visibleRange={visibleRange}
-        onRangeChange={setVisibleRange}
-        externalCursorPct={minimapHoverPct}
-        onCursorPctChange={setTimelineHoverPct}
-      />
+
       {resolvedSelection?.kind === 'span' && (
-        <SpanDetail
-          span={resolvedSelection.span}
-          onClose={handleDetailClose}
-          activeFilters={activeFilters}
-          onAddFilter={onAddFilter}
-          onRemoveFilter={onRemoveFilter}
-          onSpanSelect={handleSpanSelect}
-        />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <SpanDetail
+            span={resolvedSelection.span}
+            onClose={handleDetailClose}
+            activeFilters={activeFilters}
+            onAddFilter={onAddFilter}
+            onRemoveFilter={onRemoveFilter}
+            onSpanSelect={handleSpanSelect}
+          />
+        </div>
       )}
       {resolvedSelection?.kind === 'group' && (
-        <GroupDetail
-          group={resolvedSelection.group}
-          onClose={handleDetailClose}
-        />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <GroupDetail
+            group={resolvedSelection.group}
+            onClose={handleDetailClose}
+          />
+        </div>
       )}
     </div>
   );
