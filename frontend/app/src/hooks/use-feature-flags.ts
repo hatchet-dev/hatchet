@@ -5,13 +5,15 @@ import { useQuery } from '@tanstack/react-query';
 
 export { FeatureFlagId };
 
-type UseIsFeatureEnabledResult = {
-  isEnabled: boolean;
-  isLoading: false;
-} | {
-  isEnabled: undefined;
-  isLoading: true;
-};
+type UseIsFeatureEnabledResult =
+  | {
+      isEnabled: boolean;
+      isLoading: false;
+    }
+  | {
+      isEnabled: undefined;
+      isLoading: true;
+    };
 
 export const useIsFeatureEnabled = (
   flagName: FeatureFlagId,
@@ -45,11 +47,11 @@ export const useIsFeatureEnabled = (
     return {
       isEnabled: undefined,
       isLoading: true,
-    }
+    };
   }
 
   return {
     isEnabled: data?.isEnabled ?? isEnabledIfNoPosthog,
     isLoading: isLoading || isFetching,
-  }
+  };
 };
