@@ -36,7 +36,7 @@ import api, { TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import useCloud from '@/pages/auth/hooks/use-cloud';
-import { useUserUniverse } from '@/providers/user-universe';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -58,7 +58,6 @@ import { RiInformationFill, RiBatteryLowLine } from 'react-icons/ri';
 
 function AccountDropdown({ user }: { user?: User }) {
   const navigate = useNavigate();
-  const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const { handleApiError } = useApiError({});
 
   const { toggleTheme, theme } = useTheme();
@@ -72,7 +71,7 @@ function AccountDropdown({ user }: { user?: User }) {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
-      invalidateUserUniverse();
+      queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
     onError: handleApiError,
