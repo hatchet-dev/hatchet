@@ -158,6 +158,8 @@ lib/hatchet-sdk-rest/models/user_login_request.rb
 lib/hatchet-sdk-rest/models/user_register_request.rb
 lib/hatchet-sdk-rest/models/user_tenant_memberships_list.rb
 lib/hatchet-sdk-rest/models/user_tenant_public.rb
+lib/hatchet-sdk-rest/models/v1_branch_durable_task_request.rb
+lib/hatchet-sdk-rest/models/v1_branch_durable_task_response.rb
 lib/hatchet-sdk-rest/models/v1_cancel_task_request.rb
 lib/hatchet-sdk-rest/models/v1_cancelled_tasks.rb
 lib/hatchet-sdk-rest/models/v1_cel_debug_request.rb
@@ -182,6 +184,9 @@ lib/hatchet-sdk-rest/models/v1_log_line_list.rb
 lib/hatchet-sdk-rest/models/v1_log_line_order_by_direction.rb
 lib/hatchet-sdk-rest/models/v1_replay_task_request.rb
 lib/hatchet-sdk-rest/models/v1_replayed_tasks.rb
+lib/hatchet-sdk-rest/models/v1_restore_task_response.rb
+lib/hatchet-sdk-rest/models/v1_running_detail_count.rb
+lib/hatchet-sdk-rest/models/v1_running_filter.rb
 lib/hatchet-sdk-rest/models/v1_task_event.rb
 lib/hatchet-sdk-rest/models/v1_task_event_list.rb
 lib/hatchet-sdk-rest/models/v1_task_event_type.rb

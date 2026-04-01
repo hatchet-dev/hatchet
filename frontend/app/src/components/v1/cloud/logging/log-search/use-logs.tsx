@@ -111,7 +111,10 @@ export function useLogs({
     queryFn: async ({ pageParam }) => {
       const params: V1LogLineListQuery = {
         limit: LOGS_PER_PAGE,
-        ...(pageParam && { since: pageParam.since, until: pageParam.until }),
+        ...(pageParam && {
+          since: pageParam.since,
+          until: pageParam.until,
+        }),
         ...(parsedQuery.level && {
           levels: [parsedQuery.level.toUpperCase() as V1LogLineLevel],
         }),

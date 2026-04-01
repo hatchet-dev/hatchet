@@ -273,7 +273,9 @@ const OrganizationList = ({
                   tenantMembers={tenantMembers}
                   tenantInvites={tenantInvites}
                   onInviteMember={(tenantId) =>
-                    globalEmitter.emit('create-tenant-invite', { tenantId })
+                    globalEmitter.emit('create-tenant-invite', {
+                      tenantId,
+                    })
                   }
                 />
               ) : (

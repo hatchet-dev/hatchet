@@ -22,11 +22,9 @@ export const dag = hatchet.workflow<DagInput, DagOutput>({
 // Next, we declare the tasks bound to the workflow
 const toLower = dag.task({
   name: 'to-lower',
-  fn: (input) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
+  fn: (input) => ({
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
 
 // > Second task with parent

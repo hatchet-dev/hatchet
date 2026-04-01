@@ -13,11 +13,9 @@ export const simple = hatchet.task({
       value: '2x',
     },
   },
-  fn: (input: SimpleInput) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
+  fn: (input: SimpleInput) => ({
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
 
 hatchet.worker('task-routing-worker', {

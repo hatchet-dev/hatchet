@@ -261,7 +261,10 @@ export function BulkRescheduleScheduledRuns({
           const batchSize = 500;
           for (let i = 0; i < ids.length; i += batchSize) {
             const chunkIds = ids.slice(i, i + batchSize);
-            const chunkUpdates = chunkIds.map((id) => ({ id, triggerAt }));
+            const chunkUpdates = chunkIds.map((id) => ({
+              id,
+              triggerAt,
+            }));
             const res = await api.workflowScheduledBulkUpdate(tenantId, {
               updates: chunkUpdates,
             });

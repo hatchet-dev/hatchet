@@ -212,7 +212,10 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
             a.stepReadableId.localeCompare(b.stepReadableId),
         )}
       columns={[
-        { columnLabel: 'Scope', cellRenderer: (row) => formatScope(row.scope) },
+        {
+          columnLabel: 'Scope',
+          cellRenderer: (row) => formatScope(row.scope),
+        },
         { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
         { columnLabel: 'Max', cellRenderer: (row) => row.maxRuns },
         {

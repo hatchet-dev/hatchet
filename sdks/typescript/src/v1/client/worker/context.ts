@@ -386,18 +386,10 @@ export class Context<T, K = {}> {
 
   get logger() {
     return {
-      info: (message: string, extra?: any) => {
-        return this.log(message, 'INFO', { extra });
-      },
-      debug: (message: string, extra?: any) => {
-        return this.log(message, 'DEBUG', { extra });
-      },
-      warn: (message: string, extra?: LogExtra) => {
-        return this.log(message, 'WARN', extra);
-      },
-      error: (message: string, extra?: LogExtra) => {
-        return this.log(message, 'ERROR', extra);
-      },
+      info: (message: string, extra?: any) => this.log(message, 'INFO', { extra }),
+      debug: (message: string, extra?: any) => this.log(message, 'DEBUG', { extra }),
+      warn: (message: string, extra?: LogExtra) => this.log(message, 'WARN', extra),
+      error: (message: string, extra?: LogExtra) => this.log(message, 'ERROR', extra),
       util: (key: string, message: string, extra?: LogExtra) => {
         const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
         if (!logger.util) {
@@ -891,7 +883,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   async sleepFor(duration: Duration, readableDataKey?: string): Promise<SleepResult> {
     const res = await this.waitFor({ sleepFor: duration, readableDataKey });
 
-    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const matches: Record<string, any[]> = res.CREATE || {};
     const [firstMatch] = Object.values(matches);
 
     if (!firstMatch || firstMatch.length === 0) {
@@ -989,7 +981,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     // The engine returns an object like:
     // {"CREATE": {"signal_key_1": [{"id": ..., "data": {...}}]}}
     // Since we have a single match, the list will only have one item.
-    const matches: Record<string, any[]> = res['CREATE'] || {};
+    const matches: Record<string, any[]> = res.CREATE || {};
     const [firstMatch] = Object.values(matches);
 
     if (!firstMatch || firstMatch.length === 0) {
@@ -1026,9 +1018,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @returns The memoized current timestamp.
    */
   async now(): Promise<Date> {
-    const result = await this.memo(async () => {
-      return { ts: new Date().toISOString() };
-    }, ['now']);
+    const result = await this.memo(async () => ({ ts: new Date().toISOString() }), ['now']);
     return new Date(result.ts);
   }
 

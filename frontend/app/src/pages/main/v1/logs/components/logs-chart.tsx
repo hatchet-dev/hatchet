@@ -59,7 +59,10 @@ function formatXAxis(tickItem: string, minDate: Date, maxDate: Date): string {
   } else if (timeDiff > oneDay) {
     return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   } else {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 }
 

@@ -305,7 +305,10 @@ export function SpanDetail({
           <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
             {queuedOnlySpan
               ? '–'
-              : formatDuration(durationNs, { unit: 'ns', precise: true })}
+              : formatDuration(durationNs, {
+                  unit: 'ns',
+                  precise: true,
+                })}
           </p>
         </div>
         <div>

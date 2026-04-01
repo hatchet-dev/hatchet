@@ -42,11 +42,9 @@ export const lowerWithFilter = hatchet.workflow<Input, LowerOutput>({
 
 lower.task({
   name: 'lower',
-  fn: (input) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
+  fn: (input) => ({
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
 
 type UpperOutput = {
@@ -64,11 +62,9 @@ export const upper = hatchet.workflow<Input, UpperOutput>({
 
 upper.task({
   name: 'upper',
-  fn: (input) => {
-    return {
-      TransformedMessage: input.Message.toUpperCase(),
-    };
-  },
+  fn: (input) => ({
+    TransformedMessage: input.Message.toUpperCase(),
+  }),
 });
 
 // > Accessing the filter payload

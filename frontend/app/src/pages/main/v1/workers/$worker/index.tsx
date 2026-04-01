@@ -314,7 +314,9 @@ export default function WorkerDetail() {
                             <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50">
                               <div
                                 className="h-full bg-emerald-300 dark:bg-emerald-500 transition-all"
-                                style={{ width: `${usedPercentage}%` }}
+                                style={{
+                                  width: `${usedPercentage}%`,
+                                }}
                               />
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">

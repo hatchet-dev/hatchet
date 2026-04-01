@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/stretchr/testify/assert"
+
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 var testResourceID = uuid.New().String()

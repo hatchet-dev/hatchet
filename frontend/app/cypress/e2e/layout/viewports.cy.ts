@@ -108,7 +108,9 @@ describe('layout: viewports', () => {
         // Collapsed sidebar should also be scrollable on wide viewports.
         if (vp.width >= 768) {
           // Collapse via the resize edge click (no drag).
-          cy.get('[data-cy="v1-sidebar-resize-handle"]').click({ force: true });
+          cy.get('[data-cy="v1-sidebar-resize-handle"]').click({
+            force: true,
+          });
 
           cy.get('[data-cy="v1-sidebar-scroll-collapsed"]').then(($el) => {
             const el = $el.get(0);

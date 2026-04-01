@@ -138,7 +138,10 @@ export const Observability = (props: ObservabilityProps) => {
         ? workflowRunStartedAt
         : undefined;
 
-    return { createdAt: workflowRunCreatedAt, startedAt: normalizedStartedAt };
+    return {
+      createdAt: workflowRunCreatedAt,
+      startedAt: normalizedStartedAt,
+    };
   }, [workflowRunCreatedAt, workflowRunStartedAt]);
 
   const spanTrees = useMemo(() => {

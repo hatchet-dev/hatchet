@@ -20,10 +20,8 @@ export const simple = hatchet.task({
       units: 1,
     },
   ],
-  fn: (input: SimpleInput) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
+  fn: (input: SimpleInput) => ({
+    TransformedMessage: input.Message.toLowerCase(),
+  }),
 });
 // !!

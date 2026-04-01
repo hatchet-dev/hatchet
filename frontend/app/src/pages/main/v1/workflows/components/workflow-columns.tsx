@@ -90,7 +90,10 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
         <div className="flex justify-end gap-2">
           <Link
             to={appRoutes.tenantWorkflowRoute.to}
-            params={{ tenant: tenantId, workflow: row.original.metadata.id }}
+            params={{
+              tenant: tenantId,
+              workflow: row.original.metadata.id,
+            }}
           >
             <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
               <ChevronRightIcon

@@ -56,7 +56,9 @@ export class DurableEvictionManager {
   }
 
   start(): void {
-    if (this._timer) return;
+    if (this._timer) {
+      return;
+    }
     this._timer = setInterval(() => this._tickSafe(), this._config.checkIntervalMs);
   }
 
@@ -94,7 +96,9 @@ export class DurableEvictionManager {
   }
 
   private async _tickSafe(): Promise<void> {
-    if (this._ticking) return;
+    if (this._ticking) {
+      return;
+    }
     this._ticking = true;
     try {
       await this._tick();
@@ -116,12 +120,18 @@ export class DurableEvictionManager {
         this._config.minWaitForCapacityEvictionMs
       );
 
-      if (!key) return;
-      if (evictedThisTick.has(key)) return;
+      if (!key) {
+        return;
+      }
+      if (evictedThisTick.has(key)) {
+        return;
+      }
       evictedThisTick.add(key);
 
       const rec = this._cache.get(key);
-      if (!rec || !rec.evictionPolicy) continue;
+      if (!rec || !rec.evictionPolicy) {
+        continue;
+      }
 
       this._logger.debug(
         `DurableEvictionManager: evicting task_run_external_id=${rec.taskRunExternalId} ` +
@@ -135,10 +145,14 @@ export class DurableEvictionManager {
 
   handleServerEviction(taskRunExternalId: string, invocationCount: number): void {
     const key = this._cache.findKeyByTaskRunExternalId(taskRunExternalId);
-    if (!key) return;
+    if (!key) {
+      return;
+    }
 
     const rec = this._cache.get(key);
-    if (rec && rec.invocationCount !== invocationCount) return;
+    if (rec && rec.invocationCount !== invocationCount) {
+      return;
+    }
 
     this._logger.info(
       `DurableEvictionManager: server-initiated eviction for task_run_external_id=${taskRunExternalId} invocation_count=${invocationCount}`

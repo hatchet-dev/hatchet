@@ -509,28 +509,28 @@ WITH input AS (
         e.id,
         e.event_key,
         e.data,
-		e.task_id,
-		e.task_inserted_at,
+    e.task_id,
+    e.task_inserted_at,
         e.inserted_at
     FROM
         v1_task_event e
     JOIN
         distinct_events de
-		ON e.task_id = de.task_id
-		AND e.task_inserted_at = de.task_inserted_at
+    ON e.task_id = de.task_id
+    AND e.task_inserted_at = de.task_inserted_at
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = 'SIGNAL_CREATED'
 )
 SELECT
-	e.id,
+  e.id,
     e.inserted_at,
-	e.event_key,
-	e.data
+  e.event_key,
+  e.data
 FROM
-	events_to_lock e
+  events_to_lock e
 WHERE
-	e.event_key = ANY(SELECT event_key FROM input);
+  e.event_key = ANY(SELECT event_key FROM input);
 
 -- name: ListMatchingSignalEvents :many
 WITH input AS (

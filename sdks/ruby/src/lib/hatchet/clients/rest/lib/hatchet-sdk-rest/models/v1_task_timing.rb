@@ -37,6 +37,9 @@ module HatchetSdkRest
     # The ID of the tenant.
     attr_accessor :tenant_id
 
+    # Whether the task has been evicted from a worker (still counts as RUNNING).
+    attr_accessor :is_evicted
+
     # The external ID of the parent task.
     attr_accessor :parent_task_external_id
 
@@ -91,6 +94,7 @@ module HatchetSdkRest
         :'task_id' => :'taskId',
         :'task_inserted_at' => :'taskInsertedAt',
         :'tenant_id' => :'tenantId',
+        :'is_evicted' => :'isEvicted',
         :'parent_task_external_id' => :'parentTaskExternalId',
         :'queued_at' => :'queuedAt',
         :'started_at' => :'startedAt',
@@ -122,6 +126,7 @@ module HatchetSdkRest
         :'task_id' => :'Integer',
         :'task_inserted_at' => :'Time',
         :'tenant_id' => :'String',
+        :'is_evicted' => :'Boolean',
         :'parent_task_external_id' => :'String',
         :'queued_at' => :'Time',
         :'started_at' => :'Time',
@@ -200,6 +205,10 @@ module HatchetSdkRest
         self.tenant_id = attributes[:'tenant_id']
       else
         self.tenant_id = nil
+      end
+
+      if attributes.key?(:'is_evicted')
+        self.is_evicted = attributes[:'is_evicted']
       end
 
       if attributes.key?(:'parent_task_external_id')
@@ -443,6 +452,7 @@ module HatchetSdkRest
           task_id == o.task_id &&
           task_inserted_at == o.task_inserted_at &&
           tenant_id == o.tenant_id &&
+          is_evicted == o.is_evicted &&
           parent_task_external_id == o.parent_task_external_id &&
           queued_at == o.queued_at &&
           started_at == o.started_at &&
@@ -461,7 +471,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, depth, status, task_display_name, task_external_id, task_id, task_inserted_at, tenant_id, parent_task_external_id, queued_at, started_at, finished_at, workflow_run_id, retry_count, attempt].hash
+      [metadata, depth, status, task_display_name, task_external_id, task_id, task_inserted_at, tenant_id, is_evicted, parent_task_external_id, queued_at, started_at, finished_at, workflow_run_id, retry_count, attempt].hash
     end
 
     # Builds the object from hash

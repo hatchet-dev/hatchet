@@ -263,7 +263,9 @@ export class DurableListenerClient {
   }
 
   private async _doStart(workerId: string): Promise<void> {
-    if (this._running) return;
+    if (this._running) {
+      return;
+    }
     this._workerId = workerId;
     this._running = true;
     await this._connect();
@@ -374,7 +376,9 @@ export class DurableListenerClient {
   }
 
   private _pollWorkerStatus(): void {
-    if (!this._workerId || this._pendingCallbacks.size === 0) return;
+    if (!this._workerId || this._pendingCallbacks.size === 0) {
+      return;
+    }
 
     const waitingEntries: DurableTaskAwaitedCompletedEntry[] = [];
     for (const key of this._pendingCallbacks.keys()) {
@@ -653,7 +657,9 @@ export class DurableListenerClient {
       let settled = false;
 
       const onAbort = () => {
-        if (settled) return;
+        if (settled) {
+          return;
+        }
         settled = true;
         reject(createAbortError('Operation cancelled by AbortSignal'));
       };
@@ -662,13 +668,17 @@ export class DurableListenerClient {
 
       d.promise.then(
         (value) => {
-          if (settled) return;
+          if (settled) {
+            return;
+          }
           settled = true;
           signal.removeEventListener('abort', onAbort);
           resolve(value);
         },
         (err) => {
-          if (settled) return;
+          if (settled) {
+            return;
+          }
           settled = true;
           signal.removeEventListener('abort', onAbort);
           reject(err);
@@ -818,7 +828,9 @@ export class LegacyDurableEventStreamable {
       let cleanedUp = false;
 
       const cleanup = () => {
-        if (cleanedUp) return;
+        if (cleanedUp) {
+          return;
+        }
         cleanedUp = true;
         this.responseEmitter.removeListener('response', onResponse);
         if (signal) {
@@ -878,7 +890,9 @@ class LegacyPooledListener {
       await sleep(backoffTime);
     }
 
-    if (retries > MAX_RETRY_COUNT) return;
+    if (retries > MAX_RETRY_COUNT) {
+      return;
+    }
 
     try {
       this.signal = new AbortController();
@@ -900,7 +914,9 @@ class LegacyPooledListener {
         }
       }
     } catch (e: unknown) {
-      if (isAbortError(e)) return;
+      if (isAbortError(e)) {
+        return;
+      }
     } finally {
       if (Object.keys(this.subscribers).length > 0) {
         this.init(retries + 1);
@@ -910,7 +926,9 @@ class LegacyPooledListener {
 
   private cleanupSubscription(subscriptionId: string) {
     const emitter = this.subscribers[subscriptionId];
-    if (!emitter) return;
+    if (!emitter) {
+      return;
+    }
     const key = Object.entries(this.taskSignalKeyToSubscriptionIds).find(([, ids]) =>
       ids.includes(subscriptionId)
     )?.[0];
@@ -954,7 +972,9 @@ class LegacyPooledListener {
     }
 
     for await (const e of on(this.requestEmitter, 'subscribe')) {
-      if (currRequester !== this.currRequester) break;
+      if (currRequester !== this.currRequester) {
+        break;
+      }
       const request = e[0] as ListenForDurableEventRequest;
       const key = `${request.taskId}|${request.signalKey}`;
       if (!existing.has(key)) {

@@ -136,7 +136,10 @@ export const columns = ({
           <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
             <Link
               to={appRoutes.tenantWorkflowRoute.to}
-              params={{ tenant: tenantId, workflow: row.original.workflowId }}
+              params={{
+                tenant: tenantId,
+                workflow: row.original.workflowId,
+              }}
             >
               {row.original.workflowName}
             </Link>

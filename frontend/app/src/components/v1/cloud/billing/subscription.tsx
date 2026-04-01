@@ -439,7 +439,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               showAnnual={showAnnual}
               onSelectPlan={(plan) => {
                 if (!billing?.hasPaymentMethods) {
-                  subscriptionMutation.mutate({ plan_code: plan.planCode });
+                  subscriptionMutation.mutate({
+                    plan_code: plan.planCode,
+                  });
                 } else {
                   setChangeConfirmOpen(plan);
                 }

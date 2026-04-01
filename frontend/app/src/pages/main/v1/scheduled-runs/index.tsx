@@ -185,7 +185,10 @@ export default function ScheduledRunsTable({
             if (selectedIds.length > 0) {
               setCancelParams({ scheduledRunIds: selectedIds });
             } else {
-              setCancelParams({ scheduledRunIds: [], filter: actionFilter });
+              setCancelParams({
+                scheduledRunIds: [],
+                filter: actionFilter,
+              });
             }
           }}
         >

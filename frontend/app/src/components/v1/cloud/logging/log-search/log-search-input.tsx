@@ -30,7 +30,11 @@ export function LogSearchInput({
       placeholder={placeholder}
       className={className}
       filterChips={[
-        { key: 'level:', label: 'Level', description: 'Filter by log level' },
+        {
+          key: 'level:',
+          label: 'Level',
+          description: 'Filter by log level',
+        },
         {
           key: 'attempt:',
           label: 'Attempt',

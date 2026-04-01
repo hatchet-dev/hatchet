@@ -308,42 +308,42 @@ print(result)
     go: `package main
 
 import (
-	"fmt"
+  "fmt"
 
-	v1_workflows "github.com/hatchet-dev/hatchet/examples/go/tasks"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-	"github.com/joho/godotenv"
+  v1_workflows "github.com/hatchet-dev/hatchet/examples/go/tasks"
+  v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+  "github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+  "github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		panic(err)
-	}
+  err := godotenv.Load()
+  if err != nil {
+    panic(err)
+  }
 
-	hatchet, err := v1.NewHatchetClient()
+  hatchet, err := v1.NewHatchetClient()
 
-	if err != nil {
-		panic(err)
-	}
+  if err != nil {
+    panic(err)
+  }
 
-	simple := v1.WorkflowFactory[any, any](
-		workflow.CreateOpts[any]{
-			Name: "first-workflow",
-		},
-		&hatchet,
-	)
+  simple := v1.WorkflowFactory[any, any](
+    workflow.CreateOpts[any]{
+      Name: "first-workflow",
+    },
+    &hatchet,
+  )
 
-	result, err := simple.Run(v1_workflows.SimpleInput{
-		Message: "Hello, World!",
-	})
+  result, err := simple.Run(v1_workflows.SimpleInput{
+    Message: "Hello, World!",
+  })
 
-	if err != nil {
-		panic(err)
-	}
+  if err != nil {
+    panic(err)
+  }
 
-	fmt.Println(result)
+  fmt.Println(result)
 }
 `,
   };

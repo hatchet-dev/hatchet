@@ -21,7 +21,10 @@ export function ExpandedScheduledRunContent({
           <span className="font-medium text-muted-foreground">Workflow</span>
           <Link
             to={appRoutes.tenantWorkflowRoute.to}
-            params={{ tenant: tenantId, workflow: scheduledRun.workflowId }}
+            params={{
+              tenant: tenantId,
+              workflow: scheduledRun.workflowId,
+            }}
             className="truncate font-medium hover:underline"
           >
             {scheduledRun.workflowName}
@@ -44,7 +47,10 @@ export function ExpandedScheduledRunContent({
               </span>
               <Link
                 to={appRoutes.tenantRunRoute.to}
-                params={{ tenant: tenantId, run: scheduledRun.workflowRunId }}
+                params={{
+                  tenant: tenantId,
+                  run: scheduledRun.workflowRunId,
+                }}
                 className="truncate font-medium hover:underline"
               >
                 {scheduledRun.workflowRunName || scheduledRun.workflowRunId}

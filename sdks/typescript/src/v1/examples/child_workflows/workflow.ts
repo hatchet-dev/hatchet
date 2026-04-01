@@ -7,11 +7,9 @@ type ChildInput = {
 
 export const child = hatchet.task({
   name: 'child',
-  fn: (input: ChildInput) => {
-    return {
-      Value: input.N,
-    };
-  },
+  fn: (input: ChildInput) => ({
+    Value: input.N,
+  }),
 });
 // !!
 

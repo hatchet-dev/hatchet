@@ -362,7 +362,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                   active && 'bg-slate-200 dark:bg-slate-800',
                                 )}
                               >
-                                {item.icon({ collapsed: true, active })}
+                                {item.icon({
+                                  collapsed: true,
+                                  active,
+                                })}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent

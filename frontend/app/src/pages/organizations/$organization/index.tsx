@@ -108,7 +108,9 @@ export default function OrganizationPage() {
     handleUpdateOrganization(orgId, editedName.trim(), () => {
       setIsEditingName(false);
       setEditedName('');
-      queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
+      queryClient.invalidateQueries({
+        queryKey: ['organization:get', orgId],
+      });
     });
   };
 
@@ -608,7 +610,10 @@ export default function OrganizationPage() {
                       .filter(
                         (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
                       )
-                      .map((t) => ({ ...t, metadata: { id: t.id } }))}
+                      .map((t) => ({
+                        ...t,
+                        metadata: { id: t.id },
+                      }))}
                     columns={tenantColumns}
                   />
                 ) : (
@@ -774,7 +779,9 @@ export default function OrganizationPage() {
                 queryClient.invalidateQueries({
                   queryKey: ['organization:get', orgId],
                 });
-                queryClient.invalidateQueries({ queryKey: ['tenant:get'] });
+                queryClient.invalidateQueries({
+                  queryKey: ['tenant:get'],
+                });
               }}
             />
           )

@@ -38,7 +38,7 @@ func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMe
 			Email: types.Email(tenantMember.Email),
 			Name:  v1.StringPtr(tenantMember.Name.String),
 		},
-		Tenant: &gen.Tenant{
+		Tenant: gen.Tenant{
 			Metadata:          *toAPIMetadata(tenantMember.TenantId, tenantMember.TenantCreatedAt.Time, tenantMember.TenantUpdatedAt.Time),
 			Name:              tenantMember.TenantName,
 			Slug:              tenantMember.TenantSlug,
