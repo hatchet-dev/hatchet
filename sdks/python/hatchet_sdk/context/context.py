@@ -686,6 +686,7 @@ class DurableContext(Context):
         expression: str | None = None,
         *,
         payload_validator: type[Any] | None = None,
+        scope: str | None = None,
     ) -> Any:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
@@ -703,7 +704,7 @@ class DurableContext(Context):
 
         result = await self.aio_wait_for(
             f"event:{key}-{wait_index}",
-            UserEventCondition(event_key=key, expression=expression),
+            UserEventCondition(event_key=key, expression=expression, scope=scope),
         )
 
         ## lots of implicit use of engine semantics / internal logic here.
