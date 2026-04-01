@@ -37,6 +37,8 @@ import {
   EventOrderByField,
   EventSearch,
   Events,
+  FeatureFlagEvaluationResult,
+  FeatureFlagId,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
   ListSNSIntegrations,
@@ -3550,6 +3552,31 @@ export class Api<
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Evaluate a feature flag for a tenant
+   *
+   * @tags Feature Flags
+   * @name TenantFeatureFlagEvaluate
+   * @summary Evaluate a feature flag for a tenant
+   * @request GET:/api/v1/tenants/{tenant}/feature-flags
+   * @secure
+   */
+  tenantFeatureFlagEvaluate = (
+    tenant: string,
+    query: {
+      /** The feature flag id to evaluate */
+      featureFlagId: FeatureFlagId;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<FeatureFlagEvaluationResult, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/feature-flags`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
