@@ -250,8 +250,6 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 		return nil, err
 	}
 
-	seenKeys := make(map[string]struct{})
-
 	lookbackParams := sqlcv1.GetPreviousMatchingEventsByKeysWithScopeHintParams{
 		Tenantid: tenantId,
 	}
@@ -266,10 +264,6 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 			}
 
 			key := *condition.UserEventKey
-			if _, alreadySeen := seenKeys[key]; alreadySeen {
-				continue
-			}
-			seenKeys[key] = struct{}{}
 
 			lookbackParams.Keys = append(lookbackParams.Keys, key)
 			lookbackParams.Seensinces = append(lookbackParams.Seensinces, sqlchelpers.TimestamptzFromTime(*condition.UserEventConsiderEventsSince))
