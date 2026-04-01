@@ -18,6 +18,7 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
 def task_to_openai_mcp(
     runnable: "Standalone[Any, R]",
     input_schema: dict[str, Any],
+    description: str,
     **kwargs: Any,
 ) -> FunctionTool:
     async def handler(ctx: ToolContext[Any], input: str) -> str:
@@ -27,7 +28,7 @@ def task_to_openai_mcp(
 
     return FunctionTool(
         name=runnable.name,
-        description=runnable.config.description,
+        description=description,
         params_json_schema=input_schema,
         on_invoke_tool=handler,
         **kwargs,
@@ -37,6 +38,7 @@ def task_to_openai_mcp(
 def workflow_to_openai_mcp(
     runnable: "Workflow[Any]",
     input_schema: dict[str, Any],
+    description: str,
     **kwargs: Any,
 ) -> FunctionTool:
     async def handler(ctx: ToolContext[Any], input: str) -> str:
@@ -46,7 +48,7 @@ def workflow_to_openai_mcp(
 
     return FunctionTool(
         name=runnable.name,
-        description=runnable.config.description,
+        description=description,
         params_json_schema=input_schema,
         on_invoke_tool=handler,
         **kwargs,

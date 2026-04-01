@@ -629,14 +629,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def mcp_tool(
         self,
         provider: Literal[MCPProvider.CLAUDE],
-        description: str,
         **kwargs: Any,
     ) -> "SdkMcpTool[TWorkflowInput]": ...
     @overload
     def mcp_tool(
         self,
         provider: Literal[MCPProvider.OPENAI],
-        description: str,
         **kwargs: Any,
     ) -> "FunctionTool": ...
     def mcp_tool(
@@ -662,6 +660,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
         ```
         """
+        if not self.config.description:
+            raise ValueError(
+                f"Runnable '{self.config.name}' has no description. "
+                "Set description= when defining the workflow or task."
+            )
+        description = self.config.description
         input_schema = self.input_validator.json_schema()
         if isinstance(self, Workflow):
             match provider:
@@ -669,24 +673,24 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                     from .mcp.claude import workflow_to_claude_mcp
 
                     return workflow_to_claude_mcp(
-                        self, input_schema, **kwargs
+                        self, input_schema, description, **kwargs
                     )
                 case MCPProvider.OPENAI:
                     from .mcp.openai import workflow_to_openai_mcp
 
                     return workflow_to_openai_mcp(
-                        self, input_schema, **kwargs
+                        self, input_schema, description, **kwargs
                     )
         elif isinstance(self, Standalone):
             match provider:
                 case MCPProvider.CLAUDE:
                     from .mcp.claude import task_to_claude_mcp
 
-                    return task_to_claude_mcp(self, input_schema, **kwargs)
+                    return task_to_claude_mcp(self, input_schema, description, **kwargs)
                 case MCPProvider.OPENAI:
                     from .mcp.openai import task_to_openai_mcp
 
-                    return task_to_openai_mcp(self, input_schema, **kwargs)
+                    return task_to_openai_mcp(self, input_schema, description, **kwargs)
         else:
             raise NotImplementedError()
 

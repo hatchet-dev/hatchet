@@ -1,4 +1,9 @@
-from examples.agent.workflows import hatchet, get_temperature_workflow, get_temperature_standalone
+from examples.agent.workflows import (
+    hatchet,
+    get_temperature_workflow,
+    get_temperature_standalone,
+)
+
 
 def main() -> None:
     worker = hatchet.worker(
