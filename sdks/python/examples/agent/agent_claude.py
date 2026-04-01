@@ -5,33 +5,28 @@ from claude_agent_sdk import (
     query,
     ResultMessage,
 )
-from hatchet_sdk.runnables.workflow import MCPProvider
+from hatchet_sdk.runnables.mcp.claude import to_claude_mcp_tools
 from examples.agent.worker import temp_workflow, get_temperature_standalone
 
 
 async def main() -> None:
-    # You can use a workflow
-    temperature_tool = temp_workflow.mcp_tool(
-        MCPProvider.CLAUDE,
-        "Get the current temperature at a location",
+    # Convert the workflows/tasks into Claude MCP tools
+    server_name = "weather"
+    tools, tool_names = to_claude_mcp_tools(
+        [temp_workflow, get_temperature_standalone],
+        server_name=server_name,
     )
 
-    # Or a standalone task
-    temperature_tool = get_temperature_standalone.mcp_tool(
-        MCPProvider.CLAUDE,
-        "Get the current temperature at a location",
-    )
-
-    # Wrap the tool in an in-process MCP server
+    # Wrap the tools in an in-process MCP server
     weather_server = create_sdk_mcp_server(
-        name="weather",
+        name=server_name,
         version="1.0.0",
-        tools=[temperature_tool],
+        tools=tools,
     )
 
     options = ClaudeAgentOptions(
         mcp_servers={"weather": weather_server},
-        allowed_tools=[f"mcp__{weather_server["name"]}__{temperature_tool.name}"],
+        allowed_tools=tool_names,
     )
 
     async for message in query(

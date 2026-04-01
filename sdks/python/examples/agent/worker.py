@@ -22,7 +22,9 @@ class TemperatureContent(BaseModel):
 
 
 temp_workflow = hatchet.workflow(
-    name="get_temperature", input_validator=TemperatureInput
+    name="get_temperature",
+    description="Get the current temperature at a location",
+    input_validator=TemperatureInput,
 )
 
 
@@ -48,7 +50,10 @@ async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureC
 # !!
 
 
-@hatchet.task(input_validator=TemperatureInput)
+@hatchet.task(
+    input_validator=TemperatureInput,
+    description="Get the current temperature at a location",
+)
 async def get_temperature_standalone(
     input: TemperatureInput, ctx: Context
 ) -> TemperatureContent:
