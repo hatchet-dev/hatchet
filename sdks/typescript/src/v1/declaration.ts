@@ -694,6 +694,23 @@ export class BaseWorkflowDeclaration<
   get name() {
     return this.definition.name;
   }
+
+  mcpTool(description: string, annotations?: any): SdkMcpToolDefinition {
+    const handler = async (args: any, extra: unknown): Promise<CallToolResult> => {
+      const result = await this.run(args);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    };
+    const inputValidator = this.definition.inputValidator! as z.ZodObject<any>;
+    return {
+      annotations: annotations,
+      description: description,
+      handler: handler,
+      name: this.name,
+      inputSchema: inputValidator.shape,
+    };
+  }
 }
 
 /**
@@ -1075,24 +1092,6 @@ export class TaskWorkflowDeclaration<
   // Returns the underlying task definition for this declaration.
   get taskDef() {
     return this.definition._tasks[0];
-  }
-
-  mcpTool(description: string, annotations?: any): SdkMcpToolDefinition {
-    const handler = async (args: { [x: string]: any; }, extra: unknown): Promise<CallToolResult> => {
-      const result = await this.run(args);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-      };
-    };
-    console.log(this.name);
-    const inputValidator = this.definition.inputValidator! as z.ZodObject<any>;
-    return {
-      annotations: annotations,
-      description: description,
-      handler: handler,
-      name: this.name,
-      inputSchema: inputValidator.shape,
-    };
   }
 }
 

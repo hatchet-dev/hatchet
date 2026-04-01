@@ -1,4 +1,3 @@
-// > Declaring a Worker
 import { hatchet } from '../hatchet-client';
 import { getTemperature } from './workflow';
 
@@ -13,4 +12,3 @@ async function main() {
 if (require.main === module) {
   main();
 }
-// !!

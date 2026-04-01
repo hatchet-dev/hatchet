@@ -1,10 +1,15 @@
-import { getTemperature } from './workflow';
+import { getTemperature, getTemperatureWorkflow } from './workflow';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
+import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 
 async function main() {
-  // Define a tool: name, description, input schema, handler
-  const temperatureTool = getTemperature.mcpTool('Get the current temperature at a location');
+  // Generate a tool from a standalone task
+  // const temperatureTool = getTemperature.mcpTool('Get the current temperature at a location');
+
+  // Or from a workflow
+  const temperatureTool = getTemperatureWorkflow.mcpTool(
+    'Get the current temperature at a location'
+  );
 
   // Wrap the tool in an in-process MCP server
   const weatherServer = createSdkMcpServer({
@@ -17,7 +22,7 @@ async function main() {
     prompt: "What's the temperature in San Francisco?",
     options: {
       mcpServers: { weather: weatherServer },
-      allowedTools: ['mcp__weather__getTemperature'],
+      allowedTools: [`mcp__${weatherServer.name}__${temperatureTool.name}`],
     },
   })) {
     // "result" is the final message after all tool calls complete
