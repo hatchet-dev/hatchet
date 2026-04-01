@@ -129,10 +129,15 @@ class HatchetAttributeSpanProcessor extends BatchSpanProcessor {
 function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTraceExporter> {
   const insecure = config.tls_config.tls_strategy === 'none';
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const grpc = require('@grpc/grpc-js') as typeof import('@grpc/grpc-js');
+  const metadata = new grpc.Metadata();
+  metadata.set('authorization', `Bearer ${config.token}`);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opts: Record<string, any> = {
     url: `${insecure ? 'http' : 'https'}://${config.host_port}`,
-    metadata: { authorization: `Bearer ${config.token}` },
+    metadata,
   };
 
   if (!insecure && config.tls_config.ca_file) {
