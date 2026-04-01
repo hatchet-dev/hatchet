@@ -1,6 +1,4 @@
-import hashlib
 import json
-import uuid as _uuid
 from collections.abc import Callable, Collection, Coroutine, Sequence
 from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
@@ -27,16 +25,12 @@ try:
         SpanExportResult,
     )
     from opentelemetry.trace import (
-        NonRecordingSpan,
         NoOpTracerProvider,
-        SpanContext,
         SpanKind,
         StatusCode,
-        TraceFlags,
         TracerProvider,
         get_tracer,
         get_tracer_provider,
-        set_span_in_context,
         set_tracer_provider,
     )
     from opentelemetry.trace.propagation.tracecontext import (
@@ -136,8 +130,10 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         attrs = ctx_hatchet_span_attributes.get()
         if attrs and span.is_recording():
+            existing = getattr(span, "attributes", None) or {}
             for key, value in attrs.items():
-                span.set_attribute(key, value)
+                if key not in existing:
+                    span.set_attribute(key, value)
         super().on_start(span, parent_context)
 
 
@@ -211,61 +207,6 @@ def _parse_carrier_from_metadata(
         return None
 
     return TraceContextTextMapPropagator().extract({OTEL_TRACEPARENT_KEY: traceparent})
-
-
-def _derive_workflow_run_span_id(workflow_run_id: str) -> int:
-    """Produces the same deterministic span_id that the engine uses for its
-    workflow_run root span: SHA-256("hatchet-engine-wf-span:" + uuid_bytes)[:8]."""
-    wf_uuid = _uuid.UUID(workflow_run_id)
-    h = hashlib.sha256()
-    h.update(b"hatchet-engine-wf-span:")
-    h.update(wf_uuid.bytes)
-    return int.from_bytes(h.digest()[:8], "big")
-
-
-def _derive_engine_parent_context(
-    metadata: JSONSerializableMapping | None,
-    workflow_run_id: str,
-) -> Context | None:
-    """Build a remote parent Context pointing at the engine's workflow_run root span.
-
-    Extracts the trace_id from the traceparent in metadata and combines it with
-    a deterministic span_id derived from the workflow run UUID, so that SDK
-    step_run spans parent under the engine's workflow_run span."""
-    if not metadata:
-        return None
-
-    tp = metadata.get(OTEL_TRACEPARENT_KEY)
-    if not tp:
-        return None
-
-    parts = tp.split("-")
-    if len(parts) != 4 or len(parts[1]) != 32:
-        return None
-
-    try:
-        trace_id = int(parts[1], 16)
-    except ValueError:
-        return None
-
-    if trace_id == 0:
-        return None
-
-    try:
-        span_id = _derive_workflow_run_span_id(workflow_run_id)
-    except (ValueError, AttributeError):
-        return None
-
-    if span_id == 0:
-        return None
-
-    sc = SpanContext(
-        trace_id=trace_id,
-        span_id=span_id,
-        is_remote=True,
-        trace_flags=TraceFlags(TraceFlags.SAMPLED),
-    )
-    return set_span_in_context(NonRecordingSpan(sc))
 
 
 def inject_traceparent_into_metadata(
@@ -540,9 +481,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         action = cast(Action, params[0])
 
-        traceparent = _derive_engine_parent_context(
-            action.additional_metadata, action.workflow_run_id
-        )
+        traceparent = _parse_carrier_from_metadata(action.additional_metadata)
         span_name = "hatchet.start_step_run"
 
         if self.config.otel.include_task_name_in_start_step_run_span_name:

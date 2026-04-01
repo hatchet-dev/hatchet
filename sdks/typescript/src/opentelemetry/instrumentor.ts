@@ -8,8 +8,6 @@
  * patching module prototypes to automatically instrument all instances.
  */
 
-import { createHash } from 'crypto';
-
 import type { Context as OtelContext, Span, Attributes } from '@opentelemetry/api';
 
 import type { InstrumentationConfig } from '@opentelemetry/instrumentation';
@@ -105,50 +103,6 @@ function injectSourceInfo(carrier: Carrier): void {
     carrier['hatchet__source_workflow_run_id'] = wfRunId;
     carrier['hatchet__source_step_run_id'] = stepRunId;
   }
-}
-
-/**
- * Produces the same deterministic span_id that the engine uses for its
- * workflow_run root span: SHA-256("hatchet-engine-wf-span:" + uuid_bytes)[:8].
- * Returns the 16-char hex string, or null on invalid input.
- */
-function deriveWorkflowRunSpanId(workflowRunId: string): string | null {
-  const hex = workflowRunId.replace(/-/g, '');
-  if (hex.length !== 32) return null;
-  const uuidBytes = Buffer.from(hex, 'hex');
-
-  const h = createHash('sha256');
-  h.update(Buffer.from('hatchet-engine-wf-span:'));
-  h.update(uuidBytes);
-  return h.digest().subarray(0, 8).toString('hex');
-}
-
-/**
- * Builds an OTel parent context pointing at the engine's workflow_run root span.
- * Extracts trace_id from the traceparent in metadata and combines it with the
- * deterministic engine span_id derived from the workflow run UUID.
- */
-function deriveEngineParentContext(
-  metadata: Carrier | undefined | null,
-  workflowRunId: string
-): OtelContext | null {
-  const tp = metadata?.traceparent;
-  if (!tp) return null;
-
-  const parts = tp.split('-');
-  if (parts.length !== 4 || parts[1].length !== 32) return null;
-
-  const [, traceId] = parts;
-  const spanId = deriveWorkflowRunSpanId(workflowRunId);
-  if (!spanId) return null;
-
-  const spanContext = {
-    traceId,
-    spanId,
-    traceFlags: otelApi.TraceFlags.SAMPLED,
-    isRemote: true,
-  };
-  return otelApi.trace.setSpanContext(context.active(), spanContext);
 }
 
 function getActionOtelAttributes(
@@ -682,9 +636,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           const additionalMetadata = action.additionalMetadata
             ? parseJSON(action.additionalMetadata)
             : undefined;
-          const parentContext =
-            deriveEngineParentContext(additionalMetadata, action.workflowRunId) ??
-            extractContext(additionalMetadata);
+          const parentContext = extractContext(additionalMetadata);
           const attributes = getActionOtelAttributes(
             action,
             getConfig().excludedAttributes,

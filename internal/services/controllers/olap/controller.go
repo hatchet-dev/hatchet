@@ -703,6 +703,13 @@ func (tc *OLAPControllerImpl) emitEventSpans(ctx context.Context, tenantId uuid.
 				continue
 			}
 
+			// When the SDK injected a traceparent, also create a bridge
+			// event span in the triggered workflow's trace so the
+			// workflow_run root span can parent to it.
+			if traceIDFromTraceparent(p.EventAdditionalMetadata) != nil {
+				spans = append(spans, buildEventSpan(tenantId, p.EventExternalId, p.EventKey, p.EventSeenAt, runExtID, p.EventAdditionalMetadata))
+			}
+
 			sk := sourceKey{srcWfID, p.EventExternalId}
 			acc, exists := emittedBySource[sk]
 			if !exists {

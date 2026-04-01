@@ -80,6 +80,14 @@ export function getDisplayName(span: OtelSpanTree): string {
   if (ENGINE_SPAN_DISPLAY_NAMES[span.spanName]) {
     return ENGINE_SPAN_DISPLAY_NAMES[span.spanName];
   }
+  if (span.spanName === 'hatchet.push_event') {
+    const key = span.spanAttributes?.['hatchet.event_key'];
+    return key ? `push event: ${key}` : 'push event';
+  }
+  if (span.spanName === 'hatchet.run_workflow') {
+    const name = span.spanAttributes?.['hatchet.workflow_name'];
+    return name ? `run: ${name}` : 'run workflow';
+  }
   if (!span.spanName.startsWith('hatchet.')) {
     return span.spanName;
   }

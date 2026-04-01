@@ -175,11 +175,21 @@ func parseParentInfo(additionalMetadata []byte) *parentInfo {
 		return info
 	}
 
+	// Externally-pushed event: no source workflow, but the engine stamped
+	// hatchet__event_id on the triggered run's metadata.
+	if evtStr, ok := meta["hatchet__event_id"].(string); ok && evtStr != "" {
+		evtID, err := uuid.Parse(evtStr)
+		if err != nil {
+			return nil
+		}
+		return &parentInfo{isEvent: true, eventID: evtID}
+	}
+
 	return nil
 }
 
 func resolveTraceIDFromParent(pi *parentInfo, workflowRunExternalID uuid.UUID) []byte {
-	if pi != nil {
+	if pi != nil && pi.wfRunID != uuid.Nil {
 		return v1.DeriveWorkflowRunTraceID(pi.wfRunID)
 	}
 	return v1.DeriveWorkflowRunTraceID(workflowRunExternalID)
@@ -268,9 +278,25 @@ func buildWorkflowRunRootSpan(
 	var parentSpanID []byte
 	if pi != nil {
 		if pi.isChild {
-			parentSpanID = deriveStepRunSpanID(pi.stepRunID, 0, "step_run")
+			// When the SDK injected a traceparent, parent under the SDK's
+			// run_workflow producer span so the child nests under the
+			// spawn-child user span. Otherwise fall back to the engine's
+			// deterministic step_run span.
+			if sdkParent := spanIDFromTraceparent(additionalMetadata); sdkParent != nil {
+				parentSpanID = sdkParent
+			} else {
+				parentSpanID = deriveStepRunSpanID(pi.stepRunID, 0, "step_run")
+			}
 		} else if pi.isEvent && pi.eventID != uuid.Nil {
-			parentSpanID = deriveEventSpanID(pi.eventID, pi.wfRunID)
+			// When the SDK injected a traceparent, the bridge event span
+			// uses the triggered run's own ID (buildEventSpan path).
+			// Without a traceparent, match the event_emitted span which
+			// uses the source run's ID.
+			evtWfRunID := pi.wfRunID
+			if evtWfRunID == uuid.Nil || traceIDFromTraceparent(additionalMetadata) != nil {
+				evtWfRunID = workflowRunExternalID
+			}
+			parentSpanID = deriveEventSpanID(pi.eventID, evtWfRunID)
 		}
 	}
 
