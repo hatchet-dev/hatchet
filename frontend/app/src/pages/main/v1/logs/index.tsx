@@ -25,7 +25,7 @@ import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
-  const isWorkflowFilterEnabled = useIsFeatureEnabled(
+  const { isEnabled: isWorkflowFilterEnabled } = useIsFeatureEnabled(
     FeatureFlagId.TenantLogWorkflowFilterEnabled,
     true,
   );

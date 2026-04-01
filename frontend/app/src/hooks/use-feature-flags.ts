@@ -5,13 +5,21 @@ import { useQuery } from '@tanstack/react-query';
 
 export { FeatureFlagId };
 
+type UseIsFeatureEnabledResult = {
+  isEnabled: boolean;
+  isLoading: false;
+} | {
+  isEnabled: undefined;
+  isLoading: true;
+};
+
 export const useIsFeatureEnabled = (
   flagName: FeatureFlagId,
   // controls default behavior if PostHog is not initialized. if `true`, then the feature will be enabled
   // this is useful for features that are being rolled out incrementally on Cloud, but should be enabled by default
   // on the OSS regardless of whether or not PostHog is set up or if we've removed the flag
   isEnabledIfNoPosthog: boolean,
-): boolean => {
+): UseIsFeatureEnabledResult => {
   const { tenantId } = useAppContext();
 
   const { data, isLoading, isFetching } = useQuery({
@@ -34,8 +42,14 @@ export const useIsFeatureEnabled = (
     // fixme: not sure if this is the right behavior here
     // should we default to `isEnabledIfNoPosthog` while loading, or should we
     // default to `false` until we know for sure?
-    return false
+    return {
+      isEnabled: undefined,
+      isLoading: true,
+    }
   }
 
-  return data?.isEnabled ?? isEnabledIfNoPosthog;
+  return {
+    isEnabled: data?.isEnabled ?? isEnabledIfNoPosthog,
+    isLoading: isLoading || isFetching,
+  }
 };
