@@ -48,6 +48,7 @@ type ReadableSpan = import('@opentelemetry/sdk-trace-base').ReadableSpan;
 type SdkSpan = import('@opentelemetry/sdk-trace-base').Span;
 type SpanExporter = import('@opentelemetry/sdk-trace-base').SpanExporter;
 type ExportResult = import('@opentelemetry/core').ExportResult;
+type Attributes = import('@opentelemetry/api').Attributes;
 
 const GRPC_STATUS_UNIMPLEMENTED = 12;
 const RETRY_AFTER_MS = 5 * 60 * 1000;
@@ -116,7 +117,16 @@ class HatchetAttributeSpanProcessor extends BatchSpanProcessor {
   onStart(span: SdkSpan): void {
     const attrs = hatchetSpanAttributes.getStore();
     if (attrs) {
-      span.setAttributes(attrs);
+      const existing = (span as unknown as ReadableSpan).attributes ?? {};
+      const filtered: Attributes = {};
+      for (const [key, value] of Object.entries(attrs)) {
+        if (!(key in existing)) {
+          filtered[key] = value;
+        }
+      }
+      if (Object.keys(filtered).length > 0) {
+        span.setAttributes(filtered);
+      }
     }
     super.onStart(span, undefined as never);
   }
@@ -129,10 +139,15 @@ class HatchetAttributeSpanProcessor extends BatchSpanProcessor {
 function createHatchetExporter(config: ClientConfig): InstanceType<typeof OTLPTraceExporter> {
   const insecure = config.tls_config.tls_strategy === 'none';
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const grpc = require('@grpc/grpc-js') as typeof import('@grpc/grpc-js');
+  const metadata = new grpc.Metadata();
+  metadata.set('authorization', `Bearer ${config.token}`);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opts: Record<string, any> = {
     url: `${insecure ? 'http' : 'https'}://${config.host_port}`,
-    metadata: { authorization: `Bearer ${config.token}` },
+    metadata,
   };
 
   if (!insecure && config.tls_config.ca_file) {

@@ -37,6 +37,8 @@ import {
   EventOrderByField,
   EventSearch,
   Events,
+  FeatureFlagEvaluationResult,
+  FeatureFlagId,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
   ListSNSIntegrations,
@@ -319,6 +321,10 @@ export class Api<
       attempt?: number;
       /** The task external ID(s) to filter by */
       taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -358,6 +364,10 @@ export class Api<
       levels?: V1LogLineLevel[];
       /** The task external ID(s) to filter by */
       taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -3542,6 +3552,33 @@ export class Api<
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Evaluate a feature flag for a tenant
+   *
+   * @tags Feature Flags
+   * @name TenantFeatureFlagEvaluate
+   * @summary Evaluate a feature flag for a tenant
+   * @request GET:/api/v1/tenants/{tenant}/feature-flags
+   * @secure
+   */
+  tenantFeatureFlagEvaluate = (
+    tenant: string,
+    query: {
+      /** The feature flag id to evaluate */
+      featureFlagId: FeatureFlagId;
+      /** A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable */
+      isEnabledIfNoPosthog: boolean;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<FeatureFlagEvaluationResult, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/feature-flags`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

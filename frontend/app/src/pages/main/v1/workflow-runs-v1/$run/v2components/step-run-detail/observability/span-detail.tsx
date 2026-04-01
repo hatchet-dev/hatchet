@@ -4,11 +4,22 @@ import { isQueuedOnly, statusLabel } from './utils/span-tree-utils';
 import { useLiveClock } from './utils/use-live-clock';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import { Card } from '@/components/v1/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/v1/ui/table';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
-import { Filter, Minus, PanelRight, Plus, X } from 'lucide-react';
+import { Download, Filter, Minus, PanelRight, Plus, X } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 function FilterWithBadgeIcon({
@@ -31,14 +42,14 @@ function FilterWithBadgeIcon({
   );
 }
 
-function statusDotColor(code: string): string {
+function statusBadgeVariant(code: string): 'successful' | 'failed' | 'queued' {
   if (code === OtelStatusCode.ERROR) {
-    return 'bg-red-500';
+    return 'failed';
   }
   if (code === OtelStatusCode.OK) {
-    return 'bg-green-500';
+    return 'successful';
   }
-  return 'bg-slate-500';
+  return 'queued';
 }
 
 interface ChildError {
@@ -73,6 +84,17 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
 }
 
 const HATCHET_ATTR_PREFIX = 'hatchet.';
+const LARGE_VALUE_THRESHOLD = 500;
+
+function downloadAttrValue(key: string, value: string) {
+  const blob = new Blob([value], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${key.replace(/[^a-zA-Z0-9._-]/g, '_')}.txt`;
+  a.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function partitionAttributes(attrs: Record<string, string> | undefined) {
   const hatchet: [string, string][] = [];
@@ -132,57 +154,84 @@ function AttrTable({
       <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         {title}
       </h4>
-      <div className="overflow-hidden rounded-md border border-border">
-        <table className="w-full text-xs">
-          <tbody>
+      <div className="overflow-hidden rounded-md border border-border bg-background">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Key</TableHead>
+              <TableHead>Value</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {entries.map(([key, value]) => {
               const active = isFilterActive(activeFilters, key, value);
               return (
-                <tr
-                  key={key}
-                  className="group border-b border-border last:border-b-0 transition-colors hover:bg-muted/50"
-                >
-                  <td className="whitespace-nowrap px-3 py-1.5 font-mono text-muted-foreground">
+                <TableRow key={key} className="group">
+                  <TableCell className="whitespace-nowrap font-mono text-muted-foreground">
                     {key}
-                  </td>
-                  <td className="break-all px-3 py-1.5 font-mono text-foreground">
+                  </TableCell>
+                  <TableCell className="break-all font-mono">
                     <span className="flex items-center justify-between gap-2">
-                      <span>{value}</span>
-                      {(onAddFilter || onRemoveFilter) && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className={cn(
-                            'size-6 shrink-0 transition-opacity',
-                            active
-                              ? 'opacity-100'
-                              : 'opacity-0 group-hover:opacity-100',
-                          )}
-                          hoverText={
-                            active
-                              ? `Remove filter ${key}:${value}`
-                              : `Filter by ${key}:${value}`
-                          }
-                          onClick={() =>
-                            active
-                              ? onRemoveFilter?.(key, value)
-                              : onAddFilter?.(key, value)
-                          }
-                        >
-                          {active ? (
-                            <FilterWithBadgeIcon variant="minus" />
-                          ) : (
-                            <FilterWithBadgeIcon variant="plus" />
-                          )}
-                        </Button>
+                      {value.length > LARGE_VALUE_THRESHOLD ? (
+                        <span className="min-w-0">
+                          <span className="text-muted-foreground">
+                            {value.slice(0, LARGE_VALUE_THRESHOLD)}…
+                          </span>
+                          <span className="ml-1 text-xs text-muted-foreground/60">
+                            ({(value.length / 1024).toFixed(1)} KB)
+                          </span>
+                        </span>
+                      ) : (
+                        <span>{value}</span>
                       )}
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        {value.length > LARGE_VALUE_THRESHOLD && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-6 shrink-0"
+                            hoverText={`Download ${key}`}
+                            onClick={() => downloadAttrValue(key, value)}
+                          >
+                            <Download className="size-3" />
+                          </Button>
+                        )}
+                        {(onAddFilter || onRemoveFilter) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={cn(
+                              'size-6 shrink-0 transition-opacity',
+                              active
+                                ? 'opacity-100'
+                                : 'opacity-0 group-hover:opacity-100',
+                            )}
+                            hoverText={
+                              active
+                                ? `Remove filter ${key}:${value}`
+                                : `Filter by ${key}:${value}`
+                            }
+                            onClick={() =>
+                              active
+                                ? onRemoveFilter?.(key, value)
+                                : onAddFilter?.(key, value)
+                            }
+                          >
+                            {active ? (
+                              <FilterWithBadgeIcon variant="minus" />
+                            ) : (
+                              <FilterWithBadgeIcon variant="plus" />
+                            )}
+                          </Button>
+                        )}
+                      </span>
                     </span>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -221,12 +270,12 @@ export function SpanDetail({
   }
 
   const status = queuedOnlySpan
-    ? { label: 'Queued', dot: 'bg-yellow-500' }
+    ? { label: 'Queued', variant: 'queued' as const }
     : span.inProgress
-      ? { label: 'In Progress', dot: 'bg-blue-500' }
+      ? { label: 'In Progress', variant: 'inProgress' as const }
       : {
           label: statusLabel(span.statusCode),
-          dot: statusDotColor(span.statusCode),
+          variant: statusBadgeVariant(span.statusCode),
         };
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
   const taskRunId = span.spanAttributes?.['hatchet.step_run_id'];
@@ -256,131 +305,133 @@ export function SpanDetail({
   }, [span]);
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="truncate font-mono text-sm font-semibold text-foreground">
-            {span.spanName}
-          </h3>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {span.spanId}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {taskRunId && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleOpenTaskRun}
-              leftIcon={<PanelRight className="size-4" />}
-            >
-              View Task Run
-            </Button>
-          )}
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-8 shrink-0 text-muted-foreground"
-            onClick={onClose}
-            hoverText="Close"
-            aria-label="Close panel"
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
-        {q && (
-          <div>
-            <span className="text-xs text-muted-foreground">Queue Time</span>
-            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-              {formatDuration(queueNs, { unit: 'ns', precise: true })}
+    <Card className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 space-y-4 border-b border-border p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="truncate font-mono text-sm font-semibold text-foreground">
+              {span.spanName}
+            </h3>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {span.spanId}
             </p>
           </div>
-        )}
-        <div>
-          <span className="text-xs text-muted-foreground">Duration</span>
-          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {queuedOnlySpan
-              ? '–'
-              : formatDuration(durationNs, { unit: 'ns', precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Status</span>
-          <div className="mt-0.5 flex items-center gap-1.5">
-            <span className={cn('size-2 shrink-0 rounded-full', status.dot)} />
-            <span className="font-mono text-sm text-foreground">
-              {status.label}
-            </span>
+          <div className="flex shrink-0 items-center gap-1">
+            {taskRunId && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleOpenTaskRun}
+                leftIcon={<PanelRight className="size-4" />}
+              >
+                View Task Run
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8 shrink-0 text-muted-foreground"
+              onClick={onClose}
+              hoverText="Close"
+              aria-label="Close panel"
+            >
+              <X className="size-4" />
+            </Button>
           </div>
         </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Started</span>
-          <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatTimestamp(span.createdAt)}
-          </p>
+
+        <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
+          {q && (
+            <div>
+              <span className="text-xs text-muted-foreground">Queue Time</span>
+              <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+                {formatDuration(queueNs, { unit: 'ns', precise: true })}
+              </p>
+            </div>
+          )}
+          <div>
+            <span className="text-xs text-muted-foreground">Duration</span>
+            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+              {queuedOnlySpan
+                ? '–'
+                : formatDuration(durationNs, { unit: 'ns', precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Status</span>
+            <div className="mt-0.5">
+              <Badge variant={status.variant}>{status.label}</Badge>
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Started</span>
+            <p className="mt-0.5 font-mono text-sm text-foreground">
+              {formatTimestamp(span.createdAt)}
+            </p>
+          </div>
         </div>
       </div>
 
-      {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
-          <span className="text-xs font-medium text-red-400">
-            Error Message
-          </span>
-          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-300">
-            {span.statusMessage}
-          </pre>
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="flex flex-col gap-4">
+          {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
+            <Alert variant="destructive">
+              <AlertTitle>Error Message</AlertTitle>
+              <AlertDescription>
+                <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                  {span.statusMessage}
+                </pre>
+              </AlertDescription>
+            </Alert>
+          )}
 
-      {childErrors.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-red-400">
-            {childErrors.length === 1
-              ? '1 Error'
-              : `${childErrors.length} Errors`}{' '}
-            in child spans
-          </h4>
-          {childErrors.map((err, i) => (
-            <button
-              key={i}
-              type="button"
-              className="w-full rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-left transition-colors hover:border-red-500/50 hover:bg-red-500/15"
-              onClick={() => onSpanSelect?.(err.span)}
-            >
-              <span className="text-xs font-medium text-red-400">
-                {err.spanName}
-              </span>
-              <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-300">
-                {err.message}
-              </pre>
-            </button>
-          ))}
-        </div>
-      )}
+          {childErrors.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {childErrors.map((err, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() => onSpanSelect?.(err.span)}
+                >
+                  <Alert
+                    variant="destructive"
+                    className="transition-colors hover:bg-destructive/10"
+                  >
+                    <AlertTitle>{err.spanName}</AlertTitle>
+                    <AlertDescription>
+                      <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                        {err.message}
+                      </pre>
+                    </AlertDescription>
+                  </Alert>
+                </button>
+              ))}
+            </div>
+          )}
 
-      {(user.length > 0 || hatchet.length > 0) && (
-        <div className="flex flex-col gap-3">
-          <AttrTable
-            entries={user}
-            title="Attributes"
-            activeFilters={activeFilters}
-            onAddFilter={onAddFilter}
-            onRemoveFilter={onRemoveFilter}
-          />
-          <AttrTable
-            entries={hatchet}
-            title="Hatchet Attributes"
-            activeFilters={activeFilters}
-            onAddFilter={onAddFilter}
-            onRemoveFilter={onRemoveFilter}
-          />
+          {(user.length > 0 || hatchet.length > 0) && (
+            <div className="flex flex-col gap-3">
+              <AttrTable
+                entries={user}
+                title="Attributes"
+                activeFilters={activeFilters}
+                onAddFilter={onAddFilter}
+                onRemoveFilter={onRemoveFilter}
+              />
+              <AttrTable
+                entries={hatchet}
+                title="Hatchet Attributes"
+                activeFilters={activeFilters}
+                onAddFilter={onAddFilter}
+                onRemoveFilter={onRemoveFilter}
+              />
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </Card>
   );
 }
 
@@ -398,61 +449,63 @@ export function GroupDetail({
   const maxMs = Math.max(...durations);
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="truncate font-mono text-sm font-semibold text-foreground">
-            {group.groupName}
-          </h3>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {group.totalCount.toLocaleString()} spans
-            {group.errorCount > 0 && (
-              <span className="text-red-500">
-                {' '}
-                · {group.errorCount.toLocaleString()} errors
-              </span>
-            )}
-          </p>
+    <Card className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 space-y-4 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="truncate font-mono text-sm font-semibold text-foreground">
+              {group.groupName}
+            </h3>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {group.totalCount.toLocaleString()} spans
+              {group.errorCount > 0 && (
+                <span className="text-red-500">
+                  {' '}
+                  · {group.errorCount.toLocaleString()} errors
+                </span>
+              )}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="size-8 shrink-0 text-muted-foreground"
+            onClick={onClose}
+            hoverText="Close"
+            aria-label="Close panel"
+          >
+            <X className="size-4" />
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-8 shrink-0 text-muted-foreground"
-          onClick={onClose}
-          hoverText="Close"
-          aria-label="Close panel"
-        >
-          <X className="size-4" />
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div>
-          <span className="text-xs text-muted-foreground">Time Range</span>
-          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {formatDuration(timeRangeMs, { precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Avg Duration</span>
-          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-            {formatDuration(avgMs, { precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Min Duration</span>
-          <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatDuration(minMs, { precise: true })}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-muted-foreground">Max Duration</span>
-          <p className="mt-0.5 font-mono text-sm text-foreground">
-            {formatDuration(maxMs, { precise: true })}
-          </p>
+        <div className="grid grid-cols-4 gap-4">
+          <div>
+            <span className="text-xs text-muted-foreground">Time Range</span>
+            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+              {formatDuration(timeRangeMs, { precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Avg Duration</span>
+            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+              {formatDuration(avgMs, { precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Min Duration</span>
+            <p className="mt-0.5 font-mono text-sm text-foreground">
+              {formatDuration(minMs, { precise: true })}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Max Duration</span>
+            <p className="mt-0.5 font-mono text-sm text-foreground">
+              {formatDuration(maxMs, { precise: true })}
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

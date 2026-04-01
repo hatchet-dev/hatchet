@@ -119,6 +119,7 @@ function AuthenticatedInner() {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
+      queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
   });
