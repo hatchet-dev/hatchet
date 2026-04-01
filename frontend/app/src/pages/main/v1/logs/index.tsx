@@ -19,14 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useIsFeatureEnabled } from '@/hooks/use-feature-flags';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
   const isWorkflowFilterEnabled = useIsFeatureEnabled(
-    'tenant-log-workflow-filter-enabled',
+    FeatureFlagId.TenantLogWorkflowFilterEnabled,
     true,
   );
 
