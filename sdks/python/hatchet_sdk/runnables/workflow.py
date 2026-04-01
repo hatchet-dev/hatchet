@@ -649,6 +649,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param provider: The Agent provider you are using the tool with
         :param kwargs: Additional arguments that will be passed to the underlying MCP Tool object constructor.
 
+        :returns: The MCP tool configuration object.
+
+        :raises ValueError: if runnable does not have a description.
+        :raises NotImplementedError: If provider does not exist.
         ```python
 
         wf = hatchet.workflow()
