@@ -87,6 +87,7 @@ class UserEventCondition(Condition):
         expression: str | None = None,
         readable_data_key: str | None = None,
         scope: str | None = None,
+        consider_events_since: datetime | None = None,
     ) -> None:
         super().__init__(
             BaseCondition(
@@ -98,12 +99,14 @@ class UserEventCondition(Condition):
         self.event_key = event_key
         self.expression = expression
         self.scope = scope
+        self.consider_events_since = consider_events_since
 
     def to_proto(self, config: ClientConfig) -> UserEventMatchCondition:
         return UserEventMatchCondition(
             base=self.base.to_proto(),
             user_event_key=config.apply_namespace(self.event_key),
             event_scope=self.scope,
+            consider_events_since=self.consider_events_since,
         )
 
 

@@ -687,6 +687,7 @@ class DurableContext(Context):
         *,
         payload_validator: type[Any] | None = None,
         scope: str | None = None,
+        lookback_window: timedelta | None = None,
     ) -> Any:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
@@ -701,10 +702,18 @@ class DurableContext(Context):
         """
 
         wait_index = self._increment_wait_index()
+        consider_events_since = (
+            (await self.aio_now()) - lookback_window if lookback_window else None
+        )
 
         result = await self.aio_wait_for(
             f"event:{key}-{wait_index}",
-            UserEventCondition(event_key=key, expression=expression, scope=scope),
+            UserEventCondition(
+                event_key=key,
+                expression=expression,
+                scope=scope,
+                consider_events_since=consider_events_since,
+            ),
         )
 
         ## lots of implicit use of engine semantics / internal logic here.
