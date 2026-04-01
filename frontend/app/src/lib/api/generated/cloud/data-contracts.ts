@@ -957,7 +957,6 @@ export interface AuditLog {
 
 export interface AuditLogList {
   rows: AuditLog[];
-  pagination: PaginationResponse;
 }
 
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;

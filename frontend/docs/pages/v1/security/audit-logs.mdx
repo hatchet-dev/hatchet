@@ -6,35 +6,52 @@ Hatchet records audit logs for key actions performed across your organization, g
 
 <Callout type="info">
   Audit logs are available on **Business** plans and above. If you're on the
-  open-source edition and need audit logging, [contact
-  us](https://hatchet.run/contact) to learn more about upgrading.
+  open-source edition and need audit logs, [contact
+  us](mailto:support@hatchet.run) to learn more about upgrading.
 </Callout>
 
 ## What gets logged
 
 Every audit log entry captures the following:
 
-| Field              | Description                                                                      |
-| ------------------ | -------------------------------------------------------------------------------- |
-| **Actor**          | The user or API key that performed the action                                    |
-| **Action**         | The operation performed (e.g. `create`, `update`, `delete`)                      |
-| **Resource type**  | The type of resource acted upon (e.g. `workflow`, `worker`, `tenant`, `api_key`) |
-| **Resource ID**    | The specific resource that was affected                                          |
-| **IP address**     | The IP address of the actor                                                      |
-| **User agent**     | The user agent string of the request                                             |
-| **Timestamp**      | When the action occurred                                                         |
-| **Correlation ID** | An optional ID for grouping related actions together                             |
+| Field              | Description                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| **Actor**          | The user or API key that performed the action                         |
+| **Action**         | The operation performed (e.g. `ApiTokenCreate`, `TenantMemberDelete`) |
+| **Resource type**  | The type of resource acted upon (e.g. `workflow-run`, `api-token`)    |
+| **Resource ID**    | The specific resource that was affected                               |
+| **IP address**     | The IP address of the actor (HTTP requests only)                      |
+| **User agent**     | The user agent string of the request (HTTP requests only)             |
+| **Timestamp**      | When the action occurred                                              |
+| **Correlation ID** | An optional ID for grouping related actions together (gRPC requests)  |
+
+## Audited actions
+
+The following actions are currently recorded as audit log entries:
+
+| Action                       | Resource Type        | Description                             |
+| ---------------------------- | -------------------- | --------------------------------------- |
+| `TenantInviteAccept`         | `tenant-invite`      | A user accepts a tenant invitation      |
+| `TenantMemberDelete`         | `tenant-member`      | A tenant member is removed              |
+| `ApiTokenCreate`             | `api-token`          | A new API token is created              |
+| `ApiTokenUpdateRevoke`       | `api-token`          | An API token is revoked                 |
+| `V1WorkflowRunCreate`        | `workflow-run`       | A workflow run is triggered via the API |
+| `ScheduledWorkflowRunCreate` | `scheduled-workflow` | A scheduled workflow run is created     |
 
 ## Actor types
 
 Audit log entries distinguish between two types of actors:
 
-- **User** — actions performed by a logged-in user through the dashboard or API
-- **API key** — actions performed programmatically via an API key
+- **User** — actions performed by a logged-in user through the dashboard or API. These entries include the actor's IP address and user agent.
+- **API key** — actions performed programmatically via an API key (e.g. triggering workflow runs over gRPC). These entries may include a correlation ID for grouping related actions.
+
+## Retention
+
+Audit log entries are retained for **30 days**. Entries older than 30 days are automatically removed.
 
 ## Viewing audit logs
 
-Organization admins can view audit logs in the Hatchet dashboard under the organization settings. Logs can be filtered by tenant and paginated for easier navigation.
+Organization admins can view audit logs in the Hatchet dashboard under the organization settings. Logs can be filtered by tenant and time range.
 
 ## API access
 
@@ -46,6 +63,12 @@ GET /api/v1/management/organizations/{organization}/audit-logs
 
 Query parameters:
 
-- `tenant` — filter logs to a specific tenant
-- `page` — page number (1-indexed)
-- `pageSize` — results per page (1–1000)
+| Parameter | Type     | Default                                | Description                         |
+| --------- | -------- | -------------------------------------- | ----------------------------------- |
+| `tenant`  | UUID     | all active tenants in the organization | Filter logs to a specific tenant    |
+| `limit`   | integer  | `1000`                                 | Maximum number of results to return |
+| `offset`  | integer  | `0`                                    | Number of results to skip           |
+| `since`   | ISO 8601 | 24 hours ago                           | Start of the time range             |
+| `until`   | ISO 8601 | now                                    | End of the time range               |
+
+Results are ordered by timestamp descending (most recent first).

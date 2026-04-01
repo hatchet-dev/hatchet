@@ -1326,18 +1326,30 @@ export class Api<
        */
       tenant?: string;
       /**
-       * The page number of the audit logs (1-indexed)
-       * @format int32
-       * @min 1
-       */
-      page?: number;
-      /**
-       * The number of audit logs per page
+       * The maximum number of audit logs to return
        * @format int32
        * @min 1
        * @max 1000
+       * @default 1000
        */
-      pageSize?: number;
+      limit?: number;
+      /**
+       * The number of audit logs to skip
+       * @format int32
+       * @min 0
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The start of the time range to filter audit logs (defaults to 24 hours ago)
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end of the time range to filter audit logs (defaults to now)
+       * @format date-time
+       */
+      until?: string;
     },
     params: RequestParams = {},
   ) =>

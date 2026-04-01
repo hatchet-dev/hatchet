@@ -319,11 +319,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AuditLog'
-        pagination:
-          $ref: '#/components/schemas/PaginationResponse'
       required:
         - rows
-        - pagination
 paths:
   '/api/v1/management/organizations/{organization}':
     get:
@@ -764,23 +761,39 @@ paths:
             format: uuid
             minLength: 36
             maxLength: 36
-        - description: The page number (1-indexed)
+        - description: The maximum number of audit logs to return
           in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            format: int32
-            minimum: 1
-        - description: The number of results per page
-          in: query
-          name: pageSize
+          name: limit
           required: false
           schema:
             type: integer
             format: int32
             minimum: 1
             maximum: 1000
+            default: 1000
+        - description: The number of audit logs to skip
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+        - description: The start of the time range to filter audit logs (defaults to 24 hours ago)
+          in: query
+          name: since
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - description: The end of the time range to filter audit logs (defaults to now)
+          in: query
+          name: until
+          required: false
+          schema:
+            type: string
+            format: date-time
       responses:
         '200':
           content:
