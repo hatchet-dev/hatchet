@@ -1202,100 +1202,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
-		lookbackOptTx, err := r.PrepareOptimisticTx(ctx)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to prepare tx for retroactive matching: %w", err)
-		}
-
-		defer optTx.Rollback()
-
-		lookbackTx := lookbackOptTx.tx
-
-		lookbackParams := sqlcv1.GetPreviousMatchingEventsByKeysWithScopeHintParams{
-			Tenantid: opts.TenantId,
-		}
-
-		for _, c := range opts.WaitFor.WaitForConditions {
-			if c.UserEventScope != nil && c.UserEventConsiderEventsSince != nil && c.UserEventKey != nil {
-				lookbackParams.Keys = append(lookbackParams.Keys, *c.UserEventKey)
-				lookbackParams.Seensinces = append(lookbackParams.Seensinces, sqlchelpers.TimestamptzFromTime(*c.UserEventConsiderEventsSince))
-				lookbackParams.Scopes = append(lookbackParams.Scopes, *c.UserEventScope)
-			}
-		}
-
-		previousEventsFound, err := r.queries.GetPreviousMatchingEventsByKeysWithScopeHint(ctx, lookbackTx, lookbackParams)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to look up recent user events for retroactive matching: %w", err)
-		}
-
-		retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
-
-		for _, row := range previousEventsFound {
-			retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
-				Id:         row.ID,
-				InsertedAt: row.SeenAt,
-				Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-				TenantId:   tenantId,
-			})
-		}
-
-		retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrievePayloadOpts...)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
-		}
-
-		retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
-
-		for _, row := range previousEventsFound {
-			retrieveOpts := RetrievePayloadOpts{
-				Id:         row.ID,
-				InsertedAt: row.SeenAt,
-				Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-				TenantId:   tenantId,
-			}
-
-			payload, ok := retrieveOptsToPayload[retrieveOpts]
-
-			if !ok {
-				r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
-				payload = nil
-			}
-
-			retroCandidates = append(retroCandidates, CandidateEventMatch{
-				ID:             row.ExternalID,
-				EventTimestamp: row.SeenAt.Time,
-				Key:            row.Key,
-				Data:           payload,
-			})
-		}
-
-		if len(retroCandidates) > 0 {
-			retroMatchResults, err := r.processEventMatches(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER)
-
-			if err != nil {
-				return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
-			}
-
-			le := logEntries[0]
-
-			if retroMatchResults != nil {
-				for _, entry := range retroMatchResults.SatisfiedDurableEventLogEntries {
-					if entry.NodeId == le.Entry.NodeID && entry.BranchId == le.Entry.BranchID {
-						waitForResult.IsSatisfied = true
-						waitForResult.ResultPayload = entry.Data
-						waitForResult.InvocationCount = entry.InvocationCount
-						break
-					}
-				}
-			}
-		}
-
-		if err := lookbackOptTx.Commit(ctx); err != nil {
-			return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
-		}
+		waitForResult, err = r.handleEventLookback(ctx, tenantId, waitForResult, opts.WaitFor.WaitForConditions)
 	}
 
 	return &IngestDurableTaskEventResult{
@@ -1306,7 +1213,114 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}, nil
 }
 
+func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenantId uuid.UUID, initialWaitForResult *IngestWaitForResult, waitForConditions []CreateExternalSignalConditionOpt) (*IngestWaitForResult, error) {
+	lookbackOptTx, err := r.PrepareOptimisticTx(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare tx for retroactive matching: %w", err)
+	}
+
+	defer lookbackOptTx.Rollback()
+
+	lookbackTx := lookbackOptTx.tx
+
+	lookbackParams := sqlcv1.GetPreviousMatchingEventsByKeysWithScopeHintParams{
+		Tenantid: tenantId,
+	}
+
+	for _, c := range waitForConditions {
+		if c.UserEventScope != nil && c.UserEventConsiderEventsSince != nil && c.UserEventKey != nil {
+			lookbackParams.Keys = append(lookbackParams.Keys, *c.UserEventKey)
+			lookbackParams.Seensinces = append(lookbackParams.Seensinces, sqlchelpers.TimestamptzFromTime(*c.UserEventConsiderEventsSince))
+			lookbackParams.Scopes = append(lookbackParams.Scopes, *c.UserEventScope)
+		}
+	}
+
+	previousEventsFound, err := r.queries.GetPreviousMatchingEventsByKeysWithScopeHint(ctx, lookbackTx, lookbackParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up recent user events for retroactive matching: %w", err)
+	}
+
+	if len(previousEventsFound) == 0 {
+		return initialWaitForResult, nil
+	}
+
+	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
+
+	for _, row := range previousEventsFound {
+		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
+			Id:         row.ID,
+			InsertedAt: row.SeenAt,
+			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+			TenantId:   tenantId,
+		})
+	}
+
+	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrievePayloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
+	}
+
+	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
+
+	for _, row := range previousEventsFound {
+		retrieveOpts := RetrievePayloadOpts{
+			Id:         row.ID,
+			InsertedAt: row.SeenAt,
+			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+			TenantId:   tenantId,
+		}
+
+		payload, ok := retrieveOptsToPayload[retrieveOpts]
+
+		if !ok {
+			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
+			payload = nil
+		}
+
+		retroCandidates = append(retroCandidates, CandidateEventMatch{
+			ID:             row.ExternalID,
+			EventTimestamp: row.SeenAt.Time,
+			Key:            row.Key,
+			Data:           payload,
+		})
+	}
+
+	if len(retroCandidates) > 0 {
+		retroMatchResults, err := r.processEventMatches(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
+		}
+
+		if retroMatchResults != nil {
+			for _, entry := range retroMatchResults.SatisfiedDurableEventLogEntries {
+				return &IngestWaitForResult{
+					IsSatisfied:     true,
+					ResultPayload:   entry.Data,
+					InvocationCount: entry.InvocationCount,
+					NodeId:          initialWaitForResult.NodeId,
+					BranchId:        initialWaitForResult.BranchId,
+					AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+				}, nil
+			}
+		}
+	}
+
+	if err := lookbackOptTx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
+	}
+
+	return initialWaitForResult, nil
+}
+
 func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, branchId, nodeId int64, waitForConditions []CreateExternalSignalConditionOpt, task *sqlcv1.FlattenExternalIdsRow) error {
+	if waitForConditions == nil {
+		return nil
+	}
+
 	if len(waitForConditions) == 0 {
 		return nil
 	}
