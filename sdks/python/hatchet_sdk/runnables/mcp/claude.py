@@ -19,8 +19,6 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
 def task_to_claude_mcp(
     runnable: "Standalone[TWorkflowInput, R]",
     input_schema: dict[str, Any],
-    description: str,
-    annotations: ToolAnnotations | None = None,
     **kwargs: Any,
 ) -> SdkMcpTool[TWorkflowInput]:
     async def handler(input: TWorkflowInput) -> dict[str, Any]:
@@ -36,7 +34,7 @@ def task_to_claude_mcp(
 
     return SdkMcpTool(
         name=runnable.name,
-        description=description,
+        description=runnable.config.description,
         input_schema=input_schema,
         handler=handler,
         **kwargs,
@@ -46,7 +44,6 @@ def task_to_claude_mcp(
 def workflow_to_claude_mcp(
     runnable: "Workflow[TWorkflowInput]",
     input_schema: dict[str, Any],
-    description: str,
     **kwargs: Any,
 ) -> SdkMcpTool[TWorkflowInput]:
     async def handler(input: TWorkflowInput) -> dict[str, Any]:
@@ -55,7 +52,7 @@ def workflow_to_claude_mcp(
 
     return SdkMcpTool(
         name=runnable.name,
-        description=description,
+        description=runnable.config.description,
         input_schema=input_schema,
         handler=handler,
         **kwargs,

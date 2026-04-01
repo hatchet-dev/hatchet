@@ -3,6 +3,7 @@ import httpx
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
+from hatchet_sdk.runnables.workflow import MCPProvider
 
 hatchet = Hatchet(debug=True)
 
@@ -22,7 +23,8 @@ class TemperatureContent(BaseModel):
 
 
 temp_workflow = hatchet.workflow(
-    name="get_temperature", input_validator=TemperatureInput
+    name="get_temperature", input_validator=TemperatureInput,
+    description="Get the current temperature at a location",
 )
 
 
@@ -48,7 +50,8 @@ async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureC
 # !!
 
 
-@hatchet.task(input_validator=TemperatureInput)
+@hatchet.task(input_validator=TemperatureInput, description="Get the current temperature at a location",
+              )
 async def get_temperature_standalone(
     input: TemperatureInput, ctx: Context
 ) -> TemperatureContent:
@@ -68,6 +71,25 @@ async def get_temperature_standalone(
         text=f"Temperature in {input.location_name}: {data['current']['temperature_2m']}°F"
     )
 
+# You can use a workflow
+temperature_tool_claude = temp_workflow.mcp_tool(
+    MCPProvider.CLAUDE
+)
+
+# Or a standalone task
+temperature_tool_claude = get_temperature_standalone.mcp_tool(
+    MCPProvider.CLAUDE
+)
+
+# You can use a workflow
+temperature_tool_openai = temp_workflow.mcp_tool(
+    MCPProvider.OPENAI,
+)
+
+# Or a standalone task
+temperature_tool_openai = get_temperature_standalone.mcp_tool(
+    MCPProvider.OPENAI,
+)
 
 def main() -> None:
     worker = hatchet.worker(

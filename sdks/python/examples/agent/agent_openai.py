@@ -1,26 +1,13 @@
 import asyncio
 
 from agents import Agent, Runner
-from hatchet_sdk.runnables.workflow import MCPProvider
-from examples.agent.worker import temp_workflow, get_temperature_standalone
+from examples.agent.worker import temperature_tool_openai
 
 
 async def main() -> None:
-    # You can use a workflow
-    temperature_tool = temp_workflow.mcp_tool(
-        MCPProvider.OPENAI,
-        "Get the current temperature at a location",
-    )
-
-    # Or a standalone task
-    temperature_tool = get_temperature_standalone.mcp_tool(
-        MCPProvider.OPENAI,
-        "Get the current temperature at a location",
-    )
-
     agent = Agent(
         name="Assistant",
-        tools=[temperature_tool],
+        tools=[temperature_tool_openai],
     )
     result = await Runner.run(agent, "What's the temperature in San Francisco?")
     print(result.final_output)
