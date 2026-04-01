@@ -671,6 +671,8 @@ class DurableContext(Context):
         expression: str | None = None,
         *,
         payload_validator: type[TPayload],
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
     ) -> TPayload: ...
 
     @overload
@@ -678,6 +680,10 @@ class DurableContext(Context):
         self,
         key: str,
         expression: str | None = None,
+        *,
+        payload_validator: None = None,
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
     ) -> dict[str, Any]: ...
 
     async def aio_wait_for_event(
@@ -700,6 +706,13 @@ class DurableContext(Context):
 
         :return: The payload of the event, validated against the provided payload_validator if it was given, or as a raw dictionary if no payload_validator was provided.
         """
+
+        if (lookback_window is not None and scope is None) or (
+            lookback_window is None and scope is not None
+        ):
+            raise ValueError(
+                "Both `lookback_window` and scope must be provided together"
+            )
 
         wait_index = self._increment_wait_index()
         consider_events_since = (
