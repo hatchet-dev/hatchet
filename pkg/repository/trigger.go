@@ -462,11 +462,10 @@ type TriggeredByEvent struct {
 }
 
 // ensureTraceparent guarantees a W3C traceparent exists in metadata. If the
-// SDK already injected a traceparent (e.g. from hatchet.run_workflow or
-// hatchet.push_event), the SDK's trace_id is preserved and the SDK's span_id
-// is stored so the engine's workflow_run root span can reference it as parent.
-// When no traceparent is present, a deterministic trace_id is derived from the
-// workflow run (or parent/source) UUID.
+// SDK already injected a traceparent, it is left intact so the engine's
+// workflow_run root span can read the SDK's span_id as its parent at span
+// construction time. When no traceparent is present, a deterministic one is
+// created from the workflow run (or parent/source) UUID.
 func ensureTraceparent(additionalMetadata []byte, workflowRunExternalID uuid.UUID) []byte {
 	meta := make(map[string]interface{})
 
@@ -476,32 +475,30 @@ func ensureTraceparent(additionalMetadata []byte, workflowRunExternalID uuid.UUI
 		}
 	}
 
-	spanID := hex.EncodeToString(DeriveWorkflowRunSpanID(workflowRunExternalID))
-
-	var traceID string
-
 	if existingTP, ok := meta["traceparent"].(string); ok {
-		if tID, sID, ok := parseW3CTraceparent(existingTP); ok {
-			traceID = tID
-			meta["hatchet__traceparent_parent_span_id"] = sID
+		if _, _, ok := parseW3CTraceparent(existingTP); ok {
+			out, err := json.Marshal(meta)
+			if err != nil {
+				return additionalMetadata
+			}
+			return out
 		}
 	}
 
-	if traceID == "" {
-		traceOwnerID := workflowRunExternalID
+	traceOwnerID := workflowRunExternalID
 
-		if parentIDStr, ok := meta["hatchet__parent_workflow_run_id"].(string); ok {
-			if parsed, err := uuid.Parse(parentIDStr); err == nil {
-				traceOwnerID = parsed
-			}
-		} else if sourceIDStr, ok := meta["hatchet__source_workflow_run_id"].(string); ok {
-			if parsed, err := uuid.Parse(sourceIDStr); err == nil {
-				traceOwnerID = parsed
-			}
+	if parentIDStr, ok := meta["hatchet__parent_workflow_run_id"].(string); ok {
+		if parsed, err := uuid.Parse(parentIDStr); err == nil {
+			traceOwnerID = parsed
 		}
-
-		traceID = hex.EncodeToString(DeriveWorkflowRunTraceID(traceOwnerID))
+	} else if sourceIDStr, ok := meta["hatchet__source_workflow_run_id"].(string); ok {
+		if parsed, err := uuid.Parse(sourceIDStr); err == nil {
+			traceOwnerID = parsed
+		}
 	}
+
+	traceID := hex.EncodeToString(DeriveWorkflowRunTraceID(traceOwnerID))
+	spanID := hex.EncodeToString(DeriveWorkflowRunSpanID(workflowRunExternalID))
 
 	meta["traceparent"] = fmt.Sprintf("00-%s-%s-01", traceID, spanID)
 

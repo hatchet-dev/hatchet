@@ -63,8 +63,6 @@ func Test_ensureTraceparent_creates_when_absent(t *testing.T) {
 
 	assert.Equal(t, expectedTraceID, traceID)
 	assert.Equal(t, expectedSpanID, spanID)
-	assert.Nil(t, m["hatchet__traceparent_parent_span_id"],
-		"no parent span_id stored when SDK didn't inject one")
 	assert.Equal(t, "value", m["key"], "existing metadata preserved")
 }
 
@@ -90,8 +88,8 @@ func Test_ensureTraceparent_inherits_when_present(t *testing.T) {
 
 	assert.Equal(t, sdkTraceID, gotTraceID,
 		"trace_id from SDK is preserved")
-	assert.Equal(t, hex.EncodeToString(DeriveWorkflowRunSpanID(wfRunID)), gotSpanID,
-		"span_id is engine-derived, not SDK's original")
-	assert.Equal(t, sdkSpanID, m["hatchet__traceparent_parent_span_id"],
-		"SDK span_id stored for parent linkage")
+	assert.Equal(t, sdkSpanID, gotSpanID,
+		"span_id from SDK is preserved (not overwritten)")
+	assert.Nil(t, m["hatchet__traceparent_parent_span_id"],
+		"no separate parent span_id key stored")
 }

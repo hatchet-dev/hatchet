@@ -215,34 +215,8 @@ func traceIDFromTraceparent(additionalMetadata []byte) []byte {
 	return b
 }
 
-// sdkParentSpanIDFromMetadata returns the SDK producer span_id stored by
-// ensureTraceparent when the SDK injected a traceparent.
-func sdkParentSpanIDFromMetadata(additionalMetadata []byte) []byte {
-	if len(additionalMetadata) == 0 {
-		return nil
-	}
-
-	var meta map[string]interface{}
-	if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
-		return nil
-	}
-
-	spanHex, _ := meta["hatchet__traceparent_parent_span_id"].(string)
-	if spanHex == "" || len(spanHex) != 16 {
-		return nil
-	}
-
-	b, err := hex.DecodeString(spanHex)
-	if err != nil {
-		return nil
-	}
-
-	return b
-}
-
 // spanIDFromTraceparent extracts the span_id bytes from a traceparent in
-// metadata. Used for raw event metadata where hatchet__traceparent_parent_span_id
-// has not been set.
+// metadata. Used to recover the SDK producer span_id for parent linkage.
 func spanIDFromTraceparent(additionalMetadata []byte) []byte {
 	if len(additionalMetadata) == 0 {
 		return nil
@@ -306,7 +280,7 @@ func buildWorkflowRunRootSpan(
 		traceID = sdkTraceID
 
 		if parentSpanID == nil {
-			if sdkParent := sdkParentSpanIDFromMetadata(additionalMetadata); sdkParent != nil {
+			if sdkParent := spanIDFromTraceparent(additionalMetadata); sdkParent != nil {
 				parentSpanID = sdkParent
 			}
 		}
