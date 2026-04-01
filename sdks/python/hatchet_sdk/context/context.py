@@ -707,9 +707,7 @@ class DurableContext(Context):
         :return: The payload of the event, validated against the provided payload_validator if it was given, or as a raw dictionary if no payload_validator was provided.
         """
 
-        if (lookback_window is not None and scope is None) or (
-            lookback_window is None and scope is not None
-        ):
+        if (lookback_window and not scope) or (scope and not lookback_window):
             raise ValueError(
                 "Both `lookback_window` and scope must be provided together"
             )
