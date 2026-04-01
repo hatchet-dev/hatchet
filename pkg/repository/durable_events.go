@@ -1151,8 +1151,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 		le := logEntries[0]
 
+		var retroMatchResults *EventMatchResults
+
 		if !le.AlreadyExisted {
-			if err = r.handleWaitFor(ctx, tx, tenantId, le.Entry.BranchID, le.Entry.NodeID, opts.WaitFor.WaitForConditions, task); err != nil {
+			retroMatchResults, err = r.handleWaitFor(ctx, tx, tenantId, le.Entry.BranchID, le.Entry.NodeID, opts.WaitFor.WaitForConditions, task)
+			if err != nil {
 				return nil, fmt.Errorf("failed to handle wait for conditions: %w", err)
 			}
 		}
@@ -1164,6 +1167,18 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			BranchId:        le.Entry.BranchID,
 			AlreadyExisted:  le.AlreadyExisted,
 			ResultPayload:   le.ResultPayload,
+		}
+
+		// todo: figure out if this is right (what happens if there are multiple matches that get satisfied retroactively?)
+		if retroMatchResults != nil {
+			for _, entry := range retroMatchResults.SatisfiedDurableEventLogEntries {
+				if entry.NodeId == le.Entry.NodeID && entry.BranchId == le.Entry.BranchID {
+					waitForResult.IsSatisfied = true
+					waitForResult.ResultPayload = entry.Data
+					waitForResult.InvocationCount = entry.InvocationCount
+					break
+				}
+			}
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if len(logEntries) != 1 {
@@ -1209,13 +1224,9 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}, nil
 }
 
-func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, branchId, nodeId int64, waitForConditions []CreateExternalSignalConditionOpt, task *sqlcv1.FlattenExternalIdsRow) error {
-	if waitForConditions == nil {
-		return nil
-	}
-
+func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, branchId, nodeId int64, waitForConditions []CreateExternalSignalConditionOpt, task *sqlcv1.FlattenExternalIdsRow) (*EventMatchResults, error) {
 	if len(waitForConditions) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	taskExternalId := task.ExternalID
