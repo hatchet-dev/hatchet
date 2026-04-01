@@ -3,6 +3,7 @@ import {
   getAutocomplete,
   applySuggestion,
 } from '@/components/v1/cloud/logging/log-search/autocomplete';
+import type { LogAutocompleteContext } from '@/components/v1/cloud/logging/log-search/autocomplete';
 import { parseLogQuery } from '@/components/v1/cloud/logging/log-search/parser';
 import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-search/types';
 import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
@@ -17,6 +18,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 
 const LOGS_PER_PAGE = 100;
+const EMPTY_AUTOCOMPLETE_CONTEXT: LogAutocompleteContext = {};
 
 function logKey(log: LogLine): string {
   return `${log.timestamp ?? ''}-${log.line ?? ''}`;
@@ -116,13 +118,13 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
 
   return (
     <div className="my-4 flex flex-col gap-y-2 max-h-[40rem] min-h-[25rem]">
-      <SearchBarWithFilters<AutocompleteSuggestion, number[]>
+      <SearchBarWithFilters<AutocompleteSuggestion, LogAutocompleteContext>
         value={queryString}
         onChange={setQueryString}
         onSubmit={setQueryString}
-        getAutocomplete={(q) => getAutocomplete(q, [])}
+        getAutocomplete={(q, ctx) => getAutocomplete(q, ctx)}
         applySuggestion={applySuggestion}
-        autocompleteContext={[]}
+        autocompleteContext={EMPTY_AUTOCOMPLETE_CONTEXT}
         placeholder="Search logs..."
         filterChips={[
           { key: 'level:', label: 'Level', description: 'Filter by log level' },

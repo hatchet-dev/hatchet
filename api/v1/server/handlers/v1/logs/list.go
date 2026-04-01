@@ -35,6 +35,8 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 		orderByDirection *string
 		attempt          *int32
 		taskExternalIds  []uuid.UUID
+		workflowIds      []uuid.UUID
+		stepIds          []uuid.UUID
 	)
 
 	if request.Params.Limit != nil {
@@ -73,6 +75,14 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 		taskExternalIds = append(taskExternalIds, *request.Params.TaskExternalIds...)
 	}
 
+	if request.Params.WorkflowIds != nil {
+		workflowIds = append(workflowIds, *request.Params.WorkflowIds...)
+	}
+
+	if request.Params.StepIds != nil {
+		stepIds = append(stepIds, *request.Params.StepIds...)
+	}
+
 	limitInt := int(limit)
 
 	opts := &v1.ListLogsOpts{
@@ -84,6 +94,8 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 		OrderByDirection: orderByDirection,
 		Attempt:          attempt,
 		TaskExternalIds:  taskExternalIds,
+		WorkflowIds:      workflowIds,
+		StepIds:          stepIds,
 	}
 
 	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, opts)
@@ -101,6 +113,8 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 		"has_search":            search != nil,
 		"has_levels":            len(levels) > 0,
 		"has_task_external_ids": len(taskExternalIds) > 0,
+		"has_workflow_ids":      len(workflowIds) > 0,
+		"has_step_ids":          len(stepIds) > 0,
 	})
 
 	rows := make([]gen.V1LogLine, len(logLines))
