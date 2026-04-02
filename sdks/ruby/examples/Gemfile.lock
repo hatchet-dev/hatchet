@@ -47,7 +47,7 @@ GEM
       googleapis-common-protos-types (~> 1.0)
     json (2.18.1)
     logger (1.7.0)
-    marcel (1.0.4)
+    marcel (1.1.0)
     multipart-post (2.4.1)
     net-http (0.9.1)
       uri (>= 0.11.1)
