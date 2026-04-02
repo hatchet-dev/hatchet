@@ -4,72 +4,60 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
-    directory: "/"
+    directories:
+      - "/"
+      - "/examples/go/quickstart"
     schedule:
       interval: "daily"
+    groups:
+      go-modules:
+        group-by: dependency-name
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
-    directory: "/sdks/python"
+    directories:
+      - "/sdks/python"
+      - "/sdks/python/examples/quickstart"
+      - "/cmd/hatchet-cli/cli/templates/python/poetry"
+      - "/examples/python/quickstart"
     schedule:
       interval: "daily"
-
-  - package-ecosystem: "pip"
-    directory: "/sdks/python/examples/quickstart"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "pip"
-    directory: "/cmd/hatchet-cli/cli/templates/python/poetry"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "npm"
-    directory: "/frontend/app"
-    schedule:
-      interval: "daily"
+    groups:
+      python-deps:
+        group-by: dependency-name
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
-    directory: "/frontend/docs"
+    directories:
+      - "/frontend/app"
+      - "/frontend/docs"
+      - "/sdks/typescript"
+      - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
+      - "/examples/typescript"
     schedule:
       interval: "daily"
-
-  - package-ecosystem: "npm"
-    directory: "/sdks/typescript"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "npm"
-    directory: "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
-    schedule:
-      interval: "daily"
+    groups:
+      npm-deps:
+        group-by: dependency-name
+        patterns:
+          - "*"
 
   - package-ecosystem: "bundler"
-    directory: "/sdks/ruby/src"
+    directories:
+      - "/sdks/ruby/src"
+      - "/sdks/ruby/examples"
     schedule:
       interval: "daily"
-
-  - package-ecosystem: "bundler"
-    directory: "/sdks/ruby/examples"
-    schedule:
-      interval: "daily"
-
-
-  # // We need to update the quickstart examples for typescript, go, and python
-  - package-ecosystem: "npm"
-    directory: "/examples/typescript"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "gomod"
-    directory: "/examples/go/quickstart"
-    schedule:
-      interval: "daily"
-
-  # TODO python quickstart
-
-  - package-ecosystem: "pip"
-    directory: "/examples/python/quickstart"
-    schedule:
-      interval: "daily"
+    groups:
+      ruby-deps:
+        group-by: dependency-name
+        patterns:
+          - "*"
