@@ -5,7 +5,8 @@ on: pull_request_target
 jobs:
   auto-merge:
     runs-on: ubicloud-standard-2
-    if: ${{ github.actor == 'dependabot[bot]' }}
+    # TODO(gregfurman): Disabled for now. When do we _actully_ want changes to be auto-merged in?
+    if: false
     permissions:
       pull-requests: write
       issues: write
