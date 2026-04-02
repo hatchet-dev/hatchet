@@ -30,17 +30,19 @@ export const getTemperature = hatchet.task({
   retries: 3,
   fn: temperatureRequest,
   inputValidator: TemperatureInput,
+  description: 'Get the current temperature at a location',
 });
 
-export const getTemperatureWorkflow = hatchet.workflow({
+export const getTemperatureWorkflow = hatchet.workflow<TemperatureInputWithZod>({
   name: 'getTemperatureWorkflow',
   inputValidator: TemperatureInput,
+  description: 'Get the current temperature at a location',
 });
 
 getTemperatureWorkflow.task({
   name: 'getTemperature',
-  fn: async (input: TemperatureInputWithZod, ctx) => {
-    await temperatureRequest(input);
+  fn: async (input: TemperatureInputWithZod, _) => {
+    return await temperatureRequest(input);
   },
 });
 

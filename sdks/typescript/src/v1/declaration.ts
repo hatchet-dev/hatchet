@@ -695,7 +695,7 @@ export class BaseWorkflowDeclaration<
     return this.definition.name;
   }
 
-  mcpTool(description: string, annotations?: any): SdkMcpToolDefinition {
+  mcpTool(annotations?: any): SdkMcpToolDefinition {
     const handler = async (args: any, extra: unknown): Promise<CallToolResult> => {
       const result = await this.run(args);
       return {
@@ -703,6 +703,10 @@ export class BaseWorkflowDeclaration<
       };
     };
     const inputValidator = this.definition.inputValidator! as z.ZodObject<any>;
+    const { description } = this.definition;
+    if (description === undefined) {
+      throw new Error('Runnable description must be defined');
+    }
     return {
       annotations: annotations,
       description: description,

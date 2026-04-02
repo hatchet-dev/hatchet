@@ -1,9 +1,9 @@
 import { hatchet } from '../hatchet-client';
-import { getTemperature } from './workflow';
+import {getTemperature, getTemperatureWorkflow} from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('temperature-worker', {
-    workflows: [getTemperature],
+    workflows: [getTemperature, getTemperatureWorkflow],
   });
 
   await worker.start();
