@@ -16,7 +16,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@hatchet-dev/typescript-sdk": "1.10.3"
+    "@hatchet-dev/typescript-sdk": "1.19.0"
   },
   "pnpm": {
     "overrides": {
