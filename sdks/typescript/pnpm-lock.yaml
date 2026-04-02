@@ -143,6 +143,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
+      '@openai/agents':
+        specifier: ^0.8.2
+        version: 0.8.2(ws@8.20.0)(zod@3.25.76)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -827,6 +830,29 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
+  '@openai/agents-core@0.8.2':
+    resolution: {integrity: sha512-oxp8XmdFcZwturpfWzqpW/2doNJ75FHwYDfZdBxfSK4Q2vmwLsx9wNPmU67i8dubWUXmIzOSXNUCbdL6+iLNlg==}
+    peerDependencies:
+      zod: ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
+  '@openai/agents-openai@0.8.2':
+    resolution: {integrity: sha512-h81JngBj2EcFDPDTnlKZqWp6JZN/SdR4MPR+f6NKYpqNjDWwJQGpq+w4lguLORUrZmXKWwy7xSZwAJzPB0EoCQ==}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@openai/agents-realtime@0.8.2':
+    resolution: {integrity: sha512-aY1BGOkhpbb+aq+bU3OkwRMr/CXEc0LZxPFw7vn28NTcVWn2rKdeDEkY2k1EbUv35vk5wo8bwI2LJkQfm+d6uw==}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@openai/agents@0.8.2':
+    resolution: {integrity: sha512-chxJPncuVbOqAUUpxUuVnT2tZTIr82hD9eVA59GaNzM0uG13fjaiIYgbNpWpAz9w5jQh84HMybWzXL9QNp7daA==}
+    peerDependencies:
+      zod: ^4.0.0
+
   '@opentelemetry/api-logs@0.208.0':
     resolution: {integrity: sha512-CjruKY9V6NMssL/T1kAFgzosF1v9o6oeN+aX5JB/C/xPNtmgIJqcXHG7fA82Ou1zCpWGl4lROQUKwUNE1pMCyg==}
     engines: {node: '>=8.0.0'}
@@ -1032,6 +1058,9 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
@@ -2727,6 +2756,18 @@ packages:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
     engines: {node: '>=6'}
 
+  openai@6.33.0:
+    resolution: {integrity: sha512-xAYN1W3YsDXJWA5F277135YfkEk6H7D3D6vWwRhJ3OEkzRgcyK8z/P5P9Gyi/wB4N8kK9kM5ZjprfvyHagKmpw==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
@@ -3421,6 +3462,18 @@ packages:
   write-file-atomic@4.0.2:
     resolution: {integrity: sha512-7KxauUdBmSdWnmpaGFg+ppNjKF8uNLry8LyzjauQDOVONfFLNKrKvQOxZ/VuTIcS/gge/YNahf5RIIQWTSarlg==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
+
+  ws@8.20.0:
+    resolution: {integrity: sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
 
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
@@ -4174,6 +4227,61 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
+  '@openai/agents-core@0.8.2(ws@8.20.0)(zod@3.25.76)':
+    dependencies:
+      debug: 4.4.3
+      openai: 6.33.0(ws@8.20.0)(zod@3.25.76)
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
+      - ws
+    optional: true
+
+  '@openai/agents-openai@0.8.2(ws@8.20.0)(zod@3.25.76)':
+    dependencies:
+      '@openai/agents-core': 0.8.2(ws@8.20.0)(zod@3.25.76)
+      debug: 4.4.3
+      openai: 6.33.0(ws@8.20.0)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
+      - ws
+    optional: true
+
+  '@openai/agents-realtime@0.8.2(zod@3.25.76)':
+    dependencies:
+      '@openai/agents-core': 0.8.2(ws@8.20.0)(zod@3.25.76)
+      '@types/ws': 8.18.1
+      debug: 4.4.3
+      ws: 8.20.0
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+    optional: true
+
+  '@openai/agents@0.8.2(ws@8.20.0)(zod@3.25.76)':
+    dependencies:
+      '@openai/agents-core': 0.8.2(ws@8.20.0)(zod@3.25.76)
+      '@openai/agents-openai': 0.8.2(ws@8.20.0)(zod@3.25.76)
+      '@openai/agents-realtime': 0.8.2(zod@3.25.76)
+      debug: 4.4.3
+      openai: 6.33.0(ws@8.20.0)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+      - ws
+    optional: true
+
   '@opentelemetry/api-logs@0.208.0':
     dependencies:
       '@opentelemetry/api': 1.9.0
@@ -4406,6 +4514,11 @@ snapshots:
   '@types/stack-utils@2.0.3': {}
 
   '@types/unist@3.0.3': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.17.1
+    optional: true
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -6485,6 +6598,12 @@ snapshots:
     dependencies:
       mimic-fn: 2.1.0
 
+  openai@6.33.0(ws@8.20.0)(zod@3.25.76):
+    optionalDependencies:
+      ws: 8.20.0
+      zod: 3.25.76
+    optional: true
+
   optionator@0.9.4:
     dependencies:
       deep-is: 0.1.4
@@ -7329,6 +7448,9 @@ snapshots:
     dependencies:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
+
+  ws@8.20.0:
+    optional: true
 
   y18n@5.0.8: {}
 

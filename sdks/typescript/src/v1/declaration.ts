@@ -34,7 +34,7 @@ import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
 import { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import { FunctionTool, tool } from '@openai/agents';
+import { FunctionTool } from '@openai/agents';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
@@ -46,21 +46,24 @@ export enum Priority {
 }
 type AgentSdk = 'claude' | 'openai';
 
-type AgentSdkToolMap = {
-  claude: SdkMcpToolDefinition;
-  openai: FunctionTool;
-};
-
 type AgentSdkFuncMap = {
-  claude: (
-    runnable: BaseWorkflowDeclaration,
+  claude: <I extends InputType, O extends OutputType>(
+    runnable: BaseWorkflowDeclaration<I, O>,
     annotations?: ToolAnnotations
   ) => SdkMcpToolDefinition;
-  openai: (runnable: BaseWorkflowDeclaration) => FunctionTool;
+  openai: <I extends InputType, O extends OutputType>(
+    runnable: BaseWorkflowDeclaration<I, O>
+  ) => FunctionTool;
 };
 
 const sdkFuncMap: AgentSdkFuncMap = {
-  claude: (runnable: BaseWorkflowDeclaration, annotations?: ToolAnnotations) => {
+  claude: <I extends InputType, O extends OutputType>(
+    runnable: BaseWorkflowDeclaration<I, O>,
+    annotations?: ToolAnnotations
+  ) => {
+    if (!runnable.definition.inputValidator) {
+      throw new Error('inputValidator must be defined');
+    }
     const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
     const { description } = runnable.definition;
     if (description === undefined) {
@@ -80,7 +83,12 @@ const sdkFuncMap: AgentSdkFuncMap = {
       inputSchema: inputValidator.shape,
     };
   },
-  openai: (runnable: BaseWorkflowDeclaration) => {
+  openai: <I extends InputType, O extends OutputType>(runnable: BaseWorkflowDeclaration<I, O>) => {
+    if (!runnable.definition.inputValidator) {
+      throw new Error('inputValidator must be defined');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { tool } = require('@openai/agents-core');
     const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
     const { description } = runnable.definition;
     if (description === undefined) {
@@ -101,8 +109,9 @@ const sdkFuncMap: AgentSdkFuncMap = {
   },
 };
 
-type AgentSdkArgs<K extends AgentSdk> = Parameters<(typeof sdkFuncMap)[K]>;
+type Tail<T extends any[]> = T extends [any, ...infer R] ? R : never;
 
+type AgentSdkExtraArgs<K extends AgentSdk> = Tail<Parameters<AgentSdkFuncMap[K]>>;
 /**
  * Additional metadata that can be attached to a workflow run.
  */
@@ -753,8 +762,16 @@ export class BaseWorkflowDeclaration<
     return this.definition.name;
   }
 
-  mcpTool<K extends AgentSdk>(sdk: K, ...args: Partial<AgentSdkArgs<K>>): AgentSdkToolMap[K] {
-    return sdkFuncMap[sdk](this, ...args);
+  mcpTool(
+    sdk: 'claude',
+    ...args: Tail<Parameters<AgentSdkFuncMap['claude']>>
+  ): SdkMcpToolDefinition;
+  mcpTool(sdk: 'openai', ...args: Tail<Parameters<AgentSdkFuncMap['openai']>>): FunctionTool;
+  mcpTool<K extends AgentSdk>(
+    sdk: K,
+    ...args: any
+  ): SdkMcpToolDefinition | FunctionTool {
+    return (sdkFuncMap[sdk] as any)(this, ...args);
   }
 }
 
