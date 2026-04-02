@@ -10,6 +10,19 @@
  * ---------------------------------------------------------------
  */
 
+export enum UserOfferType {
+  YCAlumni = "YC Alumni",
+  YCCurrentBatch = "YC Current Batch",
+  Startup = "Startup",
+  Custom = "Custom",
+}
+
+export enum UserOfferStage {
+  Requested = "Requested",
+  Approved = "Approved",
+  Redeemed = "Redeemed",
+}
+
 export enum AuditLogActorType {
   User = "user",
   ApiKey = "api_key",
@@ -957,6 +970,42 @@ export interface AuditLog {
 
 export interface AuditLogList {
   rows: AuditLog[];
+}
+
+export interface RedeemOfferRequest {
+  /**
+   * The organization to apply the offer credit to.
+   * @format uuid
+   */
+  organizationId: string;
+  /** The Attio record ID of the offer to redeem. */
+  offerRecordId: string;
+}
+
+export interface RedeemOfferResponse {
+  /** The amount of credit applied in cents. */
+  appliedCents: number;
+  /** The Attio record ID of the redeemed offer. */
+  offerRecordId: string;
+}
+
+export interface UserOffer {
+  /** The Attio record ID of the offer. */
+  recordId: string;
+  /** The current stage of the offer. */
+  stage?: UserOfferStage;
+  /** The type of the offer. */
+  type?: UserOfferType;
+  /** The credit amount in cents. */
+  creditAmountCents?: number;
+  /** The expiration date of the offer. */
+  expiresAt?: string;
+  /** The coupon code associated with the offer. */
+  coupon?: string;
+}
+
+export interface UserOfferList {
+  rows: UserOffer[];
 }
 
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;

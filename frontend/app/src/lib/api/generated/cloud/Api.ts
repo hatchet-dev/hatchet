@@ -46,6 +46,8 @@ import {
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
+  RedeemOfferRequest,
+  RedeemOfferResponse,
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
@@ -58,6 +60,7 @@ import {
   UpdateOrganizationTenantRequest,
   UpdateTenantSubscriptionRequest,
   UpdateTenantSubscriptionResponse,
+  UserOfferList,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
 } from "./data-contracts";
@@ -866,6 +869,42 @@ export class Api<
       path: `/api/v1/billing/tenants/${tenant}/credit-balance`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List all offers for the authenticated user
+   *
+   * @tags Billing
+   * @name UserOffersList
+   * @summary List offers for the authenticated user
+   * @request GET:/api/v1/billing/offers
+   * @secure
+   */
+  userOffersList = (params: RequestParams = {}) =>
+    this.request<UserOfferList, APIErrors>({
+      path: `/api/v1/billing/offers`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Redeem an offer for the authenticated user, applying credit to the specified organization
+   *
+   * @tags Billing
+   * @name UserOfferRedeem
+   * @summary Redeem an offer
+   * @request POST:/api/v1/billing/offers/redeem
+   * @secure
+   */
+  userOfferRedeem = (data: RedeemOfferRequest, params: RequestParams = {}) =>
+    this.request<RedeemOfferResponse, APIErrors>({
+      path: `/api/v1/billing/offers/redeem`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });
