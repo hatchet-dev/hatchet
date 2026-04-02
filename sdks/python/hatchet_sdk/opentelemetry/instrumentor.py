@@ -57,6 +57,7 @@ from hatchet_sdk.clients.events import (
     Event,
     EventClient,
     PushEventOptions,
+    _inject_source_info,
 )
 from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
 from hatchet_sdk.logger import logger
@@ -64,6 +65,9 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import ctx_hatchet_span_attributes
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions
+from hatchet_sdk.runnables.contextvars import (
+    ctx_hatchet_span_attributes,
+)
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -126,8 +130,10 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         attrs = ctx_hatchet_span_attributes.get()
         if attrs and span.is_recording():
+            existing = span.attributes or {}
             for key, value in attrs.items():
-                span.set_attribute(key, value)
+                if key not in existing:
+                    span.set_attribute(key, value)
         super().on_start(span, parent_context)
 
 
@@ -573,8 +579,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             if options is not None:
                 options = PushEventOptions(
                     **options.model_dump(exclude={"additional_metadata"}),
-                    additional_metadata=_inject_traceparent_into_metadata(
-                        options.additional_metadata,
+                    additional_metadata=_inject_source_info(
+                        _inject_traceparent_into_metadata(
+                            options.additional_metadata,
+                        )
                     ),
                 )
 
@@ -582,8 +590,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 event_key,
                 payload,
                 options,
-                _inject_traceparent_into_metadata(
-                    dict(additional_metadata or {}),
+                _inject_source_info(
+                    _inject_traceparent_into_metadata(
+                        dict(additional_metadata or {}),
+                    )
                 ),
                 priority,
                 scope,
@@ -623,8 +633,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             bulk_events_with_meta = [
                 BulkPushEventWithMetadata(
                     **event.model_dump(exclude={"additional_metadata"}),
-                    additional_metadata=_inject_traceparent_into_metadata(
-                        event.additional_metadata,
+                    additional_metadata=_inject_source_info(
+                        _inject_traceparent_into_metadata(
+                            event.additional_metadata,
+                        )
                     ),
                 )
                 for event in bulk_events

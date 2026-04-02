@@ -23,6 +23,7 @@ export interface ParsedLogQuery {
   search?: string;
   level?: LogLevel;
   attempt?: number;
+  workflow?: string;
   raw: string;
   isValid: boolean;
   errors: string[];
