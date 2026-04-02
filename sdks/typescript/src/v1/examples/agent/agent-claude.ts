@@ -5,10 +5,10 @@ import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 
 async function main() {
   // Generate a tool from a standalone task
-  // const temperatureTool = getTemperature.mcpTool();
+  // const temperatureTool = getTemperature.mcpTool('claude');
 
   // Or from a workflow
-  const temperatureTool = getTemperatureWorkflow.mcpTool();
+  const temperatureTool = getTemperatureWorkflow.mcpTool('claude');
 
   // Wrap the tool in an in-process MCP server
   const weatherServer = createSdkMcpServer({

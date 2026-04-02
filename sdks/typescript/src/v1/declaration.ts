@@ -32,10 +32,11 @@ import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from '.
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
-import { SdkMcpToolDefinition} from '@anthropic-ai/claude-agent-sdk';
+import { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import {ZodType} from "zod";
-import {zodToJsonSchema} from "zod-to-json-schema";
+import { FunctionTool, tool } from '@openai/agents';
+import { ToolAnnotations } from '@modelcontextprotocol/sdk/dist/esm/types';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -44,6 +45,63 @@ export enum Priority {
   MEDIUM = 2,
   HIGH = 3,
 }
+type AgentSdk = 'claude' | 'openai';
+
+type AgentSdkToolMap = {
+  claude: SdkMcpToolDefinition;
+  openai: FunctionTool;
+};
+
+type AgentSdkFuncMap = {
+  claude: (
+    runnable: BaseWorkflowDeclaration,
+    annotations?: ToolAnnotations
+  ) => SdkMcpToolDefinition;
+  openai: (runnable: BaseWorkflowDeclaration) => FunctionTool;
+};
+
+const sdkFuncMap: AgentSdkFuncMap = {
+  claude: (runnable: BaseWorkflowDeclaration, annotations?: ToolAnnotations) => {
+    const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
+    const { description } = runnable.definition;
+    if (description === undefined) {
+      throw new Error('Runnable description must be defined');
+    }
+    const handler = async (args: any, _: unknown): Promise<CallToolResult> => {
+      const result = await runnable.run(args);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    };
+    return {
+      annotations: annotations,
+      description: description,
+      handler: handler,
+      name: runnable.name,
+      inputSchema: inputValidator.shape,
+    };
+  },
+  openai: (runnable: BaseWorkflowDeclaration) => {
+    const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
+    const { description } = runnable.definition;
+    if (description === undefined) {
+      throw new Error('Runnable description must be defined');
+    }
+    return tool({
+      name: runnable.name,
+      description: description,
+      parameters: zodToJsonSchema(inputValidator, {
+        $refStrategy: 'none',
+      }),
+      execute: async (input: any): Promise<string> => {
+        const result = await runnable.run(input);
+        return JSON.stringify(result);
+      },
+    });
+  },
+};
+
+type AgentSdkArgs<K extends AgentSdk> = Parameters<(typeof sdkFuncMap)[K]>;
 
 /**
  * Additional metadata that can be attached to a workflow run.
@@ -695,25 +753,8 @@ export class BaseWorkflowDeclaration<
     return this.definition.name;
   }
 
-  mcpTool(annotations?: any): SdkMcpToolDefinition {
-    const handler = async (args: any, extra: unknown): Promise<CallToolResult> => {
-      const result = await this.run(args);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-      };
-    };
-    const inputValidator = this.definition.inputValidator! as z.ZodObject<any>;
-    const { description } = this.definition;
-    if (description === undefined) {
-      throw new Error('Runnable description must be defined');
-    }
-    return {
-      annotations: annotations,
-      description: description,
-      handler: handler,
-      name: this.name,
-      inputSchema: inputValidator.shape,
-    };
+  mcpTool<K extends AgentSdk>(sdk: K, ...args: AgentSdkArgs<K>): AgentSdkToolMap[K] {
+    return sdkFuncMap[sdk](this, ...args);
   }
 }
 
