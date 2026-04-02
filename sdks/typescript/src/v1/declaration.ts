@@ -88,7 +88,7 @@ const sdkFuncMap: AgentSdkFuncMap = {
       throw new Error('inputValidator must be defined');
     }
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { tool } = require('@openai/agents-core');
+    const { tool } = require('@openai/agents');
     const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
     const { description } = runnable.definition;
     if (description === undefined) {

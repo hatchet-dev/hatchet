@@ -42,9 +42,7 @@ export const getTemperatureWorkflow = hatchet.workflow<TemperatureInputWithZod>(
 
 getTemperatureWorkflow.task({
   name: 'getTemperature',
-  fn: async (input: TemperatureInputWithZod, _) => {
-    return await temperatureRequest(input);
-  },
+  fn: temperatureRequest,
 });
 
 // !!
