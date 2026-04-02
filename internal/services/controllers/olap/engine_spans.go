@@ -1,6 +1,7 @@
 package olap
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -278,15 +279,14 @@ func buildWorkflowRunRootSpan(
 	var parentSpanID []byte
 	if pi != nil {
 		if pi.isChild {
-			// When the SDK injected a traceparent, parent under the SDK's
-			// run_workflow producer span so the child nests under the
-			// spawn-child user span. Otherwise fall back to the engine's
-			// deterministic step_run span.
-			if sdkParent := spanIDFromTraceparent(additionalMetadata); sdkParent != nil {
-				parentSpanID = sdkParent
-			} else {
-				parentSpanID = deriveStepRunSpanID(pi.stepRunID, 0, "step_run")
-			}
+			// Parent the child workflow_run under the spawning task's
+			// engine step_run span. The traceparent in additionalMetadata
+			// is unreliable here: the SDK forwards ctx_additional_metadata
+			// from ancestor tasks, so the traceparent may belong to any
+			// ancestor workflow — not an SDK OTel producer span.
+			// FIXME: this is incrementally better than the previous behavior, but still not perfect.
+			// We will not nest this under the run span from the sdk.
+			parentSpanID = deriveStepRunSpanID(pi.stepRunID, 0, "step_run")
 		} else if pi.isEvent && pi.eventID != uuid.Nil {
 			// When the SDK injected a traceparent, the bridge event span
 			// uses the triggered run's own ID (buildEventSpan path).
@@ -306,7 +306,7 @@ func buildWorkflowRunRootSpan(
 		traceID = sdkTraceID
 
 		if parentSpanID == nil {
-			if sdkParent := spanIDFromTraceparent(additionalMetadata); sdkParent != nil {
+			if sdkParent := spanIDFromTraceparent(additionalMetadata); sdkParent != nil && !bytes.Equal(sdkParent, spanID) {
 				parentSpanID = sdkParent
 			}
 		}

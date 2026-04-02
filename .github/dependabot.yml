@@ -45,12 +45,12 @@ updates:
     schedule:
       interval: "daily"
 
-  - package-ecosystem: "rubygems"
+  - package-ecosystem: "bundler"
     directory: "/sdks/ruby/src"
     schedule:
       interval: "daily"
 
-  - package-ecosystem: "rubygems"
+  - package-ecosystem: "bundler"
     directory: "/sdks/ruby/examples"
     schedule:
       interval: "daily"

@@ -651,7 +651,7 @@ function buildRawTree(
   const rootSpans: OtelSpanTree[] = [];
   for (const span of spans) {
     const converted = spanMap.get(span.spanId)!;
-    if (span.parentSpanId) {
+    if (span.parentSpanId && span.parentSpanId !== span.spanId) {
       const parent = spanMap.get(span.parentSpanId);
       if (parent) {
         parent.children.push(converted);
