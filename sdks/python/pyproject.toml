@@ -70,6 +70,9 @@ docs = [
     "uvicorn>=0.34.3,<1",
 ]
 
+claude = ["claude-agent-sdk", "mcp"]
+openai = ["openai-agents"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
