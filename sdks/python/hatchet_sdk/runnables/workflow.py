@@ -661,6 +661,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 "Set description= when defining the workflow or task."
             )
         description = self.config.description
+        if self.input_validator_type is EmptyModel:
+            raise ValueError(
+                f"Runnable '{self.config.name}' has no input validator. "
+                "Set input_validator= when defining the workflow or task."
+            )
         input_schema = self.input_validator.json_schema()
         if isinstance(self, Workflow):
             match provider:
