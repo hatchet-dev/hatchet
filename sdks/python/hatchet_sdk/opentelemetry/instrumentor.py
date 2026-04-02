@@ -65,9 +65,6 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import ctx_hatchet_span_attributes
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions
-from hatchet_sdk.runnables.contextvars import (
-    ctx_hatchet_span_attributes,
-)
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
