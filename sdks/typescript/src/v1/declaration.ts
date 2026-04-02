@@ -111,7 +111,6 @@ const sdkFuncMap: AgentSdkFuncMap = {
 
 type Tail<T extends any[]> = T extends [any, ...infer R] ? R : never;
 
-type AgentSdkExtraArgs<K extends AgentSdk> = Tail<Parameters<AgentSdkFuncMap[K]>>;
 /**
  * Additional metadata that can be attached to a workflow run.
  */
@@ -767,10 +766,7 @@ export class BaseWorkflowDeclaration<
     ...args: Tail<Parameters<AgentSdkFuncMap['claude']>>
   ): SdkMcpToolDefinition;
   mcpTool(sdk: 'openai', ...args: Tail<Parameters<AgentSdkFuncMap['openai']>>): FunctionTool;
-  mcpTool<K extends AgentSdk>(
-    sdk: K,
-    ...args: any
-  ): SdkMcpToolDefinition | FunctionTool {
+  mcpTool<K extends AgentSdk>(sdk: K, ...args: any): SdkMcpToolDefinition | FunctionTool {
     return (sdkFuncMap[sdk] as any)(this, ...args);
   }
 }
