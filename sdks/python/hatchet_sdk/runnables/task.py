@@ -164,10 +164,10 @@ class Task(Generic[TWorkflowInput, R]):
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
         slot_requests: dict[str, int] | None = None,
-        durable_eviction: EvictionPolicy | None = None,
+        eviction_policy: EvictionPolicy | None = None,
     ) -> None:
         self._is_durable = is_durable
-        self.durable_eviction = durable_eviction
+        self.eviction_policy = eviction_policy
 
         if slot_requests is None:
             slot_requests = {"durable": 1} if is_durable else {"default": 1}

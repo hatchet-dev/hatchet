@@ -583,7 +583,7 @@ class Runner:
                     action.key,
                     step_run_id=action.step_run_id,
                     invocation_count=action.durable_task_invocation_count or 1,
-                    eviction_policy=action_func.durable_eviction,
+                    eviction_policy=action_func.eviction_policy,
                 )
 
             loop = asyncio.get_event_loop()

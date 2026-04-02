@@ -1448,7 +1448,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
-                durable_eviction=eviction_policy,
+                eviction_policy=eviction_policy,
             )
 
             self._durable_tasks.append(task)
