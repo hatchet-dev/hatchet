@@ -753,7 +753,7 @@ export class BaseWorkflowDeclaration<
     return this.definition.name;
   }
 
-  mcpTool<K extends AgentSdk>(sdk: K, ...args: AgentSdkArgs<K>): AgentSdkToolMap[K] {
+  mcpTool<K extends AgentSdk>(sdk: K, ...args: Partial<AgentSdkArgs<K>>): AgentSdkToolMap[K] {
     return sdkFuncMap[sdk](this, ...args);
   }
 }

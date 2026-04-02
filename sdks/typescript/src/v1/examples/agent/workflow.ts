@@ -2,6 +2,7 @@
 import { hatchet } from '../hatchet-client';
 import { z } from 'zod';
 
+// Note that for agent tools, Zod must be used to create the input and output types for workflows/tasks
 const TemperatureCoordinates = z.object({
   latitude: z.number(),
   longitude: z.number(),
