@@ -39,6 +39,10 @@ export enum PullRequestState {
   Closed = "closed",
 }
 
+export enum FeatureFlagId {
+  TenantLogWorkflowFilterEnabled = "tenant-log-workflow-filter-enabled",
+}
+
 export enum WebhookWorkerRequestMethod {
   GET = "GET",
   POST = "POST",
@@ -1198,6 +1202,11 @@ export interface APIMeta {
    * @example true
    */
   allowChangePassword?: boolean;
+  /**
+   * whether or not observability (trace collection) is enabled on this instance
+   * @example false
+   */
+  observabilityEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -2422,6 +2431,11 @@ export interface TaskStat {
 }
 
 export type TaskStats = Record<string, TaskStat>;
+
+export interface FeatureFlagEvaluationResult {
+  /** Whether the feature flag is enabled for the tenant */
+  isEnabled: boolean;
+}
 
 export interface TenantList {
   pagination?: PaginationResponse;

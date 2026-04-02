@@ -140,6 +140,9 @@ importers:
         specifier: ^8.56.1
         version: 8.56.1(eslint@10.0.3)(typescript@5.9.2)
     optionalDependencies:
+      '@grpc/grpc-js':
+        specifier: ^1.14.3
+        version: 1.14.3
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0

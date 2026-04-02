@@ -30,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
+	featureflagsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/feature-flags"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
@@ -74,6 +75,7 @@ type apiService struct {
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
+	*featureflagsv1.V1FeatureFlagsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -101,6 +103,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
+		V1FeatureFlagsService:  featureflagsv1.NewV1FeatureFlagsService(config),
 	}
 }
 

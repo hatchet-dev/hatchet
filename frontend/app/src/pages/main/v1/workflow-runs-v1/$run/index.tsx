@@ -1,5 +1,9 @@
 import { RunsProvider } from '../hooks/runs-provider';
 import {
+  RunDetailSearchProvider,
+  useRunDetailSearch,
+} from '../hooks/use-run-detail-search';
+import {
   isTerminalState,
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
@@ -42,7 +46,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 class StatusError extends Error {
   status: number;
@@ -218,7 +222,9 @@ export default function Run() {
   if (runData.type === 'task') {
     return (
       <RunsProvider tableKey={`task-runs-${run}`}>
-        <ExpandedTaskRun id={run} />
+        <RunDetailSearchProvider>
+          <ExpandedTaskRun id={run} />
+        </RunDetailSearchProvider>
       </RunsProvider>
     );
   }
@@ -226,7 +232,9 @@ export default function Run() {
   if (runData.type === 'dag') {
     return (
       <RunsProvider tableKey={`workflow-runs-${run}`}>
-        <ExpandedWorkflowRun id={run} />
+        <RunDetailSearchProvider>
+          <ExpandedWorkflowRun id={run} />
+        </RunDetailSearchProvider>
       </RunsProvider>
     );
   }
@@ -239,10 +247,8 @@ function ExpandedTaskRun({ id }: { id: string }) {
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
   const executingRef = useRef(false);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [focusedTaskRunId, setFocusedTaskRunId] = useState<
-    string | undefined
-  >();
+  const search = useRunDetailSearch();
+  const activeTab = search.tab ?? 'overview';
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -270,10 +276,12 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const handleMiniMapClick = useCallback((taskRunId: string) => {
-    setFocusedTaskRunId(taskRunId);
-    setActiveTab('observability');
-  }, []);
+  const handleMiniMapClick = useCallback(
+    (taskRunId: string) => {
+      search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
+    },
+    [search],
+  );
 
   const { workflowRun, shape, taskRuns, isLoading, isError } =
     useWorkflowDetails();
@@ -324,15 +332,15 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
         <div className="h-4" />
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={search.setTab}
           className="flex h-full flex-col"
         >
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="overview">
               Overview
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="observability">
-              Observability
+            <TabsTrigger variant="underlined" value="traces">
+              Traces
             </TabsTrigger>
             <TabsTrigger variant="underlined" value="logs">
               Logs
@@ -379,7 +387,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               </TabsContent>
             </Tabs>
           </TabsContent>
-          <TabsContent value="observability" className="min-h-0 flex-1">
+          <TabsContent value="traces" className="min-h-0 flex-1">
             <Observability
               workflowRunExternalId={id}
               isRunning={
@@ -388,7 +396,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               tasks={tasksForSynthesis}
               workflowRunCreatedAt={workflowRun.metadata.createdAt}
               workflowRunStartedAt={workflowRun.startedAt}
-              focusedTaskRunId={focusedTaskRunId}
             />
           </TabsContent>
           <TabsContent value="logs">

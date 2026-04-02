@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.19.0",
+  "version": "1.19.1",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -88,6 +88,7 @@
   "optionalDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.87",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@grpc/grpc-js": "^1.14.3",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^2.0.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.208.0",
