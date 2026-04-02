@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.types import R, TWorkflowInput
 
+
 # Generate an or group id
 def generate_or_group_id() -> str:
     return str(uuid4())
