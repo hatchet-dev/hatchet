@@ -473,14 +473,14 @@ setuptools = "*"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.20.2"
-description = ""
+version = "1.29.3"
+description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.20.2-py3-none-any.whl", hash = "sha256:a953eb0e7be0e9d401712f0d9c778a454b69efebaf4fd5b619b9189fd0ca3bff"},
-    {file = "hatchet_sdk-1.20.2.tar.gz", hash = "sha256:144c1f18b194f3140e33af27d97f44c0f5e952533cbc7be54ad3bef748934007"},
+    {file = "hatchet_sdk-1.29.3-py3-none-any.whl", hash = "sha256:baaefacf8a5ecf263e59aaf0d7056c4efc4b0ca0dc21970a8e12d851db143d7f"},
+    {file = "hatchet_sdk-1.29.3.tar.gz", hash = "sha256:8eb147a44d454642a3e67aa0f82619194de0753aaf6c5f1089daaa8ec4182042"},
 ]
 
 [package.dependencies]
@@ -488,12 +488,13 @@ aiohttp = ">=3.10.5,<4.0.0"
 grpcio = ">=1.76.0,<2.0.0"
 grpcio-tools = ">=1.76.0,<2.0.0"
 prometheus-client = ">=0.21.1"
-protobuf = ">=6.30.0,<7.0.0"
+protobuf = ">=6.30.2,<7.0.0"
 pydantic = ">=2.6.3,<3.0.0"
 pydantic-settings = ">=2.7.1,<3.0.0"
 python-dateutil = ">=2.9.0.post0,<3.0.0"
 tenacity = ">=8.4.1"
-urllib3 = ">=2.5.0,<3.0.0"
+typing-inspection = ">=0.1.0"
+urllib3 = ">=2.6.0,<3.0.0"
 
 [package.extras]
 otel = ["opentelemetry-api (>=1.28.0,<2.0.0)", "opentelemetry-distro (>=0.49b0)", "opentelemetry-exporter-otlp (>=1.28.0,<2.0.0)", "opentelemetry-exporter-otlp-proto-http (>=1.28.0,<2.0.0)", "opentelemetry-instrumentation (>=0.49b0)", "opentelemetry-sdk (>=1.28.0,<2.0.0)"]
@@ -1008,6 +1009,21 @@ files = [
 ]
 
 [[package]]
+name = "typing-inspection"
+version = "0.4.2"
+description = "Runtime typing introspection tools"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "typing_inspection-0.4.2-py3-none-any.whl", hash = "sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7"},
+    {file = "typing_inspection-0.4.2.tar.gz", hash = "sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464"},
+]
+
+[package.dependencies]
+typing-extensions = ">=4.12.0"
+
+[[package]]
 name = "urllib3"
 version = "2.6.3"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -1125,4 +1141,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "9a4662821f9ce0649c23b48be62d26a5e22d335d634c3bbed07df560bcff7948"
+content-hash = "2f362728ad703ab723acd134c3551e56a1331c1e1122dcc0836d4b4e99a4b9ca"
