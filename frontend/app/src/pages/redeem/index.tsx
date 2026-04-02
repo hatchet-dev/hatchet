@@ -1,4 +1,5 @@
 import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
+import { usePylon } from '@/components/support-chat';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -25,6 +26,7 @@ import {
 } from '@/components/v1/ui/select';
 import { Separator } from '@/components/v1/ui/separator';
 import { Skeleton } from '@/components/v1/ui/skeleton';
+import { Textarea } from '@/components/v1/ui/textarea';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -35,13 +37,16 @@ import {
   UserOfferType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { lastTenantAtom } from '@/lib/atoms';
+import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
   ArrowLeftIcon,
+  ChatBubbleLeftIcon,
   ExclamationTriangleIcon,
   GiftIcon,
   CheckCircleIcon,
   PlusIcon,
+  TruckIcon,
 } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -83,6 +88,12 @@ function stageBadgeVariant(
   }
 }
 
+function isYCOffer(type?: UserOfferType) {
+  return (
+    type === UserOfferType.YCAlumni || type === UserOfferType.YCCurrentBatch
+  );
+}
+
 const CREATE_NEW_ORG_VALUE = '__create_new_org__';
 
 function OfferCard({
@@ -97,12 +108,18 @@ function OfferCard({
   offer: UserOffer;
   organizations: { metadata: { id: string }; name: string }[];
   defaultOrgId: string;
-  onRedeem: (offerRecordId: string, organizationId: string) => void;
+  onRedeem: (
+    offerRecordId: string,
+    organizationId: string,
+    address?: string,
+  ) => void;
   onCreateOrg: () => void;
   isRedeeming: boolean;
   redeemingOfferId: string | null;
 }) {
+  const pylon = usePylon();
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [address, setAddress] = useState('');
 
   const effectiveOrgId = selectedOrgId ?? defaultOrgId;
 
@@ -117,14 +134,33 @@ function OfferCard({
   const isRedeemable = offer.stage === UserOfferStage.Approved;
   const isRedeemed = offer.stage === UserOfferStage.Redeemed;
   const isThisRedeeming = isRedeeming && redeemingOfferId === offer.recordId;
+  const yc = isYCOffer(offer.type);
 
   return (
-    <Card>
-      <CardHeader>
+    <Card
+      className={cn(
+        yc &&
+          'border-orange-400/60 bg-gradient-to-br from-orange-50/60 to-background dark:border-orange-500/40 dark:from-orange-950/20',
+      )}
+    >
+      <CardHeader className="space-y-2 p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {yc && (
+              <span className="mr-1 flex h-5 w-5 items-center justify-center rounded-sm bg-orange-500">
+                <span className="text-xs font-bold leading-none text-white">
+                  Y
+                </span>
+              </span>
+            )}
             {offer.type ? (
-              <Badge variant={offerTypeBadgeVariant(offer.type)}>
+              <Badge
+                variant={offerTypeBadgeVariant(offer.type)}
+                className={cn(
+                  yc &&
+                    'border-orange-300 bg-orange-500 text-white dark:border-orange-600 dark:bg-orange-600',
+                )}
+              >
                 {offer.type}
               </Badge>
             ) : (
@@ -137,17 +173,22 @@ function OfferCard({
             </Badge>
           )}
         </div>
-        <CardDescription>
-          {offer.creditAmountCents
-            ? `${formatCurrency(offer.creditAmountCents)} credit`
-            : 'Credit offer'}
-          {offer.coupon && ` \u00b7 Coupon: ${offer.coupon}`}
-          {offer.expiresAt &&
-            ` \u00b7 Expires ${new Date(offer.expiresAt).toLocaleDateString()}`}
-        </CardDescription>
+        <div className="mt-1 space-y-0.5">
+          <p className="text-base font-semibold">
+            {offer.creditAmountCents
+              ? `${formatCurrency(offer.creditAmountCents)} credit`
+              : 'Credit offer'}
+          </p>
+          <CardDescription>
+            {offer.coupon && `Coupon: ${offer.coupon}`}
+            {offer.coupon && offer.expiresAt && ' \u00b7 '}
+            {offer.expiresAt &&
+              `Expires ${new Date(offer.expiresAt).toLocaleDateString()}`}
+          </CardDescription>
+        </div>
       </CardHeader>
       {isRedeemable && (
-        <CardContent>
+        <CardContent className="space-y-3 px-5 pb-5 pt-1">
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-sm font-medium">
@@ -173,9 +214,57 @@ function OfferCard({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          {offer.includesWelcomeKit && (
+            <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <TruckIcon className="size-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">
+                    This offer includes a welcome kit!
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    We&apos;ll ship some swag to your door. Enter your shipping
+                    address below.
+                  </p>
+                </div>
+              </div>
+              <Textarea
+                placeholder="Street address, city, state, zip code, country"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                rows={3}
+                className="bg-background"
+              />
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            {pylon.enabled ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground"
+                onClick={pylon.show}
+              >
+                <ChatBubbleLeftIcon className="size-4" />
+                Questions?
+              </Button>
+            ) : (
+              <div />
+            )}
             <Button
-              onClick={() => onRedeem(offer.recordId, effectiveOrgId)}
-              disabled={!effectiveOrgId || isRedeeming}
+              onClick={() =>
+                onRedeem(
+                  offer.recordId,
+                  effectiveOrgId,
+                  offer.includesWelcomeKit ? address : undefined,
+                )
+              }
+              disabled={
+                !effectiveOrgId ||
+                isRedeeming ||
+                (offer.includesWelcomeKit && !address.trim())
+              }
             >
               {isThisRedeeming ? (
                 <>
@@ -183,14 +272,14 @@ function OfferCard({
                   Redeeming...
                 </>
               ) : (
-                'Redeem'
+                'Redeem Offer'
               )}
             </Button>
           </div>
         </CardContent>
       )}
       {isRedeemed && (
-        <CardContent>
+        <CardContent className="px-5 pb-5 pt-1">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <CheckCircleIcon className="size-4 text-green-500" />
             This offer has been redeemed.
@@ -220,10 +309,12 @@ export default function RedeemOffersPage() {
     mutationFn: async (data: {
       offerRecordId: string;
       organizationId: string;
+      address?: string;
     }) => {
       const result = await cloudApi.userOfferRedeem({
         offerRecordId: data.offerRecordId,
         organizationId: data.organizationId,
+        address: data.address,
       });
       return result.data;
     },
@@ -275,11 +366,15 @@ export default function RedeemOffersPage() {
     },
   });
 
-  const handleRedeem = (offerRecordId: string, organizationId: string) => {
+  const handleRedeem = (
+    offerRecordId: string,
+    organizationId: string,
+    address?: string,
+  ) => {
     setError(null);
     setSuccessMessage(null);
     setRedeemingOfferId(offerRecordId);
-    redeemMutation.mutate({ offerRecordId, organizationId });
+    redeemMutation.mutate({ offerRecordId, organizationId, address });
   };
 
   const [createOrgOpen, setCreateOrgOpen] = useState(false);

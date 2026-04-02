@@ -980,6 +980,8 @@ export interface RedeemOfferRequest {
   organizationId: string;
   /** The Attio record ID of the offer to redeem. */
   offerRecordId: string;
+  /** Shipping address for welcome kit delivery. */
+  address?: string;
 }
 
 export interface RedeemOfferResponse {
@@ -1002,6 +1004,8 @@ export interface UserOffer {
   expiresAt?: string;
   /** The coupon code associated with the offer. */
   coupon?: string;
+  /** Whether the offer includes a welcome kit. */
+  includesWelcomeKit?: boolean;
 }
 
 export interface UserOfferList {
