@@ -33,9 +33,8 @@ import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
 import { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { FunctionTool, tool } from '@openai/agents';
-import { ToolAnnotations } from '@modelcontextprotocol/sdk/dist/esm/types';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
@@ -90,6 +89,7 @@ const sdkFuncMap: AgentSdkFuncMap = {
     return tool({
       name: runnable.name,
       description: description,
+      // @ts-expect-error TS2589
       parameters: zodToJsonSchema(inputValidator, {
         $refStrategy: 'none',
       }),
