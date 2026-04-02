@@ -52,7 +52,7 @@
     "react-dom": "^18.3.1",
     "react-lottie-player": "^2.1.0",
     "react-tweet": "^3.2.2",
-    "recharts": "^2.15.4",
+    "recharts": "^3.8.1",
     "shiki": "^1.29.2",
     "swagger-ui-react": "^5.29.3",
     "tailwind-merge": "^2.6.0",
