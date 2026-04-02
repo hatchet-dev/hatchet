@@ -60,7 +60,7 @@ test = [
 
 docs = [
     "mkdocs>=1.6.1,<2",
-    "mkdocstrings[python]>=0.29.1,<1",
+    "mkdocstrings[python]>=0.29.1,<2",
     "pydoclint>=0.6.6",
     "markdownify>=1.1.0",
     "openai>=1.75.0,<2",
