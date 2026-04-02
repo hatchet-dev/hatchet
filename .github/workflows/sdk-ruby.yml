@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -94,7 +94,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -125,7 +125,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -277,7 +277,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -304,7 +304,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -426,7 +426,7 @@ jobs:
           git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
 
       - name: Set up Ruby for old SDK
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -449,7 +449,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for old examples
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -512,7 +512,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
