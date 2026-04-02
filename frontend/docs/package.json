@@ -67,7 +67,7 @@
     "postcss-import": "^16.1.1",
     "prettier": "^3.6.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   },
   "resolutions": {
     "nanoid": "^3.3.8",
