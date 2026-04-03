@@ -473,30 +473,34 @@ setuptools = "*"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.20.2"
-description = ""
+version = "1.29.5"
+description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
-python-versions = "<4.0,>=3.10"
+python-versions = "<4,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.20.2-py3-none-any.whl", hash = "sha256:a953eb0e7be0e9d401712f0d9c778a454b69efebaf4fd5b619b9189fd0ca3bff"},
-    {file = "hatchet_sdk-1.20.2.tar.gz", hash = "sha256:144c1f18b194f3140e33af27d97f44c0f5e952533cbc7be54ad3bef748934007"},
+    {file = "hatchet_sdk-1.29.5-py3-none-any.whl", hash = "sha256:c2640ca1c932ad9e4d1885dc28fb9f3a537da38275c90fcae67600283eabed36"},
+    {file = "hatchet_sdk-1.29.5.tar.gz", hash = "sha256:754e0d3bac9a7ed0554ae65abc718fde1cce64d99eb8450add62d6d8fae740c9"},
 ]
 
 [package.dependencies]
-aiohttp = ">=3.10.5,<4.0.0"
-grpcio = ">=1.76.0,<2.0.0"
-grpcio-tools = ">=1.76.0,<2.0.0"
+aiohttp = ">=3.10.5,<4"
+grpcio = ">=1.76.0,<2"
+grpcio-tools = ">=1.76.0,<2"
 prometheus-client = ">=0.21.1"
-protobuf = ">=6.30.0,<7.0.0"
-pydantic = ">=2.6.3,<3.0.0"
-pydantic-settings = ">=2.7.1,<3.0.0"
-python-dateutil = ">=2.9.0.post0,<3.0.0"
+protobuf = ">=6.30.2,<7"
+pydantic = ">=2.6.3,<3"
+pydantic-settings = ">=2.7.1,<3"
+python-dateutil = ">=2.9.0.post0,<3"
 tenacity = ">=8.4.1"
-urllib3 = ">=2.5.0,<3.0.0"
+typing-inspection = ">=0.1.0"
+urllib3 = ">=2.6.0,<3"
 
 [package.extras]
-otel = ["opentelemetry-api (>=1.28.0,<2.0.0)", "opentelemetry-distro (>=0.49b0)", "opentelemetry-exporter-otlp (>=1.28.0,<2.0.0)", "opentelemetry-exporter-otlp-proto-http (>=1.28.0,<2.0.0)", "opentelemetry-instrumentation (>=0.49b0)", "opentelemetry-sdk (>=1.28.0,<2.0.0)"]
+docs = ["bs4 (>=0.0.2)", "fastapi (>=0.115.14,<1)", "markdownify (>=1.1.0)", "mkdocs (>=1.6.1,<2)", "mkdocstrings[python] (>=0.29.1,<1)", "openai (>=1.75.0,<2)", "pydoclint (>=0.6.6)", "types-beautifulsoup4 (>=4.12.0.20250204)", "uvicorn (>=0.34.3,<1)"]
+lint = ["black (==26.1.0)", "mypy (==1.19.1)", "psutil (>=6.0.0)", "ruff (==0.15.0)", "types-grpcio (>=1.0.0)", "types-protobuf (>=5.28.3.20241030)", "types-psutil (>=6.1.0.20241221)", "types-requests (>=2.32.0.20241016)"]
+otel = ["opentelemetry-api (>=1.28.0,<2)", "opentelemetry-distro (>=0.49b0)", "opentelemetry-exporter-otlp (>=1.28.0,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.28.0,<2)", "opentelemetry-instrumentation (>=0.49b0)", "opentelemetry-sdk (>=1.28.0,<2)"]
+test = ["psycopg[pool] (>=3.2.6,<4)", "pytest (>=8.3.5,<9)", "pytest-asyncio (>=1.3.0)", "pytest-env (>=1.1.5)", "pytest-retry (>=1.7.0)", "pytest-xdist (>=3.7.0)", "requests (>=2.32.5,<3)"]
 
 [[package]]
 name = "idna"
@@ -1008,6 +1012,21 @@ files = [
 ]
 
 [[package]]
+name = "typing-inspection"
+version = "0.4.2"
+description = "Runtime typing introspection tools"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "typing_inspection-0.4.2-py3-none-any.whl", hash = "sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7"},
+    {file = "typing_inspection-0.4.2.tar.gz", hash = "sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464"},
+]
+
+[package.dependencies]
+typing-extensions = ">=4.12.0"
+
+[[package]]
 name = "urllib3"
 version = "2.6.3"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -1125,4 +1144,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "9a4662821f9ce0649c23b48be62d26a5e22d335d634c3bbed07df560bcff7948"
+content-hash = "b071eb6f23d241d56c4aa6056c828df41062283cb8dc439569763926f813cf57"
