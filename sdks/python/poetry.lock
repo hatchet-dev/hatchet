@@ -3603,4 +3603,4 @@ test = ["psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "py
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "19b54f7d52c3eb4abcb7fd92d262a024f7f45780618e609b88bc7795b067a36d"
+content-hash = "e0cc8b8601ff76a91dc69e586302a9cd6b31c8c141370ae654abab4cd657c2cf"
