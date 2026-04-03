@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/analytics/posthog"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
+	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -636,6 +637,39 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)
 	}
 
+	if cf.Auth.ControlPlaneExchangeTokenConfig.Enabled {
+		if cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeyset == "" && cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeysetFile == "" {
+			return nil, nil, fmt.Errorf("control plane exchange token JWT public keyset is required when exchange token config is enabled (set jwtPublicKeyset or jwtPublicKeysetFile)")
+		}
+
+		publicJwt := cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeyset
+
+		if cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeysetFile != "" {
+			keysetBytes, keyErr := os.ReadFile(cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeysetFile)
+
+			if keyErr != nil {
+				return nil, nil, fmt.Errorf("could not read control plane exchange token JWT public keyset file: %w", keyErr)
+			}
+
+			publicJwt = strings.TrimSpace(string(keysetBytes))
+		}
+
+		publicJWTHandle, handleErr := encryption.InsecureHandleFromBytes([]byte(publicJwt))
+
+		if handleErr != nil {
+			return nil, nil, fmt.Errorf("could not create keyset handle from control plane exchange token JWT public keyset: %w", handleErr)
+		}
+
+		auth.ExchangeTokenClient, err = exchangetoken.NewExchangeTokenClient(publicJWTHandle, &exchangetoken.ExchangeTokenOpts{
+			Issuer:   cf.Auth.ControlPlaneExchangeTokenConfig.Issuer,
+			Audience: cf.Auth.ControlPlaneExchangeTokenConfig.Audience,
+		})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create exchange token client: %w", err)
+		}
+	}
+
 	var emailSvc email.EmailService = &email.NoOpService{}
 
 	switch strings.ToLower(cf.Email.Kind) {
@@ -730,6 +764,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		for _, controller := range strings.Split(cf.PausedControllers, " ") {
 			pausedControllers[controller] = true
 		}
+	}
+
+	if cf.Runtime.AllowedOriginsString != "" {
+		cf.Runtime.AllowedOrigins = getStrArr(cf.Runtime.AllowedOriginsString)
 	}
 
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
