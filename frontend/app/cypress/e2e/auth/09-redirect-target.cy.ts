@@ -7,7 +7,7 @@ describe('Redirect target: deep link restoration', () => {
       password: seededUsers.owner.password,
     });
 
-    cy.request('GET', '/api/v1/users/memberships/current').then((resp) => {
+    cy.request('GET', '/api/v1/users/memberships').then((resp) => {
       const tenantId = resp.body.rows[0].tenant.metadata.id;
       const deepLink = `/tenants/${tenantId}/events`;
 
@@ -42,7 +42,7 @@ describe('Redirect target: deep link restoration', () => {
       password: seededUsers.owner.password,
     });
 
-    cy.request('GET', '/api/v1/users/memberships/current').then((resp) => {
+    cy.request('GET', '/api/v1/users/memberships').then((resp) => {
       const ownerTenantId = resp.body.rows[0].tenant.metadata.id;
       const deepLink = `/tenants/${ownerTenantId}/events`;
 
