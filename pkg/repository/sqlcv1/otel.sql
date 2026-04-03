@@ -61,6 +61,7 @@ SELECT
     retry_count,
     start_time
 FROM inputs
+ORDER BY tenant_id, trace_id, start_time, span_id
 ON CONFLICT (tenant_id, trace_id, start_time, span_id) DO NOTHING
 ;
 
@@ -87,6 +88,7 @@ SELECT
     trace_id,
     start_time
 FROM inputs
+ORDER BY tenant_id, external_id, retry_count, start_time
 ON CONFLICT (tenant_id, external_id, retry_count, start_time) DO NOTHING
 ;
 

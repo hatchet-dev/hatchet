@@ -61,6 +61,11 @@ const (
 	EventOrderByFieldCreatedAt EventOrderByField = "createdAt"
 )
 
+// Defines values for FeatureFlagId.
+const (
+	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
+)
+
 // Defines values for JobRunStatus.
 const (
 	JobRunStatusBACKOFF   JobRunStatus = "BACKOFF"
@@ -398,9 +403,12 @@ type APIMeta struct {
 	AllowInvites *bool `json:"allowInvites,omitempty"`
 
 	// AllowSignup whether or not users can sign up for this instance
-	AllowSignup *bool           `json:"allowSignup,omitempty"`
-	Auth        *APIMetaAuth    `json:"auth,omitempty"`
-	Posthog     *APIMetaPosthog `json:"posthog,omitempty"`
+	AllowSignup *bool        `json:"allowSignup,omitempty"`
+	Auth        *APIMetaAuth `json:"auth,omitempty"`
+
+	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
+	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
+	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`
@@ -670,6 +678,15 @@ type Events struct {
 	Events   []Event         `json:"events"`
 	Metadata APIResourceMeta `json:"metadata"`
 }
+
+// FeatureFlagEvaluationResult defines model for FeatureFlagEvaluationResult.
+type FeatureFlagEvaluationResult struct {
+	// IsEnabled Whether the feature flag is enabled for the tenant
+	IsEnabled bool `json:"isEnabled"`
+}
+
+// FeatureFlagId defines model for FeatureFlagId.
+type FeatureFlagId string
 
 // Job defines model for Job.
 type Job struct {
@@ -2632,6 +2649,12 @@ type V1TenantLogLineGetPointMetricsParams struct {
 
 	// TaskExternalIds The task external ID(s) to filter by
 	TaskExternalIds *[]openapi_types.UUID `form:"taskExternalIds,omitempty" json:"taskExternalIds,omitempty"`
+
+	// WorkflowIds The workflow id(s) to filter for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// StepIds The step id(s) to filter for
+	StepIds *[]openapi_types.UUID `form:"step_ids,omitempty" json:"step_ids,omitempty"`
 }
 
 // V1TenantLogLineListParams defines parameters for V1TenantLogLineList.
@@ -2659,6 +2682,12 @@ type V1TenantLogLineListParams struct {
 
 	// TaskExternalIds The task external ID(s) to filter by
 	TaskExternalIds *[]openapi_types.UUID `form:"taskExternalIds,omitempty" json:"taskExternalIds,omitempty"`
+
+	// WorkflowIds The workflow id(s) to filter for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// StepIds The step id(s) to filter for
+	StepIds *[]openapi_types.UUID `form:"step_ids,omitempty" json:"step_ids,omitempty"`
 }
 
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
@@ -2851,6 +2880,15 @@ type EventListParams struct {
 
 	// EventIds A list of event ids to filter by
 	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
+}
+
+// TenantFeatureFlagEvaluateParams defines parameters for TenantFeatureFlagEvaluate.
+type TenantFeatureFlagEvaluateParams struct {
+	// FeatureFlagId The feature flag id to evaluate
+	FeatureFlagId FeatureFlagId `form:"featureFlagId" json:"featureFlagId"`
+
+	// IsEnabledIfNoPosthog A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable
+	IsEnabledIfNoPosthog bool `form:"isEnabledIfNoPosthog" json:"isEnabledIfNoPosthog"`
 }
 
 // TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
@@ -3565,6 +3603,9 @@ type ClientInterface interface {
 
 	// EventDataGetWithTenant request
 	EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantFeatureFlagEvaluate request
+	TenantFeatureFlagEvaluate(ctx context.Context, tenant openapi_types.UUID, params *TenantFeatureFlagEvaluateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantInviteList request
 	TenantInviteList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4834,6 +4875,18 @@ func (c *Client) EventUpdateReplay(ctx context.Context, tenant openapi_types.UUI
 
 func (c *Client) EventDataGetWithTenant(ctx context.Context, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventDataGetWithTenantRequest(c.Server, tenant, eventWithTenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantFeatureFlagEvaluate(ctx context.Context, tenant openapi_types.UUID, params *TenantFeatureFlagEvaluateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantFeatureFlagEvaluateRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7557,6 +7610,38 @@ func NewV1TenantLogLineGetPointMetricsRequest(server string, tenant openapi_type
 
 		}
 
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StepIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step_ids", runtime.ParamLocationQuery, *params.StepIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -7712,6 +7797,38 @@ func NewV1TenantLogLineListRequest(server string, tenant openapi_types.UUID, par
 		if params.TaskExternalIds != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskExternalIds", runtime.ParamLocationQuery, *params.TaskExternalIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.StepIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step_ids", runtime.ParamLocationQuery, *params.StepIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -10029,6 +10146,70 @@ func NewEventDataGetWithTenantRequest(server string, tenant openapi_types.UUID, 
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTenantFeatureFlagEvaluateRequest generates requests for TenantFeatureFlagEvaluate
+func NewTenantFeatureFlagEvaluateRequest(server string, tenant openapi_types.UUID, params *TenantFeatureFlagEvaluateParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/feature-flags", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "featureFlagId", runtime.ParamLocationQuery, params.FeatureFlagId); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "isEnabledIfNoPosthog", runtime.ParamLocationQuery, params.IsEnabledIfNoPosthog); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -13991,6 +14172,9 @@ type ClientWithResponsesInterface interface {
 	// EventDataGetWithTenantWithResponse request
 	EventDataGetWithTenantWithResponse(ctx context.Context, tenant openapi_types.UUID, eventWithTenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetWithTenantResponse, error)
 
+	// TenantFeatureFlagEvaluateWithResponse request
+	TenantFeatureFlagEvaluateWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantFeatureFlagEvaluateParams, reqEditors ...RequestEditorFn) (*TenantFeatureFlagEvaluateResponse, error)
+
 	// TenantInviteListWithResponse request
 	TenantInviteListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantInviteListResponse, error)
 
@@ -15877,6 +16061,31 @@ func (r EventDataGetWithTenantResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventDataGetWithTenantResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantFeatureFlagEvaluateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FeatureFlagEvaluationResult
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantFeatureFlagEvaluateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantFeatureFlagEvaluateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -18346,6 +18555,15 @@ func (c *ClientWithResponses) EventDataGetWithTenantWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseEventDataGetWithTenantResponse(rsp)
+}
+
+// TenantFeatureFlagEvaluateWithResponse request returning *TenantFeatureFlagEvaluateResponse
+func (c *ClientWithResponses) TenantFeatureFlagEvaluateWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantFeatureFlagEvaluateParams, reqEditors ...RequestEditorFn) (*TenantFeatureFlagEvaluateResponse, error) {
+	rsp, err := c.TenantFeatureFlagEvaluate(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantFeatureFlagEvaluateResponse(rsp)
 }
 
 // TenantInviteListWithResponse request returning *TenantInviteListResponse
@@ -22007,6 +22225,53 @@ func ParseEventDataGetWithTenantResponse(rsp *http.Response) (*EventDataGetWithT
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantFeatureFlagEvaluateResponse parses an HTTP response from a TenantFeatureFlagEvaluateWithResponse call
+func ParseTenantFeatureFlagEvaluateResponse(rsp *http.Response) (*TenantFeatureFlagEvaluateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantFeatureFlagEvaluateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeatureFlagEvaluationResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

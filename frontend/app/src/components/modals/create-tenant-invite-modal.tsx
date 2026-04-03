@@ -16,8 +16,9 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
-import api, { CreateTenantInviteRequest, TenantMemberRole } from '@/lib/api';
+import { TenantMemberRole } from '@/lib/api';
 import { TenantInvite } from '@/lib/api/generated/data-contracts';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -145,12 +146,9 @@ export const CreateTenantInviteModal = ({
 
   const organizationId = getOrganizationIdForTenant(tenantId);
 
+  const { tenantInviteCreateMutation } = useTenantApi();
   const createMutation = useMutation({
-    mutationKey: ['tenant-invite:create', tenantId],
-    mutationFn: async (data: CreateTenantInviteRequest) => {
-      const res = await api.tenantInviteCreate(tenantId, data);
-      return res.data;
-    },
+    ...tenantInviteCreateMutation(tenantId),
     onSuccess: (invite) => {
       onCreated(invite);
       onClose();

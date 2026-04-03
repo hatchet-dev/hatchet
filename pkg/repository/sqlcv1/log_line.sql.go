@@ -30,6 +30,8 @@ WHERE
     AND ($5::TEXT IS NULL OR message ILIKE CONCAT('%', $5::TEXT, '%'))
     AND ($6::v1_log_line_level[] IS NULL OR level = ANY($6::v1_log_line_level[]))
     AND ($7::BIGINT[] IS NULL OR task_id = ANY($7::BIGINT[]))
+    AND ($8::UUID[] IS NULL OR workflow_id = ANY($8::UUID[]))
+    AND ($9::UUID[] IS NULL OR step_id = ANY($9::UUID[]))
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
@@ -42,6 +44,8 @@ type GetLogLinePointMetricsParams struct {
 	Search        pgtype.Text        `json:"search"`
 	Levels        []V1LogLineLevel   `json:"levels"`
 	TaskIds       []int64            `json:"taskIds"`
+	WorkflowIds   []uuid.UUID        `json:"workflowIds"`
+	StepIds       []uuid.UUID        `json:"stepIds"`
 }
 
 type GetLogLinePointMetricsRow struct {
@@ -61,6 +65,8 @@ func (q *Queries) GetLogLinePointMetrics(ctx context.Context, db DBTX, arg GetLo
 		arg.Search,
 		arg.Levels,
 		arg.TaskIds,
+		arg.WorkflowIds,
+		arg.StepIds,
 	)
 	if err != nil {
 		return nil, err
@@ -94,11 +100,13 @@ type InsertLogLineParams struct {
 	Metadata       []byte             `json:"metadata"`
 	RetryCount     int32              `json:"retry_count"`
 	Level          V1LogLineLevel     `json:"level"`
+	WorkflowID     *uuid.UUID         `json:"workflow_id"`
+	StepID         *uuid.UUID         `json:"step_id"`
 }
 
 const listLogLines = `-- name: ListLogLines :many
 SELECT
-    id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata, retry_count
+    id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata, retry_count, workflow_id, step_id
 FROM
     v1_log_line l
 WHERE
@@ -109,11 +117,13 @@ WHERE
     AND ($5::TIMESTAMPTZ IS NULL OR l.created_at < $5::TIMESTAMPTZ)
     AND ($6::v1_log_line_level[] IS NULL OR l.level = ANY($6::v1_log_line_level[]))
     AND ($7::INTEGER IS NULL OR l.retry_count = ($7::INTEGER - 1))
+    AND ($8::UUID[] IS NULL OR l.workflow_id = ANY($8::UUID[]))
+    AND ($9::UUID[] IS NULL OR l.step_id = ANY($9::UUID[]))
 ORDER BY
-    CASE WHEN $8::TEXT = 'DESC' THEN l.created_at END DESC,
-    CASE WHEN $8::TEXT = 'ASC' THEN l.created_at END ASC
-LIMIT COALESCE($10::BIGINT, 1000)
-OFFSET COALESCE($9::BIGINT, 0)
+    CASE WHEN $10::TEXT = 'DESC' THEN l.created_at END DESC,
+    CASE WHEN $10::TEXT = 'ASC' THEN l.created_at END ASC
+LIMIT COALESCE($12::BIGINT, 1000)
+OFFSET COALESCE($11::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
@@ -124,6 +134,8 @@ type ListLogLinesParams struct {
 	Until            pgtype.Timestamptz `json:"until"`
 	Levels           []V1LogLineLevel   `json:"levels"`
 	Attempt          pgtype.Int4        `json:"attempt"`
+	WorkflowIds      []uuid.UUID        `json:"workflowIds"`
+	StepIds          []uuid.UUID        `json:"stepIds"`
 	Orderbydirection string             `json:"orderbydirection"`
 	Offset           pgtype.Int8        `json:"offset"`
 	Limit            pgtype.Int8        `json:"limit"`
@@ -138,6 +150,8 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Until,
 		arg.Levels,
 		arg.Attempt,
+		arg.WorkflowIds,
+		arg.StepIds,
 		arg.Orderbydirection,
 		arg.Offset,
 		arg.Limit,
@@ -159,6 +173,8 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 			&i.Level,
 			&i.Metadata,
 			&i.RetryCount,
+			&i.WorkflowID,
+			&i.StepID,
 		); err != nil {
 			return nil, err
 		}

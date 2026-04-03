@@ -25,6 +25,10 @@ APIMeta:
       type: boolean
       description: whether or not users can change their password
       example: true
+    observabilityEnabled:
+      type: boolean
+      description: whether or not observability (trace collection) is enabled on this instance
+      example: false
 
 APIMetaAuth:
   type: object
