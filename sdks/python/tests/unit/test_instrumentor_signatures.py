@@ -55,7 +55,7 @@ def _get_sig(func: Callable[..., Any]) -> inspect.Signature:
     try:
         import annotationlib  # type: ignore[import-not-found, unused-ignore]
 
-        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)  # type: ignore[import-not-found, unused-ignore]
+        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)  # type: ignore[call-arg, unused-ignore]
     except Exception:
         return inspect.signature(func)
 
