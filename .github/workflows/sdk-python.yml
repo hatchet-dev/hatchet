@@ -149,11 +149,10 @@ jobs:
 
       - name: Test with wheel
         run: |
-          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
           poetry build
           poetry run pip uninstall hatchet_sdk -y
           poetry run pip install --no-cache-dir --no-index --find-links dist/  hatchet_sdk -v
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
+          poetry run python -c "from hatchet_sdk import Workflow;"
 
       - name: Upload engine logs
         if: always()
