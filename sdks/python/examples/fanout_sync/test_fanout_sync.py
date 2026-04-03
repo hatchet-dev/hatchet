@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from examples.fanout_sync.worker import ParentInput, sync_fanout_parent
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Hatchet
 
 
 def test_run() -> None:
@@ -19,11 +19,10 @@ def test_run() -> None:
 async def test_additional_metadata_propagation_sync(hatchet: Hatchet) -> None:
     test_run_id = uuid4().hex
 
-    ref = await sync_fanout_parent.aio_run_no_wait(
+    ref = await sync_fanout_parent.aio_run(
         ParentInput(n=2),
-        options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id}
-        ),
+        additional_metadata={"test_run_id": test_run_id},
+        wait_for_result=False,
     )
 
     await ref.aio_result()

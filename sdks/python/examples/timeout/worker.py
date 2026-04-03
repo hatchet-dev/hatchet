@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel, Hatchet, TaskDefaults
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 # > ScheduleTimeout
 timeout_wf = hatchet.workflow(

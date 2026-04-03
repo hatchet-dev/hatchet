@@ -1,4 +1,4 @@
-import { getCloudMetadataQuery } from './auth/hooks/use-cloud.ts';
+import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
@@ -21,6 +21,8 @@ import {
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
+import { fetchControlPlaneStatus } from '@/lib/api/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
@@ -47,11 +49,15 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const { isCloudEnabled, ...meta } = await queryClient.fetchQuery(
-    getCloudMetadataQuery,
-  );
+  const [{ isCloudEnabled, ...meta }, { isControlPlaneEnabled }] =
+    await Promise.all([
+      queryClient.fetchQuery(getCloudMetadataQuery),
+      fetchControlPlaneStatus(),
+    ]);
 
-  await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
+  await queryClient.fetchQuery(
+    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+  );
   return {
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
@@ -112,11 +118,9 @@ function AuthenticatedInner() {
     isOnboardingCreateTenantPage ||
     isOnboardingCreateOrganizationPage;
 
+  const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
+    ...userUpdateLogoutMutation(),
     onSuccess: () => {
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });

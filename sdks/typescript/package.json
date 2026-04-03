@@ -72,7 +72,7 @@
   "dependencies": {
     "@bufbuild/protobuf": "^2.11.0",
     "@types/qs": "^6.15.0",
-    "abort-controller-x": "^0.4.3",
+    "abort-controller-x": "^0.5.0",
     "axios": "^1.13.5",
     "long": "^5.3.1",
     "nice-grpc": "^2.1.14",
@@ -88,8 +88,8 @@
     "@grpc/grpc-js": "^1.14.3",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^2.0.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.208.0",
-    "@opentelemetry/instrumentation": "^0.208.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
+    "@opentelemetry/instrumentation": "^0.214.0",
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "prom-client": "^15.1.3"
   },

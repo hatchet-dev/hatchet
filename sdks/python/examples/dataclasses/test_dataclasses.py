@@ -12,29 +12,33 @@ async def test_dataclass_usage() -> None:
     x3 = say_hello.run_many([say_hello.create_bulk_run_item(input)])[0]
     x4 = (await say_hello.aio_run_many([say_hello.create_bulk_run_item(input)]))[0]
 
-    x5 = say_hello.run_no_wait(input).result()
-    x6 = (await say_hello.aio_run_no_wait(input)).result()
+    x5 = say_hello.run(input, wait_for_result=False).result()
+    x6 = (await say_hello.aio_run(input, wait_for_result=False)).result()
     x7 = [
         x.result()
-        for x in say_hello.run_many_no_wait([say_hello.create_bulk_run_item(input)])
+        for x in say_hello.run_many(
+            [say_hello.create_bulk_run_item(input)], wait_for_result=False
+        )
     ][0]
     x8 = [
         x.result()
-        for x in await say_hello.aio_run_many_no_wait(
-            [say_hello.create_bulk_run_item(input)]
+        for x in await say_hello.aio_run_many(
+            [say_hello.create_bulk_run_item(input)], wait_for_result=False
         )
     ][0]
 
-    x9 = await say_hello.run_no_wait(input).aio_result()
-    x10 = await (await say_hello.aio_run_no_wait(input)).aio_result()
+    x9 = await say_hello.run(input, wait_for_result=False).aio_result()
+    x10 = await (await say_hello.aio_run(input, wait_for_result=False)).aio_result()
     x11 = [
         await x.aio_result()
-        for x in say_hello.run_many_no_wait([say_hello.create_bulk_run_item(input)])
+        for x in say_hello.run_many(
+            [say_hello.create_bulk_run_item(input)], wait_for_result=False
+        )
     ][0]
     x12 = [
         await x.aio_result()
-        for x in await say_hello.aio_run_many_no_wait(
-            [say_hello.create_bulk_run_item(input)]
+        for x in await say_hello.aio_run_many(
+            [say_hello.create_bulk_run_item(input)], wait_for_result=False
         )
     ][0]
 
