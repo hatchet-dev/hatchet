@@ -19,7 +19,7 @@ async def main() -> None:
     options = ClaudeAgentOptions(
         mcp_servers={"weather": weather_server},
         allowed_tools=[
-            f"mcp__{weather_server["name"]}__{temperature_tool_claude.name}"
+            f"mcp__{weather_server['name']}__{temperature_tool_claude.name}"
         ],
     )
 

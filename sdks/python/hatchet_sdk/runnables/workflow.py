@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from enum import StrEnum
+from enum import Enum
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -12,7 +12,6 @@ from typing import (
     Literal,
     ParamSpec,
     TypeVar,
-    assert_never,
     cast,
     get_type_hints,
     overload,
@@ -20,6 +19,7 @@ from typing import (
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
+from typing_extensions import assert_never
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -79,7 +79,8 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-class MCPProvider(StrEnum):
+# Once support for 3.10 is dropped, convert this to StrEnum
+class MCPProvider(str, Enum):
     CLAUDE = "CLAUDE"
     OPENAI = "OPENAI"
 
