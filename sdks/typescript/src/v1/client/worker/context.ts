@@ -982,7 +982,9 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   async waitForEvent(
     key: string,
     expression?: string,
-    payloadSchema?: z.ZodTypeAny
+    payloadSchema?: z.ZodTypeAny,
+    scope?: string,
+    lookbackWindow?: Duration
   ): Promise<unknown> {
     const res = await this.waitFor({ eventKey: key, expression });
 
