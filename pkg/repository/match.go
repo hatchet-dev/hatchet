@@ -68,6 +68,10 @@ type CreateExternalSignalConditionOpt struct {
 
 	UserEventKey *string
 
+	UserEventScope *string
+
+	UserEventConsiderEventsSince *time.Time
+
 	SleepFor *string `validate:"omitempty,duration"`
 
 	Expression string

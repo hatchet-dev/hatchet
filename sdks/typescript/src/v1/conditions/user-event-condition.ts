@@ -23,6 +23,16 @@ export interface UserEvent {
    * If not specified, the eventKey will be used as the default identifier.
    */
   readableDataKey?: string;
+
+  /**
+   An optional scope to filter events. If provided, only events with a matching scope will be considered when looking for matches. This is required if `lookback_window` is provided (if you wish to consider events that were pushed before the wait was established as valid).
+  */
+  scope?: string;
+
+  /**
+  An optional lookback window to consider when waiting for events. If provided, events that were pushed within this time window before the wait was established will be considered as valid matches. This is useful for avoiding race conditions between event pushes and waits.
+   */
+  lookbackWindow?: string;
 }
 
 /**
@@ -50,8 +60,17 @@ export interface UserEvent {
 export class UserEventCondition extends Condition {
   eventKey: string;
   expression: string;
+  scope?: string;
+  lookbackWindow?: string;
 
-  constructor(eventKey: string, expression: string, readableDataKey?: string, action?: Action) {
+  constructor(
+    eventKey: string,
+    expression: string,
+    readableDataKey?: string,
+    action?: Action,
+    scope?: string,
+    lookbackWindow?: string
+  ) {
     super({
       readableDataKey: readableDataKey || eventKey,
       action,
@@ -60,5 +79,7 @@ export class UserEventCondition extends Condition {
     });
     this.eventKey = eventKey;
     this.expression = expression;
+    this.scope = scope;
+    this.lookbackWindow = lookbackWindow;
   }
 }

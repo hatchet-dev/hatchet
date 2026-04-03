@@ -59,7 +59,9 @@ export function Render(action?: Action, conditions?: Conditions | Conditions[]):
           conditionOrObj.eventKey,
           conditionOrObj.expression || '',
           undefined,
-          action
+          action,
+          conditionOrObj.scope,
+          conditionOrObj.lookbackWindow
         ),
       ];
     }

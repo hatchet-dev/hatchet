@@ -245,6 +245,71 @@ export const durableReplayReset = hatchet.durableTask({
   },
 });
 
+export const LOOKBACK_WINDOW = '1m' as const;
+
+export const waitForEventLookback = hatchet.durableTask({
+  name: 'wait-for-event-lookback',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    const event = await ctx.waitForEvent(
+      EVENT_KEY,
+      undefined,
+      undefined,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+      event,
+    };
+  },
+});
+
+export const waitForOrEventLookback = hatchet.durableTask({
+  name: 'wait-for-or-event-lookback',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    await ctx.waitFor(
+      Or(
+        new SleepCondition(SLEEP_TIME),
+        new UserEventCondition(EVENT_KEY, '', undefined, undefined, input.scope, LOOKBACK_WINDOW)
+      )
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+    };
+  },
+});
+
+export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
+  name: 'wait-for-two-events-second-pushed-first',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    const event1 = await ctx.waitForEvent(
+      'key1',
+      undefined,
+      undefined,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    const event2 = await ctx.waitForEvent(
+      'key2',
+      undefined,
+      undefined,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+      event1,
+      event2,
+    };
+  },
+});
+
 export const memoNowCaching = hatchet.durableTask({
   name: 'memo-now-caching',
   executionTimeout: '10m',

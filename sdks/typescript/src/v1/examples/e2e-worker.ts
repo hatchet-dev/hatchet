@@ -26,6 +26,9 @@ import {
   durableReplayReset,
   dagChildWorkflow,
   durableSpawnDag,
+  waitForEventLookback,
+  waitForOrEventLookback,
+  waitForTwoEventsSecondPushedFirst,
 } from './durable/workflow';
 import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
 import {
@@ -74,6 +77,9 @@ const workflows = [
   durableReplayReset,
   dagChildWorkflow,
   durableSpawnDag,
+  waitForEventLookback,
+  waitForOrEventLookback,
+  waitForTwoEventsSecondPushedFirst,
   durableEvent,
   durableEventWithFilter,
   durableSleep,

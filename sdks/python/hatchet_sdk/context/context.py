@@ -671,6 +671,8 @@ class DurableContext(Context):
         expression: str | None = None,
         *,
         payload_validator: type[TPayload],
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
     ) -> TPayload: ...
 
     @overload
@@ -678,6 +680,10 @@ class DurableContext(Context):
         self,
         key: str,
         expression: str | None = None,
+        *,
+        payload_validator: None = None,
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
     ) -> dict[str, Any]: ...
 
     async def aio_wait_for_event(
@@ -686,6 +692,8 @@ class DurableContext(Context):
         expression: str | None = None,
         *,
         payload_validator: type[Any] | None = None,
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
     ) -> Any:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
@@ -695,15 +703,31 @@ class DurableContext(Context):
         :param key: The event key to wait for.
         :param expression: An optional CEL expression to filter events.
         :param payload_validator: An optional type (e.g. a Pydantic model, dataclass, or TypedDict) to validate the event payload against. If provided, the payload will be validated and returned as an instance of this type.
+        :param scope: An optional scope to filter events. If provided, only events with a matching scope will be considered when looking for matches. This is required if `lookback_window` is provided (if you wish to consider events that were pushed before the wait was established as valid).
+        :param lookback_window: An optional lookback window to consider when waiting for events. If provided, events that were pushed within this time window before the wait was established will be considered as valid matches. This is useful for avoiding race conditions between event pushes and waits.
 
+        :raises ValueError: If only one of `scope` or `lookback_window` is provided without the other.
         :return: The payload of the event, validated against the provided payload_validator if it was given, or as a raw dictionary if no payload_validator was provided.
         """
 
+        if (lookback_window and not scope) or (scope and not lookback_window):
+            raise ValueError(
+                "Both `lookback_window` and scope must be provided together"
+            )
+
         wait_index = self._increment_wait_index()
+        consider_events_since = (
+            (await self.aio_now()) - lookback_window if lookback_window else None
+        )
 
         result = await self.aio_wait_for(
             f"event:{key}-{wait_index}",
-            UserEventCondition(event_key=key, expression=expression),
+            UserEventCondition(
+                event_key=key,
+                expression=expression,
+                scope=scope,
+                consider_events_since=consider_events_since,
+            ),
         )
 
         ## lots of implicit use of engine semantics / internal logic here.

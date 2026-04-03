@@ -49,6 +49,61 @@ type CreateMatchConditionsParams struct {
 	Data              []byte                 `json:"data"`
 }
 
+const getPreviousMatchingEventsByKeysWithScopeHint = `-- name: GetPreviousMatchingEventsByKeysWithScopeHint :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::text[]) AS key,
+        UNNEST($3::timestamptz[]) AS since,
+        UNNEST($4::text[]) AS scope
+)
+
+SELECT e.id, e.seen_at, e.tenant_id, e.external_id, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name
+FROM v1_event e
+JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
+WHERE tenant_id = $1::uuid
+`
+
+type GetPreviousMatchingEventsByKeysWithScopeHintParams struct {
+	Tenantid   uuid.UUID            `json:"tenantid"`
+	Keys       []string             `json:"keys"`
+	Seensinces []pgtype.Timestamptz `json:"seensinces"`
+	Scopes     []string             `json:"scopes"`
+}
+
+func (q *Queries) GetPreviousMatchingEventsByKeysWithScopeHint(ctx context.Context, db DBTX, arg GetPreviousMatchingEventsByKeysWithScopeHintParams) ([]*V1Event, error) {
+	rows, err := db.Query(ctx, getPreviousMatchingEventsByKeysWithScopeHint,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Seensinces,
+		arg.Scopes,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Event
+	for rows.Next() {
+		var i V1Event
+		if err := rows.Scan(
+			&i.ID,
+			&i.SeenAt,
+			&i.TenantID,
+			&i.ExternalID,
+			&i.Key,
+			&i.AdditionalMetadata,
+			&i.Scope,
+			&i.TriggeringWebhookName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSatisfiedMatchConditions = `-- name: GetSatisfiedMatchConditions :many
 WITH input AS (
     SELECT
