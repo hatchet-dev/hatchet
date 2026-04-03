@@ -161,24 +161,6 @@ class Worker:
     def status(self) -> WorkerStatus:
         return self._status
 
-    @property
-    def slots(self) -> int:
-        warn(
-            "Worker.slots is deprecated; use slot_config['default'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slots
-
-    @property
-    def durable_slots(self) -> int:
-        warn(
-            "Worker.durable_slots is deprecated; use slot_config['durable'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_slots
-
     def _setup_loop(self) -> None:
         try:
             asyncio.get_running_loop()

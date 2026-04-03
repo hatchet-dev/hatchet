@@ -130,24 +130,6 @@ class WorkerActionListenerProcess:
                 "Event loop lag in seconds (listener process)",
             )
 
-    @property
-    def slots(self) -> int:
-        warnings.warn(
-            "WorkerActionListenerProcess.slots is deprecated; use slot_config['default'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slots
-
-    @property
-    def durable_slots(self) -> int:
-        warnings.warn(
-            "WorkerActionListenerProcess.durable_slots is deprecated; use slot_config['durable'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_slots
-
     async def _monitor_event_loop(self) -> None:
         # If the loop is blocked, this coroutine itself can't run; when it resumes,
         # we detect the lag by comparing elapsed time vs expected sleep.
