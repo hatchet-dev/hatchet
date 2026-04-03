@@ -360,8 +360,13 @@ export class BaseWorkflowDeclaration<
     _standaloneTaskName?: string
   ): Promise<WorkflowRunRef<O>[]>;
   async runNoWait(
+    input: I[],
+    options?: RunOpts[],
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>[]>;
+  async runNoWait(
     input: I | I[],
-    options?: RunOpts,
+    options?: RunOpts | RunOpts[],
     _standaloneTaskName?: string
   ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
     if (!this.client) {
@@ -372,7 +377,11 @@ export class BaseWorkflowDeclaration<
     const parentRunContext = parentRunContextManager.getContext();
     parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
 
-    if (!parentRunContext && (options?.childKey || options?.sticky)) {
+    const hasChildKeyOrSticky = Array.isArray(options)
+      ? options.some((opt) => opt?.childKey || opt?.sticky)
+      : options?.childKey || options?.sticky;
+
+    if (!parentRunContext && hasChildKeyOrSticky) {
       this.client.admin.logger.warn(
         'ignoring childKey or sticky because run is not being spawned from a parent task'
       );
@@ -392,28 +401,46 @@ export class BaseWorkflowDeclaration<
 
     parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
 
+    if (!Array.isArray(input) && Array.isArray(options)) {
+      throw new Error('array options are only supported when input is an array');
+    }
+
     const runOpts = {
-      ...(options ?? {}),
+      ...(Array.isArray(options) ? {} : (options ?? {})),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
       childIndex: parentRunContext?.childIndex,
-      sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
-      childKey: options?.childKey,
+      desiredWorkerId:
+        !Array.isArray(options) && options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
+      childKey: !Array.isArray(options) ? options?.childKey : undefined,
     };
 
     if (Array.isArray(input)) {
+      if (Array.isArray(options) && options.length !== input.length) {
+        throw new Error('options array length must match input array length');
+      }
+
       let resp: WorkflowRunRef<O>[] = [];
       for (let i = 0; i < input.length; i += 500) {
         const batch = input.slice(i, i + 500);
+        const batchOptions = Array.isArray(options) ? options.slice(i, i + 500) : undefined;
         const batchResp = await this.client.admin.runWorkflows<I, O>(
-          batch.map((inp) => ({
-            workflowName: this.definition.name,
-            input: inp,
-            options: {
-              ...runOpts,
-              childIndex: (runOpts.childIndex ?? 0) + i, // increment from initial child index state
-            },
-          }))
+          batch.map((inp, batchIndex) => {
+            const perInputOpts = batchOptions?.[batchIndex];
+
+            return {
+              workflowName: this.definition.name,
+              input: inp,
+              options: {
+                ...runOpts,
+                ...(perInputOpts ?? {}),
+                childIndex: (runOpts.childIndex ?? 0) + i + batchIndex,
+                desiredWorkerId: perInputOpts?.sticky
+                  ? parentRunContext?.desiredWorkerId
+                  : runOpts.desiredWorkerId,
+              },
+            };
+          })
         );
         resp = resp.concat(batchResp);
       }
@@ -479,7 +506,12 @@ export class BaseWorkflowDeclaration<
    */
   async run(input: I, options?: RunOpts, _standaloneTaskName?: string): Promise<O>;
   async run(input: I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O[]>;
-  async run(input: I | I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O | O[]> {
+  async run(input: I[], options?: RunOpts[], _standaloneTaskName?: string): Promise<O[]>;
+  async run(
+    input: I | I[],
+    options?: RunOpts | RunOpts[],
+    _standaloneTaskName?: string
+  ): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
@@ -487,16 +519,33 @@ export class BaseWorkflowDeclaration<
     const durableCtx = parentRunContextManager.getContext()?.durableContext;
     if (durableCtx) {
       if (Array.isArray(input)) {
+        if (Array.isArray(options) && options.length !== input.length) {
+          throw new Error('options array length must match input array length');
+        }
+
         return durableCtx.spawnChildren(
-          input.map((inp) => ({ workflow: this, input: inp, options }))
+          input.map((inp, index) => ({
+            workflow: this,
+            input: inp,
+            options: Array.isArray(options) ? options[index] : options,
+          }))
         );
+      }
+      if (Array.isArray(options)) {
+        throw new Error('array options are only supported when input is an array');
       }
       return durableCtx.spawnChild(this, input, options);
     }
 
     if (Array.isArray(input)) {
-      const refs = await this.runNoWait(input, options, _standaloneTaskName);
-      if (options?.returnExceptions) {
+      const refs = Array.isArray(options)
+        ? await this.runNoWait(input, options, _standaloneTaskName)
+        : await this.runNoWait(input, options, _standaloneTaskName);
+      const returnExceptions = Array.isArray(options)
+        ? options.some((opt) => opt?.returnExceptions)
+        : options?.returnExceptions;
+
+      if (returnExceptions) {
         const settled = await Promise.allSettled(refs.map((ref) => ref.result()));
         return settled.map((s) => {
           if (s.status === 'fulfilled') {
@@ -510,6 +559,10 @@ export class BaseWorkflowDeclaration<
         }) as O[];
       }
       return Promise.all(refs.map((ref) => ref.result()));
+    }
+
+    if (Array.isArray(options)) {
+      throw new Error('array options are only supported when input is an array');
     }
 
     const res = await this.runNoWait(input, options, _standaloneTaskName);
@@ -946,19 +999,36 @@ export class TaskWorkflowDeclaration<
     input: (I & GlobalInput)[],
     options?: RunOpts
   ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  /** @hidden */
+  async runAndWait(
+    input: (I & GlobalInput)[],
+    options?: RunOpts[]
+  ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
   async runAndWait(
     input: (I & GlobalInput) | (I & GlobalInput)[],
-    options?: RunOpts
+    options?: RunOpts | RunOpts[]
   ): Promise<
     (O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
   > {
-    return Array.isArray(input)
-      ? (super.runAndWait(input, options, this._standalone_task_name) as Promise<
+    if (Array.isArray(input)) {
+      if (Array.isArray(options)) {
+        return super.run(input, options, this._standalone_task_name) as Promise<
           (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
-        >)
-      : (super.runAndWait(input, options, this._standalone_task_name) as Promise<
-          O & Resolved<GlobalOutput, MiddlewareAfter>
-        >);
+        >;
+      }
+
+      return super.runAndWait(input, options, this._standalone_task_name) as Promise<
+        (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+      >;
+    }
+
+    if (Array.isArray(options)) {
+      throw new Error('array options are only supported when input is an array');
+    }
+
+    return super.runAndWait(input, options, this._standalone_task_name) as Promise<
+      O & Resolved<GlobalOutput, MiddlewareAfter>
+    >;
   }
 
   /**
@@ -976,19 +1046,36 @@ export class TaskWorkflowDeclaration<
     input: (I & GlobalInput)[],
     options?: RunOpts
   ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
+  /** @hidden */
+  async run(
+    input: (I & GlobalInput)[],
+    options?: RunOpts[]
+  ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]>;
   async run(
     input: (I & GlobalInput) | (I & GlobalInput)[],
-    options?: RunOpts
+    options?: RunOpts | RunOpts[]
   ): Promise<
     (O & Resolved<GlobalOutput, MiddlewareAfter>) | (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
   > {
-    return Array.isArray(input)
-      ? (super.run(input, options, this._standalone_task_name) as Promise<
+    if (Array.isArray(input)) {
+      if (Array.isArray(options)) {
+        return super.run(input, options, this._standalone_task_name) as Promise<
           (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
-        >)
-      : (super.run(input, options, this._standalone_task_name) as Promise<
-          O & Resolved<GlobalOutput, MiddlewareAfter>
-        >);
+        >;
+      }
+
+      return super.run(input, options, this._standalone_task_name) as Promise<
+        (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+      >;
+    }
+
+    if (Array.isArray(options)) {
+      throw new Error('array options are only supported when input is an array');
+    }
+
+    return super.run(input, options, this._standalone_task_name) as Promise<
+      O & Resolved<GlobalOutput, MiddlewareAfter>
+    >;
   }
 
   /**
@@ -1006,19 +1093,33 @@ export class TaskWorkflowDeclaration<
     options?: RunOpts
   ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]>;
   async runNoWait(
+    input: (I & GlobalInput)[],
+    options?: RunOpts[]
+  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]>;
+  async runNoWait(
     input: (I & GlobalInput) | (I & GlobalInput)[],
-    options?: RunOpts
+    options?: RunOpts | RunOpts[]
   ): Promise<
     | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>
     | WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
   > {
-    return Array.isArray(input)
-      ? (super.runNoWait(input, options, this._standalone_task_name) as Promise<
+    if (Array.isArray(input)) {
+      if (Array.isArray(options)) {
+        return super.runNoWait(input, options, this._standalone_task_name) as Promise<
           WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
-        >)
-      : (super.runNoWait(input, options, this._standalone_task_name) as Promise<
-          WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>
-        >);
+        >;
+      }
+
+      return super.runNoWait(input, options, this._standalone_task_name) as Promise<
+        WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
+      >;
+    }
+
+    return super.runNoWait(
+      input,
+      options as RunOpts | undefined,
+      this._standalone_task_name
+    ) as Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>>;
   }
 
   /**
