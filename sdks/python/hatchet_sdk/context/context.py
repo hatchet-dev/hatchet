@@ -40,7 +40,6 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
@@ -105,7 +104,6 @@ class Context:
         durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
-        worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
@@ -114,7 +112,6 @@ class Context:
         workflow_name: str,
         worker_labels: list[WorkerLabel],
     ):
-        self._worker = worker
 
         self._data = action.action_payload
 
@@ -557,7 +554,6 @@ class DurableContext(Context):
         durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
-        worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
@@ -574,7 +570,6 @@ class DurableContext(Context):
             admin_client,
             event_client,
             durable_event_listener,
-            worker,
             runs_client,
             lifespan_context,
             log_sender,
@@ -775,7 +770,7 @@ class DurableContext(Context):
         await self._ensure_stream_started()
 
         ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
+            durable_task_external_id=self._step_run_id,
             invocation_count=self.invocation_count,
             event=RunChildrenEvent(
                 children=[

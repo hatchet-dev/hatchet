@@ -32,7 +32,7 @@ def check_flag(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
         # Note: Checking the status of the exit flag is mostly useful for cancelling
         # sync tasks without needing to forcibly kill the thread they're running on.
-        if ctx.exit_flag:
+        if ctx.is_cancelled:
             print("Task has been cancelled")
             raise ValueError("Task has been cancelled")
 

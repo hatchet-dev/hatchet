@@ -11,10 +11,8 @@ from textwrap import dedent
 from threading import Thread, current_thread
 from typing import Any, Literal, cast, overload
 
-from hatchet_sdk.context.worker_context import WorkerContext
 from pydantic import BaseModel, TypeAdapter
 
-from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
@@ -168,9 +166,6 @@ class Runner:
 
         self.durable_eviction_manager: DurableEvictionManager | None = None
 
-        self.worker_context = WorkerContext(
-            labels=labels, client=Client(config=config).dispatcher
-        )
         self.worker_labels = labels
 
         self.lifespan_context = lifespan_context

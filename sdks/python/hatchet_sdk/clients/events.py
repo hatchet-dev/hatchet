@@ -159,7 +159,7 @@ class EventClient(BaseRestClient):
         )
 
         try:
-            meta = _inject_source_info(additional_metadata)
+            meta = _inject_source_info(additional_metadata or {})
             meta_bytes = json.dumps(meta)
         except Exception as e:
             raise ValueError("Error encoding meta") from e

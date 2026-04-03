@@ -574,7 +574,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 payload,
                 None,
                 _inject_source_info(
-                    _inject_traceparent_into_metadata(dict(additional_metadata)),
+                    _inject_traceparent_into_metadata(additional_metadata or {}),
                 ),
                 priority,
                 scope,
@@ -912,12 +912,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         signal_key = cast(str, params[0])
         conditions = params[1:]
 
-        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
+        traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
 
         attributes: dict[OTelAttribute, str | int | None] = {
             OTelAttribute.SIGNAL_KEY: signal_key,
             OTelAttribute.NUM_CONDITIONS: len(conditions),
-            OTelAttribute.STEP_RUN_ID: instance.step_run_id,
+            OTelAttribute.STEP_RUN_ID: instance._step_run_id,
         }
 
         with self._tracer.start_as_current_span(
@@ -950,7 +950,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         configs = cast(list[WorkflowRunTriggerConfig], params[0])
 
-        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
+        traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
 
         if len(configs) == 1:
             config = configs[0]

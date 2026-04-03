@@ -23,7 +23,6 @@ from typing import (
     get_type_hints,
 )
 
-from hatchet_sdk.context.worker_context import WorkerContext
 from pydantic import BaseModel, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
 
@@ -516,9 +515,6 @@ class Task(Generic[TWorkflowInput, R]):
             admin_client=self._workflow._client._client.admin,
             event_client=self._workflow._client._client.event,
             durable_event_listener=None,
-            worker=WorkerContext(
-                labels=[], client=self._workflow._client._client.dispatcher
-            ),
             runs_client=self._workflow._client._client.runs,
             lifespan_context=lifespan_context,
             log_sender=AsyncLogSender(self._workflow._client._client.event),

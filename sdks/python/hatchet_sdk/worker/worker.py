@@ -259,7 +259,7 @@ class Worker:
         version for slot_config support. Returns the version string for modern
         engines so callers can branch on specific versions.
         """
-        version = await self.client.dispatcher.get_version()
+        version = await self._client.dispatcher.get_version()
 
         if not version or semver_less_than(version, MinEngineVersion.SLOT_CONFIG):
             self._emit_legacy_slot_deprecation()
@@ -337,7 +337,7 @@ class Worker:
                 self.name,
                 self._action_registry,
                 sum(self._slot_config.values()),
-                self.slot_config.get(SlotType.DURABLE.value, 0),
+                self._slot_config.get(SlotType.DURABLE.value, 0),
                 self._config,
                 self._action_queue,
                 self._event_queue,
