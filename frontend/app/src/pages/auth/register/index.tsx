@@ -4,7 +4,7 @@ import {
   POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
   POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
 } from '@/hooks/use-analytics';
-import api, { UserRegisterRequest } from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -61,11 +61,9 @@ function BasicRegister() {
     setErrors: setErrors,
   });
 
+  const { userCreateMutation } = useUserApi();
   const createMutation = useMutation({
-    mutationKey: ['user:create'],
-    mutationFn: async (data: UserRegisterRequest) => {
-      await api.userCreate(data);
-    },
+    ...userCreateMutation(),
     onSuccess: () => {
       getUserUniverse();
       navigate({ to: appRoutes.authenticatedRoute.to });
