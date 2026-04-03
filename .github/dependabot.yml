@@ -17,9 +17,11 @@ updates:
       interval: "daily"
     groups:
       go-modules:
-        group-by: dependency-name
         patterns:
           - "*"
+        update-types:
+          - "patch"
+          - "minor"
 
   - package-ecosystem: "pip"
     directories:
@@ -31,9 +33,11 @@ updates:
       interval: "daily"
     groups:
       python-deps:
-        group-by: dependency-name
         patterns:
           - "*"
+        update-types:
+          - "patch"
+          - "minor"
 
   - package-ecosystem: "npm"
     directories:
@@ -46,9 +50,11 @@ updates:
       interval: "daily"
     groups:
       npm-deps:
-        group-by: dependency-name
         patterns:
           - "*"
+        update-types:
+          - "patch"
+          - "minor"
 
   - package-ecosystem: "bundler"
     directories:
@@ -58,6 +64,8 @@ updates:
       interval: "daily"
     groups:
       ruby-deps:
-        group-by: dependency-name
         patterns:
           - "*"
+        update-types:
+          - "patch"
+          - "minor"
