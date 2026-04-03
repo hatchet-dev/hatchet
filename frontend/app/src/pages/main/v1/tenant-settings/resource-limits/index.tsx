@@ -9,9 +9,9 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
