@@ -548,6 +548,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         priority = cast(Priority | None, params[4])
         scope = cast(str | None, params[5])
 
+        additional_metadata = additional_metadata or (
+            options.additional_metadata if options else {}
+        )
+        priority = priority or (options.priority if options else None)
+        scope = scope or (options.scope if options else None)
+
         attributes = {
             OTelAttribute.EVENT_KEY: event_key,
             OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
@@ -573,24 +579,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            if options is not None:
-                options = PushEventOptions(
-                    **options.model_dump(exclude={"additional_metadata"}),
-                    additional_metadata=_inject_source_info(
-                        _inject_traceparent_into_metadata(
-                            options.additional_metadata,
-                        )
-                    ),
-                )
-
             return wrapped(
                 event_key,
                 payload,
-                options,
+                None,
                 _inject_source_info(
-                    _inject_traceparent_into_metadata(
-                        dict(additional_metadata or {}),
-                    )
+                    _inject_traceparent_into_metadata(dict(additional_metadata)),
                 ),
                 priority,
                 scope,
@@ -641,7 +635,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return wrapped(
                 bulk_events_with_meta,
-                options,
+                None,
             )
 
     def _wrap_run_workflow(
