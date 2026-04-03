@@ -235,7 +235,7 @@ require (
 	github.com/exaring/otelpgx v0.10.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/getsentry/sentry-go v0.44.1
-	github.com/go-chi/chi v1.5.5
+	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/google/cel-go v0.27.0
 	github.com/google/uuid v1.6.0
