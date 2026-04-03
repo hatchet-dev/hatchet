@@ -1,4 +1,3 @@
-import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
@@ -6,6 +5,7 @@ import {
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useQuery, useMutation } from '@tanstack/react-query';

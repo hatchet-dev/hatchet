@@ -24,7 +24,6 @@ import {
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api from '@/lib/api';
-import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import {
   OrganizationMember,
   ManagementToken,
@@ -33,6 +32,7 @@ import {
   TenantStatusType,
   OrganizationTenant,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';

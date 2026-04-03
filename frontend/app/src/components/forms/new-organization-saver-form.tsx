@@ -1,11 +1,11 @@
 import { generateTenantSlug } from './generate-tenant-slug';
 import { NewOrganizationInputForm } from './new-organization-input-form';
 import { useAnalytics } from '@/hooks/use-analytics';
-import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import {
   Organization,
   OrganizationTenant,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation } from '@tanstack/react-query';

@@ -27,7 +27,9 @@ export function exchangeTokenQueryOptions(
     queryFn: (): Promise<TenantExchangeToken> => fetchFn(),
     staleTime: (query: Query<TenantExchangeToken>) => {
       const data = query.state.data;
-      if (!data) return 0;
+      if (!data) {
+        return 0;
+      }
       const expiry = new Date(data.expiresAt).getTime();
       return Math.max(0, expiry - Date.now() - EXPIRY_BUFFER_MS);
     },

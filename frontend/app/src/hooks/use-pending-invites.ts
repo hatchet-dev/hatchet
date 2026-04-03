@@ -48,7 +48,9 @@ export const usePendingInvites = () => {
   const { isControlPlaneEnabled } = useControlPlane();
   const queryClient = useQueryClient();
 
-  const query = useQuery(pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled));
+  const query = useQuery(
+    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+  );
 
   const invalidate = useCallback(() => {
     queryClient.resetQueries({

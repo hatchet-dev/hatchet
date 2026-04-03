@@ -12,7 +12,11 @@ import {
 } from '@/components/v1/ui/table';
 import { getCloudMetadataQuery } from '@/hooks/use-cloud';
 import api from '@/lib/api';
-import { cloudApi, controlPlaneApi, fetchControlPlaneStatus } from '@/lib/api/api';
+import {
+  cloudApi,
+  controlPlaneApi,
+  fetchControlPlaneStatus,
+} from '@/lib/api/api';
 import type {
   OrganizationForUser,
   OrganizationInvite,
@@ -92,7 +96,11 @@ export const loader = async (): Promise<
   const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
   const { organizations, tenantMemberships } = await queryClient.fetchQuery(
-    userUniverseQuery({ isCloudEnabled, isCloudLoaded: true, isControlPlaneEnabled }),
+    userUniverseQuery({
+      isCloudEnabled,
+      isCloudLoaded: true,
+      isControlPlaneEnabled,
+    }),
   );
 
   const tenantIdToTenant = makeMapOfTenantIdsToTenantMember(tenantMemberships);

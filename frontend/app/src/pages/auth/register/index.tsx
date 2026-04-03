@@ -4,8 +4,8 @@ import {
   POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
   POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
 } from '@/hooks/use-analytics';
-import { useApiError } from '@/lib/hooks';
 import { useUserApi } from '@/lib/api/user-wrapper';
+import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';

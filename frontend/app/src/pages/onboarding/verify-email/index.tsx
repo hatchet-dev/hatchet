@@ -15,9 +15,10 @@ export async function loader({ request }: { request: Request }) {
     const user = await queryClient.fetchQuery({
       queryKey: ['user:get'],
       queryFn: async () =>
-        (await (isControlPlaneEnabled
-          ? controlPlaneApi.cloudUserGetCurrent()
-          : api.userGetCurrent())
+        (
+          await (isControlPlaneEnabled
+            ? controlPlaneApi.cloudUserGetCurrent()
+            : api.userGetCurrent())
         ).data,
     });
 

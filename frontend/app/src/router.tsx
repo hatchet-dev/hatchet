@@ -181,6 +181,23 @@ const tenantRoute = createRoute({
   loader: async ({ params }) => {
     const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
+    // Check membership first so an invalid/inaccessible tenant ID produces a
+    // 403 immediately, without triggering a tenantGet or exchangeTokenCreate
+    // call that would fail with a 400 for a non-UUID param.
+    const { data: memberships } = await (isControlPlaneEnabled
+      ? controlPlaneApi.tenantMembershipsList()
+      : api.tenantMembershipsList());
+
+    const hasAccess = Boolean(
+      memberships.rows?.some(
+        (m: TenantMember) => m.tenant?.metadata.id === params.tenant,
+      ),
+    );
+
+    if (!hasAccess) {
+      throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+    }
+
     if (isControlPlaneEnabled) {
       // Fetch the exchange token for this tenant using the authoritative ID
       // from route params
@@ -208,21 +225,6 @@ const tenantRoute = createRoute({
         queryFn: async () => (await api.tenantGet(params.tenant)).data,
         retry: false,
       });
-    }
-
-    // Ensure the tenant in the URL is one the user actually has access to.
-    const { data: memberships } = await (isControlPlaneEnabled
-      ? controlPlaneApi.tenantMembershipsList()
-      : api.tenantMembershipsList());
-
-    const hasAccess = Boolean(
-      memberships.rows?.some(
-        (m: TenantMember) => m.tenant?.metadata.id === params.tenant,
-      ),
-    );
-
-    if (!hasAccess) {
-      throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
     }
 
     return null;

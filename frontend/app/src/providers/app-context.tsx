@@ -1,8 +1,8 @@
 import { useUserUniverse } from './user-universe';
 import { Tenant, User } from '@/lib/api';
-import { useUserApi } from '@/lib/api/user-wrapper';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import type { TenantMember } from '@/lib/api/generated/data-contracts';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';

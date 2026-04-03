@@ -9,8 +9,8 @@ import {
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant, TenantInvite } from '@/lib/api';
 import { cloudApi, fetchControlPlaneStatus } from '@/lib/api/api';
-import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import type { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
@@ -36,7 +36,9 @@ export async function loader(_args: { request: Request }) {
   const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
   const { tenantInvites, organizationInvites, inviteCount } =
-    await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled));
+    await queryClient.fetchQuery(
+      pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+    );
 
   // Doesn't work right now because you don't have any access to organizations you're not a member of
   // const organizationInvitesWithOrganizations = await Promise.all(
@@ -147,7 +149,8 @@ const TenantInviteList = ({
   const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
     useUserUniverse();
 
-  const { tenantInviteAcceptMutation, tenantInviteRejectMutation } = useTenantApi();
+  const { tenantInviteAcceptMutation, tenantInviteRejectMutation } =
+    useTenantApi();
   const { mutationFn: acceptInviteFn } = tenantInviteAcceptMutation();
   const { mutationFn: rejectInviteFn } = tenantInviteRejectMutation();
 

@@ -17,8 +17,8 @@ import {
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { TenantMemberRole } from '@/lib/api';
-import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { TenantInvite } from '@/lib/api/generated/data-contracts';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';

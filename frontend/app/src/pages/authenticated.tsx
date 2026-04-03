@@ -1,5 +1,4 @@
 import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
-import { fetchControlPlaneStatus } from '@/lib/api/api';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
@@ -24,6 +23,7 @@ import {
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
+import { fetchControlPlaneStatus } from '@/lib/api/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
@@ -50,12 +50,15 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const [{ isCloudEnabled, ...meta }, { isControlPlaneEnabled }] = await Promise.all([
-    queryClient.fetchQuery(getCloudMetadataQuery),
-    fetchControlPlaneStatus(),
-  ]);
+  const [{ isCloudEnabled, ...meta }, { isControlPlaneEnabled }] =
+    await Promise.all([
+      queryClient.fetchQuery(getCloudMetadataQuery),
+      fetchControlPlaneStatus(),
+    ]);
 
-  await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled));
+  await queryClient.fetchQuery(
+    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+  );
   return {
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,

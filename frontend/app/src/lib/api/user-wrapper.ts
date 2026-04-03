@@ -16,45 +16,50 @@ export function useUserApi() {
       userGetCurrentQuery: () => ({
         queryKey: ['user:get'] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserGetCurrent()
-            : api.userGetCurrent())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserGetCurrent()
+              : api.userGetCurrent())
           ).data,
       }),
 
       userUpdateGoogleOauthStartQuery: () => ({
         queryKey: ['user:google-oauth:start'] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserUpdateGoogleOauthStart()
-            : api.userUpdateGoogleOauthStart())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateGoogleOauthStart()
+              : api.userUpdateGoogleOauthStart())
           ).data,
       }),
 
       userUpdateGoogleOauthCallbackQuery: () => ({
         queryKey: ['user:google-oauth:callback'] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserUpdateGoogleOauthCallback()
-            : api.userUpdateGoogleOauthCallback())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateGoogleOauthCallback()
+              : api.userUpdateGoogleOauthCallback())
           ).data,
       }),
 
       userUpdateGithubOauthStartQuery: () => ({
         queryKey: ['user:github-oauth:start'] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserUpdateGithubOauthStart()
-            : api.userUpdateGithubOauthStart())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateGithubOauthStart()
+              : api.userUpdateGithubOauthStart())
           ).data,
       }),
 
       userUpdateGithubOauthCallbackQuery: () => ({
         queryKey: ['user:github-oauth:callback'] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserUpdateGithubOauthCallback()
-            : api.userUpdateGithubOauthCallback())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateGithubOauthCallback()
+              : api.userUpdateGithubOauthCallback())
           ).data,
       }),
 
@@ -63,36 +68,40 @@ export function useUserApi() {
       userUpdateLoginMutation: () => ({
         mutationKey: ['user:update:login'] as const,
         mutationFn: async (data: UserUpdateLoginRequest) =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserUpdateLogin(data)
-            : api.userUpdateLogin(data))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateLogin(data)
+              : api.userUpdateLogin(data))
           ).data,
       }),
 
       userCreateMutation: () => ({
         mutationKey: ['user:create'] as const,
         mutationFn: async (data: UserCreateRequest) =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserCreate(data)
-            : api.userCreate(data))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserCreate(data)
+              : api.userCreate(data))
           ).data,
       }),
 
       userUpdateLogoutMutation: () => ({
         mutationKey: ['user:update:logout'] as const,
         mutationFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserUpdateLogout()
-            : api.userUpdateLogout())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateLogout()
+              : api.userUpdateLogout())
           ).data,
       }),
 
       userUpdatePasswordMutation: () => ({
         mutationKey: ['user:update:password'] as const,
         mutationFn: async (data: UserUpdatePasswordRequest) =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.cloudUserUpdatePassword(data)
-            : api.userUpdatePassword(data))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdatePassword(data)
+              : api.userUpdatePassword(data))
           ).data,
       }),
     }),

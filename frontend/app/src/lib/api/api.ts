@@ -109,7 +109,9 @@ export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
 ) {
   const resources = config.xResources ?? [];
-  if (!resources.includes('tenant')) return config;
+  if (!resources.includes('tenant')) {
+    return config;
+  }
 
   const cpEnabled = await resolveControlPlaneEnabled();
 
@@ -118,8 +120,12 @@ export async function exchangeTokenInterceptor(
   // conditions where the interceptor checks localStorage before it's updated with the new tenant ID.
   const tenantId = config.xTenantId ?? readStoredTenantId();
 
-  if (!cpEnabled) return config;
-  if (!tenantId) return config;
+  if (!cpEnabled) {
+    return config;
+  }
+  if (!tenantId) {
+    return config;
+  }
 
   try {
     const exchangeToken = await queryClient.fetchQuery(

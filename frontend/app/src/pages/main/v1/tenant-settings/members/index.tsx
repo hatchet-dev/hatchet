@@ -12,11 +12,7 @@ import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import {
-  TenantInvite,
-  TenantMember,
-  TenantMemberRole,
-} from '@/lib/api';
+import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';

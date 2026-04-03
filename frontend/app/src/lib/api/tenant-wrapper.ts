@@ -18,36 +18,40 @@ export function useTenantApi() {
       tenantMembershipsListQuery: () => ({
         queryKey: ['tenant-memberships:list'] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantMembershipsList()
-            : api.tenantMembershipsList())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantMembershipsList()
+              : api.tenantMembershipsList())
           ).data,
       }),
 
       userListTenantInvitesQuery: () => ({
         queryKey: ['user:list:tenant-invites'] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.userListTenantInvites()
-            : api.userListTenantInvites())
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.userListTenantInvites()
+              : api.userListTenantInvites())
           ).data,
       }),
 
       tenantMemberListQuery: (tenant: string) => ({
         queryKey: ['tenant-member:list', tenant] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantMemberList(tenant)
-            : api.tenantMemberList(tenant))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantMemberList(tenant)
+              : api.tenantMemberList(tenant))
           ).data,
       }),
 
       tenantInviteListQuery: (tenant: string) => ({
         queryKey: ['tenant-invite:list', tenant] as const,
         queryFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantInviteList(tenant)
-            : api.tenantInviteList(tenant))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantInviteList(tenant)
+              : api.tenantInviteList(tenant))
           ).data,
       }),
 
@@ -56,9 +60,10 @@ export function useTenantApi() {
       tenantInviteRejectMutation: () => ({
         mutationKey: ['tenant-invite:reject'] as const,
         mutationFn: async (data: TenantInviteRejectRequest) =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantInviteReject(data)
-            : api.tenantInviteReject(data))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantInviteReject(data)
+              : api.tenantInviteReject(data))
           ).data,
       }),
 
@@ -72,45 +77,50 @@ export function useTenantApi() {
       tenantMemberUpdateMutation: (tenant: string, tenantMember: string) => ({
         mutationKey: ['tenant-member:update', tenant, tenantMember] as const,
         mutationFn: async (data: TenantMemberUpdateRequest) =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantMemberUpdate(tenant, tenantMember, data)
-            : api.tenantMemberUpdate(tenant, tenantMember, data))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantMemberUpdate(tenant, tenantMember, data)
+              : api.tenantMemberUpdate(tenant, tenantMember, data))
           ).data,
       }),
 
       tenantMemberDeleteMutation: (tenant: string, tenantMember: string) => ({
         mutationKey: ['tenant-member:delete', tenant, tenantMember] as const,
         mutationFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantMemberDelete(tenant, tenantMember)
-            : api.tenantMemberDelete(tenant, tenantMember))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantMemberDelete(tenant, tenantMember)
+              : api.tenantMemberDelete(tenant, tenantMember))
           ).data,
       }),
 
       tenantInviteCreateMutation: (tenant: string) => ({
         mutationKey: ['tenant-invite:create', tenant] as const,
         mutationFn: async (data: TenantInviteCreateRequest) =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantInviteCreate(tenant, data)
-            : api.tenantInviteCreate(tenant, data))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantInviteCreate(tenant, data)
+              : api.tenantInviteCreate(tenant, data))
           ).data,
       }),
 
       tenantInviteUpdateMutation: (tenant: string, tenantInvite: string) => ({
         mutationKey: ['tenant-invite:update', tenant, tenantInvite] as const,
         mutationFn: async (data: TenantInviteUpdateRequest) =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantInviteUpdate(tenant, tenantInvite, data)
-            : api.tenantInviteUpdate(tenant, tenantInvite, data))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantInviteUpdate(tenant, tenantInvite, data)
+              : api.tenantInviteUpdate(tenant, tenantInvite, data))
           ).data,
       }),
 
       tenantInviteDeleteMutation: (tenant: string, tenantInvite: string) => ({
         mutationKey: ['tenant-invite:delete', tenant, tenantInvite] as const,
         mutationFn: async () =>
-          (await (isControlPlaneEnabled
-            ? controlPlaneApi.tenantInviteDelete(tenant, tenantInvite)
-            : api.tenantInviteDelete(tenant, tenantInvite))
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantInviteDelete(tenant, tenantInvite)
+              : api.tenantInviteDelete(tenant, tenantInvite))
           ).data,
       }),
     }),
