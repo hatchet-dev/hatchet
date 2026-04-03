@@ -348,7 +348,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
     hatchet.event.push(
-        EVENT_KEY,
+        "key2",
         {"order": "second"},
         options=PushEventOptions(scope=scope),
     )
@@ -361,7 +361,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     await asyncio.sleep(3)
 
     hatchet.event.push(
-        EVENT_KEY,
+        "key1",
         {"order": "first"},
         options=PushEventOptions(scope=scope),
     )
