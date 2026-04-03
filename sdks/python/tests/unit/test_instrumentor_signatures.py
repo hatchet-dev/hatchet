@@ -53,9 +53,9 @@ def _resolve_method(dotted_path: str) -> Callable[..., Any]:
 
 def _get_sig(func: Callable[..., Any]) -> inspect.Signature:
     try:
-        import annotationlib
+        import annotationlib  # type: ignore[import-not-found, unused-ignore]
 
-        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)
+        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)  # type: ignore[call-arg, unused-ignore]
     except Exception:
         return inspect.signature(func)
 
