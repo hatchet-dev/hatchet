@@ -116,15 +116,6 @@ class Depends(Generic[T, TWorkflowInput]):
 
         self._fn = fn
 
-    @property
-    def fn(self) -> "DependencyFunc[T, TWorkflowInput]":
-        warn(
-            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._fn
-
 
 @dataclass
 class DependencyToInject:
@@ -177,12 +168,7 @@ class Task(Generic[TWorkflowInput, R]):
         self._is_async_function = is_async_fn(self._fn)  # type: ignore
 
         if is_durable and not self._is_async_function:
-            warnings.warn(
-                "Non-async durable tasks are deprecated and will be removed in v2.0.0. "
-                "Please convert your durable task to an async function.",
-                DeprecationWarning,
-                stacklevel=4,
-            )
+            raise TypeError("Durable tasks must be async functions.")
 
         self._workflow = workflow
 
@@ -215,60 +201,6 @@ class Task(Generic[TWorkflowInput, R]):
             logger.warning(
                 f"{self.fn.__name__} is defined as a synchronous, durable task. in the future, durable tasks will only support `async`. please update this durable task to be async, or make it non-durable."
             )
-
-    @property
-    def fn(self):  # type: ignore[no-untyped-def]
-        warnings.warn(
-            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._fn
-
-    @property
-    def is_async_function(self) -> bool:
-        warnings.warn(
-            "The is_async_function property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._is_async_function
-
-    @property
-    def is_durable(self) -> bool:
-        warnings.warn(
-            "The is_durable property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._is_durable
-
-    @property
-    def slot_requests(self) -> dict[str, int]:
-        warnings.warn(
-            "The slot_requests property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slot_requests
-
-    @property
-    def workflow(self) -> "Workflow[TWorkflowInput]":
-        warnings.warn(
-            "The workflow property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow
-
-    @property
-    def validators(self) -> TaskIOValidator:
-        warnings.warn(
-            "The validators property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._validators
 
     async def _parse_maybe_cm_param(
         self,

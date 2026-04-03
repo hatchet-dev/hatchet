@@ -63,31 +63,14 @@ class Hatchet:
 
     def __init__(
         self,
-        debug: bool | None = None,
-        client: Client | None = None,
         config: ClientConfig | None = None,
     ):
-        if debug is not None:
-            warnings.warn(
-                "The `debug` parameter is deprecated and will be removed in v2.0.0. Please set the debug mode using the HATCHET_CLIENT_DEBUG environment variable instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
         _config = config or ClientConfig()
-        _debug = _config.debug if debug is None else debug
 
-        if _debug:
+        if _config.debug:
             logger.setLevel(logging.DEBUG)
 
-        if client is not None:
-            warnings.warn(
-                "The `client` parameter is deprecated and will be removed in v2.0.0. The client internal to the broader Hatchet client is not meant to be provided or interacted with directly.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        self._client = client if client else Client(config=_config, debug=_debug)
+        self._client = Client(config=_config, debug=_config.debug)
 
     @property
     def cel(self) -> CELClient:
@@ -767,20 +750,6 @@ class Hatchet:
             )
 
         return inner
-
-    def get_current_context(self) -> Context | None:
-        """
-        Get the current Hatchet context, if it exists. This is only available within the execution of a task or workflow.
-
-        :returns: The current `Context` object, or `None` if there is no current context (i.e. if this is called outside of the execution of a task or workflow).
-        """
-        warnings.warn(
-            "The `get_current_context` method is deprecated and will be removed in v2.0.0. Please use the `current_context` property instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return ctx_hatchet_context.get()
 
     @property
     def current_context(self) -> Context | None:

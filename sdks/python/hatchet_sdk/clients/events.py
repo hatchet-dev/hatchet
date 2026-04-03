@@ -157,30 +157,19 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
     ) -> Event:
-        if options is not None:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = PushEventOptions()
 
-        namespace = options.namespace or self.namespace
+        namespace = self.namespace
         namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
         push_event = tenacity_retry(
             self.events_service_client.Push, self.client_config.tenacity
         )
 
         try:
-            meta = _inject_source_info(
-                additional_metadata or options.additional_metadata
-            )
+            meta = _inject_source_info(additional_metadata)
             meta_bytes = json.dumps(meta)
         except Exception as e:
             raise ValueError("Error encoding meta") from e
@@ -195,8 +184,8 @@ class EventClient(BaseRestClient):
             payload=payload_str,
             event_timestamp=proto_timestamp_now(),
             additional_metadata=meta_bytes,
-            priority=priority or options.priority,
-            scope=scope or options.scope,
+            priority=priority,
+            scope=scope,
         )
 
         response = cast(
@@ -237,18 +226,8 @@ class EventClient(BaseRestClient):
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
-        if options:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = BulkPushEventOptions()
-
-        namespace = options.namespace or self.namespace
+        namespace = self.namespace
         bulk_push = tenacity_retry(
             self.events_service_client.BulkPush, self.client_config.tenacity
         )

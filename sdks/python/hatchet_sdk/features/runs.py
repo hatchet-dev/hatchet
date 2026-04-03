@@ -128,33 +128,6 @@ class RunsClient(BaseRestClient):
         self._workflow_run_event_listener = workflow_run_event_listener
         self._admin_client = admin_client
 
-    @property
-    def workflow_run_listener(self) -> PooledWorkflowRunListener:
-        warn(
-            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_listener
-
-    @property
-    def workflow_run_event_listener(self) -> RunEventListenerClient:
-        warn(
-            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_event_listener
-
-    @property
-    def admin_client(self) -> AdminClient:
-        warn(
-            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._admin_client
-
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
 

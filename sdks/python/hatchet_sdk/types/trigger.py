@@ -39,18 +39,6 @@ class PushEventOptions(BaseModel):
     priority: int | Priority | None = None
     scope: str | None = None
 
-    @field_validator("namespace", mode="before")
-    @classmethod
-    def validate_namespace(cls, v: str | None) -> str | None:
-        if v:
-            warnings.warn(
-                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        return v
-
 
 class BulkPushEventWithMetadata(BaseModel):
     key: str = ""
@@ -62,14 +50,3 @@ class BulkPushEventWithMetadata(BaseModel):
 
 class BulkPushEventOptions(BulkPushEventWithMetadata):
     namespace: str | None = None
-
-    @field_validator("namespace", mode="before")
-    @classmethod
-    def validate_namespace(cls, v: str | None) -> str | None:
-        if v:
-            warnings.warn(
-                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return v

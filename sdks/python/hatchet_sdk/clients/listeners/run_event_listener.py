@@ -84,66 +84,11 @@ class RunEventListener:
         ## an event loop to instantiate the client.
         self.client: DispatcherStub | None = None
 
-    def abort(self) -> None:
-        warn(
-            "The abort method is deprecated and will be removed in v2.0.0. Use the `stop_signal` attribute instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.stop_signal = True
-
     def __aiter__(self) -> AsyncGenerator[StepRunEvent, None]:
         return self._generator()
 
     async def __anext__(self) -> StepRunEvent:
         return await self._generator().__anext__()
-
-    def async_to_sync_thread(
-        self, async_iter: AsyncGenerator[T, None]
-    ) -> Generator[T, None, None]:
-        ## todo-v2.0.0: Remove this when we remove __iter__
-        q = Queue[T | Literal["DONE"]]()
-        done_sentinel: Literal["DONE"] = "DONE"
-
-        def runner() -> None:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            async def consume() -> None:
-                try:
-                    async for item in async_iter:
-                        q.put(item)
-                finally:
-                    q.put(done_sentinel)
-
-            try:
-                loop.run_until_complete(consume())
-            finally:
-                loop.stop()
-                loop.close()
-
-        thread = Thread(target=runner)
-        thread.start()
-
-        while True:
-            try:
-                item = q.get(timeout=1)
-                if item == "DONE":
-                    break
-                yield item
-            except Empty:
-                continue
-
-        thread.join()
-
-    def __iter__(self) -> Generator[StepRunEvent, None, None]:
-        warn(
-            "Iterating over streams in sync tasks is deprecated and support will be removed in v2.0.0. Make your task async and use `hatchet.runs.subscribe_to_stream` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        yield from self.async_to_sync_thread(self.__aiter__())
 
     async def _generator(self) -> AsyncGenerator[StepRunEvent, None]:
         while True:
@@ -255,36 +200,5 @@ class RunEventListenerClient:
     def __init__(self, config: ClientConfig):
         self.config = config
 
-    def stream_by_run_id(self, workflow_run_id: str) -> RunEventListener:
-        warn(
-            "The `stream_by_run_id` method is deprecated and will be removed in v2.0.0. Use `hatchet.runs.subscribe_to_stream` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.stream(workflow_run_id)
-
     def stream(self, workflow_run_id: str) -> RunEventListener:
         return RunEventListener(config=self.config, workflow_run_id=workflow_run_id)
-
-    def stream_by_additional_metadata(self, key: str, value: str) -> RunEventListener:
-        warn(
-            "Streaming by additional metadata is currently not supported on the V1 engine, and thus not supported on the V1 SDK (for now). This method will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return RunEventListener(config=self.config, additional_meta_kv=(key, value))
-
-    async def on(
-        self, workflow_run_id: str, handler: Callable[[StepRunEvent], Any] | None = None
-    ) -> None:
-        warn(
-            "The `on` method is deprecated and will be removed in v2.0.0. Use `hatchet.runs.subscribe_to_stream` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        async for event in self.stream(workflow_run_id):
-            # call the handler if provided
-            if handler:
-                handler(event)

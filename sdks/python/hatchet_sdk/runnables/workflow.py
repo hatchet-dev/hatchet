@@ -157,24 +157,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self._client = client
 
     @property
-    def config(self) -> WorkflowConfig:
-        warn(
-            "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._config
-
-    @property
-    def client(self) -> "Hatchet":
-        warn(
-            "The client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._client
-
-    @property
     def service_name(self) -> str:
         return self._client.config.apply_namespace(self._config.name.lower())
 
@@ -284,7 +266,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def _create_trigger_run_options_with_combined_additional_meta(
         self,
-        options: TriggerWorkflowOptions | None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -292,31 +273,19 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TriggerWorkflowOptions:
-        if options is not None:
-            warn(
-                "Passing options to the run(), schedule(), etc. methods is deprecated and will be removed in v2.0.0. Please pass these parameters directly instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        options = options or TriggerWorkflowOptions(
+        return TriggerWorkflowOptions(
             child_key=child_key,
-            additional_metadata=additional_metadata or {},
+            additional_metadata=self._combine_additional_metadata(
+                additional_metadata or {}
+            ),
             priority=priority,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_label=desired_worker_labels,
         )
-        options_copy = options.model_copy()
-        options_copy.additional_metadata = self._combine_additional_metadata(
-            options.additional_metadata
-        )
-
-        return options_copy
 
     def _create_schedule_options_with_combined_metadata(
         self,
-        options: ScheduleTriggerWorkflowOptions | None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -324,24 +293,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> ScheduleTriggerWorkflowOptions:
-        if options is not None:
-            warn(
-                "Passing options to the run(), schedule(), etc. methods is deprecated and will be removed in v2.0.0. Please pass these parameters directly instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        options = options or ScheduleTriggerWorkflowOptions(
+        return ScheduleTriggerWorkflowOptions(
             child_key=child_key,
-            additional_metadata=additional_metadata or {},
+            additional_metadata=self._combine_additional_metadata(
+                additional_metadata or {}
+            ),
             priority=priority,
         )
-        options_copy = options.model_copy()
-        options_copy.additional_metadata = self._combine_additional_metadata(
-            options.additional_metadata
-        )
-
-        return options_copy
 
     @property
     def input_validator(self) -> TypeAdapter[TWorkflowInput]:

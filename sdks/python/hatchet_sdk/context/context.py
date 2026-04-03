@@ -144,15 +144,6 @@ class Context:
         self._worker_labels = worker_labels
 
     @property
-    def worker(self) -> WorkerContext:
-        warn(
-            "The worker property is internal and should not be used directly. It will be removed in v2.0.0. Use corresponding properties such as `ctx.worker_id` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._worker
-
-    @property
     def worker_id(self) -> str:
         return self._action.worker_id
 
@@ -181,112 +172,8 @@ class Context:
         await asyncio.to_thread(self.upsert_worker_labels, labels)
 
     @property
-    def data(self) -> ActionPayload:
-        warn(
-            "The data property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._data
-
-    @property
-    def action(self) -> Action:
-        warn(
-            "The action property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action
-
-    @property
-    def step_run_id(self) -> str:
-        warn(
-            "The step_run_id property is deprecated. It will be removed in v2.0.0. Use `task_run_id` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._step_run_id
-
-    @property
-    def exit_flag(self) -> bool:
-        warn(
-            "The exit_flag property is internal and should not be used directly. It will be removed in v2.0.0. Use `is_cancelled` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._exit_flag
-
-    @property
-    def dispatcher_client(self) -> DispatcherClient:
-        warn(
-            "The dispatcher_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._dispatcher_client
-
-    @property
-    def admin_client(self) -> AdminClient:
-        warn(
-            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._admin_client
-
-    @property
-    def event_client(self) -> EventClient:
-        warn(
-            "The event_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.events` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._event_client
-
-    @property
-    def runs_client(self) -> RunsClient:
-        warn(
-            "The runs_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.runs` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._runs_client
-
-    @property
-    def durable_event_listener(
-        self,
-    ) -> DurableEventListener | PreEvictionDurableEventListener | None:
-        warn(
-            "The durable_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_event_listener
-
-    @property
-    def input(self) -> JSONSerializableMapping:
-        warn(
-            "The input property is deprecated. It will be removed in v2.0.0. Use the input passed to the task instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._input
-
-    @property
     def filter_payload(self) -> JSONSerializableMapping:
         return self._filter_payload
-
-    @property
-    def log_sender(self) -> AsyncLogSender:
-        warn(
-            "The log_sender property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._log_sender
 
     def _increment_stream_index(self) -> int:
         index = self._stream_index
@@ -333,20 +220,6 @@ class Context:
             ),
         )
 
-    def aio_task_output(self, task: Task[TWorkflowInput, R]) -> R:
-        warn(
-            "`aio_task_output` is deprecated and will be removed in v2.0.0. Use `task_output` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if task._is_async_function:
-            return self.task_output(task)
-
-        raise ValueError(
-            f"Task '{task.name}' is not an async function. Use `task_output` instead."
-        )
-
     @property
     def was_triggered_by_event(self) -> bool:
         """
@@ -355,22 +228,6 @@ class Context:
         :return: True if the workflow was triggered by an event, False otherwise.
         """
         return self._data.triggered_by == "event"
-
-    @property
-    def workflow_input(self) -> JSONSerializableMapping:
-        """
-        The input to the workflow, as a dictionary. It's recommended to use the `input` parameter to the task (the first argument passed into the task at runtime) instead of this property.
-
-        :return: The input to the workflow.
-        """
-
-        warn(
-            "`workflow_input` is deprecated and will be removed in v2.0.0. Use the input passed to the task instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._input
 
     @property
     def _workflow_input(self) -> JSONSerializableMapping:
@@ -431,20 +288,6 @@ class Context:
         logger.debug("cancelling step...")
         await self._runs_client.aio_cancel(self._step_run_id)
         self._set_cancellation_flag()
-
-    def done(self) -> bool:
-        """
-        Check if the current task run has been cancelled.
-
-        :return: True if the task run has been cancelled, False otherwise.
-        """
-        warn(
-            "`done` is deprecated and will be removed in v2.0.0. Use `is_cancelled` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self.is_cancelled
 
     @property
     def is_cancelled(self) -> bool:
@@ -680,27 +523,6 @@ class Context:
     @property
     def task_name(self) -> str:
         return self._task_name
-
-    def fetch_task_run_error(
-        self,
-        task: Task[TWorkflowInput, R],
-    ) -> str | None:
-        """
-        **DEPRECATED**: Use `get_task_run_error` instead.
-
-        A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
-
-        :param task: The task whose error you want to retrieve.
-        :return: The error message of the task run, or None if no error occurred.
-        """
-        warn(
-            "`fetch_task_run_error` is deprecated and will be removed in v2.0.0. Use `get_task_run_error` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        errors = self._data.step_run_errors
-
-        return errors.get(task.name)
 
     def get_task_run_error(
         self,
