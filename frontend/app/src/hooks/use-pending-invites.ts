@@ -1,16 +1,24 @@
+import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import api from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
-import useCloud from '@/pages/auth/hooks/use-cloud';
+import { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
-export const pendingInvitesQuery = (isCloudEnabled: boolean) => ({
-  queryKey: ['pending-invites', isCloudEnabled],
+export const pendingInvitesQuery = (
+  isCloudEnabled: boolean,
+  isControlPlaneEnabled: boolean,
+) => ({
+  queryKey: ['pending-invites', isCloudEnabled, isControlPlaneEnabled],
   queryFn: async () => {
     const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
-      api.userListTenantInvites(),
+      isControlPlaneEnabled
+        ? controlPlaneApi.userListTenantInvites()
+        : api.userListTenantInvites(),
       isCloudEnabled
-        ? cloudApi.userListOrganizationInvites()
+        ? isControlPlaneEnabled
+          ? controlPlaneApi.userListOrganizationInvites()
+          : cloudApi.userListOrganizationInvites()
         : Promise.resolve({ data: { rows: [] } }),
     ]);
 
@@ -37,9 +45,10 @@ export const pendingInvitesQuery = (isCloudEnabled: boolean) => ({
 
 export const usePendingInvites = () => {
   const { isCloudEnabled, isCloudLoading } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
   const queryClient = useQueryClient();
 
-  const query = useQuery(pendingInvitesQuery(isCloudEnabled));
+  const query = useQuery(pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled));
 
   const invalidate = useCallback(() => {
     queryClient.resetQueries({

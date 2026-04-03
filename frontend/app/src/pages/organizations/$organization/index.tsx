@@ -24,7 +24,7 @@ import {
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import api from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import {
   OrganizationMember,
   ManagementToken,
@@ -73,6 +73,7 @@ export default function OrganizationPage() {
   const queryClient = useQueryClient();
   const { handleUpdateOrganization, updateOrganizationLoading } =
     useOrganizations();
+  const orgApi = useOrganizationApi();
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
@@ -140,14 +141,7 @@ export default function OrganizationPage() {
   };
 
   const organizationQuery = useQuery({
-    queryKey: ['organization:get', orgId],
-    queryFn: async () => {
-      if (!orgId) {
-        throw new Error('Organization ID is required');
-      }
-      const result = await cloudApi.organizationGet(orgId);
-      return result.data;
-    },
+    ...orgApi.organizationGetQuery(orgId),
     enabled: !!orgId,
   });
 
@@ -171,26 +165,12 @@ export default function OrganizationPage() {
     .map((query) => query.data);
 
   const managementTokensQuery = useQuery({
-    queryKey: ['management-tokens:list', orgId],
-    queryFn: async () => {
-      if (!orgId) {
-        throw new Error('Organization ID is required');
-      }
-      const result = await cloudApi.managementTokenList(orgId);
-      return result.data;
-    },
+    ...orgApi.managementTokenListQuery(orgId),
     enabled: !!orgId,
   });
 
   const organizationInvitesQuery = useQuery({
-    queryKey: ['organization-invites:list', orgId],
-    queryFn: async () => {
-      if (!orgId) {
-        throw new Error('Organization ID is required');
-      }
-      const result = await cloudApi.organizationInviteList(orgId);
-      return result.data;
-    },
+    ...orgApi.organizationInviteListQuery(orgId),
     enabled: !!orgId,
   });
 

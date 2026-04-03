@@ -8,7 +8,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { OrganizationMemberRoleType } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
@@ -55,13 +55,15 @@ export function InviteMemberModal({
     },
   });
 
+  const orgApi = useOrganizationApi();
+  const orgInviteCreate = orgApi.organizationInviteCreateMutation(organizationId);
   const inviteMemberMutation = useMutation({
+    ...orgInviteCreate,
     mutationFn: async (data: { email: string }) => {
-      const result = await cloudApi.organizationInviteCreate(organizationId, {
+      return orgInviteCreate.mutationFn({
         inviteeEmail: data.email,
         role: OrganizationMemberRoleType.OWNER,
       });
-      return result.data;
     },
     onSuccess: () => {
       reset();
