@@ -388,12 +388,10 @@ class Context:
         :return: None
         """
 
-        if isinstance(increment_by, timedelta):
-            increment_by = timedelta_to_expr(increment_by)
-
         try:
             return self._dispatcher_client.refresh_timeout(
-                step_run_id=self._step_run_id, increment_by=increment_by
+                step_run_id=self._step_run_id,
+                increment_by=timedelta_to_expr(increment_by),
             )
         except Exception:
             logger.exception("error refreshing timeout")
@@ -585,15 +583,15 @@ class DurableContext(Context):
 
     @property
     def _durable_listener(self) -> DurableEventListener:
-        if self.durable_event_listener is None:
+        if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
-        if not isinstance(self.durable_event_listener, DurableEventListener):
+        if not isinstance(self._durable_event_listener, DurableEventListener):
             raise TypeError(
                 "Expected DurableEventListener, got "
-                f"{type(self.durable_event_listener).__name__}"
+                f"{type(self._durable_event_listener).__name__}"
             )
-        return self.durable_event_listener
+        return self._durable_event_listener
 
     @property
     def _supports_durable_eviction(self) -> bool:
@@ -631,7 +629,7 @@ class DurableContext(Context):
         :raises ValueError: If the durable task client is not available.
         :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
-        if self.durable_event_listener is None:
+        if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
         if not self._supports_durable_eviction:
@@ -643,10 +641,10 @@ class DurableContext(Context):
 
         flat_conditions = flatten_conditions(list(conditions))
         conditions_proto = build_conditions_proto(
-            flat_conditions, self.runs_client.client_config
+            flat_conditions, self._runs_client.client_config
         )
         ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
+            durable_task_external_id=self._step_run_id,
             invocation_count=self.invocation_count,
             event=WaitForEvent(wait_for_conditions=conditions_proto),
         )
@@ -660,11 +658,11 @@ class DurableContext(Context):
         async with aio_durable_eviction_wait(
             wait_kind="wait_for",
             resource_id=signal_key,
-            action_key=self.action.key,
+            action_key=self._action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
-                durable_task_external_id=self.step_run_id,
+                durable_task_external_id=self._step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
@@ -808,11 +806,11 @@ class DurableContext(Context):
         async with aio_durable_eviction_wait(
             wait_kind="spawn_child",
             resource_id=workflow_name,
-            action_key=self.action.key,
+            action_key=self._action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
-                durable_task_external_id=self.step_run_id,
+                durable_task_external_id=self._step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
@@ -821,14 +819,14 @@ class DurableContext(Context):
         return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:
-        if not isinstance(self.durable_event_listener, DurableEventListener):
+        if not isinstance(self._durable_event_listener, DurableEventListener):
             raise ValueError("Durable task client is not available")
 
-        await self.durable_event_listener.ensure_started(self.action.worker_id)
+        await self._durable_event_listener.ensure_started(self._action.worker_id)
 
     @property
     def invocation_count(self) -> int:
-        return self.action.durable_task_invocation_count or 1
+        return self._action.durable_task_invocation_count or 1
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
     ## Keep the signature in sync with the instrumentor wrapper.
@@ -865,10 +863,10 @@ class DurableContext(Context):
 
         listener = self._durable_listener
 
-        run_external_id = self.step_run_id
+        run_external_id = self._step_run_id
         adapter = TypeAdapter(result_validator)
 
-        key = _compute_memo_key(self.step_run_id, *args, **kwargs)
+        key = _compute_memo_key(self._step_run_id, *args, **kwargs)
 
         ack = await listener.send_event(
             durable_task_external_id=run_external_id,

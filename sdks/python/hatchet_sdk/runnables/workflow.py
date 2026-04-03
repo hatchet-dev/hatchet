@@ -327,7 +327,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         key: str | None = None,
-        options: TriggerWorkflowOptions | None = None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -340,7 +339,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param input: The input data for the workflow.
         :param key: The key for the workflow run. This is used to identify the run in the bulk operation and for deduplication.
-        :param options: Deprecated. Additional options for the workflow run. Use the other keyword arguments instead.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
         :param priority: The priority of the workflow run.
@@ -354,7 +352,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
-                options,
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
@@ -562,7 +559,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         run_at: datetime,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions | None = None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -572,7 +568,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param run_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
         :param priority: The priority of the scheduled workflow run.
@@ -580,7 +575,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
         opts = self._create_schedule_options_with_combined_metadata(
-            options,
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
@@ -597,7 +591,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         run_at: datetime,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions | None = None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -607,7 +600,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param run_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
         :param priority: The priority of the scheduled workflow run.
@@ -618,7 +610,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             self.schedule,
             run_at=run_at,
             input=input,
-            options=options,
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
@@ -726,15 +717,15 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: The MCP tool configuration object.
         """
-        if not self.config.description:
+        if not self._config.description:
             raise ValueError(
-                f"Runnable '{self.config.name}' has no description. "
+                f"Runnable '{self._config.name}' has no description. "
                 "Set description= when defining the workflow or task."
             )
-        description = self.config.description
+        description = self._config.description
         if self.input_validator_type is EmptyModel:
             raise ValueError(
-                f"Runnable '{self.config.name}' has no input validator. "
+                f"Runnable '{self._config.name}' has no input validator. "
                 "Set input_validator= when defining the workflow or task."
             )
         input_schema = self.input_validator.json_schema()
@@ -811,7 +802,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -825,7 +815,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         *,
         wait_for_result: Literal[False],
         child_key: str | None = None,
@@ -853,7 +842,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers a workflow run, blocks until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, block until completion and return the result. If False, return a WorkflowRunRef immediately.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.

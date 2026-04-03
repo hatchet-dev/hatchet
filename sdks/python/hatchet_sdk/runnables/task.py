@@ -42,7 +42,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskRateLimit,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
-from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
     R,
@@ -195,9 +194,7 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
         if not self._is_async_function and self._is_durable:
-            logger.warning(
-                f"{self.fn.__name__} is defined as a synchronous, durable task. in the future, durable tasks will only support `async`. please update this durable task to be async, or make it non-durable."
-            )
+            raise TypeError("Durable tasks must be async functions.")
 
     async def _parse_maybe_cm_param(
         self,

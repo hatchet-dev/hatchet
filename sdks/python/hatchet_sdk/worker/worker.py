@@ -233,7 +233,7 @@ class Worker:
 
         tasks_with_eviction = [
             task
-            for task in self.action_registry.values()
+            for task in self._action_registry.values()
             if task.eviction_policy is not None
         ]
         if not tasks_with_eviction:
