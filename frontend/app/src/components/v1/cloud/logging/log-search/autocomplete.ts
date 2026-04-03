@@ -49,7 +49,7 @@ export function getAutocomplete(
   query: string,
   context: LogAutocompleteContext,
 ): AutocompleteState {
-  const { availableAttempts = [] } = context;
+  const { availableAttempts = [], workflowNames = [] } = context;
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
 
@@ -63,6 +63,7 @@ export function getAutocomplete(
 
   const levelPrefix = `${LOG_FILTER_KEYS.LEVEL}:`;
   const attemptPrefix = `${LOG_FILTER_KEYS.ATTEMPT}:`;
+  const workflowPrefix = 'workflow:';
 
   if (lastWord.startsWith(levelPrefix)) {
     const partial = lastWord.slice(levelPrefix.length).toLowerCase();
@@ -88,6 +89,19 @@ export function getAutocomplete(
         label: String(attempt),
         value: String(attempt),
         description: `Attempt ${attempt}`,
+      }));
+    return { mode: 'value', suggestions };
+  }
+
+  if (lastWord.startsWith(workflowPrefix)) {
+    const partial = lastWord.slice(workflowPrefix.length).toLowerCase();
+    const suggestions = [...workflowNames]
+      .sort((a, b) => a.localeCompare(b))
+      .filter((name) => name.toLowerCase().startsWith(partial))
+      .map((name) => ({
+        type: 'value' as const,
+        label: name,
+        value: name,
       }));
     return { mode: 'value', suggestions };
   }
