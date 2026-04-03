@@ -253,6 +253,8 @@ export type { CreateTenantInviteRequest } from '@/lib/api/generated/cloud/data-c
 
 export type { UpdateTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
 
+export type { AcceptInviteRequest as AcceptTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+
 export type { RejectInviteRequest as RejectTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
 
 export type { UserTenantMembershipsList } from '@/lib/api/generated/cloud/data-contracts';

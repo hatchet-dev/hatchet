@@ -67,11 +67,14 @@ export function useTenantApi() {
           ).data,
       }),
 
-      // TODO-CONTROL-PLANE: need to implement tenantInviteAccept in control plane
       tenantInviteAcceptMutation: () => ({
         mutationKey: ['tenant-invite:accept'] as const,
         mutationFn: async (data: TenantInviteAcceptRequest) =>
-          (await api.tenantInviteAccept(data)).data,
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.tenantInviteAccept(data)
+              : api.tenantInviteAccept(data))
+          ).data,
       }),
 
       tenantMemberUpdateMutation: (tenant: string, tenantMember: string) => ({

@@ -150,9 +150,7 @@ export const CreateTenantInviteModal = ({
   const createMutation = useMutation({
     ...tenantInviteCreateMutation(tenantId),
     onSuccess: (invite) => {
-      if (invite) {
-        onCreated(invite);
-      }
+      onCreated(invite);
       onClose();
     },
     onError: handleApiError,

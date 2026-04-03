@@ -12,6 +12,7 @@
 
 import {
   AcceptOrganizationInviteRequest,
+  AcceptTenantInviteRequest,
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
@@ -553,6 +554,27 @@ export class Api<
       ...params,
     });
   /**
+   * @description Accepts a tenant invite
+   *
+   * @tags Tenant
+   * @name TenantInviteAccept
+   * @summary Accept tenant invite
+   * @request POST:/api/v1/control-plane/users/tenant-invites/accept
+   * @secure
+   */
+  tenantInviteAccept = (
+    data: AcceptTenantInviteRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/control-plane/users/tenant-invites/accept`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
    * @description Rejects a tenant invite
    *
    * @tags Tenant
@@ -682,12 +704,13 @@ export class Api<
     data: CreateTenantInviteRequest,
     params: RequestParams = {},
   ) =>
-    this.request<void, APIError>({
+    this.request<TenantInvite, APIError>({
       path: `/api/v1/control-plane/tenants/${tenant}/invites`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**
