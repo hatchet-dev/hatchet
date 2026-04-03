@@ -6,13 +6,13 @@ source "https://rubygems.org"
 gemspec
 
 gem "irb"
-gem "rake", "~> 13.0"
+gem "rake", "~> 13.3"
 
-gem "rspec", "~> 3.0"
+gem "rspec", "~> 3.13"
 
-gem "rubocop", "~> 1.21"
+gem "rubocop", "~> 1.86"
 
 # REST API client dependencies
 gem "faraday", "~> 2.0"
 gem "faraday-multipart"
-gem "json", "~> 2.0"
+gem "json", "~> 2.19"
