@@ -6,8 +6,7 @@ from uuid import uuid4
 
 from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.events import PushEventOptions
+from hatchet_sdk import Hatchet
 from examples.opentelemetry_instrumentation.worker import (
     otel_simple_task,
     otel_spawn_parent,
@@ -49,11 +48,10 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
     message = "Hello, OpenTelemetry!"
     HatchetInstrumentor().instrument()
 
-    ref = await otel_simple_task.aio_run_no_wait(
+    ref = await otel_simple_task.aio_run(
         input=SimpleOtelTaskInput(message=message),
-        options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id},
-        ),
+        additional_metadata={"test_run_id": test_run_id},
+        wait_for_result=False,
     )
 
     await ref.aio_result()
@@ -147,7 +145,7 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     event = await hatchet.event.aio_push(
         "otel:test-event",
         {"message": "event-triggered"},
-        options=PushEventOptions(additional_metadata={"test_run_id": test_run_id}),
+        additional_metadata={"test_run_id": test_run_id},
     )
 
     run_id = None
@@ -229,7 +227,7 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
 async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     HatchetInstrumentor().instrument()
 
-    ref = await otel_workflow.aio_run_no_wait()
+    ref = await otel_workflow.aio_run(wait_for_result=False)
     await ref.aio_result()
 
     spans = await asyncio.to_thread(
@@ -341,11 +339,10 @@ async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
     message = "spawn-test"
     test_run_id = str(uuid4())
 
-    ref = await otel_spawn_parent.aio_run_no_wait(
+    ref = await otel_spawn_parent.aio_run(
         input=SimpleOtelTaskInput(message=message),
-        options=TriggerWorkflowOptions(
-            additional_metadata={"test_run_id": test_run_id},
-        ),
+        additional_metadata={"test_run_id": test_run_id},
+        wait_for_result=False,
     )
 
     await ref.aio_result()

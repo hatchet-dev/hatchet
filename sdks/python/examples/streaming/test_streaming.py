@@ -25,7 +25,7 @@ async def test_streaming_ordering_and_completeness(
     hatchet: Hatchet,
     on_demand_worker: Popen[Any],
 ) -> None:
-    ref = await stream_task.aio_run_no_wait()
+    ref = await stream_task.aio_run(wait_for_result=False)
 
     ix = 0
     anna_karenina = ""

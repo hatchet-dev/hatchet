@@ -9,7 +9,7 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_cancellation(hatchet: Hatchet) -> None:
-    ref = await cancellation_workflow.aio_run_no_wait()
+    ref = await cancellation_workflow.aio_run(wait_for_result=False)
 
     """Sleep for a long time since we only need cancellation to happen _eventually_"""
     await asyncio.sleep(10)
