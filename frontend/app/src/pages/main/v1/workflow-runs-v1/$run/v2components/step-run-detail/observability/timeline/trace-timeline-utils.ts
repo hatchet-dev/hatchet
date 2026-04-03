@@ -22,6 +22,10 @@ function getMatchesFilter(span: OtelSpanTree): boolean {
   return (span as { matchesFilter?: boolean }).matchesFilter ?? true;
 }
 
+function getIsContextOnly(span: OtelSpanTree): boolean {
+  return (span as { isContextOnly?: boolean }).isContextOnly ?? false;
+}
+
 export const ROW_HEIGHT = 40;
 export const CONNECTOR_WIDTH = 12;
 export const CONNECTOR_GAP = 8;
@@ -47,6 +51,7 @@ export type FlatSpanRow = {
   hasChildren: boolean;
   isExpanded: boolean;
   matchesFilter: boolean;
+  isContextOnly: boolean;
 };
 
 export type FlatGroupRow = {
@@ -168,6 +173,7 @@ export function flattenTree(
       hasChildren,
       isExpanded,
       matchesFilter: getMatchesFilter(span),
+      isContextOnly: getIsContextOnly(span),
     });
 
     if (isExpanded) {
@@ -235,6 +241,38 @@ export function flattenTree(
   return rows;
 }
 
+export function collectDescendantIds(span: OtelSpanTree): Set<string> {
+  const ids = new Set<string>();
+  (function collect(nodes: OtelSpanTree[]) {
+    for (const n of nodes) {
+      ids.add(n.spanId);
+      collect(n.children);
+    }
+  })(span.children);
+  return ids;
+}
+
+export function rowHighlightClass({
+  hovered,
+  selected,
+  childOfSelected,
+}: {
+  hovered?: boolean;
+  selected?: boolean;
+  childOfSelected?: boolean;
+}): string {
+  if (selected) {
+    return 'bg-primary/10';
+  }
+  if (hovered) {
+    return 'bg-muted/40';
+  }
+  if (childOfSelected) {
+    return 'bg-primary/5';
+  }
+  return '';
+}
+
 export function computeTimeTicks(totalDurationMs: number): {
   ticks: number[];
   maxTick: number;
@@ -259,11 +297,16 @@ export function computeTimeTicks(totalDurationMs: number): {
   }
 
   const ticks: number[] = [];
-  for (let t = 0; t <= totalDurationMs + interval * 0.5; t += interval) {
+  for (let t = 0; t < totalDurationMs; t += interval) {
     ticks.push(t);
     if (ticks.length > 20) {
       break;
     }
+  }
+
+  const lastTick = ticks[ticks.length - 1] || 0;
+  if (totalDurationMs - lastTick > interval * 0.3) {
+    ticks.push(totalDurationMs);
   }
 
   return { ticks, maxTick: ticks[ticks.length - 1] || totalDurationMs };

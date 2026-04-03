@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -155,9 +154,10 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 }
 
 type Run struct {
-	Id         int64
-	InsertedAt time.Time
-	FilterId   *uuid.UUID
+	Id                    int64
+	InsertedAt            time.Time
+	FilterId              *uuid.UUID
+	WorkflowRunExternalID uuid.UUID
 }
 
 type TriggerFromEventsResult struct {
@@ -340,9 +340,10 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 		}
 
 		eventExternalIdToRuns[eventIdAndFilterId.ExternalId] = append(eventExternalIdToRuns[eventIdAndFilterId.ExternalId], &Run{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt.Time,
-			FilterId:   eventIdAndFilterId.FilterId,
+			Id:                    task.ID,
+			InsertedAt:            task.InsertedAt.Time,
+			FilterId:              eventIdAndFilterId.FilterId,
+			WorkflowRunExternalID: task.WorkflowRunID,
 		})
 	}
 
@@ -356,9 +357,10 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 		}
 
 		eventExternalIdToRuns[eventIdAndFilterId.ExternalId] = append(eventExternalIdToRuns[eventIdAndFilterId.ExternalId], &Run{
-			Id:         dag.ID,
-			InsertedAt: dag.InsertedAt.Time,
-			FilterId:   eventIdAndFilterId.FilterId,
+			Id:                    dag.ID,
+			InsertedAt:            dag.InsertedAt.Time,
+			FilterId:              eventIdAndFilterId.FilterId,
+			WorkflowRunExternalID: dag.ExternalID,
 		})
 	}
 
@@ -456,7 +458,12 @@ type TriggeredByEvent struct {
 	eventKey string
 }
 
-func ensureTraceparent(additionalMetadata []byte) []byte {
+// ensureTraceparent guarantees a W3C traceparent exists in metadata. If the
+// SDK already injected a traceparent, it is left intact so the engine's
+// workflow_run root span can read the SDK's span_id as its parent at span
+// construction time. When no traceparent is present, a deterministic one is
+// created from the workflow run (or parent/source) UUID.
+func ensureTraceparent(additionalMetadata []byte, workflowRunExternalID uuid.UUID) []byte {
 	meta := make(map[string]interface{})
 
 	if len(additionalMetadata) > 0 {
@@ -465,22 +472,32 @@ func ensureTraceparent(additionalMetadata []byte) []byte {
 		}
 	}
 
-	if tp, ok := meta["traceparent"].(string); ok && tp != "" {
-		return additionalMetadata
+	if existingTP, ok := meta["traceparent"].(string); ok {
+		if _, _, ok := parseW3CTraceparent(existingTP); ok {
+			out, err := json.Marshal(meta)
+			if err != nil {
+				return additionalMetadata
+			}
+			return out
+		}
 	}
 
-	traceID := make([]byte, 16)
-	spanID := make([]byte, 8)
+	traceOwnerID := workflowRunExternalID
 
-	if _, err := rand.Read(traceID); err != nil {
-		return additionalMetadata
+	if parentIDStr, ok := meta["hatchet__parent_workflow_run_id"].(string); ok {
+		if parsed, err := uuid.Parse(parentIDStr); err == nil {
+			traceOwnerID = parsed
+		}
+	} else if sourceIDStr, ok := meta["hatchet__source_workflow_run_id"].(string); ok {
+		if parsed, err := uuid.Parse(sourceIDStr); err == nil {
+			traceOwnerID = parsed
+		}
 	}
 
-	if _, err := rand.Read(spanID); err != nil {
-		return additionalMetadata
-	}
+	traceID := hex.EncodeToString(DeriveWorkflowRunTraceID(traceOwnerID))
+	spanID := hex.EncodeToString(DeriveWorkflowRunSpanID(workflowRunExternalID))
 
-	meta["traceparent"] = fmt.Sprintf("00-%s-%s-01", hex.EncodeToString(traceID), hex.EncodeToString(spanID))
+	meta["traceparent"] = fmt.Sprintf("00-%s-%s-01", traceID, spanID)
 
 	out, err := json.Marshal(meta)
 	if err != nil {
@@ -488,6 +505,14 @@ func ensureTraceparent(additionalMetadata []byte) []byte {
 	}
 
 	return out
+}
+
+func parseW3CTraceparent(tp string) (traceID, spanID string, ok bool) {
+	parts := strings.Split(tp, "-")
+	if len(parts) != 4 || len(parts[1]) != 32 || len(parts[2]) != 16 {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
 }
 
 func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
@@ -513,10 +538,22 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 }
 
 func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
+	var origMeta map[string]interface{}
+	if len(additionalMetadata) > 0 {
+		_ = json.Unmarshal(additionalMetadata, &origMeta)
+	}
+
 	res := cleanAdditionalMetadata(additionalMetadata)
 
 	res[constants.EventIDKey.String()] = t.eventID
 	res[constants.EventKeyKey.String()] = t.eventKey
+
+	if v, ok := origMeta["hatchet__source_workflow_run_id"]; ok {
+		res["hatchet__source_workflow_run_id"] = v
+	}
+	if v, ok := origMeta["hatchet__source_step_run_id"]; ok {
+		res["hatchet__source_step_run_id"] = v
+	}
 
 	resBytes, err := json.Marshal(res)
 
@@ -560,7 +597,7 @@ func (r *sharedRepository) triggerWorkflows(
 	coreEvents *createCoreUserEventOpts,
 ) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	for i := range tuples {
-		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata)
+		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
 	}
 
 	// get unique workflow version ids
@@ -2369,7 +2406,31 @@ func (r *sharedRepository) NewTriggerTaskData(
 		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
 		t.ChildIndex = &childIndex
 		t.ChildKey = req.ChildKey
+
+		t.AdditionalMetadata = injectParentIDs(
+			t.AdditionalMetadata,
+			parentTask.WorkflowRunID,
+			parentTask.ExternalID,
+		)
 	}
 
 	return t, nil
+}
+
+func injectParentIDs(additionalMetadata []byte, parentWorkflowRunID, parentStepRunID uuid.UUID) []byte {
+	meta := make(map[string]interface{})
+	if len(additionalMetadata) > 0 {
+		if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
+			meta = make(map[string]interface{})
+		}
+	}
+
+	meta["hatchet__parent_workflow_run_id"] = parentWorkflowRunID.String()
+	meta["hatchet__parent_step_run_id"] = parentStepRunID.String()
+
+	out, err := json.Marshal(meta)
+	if err != nil {
+		return additionalMetadata
+	}
+	return out
 }

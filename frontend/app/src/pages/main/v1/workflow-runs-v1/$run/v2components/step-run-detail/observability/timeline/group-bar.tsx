@@ -1,5 +1,6 @@
 import {
   ROW_HEIGHT,
+  rowHighlightClass,
   type FlatGroupRow,
   type SpanGroupInfo,
 } from './trace-timeline-utils';
@@ -46,7 +47,7 @@ export const GroupBar = memo(function GroupBar({
     <div
       className={cn(
         'relative shrink-0 transition-colors',
-        isSelected && 'bg-primary/8',
+        rowHighlightClass({ hovered: isHovered, selected: isSelected }),
       )}
       style={{ height: ROW_HEIGHT }}
     >

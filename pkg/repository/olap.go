@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -3433,6 +3434,22 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	return nil
+}
+
+func DeriveIDBytes(size int, parts ...[]byte) []byte {
+	h := sha256.New()
+	for _, p := range parts {
+		h.Write(p)
+	}
+	return h.Sum(nil)[:size]
+}
+
+func DeriveWorkflowRunTraceID(workflowRunExternalID uuid.UUID) []byte {
+	return DeriveIDBytes(16, []byte("hatchet-engine-wf-trace:"), workflowRunExternalID[:])
+}
+
+func DeriveWorkflowRunSpanID(workflowRunExternalID uuid.UUID) []byte {
+	return DeriveIDBytes(8, []byte("hatchet-engine-wf-span:"), workflowRunExternalID[:])
 }
 
 type SpanData struct {

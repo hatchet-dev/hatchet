@@ -1,4 +1,5 @@
 import { formatDuration, getTimelineData } from '../agent-prism-data';
+import { isStartStepRunSpan } from '../convert-otel-spans-to-agent-prism-span-tree';
 import type { OtelSpanTree } from '../span-tree-type';
 import type { SpanCardConnectorType } from './SpanCardConnector';
 import { SpanCardConnector } from './SpanCardConnector';
@@ -291,7 +292,7 @@ export const SpanCard: FC<SpanCardProps> = ({
 
   const eventHandlers = useSpanCardEventHandlers(data, onSpanSelect);
 
-  const isStepRunSpan = data.spanName === 'hatchet.start_step_run';
+  const isStepRunSpan = isStartStepRunSpan(data);
   const stepName = isStepRunSpan
     ? data.spanAttributes?.['hatchet.step_name']
     : undefined;
