@@ -242,13 +242,13 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		tenantId, userId, validationErr := a.config.Auth.ExchangeTokenClient.ValidateExchangeToken(c.Request().Context(), token)
 
 		if validationErr != nil {
-			a.l.Debug().Err(validationErr).Msg("error validating exchange token")
+			a.l.Error().Err(validationErr).Msg("error validating exchange token")
 
 			return forbidden
 		}
 
 		if tenantId != queriedTenant.ID {
-			a.l.Debug().Msgf("tenant id in token does not match tenant id in context")
+			a.l.Error().Msgf("tenant id in token does not match tenant id in context")
 
 			return forbidden
 		}
@@ -256,7 +256,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		user, getUserErr := a.config.V1.User().GetUserByID(c.Request().Context(), userId)
 
 		if getUserErr != nil {
-			a.l.Debug().Err(getUserErr).Msg("error getting user by id from exchange token")
+			a.l.Error().Err(getUserErr).Msg("error getting user by id from exchange token")
 
 			if errors.Is(getUserErr, pgx.ErrNoRows) {
 				return forbidden

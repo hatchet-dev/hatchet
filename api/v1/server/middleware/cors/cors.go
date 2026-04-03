@@ -42,7 +42,7 @@ func Middleware(config *server.ServerConfig) echo.MiddlewareFunc {
 				if requested := c.Request().Header.Get("Access-Control-Request-Headers"); requested != "" {
 					h.Set("Access-Control-Allow-Headers", requested)
 				} else {
-					h.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-exchange-token")
+					h.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, x-exchange-token")
 				}
 
 				// When echoing a specific origin, add Vary: Origin so caches do not serve

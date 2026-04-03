@@ -185,6 +185,9 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+
+	e.Use(cors.Middleware(t.config))
+
 	e.HideBanner = true
 	e.HidePort = true
 	e.IPExtractor = func(r *http.Request) string {
@@ -212,8 +215,6 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	g := e.Group("")
-
-	g.Use(cors.Middleware(t.config))
 
 	if _, err := t.registerSpec(g, oaspec); err != nil {
 		return nil, err
