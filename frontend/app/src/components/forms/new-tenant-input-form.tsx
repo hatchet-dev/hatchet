@@ -118,7 +118,7 @@ export function NewTenantInputForm({
         </p>
         <Input
           id="tenant-name"
-          placeholder="Production"
+          placeholder="production"
           type="text"
           autoCapitalize="none"
           autoCorrect="off"
