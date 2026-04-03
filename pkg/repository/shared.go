@@ -46,8 +46,6 @@ type sharedRepository struct {
 	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore    PayloadStoreRepository
 	m               TenantLimitRepository
-
-	enableDurableUserEventLog bool
 }
 
 func newSharedRepository(
@@ -59,7 +57,6 @@ func newSharedRepository(
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
-	enableDurableUserEventLog bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -107,7 +104,6 @@ func newSharedRepository(
 		env:                         env,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
-		enableDurableUserEventLog:   enableDurableUserEventLog,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)

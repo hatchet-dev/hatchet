@@ -3,8 +3,9 @@ import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
-import api, { TenantMember } from '@/lib/api';
+import { TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { getOptionalStringParam } from '@/lib/router-helpers';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -107,12 +108,11 @@ export function TenantForbidden() {
   const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
     useOrganizations();
 
+  const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
+    ...userUpdateLogoutMutation(),
     onSuccess: () => {
+      queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
     },
   });

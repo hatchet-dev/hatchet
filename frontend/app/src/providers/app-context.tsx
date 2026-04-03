@@ -1,7 +1,8 @@
 import { useUserUniverse } from './user-universe';
-import { queries, Tenant, User } from '@/lib/api';
+import { Tenant, User } from '@/lib/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import type { TenantMember } from '@/lib/api/generated/data-contracts';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -86,8 +87,9 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
   const potentiallyValidTenantId = params.tenant || lastTenant?.metadata.id;
 
   // Fetch current user
+  const { userGetCurrentQuery } = useUserApi();
   const currentUserQuery = useQuery({
-    ...queries.user.current,
+    ...userGetCurrentQuery(),
     retry: false,
   });
 
@@ -95,9 +97,9 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
 
   const invalidateCurrentUser = useCallback(() => {
     queryClient.resetQueries({
-      queryKey: queries.user.current.queryKey,
+      queryKey: userGetCurrentQuery().queryKey,
     });
-  }, [queryClient]);
+  }, [queryClient, userGetCurrentQuery]);
 
   const {
     isLoaded: isUserUniverseLoaded,

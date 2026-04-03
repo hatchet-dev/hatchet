@@ -1,7 +1,13 @@
-import { getAutocomplete, applySuggestion } from './autocomplete';
+import {
+  getAutocomplete,
+  applySuggestion,
+  STATIC_FILTER_KEYS,
+} from './autocomplete';
+import type { LogAutocompleteContext } from './autocomplete';
 import type { AutocompleteSuggestion } from './types';
 import { useLogsContext } from './use-logs';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
+import { useMemo } from 'react';
 
 export function LogSearchInput({
   placeholder = 'Search logs...',
@@ -12,24 +18,26 @@ export function LogSearchInput({
 }) {
   const { queryString, setQueryString, availableAttempts } = useLogsContext();
 
+  const autocompleteContext = useMemo<LogAutocompleteContext>(
+    () => ({ availableAttempts }),
+    [availableAttempts],
+  );
+
   return (
-    <SearchBarWithFilters<AutocompleteSuggestion, number[]>
+    <SearchBarWithFilters<AutocompleteSuggestion, LogAutocompleteContext>
       value={queryString}
       onChange={setQueryString}
       onSubmit={setQueryString}
       getAutocomplete={getAutocomplete}
       applySuggestion={applySuggestion}
-      autocompleteContext={availableAttempts}
+      autocompleteContext={autocompleteContext}
       placeholder={placeholder}
       className={className}
-      filterChips={[
-        { key: 'level:', label: 'Level', description: 'Filter by log level' },
-        {
-          key: 'attempt:',
-          label: 'Attempt',
-          description: 'Filter by attempt number',
-        },
-      ]}
+      filterChips={STATIC_FILTER_KEYS.map((f) => ({
+        key: f.value,
+        label: f.label,
+        description: f.description,
+      }))}
     />
   );
 }
