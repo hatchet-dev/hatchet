@@ -247,13 +247,13 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 			return forbidden
 		}
 
-		if tenantId != queriedTenant.ID {
+		if *tenantId != queriedTenant.ID {
 			a.l.Error().Msgf("tenant id in token does not match tenant id in context")
 
 			return forbidden
 		}
 
-		user, getUserErr := a.config.V1.User().GetUserByID(c.Request().Context(), userId)
+		user, getUserErr := a.config.V1.User().GetUserByID(c.Request().Context(), *userId)
 
 		if getUserErr != nil {
 			a.l.Error().Err(getUserErr).Msg("error getting user by id from exchange token")
@@ -267,16 +267,16 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 		// important: user is validated later in the authz step
 		c.Set("user", user)
-		c.Set("is_exchange_token", true)
+		c.Set(middleware.IsExchangeTokenContextKey, true)
 
-		ctx = context.WithValue(ctx, analytics.UserIDKey, userId)
-		ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
+		ctx = context.WithValue(ctx, analytics.UserIDKey, *userId)
+		ctx = context.WithValue(ctx, analytics.TenantIDKey, *tenantId)
 		ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
 
 		span := trace.SpanFromContext(ctx)
 		telemetry.WithAttributes(span,
-			telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
-			telemetry.AttributeKV{Key: "user.id", Value: userId},
+			telemetry.AttributeKV{Key: "tenant.id", Value: *tenantId},
+			telemetry.AttributeKV{Key: "user.id", Value: *userId},
 		)
 
 		c.SetRequest(c.Request().WithContext(ctx))
@@ -325,6 +325,8 @@ func (a *AuthN) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return a.config.Auth.CustomAuthenticator.Authenticate(c, r)
 }
 
+const exchangeTokenHeader = "X-Exchange-Token"
+
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")
 
 func getBearerTokenFromRequest(r *http.Request) (token string, isExchangeToken bool, err error) {
@@ -338,7 +340,7 @@ func getBearerTokenFromRequest(r *http.Request) (token string, isExchangeToken b
 	reqToken = strings.TrimSpace(splitToken[1])
 
 	// if there's also an X-Exchange-Token header, then this is an exchange token request
-	if r.Header.Get("X-Exchange-Token") != "" {
+	if r.Header.Get(exchangeTokenHeader) != "" {
 		return reqToken, true, nil
 	}
 

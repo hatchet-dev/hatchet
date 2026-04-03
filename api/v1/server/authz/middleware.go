@@ -92,7 +92,7 @@ var restrictedWithBearerToken = []string{
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
-	if isExchangeToken, ok := c.Get("is_exchange_token").(bool); ok && isExchangeToken {
+	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
 		if a.config.Auth.ExchangeTokenClient == nil {
 			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
 			return echo.NewHTTPError(http.StatusInternalServerError, "Exchange token client is not configured")

@@ -11,7 +11,7 @@ import (
 )
 
 type ExchangeTokenClient interface {
-	ValidateExchangeToken(ctx context.Context, token string) (tenantId, userId uuid.UUID, err error)
+	ValidateExchangeToken(ctx context.Context, token string) (tenantId, userId *uuid.UUID, err error)
 }
 
 type ExchangeTokenOpts struct {
@@ -45,7 +45,7 @@ func NewExchangeTokenClient(publicJWTHandle *keyset.Handle, opts *ExchangeTokenO
 	}, nil
 }
 
-func (j *exchangeTokenClientImpl) ValidateExchangeToken(ctx context.Context, token string) (tenantId, userId uuid.UUID, err error) {
+func (j *exchangeTokenClientImpl) ValidateExchangeToken(ctx context.Context, token string) (tenantId, userId *uuid.UUID, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
 
@@ -57,47 +57,47 @@ func (j *exchangeTokenClientImpl) ValidateExchangeToken(ctx context.Context, tok
 	})
 
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to create JWT Validator: %v", err)
+		return nil, nil, fmt.Errorf("failed to create JWT Validator: %v", err)
 	}
 
 	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
 
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to verify and decode JWT: %v", err)
+		return nil, nil, fmt.Errorf("failed to verify and decode JWT: %v", err)
 	}
 
 	if hasTenantId := verifiedJwt.HasStringClaim("tenant_id"); !hasTenantId {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have tenant_id claim")
+		return nil, nil, fmt.Errorf("token does not have tenant_id claim")
 	}
 
 	tenantIdStr, err := verifiedJwt.StringClaim("tenant_id")
 
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read tenant_id claim: %v", err)
+		return nil, nil, fmt.Errorf("failed to read tenant_id claim: %v", err)
 	}
 
-	tenantId, err = uuid.Parse(tenantIdStr)
+	parsedTenantId, err := uuid.Parse(tenantIdStr)
 
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse tenant_id claim: %v", err)
+		return nil, nil, fmt.Errorf("failed to parse tenant_id claim: %v", err)
 	}
 
 	// ensure the subject of the token is the user ID
 	if hasSubject := verifiedJwt.HasSubject(); !hasSubject {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not have subject claim")
+		return nil, nil, fmt.Errorf("token does not have subject claim")
 	}
 
 	subject, err := verifiedJwt.Subject()
 
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read subject claim: %v", err)
+		return nil, nil, fmt.Errorf("failed to read subject claim: %v", err)
 	}
 
-	userId, err = uuid.Parse(subject)
+	parsedUserId, err := uuid.Parse(subject)
 
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse subject claim: %v", err)
+		return nil, nil, fmt.Errorf("failed to parse subject claim: %v", err)
 	}
 
-	return tenantId, userId, nil
+	return &parsedTenantId, &parsedUserId, nil
 }
