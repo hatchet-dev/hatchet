@@ -147,6 +147,14 @@ jobs:
 
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
 
+      - name: Test with wheel
+        run: |
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          poetry build
+          poetry run pip uninstall hatchet_sdk
+          poetry run pip install --no-cache-dir --no-index --find-links dist/  hatchet_sdk -v
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
+
       - name: Upload engine logs
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
