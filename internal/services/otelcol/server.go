@@ -52,7 +52,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
-	oc.a.Count(ctx, analytics.OtelSpan, analytics.Create, analytics.Properties{})
+	oc.a.Count(ctx, analytics.OtelSpan, analytics.Create)
 
 	var rejected int64
 	if oc.maxBatchSize > 0 && len(spans) > oc.maxBatchSize {
