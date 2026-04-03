@@ -1,12 +1,12 @@
 import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
 import { queries } from '@/lib/api';
+import { useRedirectOrNavigate } from '@/lib/redirect';
 import { useAppContext } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useNavigate } from '@tanstack/react-router';
 
 export default function CreateOrganization() {
-  const navigate = useNavigate();
+  const redirectOrNavigate = useRedirectOrNavigate();
   const { user, isUserLoaded } = useAppContext();
 
   if (!isUserLoaded) {
@@ -23,11 +23,12 @@ export default function CreateOrganization() {
         <div className="flex justify-center">
           <NewOrganizationSaverForm
             defaultOrganizationName={user?.name}
-            afterSave={({ organization, tenant }) => {
+            afterSave={({ tenant }) => {
               queryClient.prefetchQuery(queries.cloud.subscriptionPlans());
-              navigate({
+              redirectOrNavigate({
                 to: appRoutes.tenantOverviewRoute.to,
                 params: { tenant: tenant.id },
+                replace: true,
               });
             }}
           />

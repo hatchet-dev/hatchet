@@ -1,11 +1,12 @@
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { queries } from '@/lib/api';
+import { useRedirectOrNavigate } from '@/lib/redirect';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useLoaderData, useNavigate } from '@tanstack/react-router';
+import { useLoaderData } from '@tanstack/react-router';
 
 export default function CreateTenant() {
-  const navigate = useNavigate();
+  const redirectOrNavigate = useRedirectOrNavigate();
   const { organizations } = useLoaderData({
     from: '/onboarding/create-tenant',
   });
@@ -37,9 +38,10 @@ export default function CreateTenant() {
                   });
               }
 
-              navigate({
+              redirectOrNavigate({
                 to: appRoutes.tenantOverviewRoute.to,
                 params: { tenant: tenantId },
+                replace: true,
               });
             }}
           />

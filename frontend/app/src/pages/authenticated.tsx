@@ -26,6 +26,7 @@ import api, { User, queries } from '@/lib/api';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
+import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
@@ -148,6 +149,16 @@ function AuthenticatedInner() {
   useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
 
+    const storeRedirectPath = () => {
+      if (
+        pathname !== '/' &&
+        !pathname.startsWith('/onboarding/') &&
+        !pathname.startsWith('/auth/')
+      ) {
+        sessionStorage.setItem(REDIRECT_TARGET_KEY, pathname);
+      }
+    };
+
     // Skip all redirects for organization pages
     if (isOrganizationsPage) {
       return;
@@ -155,11 +166,13 @@ function AuthenticatedInner() {
 
     // If we definitively have no user, always go to login.
     if (!isUserLoading && !currentUser && !isAuthPage) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
@@ -196,6 +209,7 @@ function AuthenticatedInner() {
         isCloudEnabled && organizations.length === 0;
 
       if (shouldHaveAnOrganizationButDoesnt) {
+        storeRedirectPath();
         navigate({
           to: appRoutes.onboardingCreateOrganizationRoute.to,
           replace: true,
@@ -204,6 +218,7 @@ function AuthenticatedInner() {
       }
 
       if (tenantMemberships.length === 0) {
+        storeRedirectPath();
         navigate({
           to: appRoutes.onboardingCreateTenantRoute.to,
           replace: true,
@@ -214,6 +229,13 @@ function AuthenticatedInner() {
 
     // If user has memberships and we're at the bare root, go to their first tenant
     if (pathname === '/' && tenantMemberships && tenantMemberships.length > 0) {
+      const savedRedirect = sessionStorage.getItem(REDIRECT_TARGET_KEY);
+      if (savedRedirect) {
+        sessionStorage.removeItem(REDIRECT_TARGET_KEY);
+        navigate({ to: savedRedirect, replace: true } as never);
+        return;
+      }
+
       const lastTenantId = lastTenant?.metadata.id;
 
       const lastTenantInMemberships = lastTenantId
@@ -276,13 +298,9 @@ function AuthenticatedInner() {
     isCloudEnabled,
     isUserUniverseLoaded,
     organizations,
+    isOnboardingCreateOrganizationPage,
+    isOnboardingCreateTenantPage,
   ]);
-
-  useEffect(() => {
-    if (userError && !isAuthPage) {
-      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-    }
-  }, [isAuthPage, navigate, userError]);
 
   useEffect(
     () =>
