@@ -1,3 +1,16 @@
+import { Callout } from "nextra/components";
+
+# Using PgBouncer
+
+<Callout type="info">Only available in Hatchet v0.83.5 and above.</Callout>
+
+If you're self-hosting Hatchet, you can put PgBouncer (version 1.21 or newer) in front of your database to share and reuse connections more efficiently.
+
+To set this up, point the `DATABASE_PGBOUNCER_URL` environment variable at your PgBouncer instance, while keeping the `DATABASE_URL` still pointed to your PostgreSQL server address. Make sure PgBouncer is running with `pool_mode` set to `transaction`. See the [PgBouncer docs](https://www.pgbouncer.org/config.html) for all available settings.
+
+## Example usage with `docker-compose`
+
+```
 version: "3.8"
 services:
   postgres:
@@ -27,25 +40,4 @@ services:
       - "6431:6432"
     depends_on:
       - postgres
-  rabbitmq:
-    image: "rabbitmq:4-management"
-    hostname: "rabbitmq"
-    ports:
-      - "5672:5672" # RabbitMQ
-      - "15672:15672" # Management UI
-    environment:
-      RABBITMQ_DEFAULT_USER: "user"
-      RABBITMQ_DEFAULT_PASS: "password"
-    volumes:
-      - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
-      - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf" # Configuration file mount
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-volumes:
-  hatchet_postgres_data:
-  hatchet_rabbitmq_data:
-  hatchet_rabbitmq.conf:
+```
