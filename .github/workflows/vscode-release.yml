@@ -2,8 +2,10 @@ name: VS Code Extension Release
 
 on:
   push:
-    tags:
-      - 'vscode/v*'
+    branches:
+      - main
+    paths:
+      - 'frontend/vscode-extension/package.json'
 
 permissions:
   contents: write
@@ -15,15 +17,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: '24'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 10
           run_install: false
@@ -33,7 +35,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/vscode-extension/pnpm-lock.yaml') }}
@@ -48,9 +50,10 @@ jobs:
         working-directory: frontend/vscode-extension
         run: pnpm build:prod
 
-      - name: Extract version from tag
+      - name: Extract version from package.json
         id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#vscode/v}" >> $GITHUB_OUTPUT
+        working-directory: frontend/vscode-extension
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
 
       - name: Package extension
         working-directory: frontend/vscode-extension
@@ -61,24 +64,3 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: pnpm run publish
-
-      - name: Upload .vsix as release artifact
-        uses: softprops/action-gh-release@v2
-        with:
-          files: frontend/vscode-extension/hatchet-${{ steps.version.outputs.VERSION }}.vsix
-          name: Hatchet VS Code Extension v${{ steps.version.outputs.VERSION }}
-          body: |
-            ## Hatchet VS Code Extension v${{ steps.version.outputs.VERSION }}
-
-            ### Installation
-            **From VS Code Marketplace:** Search for "Hatchet" in the Extensions panel.
-
-            **Manual install:**
-            ```
-            code --install-extension hatchet-${{ steps.version.outputs.VERSION }}.vsix
-            ```
-
-            ### Usage
-            Open any TypeScript file that declares a Hatchet workflow — a
-            "$(graph) Show Hatchet DAG" CodeLens will appear above each
-            `hatchet.workflow(...)` declaration.

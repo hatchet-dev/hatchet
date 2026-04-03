@@ -511,10 +511,42 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
-	return tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
+	if err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts); err != nil {
+		return err
+	}
+
+	tc.emitStandaloneTaskRootSpans(ctx, tenantId, createTaskOpts)
+
+	return nil
 }
 
-// handleCreatedTask is responsible for flushing a created task to the OLAP repository
+func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) {
+	var spans []*v1.SpanData
+
+	for _, task := range tasks {
+		if task.DagID.Valid {
+			continue
+		}
+
+		insertedAt := time.Now()
+		if task.InsertedAt.Valid {
+			insertedAt = task.InsertedAt.Time
+		}
+
+		spans = append(spans, buildWorkflowRunRootSpan(
+			tenantId,
+			task.WorkflowRunID,
+			task.WorkflowID,
+			task.DisplayName,
+			insertedAt,
+			task.AdditionalMetadata,
+		))
+	}
+
+	tc.writeEngineSpans(ctx, tenantId, spans, "standalone-task-root")
+}
+
+// handleCreatedDAG is responsible for flushing a created DAG to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createDAGOpts := make([]*v1.DAGWithData, 0)
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
@@ -528,7 +560,35 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
 	}
 
-	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
+	if err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts); err != nil {
+		return err
+	}
+
+	tc.emitWorkflowRunRootSpans(ctx, tenantId, createDAGOpts)
+
+	return nil
+}
+
+func (tc *OLAPControllerImpl) emitWorkflowRunRootSpans(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) {
+	spans := make([]*v1.SpanData, 0, len(dags))
+
+	for _, dag := range dags {
+		insertedAt := time.Now()
+		if dag.InsertedAt.Valid {
+			insertedAt = dag.InsertedAt.Time
+		}
+
+		spans = append(spans, buildWorkflowRunRootSpan(
+			tenantId,
+			dag.ExternalID,
+			dag.WorkflowID,
+			dag.DisplayName,
+			insertedAt,
+			dag.AdditionalMetadata,
+		))
+	}
+
+	tc.writeEngineSpans(ctx, tenantId, spans, "dag-root")
 }
 
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -606,11 +666,76 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		TriggeringWebhookNames: triggeringWebhookNames,
 	}
 
-	return tc.repo.OLAP().BulkCreateEventsAndTriggers(
+	if err := tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
 		bulkCreateEventParams,
 		bulkCreateTriggersParams,
-	)
+	); err != nil {
+		return err
+	}
+
+	tc.emitEventSpans(ctx, tenantId, msgs)
+
+	return nil
+}
+
+func (tc *OLAPControllerImpl) emitEventSpans(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.CreatedEventTriggerPayload) {
+	var spans []*v1.SpanData
+
+	type sourceKey struct {
+		sourceWfRunID uuid.UUID
+		eventExtID    uuid.UUID
+	}
+	emittedBySource := make(map[sourceKey]*eventEmittedAccumulator)
+
+	for _, msg := range msgs {
+		for _, p := range msg.Payloads {
+			if p.MaybeRunExternalId == nil {
+				continue
+			}
+			runExtID := *p.MaybeRunExternalId
+
+			srcWfID, srcStepID, ok := parseSourceInfo(p.EventAdditionalMetadata)
+
+			if !ok {
+				spans = append(spans, buildEventSpan(tenantId, p.EventExternalId, p.EventKey, p.EventSeenAt, runExtID, p.EventAdditionalMetadata))
+				tc.l.Debug().Ctx(ctx).Str("event_key", p.EventKey).Msg("event payload missing source info")
+				continue
+			}
+
+			// When the SDK injected a traceparent, also create a bridge
+			// event span in the triggered workflow's trace so the
+			// workflow_run root span can parent to it.
+			if traceIDFromTraceparent(p.EventAdditionalMetadata) != nil {
+				spans = append(spans, buildEventSpan(tenantId, p.EventExternalId, p.EventKey, p.EventSeenAt, runExtID, p.EventAdditionalMetadata))
+			}
+
+			sk := sourceKey{srcWfID, p.EventExternalId}
+			acc, exists := emittedBySource[sk]
+			if !exists {
+				acc = &eventEmittedAccumulator{
+					sourceWorkflowRunExternalID: srcWfID,
+					sourceStepRunExternalID:     srcStepID,
+					eventExternalID:             p.EventExternalId,
+					eventKey:                    p.EventKey,
+					eventSeenAt:                 p.EventSeenAt,
+				}
+				emittedBySource[sk] = acc
+			}
+			acc.triggeredRunExternalIDs = append(acc.triggeredRunExternalIDs, runExtID.String())
+		}
+	}
+
+	for _, acc := range emittedBySource {
+		spans = append(spans, buildEventEmittedSpan(
+			tenantId,
+			acc.sourceWorkflowRunExternalID, acc.sourceStepRunExternalID,
+			acc.eventExternalID, acc.eventKey, acc.eventSeenAt,
+			acc.triggeredRunExternalIDs,
+		))
+	}
+
+	tc.writeEngineSpans(ctx, tenantId, spans, "event")
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository

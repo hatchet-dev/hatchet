@@ -1,0 +1,15 @@
+FeatureFlagEvaluationResult:
+  type: object
+  properties:
+    isEnabled:
+      type: boolean
+      description: Whether the feature flag is enabled for the tenant
+  required:
+    - isEnabled
+
+# IMPORTANT: When you add a flag here, you need to also add it in PostHog in order
+# to be able to evaluate it.
+FeatureFlagId:
+  type: string
+  enum:
+    - "tenant-log-workflow-filter-enabled"

@@ -24,6 +24,12 @@ function spanMatchesQuery(
     }
   }
 
+  if (query.spanName) {
+    if (!span.spanName.toLowerCase().includes(query.spanName.toLowerCase())) {
+      return false;
+    }
+  }
+
   for (const [key, value] of query.attributes) {
     const attrValue = span.spanAttributes?.[key];
     if (attrValue === undefined || attrValue !== value) {
@@ -73,7 +79,12 @@ function filterNode(
 }
 
 function hasActiveFilter(query: ParsedTraceQuery): boolean {
-  return !!(query.search || query.status || query.attributes.length > 0);
+  return !!(
+    query.search ||
+    query.status ||
+    query.spanName ||
+    query.attributes.length > 0
+  );
 }
 
 export function filterSpanTrees(

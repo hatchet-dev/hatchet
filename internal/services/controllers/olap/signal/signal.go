@@ -684,9 +684,11 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 			})
 		} else {
 			for _, run := range runs {
+				runExtID := run.WorkflowRunExternalID
 				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
 					MaybeRunId:              &run.Id,
 					MaybeRunInsertedAt:      &run.InsertedAt,
+					MaybeRunExternalId:      &runExtID,
 					EventSeenAt:             eventSeenAt,
 					EventKey:                opts.Key,
 					EventExternalId:         opts.ExternalId,

@@ -23,7 +23,15 @@ func NewHatchetAttributeSpanProcessor(inner sdktrace.SpanProcessor) *HatchetAttr
 func (p *HatchetAttributeSpanProcessor) OnStart(ctx context.Context, span sdktrace.ReadWriteSpan) {
 	attrs := getHatchetAttributes(ctx)
 	if len(attrs) > 0 {
-		span.SetAttributes(attrs...)
+		existing := make(map[string]struct{}, len(span.Attributes()))
+		for _, a := range span.Attributes() {
+			existing[string(a.Key)] = struct{}{}
+		}
+		for _, a := range attrs {
+			if _, ok := existing[string(a.Key)]; !ok {
+				span.SetAttributes(a)
+			}
+		}
 	}
 	p.inner.OnStart(ctx, span)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -19,6 +20,7 @@ type OTelCollectorOpts struct {
 	repo         repository.Repository
 	l            *zerolog.Logger
 	maxBatchSize int
+	a            analytics.Analytics
 }
 
 func WithRepository(r repository.Repository) OTelCollectorOpt {
@@ -39,6 +41,12 @@ func WithMaxBatchSize(n int) OTelCollectorOpt {
 	}
 }
 
+func WithAnalytics(a analytics.Analytics) OTelCollectorOpt {
+	return func(opts *OTelCollectorOpts) {
+		opts.a = a
+	}
+}
+
 func NewOTelCollector(fs ...OTelCollectorOpt) (OTelCollector, error) {
 	opts := &OTelCollectorOpts{}
 
@@ -54,11 +62,16 @@ func NewOTelCollector(fs ...OTelCollectorOpt) (OTelCollector, error) {
 		return nil, fmt.Errorf("logger is required. use WithLogger")
 	}
 
+	if opts.a == nil {
+		opts.a = analytics.NoOpAnalytics{}
+	}
+
 	newLogger := opts.l.With().Str("service", "otel-collector").Logger()
 
 	return &otelCollectorImpl{
 		repo:         opts.repo,
 		l:            &newLogger,
 		maxBatchSize: opts.maxBatchSize,
+		a:            opts.a,
 	}, nil
 }

@@ -422,3 +422,7 @@ OtelStatusCode:
   $ref: "./v1/otel.yaml#/OtelStatusCode"
 OtelSpanList:
   $ref: "./v1/otel.yaml#/OtelSpanList"
+FeatureFlagEvaluationResult:
+  $ref: "./v1/feature_flags.yaml#/FeatureFlagEvaluationResult"
+FeatureFlagId:
+  $ref: "./v1/feature_flags.yaml#/FeatureFlagId"

@@ -92,7 +92,10 @@ export default {
   },
   "architecture-and-guarantees": "Architecture & Guarantees",
   "cloud-vs-oss": "Cloud vs OSS",
-  security: "Security",
+  security: {
+    title: "Security",
+    theme: { collapsed: true },
+  },
   "region-availability": "Region Availability",
   uptime: "Uptime",
   "developer-experience": "Developer Experience",
