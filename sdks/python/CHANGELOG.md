@@ -5,7 +5,7 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.30.0] - 2026-03-17
+## [1.31.0] - 2026-04-03
 
 ### Added
 
@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Context.fetch_task_run_error()` is deprecated. Use `Context.get_task_run_error()` instead.
 - Deprecates a number of internal properties and methods on the `Worker` and `Context` that are not intended for public use. These will be removed in v2.0.0.
 - Accessing `ctx.worker` is now deprecated. Use the various properties on the context directly, such as `ctx.worker_id` instead of `ctx.worker.id()`.
+
+## [1.30.0] - 2026-03-30
+
+### Changed
+
+- Adds `mcp_tool` methods to Workflows and Standalone tasks providing compatibility with Claude and OpenAI MCP server tools.
 
 ## [1.29.5] - 2026-03-25
 

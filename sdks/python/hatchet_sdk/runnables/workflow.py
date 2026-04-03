@@ -3,6 +3,7 @@ import json
 import warnings
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from enum import Enum
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -19,6 +20,7 @@ from typing import (
 from warnings import warn
 
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
+from typing_extensions import assert_never
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
@@ -70,11 +72,20 @@ from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
+    from agents import FunctionTool
+    from claude_agent_sdk import SdkMcpTool
+
     from hatchet_sdk import Hatchet
 
 
 T = TypeVar("T")
 P = ParamSpec("P")
+
+
+# Once support for 3.10 is dropped, convert this to StrEnum
+class MCPProvider(str, Enum):
+    CLAUDE = "CLAUDE"
+    OPENAI = "OPENAI"
 
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
@@ -733,6 +744,79 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         **DANGEROUS: This will delete a workflow and all of its data**
         """
         await self._client.workflows.aio_delete(self.id)
+
+    @overload
+    def mcp_tool(
+        self,
+        provider: Literal[MCPProvider.CLAUDE],
+        **kwargs: Any,
+    ) -> "SdkMcpTool[TWorkflowInput]": ...
+    @overload
+    def mcp_tool(
+        self,
+        provider: Literal[MCPProvider.OPENAI],
+        **kwargs: Any,
+    ) -> "FunctionTool": ...
+    def mcp_tool(
+        self,
+        provider: MCPProvider,
+        **kwargs: Any,
+    ) -> "FunctionTool | SdkMcpTool[TWorkflowInput]":
+        """
+        Creates a wrapper around the workflow enabling its usage in MCP server implementations.
+        Supports Claude and OpenAI agent SDKs, requires installing the `claude` or `openai` extra using (e.g.) `pip install hatchet-sdk[claude]`.
+
+        :param provider: The Agent provider you are using the tool with.
+        :param **kwargs: Additional arguments that will be passed to the underlying MCP Tool object constructor.
+
+
+        :raises ValueError: if runnable does not have a description.
+        :raises NotImplementedError: If provider does not exist.
+
+        :returns: The MCP tool configuration object.
+        """
+        if not self.config.description:
+            raise ValueError(
+                f"Runnable '{self.config.name}' has no description. "
+                "Set description= when defining the workflow or task."
+            )
+        description = self.config.description
+        if self.input_validator_type is EmptyModel:
+            raise ValueError(
+                f"Runnable '{self.config.name}' has no input validator. "
+                "Set input_validator= when defining the workflow or task."
+            )
+        input_schema = self.input_validator.json_schema()
+        if isinstance(self, Workflow):
+            match provider:
+                case MCPProvider.CLAUDE:
+                    from hatchet_sdk.runnables.mcp.claude import workflow_to_claude_mcp
+
+                    return workflow_to_claude_mcp(
+                        self, input_schema, description, **kwargs
+                    )
+                case MCPProvider.OPENAI:
+                    from hatchet_sdk.runnables.mcp.openai import workflow_to_openai_mcp
+
+                    return workflow_to_openai_mcp(
+                        self, input_schema, description, **kwargs
+                    )
+                case _ as unreachable:
+                    assert_never(unreachable)
+        elif isinstance(self, Standalone):
+            match provider:
+                case MCPProvider.CLAUDE:
+                    from hatchet_sdk.runnables.mcp.claude import task_to_claude_mcp
+
+                    return task_to_claude_mcp(self, input_schema, description, **kwargs)
+                case MCPProvider.OPENAI:
+                    from hatchet_sdk.runnables.mcp.openai import task_to_openai_mcp
+
+                    return task_to_openai_mcp(self, input_schema, description, **kwargs)
+                case _ as unreachable:
+                    assert_never(unreachable)
+        else:
+            raise NotImplementedError()
 
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
