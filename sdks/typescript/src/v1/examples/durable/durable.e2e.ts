@@ -253,7 +253,7 @@ describe('durable-e2e', () => {
 
     const ref = await waitForTwoEventsSecondPushedFirst.runNoWait({ scope });
 
-    await sleep(3000);
+    await sleep(1000);
     await hatchet.events.push('key1', { order: 'first' }, { scope });
 
     const result = await ref.output;
