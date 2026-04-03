@@ -8,7 +8,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import {
   CreateOrganizationInviteRequest,
   OrganizationMemberRoleType,
@@ -56,13 +56,16 @@ export const OrganizationInviteMemberModal = ({
     },
   });
 
+  const orgApi = useOrganizationApi();
+  const orgInviteCreate = orgApi.organizationInviteCreateMutation(organizationId);
   const inviteMemberMutation = useMutation({
+    ...orgInviteCreate,
     mutationFn: async (data: { email: string }) => {
       const request: CreateOrganizationInviteRequest = {
         inviteeEmail: data.email,
         role: OrganizationMemberRoleType.OWNER,
       };
-      await cloudApi.organizationInviteCreate(organizationId, request);
+      await orgInviteCreate.mutationFn(request);
       return request;
     },
     onSuccess: (request) => {

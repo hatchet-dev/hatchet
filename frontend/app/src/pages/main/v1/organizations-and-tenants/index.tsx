@@ -10,8 +10,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
+import { getCloudMetadataQuery } from '@/hooks/use-cloud';
 import api from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { cloudApi, controlPlaneApi, fetchControlPlaneStatus } from '@/lib/api/api';
 import type {
   OrganizationForUser,
   OrganizationInvite,
@@ -27,7 +28,6 @@ import {
 } from '@/lib/api/generated/data-contracts';
 import { globalEmitter } from '@/lib/global-emitter';
 import { capitalize } from '@/lib/utils';
-import { getCloudMetadataQuery } from '@/pages/auth/hooks/use-cloud';
 import { userUniverseQuery } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { PlusIcon } from '@heroicons/react/24/outline';
@@ -89,8 +89,10 @@ export const loader = async (): Promise<
     getCloudMetadataQuery,
   );
 
+  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+
   const { organizations, tenantMemberships } = await queryClient.fetchQuery(
-    userUniverseQuery({ isCloudEnabled, isCloudLoaded: true }),
+    userUniverseQuery({ isCloudEnabled, isCloudLoaded: true, isControlPlaneEnabled }),
   );
 
   const tenantIdToTenant = makeMapOfTenantIdsToTenantMember(tenantMemberships);
@@ -105,8 +107,12 @@ export const loader = async (): Promise<
 
       if (canManage) {
         const [membersRes, invitesRes] = await Promise.all([
-          api.tenantMemberList(tenant.metadata.id),
-          api.tenantInviteList(tenant.metadata.id),
+          isControlPlaneEnabled
+            ? controlPlaneApi.tenantMemberList(tenant.metadata.id)
+            : api.tenantMemberList(tenant.metadata.id),
+          isControlPlaneEnabled
+            ? controlPlaneApi.tenantInviteList(tenant.metadata.id)
+            : api.tenantInviteList(tenant.metadata.id),
         ]);
         tenantMembers.set(tenant.metadata.id, membersRes.data.rows ?? []);
         tenantInvites.set(tenant.metadata.id, invitesRes.data.rows ?? []);
@@ -125,8 +131,12 @@ export const loader = async (): Promise<
     const organizationDataPromise = Promise.all(
       organizations.map(async (org) => {
         const [orgRes, invitesRes] = await Promise.all([
-          cloudApi.organizationGet(org.metadata.id),
-          cloudApi.organizationInviteList(org.metadata.id),
+          isControlPlaneEnabled
+            ? controlPlaneApi.organizationGet(org.metadata.id)
+            : cloudApi.organizationGet(org.metadata.id),
+          isControlPlaneEnabled
+            ? controlPlaneApi.organizationInviteList(org.metadata.id)
+            : cloudApi.organizationInviteList(org.metadata.id),
         ]);
         organizationMembers.set(org.metadata.id, orgRes.data.members ?? []);
         organizationInvites.set(

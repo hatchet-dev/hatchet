@@ -1,7 +1,7 @@
 import { AuthPage } from '../components/auth-page';
 import { UserLoginForm } from './components/user-login-form';
-import api, { UserLoginRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
@@ -36,11 +36,9 @@ function BasicLogin() {
   const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
     useUserUniverse();
 
+  const { userUpdateLoginMutation } = useUserApi();
   const loginMutation = useMutation({
-    mutationKey: ['user:update:login'],
-    mutationFn: async (data: UserLoginRequest) => {
-      await api.userUpdateLogin(data);
-    },
+    ...userUpdateLoginMutation(),
     onSuccess: () => {
       invalidateUserUniverse();
       getUserUniverse();

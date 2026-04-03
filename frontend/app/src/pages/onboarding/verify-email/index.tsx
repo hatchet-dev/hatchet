@@ -1,7 +1,8 @@
 import TopNav from '@/components/v1/nav/top-nav';
 import { Loading } from '@/components/v1/ui/loading';
 import { useAnalytics } from '@/hooks/use-analytics';
-import { queries } from '@/lib/api';
+import api from '@/lib/api';
+import { controlPlaneApi, fetchControlPlaneStatus } from '@/lib/api/api';
 import { AppContextProvider } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -10,7 +11,15 @@ import { useEffect } from 'react';
 
 export async function loader({ request }: { request: Request }) {
   try {
-    const user = await queryClient.fetchQuery(queries.user.current);
+    const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+    const user = await queryClient.fetchQuery({
+      queryKey: ['user:get'],
+      queryFn: async () =>
+        (await (isControlPlaneEnabled
+          ? controlPlaneApi.cloudUserGetCurrent()
+          : api.userGetCurrent())
+        ).data,
+    });
 
     if (
       user.emailVerified &&

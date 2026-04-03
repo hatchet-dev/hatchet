@@ -29,13 +29,14 @@ import {
 } from '@/components/v1/ui/popover';
 import { Separator } from '@/components/v1/ui/separator';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import useCloud from '@/hooks/use-cloud';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
-import api, { TenantMember, User } from '@/lib/api';
+import { TenantMember, User } from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
@@ -66,11 +67,9 @@ function AccountDropdown({ user }: { user?: User }) {
   // Check for pending invites to show the Invites menu item
   const { pendingInvitesQuery } = usePendingInvites();
 
+  const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
+    ...userUpdateLogoutMutation(),
     onSuccess: () => {
       invalidateUserUniverse();
       navigate({ to: appRoutes.authLoginRoute.to });
