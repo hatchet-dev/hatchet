@@ -24,6 +24,7 @@ const (
 	Webhook     Resource = "webhook"
 	Log         Resource = "log"
 	StreamEvent Resource = "stream-event"
+	OtelSpan    Resource = "otel-span"
 )
 
 type Action string
