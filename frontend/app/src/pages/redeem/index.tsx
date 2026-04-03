@@ -180,10 +180,11 @@ function OfferCard({
               : 'Credit offer'}
           </p>
           <CardDescription>
-            {offer.coupon && `Coupon: ${offer.coupon}`}
-            {offer.coupon && offer.expiresAt && ' \u00b7 '}
             {offer.expiresAt &&
               `Expires ${new Date(offer.expiresAt).toLocaleDateString()}`}
+            {offer.expiresAt && offer.expiresInMonths && ' \u00b7 '}
+            {offer.expiresInMonths &&
+              `Expires in ${offer.expiresInMonths} month${offer.expiresInMonths === 1 ? '' : 's'}`}
           </CardDescription>
         </div>
       </CardHeader>

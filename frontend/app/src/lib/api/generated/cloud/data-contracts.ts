@@ -1002,8 +1002,8 @@ export interface UserOffer {
   creditAmountCents?: number;
   /** The expiration date of the offer. */
   expiresAt?: string;
-  /** The coupon code associated with the offer. */
-  coupon?: string;
+  /** Number of months until the offer credit expires after redemption. */
+  expiresInMonths?: number;
   /** Whether the offer includes a welcome kit. */
   includesWelcomeKit?: boolean;
 }
