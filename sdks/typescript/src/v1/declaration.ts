@@ -12,7 +12,7 @@ import {
   ScheduledWorkflows,
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { z } from 'zod';
+import * as z from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
 import {
@@ -32,6 +32,10 @@ import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from '.
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
+import { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import { FunctionTool } from '@openai/agents';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -40,6 +44,72 @@ export enum Priority {
   MEDIUM = 2,
   HIGH = 3,
 }
+type AgentSdk = 'claude' | 'openai';
+
+type AgentSdkFuncMap = {
+  claude: <I extends InputType, O extends OutputType>(
+    runnable: BaseWorkflowDeclaration<I, O>,
+    annotations?: ToolAnnotations
+  ) => SdkMcpToolDefinition;
+  openai: <I extends InputType, O extends OutputType>(
+    runnable: BaseWorkflowDeclaration<I, O>
+  ) => FunctionTool;
+};
+
+const sdkFuncMap: AgentSdkFuncMap = {
+  claude: <I extends InputType, O extends OutputType>(
+    runnable: BaseWorkflowDeclaration<I, O>,
+    annotations?: ToolAnnotations
+  ) => {
+    if (!runnable.definition.inputValidator) {
+      throw new Error('inputValidator must be defined');
+    }
+    const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
+    const { description } = runnable.definition;
+    if (description === undefined) {
+      throw new Error('Runnable description must be defined');
+    }
+    const handler = async (args: any, _: unknown): Promise<CallToolResult> => {
+      const result = await runnable.run(args);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    };
+    return {
+      annotations: annotations,
+      description: description,
+      handler: handler,
+      name: runnable.name,
+      inputSchema: inputValidator.shape,
+    };
+  },
+  openai: <I extends InputType, O extends OutputType>(runnable: BaseWorkflowDeclaration<I, O>) => {
+    if (!runnable.definition.inputValidator) {
+      throw new Error('inputValidator must be defined');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { tool } = require('@openai/agents');
+    const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
+    const { description } = runnable.definition;
+    if (description === undefined) {
+      throw new Error('Runnable description must be defined');
+    }
+    return tool({
+      name: runnable.name,
+      description: description,
+      // @ts-expect-error TS2589
+      parameters: zodToJsonSchema(inputValidator, {
+        $refStrategy: 'none',
+      }),
+      execute: async (input: any): Promise<string> => {
+        const result = await runnable.run(input);
+        return JSON.stringify(result);
+      },
+    });
+  },
+};
+
+type Tail<T extends any[]> = T extends [any, ...infer R] ? R : never;
 
 /**
  * Additional metadata that can be attached to a workflow run.
@@ -689,6 +759,15 @@ export class BaseWorkflowDeclaration<
    */
   get name() {
     return this.definition.name;
+  }
+
+  mcpTool(
+    sdk: 'claude',
+    ...args: Tail<Parameters<AgentSdkFuncMap['claude']>>
+  ): SdkMcpToolDefinition;
+  mcpTool(sdk: 'openai', ...args: Tail<Parameters<AgentSdkFuncMap['openai']>>): FunctionTool;
+  mcpTool<K extends AgentSdk>(sdk: K, ...args: any): SdkMcpToolDefinition | FunctionTool {
+    return (sdkFuncMap[sdk] as any)(this, ...args);
   }
 }
 
