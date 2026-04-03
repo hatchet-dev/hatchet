@@ -45,12 +45,6 @@ func NewExchangeTokenClient(publicJWTHandle *keyset.Handle, opts *ExchangeTokenO
 	}, nil
 }
 
-type Token struct {
-	ExpiresAt time.Time
-	Token     string
-	TokenId   uuid.UUID
-}
-
 func (j *exchangeTokenClientImpl) ValidateExchangeToken(ctx context.Context, token string) (tenantId, userId uuid.UUID, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience

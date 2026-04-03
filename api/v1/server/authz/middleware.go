@@ -93,13 +93,18 @@ var restrictedWithBearerToken = []string{
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
 	if isExchangeToken, ok := c.Get("is_exchange_token").(bool); ok && isExchangeToken {
+		if a.config.Auth.ExchangeTokenClient == nil {
+			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
+			return echo.NewHTTPError(http.StatusInternalServerError, "Exchange token client is not configured")
+		}
+
 		if err := a.ensureVerifiedEmail(c, r); err != nil {
-			a.l.Debug().Err(err).Msgf("error ensuring verified email for exchange token user")
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email for exchange token user")
 			return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
 		}
 
 		if err := a.validateUserTenantPermissions(c, r); err != nil {
-			a.l.Debug().Err(err).Msgf("error validating user tenant permissions for exchange token user")
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error validating user tenant permissions for exchange token user")
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 		}
 	}
