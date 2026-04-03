@@ -35,8 +35,8 @@ func TestValidateExchangeToken(t *testing.T) {
 	gotTenantId, gotUserId, err := client.ValidateExchangeToken(context.Background(), token)
 
 	assert.NoError(t, err)
-	assert.Equal(t, tenantId, gotTenantId)
-	assert.Equal(t, userId, gotUserId)
+	assert.Equal(t, tenantId, *gotTenantId)
+	assert.Equal(t, userId, *gotUserId)
 }
 
 func TestValidateExchangeToken_Expired(t *testing.T) {
