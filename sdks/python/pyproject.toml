@@ -173,4 +173,3 @@ style = "sphinx"
 exclude = "v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py"
 arg-type-hints-in-docstring = false
 check-return-types = false
-
