@@ -12,10 +12,10 @@ from typing import (
     Literal,
     ParamSpec,
     TypeVar,
+    assert_never,
     cast,
     get_type_hints,
     overload,
-    assert_never
 )
 
 from google.protobuf import timestamp_pb2
