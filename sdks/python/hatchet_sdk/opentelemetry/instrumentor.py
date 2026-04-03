@@ -551,7 +551,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         additional_metadata = additional_metadata or (
             options.additional_metadata if options else {}
         )
-        priority = priority or (options.priority if options else None)
+
+        priority_option = options.priority if options else None
+
+        if isinstance(priority_option, int):
+            priority_option = Priority(priority_option)
+
+        priority = priority or priority_option
         scope = scope or (options.scope if options else None)
 
         attributes = {
