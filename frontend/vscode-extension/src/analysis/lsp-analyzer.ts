@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ParsedTask, ParsedWorkflow, WorkflowDeclaration } from '../parser/workflow-parser';
+import type { WorkflowFactoryAnnotation } from '../parser/jsdoc-annotations';
 import { isWithinWorkspace } from '../utils/workspace';
 
 /**
@@ -75,6 +76,7 @@ export class LspAnalyzer {
               decl.varName,
               doc.languageId,
               location.uri,
+              decl.annotation,
             ) ?? null;
           } catch {
             return null;
@@ -106,8 +108,6 @@ export class LspAnalyzer {
   }
 }
 
-// ─── Location-level task extraction ──────────────────────────────────────────
-
 function extractTaskAtLocation(
   lines: string[],
   refLineOffset: number,
@@ -115,11 +115,12 @@ function extractTaskAtLocation(
   varName: string,
   languageId: string,
   fileUri: vscode.Uri,
+  annotation?: WorkflowFactoryAnnotation,
 ): ParsedTask | undefined {
   switch (languageId) {
     case 'typescript':
     case 'typescriptreact': // .tsx files are valid in TS SDK projects
-      return extractTsTask(lines, refLineOffset, absoluteStartLine, varName, fileUri);
+      return extractTsTask(lines, refLineOffset, absoluteStartLine, varName, fileUri, annotation);
     case 'python':
       return extractPyTask(lines, refLineOffset, absoluteStartLine, varName, fileUri);
     case 'go':
@@ -131,48 +132,62 @@ function extractTaskAtLocation(
   }
 }
 
-// ─── TypeScript ───────────────────────────────────────────────────────────────
-
 function extractTsTask(
   lines: string[],
   refLineOffset: number,
   absoluteStartLine: number,
   varName: string,
   fileUri: vscode.Uri,
+  annotation?: WorkflowFactoryAnnotation,
 ): ParsedTask | undefined {
+  const taskMethod = annotation?.taskMethod ?? 'task';
+  const taskParentsProp = annotation?.taskParentsProp ?? 'parents';
   const refLine = lines[refLineOffset];
 
-  // Match: [const/let varId = ]varName.task({
+  // Match: [const/let varId = ]varName.<taskMethod>(
   const taskRe = new RegExp(
-    `(?:(?:const|let)\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.task\\s*\\(`,
+    `(?:(?:const|let)\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.${escapeRegex(taskMethod)}\\s*\\(`,
   );
   const m = taskRe.exec(refLine);
   if (!m) return undefined;
 
   const taskVarId = m[1]; // may be undefined (anonymous task)
 
-  // Build text from the reference line onward and locate the opening paren
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   if (parenIdx === -1) return undefined;
 
   const parenContent = collectBraceAwareContent(fullText, parenIdx);
+  const trimmedContent = parenContent.trimStart();
 
-  // Extract name: '...' or name: "..."
-  const nameM = /name\s*:\s*['"`]([^'"`]+)['"`]/.exec(parenContent);
-  const displayName = nameM?.[1] ?? taskVarId;
+  let displayName: string | undefined;
+  let parentVarIds: string[] = [];
+
+  if (trimmedContent.startsWith("'") || trimmedContent.startsWith('"') || trimmedContent.startsWith('`')) {
+    // positional form: task('name', { parents: [...] })
+    const nameM = /^['"`]([^'"`\n]+)['"`]/.exec(trimmedContent);
+    displayName = nameM?.[1] ?? taskVarId;
+
+    const parentsRe = new RegExp(`${escapeRegex(taskParentsProp)}\\s*:\\s*\\[([^\\]]*)\\]`);
+    const parentsM = parentsRe.exec(parenContent);
+    parentVarIds = parentsM
+      ? parentsM[1].split(',').map((s) => s.trim()).filter((s) => /^\w+$/.test(s))
+      : [];
+  } else {
+    // options-object form: task({ name: '...', parents: [...] })
+    const nameM = /name\s*:\s*['"`]([^'"`]+)['"`]/.exec(parenContent);
+    displayName = nameM?.[1] ?? taskVarId;
+
+    const parentsRe = new RegExp(`${escapeRegex(taskParentsProp)}\\s*:\\s*\\[([^\\]]*)\\]`);
+    const parentsM = parentsRe.exec(parenContent);
+    parentVarIds = parentsM
+      ? parentsM[1].split(',').map((s) => s.trim()).filter((s) => /^\w+$/.test(s))
+      : [];
+  }
+
   if (!displayName) return undefined;
 
   const varId = taskVarId ?? sanitizeVarId(displayName);
-
-  // Extract parents: [id1, id2]
-  const parentsM = /parents\s*:\s*\[([^\]]*)\]/.exec(parenContent);
-  const parentVarIds: string[] = parentsM
-    ? parentsM[1]
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => /^\w+$/.test(s))
-    : [];
 
   return {
     varId,
@@ -182,8 +197,6 @@ function extractTsTask(
     fileUri,
   };
 }
-
-// ─── Python ───────────────────────────────────────────────────────────────────
 
 function extractPyTask(
   lines: string[],
@@ -198,13 +211,11 @@ function extractPyTask(
   const decRe = new RegExp(`^@${escapeRegex(varName)}\\.task\\s*\\(`);
   if (!decRe.test(refLine.trimStart())) return undefined;
 
-  // Collect decorator paren content
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   if (parenIdx === -1) return undefined;
   const parenContent = collectSimpleContent(fullText, parenIdx);
 
-  // Extract parents=[id1, id2, ...]
   const parentsM = /parents\s*=\s*\[([^\]]*)\]/.exec(parenContent);
   const parentVarIds: string[] = parentsM
     ? parentsM[1]
@@ -213,7 +224,6 @@ function extractPyTask(
         .filter((s) => /^\w+$/.test(s))
     : [];
 
-  // Scan forward for `def` or `async def`
   let funcName: string | undefined;
   let defOffset = refLineOffset;
   for (let j = refLineOffset + 1; j < Math.min(refLineOffset + 10, lines.length); j++) {
@@ -235,8 +245,6 @@ function extractPyTask(
   };
 }
 
-// ─── Go ───────────────────────────────────────────────────────────────────────
-
 function extractGoTask(
   lines: string[],
   refLineOffset: number,
@@ -257,12 +265,10 @@ function extractGoTask(
   const taskName = m[2];
   const varId = assignedVar && assignedVar !== '_' ? assignedVar : sanitizeVarId(taskName);
 
-  // Collect full NewTask(...) args with brace-aware depth
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   const taskArgs = parenIdx !== -1 ? collectBraceAwareContent(fullText, parenIdx) : '';
 
-  // Extract WithParents(p1, p2)
   const parentsM = /WithParents\s*\(([^)]*)\)/.exec(taskArgs);
   const parentVarIds: string[] = parentsM
     ? parentsM[1]
@@ -279,8 +285,6 @@ function extractGoTask(
     fileUri,
   };
 }
-
-// ─── Ruby ─────────────────────────────────────────────────────────────────────
 
 function extractRubyTask(
   lines: string[],
@@ -302,13 +306,11 @@ function extractRubyTask(
   const taskSymbolName = m[2];
   const varId = assignedConst ?? taskSymbolName;
 
-  // Collect paren content
   const fullText = lines.slice(refLineOffset).join('\n');
   const parenIdx = fullText.indexOf('(');
   if (parenIdx === -1) return undefined;
   const parenContent = collectSimpleContent(fullText, parenIdx);
 
-  // Extract parents: [STEP1, STEP2, :step3]
   const parentsM = /parents:\s*\[([^\]]*)\]/.exec(parenContent);
   const parentVarIds: string[] = parentsM
     ? parentsM[1]
@@ -329,9 +331,6 @@ function extractRubyTask(
   };
 }
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
-
-/** Escape special regex characters in a literal string. */
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

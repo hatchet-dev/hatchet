@@ -197,6 +197,7 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 			20,                  // schedulerConcurrencyRateLimit
 			10*time.Millisecond, // schedulerConcurrencyPollingMinInterval
 			50*time.Millisecond, // schedulerConcurrencyPollingMaxInterval
+			5*time.Millisecond,  // schedulerAdvisoryLockTimeout
 			false,               // optimisticSchedulingEnabled
 			1,                   // optimisticSlots
 		)
@@ -239,6 +240,7 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 			20,
 			10*time.Millisecond,
 			50*time.Millisecond,
+			5*time.Millisecond,
 			false,
 			1,
 		)
@@ -277,6 +279,7 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 			20,
 			10*time.Millisecond,
 			50*time.Millisecond,
+			5*time.Millisecond,
 			false,
 			1,
 		)
@@ -329,6 +332,7 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 			20,
 			10*time.Millisecond,
 			50*time.Millisecond,
+			5*time.Millisecond,
 			false,
 			1,
 		)

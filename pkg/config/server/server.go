@@ -297,6 +297,9 @@ type ConfigFileRuntime struct {
 	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
 	SchedulerConcurrencyPollingMaxInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
 
+	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
+	SchedulerAdvisoryLockTimeout time.Duration `mapstructure:"schedulerAdvisoryLockTimeout" json:"schedulerAdvisoryLockTimeout,omitempty" default:"5s"`
+
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
@@ -729,6 +732,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
+	_ = v.BindEnv("runtime.schedulerAdvisoryLockTimeout", "SCHEDULER_ADVISORY_LOCK_TIMEOUT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
