@@ -31,20 +31,9 @@ class WorkflowRunTriggerConfig(BaseModel):
     key: str | None = None
 
 
-class PushEventOptions(BaseModel):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    namespace: str | None = None
-    priority: int | Priority | None = None
-    scope: str | None = None
-
-
 class BulkPushEventWithMetadata(BaseModel):
     key: str = ""
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | Priority | None = None
     scope: str | None = None
-
-
-class BulkPushEventOptions(BulkPushEventWithMetadata):
-    namespace: str | None = None

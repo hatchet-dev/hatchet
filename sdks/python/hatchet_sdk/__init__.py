@@ -164,9 +164,7 @@ from hatchet_sdk.types.rate_limit import RateLimit, RateLimitDuration
 from hatchet_sdk.types.slot_types import SlotType
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.types.trigger import (
-    BulkPushEventOptions,
     BulkPushEventWithMetadata,
-    PushEventOptions,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
@@ -186,7 +184,6 @@ __all__ = [
     "APIToken",
     "AcceptInviteRequest",
     "BulkCancelReplayOpts",
-    "BulkPushEventOptions",
     "BulkPushEventWithMetadata",
     "CELEvaluationResult",
     "CELFailure",
@@ -245,7 +242,6 @@ __all__ = [
     "Priority",
     "PullRequest",
     "PullRequestState",
-    "PushEventOptions",
     "RateLimit",
     "RateLimitDuration",
     "RegisterDurableEventRequest",

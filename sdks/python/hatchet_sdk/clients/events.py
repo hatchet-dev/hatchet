@@ -33,13 +33,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import (
-    BulkPushEventOptions as BulkPushEventOptions,
-)
-from hatchet_sdk.types.trigger import (
     BulkPushEventWithMetadata as BulkPushEventWithMetadata,
-)
-from hatchet_sdk.types.trigger import (
-    PushEventOptions as PushEventOptions,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
@@ -130,7 +124,6 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions = PushEventOptions(),
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
@@ -139,7 +132,6 @@ class EventClient(BaseRestClient):
             self.push,
             event_key=event_key,
             payload=payload,
-            options=options,
             additional_metadata=additional_metadata,
             priority=priority,
             scope=scope,
@@ -148,9 +140,8 @@ class EventClient(BaseRestClient):
     async def aio_bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
-        return await asyncio.to_thread(self.bulk_push, events=events, options=options)
+        return await asyncio.to_thread(self.bulk_push, events=events)
 
     def push(
         self,
