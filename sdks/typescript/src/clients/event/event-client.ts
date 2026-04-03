@@ -11,6 +11,7 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
+import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 
 export enum LogLevel {
   INFO = 'INFO',
@@ -30,6 +31,18 @@ export interface EventWithMetadata<T> {
   additionalMetadata?: Record<string, unknown>;
   priority?: number;
   scope?: string;
+}
+
+function injectSourceInfo(metadata: Record<string, string>): Record<string, string> {
+  const ctx = parentRunContextManager.getContext();
+  if (!ctx?.parentId || !ctx?.parentTaskRunExternalId) {
+    return metadata;
+  }
+  return {
+    ...metadata,
+    hatchet__source_workflow_run_id: ctx.parentId,
+    hatchet__source_step_run_id: ctx.parentTaskRunExternalId,
+  };
 }
 
 export class EventClient {
@@ -62,13 +75,14 @@ export class EventClient {
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
     const namespacedType = applyNamespace(type, this.config.namespace);
 
+    const enhancedMetadata = injectSourceInfo(options.additionalMetadata ?? {});
+
     const req: PushEventRequest = {
       key: namespacedType,
       payload: JSON.stringify(input),
       eventTimestamp: new Date(),
-      additionalMetadata: options.additionalMetadata
-        ? JSON.stringify(options.additionalMetadata)
-        : undefined,
+      additionalMetadata:
+        Object.keys(enhancedMetadata).length > 0 ? JSON.stringify(enhancedMetadata) : undefined,
       priority: options.priority,
       scope: options.scope,
     };
@@ -90,19 +104,15 @@ export class EventClient {
     const namespacedType = applyNamespace(type, this.config.namespace);
 
     const events = inputs.map((input) => {
+      const baseMeta =
+        (input.additionalMetadata as Record<string, string>) ?? options.additionalMetadata ?? {};
+      const enhanced = injectSourceInfo(baseMeta);
+
       return {
         key: namespacedType,
         payload: JSON.stringify(input.payload),
         eventTimestamp: new Date(),
-        additionalMetadata: (() => {
-          if (input.additionalMetadata) {
-            return JSON.stringify(input.additionalMetadata);
-          }
-          if (options.additionalMetadata) {
-            return JSON.stringify(options.additionalMetadata);
-          }
-          return undefined;
-        })(),
+        additionalMetadata: Object.keys(enhanced).length > 0 ? JSON.stringify(enhanced) : undefined,
         priority: input.priority,
         scope: input.scope,
       };

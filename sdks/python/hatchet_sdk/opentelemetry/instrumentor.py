@@ -59,12 +59,15 @@ from hatchet_sdk.clients.events import (
     BulkPushEventWithMetadata,
     EventClient,
     PushEventOptions,
+    _inject_source_info,
 )
 from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
 from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
-from hatchet_sdk.runnables.contextvars import ctx_hatchet_span_attributes
+from hatchet_sdk.runnables.contextvars import (
+    ctx_hatchet_span_attributes,
+)
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -127,8 +130,10 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         attrs = ctx_hatchet_span_attributes.get()
         if attrs and span.is_recording():
+            existing = span.attributes or {}
             for key, value in attrs.items():
-                span.set_attribute(key, value)
+                if key not in existing:
+                    span.set_attribute(key, value)
         super().on_start(span, parent_context)
 
 
@@ -350,7 +355,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self.config.tls_config.root_ca_file:
             with open(self.config.tls_config.root_ca_file, "rb") as f:
                 root_certs = f.read()
-
             credentials = grpc.ssl_channel_credentials(root_certificates=root_certs)
 
         otlp_exporter = OTLPSpanExporter(
@@ -570,11 +574,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
+            enhanced = _inject_traceparent_into_metadata(
+                options.additional_metadata,
+            )
+            enhanced = _inject_source_info(enhanced)
+
             options = PushEventOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=_inject_traceparent_into_metadata(
-                    options.additional_metadata,
-                ),
+                additional_metadata=enhanced,
             )
 
             return wrapped(event_key, payload, options)
@@ -612,8 +619,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             bulk_events_with_meta = [
                 BulkPushEventWithMetadata(
                     **event.model_dump(exclude={"additional_metadata"}),
-                    additional_metadata=_inject_traceparent_into_metadata(
-                        event.additional_metadata,
+                    additional_metadata=_inject_source_info(
+                        _inject_traceparent_into_metadata(
+                            event.additional_metadata,
+                        )
                     ),
                 )
                 for event in bulk_events

@@ -3,6 +3,7 @@ package otelcol
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -161,6 +162,15 @@ func (oc *otelCollectorImpl) extractHatchetCorrelation(attrs []*commonv1.KeyValu
 				spanData.RetryCount = int32(intVal) //nolint:gosec
 			}
 		}
+	}
+
+	// Only re-parent the top-level SDK step_run consumer span under the
+	// engine's deterministic workflow_run root. Other SDK spans (user spans,
+	// child-run producers) keep their natural parent so the hierarchy is
+	// preserved in both Hatchet's OLAP view and external OTel backends.
+	if spanData.WorkflowRunID != nil && len(spanData.ParentSpanID) > 0 &&
+		strings.HasPrefix(spanData.Name, "hatchet.start_step_run") {
+		spanData.ParentSpanID = repository.DeriveWorkflowRunSpanID(*spanData.WorkflowRunID)
 	}
 }
 

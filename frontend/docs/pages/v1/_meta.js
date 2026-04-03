@@ -13,7 +13,7 @@ export default {
   tasks: "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "durable-workflows-overview": "Intro to Durable Workflows",
+  "durable-execution": "Durable Execution",
   "--triggers": {
     title: "Triggers",
     type: "separator",
@@ -92,10 +92,18 @@ export default {
   },
   "architecture-and-guarantees": "Architecture & Guarantees",
   "cloud-vs-oss": "Cloud vs OSS",
-  security: "Security",
+  security: {
+    title: "Security",
+    theme: { collapsed: true },
+  },
   "region-availability": "Region Availability",
   uptime: "Uptime",
   "developer-experience": "Developer Experience",
+  "--troubleshooting": {
+    title: "Troubleshooting",
+    type: "separator",
+  },
+  faq: "Frequently Asked Questions",
   _setup: {
     display: "hidden",
   },

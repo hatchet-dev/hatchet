@@ -610,7 +610,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
-			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+			attribute.String(hatchetotel.AttrWorkflowName, w.declaration.Name()),
 		),
 	)
 	defer span.End()
@@ -650,7 +650,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
-			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+			attribute.String(hatchetotel.AttrWorkflowName, w.declaration.Name()),
 		),
 	)
 	defer span.End()
@@ -723,7 +723,7 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
-			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+			attribute.String(hatchetotel.AttrWorkflowName, w.declaration.Name()),
 			attribute.Int(hatchetotel.AttrNumWorkflows, len(inputs)),
 		),
 	)

@@ -30,7 +30,26 @@ from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+
+
+def _inject_source_info(
+    metadata: JSONSerializableMapping,
+) -> JSONSerializableMapping:
+    """Injects hatchet__source_workflow_run_id and hatchet__source_step_run_id
+    into metadata when called from within a step execution context."""
+    wf_run_id = ctx_workflow_run_id.get()
+    step_run_id = ctx_step_run_id.get()
+
+    if not wf_run_id or not step_run_id:
+        return metadata
+
+    return {
+        **metadata,
+        "hatchet__source_workflow_run_id": wf_run_id,
+        "hatchet__source_step_run_id": step_run_id,
+    }
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:
@@ -144,7 +163,8 @@ class EventClient(BaseRestClient):
         )
 
         try:
-            meta_bytes = json.dumps(options.additional_metadata)
+            meta = _inject_source_info(options.additional_metadata)
+            meta_bytes = json.dumps(meta)
         except Exception as e:
             raise ValueError("Error encoding meta") from e
 
@@ -176,7 +196,7 @@ class EventClient(BaseRestClient):
         event_key = self.client_config.apply_namespace(event.key, namespace)
         payload = event.payload
 
-        meta = event.additional_metadata
+        meta = _inject_source_info(event.additional_metadata)
 
         try:
             meta_str = json.dumps(meta)

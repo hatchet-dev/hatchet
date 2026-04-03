@@ -1,85 +1,85 @@
-[tool.poetry]
+[project]
 name = "hatchet-sdk"
-version = "1.29.2"
+version = "1.29.5"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
-authors = [
-  "Alexander Belanger <alexander@hatchet.run>",
-  "Matt Kaye <matt@hatchet.run>",
-  "Gabe Ruttner <gabe@hatchet.run>",
-  "Mohammed Nafees <nafees@hatchet.run>",
-]
 readme = "README.md"
-include = ["hatchet_sdk/py.typed"]
-license = "MIT"
+license = { text = "MIT" }
+requires-python = ">=3.10,<4"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-grpcio = "^1.76.0"
-grpcio-tools = "^1.76.0"
-protobuf = "^6.30.2"
-pydantic = "^2.6.3"
-python-dateutil = "^2.9.0.post0"
-aiohttp = "^3.10.5"
-tenacity = ">=8.4.1"
-prometheus-client = ">=0.21.1"
-pydantic-settings = "^2.7.1"
-typing-inspection = ">=0.1.0"
-
-## OTel Extra
-opentelemetry-api = { version = "^1.28.0", optional = true }
-opentelemetry-sdk = { version = "^1.28.0", optional = true }
-opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
-opentelemetry-distro = { version = ">=0.49b0", optional = true }
-opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
-opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
-urllib3 = "^2.6.0"
-
-
-[tool.poetry.group.lint.dependencies]
-mypy = "==1.19.1"
-types-protobuf = "^5.28.3.20241030"
-black = "==26.1.0"
-types-psutil = "^6.1.0.20241221"
-ruff = "==0.15.0"
-types-requests = "^2.32.0.20241016"
-psutil = "^6.0.0"
-types-grpcio = "^1.0.0"
-
-[tool.poetry.group.test.dependencies]
-pytest = "^8.3.5"
-pytest-asyncio = "^1.3.0"
-pytest-env = "^1.1.5"
-pytest-retry = "^1.7.0"
-psycopg = { extras = ["pool"], version = "^3.2.6" }
-pytest-xdist = "^3.7.0"
-requests = "^2.32.5"
-
-
-[tool.poetry.group.docs.dependencies]
-mkdocs = "^1.6.1"
-mkdocstrings = { extras = ["python"], version = "^0.29.1" }
-pydoclint = "^0.6.6"
-markdownify = "^1.1.0"
-openai = "^1.75.0"
-bs4 = "^0.0.2"
-types-beautifulsoup4 = "^4.12.0.20250204"
-fastapi = "^0.115.14"
-uvicorn = "^0.34.3"
-
-[tool.poetry.extras]
-otel = [
-  "opentelemetry-api",
-  "opentelemetry-sdk",
-  "opentelemetry-instrumentation",
-  "opentelemetry-distro",
-  "opentelemetry-exporter-otlp",
-  "opentelemetry-exporter-otlp-proto-http",
+authors = [
+    { name = "Alexander Belanger", email = "alexander@hatchet.run" },
+    { name = "Matt Kaye", email = "matt@hatchet.run" },
+    { name = "Gabe Ruttner", email = "gabe@hatchet.run" },
+    { name = "Mohammed Nafees", email = "nafees@hatchet.run" },
 ]
-v0-sdk = ["cel-python"]
+
+dependencies = [
+    "grpcio>=1.76.0,<2",
+    "grpcio-tools>=1.76.0,<2",
+    "protobuf>=6.30.2,<7",
+    "pydantic>=2.6.3,<3",
+    "python-dateutil>=2.9.0.post0,<3",
+    "aiohttp>=3.10.5,<4",
+    "tenacity>=8.4.1",
+    "prometheus-client>=0.21.1",
+    "pydantic-settings>=2.7.1,<3",
+    "typing-inspection>=0.1.0",
+    "urllib3>=2.6.0,<3",
+]
+
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-api>=1.28.0,<2",
+    "opentelemetry-sdk>=1.28.0,<2",
+    "opentelemetry-instrumentation>=0.49b0",
+    "opentelemetry-distro>=0.49b0",
+    "opentelemetry-exporter-otlp>=1.28.0,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.28.0,<2",
+]
+
+lint = [
+    "mypy==1.20.0",
+    "types-protobuf>=5.28.3.20241030",
+    "black==26.3.1",
+    "types-psutil>=6.1.0.20241221",
+    "ruff==0.15.9",
+    "types-requests>=2.32.0.20241016",
+    "psutil>=6.0.0",
+    "types-grpcio>=1.0.0",
+]
+
+test = [
+    "pytest>=8.3.5,<9",
+    "pytest-asyncio>=1.3.0",
+    "pytest-env>=1.1.5",
+    "pytest-retry>=1.7.0",
+    "psycopg[pool]>=3.2.6,<4",
+    "pytest-xdist>=3.7.0",
+    "requests>=2.32.5,<3",
+]
+
+docs = [
+    "mkdocs>=1.6.1,<2",
+    "mkdocstrings[python]>=0.29.1,<1",
+    "pydoclint>=0.6.6",
+    "markdownify>=1.1.0",
+    "openai>=1.75.0,<2",
+    "bs4>=0.0.2",
+    "types-beautifulsoup4>=4.12.0.20250204",
+    "fastapi>=0.115.14,<1",
+    "uvicorn>=0.34.3,<1",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hatchet_sdk"]
+
+[tool.hatch.build]
+include = ["hatchet_sdk/py.typed"]
+
 
 [tool.pytest.ini_options]
 log_cli = true
@@ -93,120 +93,60 @@ extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"
 [tool.mypy]
 files = ["."]
 exclude = [
-  "hatchet_sdk/clients/rest/api/*",
-  "hatchet_sdk/clients/rest/models/*",
-  "hatchet_sdk/contracts",
-  "hatchet_sdk/clients/rest/api_client.py",
-  "hatchet_sdk/clients/rest/configuration.py",
-  "hatchet_sdk/clients/rest/exceptions.py",
-  "hatchet_sdk/clients/rest/rest.py",
-  "hatchet_sdk/v0/*",
-  "site/*",
-  "examples/dependency_injection/dependency_annotations312.py",
+    "hatchet_sdk/clients/rest/api/*",
+    "hatchet_sdk/clients/rest/models/*",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0/*",
+    "site/*",
+    "examples/dependency_injection/dependency_annotations312.py",
 ]
 strict = true
 enable_error_code = [
-  "possibly-undefined",
-  "truthy-bool",
-  "redundant-expr",
-  "truthy-iterable",
+    "possibly-undefined",
+    "truthy-bool",
+    "redundant-expr",
+    "truthy-iterable",
 ]
 
 [tool.ruff]
-exclude = [
-  "hatchet_sdk/clients/rest/api/*",
-  "hatchet_sdk/clients/rest/models/*",
-  "hatchet_sdk/contracts",
-  "hatchet_sdk/clients/rest/api_client.py",
-  "hatchet_sdk/clients/rest/configuration.py",
-  "hatchet_sdk/clients/rest/exceptions.py",
-  "hatchet_sdk/clients/rest/rest.py",
-  "hatchet_sdk/v0/*",
-  "site/*",
-]
 target-version = "py310"
+exclude = [
+    "hatchet_sdk/clients/rest/api/*",
+    "hatchet_sdk/clients/rest/models/*",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0/*",
+    "site/*",
+]
 
 [tool.ruff.lint]
-select = [
-  # Pyflakes
-  "F",
-  # pycodestyle errors
-  "E",
-  # pycodestyle warnings
-  "W",
-  # isort
-  "I",
-  # pep8-naming
-  "N",
-  # pyupgrade (modern Python idioms)
-  "UP",
-  # flake8-async (async/await)
-  "ASYNC",
-  # flake8-bugbear (likely bugs)
-  "B",
-  # flake8-simplify (code simplification)
-  "SIM",
-  # flake8-comprehensions (list/dict comprehensions)
-  "C4",
-  # flake8-pie (misc improvements)
-  "PIE",
-  # flake8-return (return statement improvements)
-  "RET",
-  # flake8-unused-arguments
-  "ARG",
-  # flake8-logging-format
-  "G",
-  # Ruff-specific rules
-  "RUF",
-  # Datetime (timezone) rules
-  "DTZ",
-  "FIX",
-  ## Performance-related rules
-  "PERF",
-
-  # Print statements
-  "T201",
-]
-
-ignore = [
-  # Allow long lines
-  "E501",
-  # Allow complex variable names
-  "N806",
-  # Don't enforce specific exception types initially
-  "B008",
-  # Allow unused function arguments
-  "ARG001",
-  "ARG002",
-  # Allow empty returns
-  "RET503",
-
-  ## FIXME (ironic) - re-enable this later
-  "FIX",
-
-  "RET506",
-]
+select = ["F","E","W","I","N","UP","ASYNC","B","SIM","C4","PIE","RET","ARG","G","RUF","DTZ","FIX","PERF","T201"]
+ignore = ["E501","N806","B008","ARG001","ARG002","RET503","FIX","RET506"]
 exclude = [
-  "examples/*",
-  "docs/*",
-  "hatchet_sdk/clients/rest/api/*",
-  "hatchet_sdk/clients/rest/models/*",
-  "hatchet_sdk/contracts",
-  "hatchet_sdk/clients/rest/api_client.py",
-  "hatchet_sdk/clients/rest/configuration.py",
-  "hatchet_sdk/clients/rest/exceptions.py",
-  "hatchet_sdk/clients/rest/rest.py",
-  "hatchet_sdk/v0/*",
-  "apply_patches.py",
-  "site/*",
-  "tests/*",
+    "examples/*",
+    "docs/*",
+    "hatchet_sdk/clients/rest/api/*",
+    "hatchet_sdk/clients/rest/models/*",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0/*",
+    "apply_patches.py",
+    "site/*",
+    "tests/*",
 ]
 
 [tool.pydoclint]
-style = 'sphinx'
-exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py'
-arg-type-hints-in-docstring = false                                                                               # Automatically checked by mypy and mkdocs
-check-return-types = false                                                                                        # Automatically checked by mypy and mkdocs
-
-[tool.poetry.plugins."mkdocs.plugins"]
-"markdown-export" = "docs.generator.markdown_export:MarkdownExportPlugin"
+style = "sphinx"
+exclude = "v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py"
+arg-type-hints-in-docstring = false
+check-return-types = false
