@@ -1,5 +1,4 @@
 import json
-import sys
 from collections.abc import Callable, Collection, Coroutine, Sequence
 from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
@@ -452,16 +451,16 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> list[Any]:
-        if sys.version_info >= (3, 14):
-            import annotationlib
+        try:
+            import annotationlib  # type: ignore[import-not-found]
 
             # Python 3.14+ with PEP 749 can fail evaluating annotations lazily,
             # so use Format.STRING to avoid resolving type hints.
             sig = inspect.signature(
                 wrapped_func,
-                annotation_format=annotationlib.Format.STRING,
+                annotation_format=annotationlib.Format.STRING,  # type: ignore[call-arg]
             )
-        else:
+        except Exception:
             # Fallback for Python < 3.14 where annotation_format is not supported
             sig = inspect.signature(wrapped_func)
 
