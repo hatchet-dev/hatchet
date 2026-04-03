@@ -1,7 +1,6 @@
-import warnings
 from enum import Enum
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 from hatchet_sdk.contracts.dispatcher_pb2 import WorkerLabels
 from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels

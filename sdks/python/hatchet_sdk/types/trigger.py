@@ -1,6 +1,4 @@
-import warnings
-
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority

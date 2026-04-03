@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import json
-import warnings
 from datetime import timezone
 from typing import cast
 

@@ -1,5 +1,4 @@
 import asyncio
-import warnings
 from collections.abc import AsyncIterator, Callable
 from contextlib import (
     AbstractAsyncContextManager,
@@ -23,8 +22,8 @@ from typing import (
     get_origin,
     get_type_hints,
 )
-from warnings import warn
 
+from hatchet_sdk.context.worker_context import WorkerContext
 from pydantic import BaseModel, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
 
@@ -38,7 +37,6 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,

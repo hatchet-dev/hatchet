@@ -11,6 +11,7 @@ from textwrap import dedent
 from threading import Thread, current_thread
 from typing import Any, Literal, cast, overload
 
+from hatchet_sdk.context.worker_context import WorkerContext
 from pydantic import BaseModel, TypeAdapter
 
 from hatchet_sdk.client import Client
@@ -27,7 +28,6 @@ from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerCli
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,

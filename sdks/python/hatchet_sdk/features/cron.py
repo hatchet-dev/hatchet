@@ -21,7 +21,7 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -108,7 +108,6 @@ class CronClient(BaseRestClient):
 
         :return: The created cron workflow instance.
         """
-        _warn_if_int_priority(priority)
 
         validated_input = CreateCronTriggerConfig(
             expression=expression, input=input, additional_metadata=additional_metadata

@@ -33,7 +33,6 @@ from hatchet_sdk.runnables.contextvars import (
 )
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
-    _warn_if_dict_desired_worker_labels,
 )
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimitDuration
@@ -188,9 +187,6 @@ class AdminClient:
 
         desired_worker_labels = None
         if _options.desired_worker_label:
-            _warn_if_dict_desired_worker_labels(
-                _options.desired_worker_label, stacklevel=6
-            )
             if isinstance(_options.desired_worker_label, list):
                 labels_dict = {
                     d.key: d for d in _options.desired_worker_label if d.key is not None

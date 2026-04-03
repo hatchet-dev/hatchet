@@ -17,7 +17,6 @@ from typing import (
     get_type_hints,
     overload,
 )
-from warnings import warn
 
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 from typing_extensions import assert_never
@@ -56,10 +55,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
-from hatchet_sdk.types.labels import (
-    _warn_if_dict_desired_worker_labels,
-)
-from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -67,7 +63,7 @@ from hatchet_sdk.types.trigger import (
 )
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration, _warn_if_str_duration
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -648,8 +644,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
-        _warn_if_int_priority(priority)
-
         return self._client.cron.create(
             workflow_name=self._config.name,
             cron_name=cron_name,
@@ -1330,8 +1324,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
-
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
@@ -1346,7 +1338,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
             labels: list[DesiredWorkerLabel] = (
                 desired_worker_labels
                 if isinstance(desired_worker_labels, list)
@@ -1446,8 +1437,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
-
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
@@ -1462,7 +1451,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
             labels: list[DesiredWorkerLabel] = (
                 desired_worker_labels
                 if isinstance(desired_worker_labels, list)
@@ -1534,7 +1522,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a `Task` object.
         """
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[
@@ -1605,7 +1592,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a Task object.
         """
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[

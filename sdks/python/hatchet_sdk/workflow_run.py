@@ -1,6 +1,5 @@
 import time
 from typing import TYPE_CHECKING, Any
-from warnings import warn
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,

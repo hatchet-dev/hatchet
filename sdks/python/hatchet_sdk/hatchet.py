@@ -1,5 +1,4 @@
 import logging
-import warnings
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, overload
@@ -42,7 +41,7 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
-from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
@@ -328,8 +327,6 @@ class Hatchet:
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
-        _warn_if_int_priority(default_priority)
-
         return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
@@ -486,8 +483,6 @@ class Hatchet:
 
         :returns: A decorator which creates a `Standalone` task object.
         """
-
-        _warn_if_int_priority(default_priority)
 
         def inner(
             func: Callable[

@@ -7,7 +7,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
-from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -47,7 +46,6 @@ from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionPayload
 from hatchet_sdk.runnables.types import (
     R,
     TWorkflowInput,
@@ -57,7 +55,6 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.timedelta_to_expression import (
     Duration,
-    _warn_if_str_duration,
     expr_to_timedelta,
     timedelta_to_expr,
 )
@@ -394,8 +391,6 @@ class Context:
         :return: None
         """
 
-        _warn_if_str_duration(increment_by, stacklevel=2)
-
         if isinstance(increment_by, timedelta):
             increment_by = timedelta_to_expr(increment_by)
 
@@ -688,8 +683,6 @@ class DurableContext(Context):
 
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
-        _warn_if_str_duration(duration, stacklevel=2)
-
         wait_index = self._increment_wait_index()
 
         res = await self.aio_wait_for(
