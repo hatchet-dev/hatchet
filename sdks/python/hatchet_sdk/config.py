@@ -49,7 +49,6 @@ class HealthcheckConfig(BaseSettings):
     def validate_event_loop_block_threshold_seconds(
         cls, value: timedelta | int | float | str
     ) -> timedelta:
-        # Settings env vars are strings; interpret as seconds.
         if isinstance(value, timedelta):
             return value
 
