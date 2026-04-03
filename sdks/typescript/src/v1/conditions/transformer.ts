@@ -10,7 +10,7 @@ import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
 import { CreateWorkflowTaskOpts } from '../task';
 import { Action, BaseCondition, Condition } from './base';
 import { ParentCondition } from './parent-condition';
-import { durationToString } from '../client/duration';
+import { Duration, durationToMs, durationToString } from '../client/duration';
 
 export function taskConditionsToPb(
   task: Omit<CreateWorkflowTaskOpts<any, any>, 'fn'>,
@@ -42,6 +42,10 @@ export function conditionsToPb(conditions: Condition[], namespace?: string): Tas
           expression: condition.expression || '',
         },
         userEventKey: applyNamespace(condition.eventKey, namespace),
+        eventScope: condition.scope,
+        considerEventsSince: condition.lookbackWindow
+          ? new Date(Date.now() - durationToMs(condition.lookbackWindow as Duration))
+          : undefined,
       });
     } else if (condition instanceof ParentCondition) {
       parentOverrideConditions.push({
