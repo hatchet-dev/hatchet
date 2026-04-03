@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@hatchet-dev/typescript-sdk':
-        specifier: 1.19.0
-        version: 1.19.0
+        specifier: 1.19.1
+        version: 1.19.1
     devDependencies:
       '@types/node':
         specifier: ^22.15.3
@@ -36,8 +36,8 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@hatchet-dev/typescript-sdk@1.19.0':
-    resolution: {integrity: sha512-O9O30qqWpQDUspBn2krGLWMJIhVvxofJPOwsFTXrWNJ0AL5kIznW3LQWFMbc0HyYijlXxAHP+M5R9NVTlM19ew==}
+  '@hatchet-dev/typescript-sdk@1.19.1':
+    resolution: {integrity: sha512-mmPksWGYCwPSX0NzjMiv6Z2Q8/01+h+7h2qURgSr1z/5DmDW+ddWxeb9+a1v15tTQQiV9RhZVr8RbJQgWDCT/g==}
 
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
@@ -461,7 +461,7 @@ snapshots:
       protobufjs: 7.5.4
       yargs: 17.7.2
 
-  '@hatchet-dev/typescript-sdk@1.19.0':
+  '@hatchet-dev/typescript-sdk@1.19.1':
     dependencies:
       '@bufbuild/protobuf': 2.11.0
       '@types/qs': 6.15.0
@@ -477,6 +477,7 @@ snapshots:
       zod: 3.25.76
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
+      '@grpc/grpc-js': 1.14.3
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.6.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-grpc': 0.208.0(@opentelemetry/api@1.9.1)
