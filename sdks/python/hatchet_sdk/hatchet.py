@@ -82,7 +82,7 @@ class Hatchet:
 
         if client is not None:
             warnings.warn(
-                "The `client` parameter is deprecated and will be removed in v2.0.0. The client is not meant to be provided directly.",
+                "The `client` parameter is deprecated and will be removed in v2.0.0. The client internal to the broader Hatchet client is not meant to be provided or interacted with directly.",
                 DeprecationWarning,
                 stacklevel=2,
             )
