@@ -15,6 +15,7 @@ from typing import (
     cast,
     get_type_hints,
     overload,
+    assert_never
 )
 
 from google.protobuf import timestamp_pb2
@@ -681,6 +682,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                     return workflow_to_openai_mcp(
                         self, input_schema, description, **kwargs
                     )
+                case _ as unreachable:
+                    assert_never(unreachable)
         elif isinstance(self, Standalone):
             match provider:
                 case MCPProvider.CLAUDE:
@@ -691,6 +694,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                     from hatchet_sdk.runnables.mcp.openai import task_to_openai_mcp
 
                     return task_to_openai_mcp(self, input_schema, description, **kwargs)
+                case _ as unreachable:
+                    assert_never(unreachable)
         else:
             raise NotImplementedError()
 
