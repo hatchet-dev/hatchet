@@ -635,7 +635,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return wrapped(
                 bulk_events_with_meta,
-                None,
+                options,
             )
 
     def _wrap_run_workflow(
