@@ -99,7 +99,7 @@ export function NewTenantInputForm({
   const shouldFocusOrganization = isCloudEnabled && !defaultOrganizationId;
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 max-w-lg w-full">
+    <form onSubmit={handleSubmit} className="grid gap-6 max-w-lg w-full">
       {!!organizations && (
         <OrganizationSelect
           organizations={organizations}
@@ -112,9 +112,13 @@ export function NewTenantInputForm({
 
       <div className="grid gap-2">
         <Label htmlFor="tenant-name">Tenant Name</Label>
+        <p className="text-sm text-muted-foreground">
+          An isolated environment for your workflows, workers, and events. Most
+          teams start with dev and add staging or production later.
+        </p>
         <Input
           id="tenant-name"
-          placeholder="My Tenant"
+          placeholder="Production"
           type="text"
           autoCapitalize="none"
           autoCorrect="off"
@@ -128,7 +132,7 @@ export function NewTenantInputForm({
       </div>
 
       <Button type="submit" className="w-full" disabled={isSaving}>
-        {isSaving ? 'Creating...' : 'Create'}
+        {isSaving ? 'Getting started...' : 'Get started'}
       </Button>
     </form>
   );
