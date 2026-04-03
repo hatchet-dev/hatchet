@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import AsyncIterator
@@ -38,12 +40,14 @@ from hatchet_sdk.clients.v1.api_client import (
     maybe_additional_metadata_to_kv,
 )
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.types.priority import _warn_if_int_priority
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
+    from hatchet_sdk.types.priority import Priority
     from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -60,7 +64,7 @@ class BulkCancelReplayOpts(BaseModel):
     filters: RunFilter | None = None
 
     @model_validator(mode="after")
-    def validate_model(self) -> "BulkCancelReplayOpts":
+    def validate_model(self) -> BulkCancelReplayOpts:
         if not self.ids and not self.filters:
             raise ValueError("ids or filters must be set")
 
@@ -120,9 +124,36 @@ class RunsClient(BaseRestClient):
     ) -> None:
         super().__init__(config)
 
-        self.workflow_run_listener = workflow_run_listener
-        self.workflow_run_event_listener = workflow_run_event_listener
-        self.admin_client = admin_client
+        self._workflow_run_listener = workflow_run_listener
+        self._workflow_run_event_listener = workflow_run_event_listener
+        self._admin_client = admin_client
+
+    @property
+    def workflow_run_listener(self) -> PooledWorkflowRunListener:
+        warn(
+            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_listener
+
+    @property
+    def workflow_run_event_listener(self) -> RunEventListenerClient:
+        warn(
+            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_event_listener
+
+    @property
+    def admin_client(self) -> AdminClient:
+        warn(
+            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._admin_client
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -686,7 +717,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.
@@ -700,6 +731,8 @@ class RunsClient(BaseRestClient):
 
         :return: The details of the triggered workflow run.
         """
+        _warn_if_int_priority(priority)
+
         with self.client() as client:
             return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,
@@ -716,7 +749,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.
@@ -836,7 +869,7 @@ class RunsClient(BaseRestClient):
 
         return details.run.output
 
-    def get_run_ref(self, workflow_run_id: str) -> "WorkflowRunRef":
+    def get_run_ref(self, workflow_run_id: str) -> WorkflowRunRef:
         """
         Get a reference to a workflow run.
 
@@ -847,9 +880,9 @@ class RunsClient(BaseRestClient):
 
         return WorkflowRunRef(
             workflow_run_id=workflow_run_id,
-            workflow_run_event_listener=self.workflow_run_event_listener,
-            workflow_run_listener=self.workflow_run_listener,
-            admin_client=self.admin_client,
+            workflow_run_event_listener=self._workflow_run_event_listener,
+            workflow_run_listener=self._workflow_run_listener,
+            admin_client=self._admin_client,
         )
 
     async def subscribe_to_stream(
@@ -858,7 +891,7 @@ class RunsClient(BaseRestClient):
     ) -> AsyncIterator[str]:
         ref = self.get_run_ref(workflow_run_id=workflow_run_id)
 
-        async for chunk in ref.stream():
+        async for chunk in ref._stream():
             if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
                 yield chunk.payload
 
@@ -897,7 +930,7 @@ class RunsClient(BaseRestClient):
         )
 
     def get_details(self, external_id: str) -> WorkflowRunDetail:
-        return self.admin_client.get_details(external_id=external_id)
+        return self._admin_client.get_details(external_id=external_id)
 
     async def aio_get_details(self, external_id: str) -> WorkflowRunDetail:
-        return await asyncio.to_thread(self.admin_client.get_details, external_id)
+        return await asyncio.to_thread(self._admin_client.get_details, external_id)

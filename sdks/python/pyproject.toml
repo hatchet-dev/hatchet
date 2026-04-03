@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "1.30.0"
+version = "1.31.0"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -130,8 +130,28 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["F","E","W","I","N","UP","ASYNC","B","SIM","C4","PIE","RET","ARG","G","RUF","DTZ","FIX","PERF","T201"]
-ignore = ["E501","N806","B008","ARG001","ARG002","RET503","FIX","RET506"]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+    "N",
+    "UP",
+    "ASYNC",
+    "B",
+    "SIM",
+    "C4",
+    "PIE",
+    "RET",
+    "ARG",
+    "G",
+    "RUF",
+    "DTZ",
+    "FIX",
+    "PERF",
+    "T201",
+]
+ignore = ["E501", "N806", "B008", "ARG001", "ARG002", "RET503", "FIX", "RET506"]
 exclude = [
     "examples/*",
     "docs/*",
