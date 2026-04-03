@@ -38,11 +38,11 @@ otel = [
 ]
 
 lint = [
-    "mypy==1.19.1",
+    "mypy==1.20.0",
     "types-protobuf>=5.28.3.20241030",
-    "black==26.1.0",
+    "black==26.3.1",
     "types-psutil>=6.1.0.20241221",
-    "ruff==0.15.0",
+    "ruff==0.15.9",
     "types-requests>=2.32.0.20241016",
     "psutil>=6.0.0",
     "types-grpcio>=1.0.0",
