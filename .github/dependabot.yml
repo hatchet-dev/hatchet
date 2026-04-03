@@ -22,6 +22,11 @@ updates:
         update-types:
           - "patch"
           - "minor"
+      go-modules-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
 
   - package-ecosystem: "pip"
     directories:
@@ -38,6 +43,11 @@ updates:
         update-types:
           - "patch"
           - "minor"
+      python-deps-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
 
   - package-ecosystem: "npm"
     directories:
@@ -55,6 +65,11 @@ updates:
         update-types:
           - "patch"
           - "minor"
+      npm-deps-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
 
   - package-ecosystem: "bundler"
     directories:
@@ -69,3 +84,8 @@ updates:
         update-types:
           - "patch"
           - "minor"
+      ruby-deps-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
