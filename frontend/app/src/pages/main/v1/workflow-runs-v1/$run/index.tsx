@@ -361,6 +361,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 <TabsTrigger variant="underlined" value="activity">
                   Activity
                 </TabsTrigger>
+                <TabsTrigger variant="underlined" value="output">
+                  Output
+                </TabsTrigger>
                 <TabsTrigger variant="underlined" value="input">
                   Input
                 </TabsTrigger>
@@ -373,6 +376,19 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   workflowRunId={id}
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
+                />
+              </TabsContent>
+              <TabsContent value="output">
+                <CodeHighlighter
+                  className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+                  maxHeight="400px"
+                  minHeight="400px"
+                  language="json"
+                  code={
+                    workflowRun.status === V1TaskStatus.FAILED
+                      ? workflowRun.errorMessage || ''
+                      : JSON.stringify(workflowRun.output, null, 2)
+                  }
                 />
               </TabsContent>
               <TabsContent value="input">
