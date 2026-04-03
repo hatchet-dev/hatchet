@@ -3634,14 +3634,6 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
 	lookupTenantIds := make([]uuid.UUID, 0)
 	lookupExternalIds := make([]uuid.UUID, 0)
 	lookupRetryCounts := make([]int32, 0)
@@ -3683,6 +3675,14 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 			}
 		}
 	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
 
 	err = o.queries.InsertOTelTraceLookup(ctx, tx, sqlcv1.InsertOTelTraceLookupParams{
 		Tenantids:   lookupTenantIds,
