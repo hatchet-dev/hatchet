@@ -28,6 +28,10 @@ Style/FrozenStringLiteralComment:
 Style/Documentation:
   Enabled: false
 
+# TODO(gregfurman): Requires refactoring classes in lib/hatchet-sdk.rb:73:1
+Style/OneClassPerFile:
+  Enabled: false
+
 Style/TrailingCommaInArguments:
   EnforcedStyleForMultiline: consistent_comma
 
