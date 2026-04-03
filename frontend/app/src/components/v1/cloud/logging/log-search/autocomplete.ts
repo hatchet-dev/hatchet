@@ -17,6 +17,7 @@ const LEVEL_DESCRIPTIONS: Record<string, string> = {
 export const LOG_FILTER_KEYS = {
   LEVEL: 'level',
   ATTEMPT: 'attempt',
+  WORKFLOW: 'workflow',
 } as const;
 
 export const STATIC_FILTER_KEYS: FilterSuggestion[] = [
@@ -35,7 +36,7 @@ export const STATIC_FILTER_KEYS: FilterSuggestion[] = [
   {
     type: 'key',
     label: 'workflow',
-    value: 'workflow:',
+    value: `${LOG_FILTER_KEYS.WORKFLOW}:`,
     description: 'Filter by workflow name',
   },
 ];
@@ -63,7 +64,7 @@ export function getAutocomplete(
 
   const levelPrefix = `${LOG_FILTER_KEYS.LEVEL}:`;
   const attemptPrefix = `${LOG_FILTER_KEYS.ATTEMPT}:`;
-  const workflowPrefix = 'workflow:';
+  const workflowPrefix = `${LOG_FILTER_KEYS.WORKFLOW}:`;
 
   if (lastWord.startsWith(levelPrefix)) {
     const partial = lastWord.slice(levelPrefix.length).toLowerCase();
