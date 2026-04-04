@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/shutdown"
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 
@@ -46,6 +47,7 @@ type Client interface {
 	Namespace() string
 	CloudRegisterID() *string
 	RunnableActions() []string
+	Close() error
 }
 
 type clientImpl struct {
@@ -71,6 +73,8 @@ type clientImpl struct {
 	l *zerolog.Logger
 
 	v validator.Validator
+
+	shutSig *shutdown.Signaller
 }
 
 // Deprecated: ClientOpt is an internal type used by the new Go SDK.
@@ -282,6 +286,8 @@ func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, er
 }
 
 func newFromOpts(opts *ClientOpts) (Client, error) {
+	shutSig := shutdown.NewSignaller()
+
 	if opts.token == "" {
 		return nil, fmt.Errorf("token is required")
 	}
@@ -355,7 +361,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		namespace:  opts.namespace,
 		l:          opts.l,
 		v:          opts.v,
-		ctxLoader:  newContextLoader(opts.token, opts.grpcHeaders),
+		ctxLoader:  newContextLoader(opts.token, opts.grpcHeaders, shutSig),
 		sharedMeta: opts.sharedMeta,
 	}
 
@@ -363,8 +369,9 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	admin := newAdmin(conn, shared, subscribe)
 	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
 	event := newEvent(conn, shared)
+	httpClient := newClient(shutSig)
 
-	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithHTTPClient(httpClient), rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil
 	}))
@@ -373,7 +380,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		return nil, fmt.Errorf("could not create rest client: %w", err)
 	}
 
-	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudrest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudrest.WithHTTPClient(httpClient), cloudrest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil
 	}))
@@ -417,6 +424,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		namespace:       opts.namespace,
 		cloudRegisterID: opts.cloudRegisterID,
 		runnableActions: opts.runnableActions,
+		shutSig:         shutSig,
 	}, nil
 }
 
@@ -470,6 +478,12 @@ func (c *clientImpl) CloudRegisterID() *string {
 
 func (c *clientImpl) RunnableActions() []string {
 	return c.runnableActions
+}
+
+func (c *clientImpl) Close() error {
+	// This should allow us to ungracefully cancel all currently executing requests.
+	c.shutSig.TriggerShutdown()
+	return c.conn.Close()
 }
 
 func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {

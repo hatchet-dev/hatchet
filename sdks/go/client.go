@@ -344,6 +344,11 @@ func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 	return newWorkflow(name, c.legacyClient, options...)
 }
 
+// Close will ungracefully cancel all in-flight HTTP and gRPC requests.
+func (c *Client) Close() error {
+	return c.legacyClient.Close()
+}
+
 // StandaloneTask represents a single task that runs independently without a workflow wrapper.
 // It's essentially a specialized workflow containing only one task.
 type StandaloneTask struct {
