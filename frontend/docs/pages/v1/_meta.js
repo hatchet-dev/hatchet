@@ -43,19 +43,19 @@ export default {
   "rate-limits": "Rate Limits",
   priority: "Priority",
   "--durable-workflows-section": {
-    title: "Durable Workflows",
+    title: "Durable Execution",
     type: "separator",
   },
   patterns: {
-    title: "Patterns",
+    title: "Workflow Design",
     theme: { collapsed: true },
   },
   "child-spawning": "Child Spawning",
-  sleep: "Sleep & Delays",
+  sleep: "Sleeps",
   events: "Wait For Events",
   conditions: "Conditions & Branching",
   "on-failure": "Error Handling",
-  "task-eviction": "Resource Management",
+  "task-eviction": "Worker Slots & Waiting",
   "--workers-section": {
     title: "Workers",
     type: "separator",

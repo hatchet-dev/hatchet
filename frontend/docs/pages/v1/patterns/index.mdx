@@ -1,9 +1,31 @@
 import { Callout } from "nextra/components";
 
-# Durable Workflow Patterns
+# Workflow Design
 
-Hatchet supports several patterns for building durable workflows. Choose the pattern that best fits your use case:
+<Callout type="warning">
+  This section covers durable execution, and assumes you have at least some
+  familiarity with its concepts and goals. If you you're not familiar or haven't
+  seen it yet, make sure to check out [our high-level overview of durable
+  execution](/v1/durable-execution) before continuing on.
+</Callout>
 
-- [**Durable Execution**](./patterns/durable-task-execution) - Run long-lived tasks with automatic checkpointing and recovery.
-- [**DAGs (Directed Acyclic Graphs)**](./patterns/directed-acyclic-graphs) - Orchestrate complex multi-step workflows with dependencies between tasks.
-- [**Best Practices**](./patterns/mixing-patterns) - Guidelines for combining and choosing between patterns.
+There are two ways to build durable workflows in Hatchet: **DAGs** and **durable tasks**. You can use each feature separately, and can also combine them to meet the needs of your application logic.
+
+If you know the shape of your workflow before runtime, it's likely simplest to model it as a [DAG](/v1/patterns/directed-acyclic-graphs). On the other hand, if the shape of your workflow is decided at runtime based on inputs, model responses, or intermediate results, you likely will need to use one or more durable tasks. Finally, you might benefit from mixing both DAGs and durable tasks together.
+
+- [**Durable Tasks**](/v1/patterns/durable-tasks) — Tasks that use durable execution primitives (waits + child spawning) with checkpointing and replay.
+- [**DAGs**](/v1/patterns/directed-acyclic-graphs) — Multi-step workflows whose shape is fixed and every task and dependency is declared upfront.
+
+## Common Scenarios
+
+Here are a few common example scenarios to help get a sense for when it makes sense to use DAGs, durable tasks, or a combination of the two.
+
+| Scenario                                          | What to use                                  |
+| ------------------------------------------------- | -------------------------------------------- |
+| Fixed pipeline, every step is known ahead of time | DAG                                          |
+| Fixed pipeline, but one step needs a long wait    | DAG with a durable task node                 |
+| Dynamic orchestration of known pipelines          | Durable task spawning DAGs                   |
+| Fully dynamic, shape decided at runtime           | Durable task spawning tasks/durable tasks    |
+| Agent that reasons and acts in a loop             | Durable task spawning children per iteration |
+
+In general, DAGs are simpler to reason about because the shape is predefined and intermediate results are cached. If your workflow can be expressed as a DAG, start there. Reach for a durable task when a static graph cannot express what you need, or your workflow is simple enough to represent in a single task.

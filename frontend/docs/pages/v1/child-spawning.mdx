@@ -8,20 +8,22 @@ import FanoutDiagram from "@/components/FanoutDiagram";
 
 # Child Spawning
 
-A task can spawn child tasks at runtime, including other durable tasks or entire DAG workflows. Children run independently on any available worker, and the parent can wait for their results.
+Sometimes you do not know how many things you need to do until the task is already running. That is exactly what child spawning is for.
 
-Both durable tasks and DAG tasks support child spawning with the same core API. The key difference is that durable tasks free the parent's worker slot while waiting (via [eviction](/v1/task-eviction)), while DAG tasks hold their slot for the duration of execution.
+A task can spawn child tasks at runtime — including other durable tasks or entire DAG workflows. Children run independently on any available worker, and the parent can wait for their results before continuing.
+
+Both durable tasks and DAG tasks support child spawning with the same core API. The key difference is waiting behavior: durable tasks free the parent's worker slot while waiting (via [eviction](/v1/task-eviction)), while DAG tasks hold their slot for the full duration of execution.
 
 <UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
 <Tabs.Tab title="Durable Tasks">
 
-## Spawning from Durable Tasks
+## Spawning from durable tasks
 
-A durable task can spawn child tasks at runtime. This is one of the core reasons to choose durable tasks over DAGs: the shape of work is decided as the task runs, not declared upfront.
+This is one of the core reasons to choose a durable task over a DAG: the shape of your work is decided as the task runs, not declared upfront. You can spawn one child or a thousand, and you can decide based on runtime data — input size, API responses, model outputs, whatever.
 
 <Callout type="info">
   Waiting for child results puts the parent task into an [evictable
-  state](/v1/task-eviction), the worker slot is freed and the parent is
+  state](/v1/task-eviction) — the worker slot is freed and the parent is
   re-queued when results are available.
 </Callout>
 
@@ -29,9 +31,9 @@ Because the parent is evicted while children execute:
 
 - **No slot waste** — the parent doesn't hold a worker slot while N children run across your fleet.
 - **No deadlocks** — because the parent is evicted, it can't starve its own children for slots.
-- **Dynamic N** — you decide how many children to spawn based on runtime data (input size, API responses, agent reasoning).
+- **Dynamic N** — you decide how many children to spawn based on runtime data, not upfront declarations.
 
-### Spawning child tasks
+### Spawning a child task
 
 Use the context object to spawn a child task from within a durable task. The child runs independently on any available worker.
 
@@ -58,9 +60,9 @@ Use the context object to spawn a child task from within a durable task. The chi
   </Tabs.Tab>
 </UniversalTabs>
 
-### Parallel fan-out
+### Spawning many children at once
 
-Spawn many children at once and wait for all results. The parent is evicted during the wait, so it consumes no resources while children run.
+Spawn many children and wait for all of their results. The parent is evicted during the wait, so it consumes no resources while children run.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -85,7 +87,7 @@ Spawn many children at once and wait for all results. The parent is evicted duri
   </Tabs.Tab>
 </UniversalTabs>
 
-### What children can be
+### What you can spawn
 
 A durable task can spawn any runnable:
 
@@ -123,7 +125,7 @@ A durable task can spawn any runnable:
 </Tabs.Tab>
 <Tabs.Tab title="DAGs">
 
-## Spawning from DAG Tasks
+## Spawning from DAG tasks
 
 DAG tasks can also spawn child tasks procedurally during execution. This lets you combine a fixed pipeline structure with dynamic child work inside individual tasks.
 
@@ -190,7 +192,7 @@ To spawn and run a child task from a parent task, use the appropriate method for
   </Tabs.Tab>
 </UniversalTabs>
 
-### Parallel child task execution
+### Running children in parallel
 
 Spawn multiple child tasks in parallel:
 
@@ -245,30 +247,24 @@ Spawn multiple child tasks in parallel:
 </Tabs.Tab>
 </UniversalTabs>
 
-## Common Patterns
+## Ways to use child spawning
 
-### Dynamic fan-out / fan-in
+### Fan-out: spawning many children in parallel
 
-Process a list of items whose length is only known at runtime. Spawn one child per item, collect all results, then continue. Document processing and batch processing are canonical examples: when a batch of files arrives, a parent fans out to one child per document; each child parses, extracts, and validates its document in parallel across your worker fleet.
+Process a list of items whose length is only known at runtime. Spawn one child per item, collect all results, then continue. Document processing and batch processing are the canonical examples: when a batch of files arrives, a parent fans out to one child per document; each child parses, extracts, and validates its document in parallel across your worker fleet.
 
 <BatchProcessingDiagram />
 
-[Concurrency](/v1/concurrency) controls how many children run simultaneously. Hatchet distributes child tasks across available workers, so adding workers increases throughput without code changes. For rate-limited external services (OCR, LLM APIs), combine with [Rate Limits](/v1/rate-limits) to throttle child execution across all workers.
+[Concurrency](/v1/concurrency) controls how many children run at once. Hatchet distributes child tasks across available workers, so adding workers increases throughput without code changes. For rate-limited external services (OCR, LLM APIs), combine with [Rate Limits](/v1/rate-limits) to throttle child execution across all workers.
 
-### Agent loops
+### Agent reasoning loops
 
-An **agent loop** is implemented by having a durable task spawn a new child run of itself with updated input until a termination condition is met. Each iteration is a separate child task, giving full observability in the dashboard. AI agents use this pattern when they reason about what to do, spawn a subtask (or a sub-workflow), inspect the result, and decide whether to continue, branch, or stop.
+An agent loop runs by having a durable task spawn a new child run of itself with updated input until a termination condition is met. Each iteration is a separate child task, so you get full observability in the dashboard. AI agents use this when they reason about what to do next, spawn a subtask (or a sub-workflow), inspect the result, and decide whether to continue, branch, or stop.
 
 <CycleDiagram />
 
-### Recursive workflows
+### Spawning trees of work
 
-A durable task spawns child durable tasks, each of which may spawn their own children. This creates a tree of work that's entirely driven by runtime logic, useful for crawlers, recursive search, and tree-structured computations.
+A durable task can spawn child durable tasks, each of which may spawn their own children. This creates a tree of work that's entirely driven by runtime logic — useful for crawlers, recursive search, and tree-structured computations.
 
-## Use cases
-
-1. **Dynamic fan-out processing** — When the number of parallel tasks is determined at runtime.
-2. **Reusable workflow components** — Create modular workflows that can be reused across different parent workflows.
-3. **Resource-intensive operations** — Spread computation across multiple workers.
-4. **Agent-based systems** — Allow AI agents to spawn new workflows based on their reasoning.
-5. **Long-running operations** — Break down long operations into smaller, trackable units of work.
+<Snippet src={snippets.go.child_workflows.main.spawning_a_child_workflow} />

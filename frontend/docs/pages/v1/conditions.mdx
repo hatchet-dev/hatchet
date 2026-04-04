@@ -35,9 +35,8 @@ This is one of the key advantages of durable tasks: branching logic is expressed
   Branching logic must be **deterministic** between checkpoints. If the task is
   evicted and replayed, the same branches must execute in the same order. Base
   decisions on checkpoint outputs (child results, event payloads) rather than
-  wall-clock time or external state that may change between replays. See [Best
-  Practices](/v1/patterns/mixing-patterns#determinism-in-durable-tasks) for
-  details.
+  wall-clock time or external state that may change between replays. See
+  [Durable Tasks](/v1/patterns/durable-tasks) for details.
 </Callout>
 
 ## Or Groups
