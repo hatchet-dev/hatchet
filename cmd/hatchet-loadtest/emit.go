@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	v0Client "github.com/hatchet-dev/hatchet/pkg/client" //nolint
+	gosdk "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 type Event struct {
@@ -41,11 +41,10 @@ func parseSize(s string) int {
 }
 
 func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string) int64 {
-	c, err := v1.NewHatchetClient(
-		v1.Config{
-			Namespace: namespace,
-			Logger:    &l,
-		},
+	//nolint
+	client, err := gosdk.NewClient(
+		v0Client.WithNamespace(namespace),
+		v0Client.WithLogger(&l),
 	)
 
 	if err != nil {
@@ -81,7 +80,7 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 
 					l.Info().Msgf("pushing event %d", ev.ID)
 
-					err := c.Events().Push(ctx, "load-test:event", ev, client.WithEventMetadata(map[string]string{
+					err := client.Events().Push(ctx, "load-test:event", ev, v0Client.WithEventMetadata(map[string]string{
 						"event_id": fmt.Sprintf("%d", ev.ID),
 					}))
 					if err != nil {
