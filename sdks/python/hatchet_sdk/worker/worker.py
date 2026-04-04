@@ -30,7 +30,7 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -88,7 +88,6 @@ class Worker:
         self._durable_slots = slot_config.get("durable", 0)
         self._debug = debug
 
-        _warn_if_dict_worker_labels(labels, stacklevel=3)
         self._labels = (
             [WorkerLabel(key=k, value=v) for k, v in labels.items()] if labels else []
         )
@@ -131,197 +130,6 @@ class Worker:
     def name(self) -> str:
         return self._name
 
-    @property
-    def config(self) -> ClientConfig:
-        warn(
-            "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._config
-
-    @property
-    def slot_config(self) -> dict[str, int]:
-        warn(
-            "The slot_config property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slot_config
-
-    @property
-    def debug(self) -> bool:
-        warn(
-            "The debug property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._debug
-
-    @property
-    def labels(self) -> dict[str, str | int]:
-        warn(
-            "The labels property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return {
-            label.key: label.value for label in self._labels if label.key is not None
-        }
-
-    @property
-    def handle_kill(self) -> bool:
-        warn(
-            "The handle_kill property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._handle_kill
-
-    @property
-    def owned_loop(self) -> bool:
-        warn(
-            "The owned_loop property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return True
-
-    @property
-    def action_registry(self) -> "dict[str, Task[Any, Any]]":
-        warn(
-            "The action_registry property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_registry
-
-    @property
-    def killing(self) -> bool:
-        warn(
-            "The killing property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._killing
-
-    @property
-    def action_listener_process(self) -> "BaseProcess | None":
-        warn(
-            "The action_listener_process property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_listener_process
-
-    @property
-    def durable_action_listener_process(self) -> "BaseProcess | None":
-        warn(
-            "The durable_action_listener_process property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_action_listener_process
-
-    @property
-    def action_listener_health_check(self) -> "asyncio.Task[None]":
-        warn(
-            "The action_listener_health_check property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_listener_health_check
-
-    @property
-    def action_runner(self) -> "WorkerActionRunLoopManager | None":
-        warn(
-            "The action_runner property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_runner
-
-    @property
-    def ctx(self) -> "multiprocessing.context.SpawnContext":
-        warn(
-            "The ctx property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._ctx
-
-    @property
-    def action_queue(self) -> "Queue[Action | STOP_LOOP_TYPE]":
-        warn(
-            "The action_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_queue
-
-    @property
-    def event_queue(self) -> "Queue[ActionEvent]":
-        warn(
-            "The event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._event_queue
-
-    @property
-    def durable_action_queue(self) -> "Queue[Action | STOP_LOOP_TYPE] | None":
-        warn(
-            "The durable_action_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_action_queue
-
-    @property
-    def durable_event_queue(self) -> "Queue[ActionEvent] | None":
-        warn(
-            "The durable_event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_event_queue
-
-    @property
-    def loop(self) -> "asyncio.AbstractEventLoop | None":
-        warn(
-            "The loop property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._loop
-
-    @property
-    def client(self) -> Client:
-        warn(
-            "The client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._client
-
-    @property
-    def lifespan(self) -> "LifespanFn | None":
-        warn(
-            "The lifespan property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._lifespan
-
-    @property
-    def lifespan_stack(self) -> "AsyncExitStack | None":
-        warn(
-            "The lifespan_stack property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._lifespan_stack
-
     def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
             self._client.admin.put_workflow(opts)
@@ -353,24 +161,6 @@ class Worker:
     def status(self) -> WorkerStatus:
         return self._status
 
-    @property
-    def slots(self) -> int:
-        warn(
-            "Worker.slots is deprecated; use slot_config['default'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slots
-
-    @property
-    def durable_slots(self) -> int:
-        warn(
-            "Worker.durable_slots is deprecated; use slot_config['durable'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_slots
-
     def _setup_loop(self) -> None:
         try:
             asyncio.get_running_loop()
@@ -385,27 +175,12 @@ class Worker:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
 
-    def start(self, options: WorkerStartOptions | None = None) -> None:
+    def start(self) -> None:
         self.register_workflows(self._workflows)
 
-        if options is not None:
-            warn(
-                "Passing WorkerStartOptions is deprecated and will be removed in version 2.0.0.",
-                DeprecationWarning,
-                stacklevel=1,
-            )
-
-        options = options or WorkerStartOptions()
         if not self._action_registry:
             raise ValueError(
                 "no actions registered, register workflows before starting worker"
-            )
-
-        if options.loop is not None:
-            warn(
-                "Passing a custom event loop is deprecated and will be removed in version 2.0.0. This option no longer has any effect",
-                DeprecationWarning,
-                stacklevel=1,
             )
 
         self._setup_loop()
@@ -440,7 +215,7 @@ class Worker:
 
         tasks_with_eviction = [
             task
-            for task in self.action_registry.values()
+            for task in self._action_registry.values()
             if task.eviction_policy is not None
         ]
         if not tasks_with_eviction:
@@ -466,7 +241,7 @@ class Worker:
         version for slot_config support. Returns the version string for modern
         engines so callers can branch on specific versions.
         """
-        version = await self.client.dispatcher.get_version()
+        version = await self._client.dispatcher.get_version()
 
         if not version or semver_less_than(version, MinEngineVersion.SLOT_CONFIG):
             self._emit_legacy_slot_deprecation()
@@ -544,7 +319,7 @@ class Worker:
                 self.name,
                 self._action_registry,
                 sum(self._slot_config.values()),
-                self.slot_config.get(SlotType.DURABLE.value, 0),
+                self._slot_config.get(SlotType.DURABLE.value, 0),
                 self._config,
                 self._action_queue,
                 self._event_queue,

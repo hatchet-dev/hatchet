@@ -40,7 +40,6 @@ from hatchet_sdk.clients.v1.api_client import (
     maybe_additional_metadata_to_kv,
 )
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.types.priority import _warn_if_int_priority
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
@@ -127,33 +126,6 @@ class RunsClient(BaseRestClient):
         self._workflow_run_listener = workflow_run_listener
         self._workflow_run_event_listener = workflow_run_event_listener
         self._admin_client = admin_client
-
-    @property
-    def workflow_run_listener(self) -> PooledWorkflowRunListener:
-        warn(
-            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_listener
-
-    @property
-    def workflow_run_event_listener(self) -> RunEventListenerClient:
-        warn(
-            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_event_listener
-
-    @property
-    def admin_client(self) -> AdminClient:
-        warn(
-            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._admin_client
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -731,8 +703,6 @@ class RunsClient(BaseRestClient):
 
         :return: The details of the triggered workflow run.
         """
-        _warn_if_int_priority(priority)
-
         with self.client() as client:
             return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,

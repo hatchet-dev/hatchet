@@ -1,5 +1,4 @@
 import logging
-import warnings
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, overload
@@ -42,7 +41,7 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
-from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
@@ -63,31 +62,14 @@ class Hatchet:
 
     def __init__(
         self,
-        debug: bool | None = None,
-        client: Client | None = None,
         config: ClientConfig | None = None,
     ):
-        if debug is not None:
-            warnings.warn(
-                "The `debug` parameter is deprecated and will be removed in v2.0.0. Please set the debug mode using the HATCHET_CLIENT_DEBUG environment variable instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
         _config = config or ClientConfig()
-        _debug = _config.debug if debug is None else debug
 
-        if _debug:
+        if _config.debug:
             logger.setLevel(logging.DEBUG)
 
-        if client is not None:
-            warnings.warn(
-                "The `client` parameter is deprecated and will be removed in v2.0.0. The client internal to the broader Hatchet client is not meant to be provided or interacted with directly.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        self._client = client if client else Client(config=_config, debug=_debug)
+        self._client = Client(config=_config, debug=_config.debug)
 
     @property
     def cel(self) -> CELClient:
@@ -345,8 +327,6 @@ class Hatchet:
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
-        _warn_if_int_priority(default_priority)
-
         return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
@@ -503,8 +483,6 @@ class Hatchet:
 
         :returns: A decorator which creates a `Standalone` task object.
         """
-
-        _warn_if_int_priority(default_priority)
 
         def inner(
             func: Callable[
@@ -767,20 +745,6 @@ class Hatchet:
             )
 
         return inner
-
-    def get_current_context(self) -> Context | None:
-        """
-        Get the current Hatchet context, if it exists. This is only available within the execution of a task or workflow.
-
-        :returns: The current `Context` object, or `None` if there is no current context (i.e. if this is called outside of the execution of a task or workflow).
-        """
-        warnings.warn(
-            "The `get_current_context` method is deprecated and will be removed in v2.0.0. Please use the `current_context` property instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return ctx_hatchet_context.get()
 
     @property
     def current_context(self) -> Context | None:

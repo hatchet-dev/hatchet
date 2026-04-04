@@ -25,12 +25,6 @@ def main() -> None:
         additional_metadata={streamKey: streamVal},
     )
 
-    # Stream all events for the additional meta key value
-    listener = hatchet.listener.stream_by_additional_metadata(streamKey, streamVal)
-
-    for event in listener:
-        print(event.type, event.payload)
-
     print("DONE.")
 
 

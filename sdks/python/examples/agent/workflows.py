@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.runnables.workflow import MCPProvider
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 class TemperatureCoords(BaseModel):
