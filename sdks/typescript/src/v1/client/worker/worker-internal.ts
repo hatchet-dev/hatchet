@@ -25,7 +25,7 @@ import {
   NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { schemaToJsonSchema } from '@hatchet/v1/standard-schema';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
@@ -343,11 +343,14 @@ export class InternalWorker {
       const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
       const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
 
-      // Convert Zod schema to JSON Schema if provided
+      // Convert schema to JSON Schema if provided (works with Zod; non-Zod
+      // Standard Schema schemas are accepted but JSON Schema won't be generated)
       let inputJsonSchema: Uint8Array | undefined;
       if (workflow.inputValidator) {
-        const jsonSchema = zodToJsonSchema(workflow.inputValidator as any);
-        inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
+        const jsonSchema = schemaToJsonSchema(workflow.inputValidator);
+        if (jsonSchema) {
+          inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
+        }
       }
 
       const durableTaskSet = new Set(workflow._durableTasks);

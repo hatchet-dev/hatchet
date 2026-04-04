@@ -17,3 +17,4 @@ export {
 } from './client/worker/eviction/eviction-policy';
 export { DurableEvictionConfig } from './client/worker/eviction/eviction-manager';
 export { MinEngineVersion, supportsEviction } from './client/worker/engine-version';
+export { StandardSchemaV1, StandardSchemaValidationError } from './standard-schema';
