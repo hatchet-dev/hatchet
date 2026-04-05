@@ -3882,6 +3882,7 @@ WITH tenants AS (
     FROM
         locked_events
 )
+
 SELECT
     -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
     -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
@@ -3935,6 +3936,124 @@ func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTas
 			&i.LatestWorkerID,
 			&i.WorkflowID,
 			&i.IsDagTask,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateTaskStatusesFromMQ = `-- name: UpdateTaskStatusesFromMQ :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::v1_readable_status_olap[]) AS readable_status,
+        UNNEST($5::UUID[]) AS worker_id,
+        UNNEST($6::int[]) AS retry_count
+), updated_tasks AS (
+    UPDATE v1_tasks_olap t
+    SET
+        readable_status = i.readable_status,
+        latest_retry_count = i.retry_count,
+        latest_worker_id = CASE
+            WHEN i.worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN i.worker_id
+            ELSE t.latest_worker_id
+        END
+    FROM
+        inputs i
+    WHERE (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
+    RETURNING
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+), not_updated_tasks AS (
+    SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id
+    FROM v1_tasks_olap t
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM updated_tasks ut
+        WHERE (t.tenant_id, t.id, t.inserted_at) = (ut.tenant_id, ut.id, ut.inserted_at)
+    )
+)
+
+SELECT
+    u.tenant_id,
+    u.id AS task_id,
+    u.inserted_at AS task_inserted_at,
+    u.readable_status,
+    u.external_id,
+    u.latest_worker_id,
+    u.workflow_id,
+    (u.dag_id IS NOT NULL)::boolean AS is_dag_task,
+    TRUE AS was_updated
+FROM updated_tasks u
+
+UNION ALL
+
+SELECT
+    t.tenant_id,
+    t.id AS task_id,
+    t.inserted_at AS task_inserted_at,
+    t.readable_status,
+    t.external_id,
+    t.latest_worker_id,
+    t.workflow_id,
+    (t.dag_id IS NOT NULL)::boolean AS is_dag_task,
+    FALSE AS was_updated
+FROM not_updated_tasks t
+`
+
+type UpdateTaskStatusesFromMQParams struct {
+	Tenantids       []uuid.UUID            `json:"tenantids"`
+	Taskids         []int64                `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz   `json:"taskinsertedats"`
+	Statuses        []V1ReadableStatusOlap `json:"statuses"`
+	Workerids       []uuid.UUID            `json:"workerids"`
+	Retrycounts     []int32                `json:"retrycounts"`
+}
+
+type UpdateTaskStatusesFromMQRow struct {
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	TaskID         int64                `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	LatestWorkerID *uuid.UUID           `json:"latest_worker_id"`
+	WorkflowID     uuid.UUID            `json:"workflow_id"`
+	IsDagTask      bool                 `json:"is_dag_task"`
+	WasUpdated     bool                 `json:"was_updated"`
+}
+
+func (q *Queries) UpdateTaskStatusesFromMQ(ctx context.Context, db DBTX, arg UpdateTaskStatusesFromMQParams) ([]*UpdateTaskStatusesFromMQRow, error) {
+	rows, err := db.Query(ctx, updateTaskStatusesFromMQ,
+		arg.Tenantids,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Statuses,
+		arg.Workerids,
+		arg.Retrycounts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpdateTaskStatusesFromMQRow
+	for rows.Next() {
+		var i UpdateTaskStatusesFromMQRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.ReadableStatus,
+			&i.ExternalID,
+			&i.LatestWorkerID,
+			&i.WorkflowID,
+			&i.IsDagTask,
+			&i.WasUpdated,
 		); err != nil {
 			return nil, err
 		}

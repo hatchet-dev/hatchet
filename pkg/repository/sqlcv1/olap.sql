@@ -1004,6 +1004,7 @@ WITH tenants AS (
     FROM
         locked_events
 )
+
 SELECT
     -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
     -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
@@ -1012,6 +1013,65 @@ SELECT
     t.*
 FROM
     all_result_tasks t;
+
+-- name: UpdateTaskStatusesFromMQ :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@statuses::v1_readable_status_olap[]) AS readable_status,
+        UNNEST(@workerIds::UUID[]) AS worker_id,
+        UNNEST(@retryCounts::int[]) AS retry_count
+), updated_tasks AS (
+    UPDATE v1_tasks_olap t
+    SET
+        readable_status = i.readable_status,
+        latest_retry_count = i.retry_count,
+        latest_worker_id = CASE
+            WHEN i.worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN i.worker_id
+            ELSE t.latest_worker_id
+        END
+    FROM
+        inputs i
+    WHERE (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
+    RETURNING
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+), not_updated_tasks AS (
+    SELECT *
+    FROM v1_tasks_olap t
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM updated_tasks ut
+        WHERE (t.tenant_id, t.id, t.inserted_at) = (ut.tenant_id, ut.id, ut.inserted_at)
+    )
+)
+
+SELECT
+    u.tenant_id,
+    u.id AS task_id,
+    u.inserted_at AS task_inserted_at,
+    u.readable_status,
+    u.external_id,
+    u.latest_worker_id,
+    u.workflow_id,
+    (u.dag_id IS NOT NULL)::boolean AS is_dag_task,
+    TRUE AS was_updated
+FROM updated_tasks u
+
+UNION ALL
+
+SELECT
+    t.tenant_id,
+    t.id AS task_id,
+    t.inserted_at AS task_inserted_at,
+    t.readable_status,
+    t.external_id,
+    t.latest_worker_id,
+    t.workflow_id,
+    (t.dag_id IS NOT NULL)::boolean AS is_dag_task,
+    FALSE AS was_updated
+FROM not_updated_tasks t;
 
 -- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
