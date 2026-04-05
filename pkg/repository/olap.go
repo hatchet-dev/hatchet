@@ -1565,7 +1565,6 @@ func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
 func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
-	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, event := range events {
@@ -1578,16 +1577,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 			}
 
 			eventsToWrite = append(eventsToWrite, event)
-
-			tmpEventsToWrite = append(tmpEventsToWrite, sqlcv1.CreateTaskEventsOLAPTmpParams{
-				TenantID:       event.TenantID,
-				TaskID:         event.TaskID,
-				TaskInsertedAt: event.TaskInsertedAt,
-				EventType:      event.EventType,
-				RetryCount:     event.RetryCount,
-				ReadableStatus: event.ReadableStatus,
-				WorkerID:       event.WorkerID,
-			})
 		}
 
 		if event.ExternalID != nil {
@@ -1615,12 +1604,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	defer rollback()
 
 	_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
-
-	if err != nil {
-		return err
-	}
-
-	_, err = r.queries.CreateTaskEventsOLAPTmp(ctx, tx, tmpEventsToWrite)
 
 	if err != nil {
 		return err
