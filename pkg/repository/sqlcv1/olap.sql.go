@@ -3967,7 +3967,7 @@ WITH inputs AS (
         END
     FROM
         inputs i
-    WHERE (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
+    WHERE (t.tenant_id, t.id, t.inserted_at) = (i.tenant_id, i.task_id, i.task_inserted_at)
     RETURNING
         t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
 ), not_updated_tasks AS (
@@ -3988,7 +3988,7 @@ SELECT
     u.external_id,
     u.latest_worker_id,
     u.workflow_id,
-    (u.dag_id IS NOT NULL)::boolean AS is_dag_task,
+    u.is_dag_task,
     TRUE AS was_updated
 FROM updated_tasks u
 
