@@ -3,8 +3,8 @@ package queueutils
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/rs/zerolog"
 )
@@ -33,11 +33,11 @@ func (p *OperationPool) WithJitter(maxJitter time.Duration) *OperationPool {
 	return p
 }
 
-func (p *OperationPool) SetTenants(tenants []*sqlcv1.Tenant) {
+func (p *OperationPool) SetTenants(tenants []uuid.UUID) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
-		tenantMap[t.ID.String()] = true
+		tenantMap[t.String()] = true
 	}
 
 	// delete tenants that are not in the list

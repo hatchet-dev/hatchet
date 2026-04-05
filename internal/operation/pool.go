@@ -109,11 +109,11 @@ func (p *TenantOperationPool) Cleanup() {
 	})
 }
 
-func (p *TenantOperationPool) setTenants(tenants []*sqlcv1.Tenant) {
+func (p *TenantOperationPool) setTenants(tenants []uuid.UUID) {
 	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
-		tenantMap[t.ID] = true
+		tenantMap[t] = true
 	}
 
 	// init ops for new tenants

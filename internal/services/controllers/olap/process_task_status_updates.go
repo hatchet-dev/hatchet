@@ -32,8 +32,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 
 			tenantIds := make([]uuid.UUID, 0, len(tenants))
 
-			for _, tenant := range tenants {
-				tenantId := tenant.ID
+			for _, tenantId := range tenants {
 				tenantIds = append(tenantIds, tenantId)
 			}
 
