@@ -233,6 +233,10 @@ func GetTenantExchangeName(t uuid.UUID) string {
 	return t.String() + "_v1"
 }
 
+func OLAPTaskStatusUpdateQueue(partition int) staticQueue {
+	return staticQueue(fmt.Sprintf("olap_task_status_update_v1_%d", partition))
+}
+
 type AckHook func(task *Message) error
 
 type MessageQueue interface {

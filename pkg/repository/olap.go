@@ -210,6 +210,17 @@ type UpdateDAGStatusRow struct {
 	WorkflowId     uuid.UUID
 }
 
+type TaskStatusUpdateFromMQ struct {
+	TenantID       uuid.UUID                   `json:"tenant_id"`
+	TaskID         int64                       `json:"task_id"`
+	TaskInsertedAt time.Time                   `json:"task_inserted_at"`
+	WorkflowRunID  uuid.UUID                   `json:"workflow_run_id"`
+	EventType      sqlcv1.V1EventTypeOlap      `json:"event_type"`
+	RetryCount     int32                       `json:"retry_count"`
+	ReadableStatus sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	WorkerID       *uuid.UUID                  `json:"worker_id,omitempty"`
+}
+
 type TaskWithPayloads struct {
 	*sqlcv1.PopulateTaskRunDataRow
 	InputPayload       []byte
@@ -241,6 +252,7 @@ type OLAPRepository interface {
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
+	UpdateTaskStatusesFromMQ(ctx context.Context, tenantId uuid.UUID, events []TaskStatusUpdateFromMQ) ([]UpdateTaskStatusRow, error)
 	UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId uuid.UUID) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId uuid.UUID, dagIds []uuid.UUID, includePayloads bool) ([]*TaskWithPayloads, map[int64]uuid.UUID, error)
@@ -1642,7 +1654,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
 
-	for i := 0; i < NUM_PARTITIONS; i++ {
+	for i := range NUM_PARTITIONS {
 		partitionNumber := i
 
 		innerCtx, innerSpan := telemetry.NewSpan(ctx, "olap_repository.update_task_statuses.partition")
@@ -1672,6 +1684,11 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 				return fmt.Errorf("failed to find min inserted at for task status updates: %w", err)
 			}
 
+			// two-shot thing here - instead of reading from the temp tables, we should:
+			// 1. read off of Rabbit
+			// 2. dedupe using the "highest" status value
+			// 3. update statuses
+			// 4. ack the rabbit message
 			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
@@ -1736,6 +1753,13 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	)
 
 	return isSaturated, rows, nil
+}
+
+func (r *OLAPRepositoryImpl) UpdateTaskStatusesFromMQ(ctx context.Context, tenantId uuid.UUID, events []TaskStatusUpdateFromMQ) ([]UpdateTaskStatusRow, error) {
+	// TODO: implement with a new SQL query that reads the events slice directly,
+	// deduplicates by (taskId, retryCount) keeping the highest-priority status,
+	// and updates v1_tasks_olap accordingly.
+	return nil, nil
 }
 
 func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error) {

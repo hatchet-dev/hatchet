@@ -386,6 +386,21 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
+	statusUpdateCleanups := make([]func() error, v1.NUM_PARTITIONS)
+
+	for i := range v1.NUM_PARTITIONS {
+		q := msgqueue.OLAPTaskStatusUpdateQueue(i)
+		buf := msgqueue.NewMQSubBuffer(q, heavyReadMQ, o.handleTaskStatusUpdatesFromMQ)
+
+		cleanupStatusBuf, err := buf.Start()
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not start task status update buffer for partition %d: %w", i, err)
+		}
+
+		statusUpdateCleanups[i] = cleanupStatusBuf
+	}
+
 	cleanup := func() error {
 		cancel()
 
@@ -395,6 +410,12 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		}
 		if o.dagPrometheusWorkerCancel != nil {
 			o.dagPrometheusWorkerCancel()
+		}
+
+		for _, cleanupStatusBuf := range statusUpdateCleanups {
+			if err := cleanupStatusBuf(); err != nil {
+				return err
+			}
 		}
 
 		if err := cleanupBuffer(); err != nil {
@@ -766,6 +787,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	durableInvocationCounts := make([]int32, 0)
 	workerIds := make([]uuid.UUID, 0)
 	workflowIds := make([]uuid.UUID, 0)
+	workflowRunIDs := make([]uuid.UUID, 0)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
@@ -790,6 +812,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskIds = append(taskIds, msg.TaskId)
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
+		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -875,6 +898,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
+	statusUpdatePayloads := make([]v1.TaskStatusUpdateFromMQ, 0, len(taskIds))
 
 	for i, taskId := range taskIds {
 		var workerId *uuid.UUID
@@ -911,12 +935,27 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 
 		opts = append(opts, event)
+
+		statusUpdatePayloads = append(statusUpdatePayloads, v1.TaskStatusUpdateFromMQ{
+			TenantID:       tenantId,
+			TaskID:         taskId,
+			TaskInsertedAt: taskInsertedAts[i].Time,
+			WorkflowRunID:  workflowRunIDs[i],
+			EventType:      eventTypes[i],
+			RetryCount:     retryCounts[i],
+			ReadableStatus: readableStatuses[i],
+			WorkerID:       workerId,
+		})
 	}
 
 	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
+	}
+
+	if err := tc.pubTaskStatusUpdates(ctx, tenantId, statusUpdatePayloads); err != nil {
+		tc.l.Warn().Ctx(ctx).Err(err).Msg("could not publish task status updates to MQ")
 	}
 
 	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
@@ -1017,6 +1056,30 @@ func hashToBucket(workflowRunID string, buckets int) int {
 	idBytes := []byte(workflowRunID)
 	hasher.Write(idBytes)
 	return int(hasher.Sum32()) % buckets
+}
+
+func (tc *OLAPControllerImpl) pubTaskStatusUpdates(ctx context.Context, tenantId uuid.UUID, payloads []v1.TaskStatusUpdateFromMQ) error {
+	partitionPayloads := make(map[int][]v1.TaskStatusUpdateFromMQ, v1.NUM_PARTITIONS)
+
+	for _, p := range payloads {
+		partition := hashToBucket(p.WorkflowRunID.String(), v1.NUM_PARTITIONS)
+		partitionPayloads[partition] = append(partitionPayloads[partition], p)
+	}
+
+	for partition, batch := range partitionPayloads {
+		q := msgqueue.OLAPTaskStatusUpdateQueue(partition)
+
+		msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDTaskStatusUpdate, false, true, batch...)
+		if err != nil {
+			return err
+		}
+
+		if err := tc.mq.SendMessage(ctx, q, msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context) func() {
