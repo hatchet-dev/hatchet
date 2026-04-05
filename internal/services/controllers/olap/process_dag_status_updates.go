@@ -22,18 +22,11 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 		for shouldContinue {
 			o.l.Debug().Ctx(ctx).Msgf("partition: running status updates for dags")
 
-			// list all tenants
-			tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			tenantIds, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
 
 			if err != nil {
 				o.l.Error().Ctx(ctx).Err(err).Msg("could not list tenants")
 				return
-			}
-
-			tenantIds := make([]uuid.UUID, 0, len(tenants))
-
-			for _, tenantId := range tenants {
-				tenantIds = append(tenantIds, tenantId)
 			}
 
 			var rows []v1.UpdateDAGStatusRow
