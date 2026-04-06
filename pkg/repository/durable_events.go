@@ -1296,6 +1296,8 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		}
 
 		if retroMatchResults != nil && len(retroMatchResults.SatisfiedDurableEventLogEntries) > 0 {
+			// note: this might be buggy but I _think_ it's okay to grab the first match here
+			// the main assumption is that we only ever get one entry back
 			entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
 
 			if err := lookbackOptTx.Commit(ctx); err != nil {
