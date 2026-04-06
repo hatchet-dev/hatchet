@@ -77,7 +77,7 @@ async def run(selections: list[str]) -> None:
     rm_rf(TMP_GEN_PATH)
 
     try:
-        os.system("poetry run mkdocs build")
+        os.system("uv run mkdocs build")
         documents = crawl_directory(TMP_GEN_PATH, selections)
 
         await gather_max_concurrency(

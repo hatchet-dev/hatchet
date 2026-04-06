@@ -2,10 +2,10 @@
 HatchetInstrumentor example with rich traces.
 
 Run the worker:
-    poetry run python -m examples.opentelemetry_instrumentation.hatchet.worker
+    uv run python -m examples.opentelemetry_instrumentation.hatchet.worker
 
 Then trigger it from another terminal:
-    poetry run python -m examples.opentelemetry_instrumentation.hatchet.trigger
+    uv run python -m examples.opentelemetry_instrumentation.hatchet.trigger
 """
 
 import time

@@ -29,7 +29,7 @@ def on_demand_worker_b(
     [
         (
             [
-                "poetry",
+                "uv",
                 "run",
                 "python",
                 "examples/runtime_affinity/worker.py",
@@ -46,7 +46,7 @@ def on_demand_worker_b(
     [
         (
             [
-                "poetry",
+                "uv",
                 "run",
                 "python",
                 "examples/runtime_affinity/worker.py",

@@ -3,7 +3,7 @@ Integration tests for durable slot eviction.
 
 Run with:
     cd sdks/python
-    poetry run pytest examples/durable_eviction/test_durable_eviction.py -v -s
+    uv run pytest examples/durable_eviction/test_durable_eviction.py -v -s
 """
 
 from __future__ import annotations
@@ -305,7 +305,7 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
     "on_demand_worker",
     [
         (
-            ["poetry", "run", "python", "-m", "examples.durable_eviction.worker"],
+            ["uv", "run", "python", "-m", "examples.durable_eviction.worker"],
             8004,
         )
     ],
@@ -375,7 +375,7 @@ async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
     [
         (
             [
-                "poetry",
+                "uv",
                 "run",
                 "python",
                 "-m",
@@ -408,7 +408,7 @@ async def test_capacity_eviction_fires(
     [
         (
             [
-                "poetry",
+                "uv",
                 "run",
                 "python",
                 "-m",

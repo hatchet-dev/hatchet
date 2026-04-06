@@ -66,7 +66,7 @@ async def dummy_runs() -> None:
     "on_demand_worker",
     [
         (
-            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
+            ["uv", "run", "python", "examples/priority/worker.py", "--slots", "1"],
             8003,
         )
     ],
@@ -153,7 +153,7 @@ async def test_priority(
     "on_demand_worker",
     [
         (
-            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
+            ["uv", "run", "python", "examples/priority/worker.py", "--slots", "1"],
             8003,
         )
     ],
@@ -291,7 +291,7 @@ def time_until_next_minute() -> float:
     "on_demand_worker",
     [
         (
-            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
+            ["uv", "run", "python", "examples/priority/worker.py", "--slots", "1"],
             8003,
         )
     ],
