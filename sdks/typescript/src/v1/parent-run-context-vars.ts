@@ -48,18 +48,24 @@ export class ParentRunContextManager {
   setParentRunIdAndIncrementChildIndex(opts: ParentRunContext): void {
     const parentRunContext = this.getContext();
     if (parentRunContext) {
-      parentRunContext.parentId = opts.parentId;
-      parentRunContext.parentTaskRunExternalId = opts.parentTaskRunExternalId;
-      parentRunContext.childIndex = (parentRunContext.childIndex ?? 0) + 1;
-      this.setContext(parentRunContext);
+      this.setContext({
+        ...parentRunContext,
+        parentId: opts.parentId,
+        parentTaskRunExternalId: opts.parentTaskRunExternalId,
+        childIndex: (parentRunContext.childIndex ?? 0) + 1,
+      });
     }
   }
 
   incrementChildIndex(n: number): void {
     const parentRunContext = this.getContext();
     if (parentRunContext) {
-      parentRunContext.childIndex = (parentRunContext.childIndex ?? 0) + n;
-      this.setContext(parentRunContext);
+      // Build a fresh object to avoid mutating the live store reference, which
+      // would corrupt any values snapshotted before this call.
+      this.setContext({
+        ...parentRunContext,
+        childIndex: (parentRunContext.childIndex ?? 0) + n,
+      });
     }
   }
 
