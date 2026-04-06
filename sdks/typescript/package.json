@@ -63,6 +63,7 @@
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "ts-proto": "^2.11.4",
+    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.21.0",
     "typedoc": "^0.28.17",
     "typedoc-plugin-markdown": "^4.10.0",
@@ -86,10 +87,10 @@
     "zod-to-json-schema": "^3.24.2"
   },
   "optionalDependencies": {
-    "@openai/agents-core": "^0.8.2",
     "@anthropic-ai/claude-agent-sdk": "^0.2.87",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@grpc/grpc-js": "^1.14.3",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@openai/agents": "^0.8.3",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "^2.0.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.208.0",
