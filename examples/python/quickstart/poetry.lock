@@ -473,14 +473,14 @@ setuptools = ">=77.0.1"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.29.5"
+version = "1.31.0"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
 python-versions = "<4,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.29.5-py3-none-any.whl", hash = "sha256:c2640ca1c932ad9e4d1885dc28fb9f3a537da38275c90fcae67600283eabed36"},
-    {file = "hatchet_sdk-1.29.5.tar.gz", hash = "sha256:754e0d3bac9a7ed0554ae65abc718fde1cce64d99eb8450add62d6d8fae740c9"},
+    {file = "hatchet_sdk-1.31.0-py3-none-any.whl", hash = "sha256:190b5c08cddbc9b1f6bed5756050e8257c2e0dccbd9ac660cf94d5f838a6d207"},
+    {file = "hatchet_sdk-1.31.0.tar.gz", hash = "sha256:9519529cef65b43992c7f6f1d5247ef3181d3a85349ef969cafe161bf23d84a6"},
 ]
 
 [package.dependencies]
@@ -497,8 +497,10 @@ typing-inspection = ">=0.1.0"
 urllib3 = ">=2.6.0,<3"
 
 [package.extras]
-docs = ["bs4 (>=0.0.2)", "fastapi (>=0.115.14,<1)", "markdownify (>=1.1.0)", "mkdocs (>=1.6.1,<2)", "mkdocstrings[python] (>=0.29.1,<1)", "openai (>=1.75.0,<2)", "pydoclint (>=0.6.6)", "types-beautifulsoup4 (>=4.12.0.20250204)", "uvicorn (>=0.34.3,<1)"]
-lint = ["black (==26.1.0)", "mypy (==1.19.1)", "psutil (>=6.0.0)", "ruff (==0.15.0)", "types-grpcio (>=1.0.0)", "types-protobuf (>=5.28.3.20241030)", "types-psutil (>=6.1.0.20241221)", "types-requests (>=2.32.0.20241016)"]
+claude = ["claude-agent-sdk", "mcp"]
+docs = ["bs4 (>=0.0.2)", "fastapi (>=0.115.14,<1)", "markdownify (>=1.1.0)", "mkdocs (>=1.6.1,<2)", "mkdocstrings[python] (>=0.29.1,<1)", "openai (>=2.30.0,<3)", "pydoclint (>=0.6.6)", "types-beautifulsoup4 (>=4.12.0.20250204)", "uvicorn (>=0.34.3,<1)"]
+lint = ["black (==26.3.1)", "mypy (==1.20.0)", "psutil (>=6.0.0)", "ruff (==0.15.9)", "types-grpcio (>=1.0.0)", "types-protobuf (>=5.28.3.20241030)", "types-psutil (>=6.1.0.20241221)", "types-requests (>=2.32.0.20241016)"]
+openai = ["openai-agents"]
 otel = ["opentelemetry-api (>=1.28.0,<2)", "opentelemetry-distro (>=0.49b0)", "opentelemetry-exporter-otlp (>=1.28.0,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.28.0,<2)", "opentelemetry-instrumentation (>=0.49b0)", "opentelemetry-sdk (>=1.28.0,<2)"]
 test = ["psycopg[pool] (>=3.2.6,<4)", "pytest (>=8.3.5,<9)", "pytest-asyncio (>=1.3.0)", "pytest-env (>=1.1.5)", "pytest-retry (>=1.7.0)", "pytest-xdist (>=3.7.0)", "requests (>=2.32.5,<3)"]
 
@@ -1171,4 +1173,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "9651ac9c89f5d9ce8ebd01e9b596fc7c211c3fe110d153bc6d63579a124046a7"
+content-hash = "591a665bfae7addab126c5775121303c625311d84438cccbc182853669e51394"
