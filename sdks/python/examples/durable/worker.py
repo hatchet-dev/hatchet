@@ -17,7 +17,7 @@ from hatchet_sdk import (
 )
 from hatchet_sdk.exceptions import NonDeterminismError
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 dag_child_workflow = hatchet.workflow(name="dag-child-workflow")

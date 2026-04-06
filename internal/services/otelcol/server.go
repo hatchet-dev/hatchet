@@ -11,6 +11,7 @@ import (
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -28,6 +29,7 @@ type otelCollectorImpl struct {
 	repo         repository.Repository
 	l            *zerolog.Logger
 	maxBatchSize int
+	a            analytics.Analytics
 }
 
 func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -50,6 +52,8 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 	if len(spans) == 0 {
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
+
+	oc.a.Count(ctx, analytics.OtelSpan, analytics.Create)
 
 	var rejected int64
 	if oc.maxBatchSize > 0 && len(spans) > oc.maxBatchSize {

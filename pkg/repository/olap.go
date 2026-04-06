@@ -317,12 +317,11 @@ func NewOLAPRepositoryFromPool(
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
-	enableDurableUserEventLog bool,
 	shouldPartitionOtelTables bool,
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, nil, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, nil, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }
@@ -3635,14 +3634,6 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
 	lookupTenantIds := make([]uuid.UUID, 0)
 	lookupExternalIds := make([]uuid.UUID, 0)
 	lookupRetryCounts := make([]int32, 0)
@@ -3684,6 +3675,14 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 			}
 		}
 	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
 
 	err = o.queries.InsertOTelTraceLookup(ctx, tx, sqlcv1.InsertOTelTraceLookupParams{
 		Tenantids:   lookupTenantIds,
