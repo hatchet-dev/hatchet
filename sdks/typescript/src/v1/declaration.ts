@@ -370,13 +370,6 @@ export class BaseWorkflowDeclaration<
 
     const parentRunContext = parentRunContextManager.getContext();
 
-    // Snapshot the child index BEFORE incrementing — getContext() returns a mutable
-    // reference, so any later increment would corrupt this value.
-    const childIndex = parentRunContext?.childIndex;
-
-    const inputCount = Array.isArray(input) ? input.length : 1;
-    parentRunContextManager.incrementChildIndex(inputCount);
-
     if (!parentRunContext && (options?.childKey || options?.sticky)) {
       this.client.admin.logger.warn(
         'ignoring childKey or sticky because run is not being spawned from a parent task'
@@ -395,11 +388,19 @@ export class BaseWorkflowDeclaration<
       warn: (message) => this.client!.admin.logger.warn(message),
     });
 
+    // Snapshot the base child index before incrementing. We use 1-based child
+    // indices because Context.spawnIndex occupies the 0-based range.
+    const baseChildIndex = parentRunContext?.childIndex;
+    const inputCount = Array.isArray(input) ? input.length : 1;
+    parentRunContextManager.incrementChildIndex(inputCount);
+
+    const childIndexForRun = baseChildIndex != null ? baseChildIndex + 1 : undefined;
+
     const runOpts = {
       ...(options ?? {}),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
-      childIndex,
+      childIndex: childIndexForRun,
       sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
       childKey: options?.childKey,
     };
@@ -414,7 +415,7 @@ export class BaseWorkflowDeclaration<
             input: inp,
             options: {
               ...runOpts,
-              childIndex: (runOpts.childIndex ?? 0) + i + batchIdx,
+              childIndex: (childIndexForRun ?? 0) + i + batchIdx,
             },
           }))
         );

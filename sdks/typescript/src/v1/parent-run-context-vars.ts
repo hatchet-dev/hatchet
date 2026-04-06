@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { DurableContext } from './client/worker/context';
+import type { DurableContext } from './client/worker/context';
 
 export interface ParentRunContext {
   parentId: string;
