@@ -32,6 +32,7 @@ import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
 import { z } from 'zod';
+import { StandardSchemaV1, validateWithSchema } from '@hatchet/v1/standard-schema';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToMs, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';
@@ -970,7 +971,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    *
    * @param key - The event key to wait for.
    * @param expression - An optional CEL expression to filter events.
-   * @param payloadSchema - An optional Zod schema to validate and parse the event payload.
+   * @param payloadSchema - An optional schema to validate and parse the event payload.
+   *   Accepts any Standard Schema v1 compliant schema (Zod, Valibot, ArkType, etc.).
    * @returns The event payload, validated against the schema if provided.
    */
   async waitForEvent<T extends z.ZodTypeAny>(
@@ -978,11 +980,16 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     expression?: string,
     payloadSchema?: T
   ): Promise<z.infer<T>>;
+  async waitForEvent<T>(
+    key: string,
+    expression?: string,
+    payloadSchema?: StandardSchemaV1<unknown, T>
+  ): Promise<T>;
   async waitForEvent(key: string, expression?: string): Promise<Record<string, any>>;
   async waitForEvent(
     key: string,
     expression?: string,
-    payloadSchema?: z.ZodTypeAny
+    payloadSchema?: z.ZodTypeAny | StandardSchemaV1
   ): Promise<unknown> {
     const res = await this.waitFor({ eventKey: key, expression });
 
@@ -994,7 +1001,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     if (!firstMatch || firstMatch.length === 0) {
       if (payloadSchema) {
-        return payloadSchema.parse({});
+        return validateWithSchema(payloadSchema, {});
       }
       return {};
     }
@@ -1002,7 +1009,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     const [rawPayload] = firstMatch;
 
     if (payloadSchema) {
-      return payloadSchema.parse(rawPayload);
+      return validateWithSchema(payloadSchema, rawPayload);
     }
 
     return rawPayload;
