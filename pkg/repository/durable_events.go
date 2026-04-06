@@ -1295,17 +1295,21 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
 		}
 
-		if retroMatchResults != nil {
-			for _, entry := range retroMatchResults.SatisfiedDurableEventLogEntries {
-				return &IngestWaitForResult{
-					IsSatisfied:     true,
-					ResultPayload:   entry.Data,
-					InvocationCount: entry.InvocationCount,
-					NodeId:          initialWaitForResult.NodeId,
-					BranchId:        initialWaitForResult.BranchId,
-					AlreadyExisted:  initialWaitForResult.AlreadyExisted,
-				}, nil
+		if retroMatchResults != nil && len(retroMatchResults.SatisfiedDurableEventLogEntries) > 0 {
+			entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
+
+			if err := lookbackOptTx.Commit(ctx); err != nil {
+				return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
 			}
+
+			return &IngestWaitForResult{
+				IsSatisfied:     true,
+				ResultPayload:   entry.Data,
+				InvocationCount: entry.InvocationCount,
+				NodeId:          initialWaitForResult.NodeId,
+				BranchId:        initialWaitForResult.BranchId,
+				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+			}, nil
 		}
 	}
 
