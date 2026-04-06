@@ -3650,6 +3650,220 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 	return items, nil
 }
 
+const updateDAGStatusesFromMQ = `-- name: UpdateDAGStatusesFromMQ :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::bigint[]) AS dag_id,
+        UNNEST($3::timestamptz[]) AS dag_inserted_at
+), locked_dags AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.readable_status,
+        d.tenant_id,
+        d.external_id,
+        d.workflow_id,
+        d.total_tasks
+    FROM v1_dags_olap d
+    WHERE
+        -- fixme: need to pass this directly I think for partition pruning to work
+        d.inserted_at >= $4::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT i.dag_inserted_at, i.dag_id, i.tenant_id
+            FROM inputs i
+        )
+    ORDER BY d.inserted_at, d.id
+    FOR UPDATE
+), relevant_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        d.id AS dag_id,
+        d.inserted_at AS dag_inserted_at,
+        t.readable_status
+    FROM locked_dags d
+    JOIN v1_dag_to_task_olap dt ON (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE t.inserted_at >= (SELECT MIN(dag_inserted_at) FROM inputs)
+    -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier.
+    ORDER BY t.inserted_at DESC
+), dag_task_counts AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.readable_status,
+        d.tenant_id,
+        d.external_id,
+        d.workflow_id,
+        d.total_tasks,
+        COUNT(t.id) AS task_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'EVICTED') AS evicted_count
+    FROM locked_dags d
+    LEFT JOIN relevant_tasks t ON (d.tenant_id, d.id, d.inserted_at) = (t.tenant_id, t.dag_id, t.dag_inserted_at)
+    GROUP BY d.id, d.inserted_at, d.readable_status, d.tenant_id, d.external_id, d.workflow_id, d.total_tasks
+), dag_new_statuses AS (
+    SELECT
+        dtc.id,
+        dtc.inserted_at,
+        dtc.readable_status AS old_readable_status,
+        dtc.tenant_id,
+        dtc.external_id,
+        dtc.workflow_id,
+        CASE
+            -- If we only have queued events, we should keep the status as is
+            WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
+            -- If the task count is not equal to the total tasks, we should set the status to running
+            WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
+            -- If we have any running or queued tasks, we should set the status to running
+            WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            -- If all tasks are evicted, mark DAG as evicted
+            WHEN dtc.evicted_count = dtc.task_count AND dtc.task_count = dtc.total_tasks THEN 'EVICTED'
+            WHEN dtc.failed_count > 0 THEN 'FAILED'
+            WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
+            WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
+            ELSE 'RUNNING'
+        END::v1_readable_status_olap AS new_readable_status
+    FROM dag_task_counts dtc
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status).
+    -- This avoids PK violations during row movement when the target sub-partition already has
+    -- a copy (e.g. from a previous partial update).
+    SELECT
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status,
+        dns.external_id,
+        dns.workflow_id
+    FROM dag_new_statuses dns
+    JOIN v1_dags_olap d ON
+        d.inserted_at = dns.inserted_at
+        AND d.id = dns.id
+        AND d.readable_status = dns.new_readable_status
+    WHERE
+        dns.old_readable_status != dns.new_readable_status
+), updated_target_partition_dags AS (
+    -- Touch the row in the target partition to ensure it's returned (no-op update)
+    UPDATE v1_dags_olap d
+    SET readable_status = d.readable_status
+    FROM already_in_target_partition ap
+    WHERE (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.new_readable_status)
+    RETURNING d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), deleted_duplicate_dags AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM v1_dags_olap d
+    USING already_in_target_partition ap
+    WHERE (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), dags_to_update AS (
+    -- DAGs that need updating and don't already exist in the target partition
+    SELECT DISTINCT ON (dns.tenant_id, dns.id, dns.inserted_at)
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status,
+        dns.external_id,
+        dns.workflow_id
+    FROM dag_new_statuses dns
+    WHERE NOT EXISTS (
+        SELECT 1 FROM already_in_target_partition ap
+        WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (dns.tenant_id, dns.id, dns.inserted_at)
+    )
+    ORDER BY dns.tenant_id, dns.id, dns.inserted_at, dns.old_readable_status
+), updated_dags AS (
+    UPDATE v1_dags_olap d
+    SET readable_status = dtu.new_readable_status
+    FROM dags_to_update dtu
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (dtu.inserted_at, dtu.id, dtu.old_readable_status)
+        AND dtu.old_readable_status != dtu.new_readable_status
+    RETURNING d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), all_result_dags AS (
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id, TRUE AS was_updated
+    FROM updated_dags
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id, TRUE AS was_updated
+    FROM updated_target_partition_dags
+    UNION ALL
+    -- DAGs from inputs that were found but not updated (status unchanged)
+    SELECT ld.tenant_id, ld.id, ld.inserted_at, ld.readable_status, ld.external_id, ld.workflow_id, FALSE AS was_updated
+    FROM locked_dags ld
+    WHERE NOT EXISTS (
+        SELECT 1 FROM updated_dags ud WHERE (ud.tenant_id, ud.id, ud.inserted_at) = (ld.tenant_id, ld.id, ld.inserted_at)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM updated_target_partition_dags utp WHERE (utp.tenant_id, utp.id, utp.inserted_at) = (ld.tenant_id, ld.id, ld.inserted_at)
+    )
+)
+
+SELECT
+    tenant_id,
+    id AS dag_id,
+    inserted_at AS dag_inserted_at,
+    readable_status,
+    external_id,
+    workflow_id,
+    was_updated
+FROM all_result_dags
+`
+
+type UpdateDAGStatusesFromMQParams struct {
+	Tenantids      []uuid.UUID          `json:"tenantids"`
+	Dagids         []int64              `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Mininsertedat  pgtype.Timestamptz   `json:"mininsertedat"`
+}
+
+type UpdateDAGStatusesFromMQRow struct {
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	DagID          int64                `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	WorkflowID     uuid.UUID            `json:"workflow_id"`
+	WasUpdated     bool                 `json:"was_updated"`
+}
+
+func (q *Queries) UpdateDAGStatusesFromMQ(ctx context.Context, db DBTX, arg UpdateDAGStatusesFromMQParams) ([]*UpdateDAGStatusesFromMQRow, error) {
+	rows, err := db.Query(ctx, updateDAGStatusesFromMQ,
+		arg.Tenantids,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Mininsertedat,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpdateDAGStatusesFromMQRow
+	for rows.Next() {
+		var i UpdateDAGStatusesFromMQRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.ReadableStatus,
+			&i.ExternalID,
+			&i.WorkflowID,
+			&i.WasUpdated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTaskStatuses = `-- name: UpdateTaskStatuses :many
 WITH tenants AS (
     SELECT UNNEST(
@@ -3966,6 +4180,8 @@ WITH inputs AS (
         t.external_id,
         t.latest_worker_id,
         t.workflow_id,
+        t.dag_id,
+        t.dag_inserted_at,
         (t.dag_id IS NOT NULL)::boolean AS is_dag_task,
         i.readable_status AS new_readable_status,
         i.retry_count AS new_retry_count,
@@ -3989,6 +4205,8 @@ WITH inputs AS (
         lt.external_id,
         lt.latest_worker_id,
         lt.workflow_id,
+        lt.dag_id,
+        lt.dag_inserted_at,
         lt.is_dag_task
     FROM
         locked_tasks lt
@@ -4009,7 +4227,7 @@ WITH inputs AS (
         (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
 ), tasks_to_update AS (
     -- Tasks that need updating and don't already exist in the target partition
-    SELECT tenant_id, id, inserted_at, readable_status, latest_retry_count, external_id, latest_worker_id, workflow_id, is_dag_task, new_readable_status, new_retry_count, new_worker_id
+    SELECT tenant_id, id, inserted_at, readable_status, latest_retry_count, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, new_readable_status, new_retry_count, new_worker_id
     FROM locked_tasks lt
     WHERE NOT EXISTS (
         SELECT 1
@@ -4048,17 +4266,17 @@ WITH inputs AS (
     WHERE
         (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
     RETURNING
-        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
 ), all_result_tasks AS (
-    SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, is_dag_task, TRUE AS was_updated
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, TRUE AS was_updated
     FROM updated_tasks
     UNION ALL
-    SELECT tenant_id, id, inserted_at, new_readable_status AS readable_status, external_id, latest_worker_id, workflow_id, is_dag_task, TRUE AS was_updated
+    SELECT tenant_id, id, inserted_at, new_readable_status AS readable_status, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, TRUE AS was_updated
     FROM already_in_target_partition
     UNION ALL
     -- Tasks from inputs that were found but not updated (status already at target or higher priority)
     SELECT
-        lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.is_dag_task, FALSE AS was_updated
+        lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.dag_id, lt.dag_inserted_at, lt.is_dag_task, FALSE AS was_updated
     FROM locked_tasks lt
     WHERE NOT EXISTS (
         SELECT 1 FROM updated_tasks ut WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
@@ -4076,6 +4294,8 @@ SELECT
     external_id,
     latest_worker_id,
     workflow_id,
+    dag_id,
+    dag_inserted_at,
     is_dag_task,
     was_updated
 FROM all_result_tasks
@@ -4098,6 +4318,8 @@ type UpdateTaskStatusesFromMQRow struct {
 	ExternalID     uuid.UUID            `json:"external_id"`
 	LatestWorkerID *uuid.UUID           `json:"latest_worker_id"`
 	WorkflowID     uuid.UUID            `json:"workflow_id"`
+	DagID          pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz   `json:"dag_inserted_at"`
 	IsDagTask      bool                 `json:"is_dag_task"`
 	WasUpdated     bool                 `json:"was_updated"`
 }
@@ -4126,6 +4348,8 @@ func (q *Queries) UpdateTaskStatusesFromMQ(ctx context.Context, db DBTX, arg Upd
 			&i.ExternalID,
 			&i.LatestWorkerID,
 			&i.WorkflowID,
+			&i.DagID,
+			&i.DagInsertedAt,
 			&i.IsDagTask,
 			&i.WasUpdated,
 		); err != nil {

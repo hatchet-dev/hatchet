@@ -1608,6 +1608,44 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 	}
 }
 
+func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.UpdateTaskStatusesFromMQRow) sqlcv1.UpdateDAGStatusesFromMQParams {
+	type dagKey struct {
+		DagID         int64
+		DagInsertedAt pgtype.Timestamptz
+	}
+
+	seen := make(map[dagKey]struct{})
+	tenantIds := make([]uuid.UUID, 0)
+	dagIds := make([]int64, 0)
+	dagInsertedAts := make([]pgtype.Timestamptz, 0)
+	minDagInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())
+
+	for _, row := range taskRows {
+		if !row.DagID.Valid {
+			continue
+		}
+
+		key := dagKey{DagID: row.DagID.Int64, DagInsertedAt: row.DagInsertedAt}
+
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			tenantIds = append(tenantIds, row.TenantID)
+			dagIds = append(dagIds, row.DagID.Int64)
+			dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
+
+			if row.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
+				minDagInsertedAt = row.DagInsertedAt
+			}
+		}
+	}
+
+	return sqlcv1.UpdateDAGStatusesFromMQParams{
+		Tenantids:      tenantIds,
+		Dagids:         dagIds,
+		Daginsertedats: dagInsertedAts,
+	}
+}
+
 func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
@@ -1657,10 +1695,20 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 
 	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsToWrite)
 
-	_, err = r.queries.UpdateTaskStatusesFromMQ(ctx, tx, statusUpdates)
+	taskRows, err := r.queries.UpdateTaskStatusesFromMQ(ctx, tx, statusUpdates)
 
 	if err != nil {
 		return err
+	}
+
+	dagStatusUpdates := r.prepareDAGStatusUpdateBatch(taskRows)
+
+	if len(dagStatusUpdates.Dagids) > 0 {
+		_, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	_, err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
