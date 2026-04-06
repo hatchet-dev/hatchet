@@ -386,21 +386,6 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
-	statusUpdateCleanups := make([]func() error, v1.NUM_PARTITIONS)
-
-	for i := range v1.NUM_PARTITIONS {
-		q := msgqueue.OLAPTaskStatusUpdateQueue(i)
-		buf := msgqueue.NewMQSubBuffer(q, heavyReadMQ, o.handleTaskStatusUpdatesFromMQ)
-
-		cleanupStatusBuf, err := buf.Start()
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("could not start task status update buffer for partition %d: %w", i, err)
-		}
-
-		statusUpdateCleanups[i] = cleanupStatusBuf
-	}
-
 	cleanup := func() error {
 		cancel()
 
@@ -410,12 +395,6 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		}
 		if o.dagPrometheusWorkerCancel != nil {
 			o.dagPrometheusWorkerCancel()
-		}
-
-		for _, cleanupStatusBuf := range statusUpdateCleanups {
-			if err := cleanupStatusBuf(); err != nil {
-				return err
-			}
 		}
 
 		if err := cleanupBuffer(); err != nil {
@@ -954,10 +933,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
-	if err := tc.pubTaskStatusUpdates(ctx, tenantId, statusUpdatePayloads); err != nil {
-		tc.l.Warn().Ctx(ctx).Err(err).Msg("could not publish task status updates to MQ")
-	}
-
 	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
 
 	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
@@ -1056,30 +1031,6 @@ func hashToBucket(workflowRunID string, buckets int) int {
 	idBytes := []byte(workflowRunID)
 	hasher.Write(idBytes)
 	return int(hasher.Sum32()) % buckets
-}
-
-func (tc *OLAPControllerImpl) pubTaskStatusUpdates(ctx context.Context, tenantId uuid.UUID, payloads []v1.TaskStatusUpdateFromMQ) error {
-	partitionPayloads := make(map[int][]v1.TaskStatusUpdateFromMQ, v1.NUM_PARTITIONS)
-
-	for _, p := range payloads {
-		partition := hashToBucket(p.WorkflowRunID.String(), v1.NUM_PARTITIONS)
-		partitionPayloads[partition] = append(partitionPayloads[partition], p)
-	}
-
-	for partition, batch := range partitionPayloads {
-		q := msgqueue.OLAPTaskStatusUpdateQueue(partition)
-
-		msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDTaskStatusUpdate, false, true, batch...)
-		if err != nil {
-			return err
-		}
-
-		if err := tc.mq.SendMessage(ctx, q, msg); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context) func() {

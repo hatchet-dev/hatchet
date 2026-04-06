@@ -12,24 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (o *OLAPControllerImpl) handleTaskStatusUpdatesFromMQ(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
-	ctx := context.Background()
-
-	msgs := msgqueue.JSONConvert[v1.TaskStatusUpdateFromMQ](payloads)
-
-	events := make([]v1.TaskStatusUpdateFromMQ, 0, len(msgs))
-	for _, m := range msgs {
-		events = append(events, *m)
-	}
-
-	rows, err := o.repo.OLAP().UpdateTaskStatusesFromMQ(ctx, tenantId, events)
-	if err != nil {
-		return err
-	}
-
-	return o.notifyTasksUpdated(ctx, rows)
-}
-
 func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)

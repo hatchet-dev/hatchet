@@ -252,7 +252,6 @@ type OLAPRepository interface {
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
-	UpdateTaskStatusesFromMQ(ctx context.Context, tenantId uuid.UUID, events []TaskStatusUpdateFromMQ) ([]UpdateTaskStatusRow, error)
 	UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId uuid.UUID) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId uuid.UUID, dagIds []uuid.UUID, includePayloads bool) ([]*TaskWithPayloads, map[int64]uuid.UUID, error)
@@ -1562,6 +1561,64 @@ func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
 	return fmt.Sprintf("%d-%s-%d-%d", event.TaskID, event.EventType, event.RetryCount, event.DurableInvocationCount)
 }
 
+func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) sqlcv1.UpdateTaskStatusesFromMQParams {
+	type statusRetryCountWorkerIdTuple struct {
+		Status     sqlcv1.V1ReadableStatusOlap
+		RetryCount int32
+		WorkerId   *uuid.UUID
+	}
+
+	taskIdInsertedAtToMeta := make(map[IdInsertedAt]statusRetryCountWorkerIdTuple)
+
+	for _, event := range events {
+		statusAndRetryCount, seen := taskIdInsertedAtToMeta[IdInsertedAt{
+			ID:         event.TaskID,
+			InsertedAt: event.TaskInsertedAt,
+		}]
+
+		if !seen || event.RetryCount > statusAndRetryCount.RetryCount || compareStatuses(event.ReadableStatus, statusAndRetryCount.Status) {
+			taskIdInsertedAtToMeta[IdInsertedAt{
+				ID:         event.TaskID,
+				InsertedAt: event.TaskInsertedAt,
+			}] = statusRetryCountWorkerIdTuple{
+				Status:     event.ReadableStatus,
+				RetryCount: event.RetryCount,
+				WorkerId:   event.WorkerID,
+			}
+		}
+	}
+
+	tenantIds := make([]uuid.UUID, 0)
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	statuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
+	workerIds := make([]uuid.UUID, 0)
+	retryCounts := make([]int32, 0)
+
+	for idInsertedAt, meta := range taskIdInsertedAtToMeta {
+		tenantIds = append(tenantIds, tenantId)
+		taskIds = append(taskIds, idInsertedAt.ID)
+		taskInsertedAts = append(taskInsertedAts, idInsertedAt.InsertedAt)
+		statuses = append(statuses, meta.Status)
+		retryCounts = append(retryCounts, meta.RetryCount)
+
+		if meta.WorkerId != nil {
+			workerIds = append(workerIds, *meta.WorkerId)
+		} else {
+			workerIds = append(workerIds, uuid.Nil)
+		}
+	}
+
+	return sqlcv1.UpdateTaskStatusesFromMQParams{
+		Tenantids:       tenantIds,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Statuses:        statuses,
+		Workerids:       workerIds,
+		Retrycounts:     retryCounts,
+	}
+}
+
 func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
@@ -1604,6 +1661,14 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	defer rollback()
 
 	_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
+
+	if err != nil {
+		return err
+	}
+
+	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsToWrite)
+
+	_, err = r.queries.UpdateTaskStatusesFromMQ(ctx, tx, statusUpdates)
 
 	if err != nil {
 		return err
@@ -1749,110 +1814,6 @@ func compareStatuses(status1, status2 sqlcv1.V1ReadableStatusOlap) bool {
 	}
 
 	return ordering[status1] > ordering[status2]
-}
-
-func (r *OLAPRepositoryImpl) UpdateTaskStatusesFromMQ(ctx context.Context, tenantId uuid.UUID, events []TaskStatusUpdateFromMQ) ([]UpdateTaskStatusRow, error) {
-	// 1: list all tenants on that partition (unique set over the events?)
-	// 2: read and lock a batch of task event's we'll update for (in pg we use for update skip locked + a limit)
-	// 3: compute the max retry count for each task
-	// 4: compute the current status for each task (filtered by max retry count)
-	// 5: compute latest worker id for each task (filtered by max retry count? query doesn't)
-	// 6: lock corresponding tasks in `v1_tasks_olap`
-	// 7: diff out tasks already in the target partition with the existing status to avoid conflicts on write (duplicate key violations)
-
-	type statusRetryCountWorkerIdTuple struct {
-		Status     sqlcv1.V1ReadableStatusOlap
-		RetryCount int32
-		WorkerId   *uuid.UUID
-	}
-
-	taskIdInsertedAtToMeta := make(map[IdInsertedAt]statusRetryCountWorkerIdTuple)
-
-	for _, event := range events {
-		statusAndRetryCount, seen := taskIdInsertedAtToMeta[IdInsertedAt{
-			ID:         event.TaskID,
-			InsertedAt: sqlchelpers.TimestamptzFromTime(event.TaskInsertedAt),
-		}]
-
-		if !seen || event.RetryCount > statusAndRetryCount.RetryCount || compareStatuses(event.ReadableStatus, statusAndRetryCount.Status) {
-			taskIdInsertedAtToMeta[IdInsertedAt{
-				ID:         event.TaskID,
-				InsertedAt: sqlchelpers.TimestamptzFromTime(event.TaskInsertedAt),
-			}] = statusRetryCountWorkerIdTuple{
-				Status:     event.ReadableStatus,
-				RetryCount: event.RetryCount,
-				WorkerId:   event.WorkerID,
-			}
-		}
-	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	tenantIds := make([]uuid.UUID, 0)
-	taskIds := make([]int64, 0)
-	taskInsertedAts := make([]pgtype.Timestamptz, 0)
-	statuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
-	workerIds := make([]uuid.UUID, 0)
-	retryCounts := make([]int32, 0)
-
-	for idInsertedAt, meta := range taskIdInsertedAtToMeta {
-		tenantIds = append(tenantIds, tenantId)
-		taskIds = append(taskIds, idInsertedAt.ID)
-		taskInsertedAts = append(taskInsertedAts, idInsertedAt.InsertedAt)
-		statuses = append(statuses, meta.Status)
-		retryCounts = append(retryCounts, meta.RetryCount)
-
-		if meta.WorkerId != nil {
-			workerIds = append(workerIds, *meta.WorkerId)
-		} else {
-			workerIds = append(workerIds, uuid.Nil)
-		}
-	}
-
-	statusUpdateRes, err := r.queries.UpdateTaskStatusesFromMQ(ctx, tx, sqlcv1.UpdateTaskStatusesFromMQParams{
-		Tenantids:       tenantIds,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Statuses:        statuses,
-		Workerids:       workerIds,
-		Retrycounts:     retryCounts,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
-	rows := make([]UpdateTaskStatusRow, 0)
-
-	for _, row := range statusUpdateRes {
-		latestWorkerId := uuid.Nil
-		if row.LatestWorkerID != nil {
-			latestWorkerId = *row.LatestWorkerID
-		}
-
-		rows = append(rows, UpdateTaskStatusRow{
-			TenantId:       row.TenantID,
-			TaskId:         row.TaskID,
-			TaskInsertedAt: row.TaskInsertedAt,
-			ReadableStatus: row.ReadableStatus,
-			LatestWorkerId: latestWorkerId,
-			ExternalId:     row.ExternalID,
-			WorkflowId:     row.WorkflowID,
-			IsDAGTask:      row.IsDagTask,
-		})
-	}
-
-	return rows, nil
 }
 
 func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error) {
