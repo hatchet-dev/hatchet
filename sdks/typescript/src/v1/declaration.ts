@@ -32,10 +32,10 @@ import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from '.
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
-import { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import { FunctionTool } from '@openai/agents';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import type { FunctionTool } from '@openai/agents';
+import type { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
+import { OpenAIToolFunc, OpenAIToolFuncT } from '@hatchet/v1/agent/openai';
+import { ClaudeToolFunc, ClaudeToolFuncT } from '@hatchet/v1/agent/claude';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -47,66 +47,13 @@ export enum Priority {
 type AgentSdk = 'claude' | 'openai';
 
 type AgentSdkFuncMap = {
-  claude: <I extends InputType, O extends OutputType>(
-    runnable: BaseWorkflowDeclaration<I, O>,
-    annotations?: ToolAnnotations
-  ) => SdkMcpToolDefinition;
-  openai: <I extends InputType, O extends OutputType>(
-    runnable: BaseWorkflowDeclaration<I, O>
-  ) => FunctionTool;
+  claude: ClaudeToolFuncT;
+  openai: OpenAIToolFuncT;
 };
 
 const sdkFuncMap: AgentSdkFuncMap = {
-  claude: <I extends InputType, O extends OutputType>(
-    runnable: BaseWorkflowDeclaration<I, O>,
-    annotations?: ToolAnnotations
-  ) => {
-    if (!runnable.definition.inputValidator) {
-      throw new Error('inputValidator must be defined');
-    }
-    const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
-    const { description } = runnable.definition;
-    if (description === undefined) {
-      throw new Error('Runnable description must be defined');
-    }
-    const handler = async (args: any, _: unknown): Promise<CallToolResult> => {
-      const result = await runnable.run(args);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-      };
-    };
-    return {
-      annotations: annotations,
-      description: description,
-      handler: handler,
-      name: runnable.name,
-      inputSchema: inputValidator.shape,
-    };
-  },
-  openai: <I extends InputType, O extends OutputType>(runnable: BaseWorkflowDeclaration<I, O>) => {
-    if (!runnable.definition.inputValidator) {
-      throw new Error('inputValidator must be defined');
-    }
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { tool } = require('@openai/agents');
-    const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
-    const { description } = runnable.definition;
-    if (description === undefined) {
-      throw new Error('Runnable description must be defined');
-    }
-    return tool({
-      name: runnable.name,
-      description: description,
-      // @ts-expect-error TS2589
-      parameters: zodToJsonSchema(inputValidator, {
-        $refStrategy: 'none',
-      }),
-      execute: async (input: any): Promise<string> => {
-        const result = await runnable.run(input);
-        return JSON.stringify(result);
-      },
-    });
-  },
+  claude:ClaudeToolFunc,
+  openai: OpenAIToolFunc,
 };
 
 type Tail<T extends any[]> = T extends [any, ...infer R] ? R : never;
