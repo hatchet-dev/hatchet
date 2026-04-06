@@ -1023,55 +1023,129 @@ WITH inputs AS (
         UNNEST(@statuses::v1_readable_status_olap[]) AS readable_status,
         UNNEST(@workerIds::UUID[]) AS worker_id,
         UNNEST(@retryCounts::int[]) AS retry_count
+), locked_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        t.readable_status,
+        t.latest_retry_count,
+        t.external_id,
+        t.latest_worker_id,
+        t.workflow_id,
+        (t.dag_id IS NOT NULL)::boolean AS is_dag_task,
+        i.readable_status AS new_readable_status,
+        i.retry_count AS new_retry_count,
+        i.worker_id AS new_worker_id
+    FROM
+        inputs i
+    JOIN
+        v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (i.tenant_id, i.task_id, i.task_inserted_at)
+    FOR UPDATE
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status).
+    -- This avoids PK violations during row movement when the target sub-partition already has
+    -- a copy (e.g. from a previous partial update).
+    SELECT
+        lt.tenant_id,
+        lt.id,
+        lt.inserted_at,
+        lt.readable_status AS old_readable_status,
+        lt.new_readable_status,
+        lt.new_retry_count,
+        lt.external_id,
+        lt.latest_worker_id,
+        lt.workflow_id,
+        lt.is_dag_task
+    FROM
+        locked_tasks lt
+    JOIN
+        v1_tasks_olap t ON
+            t.inserted_at = lt.inserted_at
+            AND t.id = lt.id
+            AND t.readable_status = lt.new_readable_status
+    WHERE
+        lt.readable_status != lt.new_readable_status
+), deleted_duplicate_tasks AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM
+        v1_tasks_olap t
+    USING
+        already_in_target_partition ap
+    WHERE
+        (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), tasks_to_update AS (
+    -- Tasks that need updating and don't already exist in the target partition
+    SELECT *
+    FROM locked_tasks lt
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM already_in_target_partition ap
+        WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    )
+    AND (
+        -- If the retry count is greater than the latest retry count, update the status
+        (
+            lt.new_retry_count > lt.latest_retry_count
+            AND lt.new_readable_status != lt.readable_status
+        ) OR
+        -- If the retry count is equal, only update if the new status has higher priority
+        (
+            lt.new_retry_count = lt.latest_retry_count
+            AND v1_status_to_priority(lt.new_readable_status) > v1_status_to_priority(lt.readable_status)
+        ) OR
+        -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+        (
+            lt.new_retry_count = lt.latest_retry_count
+            AND lt.readable_status = 'EVICTED'
+            AND lt.new_readable_status != 'EVICTED'
+        )
+    )
 ), updated_tasks AS (
     UPDATE v1_tasks_olap t
     SET
-        readable_status = i.readable_status,
-        latest_retry_count = i.retry_count,
+        readable_status = tu.new_readable_status,
+        latest_retry_count = tu.new_retry_count,
         latest_worker_id = CASE
-            WHEN i.worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN i.worker_id
+            WHEN tu.new_worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN tu.new_worker_id
             ELSE t.latest_worker_id
         END
     FROM
-        inputs i
-    WHERE (t.tenant_id, t.id, t.inserted_at) = (i.tenant_id, i.task_id, i.task_inserted_at)
+        tasks_to_update tu
+    WHERE
+        (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
     RETURNING
         t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
-), not_updated_tasks AS (
-    SELECT *
-    FROM v1_tasks_olap t
+), all_result_tasks AS (
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, is_dag_task, TRUE AS was_updated
+    FROM updated_tasks
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, new_readable_status AS readable_status, external_id, latest_worker_id, workflow_id, is_dag_task, TRUE AS was_updated
+    FROM already_in_target_partition
+    UNION ALL
+    -- Tasks from inputs that were found but not updated (status already at target or higher priority)
+    SELECT
+        lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.is_dag_task, FALSE AS was_updated
+    FROM locked_tasks lt
     WHERE NOT EXISTS (
-        SELECT 1
-        FROM updated_tasks ut
-        WHERE (t.tenant_id, t.id, t.inserted_at) = (ut.tenant_id, ut.id, ut.inserted_at)
+        SELECT 1 FROM updated_tasks ut WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM already_in_target_partition ap WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
     )
 )
 
 SELECT
-    u.tenant_id,
-    u.id AS task_id,
-    u.inserted_at AS task_inserted_at,
-    u.readable_status,
-    u.external_id,
-    u.latest_worker_id,
-    u.workflow_id,
-    u.is_dag_task,
-    TRUE AS was_updated
-FROM updated_tasks u
-
-UNION ALL
-
-SELECT
-    t.tenant_id,
-    t.id AS task_id,
-    t.inserted_at AS task_inserted_at,
-    t.readable_status,
-    t.external_id,
-    t.latest_worker_id,
-    t.workflow_id,
-    (t.dag_id IS NOT NULL)::boolean AS is_dag_task,
-    FALSE AS was_updated
-FROM not_updated_tasks t;
+    tenant_id,
+    id AS task_id,
+    inserted_at AS task_inserted_at,
+    readable_status,
+    external_id,
+    latest_worker_id,
+    workflow_id,
+    is_dag_task,
+    was_updated
+FROM all_result_tasks;
 
 -- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
