@@ -1,6 +1,5 @@
 name: python
 on:
-  workflow_dispatch: {}
   pull_request:
     paths:
       - ".github/**"
@@ -120,7 +119,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
-      - name: Set up Python ${{ matrix.python-version
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
