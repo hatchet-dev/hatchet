@@ -22,6 +22,7 @@ export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   }
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { tool } = require('@openai/agents');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
   const { description } = runnable.definition;
   if (description === undefined) {
@@ -31,6 +32,7 @@ export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
     name: runnable.name,
     description: description,
     parameters: inputValidator.toJSONSchema(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     execute: async (input: any): Promise<string> => {
       const result = await runnable.run(input);
       return JSON.stringify(result);

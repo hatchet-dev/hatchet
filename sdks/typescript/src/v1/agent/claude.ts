@@ -22,11 +22,13 @@ export const ClaudeToolFunc = <I extends InputType, O extends OutputType>(
   if (!runnable.definition.inputValidator) {
     throw new Error('inputValidator must be defined');
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
   const { description } = runnable.definition;
   if (description === undefined) {
     throw new Error('Runnable description must be defined');
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handler = async (args: any, _: unknown): Promise<CallToolResult> => {
     const result = await runnable.run(args);
     return {
