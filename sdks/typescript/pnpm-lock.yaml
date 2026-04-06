@@ -49,11 +49,11 @@ importers:
         specifier: ^2.8.2
         version: 2.8.3
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
       zod-to-json-schema:
         specifier: ^3.24.2
-        version: 3.25.2(zod@3.25.76)
+        version: 3.25.2(zod@4.3.6)
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -136,16 +136,16 @@ importers:
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.87
-        version: 0.2.92(zod@3.25.76)
+        version: 0.2.92(zod@4.3.6)
       '@grpc/grpc-js':
         specifier: ^1.14.3
         version: 1.14.3
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
-        version: 1.29.0(zod@3.25.76)
+        version: 1.29.0(zod@4.3.6)
       '@openai/agents':
         specifier: 0.8.3
-        version: 0.8.3(ws@8.20.0)(zod@3.25.76)
+        version: 0.8.3(ws@8.20.0)(zod@4.3.6)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
@@ -3068,16 +3068,16 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
 snapshots:
 
-  '@anthropic-ai/claude-agent-sdk@0.2.92(zod@3.25.76)':
+  '@anthropic-ai/claude-agent-sdk@0.2.92(zod@4.3.6)':
     dependencies:
-      '@anthropic-ai/sdk': 0.80.0(zod@3.25.76)
-      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
-      zod: 3.25.76
+      '@anthropic-ai/sdk': 0.80.0(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
+      zod: 4.3.6
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.34.5
       '@img/sharp-darwin-x64': 0.34.5
@@ -3093,11 +3093,11 @@ snapshots:
       - supports-color
     optional: true
 
-  '@anthropic-ai/sdk@0.80.0(zod@3.25.76)':
+  '@anthropic-ai/sdk@0.80.0(zod@4.3.6)':
     dependencies:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
-      zod: 3.25.76
+      zod: 4.3.6
     optional: true
 
   '@babel/code-frame@7.29.0':
@@ -3739,7 +3739,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.29.0(zod@4.3.6)':
     dependencies:
       '@hono/node-server': 1.19.12(hono@4.12.10)
       ajv: 8.18.0
@@ -3756,8 +3756,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
     transitivePeerDependencies:
       - supports-color
     optional: true
@@ -3783,38 +3783,38 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@openai/agents-core@0.8.3(ws@8.20.0)(zod@3.25.76)':
+  '@openai/agents-core@0.8.3(ws@8.20.0)(zod@4.3.6)':
     dependencies:
       debug: 4.4.3
-      openai: 6.33.0(ws@8.20.0)(zod@3.25.76)
+      openai: 6.33.0(ws@8.20.0)(zod@4.3.6)
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
-      zod: 3.25.76
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
+      zod: 4.3.6
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
       - ws
     optional: true
 
-  '@openai/agents-openai@0.8.3(ws@8.20.0)(zod@3.25.76)':
+  '@openai/agents-openai@0.8.3(ws@8.20.0)(zod@4.3.6)':
     dependencies:
-      '@openai/agents-core': 0.8.3(ws@8.20.0)(zod@3.25.76)
+      '@openai/agents-core': 0.8.3(ws@8.20.0)(zod@4.3.6)
       debug: 4.4.3
-      openai: 6.33.0(ws@8.20.0)(zod@3.25.76)
-      zod: 3.25.76
+      openai: 6.33.0(ws@8.20.0)(zod@4.3.6)
+      zod: 4.3.6
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
       - ws
     optional: true
 
-  '@openai/agents-realtime@0.8.3(zod@3.25.76)':
+  '@openai/agents-realtime@0.8.3(zod@4.3.6)':
     dependencies:
-      '@openai/agents-core': 0.8.3(ws@8.20.0)(zod@3.25.76)
+      '@openai/agents-core': 0.8.3(ws@8.20.0)(zod@4.3.6)
       '@types/ws': 8.18.1
       debug: 4.4.3
       ws: 8.20.0
-      zod: 3.25.76
+      zod: 4.3.6
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - bufferutil
@@ -3822,14 +3822,14 @@ snapshots:
       - utf-8-validate
     optional: true
 
-  '@openai/agents@0.8.3(ws@8.20.0)(zod@3.25.76)':
+  '@openai/agents@0.8.3(ws@8.20.0)(zod@4.3.6)':
     dependencies:
-      '@openai/agents-core': 0.8.3(ws@8.20.0)(zod@3.25.76)
-      '@openai/agents-openai': 0.8.3(ws@8.20.0)(zod@3.25.76)
-      '@openai/agents-realtime': 0.8.3(zod@3.25.76)
+      '@openai/agents-core': 0.8.3(ws@8.20.0)(zod@4.3.6)
+      '@openai/agents-openai': 0.8.3(ws@8.20.0)(zod@4.3.6)
+      '@openai/agents-realtime': 0.8.3(zod@4.3.6)
       debug: 4.4.3
-      openai: 6.33.0(ws@8.20.0)(zod@3.25.76)
-      zod: 3.25.76
+      openai: 6.33.0(ws@8.20.0)(zod@4.3.6)
+      zod: 4.3.6
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - bufferutil
@@ -5637,10 +5637,10 @@ snapshots:
     dependencies:
       mimic-fn: 2.1.0
 
-  openai@6.33.0(ws@8.20.0)(zod@3.25.76):
+  openai@6.33.0(ws@8.20.0)(zod@4.3.6):
     optionalDependencies:
       ws: 8.20.0
-      zod: 3.25.76
+      zod: 4.3.6
     optional: true
 
   optionator@0.9.4:
@@ -6288,8 +6288,8 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-to-json-schema@3.25.2(zod@3.25.76):
+  zod-to-json-schema@3.25.2(zod@4.3.6):
     dependencies:
-      zod: 3.25.76
+      zod: 4.3.6
 
-  zod@3.25.76: {}
+  zod@4.3.6: {}

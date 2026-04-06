@@ -9,7 +9,8 @@ import { parseJSON } from '../util/parse';
 import WorkflowRunRef from '../util/workflow-run-ref';
 import { WorkerLabels } from '../clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration } from '../protoc/workflows';
-import { CreateWorkflowTaskOpts, Priority, WorkerLabelComparator } from '../v1';
+import { CreateWorkflowTaskOpts, Priority } from '../v1';
+import { WorkerLabelComparator } from '../v1/task';
 import {
   RunOpts,
   TaskWorkflowDeclaration,
@@ -31,7 +32,7 @@ export const CreateRateLimitSchema = z.object({
 
   units: z.union([z.number().min(0), z.string()]),
   limit: z.union([z.number().min(1), z.string()]).optional(),
-  duration: z.nativeEnum(RateLimitDuration).optional(),
+  duration: z.enum(RateLimitDuration).optional(),
 });
 
 export const DesiredWorkerLabelSchema = z
@@ -46,7 +47,7 @@ export const DesiredWorkerLabelSchema = z
       // (optional) comparator for the label
       // if not provided, the default is EQUAL
       // desired COMPARATOR actual (i.e. desired > actual for GREATER_THAN)
-      comparator: z.nativeEnum(WorkerLabelComparator).optional(),
+      comparator: z.enum(WorkerLabelComparator).optional(),
     }),
   ])
   .optional();
@@ -57,7 +58,12 @@ export const CreateStepSchema = z.object({
   timeout: z.string().optional(),
   retries: z.number().optional(),
   rate_limits: z.array(CreateRateLimitSchema).optional(),
-  worker_labels: z.record(z.lazy(() => DesiredWorkerLabelSchema)).optional(),
+  worker_labels: z
+    .record(
+      z.any(),
+      z.lazy(() => DesiredWorkerLabelSchema)
+    )
+    .optional(),
   backoff: z
     .object({
       factor: z.number().optional(),

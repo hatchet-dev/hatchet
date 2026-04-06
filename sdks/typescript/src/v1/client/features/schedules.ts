@@ -19,8 +19,8 @@ import { workflowNameString, WorkflowsClient } from './workflows';
  */
 export const CreateScheduledRunTriggerSchema = z.object({
   triggerAt: z.coerce.date(),
-  input: z.record(z.any()).optional(),
-  additionalMetadata: z.record(z.string()).optional(),
+  input: z.record(z.any(), z.any()).optional(),
+  additionalMetadata: z.record(z.string(), z.string()).optional(),
   priority: z.number().optional(),
 });
 

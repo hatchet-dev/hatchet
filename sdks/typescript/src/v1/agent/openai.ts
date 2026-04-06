@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import { BaseWorkflowDeclaration, InputType, OutputType } from '@hatchet/v1';
 import type { FunctionTool } from '@openai/agents';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 
 export type OpenAIToolFuncT = <I extends InputType, O extends OutputType>(
   runnable: BaseWorkflowDeclaration<I, O>
@@ -31,10 +30,7 @@ export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   return tool({
     name: runnable.name,
     description: description,
-    // @ts-expect-error TS2589
-    parameters: zodToJsonSchema(inputValidator, {
-      $refStrategy: 'none',
-    }),
+    parameters: inputValidator.toJSONSchema(),
     execute: async (input: any): Promise<string> => {
       const result = await runnable.run(input);
       return JSON.stringify(result);
