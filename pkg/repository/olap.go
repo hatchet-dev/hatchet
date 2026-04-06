@@ -210,17 +210,6 @@ type UpdateDAGStatusRow struct {
 	WorkflowId     uuid.UUID
 }
 
-type TaskStatusUpdateFromMQ struct {
-	TenantID       uuid.UUID                   `json:"tenant_id"`
-	TaskID         int64                       `json:"task_id"`
-	TaskInsertedAt time.Time                   `json:"task_inserted_at"`
-	WorkflowRunID  uuid.UUID                   `json:"workflow_run_id"`
-	EventType      sqlcv1.V1EventTypeOlap      `json:"event_type"`
-	RetryCount     int32                       `json:"retry_count"`
-	ReadableStatus sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
-	WorkerID       *uuid.UUID                  `json:"worker_id,omitempty"`
-}
-
 type TaskWithPayloads struct {
 	*sqlcv1.PopulateTaskRunDataRow
 	InputPayload       []byte

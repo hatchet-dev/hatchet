@@ -877,7 +877,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
-	statusUpdatePayloads := make([]v1.TaskStatusUpdateFromMQ, 0, len(taskIds))
 
 	for i, taskId := range taskIds {
 		var workerId *uuid.UUID
@@ -914,17 +913,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 
 		opts = append(opts, event)
-
-		statusUpdatePayloads = append(statusUpdatePayloads, v1.TaskStatusUpdateFromMQ{
-			TenantID:       tenantId,
-			TaskID:         taskId,
-			TaskInsertedAt: taskInsertedAts[i].Time,
-			WorkflowRunID:  workflowRunIDs[i],
-			EventType:      eventTypes[i],
-			RetryCount:     retryCounts[i],
-			ReadableStatus: readableStatuses[i],
-			WorkerID:       workerId,
-		})
 	}
 
 	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
