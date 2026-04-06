@@ -150,6 +150,13 @@ jobs:
 
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
 
+      - name: Test with wheel
+        run: |
+          poetry build
+          poetry run pip uninstall hatchet_sdk -y
+          poetry run pip install --no-cache-dir --no-index --find-links dist/  hatchet_sdk -v
+          poetry run python -c "from hatchet_sdk import Workflow;"
+
       - name: Upload engine logs
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
