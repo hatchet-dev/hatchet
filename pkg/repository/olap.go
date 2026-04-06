@@ -1643,6 +1643,7 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 		Tenantids:      tenantIds,
 		Dagids:         dagIds,
 		Daginsertedats: dagInsertedAts,
+		Mininsertedat:  minDagInsertedAt,
 	}
 }
 
