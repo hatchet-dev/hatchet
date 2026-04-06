@@ -52,7 +52,7 @@ type AgentSdkFuncMap = {
 };
 
 const sdkFuncMap: AgentSdkFuncMap = {
-  claude:ClaudeToolFunc,
+  claude: ClaudeToolFunc,
   openai: OpenAIToolFunc,
 };
 
@@ -707,7 +707,12 @@ export class BaseWorkflowDeclaration<
   get name() {
     return this.definition.name;
   }
-
+  /**
+   * Create an MCP tool from a workflow. Supports both Claude and OpenAI agent sdks.
+   * @param sdk The agent SDK the tool will be used with.
+   * @param args Optional arguments passed to create the MCP tool object.
+   * @returns The MCP tool object.
+   **/
   mcpTool(
     sdk: 'claude',
     ...args: Tail<Parameters<AgentSdkFuncMap['claude']>>

@@ -1,13 +1,6 @@
-try {
-  require.resolve('@anthropic-ai/claude-agent-sdk');
-} catch {
-  throw new Error(
-    "To use Hatchet's Claude integration, you must install the @anthropic-ai/claude-agent-sdk and @modelcontextprotocol/sdk packages: npm install @anthropic-ai/claude-agent-sdk @modelcontextprotocol/sdk"
-  );
-}
 import * as z from 'zod';
 import { BaseWorkflowDeclaration, InputType, OutputType } from '@hatchet/v1';
-import { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
+import type { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 
 export type ClaudeToolFuncT = <I extends InputType, O extends OutputType>(
@@ -15,10 +8,17 @@ export type ClaudeToolFuncT = <I extends InputType, O extends OutputType>(
   annotations?: ToolAnnotations
 ) => SdkMcpToolDefinition;
 
-export const ClaudeToolFunc =<I extends InputType, O extends OutputType>(
+export const ClaudeToolFunc = <I extends InputType, O extends OutputType>(
   runnable: BaseWorkflowDeclaration<I, O>,
   annotations?: ToolAnnotations
 ) => {
+  try {
+    require.resolve('@anthropic-ai/claude-agent-sdk');
+  } catch {
+    throw new Error(
+      "To use Hatchet's Claude integration, you must install the @anthropic-ai/claude-agent-sdk and @modelcontextprotocol/sdk packages: npm install @anthropic-ai/claude-agent-sdk @modelcontextprotocol/sdk"
+    );
+  }
   if (!runnable.definition.inputValidator) {
     throw new Error('inputValidator must be defined');
   }

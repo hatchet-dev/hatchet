@@ -1,11 +1,3 @@
-try {
-  require.resolve('@openai/agents');
-  require.resolve('zod-to-json-schema');
-} catch {
-  throw new Error(
-    "To use Hatchet's OpenAI integration, you must install the @openai/agents and zod-to-json-schema packages: npm install @openai/agents zod-to-json-schema"
-  );
-}
 import * as z from 'zod';
 import { BaseWorkflowDeclaration, InputType, OutputType } from '@hatchet/v1';
 import type { FunctionTool } from '@openai/agents';
@@ -18,6 +10,14 @@ export type OpenAIToolFuncT = <I extends InputType, O extends OutputType>(
 export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   runnable: BaseWorkflowDeclaration<I, O>
 ) => {
+  try {
+    require.resolve('@openai/agents');
+    require.resolve('zod-to-json-schema');
+  } catch {
+    throw new Error(
+      "To use Hatchet's OpenAI integration, you must install the @openai/agents and zod-to-json-schema packages: npm install @openai/agents zod-to-json-schema"
+    );
+  }
   if (!runnable.definition.inputValidator) {
     throw new Error('inputValidator must be defined');
   }
