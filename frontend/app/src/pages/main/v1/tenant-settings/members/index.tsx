@@ -12,14 +12,9 @@ import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, {
-  TenantInvite,
-  TenantMember,
-  TenantMemberRole,
-  UpdateTenantInviteRequest,
-  UserChangePasswordRequest,
-  queries,
-} from '@/lib/api';
+import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
 import { capitalize } from '@/lib/utils';
@@ -59,8 +54,9 @@ function MembersList() {
     useState(false);
   const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
 
+  const { tenantMemberListQuery } = useTenantApi();
   const listMembersQuery = useQuery({
-    ...queries.members.list(tenantId),
+    ...tenantMemberListQuery(tenantId),
   });
 
   const organizationId = getOrganizationIdForTenant(tenantId);
@@ -71,7 +67,7 @@ function MembersList() {
   // Check if current user is admin
   const currentUserMember = useMemo(() => {
     return listMembersQuery.data?.rows?.find(
-      (member) => member.user.email === currentUser?.email,
+      (member: TenantMember) => member.user.email === currentUser?.email,
     );
   }, [listMembersQuery.data?.rows, currentUser?.email]);
 
@@ -84,7 +80,7 @@ function MembersList() {
     }
     return (
       listMembersQuery.data?.rows?.filter(
-        (member) => member.role === 'OWNER',
+        (member: TenantMember) => member.role === 'OWNER',
       ) || []
     );
   }, [listMembersQuery.data?.rows, isCloudEnabled]);
@@ -96,7 +92,7 @@ function MembersList() {
     }
     return (
       listMembersQuery.data?.rows?.filter(
-        (member) => member.role !== 'OWNER',
+        (member: TenantMember) => member.role !== 'OWNER',
       ) || []
     );
   }, [listMembersQuery.data?.rows, isCloudEnabled]);
@@ -256,8 +252,10 @@ function UpdateMember({
     }
   }, [isCloudEnabled, isOwnerRole, organizationId, onClose, navigate]);
 
+  const { tenantMemberUpdateMutation } = useTenantApi();
+  const memberUpdate = tenantMemberUpdateMutation(tenantId, member.metadata.id);
   const updateMutation = useMutation({
-    mutationKey: ['tenant-member:update', tenantId, member.metadata.id],
+    ...memberUpdate,
     mutationFn: async (data: { role: TenantMemberRole }) => {
       // Don't allow OWNER role changes in cloud mode
       if (isCloudEnabled && data.role === 'OWNER') {
@@ -265,7 +263,7 @@ function UpdateMember({
           'OWNER role management must be done through Organization Settings',
         );
       }
-      await api.tenantMemberUpdate(tenantId, member.metadata.id, data);
+      await memberUpdate.mutationFn(data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -300,8 +298,9 @@ function InvitesList() {
   const [updateInvite, setUpdateInvite] = useState<TenantInvite | null>(null);
   const [deleteInvite, setDeleteInvite] = useState<TenantInvite | null>(null);
 
+  const { tenantInviteListQuery } = useTenantApi();
   const listInvitesQuery = useQuery({
-    ...queries.invites.list(tenantId),
+    ...tenantInviteListQuery(tenantId),
   });
 
   const invitesColumns = useMemo(
@@ -413,11 +412,9 @@ function UpdateInvite({
     setFieldErrors: setFieldErrors,
   });
 
+  const { tenantInviteUpdateMutation } = useTenantApi();
   const updateMutation = useMutation({
-    mutationKey: ['tenant-invite:update', tenantId, tenantInvite],
-    mutationFn: async (data: UpdateTenantInviteRequest) => {
-      await api.tenantInviteUpdate(tenantId, tenantInvite.metadata.id, data);
-    },
+    ...tenantInviteUpdateMutation(tenantId, tenantInvite.metadata.id),
     onSuccess: onSuccess,
     onError: handleApiError,
   });
@@ -447,11 +444,9 @@ function DeleteInvite({
   const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
+  const { tenantInviteDeleteMutation } = useTenantApi();
   const deleteMutation = useMutation({
-    mutationKey: ['tenant-invite:delete', tenantId, tenantInvite],
-    mutationFn: async () => {
-      await api.tenantInviteDelete(tenantId, tenantInvite.metadata.id);
-    },
+    ...tenantInviteDeleteMutation(tenantId, tenantInvite.metadata.id),
     onSuccess: onSuccess,
     onError: handleApiError,
   });
@@ -477,18 +472,14 @@ function ChangePassword({
   showChangePasswordDialog: boolean;
   setShowChangePasswordDialog: (show: boolean) => void;
 }) {
-  const { tenantId } = useCurrentTenantId();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
+  const { userUpdatePasswordMutation } = useUserApi();
   const updatePasswordMutation = useMutation({
-    mutationKey: ['user:update', tenantId],
-    mutationFn: async (data: UserChangePasswordRequest) => {
-      const res = await api.userUpdatePassword(data);
-      return res.data;
-    },
+    ...userUpdatePasswordMutation(),
     onMutate: () => {
       setFieldErrors({});
     },

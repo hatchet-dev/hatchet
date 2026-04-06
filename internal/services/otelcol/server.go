@@ -3,6 +3,7 @@ package otelcol
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -10,6 +11,7 @@ import (
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -27,6 +29,7 @@ type otelCollectorImpl struct {
 	repo         repository.Repository
 	l            *zerolog.Logger
 	maxBatchSize int
+	a            analytics.Analytics
 }
 
 func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -49,6 +52,8 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 	if len(spans) == 0 {
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
+
+	oc.a.Count(ctx, analytics.OtelSpan, analytics.Create)
 
 	var rejected int64
 	if oc.maxBatchSize > 0 && len(spans) > oc.maxBatchSize {
@@ -157,6 +162,15 @@ func (oc *otelCollectorImpl) extractHatchetCorrelation(attrs []*commonv1.KeyValu
 				spanData.RetryCount = int32(intVal) //nolint:gosec
 			}
 		}
+	}
+
+	// Only re-parent the top-level SDK step_run consumer span under the
+	// engine's deterministic workflow_run root. Other SDK spans (user spans,
+	// child-run producers) keep their natural parent so the hierarchy is
+	// preserved in both Hatchet's OLAP view and external OTel backends.
+	if spanData.WorkflowRunID != nil && len(spanData.ParentSpanID) > 0 &&
+		strings.HasPrefix(spanData.Name, "hatchet.start_step_run") {
+		spanData.ParentSpanID = repository.DeriveWorkflowRunSpanID(*spanData.WorkflowRunID)
 	}
 }
 

@@ -126,7 +126,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
-	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
 		CollectorURL:  sc.OpenTelemetry.CollectorURL,
 		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
@@ -435,6 +435,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithRepository(sc.V1),
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
+				otelcol.WithAnalytics(sc.Analytics),
 			)
 
 			if err != nil {
@@ -509,9 +510,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	cleanup.Add(
-		func() error {
-			return shutdown(ctx)
-		},
+		telemetryShutdown,
 		"telemetry",
 	)
 
@@ -529,7 +528,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
-	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
 		CollectorURL:  sc.OpenTelemetry.CollectorURL,
 		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
@@ -868,6 +867,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithRepository(sc.V1),
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
+				otelcol.WithAnalytics(sc.Analytics),
 			)
 
 			if err != nil {
@@ -941,9 +941,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	cleanup.Add(
-		func() error {
-			return shutdown(ctx)
-		},
+		telemetryShutdown,
 		"telemetry",
 	)
 

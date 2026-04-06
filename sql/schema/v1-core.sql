@@ -1682,6 +1682,8 @@ CREATE TABLE v1_log_line (
     level v1_log_line_level NOT NULL DEFAULT 'INFO',
     metadata JSONB,
     retry_count INTEGER NOT NULL DEFAULT 0,
+    workflow_id UUID,
+    step_id UUID,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
@@ -2237,7 +2239,7 @@ CREATE TABLE v1_event (
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
 
-CREATE INDEX v1_event_key_idx ON v1_event (tenant_id, key);
+CREATE INDEX v1_event_key_scope_idx ON v1_event (tenant_id, key, scope);
 
 CREATE TABLE v1_event_lookup_table (
     tenant_id UUID NOT NULL,

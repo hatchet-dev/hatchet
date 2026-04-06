@@ -49,7 +49,6 @@ class HealthcheckConfig(BaseSettings):
     def validate_event_loop_block_threshold_seconds(
         cls, value: timedelta | int | float | str
     ) -> timedelta:
-        # Settings env vars are strings; interpret as seconds.
         if isinstance(value, timedelta):
             return value
 
@@ -57,7 +56,6 @@ class HealthcheckConfig(BaseSettings):
             return timedelta(seconds=float(value))
 
         v = value.strip()
-        # Allow a small convenience suffix, but keep "seconds" as the contract.
         if v.endswith("s"):
             v = v[:-1].strip()
 
@@ -130,6 +128,8 @@ class ClientConfig(BaseSettings):
     token: str = ""
     logger: Logger = getLogger()
 
+    debug: bool = False
+
     tenant_id: str = ""
     host_port: str = DEFAULT_HOST_PORT
     server_url: str = "https://app.dev.hatchet-tools.com"
@@ -195,17 +195,6 @@ class ClientConfig(BaseSettings):
             self.tls_config.server_name = "localhost"
 
         return self
-
-    @field_validator("listener_v2_timeout")
-    @classmethod
-    def validate_listener_timeout(cls, value: int | None | str) -> int | None:
-        if value is None:
-            return None
-
-        if isinstance(value, int):
-            return value
-
-        return int(value)
 
     @field_validator("namespace")
     @classmethod

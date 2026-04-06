@@ -5,7 +5,7 @@ from hatchet_sdk.context.context import Context
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.types import EmptyModel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Running a Task from within a Task
