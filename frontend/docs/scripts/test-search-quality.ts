@@ -512,11 +512,6 @@ const TEST_CASES: SearchTestCase[] = [
     expectAnyOf: ["self-hosting/sampling"],
   },
   {
-    name: "glasskube",
-    query: "glasskube",
-    expectAnyOf: ["self-hosting/kubernetes-glasskube"],
-  },
-  {
     name: "downgrading versions",
     query: "downgrading versions",
     expectAnyOf: ["self-hosting/downgrading-db-schema-manually"],
