@@ -53,9 +53,9 @@ def _resolve_method(dotted_path: str) -> Callable[..., Any]:
 
 def _get_sig(func: Callable[..., Any]) -> inspect.Signature:
     try:
-        import annotationlib
+        import annotationlib  # type: ignore[import-not-found, unused-ignore]
 
-        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)
+        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)  # type: ignore[call-arg, unused-ignore]
     except Exception:
         return inspect.signature(func)
 
@@ -89,7 +89,7 @@ def _get_tuple_type_args(annotation: Any) -> list[Any] | None:
 
 def _flatten_union(t: Any) -> set[Any]:
     origin = getattr(t, "__origin__", None)
-    if origin is types.UnionType or origin is Union:
+    if isinstance(t, types.UnionType) or origin is types.UnionType or origin is Union:
         result: set[Any] = set()
         for a in t.__args__:
             result |= _flatten_union(a)
