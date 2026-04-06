@@ -47,14 +47,17 @@ from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.action import ActionPayload
 from hatchet_sdk.runnables.types import (
     R,
     TWorkflowInput,
     ValidTaskReturnType,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.timedelta_to_expression import (
     Duration,
+    _warn_if_str_duration,
     expr_to_timedelta,
     timedelta_to_expr,
 )
@@ -112,35 +115,182 @@ class Context:
         max_attempts: int,
         task_name: str,
         workflow_name: str,
+        worker_labels: list[WorkerLabel],
     ):
-        self.worker = worker
+        self._worker = worker
 
-        self.data = action.action_payload
+        self._data = action.action_payload
 
-        self.action = action
+        self._action = action
 
-        self.step_run_id = action.step_run_id
-        self.exit_flag = False
-        self.dispatcher_client = dispatcher_client
-        self.admin_client = admin_client
-        self.event_client = event_client
-        self.runs_client = runs_client
-        self.durable_event_listener = durable_event_listener
+        self._step_run_id = action.step_run_id
+        self._exit_flag = False
+        self._dispatcher_client = dispatcher_client
+        self._admin_client = admin_client
+        self._event_client = event_client
+        self._runs_client = runs_client
+        self._durable_event_listener = durable_event_listener
 
-        self.input = self.data.input
-        self.filter_payload = self.data.filter_payload
-        self.log_sender = log_sender
+        self._input = self._data.input
+        self._filter_payload = self._data.filter_payload
+        self._log_sender = log_sender
 
         self._lifespan_context = lifespan_context
 
-        self.stream_index = 0
+        self._stream_index = 0
         self._max_attempts = max_attempts
         self._workflow_name = workflow_name
         self._task_name = task_name
+        self._worker_labels = worker_labels
+
+    @property
+    def worker(self) -> WorkerContext:
+        warn(
+            "The worker property is internal and should not be used directly. It will be removed in v2.0.0. Use corresponding properties such as `ctx.worker_id` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._worker
+
+    @property
+    def worker_id(self) -> str:
+        return self._action.worker_id
+
+    @property
+    def worker_labels(self) -> dict[str, str | int]:
+        return {label.key: label.value for label in self._worker_labels if label.key}
+
+    def upsert_worker_labels(self, labels: dict[str, str | int]) -> None:
+        self._dispatcher_client.upsert_worker_labels(
+            self.worker_id, [WorkerLabel(key=k, value=v) for k, v in labels.items()]
+        )
+
+        prior_label_dict = {
+            label.key: label.value
+            for label in self._worker_labels
+            if label.key is not None
+        }
+
+        prior_label_dict.update(labels)
+
+        self._worker_labels = [
+            WorkerLabel(key=key, value=value) for key, value in prior_label_dict.items()
+        ]
+
+    async def aio_upsert_worker_labels(self, labels: dict[str, str | int]) -> None:
+        await asyncio.to_thread(self.upsert_worker_labels, labels)
+
+    @property
+    def data(self) -> ActionPayload:
+        warn(
+            "The data property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._data
+
+    @property
+    def action(self) -> Action:
+        warn(
+            "The action property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._action
+
+    @property
+    def step_run_id(self) -> str:
+        warn(
+            "The step_run_id property is deprecated. It will be removed in v2.0.0. Use `task_run_id` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self._step_run_id
+
+    @property
+    def exit_flag(self) -> bool:
+        warn(
+            "The exit_flag property is internal and should not be used directly. It will be removed in v2.0.0. Use `is_cancelled` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._exit_flag
+
+    @property
+    def dispatcher_client(self) -> DispatcherClient:
+        warn(
+            "The dispatcher_client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._dispatcher_client
+
+    @property
+    def admin_client(self) -> AdminClient:
+        warn(
+            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._admin_client
+
+    @property
+    def event_client(self) -> EventClient:
+        warn(
+            "The event_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.events` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._event_client
+
+    @property
+    def runs_client(self) -> RunsClient:
+        warn(
+            "The runs_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.runs` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._runs_client
+
+    @property
+    def durable_event_listener(
+        self,
+    ) -> DurableEventListener | PreEvictionDurableEventListener | None:
+        warn(
+            "The durable_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._durable_event_listener
+
+    @property
+    def input(self) -> JSONSerializableMapping:
+        warn(
+            "The input property is deprecated. It will be removed in v2.0.0. Use the input passed to the task instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self._input
+
+    @property
+    def filter_payload(self) -> JSONSerializableMapping:
+        return self._filter_payload
+
+    @property
+    def log_sender(self) -> AsyncLogSender:
+        warn(
+            "The log_sender property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self._log_sender
 
     def _increment_stream_index(self) -> int:
-        index = self.stream_index
-        self.stream_index += 1
+        index = self._stream_index
+        self._stream_index += 1
 
         return index
 
@@ -151,11 +301,11 @@ class Context:
         :param task: The task to check the status of (skipped or not).
         :return: True if the task was skipped, False otherwise.
         """
-        return self.data.parents.get(task.name, {}).get("skipped", False) is True
+        return self._data.parents.get(task.name, {}).get("skipped", False) is True
 
     @property
     def trigger_data(self) -> JSONSerializableMapping:
-        return self.data.triggers
+        return self._data.triggers
 
     def task_output(self, task: Task[TWorkflowInput, R]) -> R:
         """
@@ -172,25 +322,25 @@ class Context:
             raise ValueError(f"{task.name} was skipped")
 
         try:
-            parent_step_data = cast(R, self.data.parents[task.name])
+            parent_step_data = cast(R, self._data.parents[task.name])
         except KeyError as e:
             raise ValueError(f"Step output for '{task.name}' not found") from e
 
         return cast(
             R,
-            task.validators.step_output.validate_python(
+            task._validators.step_output.validate_python(
                 parent_step_data, context=HATCHET_PYDANTIC_SENTINEL
             ),
         )
 
     def aio_task_output(self, task: Task[TWorkflowInput, R]) -> R:
         warn(
-            "`aio_task_output` is deprecated. Use `task_output` instead.",
+            "`aio_task_output` is deprecated and will be removed in v2.0.0. Use `task_output` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
 
-        if task.is_async_function:
+        if task._is_async_function:
             return self.task_output(task)
 
         raise ValueError(
@@ -204,7 +354,7 @@ class Context:
 
         :return: True if the workflow was triggered by an event, False otherwise.
         """
-        return self.data.triggered_by == "event"
+        return self._data.triggered_by == "event"
 
     @property
     def workflow_input(self) -> JSONSerializableMapping:
@@ -213,7 +363,24 @@ class Context:
 
         :return: The input to the workflow.
         """
-        return self.input
+
+        warn(
+            "`workflow_input` is deprecated and will be removed in v2.0.0. Use the input passed to the task instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self._input
+
+    @property
+    def _workflow_input(self) -> JSONSerializableMapping:
+        """
+        The input to the workflow, as a dictionary. It's recommended to use the `input` parameter to the task (the first argument passed into the task at runtime) instead of this property.
+
+        :return: The input to the workflow.
+        """
+
+        return self._input
 
     @property
     def lifespan(self) -> Any:
@@ -231,10 +398,19 @@ class Context:
 
         :return: The id of the current workflow run.
         """
-        return self.action.workflow_run_id
+        return self._action.workflow_run_id
+
+    @property
+    def task_run_id(self) -> str:
+        """
+        The id of the current task run.
+
+        :return: The id of the current task run.
+        """
+        return self._action.step_run_id
 
     def _set_cancellation_flag(self) -> None:
-        self.exit_flag = True
+        self._exit_flag = True
 
     def cancel(self) -> None:
         """
@@ -243,7 +419,7 @@ class Context:
         :return: None
         """
         logger.debug("cancelling step...")
-        self.runs_client.cancel(self.step_run_id)
+        self._runs_client.cancel(self._step_run_id)
         self._set_cancellation_flag()
 
     async def aio_cancel(self) -> None:
@@ -253,7 +429,7 @@ class Context:
         :return: None
         """
         logger.debug("cancelling step...")
-        await self.runs_client.aio_cancel(self.step_run_id)
+        await self._runs_client.aio_cancel(self._step_run_id)
         self._set_cancellation_flag()
 
     def done(self) -> bool:
@@ -262,7 +438,22 @@ class Context:
 
         :return: True if the task run has been cancelled, False otherwise.
         """
-        return self.exit_flag
+        warn(
+            "`done` is deprecated and will be removed in v2.0.0. Use `is_cancelled` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self.is_cancelled
+
+    @property
+    def is_cancelled(self) -> bool:
+        """
+        Check if the current task run has been cancelled.
+
+        :return: True if the task run has been cancelled, False otherwise.
+        """
+        return self._exit_flag
 
     def log(
         self, line: str | JSONSerializableMapping, raise_on_error: bool = False
@@ -275,7 +466,7 @@ class Context:
         :return: None
         """
 
-        if self.step_run_id == "":
+        if self._step_run_id == "":
             return
 
         if not isinstance(line, str):
@@ -285,14 +476,27 @@ class Context:
                 line = str(line)
 
         logger.info(line)
-        self.log_sender.publish(
+        self._log_sender.publish(
             LogRecord(
                 message=line,
-                step_run_id=self.step_run_id,
+                step_run_id=self._step_run_id,
                 level=LogLevel.INFO,
                 task_retry_count=self.retry_count,
             )
         )
+
+    async def aio_log(
+        self, line: str | JSONSerializableMapping, raise_on_error: bool = False
+    ) -> None:
+        """
+        Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.
+
+        :param line: The line to log. Can be a string or a JSON serializable mapping.
+        :param raise_on_error: If True, will raise an exception if the log fails. Defaults to False.
+        :return: None
+        """
+
+        await asyncio.to_thread(self.log, line, raise_on_error)
 
     def release_slot(self) -> None:
         """
@@ -300,7 +504,17 @@ class Context:
 
         :return: None
         """
-        return self.dispatcher_client.release_slot(self.step_run_id)
+        return self._dispatcher_client.release_slot(self._step_run_id)
+
+    async def aio_release_slot(self) -> None:
+        """
+        Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
+
+        :return: None
+        """
+        return await asyncio.to_thread(
+            self._dispatcher_client.release_slot, self.task_run_id
+        )
 
     def put_stream(self, data: str | bytes) -> None:
         """
@@ -312,9 +526,9 @@ class Context:
         try:
             ix = self._increment_stream_index()
 
-            self.event_client.stream(
+            self._event_client.stream(
                 data=data,
-                step_run_id=self.step_run_id,
+                step_run_id=self._step_run_id,
                 index=ix,
             )
         except Exception:
@@ -329,22 +543,35 @@ class Context:
         """
         await asyncio.to_thread(self.put_stream, data)
 
-    def refresh_timeout(self, increment_by: str | timedelta) -> None:
+    def refresh_timeout(self, increment_by: Duration) -> None:
         """
         Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/home/timeouts#refreshing-timeouts).
 
         :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
         :return: None
         """
+
+        _warn_if_str_duration(increment_by, stacklevel=2)
+
         if isinstance(increment_by, timedelta):
             increment_by = timedelta_to_expr(increment_by)
 
         try:
-            return self.dispatcher_client.refresh_timeout(
-                step_run_id=self.step_run_id, increment_by=increment_by
+            return self._dispatcher_client.refresh_timeout(
+                step_run_id=self._step_run_id, increment_by=increment_by
             )
         except Exception:
             logger.exception("error refreshing timeout")
+
+    async def aio_refresh_timeout(self, increment_by: Duration) -> None:
+        """
+        Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/home/timeouts#refreshing-timeouts).
+
+        :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
+        :return: None
+        """
+
+        await asyncio.to_thread(self.refresh_timeout, increment_by)
 
     @property
     def retry_count(self) -> int:
@@ -353,7 +580,7 @@ class Context:
 
         :return: The retry count of the current task run.
         """
-        return self.action.retry_count
+        return self._action.retry_count
 
     @property
     def attempt_number(self) -> int:
@@ -382,15 +609,15 @@ class Context:
 
         :return: The additional metadata sent with the current task run, or None if no additional metadata was sent.
         """
-        return self.action.additional_metadata
+        return self._action.additional_metadata
 
     @property
     def child_index(self) -> int | None:
-        return self.action.child_workflow_index
+        return self._action.child_workflow_index
 
     @property
     def child_key(self) -> str | None:
-        return self.action.child_workflow_key
+        return self._action.child_workflow_key
 
     @property
     def parent_workflow_run_id(self) -> str | None:
@@ -399,7 +626,7 @@ class Context:
 
         :return: The parent workflow run id of the current task run, or None if it does not exist.
         """
-        return self.action.parent_workflow_run_id
+        return self._action.parent_workflow_run_id
 
     @property
     def priority(self) -> int | None:
@@ -408,7 +635,7 @@ class Context:
 
         :return: The priority of the current task run, or None if no priority was set.
         """
-        return self.action.priority
+        return self._action.priority
 
     @property
     def workflow_id(self) -> str | None:
@@ -418,7 +645,7 @@ class Context:
         :return: The id of the workflow that this task belongs to.
         """
 
-        return self.action.workflow_id
+        return self._action.workflow_id
 
     @property
     def workflow_version_id(self) -> str | None:
@@ -428,7 +655,7 @@ class Context:
         :return: The id of the workflow version that this task belongs to.
         """
 
-        return self.action.workflow_version_id
+        return self._action.workflow_version_id
 
     @property
     def task_run_errors(self) -> dict[str, str]:
@@ -437,7 +664,7 @@ class Context:
 
         :return: A dictionary mapping task names to their error messages.
         """
-        errors = self.data.step_run_errors
+        errors = self._data.step_run_errors
 
         if not errors:
             logger.error(
@@ -454,10 +681,6 @@ class Context:
     def task_name(self) -> str:
         return self._task_name
 
-    @property
-    def worker_id(self) -> str:
-        return self.action.worker_id
-
     def fetch_task_run_error(
         self,
         task: Task[TWorkflowInput, R],
@@ -471,11 +694,11 @@ class Context:
         :return: The error message of the task run, or None if no error occurred.
         """
         warn(
-            "`fetch_task_run_error` is deprecated. Use `get_task_run_error` instead.",
+            "`fetch_task_run_error` is deprecated and will be removed in v2.0.0. Use `get_task_run_error` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        errors = self.data.step_run_errors
+        errors = self._data.step_run_errors
 
         return errors.get(task.name)
 
@@ -489,7 +712,7 @@ class Context:
         :param task: The task whose error you want to retrieve.
         :return: The error message of the task run, or None if no error occurred.
         """
-        errors = self.data.step_run_errors
+        errors = self._data.step_run_errors
 
         error = errors.get(task.name)
 
@@ -524,6 +747,7 @@ class DurableContext(Context):
         max_attempts: int,
         task_name: str,
         workflow_name: str,
+        worker_labels: list[WorkerLabel],
         durable_eviction_manager: DurableEvictionManager | None = None,
         engine_version: str | None = None,
     ):
@@ -540,6 +764,7 @@ class DurableContext(Context):
             max_attempts,
             task_name,
             workflow_name,
+            worker_labels,
         )
 
         self._wait_index = 0
@@ -641,6 +866,7 @@ class DurableContext(Context):
 
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
+        _warn_if_str_duration(duration, stacklevel=2)
 
         wait_index = self._increment_wait_index()
 
@@ -765,7 +991,7 @@ class DurableContext(Context):
                     RunChildEvent(
                         workflow_name=c.workflow_name,
                         input=c.input,
-                        trigger_workflow_opts=c.options,
+                        run_workflow_opts=c.options,
                     )
                     for c in configs
                 ]

@@ -2,7 +2,7 @@ import asyncio
 
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 async def main() -> None:

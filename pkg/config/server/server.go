@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
+	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
@@ -276,6 +277,17 @@ type ConfigFileRuntime struct {
 	// ReplayEnabled controls whether the server enables replay for tasks
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
 
+	// AllowedOrigins is a list of origin patterns permitted for CORS requests.
+	// Patterns may include wildcards, e.g. "https://*.hatchet.run".
+	// If empty, all origins are allowed ("*").
+	// Populated from AllowedOriginsString at startup; do not set directly via env.
+	AllowedOrigins []string `mapstructure:"allowedOrigins" json:"allowedOrigins,omitempty"`
+
+	// AllowedOriginsString is the raw space-separated value used for env binding
+	// (SERVER_ALLOWED_ORIGINS). Example: "https://app.example.com https://*.hatchet.run".
+	// The loader splits this into AllowedOrigins at startup.
+	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
+
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
@@ -429,6 +441,30 @@ type ConfigFileAuth struct {
 	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
 
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
+
+	ControlPlaneExchangeTokenConfig ConfigFileAuthControlPlaneExchangeToken `mapstructure:"controlPlaneExchangeToken" json:"controlPlaneExchangeToken,omitempty"`
+}
+
+type ConfigFileAuthControlPlaneExchangeToken struct {
+	// JWTPublicKeyset and JWTPublicKeysetFile must contain a base64 raw-encoded (no padding)
+	// JSON keyset as produced by the Tink library. These are passed to
+	// encryption.InsecureHandleFromBytes, which expects base64-raw-encoded JSON — not a
+	// raw JSON file. Only the public keyset is needed here; Hatchet does not generate the
+	// private keyset.
+	//
+	// JWTPublicKeyset: inline base64-raw-encoded JSON keyset (single line, no whitespace).
+	// JWTPublicKeysetFile: path to a file whose entire contents are the same encoded value.
+	JWTPublicKeyset     string `mapstructure:"jwtPublicKeyset" json:"jwtPublicKeyset,omitempty"`
+	JWTPublicKeysetFile string `mapstructure:"jwtPublicKeysetFile" json:"jwtPublicKeysetFile,omitempty"`
+
+	// Issuer is the expected issuer for the exchange token. This should be set to the URL of the control plane instance.
+	Issuer string `mapstructure:"issuer" json:"issuer,omitempty"`
+
+	// Audience is the expected audience for the exchange token. This should be set to the identifier of the API server in the control plane instance.
+	Audience string `mapstructure:"audience" json:"audience,omitempty"`
+
+	// Enabled controls whether the control plane exchange token authentication method is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
 type ConfigFileTenantAlerting struct {
@@ -557,6 +593,8 @@ type AuthConfig struct {
 	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
+
+	ExchangeTokenClient exchangetoken.ExchangeTokenClient
 
 	CustomAuthenticator CustomAuthenticator
 
@@ -708,6 +746,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
+	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -943,4 +982,11 @@ func BindAllEnv(v *viper.Viper) {
 	// OLAP status update options
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
+
+	// exchange token options
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeyset", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
 }

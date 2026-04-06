@@ -1,16 +1,17 @@
 import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { metadataIndicatesCloudEnabled } from '@/hooks/use-cloud';
 import { useOrganizations } from '@/hooks/use-organizations';
 import {
   pendingInvitesQuery,
   usePendingInvites,
 } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { Tenant, TenantInvite } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { Tenant, TenantInvite } from '@/lib/api';
+import { cloudApi, fetchControlPlaneStatus } from '@/lib/api/api';
 import type { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
-import { metadataIndicatesCloudEnabled } from '@/pages/auth/hooks/use-cloud';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -32,8 +33,12 @@ export async function loader(_args: { request: Request }) {
     isCloudEnabled = false;
   }
 
+  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+
   const { tenantInvites, organizationInvites, inviteCount } =
-    await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
+    await queryClient.fetchQuery(
+      pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+    );
 
   // Doesn't work right now because you don't have any access to organizations you're not a member of
   // const organizationInvitesWithOrganizations = await Promise.all(
@@ -144,13 +149,18 @@ const TenantInviteList = ({
   const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
     useUserUniverse();
 
+  const { tenantInviteAcceptMutation, tenantInviteRejectMutation } =
+    useTenantApi();
+  const { mutationFn: acceptInviteFn } = tenantInviteAcceptMutation();
+  const { mutationFn: rejectInviteFn } = tenantInviteRejectMutation();
+
   const acceptMutation = useMutation({
     mutationKey: ['tenant-invite:accept'],
     mutationFn: async (data: {
       tenantId: string;
       inner: { invite: string };
     }) => {
-      await api.tenantInviteAccept(data.inner);
+      await acceptInviteFn(data.inner);
       return data.tenantId;
     },
     onSuccess: async (tenantId: string) => {
@@ -177,7 +187,7 @@ const TenantInviteList = ({
   const rejectMutation = useMutation({
     mutationKey: ['tenant-invite:reject'],
     mutationFn: async (data: { invite: string; tenantId: string }) => {
-      await api.tenantInviteReject(data);
+      await rejectInviteFn({ invite: data.invite });
       return { inviteId: data.invite, tenantId: data.tenantId };
     },
     onSuccess: async ({
@@ -394,9 +404,9 @@ export default function Invites() {
                   setLastAcceptedInvite({ type: 'tenant', tenantId });
                 }
 
-                setTenantInvites((prevTenantInvites) =>
+                setTenantInvites((prevTenantInvites: TenantInvite[]) =>
                   prevTenantInvites.filter(
-                    (invite) => invite.tenantId !== tenantId,
+                    (invite: TenantInvite) => invite.tenantId !== tenantId,
                   ),
                 );
               }}

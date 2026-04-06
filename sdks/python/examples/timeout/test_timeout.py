@@ -5,7 +5,7 @@ from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_execution_timeout() -> None:
-    run = timeout_wf.run_no_wait()
+    run = timeout_wf.run(wait_for_result=False)
 
     with pytest.raises(
         Exception,

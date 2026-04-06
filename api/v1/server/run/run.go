@@ -43,6 +43,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflows"
 	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/cors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
@@ -187,6 +188,9 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+
+	e.Use(cors.Middleware(t.config))
+
 	e.HideBanner = true
 	e.HidePort = true
 	e.IPExtractor = func(r *http.Request) string {

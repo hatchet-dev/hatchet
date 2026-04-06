@@ -89,7 +89,7 @@ from examples.opentelemetry_instrumentation.worker import (
 )
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 def main() -> None:

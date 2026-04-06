@@ -1,6 +1,3 @@
-from enum import Enum
+from hatchet_sdk.types.slot_types import SlotType
 
-
-class SlotType(str, Enum):
-    DEFAULT = "default"
-    DURABLE = "durable"
+__all__ = ["SlotType"]
