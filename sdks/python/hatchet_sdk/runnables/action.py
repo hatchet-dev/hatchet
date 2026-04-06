@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -63,6 +64,7 @@ class Action(BaseModel):
     step_id: str
     step_run_id: str
     action_id: str
+    step_name: str = ""
     action_type: ActionType
     retry_count: int
     action_payload: ActionPayload
@@ -72,7 +74,7 @@ class Action(BaseModel):
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
-    priority: int | None = None
+    priority: int | Priority | None = None
     durable_task_invocation_count: int | None = None
 
     def get_otel_attributes(self, config: "ClientConfig") -> dict[str, str | int]:
@@ -94,15 +96,18 @@ class Action(BaseModel):
             OTelAttribute.ACTION_PAYLOAD: payload_str,
             OTelAttribute.WORKFLOW_NAME: self.job_name,
             OTelAttribute.ACTION_NAME: self.action_id,
+            OTelAttribute.STEP_NAME: self.step_name,
             OTelAttribute.WORKFLOW_ID: self.workflow_id,
             OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
         }
 
-        return {
+        result = {
             f"hatchet.{k.value}": v
             for k, v in attrs.items()
             if v and k not in config.otel.excluded_attributes
         }
+        result["instrumentor"] = "hatchet"
+        return result
 
     @property
     def key(self) -> ActionKey:

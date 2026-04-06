@@ -5,6 +5,29 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.1] - 2026-03-25
+
+### Changed
+
+- Event source info (`hatchet__source_workflow_run_id`, `hatchet__source_step_run_id`) is now injected into event metadata at the `EventClient` level, so cross-workflow trace linking works even without the OTel instrumentor enabled.
+
+## [1.19.0] - 2026-03-25
+
+### Fixed
+
+- Fixed OpenTelemetry version mismatch causing `TypeError: Cannot read properties of undefined (reading 'name')` when exporting spans. The SDK now requires OpenTelemetry JS SDK 2.x (`@opentelemetry/sdk-trace-base@^2.0.0`, `@opentelemetry/core@^2.0.0`) to match the `@opentelemetry/exporter-trace-otlp-grpc@^0.208.0` dependency.
+
+### Changed
+
+- Updated OpenTelemetry optional dependencies to the unified 2.x release set.
+
+## [1.18.0] - 2026-03-18
+
+### Added
+
+- OpenTelemetry instrumentation via `HatchetInstrumentor` with automatic tracing for workflow runs, event pushes, and step executions
+- OpenTelemetry example demonstrating automatic and custom span instrumentation (`examples/opentelemetry_instrumentation`)
+
 ## [1.17.2] - 2026-03-17
 
 ### Added

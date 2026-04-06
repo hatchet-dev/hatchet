@@ -1,0 +1,71 @@
+name: Open VSX Extension Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/vscode-extension/package.json'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Package and Publish to Open VSX
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 10
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm store
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/vscode-extension/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: frontend/vscode-extension
+        run: pnpm install --frozen-lockfile
+
+      - name: Build VS Code extension
+        working-directory: frontend/vscode-extension
+        run: pnpm build:prod
+
+      - name: Set publisher to hatchet-dev for Open VSX
+        working-directory: frontend/vscode-extension
+        run: jq '.publisher = "hatchet-dev"' package.json > tmp.json && mv tmp.json package.json
+
+      - name: Extract version from package.json
+        id: version
+        working-directory: frontend/vscode-extension
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+      - name: Package extension
+        working-directory: frontend/vscode-extension
+        run: pnpm package --out hatchet-${{ steps.version.outputs.VERSION }}.vsix
+
+      - name: Install ovsx
+        run: npm install -g ovsx
+
+      - name: Publish to Open VSX Registry
+        working-directory: frontend/vscode-extension
+        run: ovsx publish hatchet-${{ steps.version.outputs.VERSION }}.vsix -p ${{ secrets.OPEN_VSX_REGISTRY_TOKEN }}

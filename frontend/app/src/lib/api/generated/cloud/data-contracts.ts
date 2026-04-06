@@ -10,6 +10,11 @@
  * ---------------------------------------------------------------
  */
 
+export enum AuditLogActorType {
+  User = "user",
+  ApiKey = "api_key",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -45,6 +50,21 @@ export enum AutoscalingTargetKind {
 export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
+}
+
+export enum SubscriptionPeriod {
+  Monthly = "monthly",
+  Yearly = "yearly",
+}
+
+export enum SubscriptionPlanCode {
+  Free = "free",
+  Starter = "starter",
+  Growth = "growth",
+  Developer = "developer",
+  Team = "team",
+  Scale = "scale",
+  Dedicated = "dedicated",
 }
 
 export enum ManagedWorkerRegion {
@@ -369,6 +389,57 @@ export interface TenantCreditBalance {
   expiresAt?: string;
 }
 
+export interface SubscriptionPlanFeatureDisplay {
+  /** Main display text for this feature (e.g. "100,000 task runs"). */
+  primaryText: string;
+  /** Secondary display text (e.g. "then $10 per 1,000,000 task runs"). */
+  secondaryText?: string;
+}
+
+export interface SubscriptionPlanFeatureOverage {
+  /**
+   * Price per billing units of overage usage.
+   * @format double
+   */
+  price: number;
+  /**
+   * Number of units per price increment.
+   * @format int64
+   */
+  billingUnits: number;
+  /** How overage is charged (e.g. "pay_per_use", "prepaid"). */
+  usageModel: string;
+}
+
+export interface SubscriptionPlanFeature {
+  /** The identifier of the feature. */
+  featureId: string;
+  /** Human-readable name of the feature. */
+  name: string;
+  /** The type of the feature (e.g. "boolean", "single_use", "continuous_use"). */
+  featureType: string;
+  /** Whether this feature is part of this plan. False for features added for cross-plan comparison. */
+  included: boolean;
+  /**
+   * The included usage for this feature in the plan.
+   * @format int64
+   */
+  includedUsage: number;
+  /** Whether this feature has unlimited usage. */
+  unlimited: boolean;
+  /** Overage pricing details, if applicable. */
+  overage?: SubscriptionPlanFeatureOverage;
+  /** Pre-formatted display text for this feature. */
+  display?: SubscriptionPlanFeatureDisplay;
+}
+
+export interface SubscriptionPlanFeatureGroup {
+  /** The name of the feature group (e.g. "Usage", "Infrastructure"). */
+  name: string;
+  /** The features in this group. */
+  features: SubscriptionPlanFeature[];
+}
+
 export interface SubscriptionPlan {
   /** The code of the plan. */
   planCode: string;
@@ -379,14 +450,36 @@ export interface SubscriptionPlan {
   /** The price of the plan. */
   amountCents: number;
   /** The period of the plan. */
-  period?: string;
+  period?: SubscriptionPeriod;
+  /** Whether this is a legacy plan and is no longer offered to new customers. */
+  legacy?: boolean;
+  /** The features included in this plan, organized by group. */
+  featureGroups?: SubscriptionPlanFeatureGroup[];
+}
+
+export interface SubscriptionPlanFreeLimit {
+  /** The feature identifier. */
+  featureId: string;
+  /** Human-readable name of the limit. */
+  name: string;
+  /**
+   * The daily limit value.
+   * @format int64
+   */
+  limit: number;
+}
+
+export interface SubscriptionPlanList {
+  plans: SubscriptionPlan[];
+  /** Abbreviated daily limits for the free plan. */
+  freeLimits: SubscriptionPlanFreeLimit[];
 }
 
 export interface UpdateTenantSubscriptionRequest {
   /** The code of the plan. */
-  plan: string;
+  plan: SubscriptionPlanCode;
   /** The period of the plan. */
-  period?: string;
+  period?: SubscriptionPeriod;
 }
 
 export type UpdateTenantSubscriptionResponse =
@@ -403,9 +496,9 @@ export interface CheckoutURLResponse {
 
 export interface TenantSubscription {
   /** The plan code associated with the tenant subscription. */
-  plan: string;
+  plan: SubscriptionPlanCode;
   /** The period associated with the tenant subscription. */
-  period?: string;
+  period?: SubscriptionPeriod;
   /**
    * The start date of the tenant subscription.
    * @format date-time
@@ -699,6 +792,10 @@ export interface OrganizationTenant {
    * @format uuid
    */
   id: string;
+  /** Name of the tenant */
+  name?: string;
+  /** Slug of the tenant */
+  slug?: string;
   /** Status of the tenant */
   status: TenantStatusType;
   /**
@@ -819,6 +916,47 @@ export interface RejectOrganizationInviteRequest {
    * @format uuid
    */
   id: string;
+}
+
+export interface AuditLog {
+  /**
+   * The ID of the audit log
+   * @format uuid
+   */
+  id: string;
+  /**
+   * The timestamp at which the audit log was inserted
+   * @format date-time
+   */
+  insertedAt: string;
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The type of the actor */
+  actorType: AuditLogActorType;
+  /**
+   * The ID of the actor
+   * @format uuid
+   */
+  actorId: string;
+  /** The action that was performed */
+  action: string;
+  /** The correlation ID */
+  correlationId?: string;
+  /** The ID of the resource */
+  resourceId: string;
+  /** The type of the resource */
+  resourceType: string;
+  /** The IP address of the actor */
+  ipAddress?: string;
+  /** The user agent of the actor */
+  userAgent?: string;
+}
+
+export interface AuditLogList {
+  rows: AuditLog[];
 }
 
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;

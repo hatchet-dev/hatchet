@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -144,21 +145,19 @@ type TriggerRepository interface {
 
 type TriggerRepositoryImpl struct {
 	*sharedRepository
-
-	enableDurableUserEventLog bool
 }
 
-func newTriggerRepository(s *sharedRepository, enableDurableUserEventLog bool) TriggerRepository {
+func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	return &TriggerRepositoryImpl{
-		sharedRepository:          s,
-		enableDurableUserEventLog: enableDurableUserEventLog,
+		sharedRepository: s,
 	}
 }
 
 type Run struct {
-	Id         int64
-	InsertedAt time.Time
-	FilterId   *uuid.UUID
+	Id                    int64
+	InsertedAt            time.Time
+	FilterId              *uuid.UUID
+	WorkflowRunExternalID uuid.UUID
 }
 
 type TriggerFromEventsResult struct {
@@ -341,9 +340,10 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 		}
 
 		eventExternalIdToRuns[eventIdAndFilterId.ExternalId] = append(eventExternalIdToRuns[eventIdAndFilterId.ExternalId], &Run{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt.Time,
-			FilterId:   eventIdAndFilterId.FilterId,
+			Id:                    task.ID,
+			InsertedAt:            task.InsertedAt.Time,
+			FilterId:              eventIdAndFilterId.FilterId,
+			WorkflowRunExternalID: task.WorkflowRunID,
 		})
 	}
 
@@ -357,9 +357,10 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 		}
 
 		eventExternalIdToRuns[eventIdAndFilterId.ExternalId] = append(eventExternalIdToRuns[eventIdAndFilterId.ExternalId], &Run{
-			Id:         dag.ID,
-			InsertedAt: dag.InsertedAt.Time,
-			FilterId:   eventIdAndFilterId.FilterId,
+			Id:                    dag.ID,
+			InsertedAt:            dag.InsertedAt.Time,
+			FilterId:              eventIdAndFilterId.FilterId,
+			WorkflowRunExternalID: dag.ExternalID,
 		})
 	}
 
@@ -457,6 +458,63 @@ type TriggeredByEvent struct {
 	eventKey string
 }
 
+// ensureTraceparent guarantees a W3C traceparent exists in metadata. If the
+// SDK already injected a traceparent, it is left intact so the engine's
+// workflow_run root span can read the SDK's span_id as its parent at span
+// construction time. When no traceparent is present, a deterministic one is
+// created from the workflow run (or parent/source) UUID.
+func ensureTraceparent(additionalMetadata []byte, workflowRunExternalID uuid.UUID) []byte {
+	meta := make(map[string]interface{})
+
+	if len(additionalMetadata) > 0 {
+		if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
+			meta = make(map[string]interface{})
+		}
+	}
+
+	if existingTP, ok := meta["traceparent"].(string); ok {
+		if _, _, ok := parseW3CTraceparent(existingTP); ok {
+			out, err := json.Marshal(meta)
+			if err != nil {
+				return additionalMetadata
+			}
+			return out
+		}
+	}
+
+	traceOwnerID := workflowRunExternalID
+
+	if parentIDStr, ok := meta["hatchet__parent_workflow_run_id"].(string); ok {
+		if parsed, err := uuid.Parse(parentIDStr); err == nil {
+			traceOwnerID = parsed
+		}
+	} else if sourceIDStr, ok := meta["hatchet__source_workflow_run_id"].(string); ok {
+		if parsed, err := uuid.Parse(sourceIDStr); err == nil {
+			traceOwnerID = parsed
+		}
+	}
+
+	traceID := hex.EncodeToString(DeriveWorkflowRunTraceID(traceOwnerID))
+	spanID := hex.EncodeToString(DeriveWorkflowRunSpanID(workflowRunExternalID))
+
+	meta["traceparent"] = fmt.Sprintf("00-%s-%s-01", traceID, spanID)
+
+	out, err := json.Marshal(meta)
+	if err != nil {
+		return additionalMetadata
+	}
+
+	return out
+}
+
+func parseW3CTraceparent(tp string) (traceID, spanID string, ok bool) {
+	parts := strings.Split(tp, "-")
+	if len(parts) != 4 || len(parts[1]) != 32 || len(parts[2]) != 16 {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
+}
+
 func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 	res := make(map[string]interface{})
 
@@ -480,10 +538,22 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 }
 
 func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
+	var origMeta map[string]interface{}
+	if len(additionalMetadata) > 0 {
+		_ = json.Unmarshal(additionalMetadata, &origMeta)
+	}
+
 	res := cleanAdditionalMetadata(additionalMetadata)
 
 	res[constants.EventIDKey.String()] = t.eventID
 	res[constants.EventKeyKey.String()] = t.eventKey
+
+	if v, ok := origMeta["hatchet__source_workflow_run_id"]; ok {
+		res["hatchet__source_workflow_run_id"] = v
+	}
+	if v, ok := origMeta["hatchet__source_step_run_id"]; ok {
+		res["hatchet__source_step_run_id"] = v
+	}
 
 	resBytes, err := json.Marshal(res)
 
@@ -526,6 +596,10 @@ func (r *sharedRepository) triggerWorkflows(
 	tuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
 ) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+	for i := range tuples {
+		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
+	}
+
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[uuid.UUID]struct{})
 
@@ -1960,24 +2034,22 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
-		if r.enableDurableUserEventLog {
-			createCoreEventsTenantIds = append(createCoreEventsTenantIds, tenantId)
-			createCoreEventsExternalIds = append(createCoreEventsExternalIds, opt.ExternalId)
-			createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
-			createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
-			eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
-			createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
-			if opt.Scope != nil {
-				createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
-			} else {
-				createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
-			}
+		createCoreEventsTenantIds = append(createCoreEventsTenantIds, tenantId)
+		createCoreEventsExternalIds = append(createCoreEventsExternalIds, opt.ExternalId)
+		createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
+		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
+		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
+		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
+		if opt.Scope != nil {
+			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
+		} else {
+			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
+		}
 
-			if opt.TriggeringWebhookName != nil {
-				createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
-			} else {
-				createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
-			}
+		if opt.TriggeringWebhookName != nil {
+			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
+		} else {
+			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
 		}
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
@@ -2137,20 +2209,18 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	if r.enableDurableUserEventLog {
-		createCoreEventOpts = &createCoreUserEventOpts{
-			params: sqlcv1.BulkCreateEventsParams{
-				Tenantids:              createCoreEventsTenantIds,
-				Externalids:            createCoreEventsExternalIds,
-				Seenats:                createCoreEventsSeenAts,
-				Keys:                   createCoreEventsKeys,
-				Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
-				Scopes:                 createCoreEventsScopes,
-				TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
-			},
-			externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
-			externalIdsToPayloads:          eventExternalIdsToPayloads,
-		}
+	createCoreEventOpts = &createCoreUserEventOpts{
+		params: sqlcv1.BulkCreateEventsParams{
+			Tenantids:              createCoreEventsTenantIds,
+			Externalids:            createCoreEventsExternalIds,
+			Seenats:                createCoreEventsSeenAts,
+			Keys:                   createCoreEventsKeys,
+			Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
+			Scopes:                 createCoreEventsScopes,
+			TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
+		},
+		externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
+		externalIdsToPayloads:          eventExternalIdsToPayloads,
 	}
 
 	return triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, nil
@@ -2336,7 +2406,31 @@ func (r *sharedRepository) NewTriggerTaskData(
 		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
 		t.ChildIndex = &childIndex
 		t.ChildKey = req.ChildKey
+
+		t.AdditionalMetadata = injectParentIDs(
+			t.AdditionalMetadata,
+			parentTask.WorkflowRunID,
+			parentTask.ExternalID,
+		)
 	}
 
 	return t, nil
+}
+
+func injectParentIDs(additionalMetadata []byte, parentWorkflowRunID, parentStepRunID uuid.UUID) []byte {
+	meta := make(map[string]interface{})
+	if len(additionalMetadata) > 0 {
+		if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
+			meta = make(map[string]interface{})
+		}
+	}
+
+	meta["hatchet__parent_workflow_run_id"] = parentWorkflowRunID.String()
+	meta["hatchet__parent_step_run_id"] = parentStepRunID.String()
+
+	out, err := json.Marshal(meta)
+	if err != nil {
+		return additionalMetadata
+	}
+	return out
 }

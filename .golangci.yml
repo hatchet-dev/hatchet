@@ -56,6 +56,7 @@ linters:
       - third_party$
       - builtin$
       - ^examples/
+      - ^sdks/go/examples/
       - '(.+)_test\.go'
       - "cmd/hatchet-loadtest/rampup/(.+).go"
 formatters:
@@ -72,3 +73,4 @@ formatters:
       - third_party$
       - builtin$
       - ^examples/
+      - ^sdks/go/examples/

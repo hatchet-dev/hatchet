@@ -39,6 +39,10 @@ export enum PullRequestState {
   Closed = "closed",
 }
 
+export enum FeatureFlagId {
+  TenantLogWorkflowFilterEnabled = "tenant-log-workflow-filter-enabled",
+}
+
 export enum WebhookWorkerRequestMethod {
   GET = "GET",
   POST = "POST",
@@ -254,6 +258,21 @@ export enum TenantEnvironment {
 export enum TenantVersion {
   V0 = "V0",
   V1 = "V1",
+}
+
+export enum OtelStatusCode {
+  UNSET = "UNSET",
+  OK = "OK",
+  ERROR = "ERROR",
+}
+
+export enum OtelSpanKind {
+  UNSPECIFIED = "UNSPECIFIED",
+  INTERNAL = "INTERNAL",
+  SERVER = "SERVER",
+  CLIENT = "CLIENT",
+  PRODUCER = "PRODUCER",
+  CONSUMER = "CONSUMER",
 }
 
 export enum V1RunningFilter {
@@ -741,6 +760,33 @@ export interface V1BranchDurableTaskResponse {
   branchId: number;
 }
 
+export interface OtelSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  spanName: string;
+  spanKind: OtelSpanKind;
+  serviceName: string;
+  statusCode: OtelStatusCode;
+  statusMessage?: string;
+  /** @format int64 */
+  durationNs: number;
+  /** @format date-time */
+  createdAt: string;
+  resourceAttributes?: Record<string, string>;
+  spanAttributes?: Record<string, string>;
+  scopeName?: string;
+  scopeVersion?: string;
+  /** @format int32 */
+  retryCount: number;
+}
+
+export interface OtelSpanList {
+  pagination?: PaginationResponse;
+  retryCounts?: number[];
+  rows?: OtelSpan[];
+}
+
 export interface V1TaskTiming {
   metadata: APIResourceMeta;
   /** The depth of the task in the waterfall. */
@@ -1156,6 +1202,11 @@ export interface APIMeta {
    * @example true
    */
   allowChangePassword?: boolean;
+  /**
+   * whether or not observability (trace collection) is enabled on this instance
+   * @example false
+   */
+  observabilityEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -2380,6 +2431,11 @@ export interface TaskStat {
 }
 
 export type TaskStats = Record<string, TaskStat>;
+
+export interface FeatureFlagEvaluationResult {
+  /** Whether the feature flag is enabled for the tenant */
+  isEnabled: boolean;
+}
 
 export interface TenantList {
   pagination?: PaginationResponse;

@@ -10,6 +10,7 @@ from typing import Any
 
 from hatchet_sdk import Context, Hatchet
 
+
 # Create large payload (100KB)
 def create_large_payload() -> dict[str, str]:
     payload: dict[str, str] = {}
@@ -50,7 +51,7 @@ def emit_events(hatchet: Hatchet, total_events: int, events_per_second: int) -> 
 
 def main() -> None:
     # Namespace is set via environment variable HATCHET_CLIENT_NAMESPACE
-    hatchet = Hatchet(debug=False)
+    hatchet = Hatchet()
 
     # Get compression state from environment (default to 'enabled')
     compression_state = os.getenv("COMPRESSION_STATE", "enabled")
@@ -98,7 +99,9 @@ def main() -> None:
         os.kill(os.getpid(), signal.SIGTERM)
 
     # Start timer to stop worker after test duration
-    stop_timer = threading.Timer(wait_time, lambda: os.kill(os.getpid(), signal.SIGTERM))
+    stop_timer = threading.Timer(
+        wait_time, lambda: os.kill(os.getpid(), signal.SIGTERM)
+    )
     stop_timer.daemon = True
     stop_timer.start()
 

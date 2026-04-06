@@ -1,4 +1,11 @@
-import { AutocompleteSuggestion, LOG_LEVELS, LOG_LEVEL_COLORS } from './types';
+import { LOG_LEVELS, LOG_LEVEL_COLORS } from './types';
+import {
+  type FilterSuggestion,
+  type AutocompleteState,
+  applySuggestion as applyFilterSuggestion,
+} from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
+
+export type { AutocompleteMode } from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   error: 'Error messages',
@@ -7,48 +14,60 @@ const LEVEL_DESCRIPTIONS: Record<string, string> = {
   debug: 'Debug messages',
 };
 
-const FILTER_KEYS: AutocompleteSuggestion[] = [
+export const LOG_FILTER_KEYS = {
+  LEVEL: 'level',
+  ATTEMPT: 'attempt',
+  WORKFLOW: 'workflow',
+} as const;
+
+export const STATIC_FILTER_KEYS: FilterSuggestion[] = [
   {
     type: 'key',
     label: 'level',
-    value: 'level:',
+    value: `${LOG_FILTER_KEYS.LEVEL}:`,
     description: 'Filter by log level',
   },
   {
     type: 'key',
     label: 'attempt',
-    value: 'attempt:',
+    value: `${LOG_FILTER_KEYS.ATTEMPT}:`,
     description: 'Filter by attempt number',
+  },
+  {
+    type: 'key',
+    label: 'workflow',
+    value: `${LOG_FILTER_KEYS.WORKFLOW}:`,
+    description: 'Filter by workflow name',
   },
 ];
 
-export type AutocompleteMode = 'key' | 'value' | 'none';
-
-export interface AutocompleteState {
-  mode: AutocompleteMode;
-  suggestions: AutocompleteSuggestion[];
+export interface LogAutocompleteContext {
+  availableAttempts?: number[];
+  workflowNames?: string[];
 }
 
 export function getAutocomplete(
   query: string,
-  availableAttempts: number[],
+  context: LogAutocompleteContext,
 ): AutocompleteState {
+  const { availableAttempts = [], workflowNames = [] } = context;
   const trimmed = query.trimEnd();
   const lastWord = trimmed.split(' ').pop() || '';
 
-  // Check for trailing space FIRST - indicates user wants to add a new filter
-  // Don't check this if the query ends with a colon (e.g., "level:")
   if (query.endsWith(' ') && !trimmed.endsWith(':')) {
-    return { mode: 'key', suggestions: FILTER_KEYS };
+    return { mode: 'key', suggestions: STATIC_FILTER_KEYS };
   }
 
-  // Check for empty input
   if (trimmed === '') {
-    return { mode: 'key', suggestions: FILTER_KEYS };
+    return { mode: 'key', suggestions: STATIC_FILTER_KEYS };
   }
 
-  if (lastWord.startsWith('level:')) {
-    const partial = lastWord.slice(6).toLowerCase();
+  const levelPrefix = `${LOG_FILTER_KEYS.LEVEL}:`;
+  const attemptPrefix = `${LOG_FILTER_KEYS.ATTEMPT}:`;
+  const workflowPrefix = `${LOG_FILTER_KEYS.WORKFLOW}:`;
+
+  if (lastWord.startsWith(levelPrefix)) {
+    const partial = lastWord.slice(levelPrefix.length).toLowerCase();
     const suggestions = LOG_LEVELS.filter((level) =>
       level.startsWith(partial),
     ).map((level) => ({
@@ -61,8 +80,8 @@ export function getAutocomplete(
     return { mode: 'value', suggestions };
   }
 
-  if (lastWord.startsWith('attempt:')) {
-    const partial = lastWord.slice(8);
+  if (lastWord.startsWith(attemptPrefix)) {
+    const partial = lastWord.slice(attemptPrefix.length);
     const attempts = availableAttempts ?? [1, 2, 3];
     const suggestions = attempts
       .filter((attempt) => String(attempt).startsWith(partial))
@@ -75,7 +94,20 @@ export function getAutocomplete(
     return { mode: 'value', suggestions };
   }
 
-  const matchingKeys = FILTER_KEYS.filter(
+  if (lastWord.startsWith(workflowPrefix)) {
+    const partial = lastWord.slice(workflowPrefix.length).toLowerCase();
+    const suggestions = [...workflowNames]
+      .sort((a, b) => a.localeCompare(b))
+      .filter((name) => name.toLowerCase().startsWith(partial))
+      .map((name) => ({
+        type: 'value' as const,
+        label: name,
+        value: name,
+      }));
+    return { mode: 'value', suggestions };
+  }
+
+  const matchingKeys = STATIC_FILTER_KEYS.filter(
     (key) =>
       key.value.startsWith(lastWord.toLowerCase()) && lastWord.length > 0,
   );
@@ -88,25 +120,7 @@ export function getAutocomplete(
 
 export function applySuggestion(
   query: string,
-  suggestion: AutocompleteSuggestion,
+  suggestion: FilterSuggestion,
 ): string {
-  const trimmed = query.trimEnd();
-  const words = trimmed.split(' ');
-  const lastWord = words.pop() || '';
-
-  if (suggestion.type === 'value') {
-    const prefix = lastWord.slice(0, lastWord.indexOf(':') + 1);
-    words.push(prefix + suggestion.value);
-  } else {
-    const isPartialKey = FILTER_KEYS.some((key) =>
-      key.value.startsWith(lastWord.toLowerCase()),
-    );
-    if (lastWord && isPartialKey) {
-      words.push(suggestion.value);
-    } else {
-      words.push(lastWord, suggestion.value);
-    }
-  }
-
-  return words.filter(Boolean).join(' ');
+  return applyFilterSuggestion(query, suggestion, STATIC_FILTER_KEYS);
 }

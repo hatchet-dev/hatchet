@@ -2,7 +2,7 @@
   "name": "hatchet",
   "displayName": "Hatchet",
   "description": "Visualize Hatchet workflow DAGs inline in your editor",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "publisher": "hatchet",
   "license": "MIT",
   "repository": {
@@ -12,9 +12,16 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Visualization"],
+  "categories": [
+    "Visualization"
+  ],
   "icon": "assets/icon.png",
-  "activationEvents": ["onLanguage:typescript", "onLanguage:python", "onLanguage:ruby", "onLanguage:go"],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:python",
+    "onLanguage:ruby",
+    "onLanguage:go"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [

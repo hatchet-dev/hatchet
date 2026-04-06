@@ -1,6 +1,6 @@
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 on_success_workflow = hatchet.workflow(name="OnSuccessWorkflow")
 

@@ -48,6 +48,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_additional_metadata,
     ctx_durable_context,
     ctx_hatchet_context,
+    ctx_hatchet_span_attributes,
     ctx_step_run_id,
     ctx_task_retry_count,
     ctx_worker_id,
@@ -59,6 +60,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TaskPayloadForInternalUse, TWorkflowInput
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.action_listener_process import ActionEvent
@@ -70,9 +72,18 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopyDict,
     ContextVarToCopyHatchetContext,
     ContextVarToCopyInt,
+    ContextVarToCopyOtelContext,
+    ContextVarToCopySpanAttributes,
     ContextVarToCopyStr,
     copy_context_vars,
 )
+
+try:
+    from opentelemetry import context as otel_context
+
+    _HAS_OTEL = True
+except ImportError:
+    _HAS_OTEL = False
 
 
 class WorkerStatus(Enum):
@@ -91,7 +102,7 @@ class Runner:
         durable_slots: int,
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
-        labels: dict[str, str | int] | None,
+        labels: list[WorkerLabel],
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
         engine_version: str | None = None,
@@ -158,11 +169,13 @@ class Runner:
         self.durable_eviction_manager: DurableEvictionManager | None = None
 
         self.worker_context = WorkerContext(
-            labels=labels or {}, client=Client(config=config).dispatcher
+            labels=labels, client=Client(config=config).dispatcher
         )
+        self.worker_labels = labels
 
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
+        self.worker_id: str | None = None
 
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
@@ -171,8 +184,8 @@ class Runner:
         return f"{self.config.server_url}/workflow-runs/{action.workflow_run_id}?tenant={action.tenant_id}"
 
     def run(self, action: Action) -> None:
-        if self.worker_context.id() is None:
-            self.worker_context._worker_id = action.worker_id
+        if self.worker_id is None:
+            self.worker_id = action.worker_id
 
             if isinstance(self.durable_event_listener, DurableEventListener):
                 self.durable_event_listener_task = asyncio.create_task(
@@ -282,7 +295,7 @@ class Runner:
                 return
 
             try:
-                output = self.serialize_output(t.validators.step_output, output)
+                output = self.serialize_output(t._validators.step_output, output)
 
                 self.event_queue.put(
                     ActionEvent(
@@ -344,7 +357,7 @@ class Runner:
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             try:
-                if task.is_async_function:
+                if task._is_async_function:
                     return await task.aio_call(ctx, dependencies)
 
                 pfunc = functools.partial(
@@ -394,6 +407,18 @@ class Runner:
                                 value=ctx,
                             )
                         ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopySpanAttributes(
+                                name="ctx_hatchet_span_attributes",
+                                value=ctx_hatchet_span_attributes.get(),
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyOtelContext(
+                                name="ctx_otel_context",
+                                value=otel_context.get_current() if _HAS_OTEL else None,
+                            )
+                        ),
                     ],
                     self.thread_action_func,
                     ctx,
@@ -403,7 +428,10 @@ class Runner:
                 )
 
                 loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(self.thread_pool, pfunc)
+                return await loop.run_in_executor(
+                    self.thread_pool,
+                    pfunc,
+                )
             finally:
                 self.cleanup_run_id(action.key)
 
@@ -486,6 +514,7 @@ class Runner:
         task: Task[Any, Any],
         is_durable: bool = True,
     ) -> Context | DurableContext:
+
         ctx = (
             DurableContext(
                 action=action,
@@ -502,6 +531,7 @@ class Runner:
                 workflow_name=task.workflow.name,
                 durable_eviction_manager=self.durable_eviction_manager,
                 engine_version=self.engine_version,
+                worker_labels=self.worker_labels,
             )
             if is_durable
             else Context(
@@ -517,6 +547,7 @@ class Runner:
                 max_attempts=task.retries + 1,
                 task_name=task.name,
                 workflow_name=task.workflow.name,
+                worker_labels=self.worker_labels,
             )
         )
 
@@ -524,7 +555,6 @@ class Runner:
 
         return ctx
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_step_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
 
@@ -535,7 +565,7 @@ class Runner:
             context = self.create_context(
                 action=action,
                 task=action_func,
-                is_durable=True if action_func.is_durable else False,  # noqa: SIM210
+                is_durable=True if action_func._is_durable else False,  # noqa: SIM210
             )
 
             self.contexts[action.key] = context
@@ -553,7 +583,7 @@ class Runner:
                     action.key,
                     step_run_id=action.step_run_id,
                     invocation_count=action.durable_task_invocation_count or 1,
-                    eviction_policy=action_func.durable_eviction,
+                    eviction_policy=action_func.eviction_policy,
                 )
 
             loop = asyncio.get_event_loop()
@@ -611,7 +641,6 @@ class Runner:
         except Exception as e:
             logger.exception(f"failed to terminate thread: {e}")
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_cancel_action(self, action: Action) -> None:
         key = action.key
         try:

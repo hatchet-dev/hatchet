@@ -7,7 +7,7 @@ class Output(BaseModel):
     message: str
 
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 @hatchet.task(input_validator=dict)

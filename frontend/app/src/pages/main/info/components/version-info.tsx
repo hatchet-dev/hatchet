@@ -1,6 +1,6 @@
 import { Spinner } from '@/components/v1/ui/loading';
+import useCloud from '@/hooks/use-cloud';
 import { queries } from '@/lib/api';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 

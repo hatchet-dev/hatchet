@@ -10,7 +10,7 @@ import Keywords from "@/components/Keywords";
 
 Hatchet is a developer platform that helps engineering teams build and deploy mission-critical AI agents, durable workflows, and background tasks. It supports applications written in Python, Typescript, Go and Ruby, and can be used as a service through [Hatchet Cloud](https://cloud.onhatchet.run) or [self-hosting](/self-hosting) (we're [open-source and 100% MIT-licensed](https://github.com/hatchet-dev/hatchet)). Hatchet provides a full platform for queuing, automatic retries, real-time monitoring, alerting, and logging.
 
-Unlike a traditional queuing system, Hatchet is built around the concept of durability. Every task and agent invocation is durably persisted in Hatchet, allowing for debugging, retries and replays, and more complex features like [durable workflows](/v1/durable-workflows-overview).
+Unlike a traditional queuing system, Hatchet is built around the concept of durability. Every task and agent invocation is durably persisted in Hatchet, allowing for debugging, retries and replays, and more complex features like [durable workflows](/v1/durable-execution).
 
 ## Using these docs
 
@@ -24,7 +24,7 @@ There are three primary concepts to understand when getting started with Hatchet
 
 - **[Tasks](/v1/tasks)** — the fundamental unit of work. A task wraps a single function and gives Hatchet everything it needs to schedule, execute, and observe it.
 - **[Workers](/v1/workers)** — long-running processes in your infrastructure that pick up and execute tasks.
-- **[Durable Workflows](/v1/durable-workflows)** — compose multiple tasks into durable pipelines with dependencies, retries, and checkpointing.
+- **[Durable Workflows](/v1/durable-execution)** — compose multiple tasks into durable pipelines with dependencies, retries, and checkpointing.
 
 All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
 

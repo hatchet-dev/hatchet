@@ -37,6 +37,8 @@ type RunConcurrencyResult struct {
 
 	// If the step has multiple concurrency strategies, these are the next ones to notify
 	NextConcurrencyStrategies []int64
+
+	FailedAdvisoryLock bool
 }
 
 type ConcurrencyRepository interface {
@@ -273,6 +275,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 		Queued:                    queued,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
 	}, nil
 }
 
@@ -303,6 +306,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			Queued:                    []TaskWithQueue{},
 			Cancelled:                 []TaskWithCancelledReason{},
 			NextConcurrencyStrategies: []int64{},
+			FailedAdvisoryLock:        true,
 		}, nil
 	}
 
@@ -320,6 +324,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 				Queued:                    []TaskWithQueue{},
 				Cancelled:                 []TaskWithCancelledReason{},
 				NextConcurrencyStrategies: []int64{},
+				FailedAdvisoryLock:        true,
 			}, nil
 		}
 
@@ -498,6 +503,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		Queued:                    queued,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
 	}, nil
 }
 
@@ -529,6 +535,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 			Queued:                    []TaskWithQueue{},
 			Cancelled:                 []TaskWithCancelledReason{},
 			NextConcurrencyStrategies: []int64{},
+			FailedAdvisoryLock:        true,
 		}, nil
 	}
 
@@ -552,6 +559,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 				Queued:                    []TaskWithQueue{},
 				Cancelled:                 []TaskWithCancelledReason{},
 				NextConcurrencyStrategies: []int64{},
+				FailedAdvisoryLock:        true,
 			}, nil
 		}
 
@@ -757,6 +765,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		Queued:                    queued,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
 	}, nil
 }
 

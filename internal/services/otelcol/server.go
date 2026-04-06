@@ -3,6 +3,7 @@ package otelcol
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -10,6 +11,7 @@ import (
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -18,13 +20,16 @@ const (
 	// keep these in sync with attributes sent from the sdks
 	AttrHatchetTaskRunID     = "hatchet.step_run_id"     // Task run external ID from SDK
 	AttrHatchetWorkflowRunID = "hatchet.workflow_run_id" // Workflow run ID from SDK
+	AttrHatchetRetryCount    = "hatchet.retry_count"     // Retry count from SDK
 )
 
 type otelCollectorImpl struct {
 	collectortracev1.UnimplementedTraceServiceServer
 
-	repo repository.Repository
-	l    *zerolog.Logger
+	repo         repository.Repository
+	l            *zerolog.Logger
+	maxBatchSize int
+	a            analytics.Analytics
 }
 
 func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -36,9 +41,9 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 
 	tenantId := tenant.ID
 
-	otelColRepo := oc.repo.OTelCollector()
-	if otelColRepo == nil {
-		oc.l.Debug().Msg("otel collector repository not configured, discarding spans")
+	olapRepo := oc.repo.OLAP()
+	if olapRepo == nil {
+		oc.l.Debug().Msg("OLAP repository not configured, discarding spans")
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
@@ -48,7 +53,16 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{}, nil
 	}
 
-	err := otelColRepo.CreateSpans(ctx, tenantId, &repository.CreateSpansOpts{
+	oc.a.Count(ctx, analytics.OtelSpan, analytics.Create)
+
+	var rejected int64
+	if oc.maxBatchSize > 0 && len(spans) > oc.maxBatchSize {
+		rejected = int64(len(spans) - oc.maxBatchSize)
+		oc.l.Warn().Int("total", len(spans)).Int("max", oc.maxBatchSize).Int64("rejected", rejected).Msg("span batch exceeds max size, truncating")
+		spans = spans[:oc.maxBatchSize]
+	}
+
+	err := olapRepo.CreateSpans(ctx, tenantId, &repository.CreateSpansOpts{
 		TenantID: tenantId,
 		Spans:    spans,
 	})
@@ -57,13 +71,37 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		oc.l.Error().Err(err).Msg("failed to store spans")
 		return &collectortracev1.ExportTraceServiceResponse{
 			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
-				RejectedSpans: int64(len(spans)),
+				RejectedSpans: int64(len(spans)) + rejected,
+				ErrorMessage:  err.Error(),
+			},
+		}, nil
+	}
+
+	err = olapRepo.CreateSpanLookupTableEntries(ctx, tenantId, &repository.CreateSpansOpts{
+		TenantID: tenantId,
+		Spans:    spans,
+	})
+
+	if err != nil {
+		oc.l.Error().Err(err).Msg("failed to create span lookup table entries")
+		return &collectortracev1.ExportTraceServiceResponse{
+			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
+				RejectedSpans: int64(len(spans)) + rejected,
 				ErrorMessage:  err.Error(),
 			},
 		}, nil
 	}
 
 	oc.l.Debug().Int("span_count", len(spans)).Str("tenant_id", tenantId.String()).Msg("stored spans")
+
+	if rejected > 0 {
+		return &collectortracev1.ExportTraceServiceResponse{
+			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
+				RejectedSpans: rejected,
+				ErrorMessage:  "batch size exceeded maximum limit",
+			},
+		}, nil
+	}
 
 	return &collectortracev1.ExportTraceServiceResponse{}, nil
 }
@@ -83,10 +121,10 @@ func (oc *otelCollectorImpl) convertOTLPToSpanData(resourceSpans []*tracev1.Reso
 					SpanID:               span.GetSpanId(),
 					ParentSpanID:         span.GetParentSpanId(),
 					Name:                 span.GetName(),
-					Kind:                 int32(span.GetKind()),
+					Kind:                 span.GetKind(),
 					StartTimeUnixNano:    span.GetStartTimeUnixNano(),
 					EndTimeUnixNano:      span.GetEndTimeUnixNano(),
-					StatusCode:           int32(span.GetStatus().GetCode()),
+					StatusCode:           span.GetStatus().GetCode(),
 					StatusMessage:        span.GetStatus().GetMessage(),
 					Attributes:           oc.serializeAttributes(span.GetAttributes()),
 					Events:               oc.serializeEvents(span.GetEvents()),
@@ -119,7 +157,20 @@ func (oc *otelCollectorImpl) extractHatchetCorrelation(attrs []*commonv1.KeyValu
 				uuid := uuid.MustParse(strVal)
 				spanData.WorkflowRunID = &uuid
 			}
+		case AttrHatchetRetryCount:
+			if intVal := attr.GetValue().GetIntValue(); intVal > 0 {
+				spanData.RetryCount = int32(intVal) //nolint:gosec
+			}
 		}
+	}
+
+	// Only re-parent the top-level SDK step_run consumer span under the
+	// engine's deterministic workflow_run root. Other SDK spans (user spans,
+	// child-run producers) keep their natural parent so the hierarchy is
+	// preserved in both Hatchet's OLAP view and external OTel backends.
+	if spanData.WorkflowRunID != nil && len(spanData.ParentSpanID) > 0 &&
+		strings.HasPrefix(spanData.Name, "hatchet.start_step_run") {
+		spanData.ParentSpanID = repository.DeriveWorkflowRunSpanID(*spanData.WorkflowRunID)
 	}
 }
 

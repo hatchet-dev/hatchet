@@ -14,9 +14,7 @@ from tests.worker_fixture import hatchet_worker
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def hatchet() -> AsyncGenerator[Hatchet, None]:
-    yield Hatchet(
-        debug=True,
-    )
+    yield Hatchet()
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -36,6 +34,21 @@ def _skip_unless_durable_eviction(supports_durable_eviction: bool) -> None:
     if not supports_durable_eviction:
         pytest.skip(
             f"Engine does not support durable eviction (requires >= {MinEngineVersion.DURABLE_EVICTION})"
+        )
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_observability(engine_version: str | None) -> bool:
+    if not engine_version:
+        return False
+    return not semver_less_than(engine_version, MinEngineVersion.OBSERVABILITY)
+
+
+@pytest.fixture()
+def _skip_unless_observability(supports_observability: bool) -> None:
+    if not supports_observability:
+        pytest.skip(
+            f"Engine does not support observability (requires >= {MinEngineVersion.OBSERVABILITY})"
         )
 
 

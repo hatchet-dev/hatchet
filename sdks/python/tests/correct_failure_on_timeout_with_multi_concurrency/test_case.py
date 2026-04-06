@@ -24,20 +24,19 @@ async def test_failure_on_timeout(
     hatchet: Hatchet, on_demand_worker: Popen[Any]
 ) -> None:
     test_run_id = str(uuid4())
-    runs = await multiple_concurrent_cancellations_test_workflow.aio_run_many_no_wait(
+    runs = await multiple_concurrent_cancellations_test_workflow.aio_run_many(
         [
             multiple_concurrent_cancellations_test_workflow.create_bulk_run_item(
                 input=InputModel(
                     concurrency_key=test_run_id,
                 ),
-                options=TriggerWorkflowOptions(
-                    additional_metadata={
-                        "test_run_id": test_run_id,
-                    }
-                ),
+                additional_metadata={
+                    "test_run_id": test_run_id,
+                },
             )
             for _ in range(2)
-        ]
+        ],
+        wait_for_result=False,
     )
 
     try:

@@ -8,6 +8,7 @@ import {
   TaskRunDetail,
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
+import { RunDetailSearchLocalProvider } from '@/pages/main/v1/workflow-runs-v1/hooks/use-run-detail-search';
 import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
@@ -75,6 +76,18 @@ type UseSidePanelProps =
       };
     };
 
+function SidePanelTaskRunDetail(props: {
+  taskRunId: string;
+  defaultOpenTab?: TabOption;
+  showViewTaskRunButton?: boolean;
+}) {
+  return (
+    <RunDetailSearchLocalProvider>
+      <TaskRunDetail {...props} />
+    </RunDetailSearchLocalProvider>
+  );
+}
+
 function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
@@ -105,7 +118,7 @@ function useSidePanelData(): SidePanelData {
       case 'task-run-details':
         return {
           isDocs: false,
-          component: <TaskRunDetail {...props.content} />,
+          component: <SidePanelTaskRunDetail {...props.content} />,
         };
       case 'event-details':
         return {

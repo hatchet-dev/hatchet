@@ -1,10 +1,16 @@
 import { config } from './config';
-import { getCloudMetadataQuery } from './pages/auth/hooks/use-cloud';
+import { getCloudMetadataQuery } from './hooks/use-cloud.ts';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 import { userUniverseQuery } from './providers/user-universe';
-import api from '@/lib/api';
+import api, { TenantMember } from '@/lib/api';
+import {
+  controlPlaneApi,
+  fetchControlPlaneStatus,
+  LAST_TENANT_STORAGE_KEY,
+} from '@/lib/api/api';
+import { exchangeTokenQueryOptions } from '@/lib/api/exchange-token';
 import queryClient from '@/query-client';
 import {
   RouterProvider,
@@ -123,11 +129,16 @@ const onboardingCreateTenantRoute = createRoute({
     'default',
   ),
   loader: async () => {
-    const { isCloudEnabled } = await queryClient.fetchQuery(
-      getCloudMetadataQuery,
-    );
+    const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
+      queryClient.fetchQuery(getCloudMetadataQuery),
+      fetchControlPlaneStatus(),
+    ]);
     return queryClient.fetchQuery(
-      userUniverseQuery({ isCloudEnabled, isCloudLoaded: true }),
+      userUniverseQuery({
+        isCloudEnabled,
+        isCloudLoaded: true,
+        isControlPlaneEnabled,
+      }),
     );
   },
 });
@@ -169,25 +180,53 @@ const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants/$tenant',
   loader: async ({ params }) => {
-    // Ensure the tenant in the URL is one the user actually has access to.
-    // If not, throw a 403 so the global error boundary can show a friendly message.
-    const { data: memberships } = await api.tenantMembershipsList();
+    const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+
+    // Check membership first so an invalid/inaccessible tenant ID produces a
+    // 403 immediately, without triggering a tenantGet or exchangeTokenCreate
+    // call that would fail with a 400 for a non-UUID param.
+    const { data: memberships } = await (isControlPlaneEnabled
+      ? controlPlaneApi.tenantMembershipsList()
+      : api.tenantMembershipsList());
 
     const hasAccess = Boolean(
-      memberships.rows?.some((m) => m.tenant?.metadata.id === params.tenant),
+      memberships.rows?.some(
+        (m: TenantMember) => m.tenant?.metadata.id === params.tenant,
+      ),
     );
 
     if (!hasAccess) {
       throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
     }
 
-    // Optionally warm the tenant details cache, since most tenant pages expect it.
-    // If this fails for any reason, let the error boundary handle it.
-    await queryClient.fetchQuery({
-      queryKey: ['tenant:get', params.tenant],
-      queryFn: async () => (await api.tenantGet(params.tenant)).data,
-      retry: false,
-    });
+    if (isControlPlaneEnabled) {
+      // Fetch the exchange token for this tenant using the authoritative ID
+      // from route params
+      await queryClient.fetchQuery(
+        exchangeTokenQueryOptions(params.tenant, () =>
+          controlPlaneApi
+            .exchangeTokenCreate(params.tenant)
+            .then((r) => r.data),
+        ),
+      );
+
+      // Place the full tenant object in localStorage, this is required by the interceptor
+      // before any subsequent API calls for this tenant
+      const fullTenant = (
+        await api.tenantGet(params.tenant, { xTenantId: params.tenant })
+      ).data;
+
+      localStorage.setItem(LAST_TENANT_STORAGE_KEY, JSON.stringify(fullTenant));
+
+      // Populate the React Query cache so pages don't re-fetch immediately.
+      queryClient.setQueryData(['tenant:get', params.tenant], fullTenant);
+    } else {
+      await queryClient.fetchQuery({
+        queryKey: ['tenant:get', params.tenant],
+        queryFn: async () => (await api.tenantGet(params.tenant)).data,
+        retry: false,
+      });
+    }
 
     return null;
   },

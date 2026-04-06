@@ -7,6 +7,10 @@ import (
 	"fmt"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -14,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
+	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 // Client provides the main interface for interacting with Hatchet.
@@ -236,6 +241,19 @@ func resolveWorkerSlotConfig(
 	}
 
 	return slotConfig
+}
+
+// Use registers middleware functions on the worker.
+// Middleware functions are called in order for each step run execution.
+//
+//nolint:staticcheck // SA1019: worker.MiddlewareFunc is deprecated but still used internally
+func (w *Worker) Use(mws ...worker.MiddlewareFunc) {
+	if w.worker != nil {
+		w.worker.Use(mws...) //nolint:staticcheck // SA1019
+	}
+	if w.legacyDurable != nil {
+		w.legacyDurable.Use(mws...) //nolint:staticcheck // SA1019
+	}
 }
 
 // Starts the worker instance and returns a cleanup function.
@@ -586,22 +604,58 @@ func (wr *WorkflowResult) Raw() any {
 
 // Run executes a workflow with the provided input and waits for completion.
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
-	workflowRunRef, err := c.RunNoWait(ctx, workflowName, input, opts...)
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+		),
+	)
+	defer span.End()
+
+	workflowRunRef, err := c.runWorkflowInternal(ctx, otelCtx, span, workflowName, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := workflowRunRef.Result()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
 
+	span.SetStatus(codes.Ok, "")
 	return result, nil
 }
 
 // RunNoWait executes a workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+		),
+	)
+	defer span.End()
+
+	return c.runWorkflowInternal(ctx, otelCtx, span, workflowName, input, opts...)
+}
+
+// runWorkflowInternal contains the shared logic for Run and RunNoWait.
+func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Context, span trace.Span, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
 	runOpts := &runOpts{}
 	for _, opt := range opts {
 		opt(runOpts)
@@ -619,6 +673,10 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 			(*additionalMetadata)[key] = fmt.Sprintf("%v", value)
 		}
 	}
+
+	// Inject traceparent for cross-workflow trace propagation.
+	// Use otelCtx (not ctx) so the span's trace context is propagated.
+	additionalMetadata = injectTraceparentToMap(otelCtx, additionalMetadata)
 
 	var v0Opts []v0Client.RunOptFunc
 	if additionalMetadata != nil {
@@ -644,8 +702,12 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 	}
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.String(hatchetotel.AttrChildWorkflowRunID, v0Workflow.RunId()))
 
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
@@ -659,6 +721,17 @@ type RunManyOpt struct {
 // RunMany executes multiple workflow instances with different inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	ctx, span := tracer.Start(ctx, hatchetotel.SpanRunWorkflows,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+			attribute.Int(hatchetotel.AttrNumWorkflows, len(inputs)),
+		),
+	)
+	defer span.End()
+
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
@@ -685,7 +758,13 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 
 	wg.Wait()
 
-	return workflowRefs, errors.Join(errs...)
+	if err := errors.Join(errs...); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return workflowRefs, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return workflowRefs, nil
 }
 
 // Metrics returns a feature client for interacting with workflow and task metrics.

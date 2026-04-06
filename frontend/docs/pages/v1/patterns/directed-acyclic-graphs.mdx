@@ -198,6 +198,6 @@ runID, err := simple.RunNoWait(ctx, input)
 
 ## Pre-Determined Pipelines
 
-DAGs naturally model fixed multi-stage pipelines where the sequence of tasks and their dependencies are known before execution. ETL workflows, [document processing](/guides/document-processing) pipelines, and CI/CD workflows all follow this pattern: each stage depends on the previous, and the overall structure is visible and predictable in the dashboard.
+DAGs naturally model fixed multi-stage pipelines where the sequence of tasks and their dependencies are known before execution. ETL workflows, document processing pipelines, and CI/CD workflows all follow this pattern: each stage depends on the previous, and the overall structure is visible and predictable in the dashboard.
 
 <PipelineDiagram />

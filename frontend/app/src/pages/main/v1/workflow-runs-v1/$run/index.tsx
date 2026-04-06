@@ -1,20 +1,26 @@
 import { RunsProvider } from '../hooks/runs-provider';
 import {
+  RunDetailSearchProvider,
+  useRunDetailSearch,
+} from '../hooks/use-run-detail-search';
+import {
   isTerminalState,
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
+import { Observability } from './v2components/step-run-detail/observability/observability';
 import {
+  TASK_RUN_TERMINAL_STATUSES,
   TabOption,
   TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
-import { Waterfall } from './v2components/waterfall';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
+import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -26,7 +32,6 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
@@ -35,7 +40,6 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -75,9 +79,11 @@ function statusToBadgeVariant(status: V1TaskStatus) {
 const GraphView = ({
   shape,
   handleTaskRunExpand,
+  onMiniMapClick,
 }: {
   shape: WorkflowRunShapeForWorkflowRunDetails;
   handleTaskRunExpand: (stepRunId: string) => void;
+  onMiniMapClick: (stepRunId: string) => void;
 }) => {
   const [view] = useAtom(preferredWorkflowRunViewAtom);
 
@@ -90,7 +96,7 @@ const GraphView = ({
     <JobMiniMap
       onClick={(stepRunId) => {
         if (stepRunId) {
-          handleTaskRunExpand(stepRunId);
+          onMiniMapClick(stepRunId);
         }
       }}
     />
@@ -216,7 +222,9 @@ export default function Run() {
   if (runData.type === 'task') {
     return (
       <RunsProvider tableKey={`task-runs-${run}`}>
-        <ExpandedTaskRun id={run} />
+        <RunDetailSearchProvider>
+          <ExpandedTaskRun id={run} />
+        </RunDetailSearchProvider>
       </RunsProvider>
     );
   }
@@ -224,7 +232,9 @@ export default function Run() {
   if (runData.type === 'dag') {
     return (
       <RunsProvider tableKey={`workflow-runs-${run}`}>
-        <ExpandedWorkflowRun id={run} />
+        <RunDetailSearchProvider>
+          <ExpandedWorkflowRun id={run} />
+        </RunDetailSearchProvider>
       </RunsProvider>
     );
   }
@@ -237,10 +247,8 @@ function ExpandedTaskRun({ id }: { id: string }) {
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
   const executingRef = useRef(false);
-  const { tenantId } = useCurrentTenantId();
-  const { featureFlags, isCloudEnabled } = useCloud(tenantId);
-  const logsEnabled =
-    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
+  const search = useRunDetailSearch();
+  const activeTab = search.tab ?? 'overview';
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -268,8 +276,35 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
+  const handleMiniMapClick = useCallback(
+    (taskRunId: string) => {
+      search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
+    },
+    [search],
+  );
+
   const { workflowRun, shape, taskRuns, isLoading, isError } =
     useWorkflowDetails();
+
+  const tasksForSynthesis = useMemo((): TaskSummaryForSynthesis[] => {
+    const result: TaskSummaryForSynthesis[] = [];
+    const flatten = (tasks: V1TaskSummary[]) => {
+      for (const t of tasks) {
+        result.push({
+          externalId: t.metadata.id,
+          displayName: t.displayName,
+          status: t.status,
+          createdAt: t.createdAt,
+          startedAt: t.startedAt,
+        });
+        if (t.children) {
+          flatten(t.children);
+        }
+      }
+    };
+    flatten(taskRuns);
+    return result;
+  }, [taskRuns]);
 
   const taskExternalIds = useMemo(
     () => taskRuns.map((t) => t.taskExternalId),
@@ -295,25 +330,28 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           </Badge>
         </div>
         <div className="h-4" />
-        <Tabs defaultValue="overview" className="flex h-full flex-col">
+        <Tabs
+          value={activeTab}
+          onValueChange={search.setTab}
+          className="flex h-full flex-col"
+        >
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="overview">
               Overview
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="waterfall">
-              Waterfall
+            <TabsTrigger variant="underlined" value="traces">
+              Traces
             </TabsTrigger>
-            {logsEnabled && (
-              <TabsTrigger variant="underlined" value="logs">
-                Logs
-              </TabsTrigger>
-            )}
+            <TabsTrigger variant="underlined" value="logs">
+              Logs
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="min-h-0 flex-1">
             <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
               <GraphView
                 shape={shape}
                 handleTaskRunExpand={handleTaskRunExpand}
+                onMiniMapClick={handleMiniMapClick}
               />
               <ViewToggle />
             </div>
@@ -323,19 +361,34 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 <TabsTrigger variant="underlined" value="activity">
                   Activity
                 </TabsTrigger>
+                <TabsTrigger variant="underlined" value="output">
+                  Output
+                </TabsTrigger>
                 <TabsTrigger variant="underlined" value="input">
                   Input
                 </TabsTrigger>
                 <TabsTrigger variant="underlined" value="additional-metadata">
                   Additional Metadata
                 </TabsTrigger>
-                {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
               </TabsList>
               <TabsContent value="activity" className="py-4">
                 <StepRunEvents
                   workflowRunId={id}
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
+                />
+              </TabsContent>
+              <TabsContent value="output">
+                <CodeHighlighter
+                  className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+                  maxHeight="400px"
+                  minHeight="400px"
+                  language="json"
+                  code={
+                    workflowRun.status === V1TaskStatus.FAILED
+                      ? workflowRun.errorMessage || ''
+                      : JSON.stringify(workflowRun.output, null, 2)
+                  }
                 />
               </TabsContent>
               <TabsContent value="input">
@@ -350,18 +403,20 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               </TabsContent>
             </Tabs>
           </TabsContent>
-          <TabsContent value="waterfall" className="min-h-0 flex-1">
-            <Waterfall
-              workflowRunId={id}
-              selectedTaskId={undefined}
-              handleTaskSelect={handleTaskRunExpand}
+          <TabsContent value="traces" className="min-h-0 flex-1">
+            <Observability
+              workflowRunExternalId={id}
+              isRunning={
+                !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
+              }
+              tasks={tasksForSynthesis}
+              workflowRunCreatedAt={workflowRun.metadata.createdAt}
+              workflowRunStartedAt={workflowRun.startedAt}
             />
           </TabsContent>
-          {logsEnabled && (
-            <TabsContent value="logs">
-              <WorkflowRunLogs taskExternalIds={taskExternalIds} />
-            </TabsContent>
-          )}
+          <TabsContent value="logs">
+            <WorkflowRunLogs taskExternalIds={taskExternalIds} />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
