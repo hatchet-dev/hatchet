@@ -40,7 +40,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install linting tools
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --frozen --all-extras --dev
 
       - name: Run Black
         run: uv run black . --check --verbose --diff --color
@@ -129,7 +129,7 @@ jobs:
 
 
       - name: Install dependencies
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --frozen --all-extras --dev
 
       - name: Generate Env File
         working-directory: .
@@ -240,7 +240,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install dependencies
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --frozen --all-extras --dev
 
       - name: Set HATCHET_CLIENT_NAMESPACE
         run: |
@@ -351,7 +351,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: /tmp/old-sdk/sdks/python
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --frozen --all-extras --dev
 
       - name: Set HATCHET_CLIENT_NAMESPACE
         run: |
