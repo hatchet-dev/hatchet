@@ -2144,15 +2144,15 @@ voice-helpers = ["numpy (>=2.0.2)", "sounddevice (>=0.5.1)"]
 
 [[package]]
 name = "openai-agents"
-version = "0.13.4"
+version = "0.13.5"
 description = "OpenAI Agents SDK"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "(python_version <= \"3.13\" or python_version >= \"3.14\") and extra == \"openai\""
 files = [
-    {file = "openai_agents-0.13.4-py3-none-any.whl", hash = "sha256:fc7d1d661d7261a3f4153fa3fe3b2c509dc4b1ede331f41c366901c93c9adb7f"},
-    {file = "openai_agents-0.13.4.tar.gz", hash = "sha256:977e27f2a51e8d95cd1c90f2378445d9b5ca77b22671d47a3e01507a03a6536a"},
+    {file = "openai_agents-0.13.5-py3-none-any.whl", hash = "sha256:672c76830d25b7eb3d85580539ba7caca975288df4395fe80c84cb4edfe4665f"},
+    {file = "openai_agents-0.13.5.tar.gz", hash = "sha256:ebe5bfb3d7d702d133ff9fb335718d61b741300de25b409ab4a6c8212ee945c0"},
 ]
 
 [package.dependencies]

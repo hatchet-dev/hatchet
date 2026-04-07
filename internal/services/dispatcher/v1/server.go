@@ -749,12 +749,21 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 			if parseErr != nil {
 				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", parseErr)
 			}
+
+			var considerEventsSince *time.Time
+			if condition.ConsiderEventsSince != nil {
+				ces := condition.ConsiderEventsSince.AsTime()
+				considerEventsSince = &ces
+			}
+
 			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
-				Kind:            v1.CreateExternalSignalConditionKindUSEREVENT,
-				ReadableDataKey: condition.Base.ReadableDataKey,
-				OrGroupId:       orGroupId,
-				UserEventKey:    &condition.UserEventKey,
-				Expression:      condition.Base.Expression,
+				Kind:                         v1.CreateExternalSignalConditionKindUSEREVENT,
+				ReadableDataKey:              condition.Base.ReadableDataKey,
+				OrGroupId:                    orGroupId,
+				UserEventKey:                 &condition.UserEventKey,
+				UserEventScope:               condition.EventScope,
+				UserEventConsiderEventsSince: considerEventsSince,
+				Expression:                   condition.Base.Expression,
 			})
 		}
 	}

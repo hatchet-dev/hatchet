@@ -4,6 +4,7 @@ import time
 
 from uuid import uuid4
 
+from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
 from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk import Hatchet
@@ -25,7 +26,7 @@ def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[Ot
     for _ in range(10):
         with hatchet.runs.client() as client:
             try:
-                trace = hatchet.runs._wra(client).v1_workflow_run_get_trace(
+                trace = ObservabilityApi(client).v1_observability_get_trace(
                     hatchet.tenant_id, run_id
                 )
             except Exception:
