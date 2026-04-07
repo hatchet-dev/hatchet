@@ -61,7 +61,7 @@ export function Render(action?: Action, conditions?: Conditions | Conditions[]):
           undefined,
           action,
           conditionOrObj.scope,
-          conditionOrObj.lookbackWindow
+          conditionOrObj.considerEventsSince
         ),
       ];
     }

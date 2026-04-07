@@ -994,11 +994,16 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     scope?: string,
     lookbackWindow?: Duration
   ): Promise<unknown> {
+    const now = await this.now();
+    const considerEventsSince = lookbackWindow
+      ? new Date(now.getMilliseconds() - durationToMs(lookbackWindow)).toISOString()
+      : undefined;
+
     const res = await this.waitFor({
       eventKey: key,
       expression,
       scope,
-      lookbackWindow: lookbackWindow ? durationToString(lookbackWindow) : undefined,
+      considerEventsSince,
     });
 
     // The engine returns an object like:

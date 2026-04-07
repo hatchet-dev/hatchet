@@ -30,9 +30,9 @@ export interface UserEvent {
   scope?: string;
 
   /**
-  An optional lookback window to consider when waiting for events. If provided, events that were pushed within this time window before the wait was established will be considered as valid matches. This is useful for avoiding race conditions between event pushes and waits.
+  An optional ISO-formatted date string indicating how far back to look for matching events when the condition is first evaluated.
    */
-  lookbackWindow?: string;
+  considerEventsSince?: string;
 }
 
 /**
@@ -61,7 +61,7 @@ export class UserEventCondition extends Condition {
   eventKey: string;
   expression: string;
   scope?: string;
-  lookbackWindow?: string;
+  considerEventsSince?: string; // iso-formatted date
 
   constructor(
     eventKey: string,
@@ -69,7 +69,7 @@ export class UserEventCondition extends Condition {
     readableDataKey?: string,
     action?: Action,
     scope?: string,
-    lookbackWindow?: string
+    considerEventsSince?: string
   ) {
     super({
       readableDataKey: readableDataKey || eventKey,
@@ -80,6 +80,6 @@ export class UserEventCondition extends Condition {
     this.eventKey = eventKey;
     this.expression = expression;
     this.scope = scope;
-    this.lookbackWindow = lookbackWindow;
+    this.considerEventsSince = considerEventsSince;
   }
 }
