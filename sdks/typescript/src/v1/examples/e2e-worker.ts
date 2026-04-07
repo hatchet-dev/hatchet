@@ -49,7 +49,12 @@ import { helloWorld, helloWorldDurable } from './simple/e2e-workflows';
 import { streamingTask } from './streaming/workflow';
 import { timeoutTask, refreshTimeoutTask } from './timeout/workflow';
 import { webhookWorkflow } from './webhooks/workflow';
-import { childIndexChild, childIndexParent } from './child_index/workflow';
+import {
+  childIndexChild,
+  childIndexParent,
+  scenarioTask,
+  orchestratorTask,
+} from './child_index/workflow';
 
 const workflows = [
   bulkChild,
@@ -100,6 +105,8 @@ const workflows = [
   webhookWorkflow,
   childIndexChild,
   childIndexParent,
+  scenarioTask,
+  orchestratorTask,
 ];
 
 async function main() {

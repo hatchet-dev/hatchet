@@ -58,10 +58,12 @@ export class ParentRunContextManager {
   incrementChildIndex(n: number): void {
     const parentRunContext = this.getContext();
     if (parentRunContext) {
-      this.setContext({
-        ...parentRunContext,
-        childIndex: (parentRunContext.childIndex ?? 0) + n,
-      });
+      // Mutate in place — do NOT use enterWith/setContext here.
+      // storage.run() gives every async descendant the same object reference,
+      // so direct mutation is visible across all await boundaries within the
+      // same task execution.  enterWith would create a new object whose
+      // updates are invisible to parent async contexts after an await.
+      parentRunContext.childIndex = (parentRunContext.childIndex ?? 0) + n;
     }
   }
 

@@ -1,5 +1,5 @@
 import { makeE2EClient } from '../__e2e__/harness';
-import { childIndexParent } from './workflow';
+import { childIndexParent, orchestratorTask } from './workflow';
 
 describe('child-index-e2e', () => {
   const hatchet = makeE2EClient();
@@ -38,5 +38,13 @@ describe('child-index-e2e', () => {
 
     const uniqueRunIds = new Set(data.runIds as string[]);
     expect(uniqueRunIds.size).toBe(N);
+  }, 120_000);
+
+  it('recursive bottom-up tree traversal produces unique run IDs for every node', async () => {
+    const result = await orchestratorTask.run({});
+
+    expect(result.total).toBe(result.expected);
+    expect(result.hasDuplicates).toBe(false);
+    expect(result.uniqueRunIds).toBe(result.total);
   }, 120_000);
 });
