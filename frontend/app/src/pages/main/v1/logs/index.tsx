@@ -85,7 +85,7 @@ export default function TenantLogsPage() {
             return {
               ...result,
               suggestions: result.suggestions.filter(
-                (s) => s.value !== 'attempt:' && s.value !== 'workflow:',
+                (s) => s.value !== 'attempt:',
               ),
             };
           }}
