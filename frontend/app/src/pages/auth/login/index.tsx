@@ -33,15 +33,14 @@ function BasicLogin() {
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({ setFieldErrors, setErrors });
-  const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
-    useUserUniverse();
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
 
   const { userUpdateLoginMutation } = useUserApi();
   const loginMutation = useMutation({
     ...userUpdateLoginMutation(),
-    onSuccess: () => {
-      invalidateUserUniverse();
-      getUserUniverse();
+    onSuccess: async () => {
+      await invalidateUserUniverse();
+      await new Promise((resolve) => setTimeout(resolve, 0));
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,

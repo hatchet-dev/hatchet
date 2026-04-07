@@ -14,7 +14,7 @@ type UserUniverse = {
   isLoaded: boolean;
   organizations: OrganizationForUserList['rows'] | null;
   tenantMemberships: TenantMember[] | null;
-  invalidate: () => void;
+  invalidate: () => Promise<void>;
 } & (
   | ({
       isCloudEnabled: true;
@@ -122,11 +122,13 @@ export function UserUniverseProvider({
 
   const queryClient = useQueryClient();
 
-  const invalidate = useCallback(() => {
-    queryClient.resetQueries({
-      queryKey: ['user-universe'],
-    });
-  }, [queryClient]);
+  const invalidate = useCallback(
+    () =>
+      queryClient.resetQueries({
+        queryKey: ['user-universe'],
+      }),
+    [queryClient],
+  );
 
   const get = useCallback(
     () =>
