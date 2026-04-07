@@ -39,30 +39,14 @@ export class ParentRunContextManager {
     );
   }
 
-  setContext(opts: ParentRunContext): void {
-    this.storage.enterWith({
-      ...opts,
-    });
-  }
-
-  setParentRunIdAndIncrementChildIndex(opts: ParentRunContext): void {
-    const parentRunContext = this.getContext();
-    if (parentRunContext) {
-      parentRunContext.parentId = opts.parentId;
-      parentRunContext.parentTaskRunExternalId = opts.parentTaskRunExternalId;
-      parentRunContext.childIndex = (parentRunContext.childIndex ?? 0) + 1;
-      this.setContext(parentRunContext);
-    }
-  }
-
   incrementChildIndex(n: number): void {
     const parentRunContext = this.getContext();
     if (parentRunContext) {
-      // Mutate in place — do NOT use enterWith/setContext here.
+      // Mutate in place — do NOT use enterWith here.
       // storage.run() gives every async descendant the same object reference,
       // so direct mutation is visible across all await boundaries within the
-      // same task execution.  enterWith would create a new object whose
-      // updates are invisible to parent async contexts after an await.
+      // same task execution.  enterWith would replace the object, and the new
+      // object's updates would be invisible to parent async contexts after an await.
       parentRunContext.childIndex = (parentRunContext.childIndex ?? 0) + n;
     }
   }
