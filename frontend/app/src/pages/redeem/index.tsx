@@ -32,7 +32,6 @@ import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
   UserOffer,
-  UserOfferList,
   UserOfferStage,
   UserOfferType,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -321,19 +320,16 @@ export default function RedeemOffersPage() {
     },
     onMutate: async (data) => {
       await queryClient.cancelQueries({ queryKey: ['offers:list'] });
-      const previous = queryClient.getQueryData<UserOfferList>(['offers:list']);
-      queryClient.setQueryData<UserOfferList>(['offers:list'], (old) => {
+      const previous = queryClient.getQueryData<UserOffer[]>(['offers:list']);
+      queryClient.setQueryData<UserOffer[]>(['offers:list'], (old) => {
         if (!old) {
           return old;
         }
-        return {
-          ...old,
-          rows: old.rows.map((o) =>
-            o.recordId === data.offerRecordId
-              ? { ...o, stage: UserOfferStage.Redeemed }
-              : o,
-          ),
-        };
+        return old.map((o) =>
+          o.recordId === data.offerRecordId
+            ? { ...o, stage: UserOfferStage.Redeemed }
+            : o,
+        );
       });
       return { previous };
     },
@@ -381,7 +377,7 @@ export default function RedeemOffersPage() {
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
 
   const isLoading = offersQuery.isLoading || !isUserUniverseLoaded;
-  const offers = offersQuery.data?.rows ?? [];
+  const offers = offersQuery.data ?? [];
   const defaultOrgId = useMemo(() => {
     if (lastTenant?.metadata.id) {
       const orgId = getOrganizationIdForTenant(lastTenant.metadata.id);

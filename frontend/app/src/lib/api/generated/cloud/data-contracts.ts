@@ -380,7 +380,10 @@ export interface TenantPaymentMethod {
   brand: string;
   /** The last 4 digits of the card. */
   last4?: string;
-  /** The expiration date of the card. */
+  /**
+   * The expiration date of the card.
+   * @format date-time
+   */
   expiration?: string;
   /** The description of the payment method. */
   description?: string;
@@ -1000,16 +1003,15 @@ export interface UserOffer {
   type?: UserOfferType;
   /** The credit amount in cents. */
   creditAmountCents?: number;
-  /** The expiration date of the offer. */
+  /**
+   * The expiration date of the offer.
+   * @format date-time
+   */
   expiresAt?: string;
   /** Number of months until the offer credit expires after redemption. */
   expiresInMonths?: number;
   /** Whether the offer includes a welcome kit. */
   includesWelcomeKit?: boolean;
-}
-
-export interface UserOfferList {
-  rows: UserOffer[];
 }
 
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
