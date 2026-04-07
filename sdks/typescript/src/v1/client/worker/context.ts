@@ -976,15 +976,35 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   async waitForEvent<T extends z.ZodTypeAny>(
     key: string,
     expression?: string,
-    payloadSchema?: T
+    payloadSchema?: T,
+    scope?: string,
+    lookbackWindow?: Duration
   ): Promise<z.infer<T>>;
-  async waitForEvent(key: string, expression?: string): Promise<Record<string, any>>;
   async waitForEvent(
     key: string,
     expression?: string,
-    payloadSchema?: z.ZodTypeAny
+    payloadSchema?: undefined,
+    scope?: string,
+    lookbackWindow?: Duration
+  ): Promise<Record<string, any>>;
+  async waitForEvent(
+    key: string,
+    expression?: string,
+    payloadSchema?: z.ZodTypeAny,
+    scope?: string,
+    lookbackWindow?: Duration
   ): Promise<unknown> {
-    const res = await this.waitFor({ eventKey: key, expression });
+    const now = await this.now();
+    const considerEventsSince = lookbackWindow
+      ? new Date(now.getMilliseconds() - durationToMs(lookbackWindow)).toISOString()
+      : undefined;
+
+    const res = await this.waitFor({
+      eventKey: key,
+      expression,
+      scope,
+      considerEventsSince,
+    });
 
     // The engine returns an object like:
     // {"CREATE": {"signal_key_1": [{"id": ..., "data": {...}}]}}

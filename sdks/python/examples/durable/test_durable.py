@@ -3,6 +3,9 @@ import time
 
 import pytest
 from uuid import uuid4
+import json
+from typing import cast
+from random import shuffle
 
 from examples.durable.worker import (
     EVENT_KEY,
@@ -21,8 +24,12 @@ from examples.durable.worker import (
     DurableBulkSpawnInput,
     memo_now_caching,
     AwaitedEvent,
+    EventLookbackInput,
+    wait_for_event_lookback,
+    wait_for_or_event_lookback,
+    wait_for_two_events_second_pushed_first,
 )
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, PushEventOptions
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
@@ -305,3 +312,90 @@ async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
     result_2 = await ref.aio_result()
 
     assert result_1["start_time"] == result_2["start_time"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
+    scope = str(uuid4())
+
+    hatchet.event.push(
+        EVENT_KEY, {"order": "first"}, options=PushEventOptions(scope=scope)
+    )
+
+    await asyncio.sleep(1)
+
+    result = await wait_for_event_lookback.aio_run(EventLookbackInput(scope=scope))
+
+    assert (
+        result.elapsed < 1
+    ), "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    assert result.event.order == "first"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
+    scope = str(uuid4())
+
+    hatchet.event.push(
+        EVENT_KEY, {"order": "first"}, options=PushEventOptions(scope=scope)
+    )
+    await asyncio.sleep(1)
+
+    result = await wait_for_or_event_lookback.aio_run(EventLookbackInput(scope=scope))
+
+    assert result.elapsed < SLEEP_TIME
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
+    scope = str(uuid4())
+
+    hatchet.event.push(
+        "key2",
+        {"order": "second"},
+        options=PushEventOptions(scope=scope),
+    )
+    await asyncio.sleep(1)
+
+    ref = await wait_for_two_events_second_pushed_first.aio_run_no_wait(
+        EventLookbackInput(scope=scope)
+    )
+
+    await asyncio.sleep(3)
+
+    hatchet.event.push(
+        "key1",
+        {"order": "first"},
+        options=PushEventOptions(scope=scope),
+    )
+
+    result = await ref.aio_result()
+
+    assert result.elapsed < SLEEP_TIME
+    assert result.event1.order == "first"
+    assert result.event2.order == "second"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
+    scope = str(uuid4())
+
+    event = None
+    iters = list(range(100))
+    shuffle(iters)
+
+    for i in iters:
+        event = hatchet.event.push(
+            EVENT_KEY,
+            {"order": str(i)},
+            options=PushEventOptions(scope=scope),
+        )
+
+    assert event
+    await asyncio.sleep(1)
+
+    res = await wait_for_event_lookback.aio_run(EventLookbackInput(scope=scope))
+
+    payload = cast(dict[str, str], json.loads(event.payload))
+
+    assert res.event.order == payload["order"]
