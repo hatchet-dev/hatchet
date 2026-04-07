@@ -7,7 +7,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
-from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -41,13 +40,11 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionPayload
 from hatchet_sdk.runnables.types import (
     R,
     TWorkflowInput,
@@ -57,7 +54,6 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.timedelta_to_expression import (
     Duration,
-    _warn_if_str_duration,
     expr_to_timedelta,
     timedelta_to_expr,
 )
@@ -108,7 +104,6 @@ class Context:
         durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
-        worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
@@ -117,7 +112,6 @@ class Context:
         workflow_name: str,
         worker_labels: list[WorkerLabel],
     ):
-        self._worker = worker
 
         self._data = action.action_payload
 
@@ -142,15 +136,6 @@ class Context:
         self._workflow_name = workflow_name
         self._task_name = task_name
         self._worker_labels = worker_labels
-
-    @property
-    def worker(self) -> WorkerContext:
-        warn(
-            "The worker property is internal and should not be used directly. It will be removed in v2.0.0. Use corresponding properties such as `ctx.worker_id` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._worker
 
     @property
     def worker_id(self) -> str:
@@ -181,112 +166,8 @@ class Context:
         await asyncio.to_thread(self.upsert_worker_labels, labels)
 
     @property
-    def data(self) -> ActionPayload:
-        warn(
-            "The data property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._data
-
-    @property
-    def action(self) -> Action:
-        warn(
-            "The action property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action
-
-    @property
-    def step_run_id(self) -> str:
-        warn(
-            "The step_run_id property is deprecated. It will be removed in v2.0.0. Use `task_run_id` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._step_run_id
-
-    @property
-    def exit_flag(self) -> bool:
-        warn(
-            "The exit_flag property is internal and should not be used directly. It will be removed in v2.0.0. Use `is_cancelled` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._exit_flag
-
-    @property
-    def dispatcher_client(self) -> DispatcherClient:
-        warn(
-            "The dispatcher_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._dispatcher_client
-
-    @property
-    def admin_client(self) -> AdminClient:
-        warn(
-            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._admin_client
-
-    @property
-    def event_client(self) -> EventClient:
-        warn(
-            "The event_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.events` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._event_client
-
-    @property
-    def runs_client(self) -> RunsClient:
-        warn(
-            "The runs_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.runs` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._runs_client
-
-    @property
-    def durable_event_listener(
-        self,
-    ) -> DurableEventListener | PreEvictionDurableEventListener | None:
-        warn(
-            "The durable_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_event_listener
-
-    @property
-    def input(self) -> JSONSerializableMapping:
-        warn(
-            "The input property is deprecated. It will be removed in v2.0.0. Use the input passed to the task instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._input
-
-    @property
     def filter_payload(self) -> JSONSerializableMapping:
         return self._filter_payload
-
-    @property
-    def log_sender(self) -> AsyncLogSender:
-        warn(
-            "The log_sender property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._log_sender
 
     def _increment_stream_index(self) -> int:
         index = self._stream_index
@@ -333,20 +214,6 @@ class Context:
             ),
         )
 
-    def aio_task_output(self, task: Task[TWorkflowInput, R]) -> R:
-        warn(
-            "`aio_task_output` is deprecated and will be removed in v2.0.0. Use `task_output` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if task._is_async_function:
-            return self.task_output(task)
-
-        raise ValueError(
-            f"Task '{task.name}' is not an async function. Use `task_output` instead."
-        )
-
     @property
     def was_triggered_by_event(self) -> bool:
         """
@@ -355,22 +222,6 @@ class Context:
         :return: True if the workflow was triggered by an event, False otherwise.
         """
         return self._data.triggered_by == "event"
-
-    @property
-    def workflow_input(self) -> JSONSerializableMapping:
-        """
-        The input to the workflow, as a dictionary. It's recommended to use the `input` parameter to the task (the first argument passed into the task at runtime) instead of this property.
-
-        :return: The input to the workflow.
-        """
-
-        warn(
-            "`workflow_input` is deprecated and will be removed in v2.0.0. Use the input passed to the task instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._input
 
     @property
     def _workflow_input(self) -> JSONSerializableMapping:
@@ -431,20 +282,6 @@ class Context:
         logger.debug("cancelling step...")
         await self._runs_client.aio_cancel(self._step_run_id)
         self._set_cancellation_flag()
-
-    def done(self) -> bool:
-        """
-        Check if the current task run has been cancelled.
-
-        :return: True if the task run has been cancelled, False otherwise.
-        """
-        warn(
-            "`done` is deprecated and will be removed in v2.0.0. Use `is_cancelled` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self.is_cancelled
 
     @property
     def is_cancelled(self) -> bool:
@@ -551,14 +388,10 @@ class Context:
         :return: None
         """
 
-        _warn_if_str_duration(increment_by, stacklevel=2)
-
-        if isinstance(increment_by, timedelta):
-            increment_by = timedelta_to_expr(increment_by)
-
         try:
             return self._dispatcher_client.refresh_timeout(
-                step_run_id=self._step_run_id, increment_by=increment_by
+                step_run_id=self._step_run_id,
+                increment_by=timedelta_to_expr(increment_by),
             )
         except Exception:
             logger.exception("error refreshing timeout")
@@ -681,27 +514,6 @@ class Context:
     def task_name(self) -> str:
         return self._task_name
 
-    def fetch_task_run_error(
-        self,
-        task: Task[TWorkflowInput, R],
-    ) -> str | None:
-        """
-        **DEPRECATED**: Use `get_task_run_error` instead.
-
-        A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
-
-        :param task: The task whose error you want to retrieve.
-        :return: The error message of the task run, or None if no error occurred.
-        """
-        warn(
-            "`fetch_task_run_error` is deprecated and will be removed in v2.0.0. Use `get_task_run_error` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        errors = self._data.step_run_errors
-
-        return errors.get(task.name)
-
     def get_task_run_error(
         self,
         task: Task[TWorkflowInput, R],
@@ -740,7 +552,6 @@ class DurableContext(Context):
         durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
-        worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
@@ -757,7 +568,6 @@ class DurableContext(Context):
             admin_client,
             event_client,
             durable_event_listener,
-            worker,
             runs_client,
             lifespan_context,
             log_sender,
@@ -773,15 +583,15 @@ class DurableContext(Context):
 
     @property
     def _durable_listener(self) -> DurableEventListener:
-        if self.durable_event_listener is None:
+        if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
-        if not isinstance(self.durable_event_listener, DurableEventListener):
+        if not isinstance(self._durable_event_listener, DurableEventListener):
             raise TypeError(
                 "Expected DurableEventListener, got "
-                f"{type(self.durable_event_listener).__name__}"
+                f"{type(self._durable_event_listener).__name__}"
             )
-        return self.durable_event_listener
+        return self._durable_event_listener
 
     @property
     def _supports_durable_eviction(self) -> bool:
@@ -819,7 +629,7 @@ class DurableContext(Context):
         :raises ValueError: If the durable task client is not available.
         :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
-        if self.durable_event_listener is None:
+        if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
         if not self._supports_durable_eviction:
@@ -831,10 +641,10 @@ class DurableContext(Context):
 
         flat_conditions = flatten_conditions(list(conditions))
         conditions_proto = build_conditions_proto(
-            flat_conditions, self.runs_client.client_config
+            flat_conditions, self._runs_client.client_config
         )
         ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
+            durable_task_external_id=self._step_run_id,
             invocation_count=self.invocation_count,
             event=WaitForEvent(wait_for_conditions=conditions_proto),
         )
@@ -848,11 +658,11 @@ class DurableContext(Context):
         async with aio_durable_eviction_wait(
             wait_kind="wait_for",
             resource_id=signal_key,
-            action_key=self.action.key,
+            action_key=self._action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
-                durable_task_external_id=self.step_run_id,
+                durable_task_external_id=self._step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
@@ -866,8 +676,6 @@ class DurableContext(Context):
 
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
-        _warn_if_str_duration(duration, stacklevel=2)
-
         wait_index = self._increment_wait_index()
 
         res = await self.aio_wait_for(
@@ -960,7 +768,7 @@ class DurableContext(Context):
         await self._ensure_stream_started()
 
         ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
+            durable_task_external_id=self._step_run_id,
             invocation_count=self.invocation_count,
             event=RunChildrenEvent(
                 children=[
@@ -998,11 +806,11 @@ class DurableContext(Context):
         async with aio_durable_eviction_wait(
             wait_kind="spawn_child",
             resource_id=workflow_name,
-            action_key=self.action.key,
+            action_key=self._action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
-                durable_task_external_id=self.step_run_id,
+                durable_task_external_id=self._step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
@@ -1011,14 +819,14 @@ class DurableContext(Context):
         return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:
-        if not isinstance(self.durable_event_listener, DurableEventListener):
+        if not isinstance(self._durable_event_listener, DurableEventListener):
             raise ValueError("Durable task client is not available")
 
-        await self.durable_event_listener.ensure_started(self.action.worker_id)
+        await self._durable_event_listener.ensure_started(self._action.worker_id)
 
     @property
     def invocation_count(self) -> int:
-        return self.action.durable_task_invocation_count or 1
+        return self._action.durable_task_invocation_count or 1
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
     ## Keep the signature in sync with the instrumentor wrapper.
@@ -1055,10 +863,10 @@ class DurableContext(Context):
 
         listener = self._durable_listener
 
-        run_external_id = self.step_run_id
+        run_external_id = self._step_run_id
         adapter = TypeAdapter(result_validator)
 
-        key = _compute_memo_key(self.step_run_id, *args, **kwargs)
+        key = _compute_memo_key(self._step_run_id, *args, **kwargs)
 
         ack = await listener.send_event(
             durable_task_external_id=run_external_id,

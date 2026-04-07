@@ -1,6 +1,4 @@
-import warnings
-
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
@@ -33,43 +31,9 @@ class WorkflowRunTriggerConfig(BaseModel):
     key: str | None = None
 
 
-class PushEventOptions(BaseModel):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    namespace: str | None = None
-    priority: int | Priority | None = None
-    scope: str | None = None
-
-    @field_validator("namespace", mode="before")
-    @classmethod
-    def validate_namespace(cls, v: str | None) -> str | None:
-        if v:
-            warnings.warn(
-                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        return v
-
-
 class BulkPushEventWithMetadata(BaseModel):
     key: str = ""
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | Priority | None = None
     scope: str | None = None
-
-
-class BulkPushEventOptions(BulkPushEventWithMetadata):
-    namespace: str | None = None
-
-    @field_validator("namespace", mode="before")
-    @classmethod
-    def validate_namespace(cls, v: str | None) -> str | None:
-        if v:
-            warnings.warn(
-                "The `namespace` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return v
