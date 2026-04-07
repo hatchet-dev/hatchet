@@ -12,7 +12,7 @@ import {
   ScheduledWorkflows,
   V1CreateFilterRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { z } from 'zod';
+import * as z from 'zod';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { IHatchetClient } from './client/client.interface';
 import {
@@ -32,6 +32,10 @@ import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from '.
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
+import type { FunctionTool } from '@openai/agents';
+import type { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
+import { OpenAIToolFunc, OpenAIToolFuncT } from '@hatchet/v1/agent/openai';
+import { ClaudeToolFunc, ClaudeToolFuncT } from '@hatchet/v1/agent/claude';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -40,6 +44,19 @@ export enum Priority {
   MEDIUM = 2,
   HIGH = 3,
 }
+type AgentSdk = 'claude' | 'openai';
+
+type AgentSdkFuncMap = {
+  claude: ClaudeToolFuncT;
+  openai: OpenAIToolFuncT;
+};
+
+const sdkFuncMap: AgentSdkFuncMap = {
+  claude: ClaudeToolFunc,
+  openai: OpenAIToolFunc,
+};
+
+type Tail<T extends any[]> = T extends [any, ...infer R] ? R : never;
 
 /**
  * Additional metadata that can be attached to a workflow run.
@@ -689,6 +706,20 @@ export class BaseWorkflowDeclaration<
    */
   get name() {
     return this.definition.name;
+  }
+  /**
+   * Create an MCP tool from a workflow. Supports both Claude and OpenAI agent sdks.
+   * @param sdk The agent SDK the tool will be used with.
+   * @param args Optional arguments passed to create the MCP tool object.
+   * @returns The MCP tool object.
+   **/
+  mcpTool(
+    sdk: 'claude',
+    ...args: Tail<Parameters<AgentSdkFuncMap['claude']>>
+  ): SdkMcpToolDefinition;
+  mcpTool(sdk: 'openai', ...args: Tail<Parameters<AgentSdkFuncMap['openai']>>): FunctionTool;
+  mcpTool<K extends AgentSdk>(sdk: K, ...args: any): SdkMcpToolDefinition | FunctionTool {
+    return (sdkFuncMap[sdk] as any)(this, ...args);
   }
 }
 

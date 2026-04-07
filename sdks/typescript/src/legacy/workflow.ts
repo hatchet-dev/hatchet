@@ -8,11 +8,11 @@ import {
 
 const CronConfigSchema = z.object({
   cron: z.string(),
-  event: z.undefined(),
+  event: z.undefined().optional(),
 });
 
 const EventConfigSchema = z.object({
-  cron: z.undefined(),
+  cron: z.undefined().optional(),
   event: z.string(),
 });
 
@@ -27,7 +27,7 @@ export const ConcurrencyLimitStrategy = PbConcurrencyLimitStrategy;
 export const WorkflowConcurrency = z.object({
   name: z.string(),
   maxRuns: z.number().optional(),
-  limitStrategy: z.nativeEnum(ConcurrencyLimitStrategy).optional(),
+  limitStrategy: z.enum(ConcurrencyLimitStrategy).optional(),
   expression: z.string().optional(),
 });
 
@@ -39,7 +39,7 @@ export const CreateWorkflowSchema = z.object({
   id: z.string(),
   description: z.string(),
   version: z.string().optional(),
-  sticky: z.union([z.nativeEnum(PbStickyStrategy), z.enum(['soft', 'hard'])]).optional(),
+  sticky: z.union([z.enum(PbStickyStrategy), z.enum(['soft', 'hard'])]).optional(),
   scheduleTimeout: z.string().optional(),
   /**
    * @deprecated Workflow timeout is deprecated. Use step timeouts instead.
