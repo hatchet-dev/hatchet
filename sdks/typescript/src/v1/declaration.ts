@@ -388,19 +388,17 @@ export class BaseWorkflowDeclaration<
       warn: (message) => this.client!.admin.logger.warn(message),
     });
 
-    // Snapshot the base child index before incrementing. We use 1-based child
-    // indices because Context.spawnIndex occupies the 0-based range.
+    // Snapshot childIndex before incrementing — shared with Context.spawnIndex
+    // via parentRunContextManager so both spawning APIs produce unique indices.
     const baseChildIndex = parentRunContext?.childIndex;
     const inputCount = Array.isArray(input) ? input.length : 1;
     parentRunContextManager.incrementChildIndex(inputCount);
-
-    const childIndexForRun = baseChildIndex != null ? baseChildIndex + 1 : undefined;
 
     const runOpts = {
       ...(options ?? {}),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
-      childIndex: childIndexForRun,
+      childIndex: baseChildIndex,
       sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
       childKey: options?.childKey,
     };
@@ -415,7 +413,7 @@ export class BaseWorkflowDeclaration<
             input: inp,
             options: {
               ...runOpts,
-              childIndex: (childIndexForRun ?? 0) + i + batchIdx,
+              childIndex: (baseChildIndex ?? 0) + i + batchIdx,
             },
           }))
         );
