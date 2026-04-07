@@ -238,6 +238,7 @@ SELECT e.*
 FROM v1_event e
 JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
 WHERE tenant_id = @tenantId::uuid
+ORDER BY e.seen_at DESC
 ;
 
 -- name: CleanupMatchWithMatchConditions :exec

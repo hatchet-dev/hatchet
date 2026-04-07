@@ -61,6 +61,7 @@ SELECT e.id, e.seen_at, e.tenant_id, e.external_id, e.key, e.additional_metadata
 FROM v1_event e
 JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
 WHERE tenant_id = $1::uuid
+ORDER BY e.seen_at DESC
 `
 
 type GetPreviousMatchingEventsByKeysWithScopeHintParams struct {

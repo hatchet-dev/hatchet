@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -448,22 +449,44 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		return res, nil
 	}
 
+	type eventIdWithTime struct {
+		id        uuid.UUID
+		timestamp time.Time
+	}
+
+	sortedEventIds := make([]eventIdWithTime, 0, len(matches))
+
+	for eventId := range matches {
+		sortedEventIds = append(sortedEventIds, eventIdWithTime{
+			id:        eventId,
+			timestamp: idsToEvents[eventId].EventTimestamp,
+		})
+	}
+
+	slices.SortFunc(sortedEventIds, func(a, b eventIdWithTime) int {
+		if a.timestamp.After(b.timestamp) {
+			return -1
+		} else if a.timestamp.Before(b.timestamp) {
+			return 1
+		}
+		return 0
+	})
+
 	matchIds := make([]int64, 0, len(matches))
 	conditionIds := make([]int64, 0, len(matches))
 	datas := make([][]byte, 0, len(matches))
 
-	for eventId, conditions := range matches {
-		for _, condition := range conditions {
-			event, ok := idsToEvents[eventId]
+	for _, eid := range sortedEventIds {
+		for _, condition := range matches[eid.id] {
+			event, ok := idsToEvents[eid.id]
 
 			if !ok {
-				m.l.Error().Ctx(ctx).Msgf("event with id %s not found", eventId)
+				m.l.Error().Ctx(ctx).Msgf("event with id %s not found", eid.id)
 				continue
 			}
 
 			matchIds = append(matchIds, condition.V1MatchID)
 			conditionIds = append(conditionIds, condition.ID)
-
 			datas = append(datas, event.Data)
 		}
 	}
