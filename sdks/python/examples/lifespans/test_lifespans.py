@@ -25,7 +25,7 @@ async def test_lifespans() -> None:
     "on_demand_worker",
     [
         (
-            ["poetry", "run", "python", "examples/lifespans/drain.py"],
+            ["uv", "run", "python", "examples/lifespans/drain.py"],
             8009,
         )
     ],

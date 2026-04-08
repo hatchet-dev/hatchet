@@ -54,7 +54,7 @@ def _skip_unless_observability(supports_observability: bool) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def worker() -> Generator[Popen[bytes], None, None]:
-    command = ["poetry", "run", "python", "examples/worker.py"]
+    command = ["uv", "run", "python", "examples/worker.py"]
 
     with hatchet_worker(command) as proc:
         yield proc

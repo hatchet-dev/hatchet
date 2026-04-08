@@ -12,7 +12,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
     "on_demand_worker",
     [
         (
-            ["poetry", "run", "python", "examples/streaming/worker.py", "--slots", "1"],
+            ["uv", "run", "python", "examples/streaming/worker.py", "--slots", "1"],
             8008,
         )
     ],

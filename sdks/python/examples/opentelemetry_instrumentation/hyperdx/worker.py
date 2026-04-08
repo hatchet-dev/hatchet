@@ -6,7 +6,7 @@ Prerequisites:
     docker compose up -d
 
 Then run this worker:
-    poetry run python -m examples.opentelemetry_instrumentation.hyperdx.worker
+    uv run python -m examples.opentelemetry_instrumentation.hyperdx.worker
 
 Open http://localhost:8088 to view traces in HyperDX.
 """

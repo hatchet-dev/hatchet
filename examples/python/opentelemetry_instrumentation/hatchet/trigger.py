@@ -2,10 +2,10 @@
 Trigger the OTelDataPipeline workflow.
 
 Make sure the worker is already running:
-    poetry run python -m examples.opentelemetry_instrumentation.hatchet.worker
+    uv run python -m examples.opentelemetry_instrumentation.hatchet.worker
 
 Then run this:
-    poetry run python -m examples.opentelemetry_instrumentation.hatchet.trigger
+    uv run python -m examples.opentelemetry_instrumentation.hatchet.trigger
 """
 
 from opentelemetry.trace import get_tracer
