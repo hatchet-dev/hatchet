@@ -28,6 +28,7 @@ import { HatchetClient } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
@@ -124,8 +125,17 @@ export class Context<T, K = {}> {
   overridesData: Record<string, any> = {};
   _logger: Logger;
 
+  /** @deprecated — kept for backward compat; prefer {@link nextChildIndex}. */
   spawnIndex: number = 0;
   streamIndex = 0;
+
+  protected nextChildIndex(n = 1): number {
+    const ctx = parentRunContextManager.getContext();
+    const idx = ctx?.childIndex ?? this.spawnIndex;
+    parentRunContextManager.incrementChildIndex(n);
+    this.spawnIndex = idx + n;
+    return idx;
+  }
 
   constructor(action: Action, v1: HatchetClient, worker: InternalWorker) {
     try {
@@ -477,18 +487,18 @@ export class Context<T, K = {}> {
 
     const { workflowRunId, taskRunExternalId } = this.action;
 
+    const childIndex = this.nextChildIndex();
+
     const finalOpts = {
       ...opts,
       parentId: workflowRunId,
       parentTaskRunExternalId: taskRunExternalId,
-      childIndex: this.spawnIndex,
+      childIndex,
       childKey: options?.key,
       desiredWorkerId: sticky ? this.worker.id() : undefined,
       _standaloneTaskName:
         workflow instanceof TaskWorkflowDeclaration ? workflow._standalone_task_name : undefined,
     };
-
-    this.spawnIndex += 1;
 
     return { workflowName, opts: finalOpts };
   }
@@ -726,6 +736,8 @@ export class Context<T, K = {}> {
 
       delete (optsWithoutSignal as any).signal;
 
+      const childIndex = this.nextChildIndex();
+
       const resp = {
         workflowName: name,
         input,
@@ -733,11 +745,10 @@ export class Context<T, K = {}> {
           ...optsWithoutSignal,
           parentId: workflowRunId,
           parentTaskRunExternalId: taskRunExternalId,
-          childIndex: this.spawnIndex,
+          childIndex,
           desiredWorkerId: sticky ? this.worker.id() : undefined,
         },
       };
-      this.spawnIndex += 1;
       return resp;
     });
 
@@ -798,15 +809,15 @@ export class Context<T, K = {}> {
     }
 
     try {
+      const childIndex = this.nextChildIndex();
+
       const resp = await this.v1.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
         parentTaskRunExternalId: taskRunExternalId,
-        childIndex: this.spawnIndex,
+        childIndex,
         desiredWorkerId: sticky ? this.worker.id() : undefined,
         ...opts,
       });
-
-      this.spawnIndex += 1;
 
       if (workflow instanceof TaskWorkflowDeclaration) {
         resp._standaloneTaskName = workflow._standalone_task_name;
@@ -1081,12 +1092,14 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     workflowName = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
 
+    const childIndex = this.nextChildIndex();
+
     const triggerOpts = {
       name: workflowName,
       input: JSON.stringify(input || {}),
       parentId: this.action.workflowRunId,
       parentTaskRunExternalId: this.action.taskRunExternalId,
-      childIndex: this.spawnIndex,
+      childIndex,
       childKey: options?.key,
       additionalMetadata: options?.additionalMetadata
         ? JSON.stringify(options.additionalMetadata)
@@ -1095,8 +1108,6 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       priority: options?.priority,
       desiredWorkerLabels: {},
     };
-
-    this.spawnIndex += 1;
 
     return { workflowName, triggerOpts };
   }

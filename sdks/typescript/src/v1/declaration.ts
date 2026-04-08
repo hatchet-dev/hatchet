@@ -368,9 +368,7 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
-    // set the parent run context
     const parentRunContext = parentRunContextManager.getContext();
-    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
 
     if (!parentRunContext && (options?.childKey || options?.sticky)) {
       this.client.admin.logger.warn(
@@ -390,13 +388,17 @@ export class BaseWorkflowDeclaration<
       warn: (message) => this.client!.admin.logger.warn(message),
     });
 
-    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
+    // Snapshot childIndex before incrementing — shared with Context.spawnIndex
+    // via parentRunContextManager so both spawning APIs produce unique indices.
+    const baseChildIndex = parentRunContext?.childIndex;
+    const inputCount = Array.isArray(input) ? input.length : 1;
+    parentRunContextManager.incrementChildIndex(inputCount);
 
     const runOpts = {
       ...(options ?? {}),
       parentId: parentRunContext?.parentId,
       parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
-      childIndex: parentRunContext?.childIndex,
+      childIndex: baseChildIndex,
       sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
       childKey: options?.childKey,
     };
@@ -406,12 +408,12 @@ export class BaseWorkflowDeclaration<
       for (let i = 0; i < input.length; i += 500) {
         const batch = input.slice(i, i + 500);
         const batchResp = await this.client.admin.runWorkflows<I, O>(
-          batch.map((inp) => ({
+          batch.map((inp, batchIdx) => ({
             workflowName: this.definition.name,
             input: inp,
             options: {
               ...runOpts,
-              childIndex: (runOpts.childIndex ?? 0) + i, // increment from initial child index state
+              childIndex: (baseChildIndex ?? 0) + i + batchIdx,
             },
           }))
         );
