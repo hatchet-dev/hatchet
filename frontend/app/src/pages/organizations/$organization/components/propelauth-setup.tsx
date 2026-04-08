@@ -1,42 +1,47 @@
 import SsoSetup from '@/components/sso/sso-setup.tsx';
 import type { SsoApi } from '@/lib/sso/sso-types.ts';
 import { appRoutes } from '@/router.tsx';
-import { useParams } from "@tanstack/react-router";
+import { useParams } from '@tanstack/react-router';
+
 interface OrgSsoApi extends SsoApi {
-  orgId: string
+  orgId: string;
 }
-let api: OrgSsoApi = {
+const api: OrgSsoApi = {
   async get() {
     const r = await fetch(`/api/v1/management/organizations/${this.orgId}/sso`);
-    console.log(r);
     if (!r.ok) {
       return {
         ok: false,
-        error: {status: r.status, message: await r.text()},
+        error: { status: r.status, message: await r.text() },
       };
     }
-    return {ok: true, data: await r.json()};
+    return { ok: true, data: await r.json() };
   },
   async upsert(body) {
-    const r = await fetch(`/api/v1/users/propelauth/setup`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
-    });
+    const r = await fetch(
+      `/api/v1/management/organizations/${this.orgId}/sso`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
     console.log(r);
     return r.ok
-      ? {ok: true, data: undefined}
-      : {ok: false, error: {status: r.status, message: await r.text()}};
+      ? { ok: true, data: undefined }
+      : { ok: false, error: { status: r.status, message: await r.text() } };
   },
   async remove() {
-    const r = await fetch(`/api/v1/users/propelauth/delete`, {
-      method: 'DELETE',
+    const r = await fetch(
+      `/api/v1/management/organizations/${this.orgId}/sso`,
+      {
+        method: 'DELETE',
     });
     return r.ok
-      ? {ok: true, data: undefined}
-      : {ok: false, error: {status: r.status, message: await r.text()}};
+      ? { ok: true, data: undefined }
+      : { ok: false, error: { status: r.status, message: await r.text() } };
   },
-  orgId: ""
+  orgId: '',
 };
 
 export default function PropelAuthPage() {
