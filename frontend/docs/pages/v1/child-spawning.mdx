@@ -10,6 +10,10 @@ import FanoutDiagram from "@/components/FanoutDiagram";
 
 A task can spawn child tasks at runtime — including other durable tasks or entire DAG workflows. Children run independently on any available worker, and the parent can wait for their results before continuing. You can spawn children out of any task (durable or not).
 
+<Callout type="info">
+  While child spawning is not unique to durable tasks, we often recommend using durable tasks when spawning children is the main responsibility (or one of the main responsibilities) of a task. For instance, an agent might spawn many children (tool calls) as its main responsibility, making a durable task a good fit.
+</Callout>
+
 ### Spawning a child task
 
 Any task can spawn child tasks, but the implementation details differ by language.
