@@ -39,12 +39,12 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
-		assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleADMIN, operationId), true)
-		assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleOWNER, operationId), true)
+		assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleADMIN), operationId), true)
+		assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleOWNER), operationId), true)
 		if rbac.OperationIn(operationId, adminAndOwnerOnly) {
-			assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleMEMBER, operationId), false)
+			assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleMEMBER), operationId), false)
 		} else {
-			assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleMEMBER, operationId), true)
+			assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleMEMBER), operationId), true)
 		}
 	}
 }

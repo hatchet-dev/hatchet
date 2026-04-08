@@ -7,8 +7,6 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func OperationIn(operationId string, operationIds []string) bool {
@@ -38,8 +36,8 @@ func NewAuthorizer(
 	}, nil
 }
 
-func (a *Authorizer) IsAuthorized(role sqlcv1.TenantMemberRole, operation string) bool {
-	return a.permissionMap.HasPermission(string(role), operation)
+func (a *Authorizer) IsAuthorized(role string, operation string) bool {
+	return a.permissionMap.HasPermission(role, operation)
 }
 
 type Role struct {
