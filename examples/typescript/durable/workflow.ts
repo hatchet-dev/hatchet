@@ -1,6 +1,7 @@
 import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { NonDeterminismError } from '@hatchet-dev/typescript-sdk/util/errors/non-determinism-error';
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
+import { durationToMs } from '@hatchet-dev/typescript-sdk/v1/client/duration';
 import { hatchet } from '../hatchet-client';
 
 export const EVENT_KEY = 'durable-example:event';
@@ -271,10 +272,21 @@ export const waitForOrEventLookback = hatchet.durableTask({
   executionTimeout: '10m',
   fn: async (input: { scope: string }, ctx) => {
     const start = Date.now();
+    const now = await ctx.now();
+    const considerEventsSince = new Date(
+      now.getTime() - durationToMs(LOOKBACK_WINDOW)
+    ).toISOString();
     await ctx.waitFor(
       Or(
         new SleepCondition(SLEEP_TIME),
-        new UserEventCondition(EVENT_KEY, '', undefined, undefined, input.scope, LOOKBACK_WINDOW)
+        new UserEventCondition(
+          EVENT_KEY,
+          '',
+          undefined,
+          undefined,
+          input.scope,
+          considerEventsSince
+        )
       )
     );
     return {
