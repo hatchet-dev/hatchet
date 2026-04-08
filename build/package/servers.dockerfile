@@ -30,7 +30,7 @@ WORKDIR /openapi
 COPY /api-contracts/openapi ./openapi
 COPY /hack/oas/bundle-openapi.mjs ./bundle-openapi.mjs
 
-RUN echo '{ "type": "module", "dependencies": { "@redocly/openapi-core": "2.14.7", "yaml": "2.7.0" } }' > package.json && \
+RUN echo '{ "type": "module", "dependencies": { "@redocly/openapi-core": "2.14.7", "yaml": "2.7.0" }, "overrides": { "@redocly/ajv": "8.18.1" } }' > package.json && \
     npm install && \
     node bundle-openapi.mjs && \
     rm -f package.json package-lock.json bundle-openapi.mjs

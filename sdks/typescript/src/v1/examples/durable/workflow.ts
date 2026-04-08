@@ -1,6 +1,7 @@
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
 import sleep from '@hatchet/util/sleep';
+import { durationToMs } from '@hatchet/v1/client/duration';
 import { hatchet } from '../hatchet-client';
 
 export const EVENT_KEY = 'durable-example:event';
@@ -242,6 +243,82 @@ export const durableReplayReset = hatchet.durableTask({
       sleep_1_duration: sleep1Duration,
       sleep_2_duration: sleep2Duration,
       sleep_3_duration: sleep3Duration,
+    };
+  },
+});
+
+export const LOOKBACK_WINDOW = '1m' as const;
+
+export const waitForEventLookback = hatchet.durableTask({
+  name: 'wait-for-event-lookback',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    const event = await ctx.waitForEvent(
+      EVENT_KEY,
+      undefined,
+      undefined,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+      event,
+    };
+  },
+});
+
+export const waitForOrEventLookback = hatchet.durableTask({
+  name: 'wait-for-or-event-lookback',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    const now = await ctx.now();
+    const considerEventsSince = new Date(
+      now.getTime() - durationToMs(LOOKBACK_WINDOW)
+    ).toISOString();
+    await ctx.waitFor(
+      Or(
+        new SleepCondition(SLEEP_TIME),
+        new UserEventCondition(
+          EVENT_KEY,
+          '',
+          undefined,
+          undefined,
+          input.scope,
+          considerEventsSince
+        )
+      )
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+    };
+  },
+});
+
+export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
+  name: 'wait-for-two-events-second-pushed-first',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    const event1 = await ctx.waitForEvent(
+      'key1',
+      undefined,
+      undefined,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    const event2 = await ctx.waitForEvent(
+      'key2',
+      undefined,
+      undefined,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+      event1,
+      event2,
     };
   },
 });

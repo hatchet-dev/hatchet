@@ -20,7 +20,7 @@ describe('Onboarding: create tenant', () => {
       'include',
       '/onboarding/create-tenant',
     );
-    cy.contains('h1', 'Create a new tenant', { timeout: 30000 }).should(
+    cy.contains('h2', 'Create a new tenant', { timeout: 30000 }).should(
       'be.visible',
     );
   });

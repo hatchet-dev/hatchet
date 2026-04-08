@@ -19,11 +19,13 @@ __version__ = "1.0.0"
 from hatchet_sdk.clients.rest.api.api_token_api import APITokenApi
 from hatchet_sdk.clients.rest.api.cel_api import CELApi
 from hatchet_sdk.clients.rest.api.event_api import EventApi
+from hatchet_sdk.clients.rest.api.feature_flags_api import FeatureFlagsApi
 from hatchet_sdk.clients.rest.api.filter_api import FilterApi
 from hatchet_sdk.clients.rest.api.github_api import GithubApi
 from hatchet_sdk.clients.rest.api.healthcheck_api import HealthcheckApi
 from hatchet_sdk.clients.rest.api.log_api import LogApi
 from hatchet_sdk.clients.rest.api.metadata_api import MetadataApi
+from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
 from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
 from hatchet_sdk.clients.rest.api.sns_api import SNSApi
 from hatchet_sdk.clients.rest.api.slack_api import SlackApi
@@ -113,6 +115,10 @@ from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
     EventWorkflowRunSummary,
 )
 from hatchet_sdk.clients.rest.models.events import Events
+from hatchet_sdk.clients.rest.models.feature_flag_evaluation_result import (
+    FeatureFlagEvaluationResult,
+)
+from hatchet_sdk.clients.rest.models.feature_flag_id import FeatureFlagId
 from hatchet_sdk.clients.rest.models.get_step_run_diff_response import (
     GetStepRunDiffResponse,
 )

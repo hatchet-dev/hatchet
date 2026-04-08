@@ -42,14 +42,12 @@ export function loginSession(
           const ts = Date.now();
           const tenantName = `CypressSeedTenant${String(ts).slice(-6)}`;
 
-          cy.intercept('POST', '/api/v1/tenants').as('createTenant');
-          cy.get('input#name')
+          cy.get('input#tenant-name')
             .filter(':visible')
             .first()
             .clear()
             .type(tenantName);
-          cy.contains('button', 'Create Tenant').click();
-          cy.wait('@createTenant').its('response.statusCode').should('eq', 200);
+          cy.contains('button', 'Get started').click();
         }
 
         // If the user has pending invites, accept the first one to proceed

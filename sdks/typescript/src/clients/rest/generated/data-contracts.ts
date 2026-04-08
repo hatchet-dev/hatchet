@@ -18,9 +18,29 @@ export enum V1TaskRunStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export enum LogLineOrderByDirection {
+  Asc = 'asc',
+  Desc = 'desc',
+}
+
+export enum LogLineOrderByField {
+  CreatedAt = 'createdAt',
+}
+
+export enum LogLineLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+}
+
 export enum PullRequestState {
   Open = 'open',
   Closed = 'closed',
+}
+
+export enum FeatureFlagId {
+  TenantLogWorkflowFilterEnabled = 'tenant-log-workflow-filter-enabled',
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -79,22 +99,6 @@ export enum StepRunEventReason {
   RETRIED_BY_USER = 'RETRIED_BY_USER',
   WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED',
   WORKFLOW_RUN_GROUP_KEY_FAILED = 'WORKFLOW_RUN_GROUP_KEY_FAILED',
-}
-
-export enum LogLineOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
-}
-
-export enum LogLineOrderByField {
-  CreatedAt = 'createdAt',
-}
-
-export enum LogLineLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
 }
 
 export enum JobRunStatus {
@@ -254,6 +258,21 @@ export enum TenantEnvironment {
 export enum TenantVersion {
   V0 = 'V0',
   V1 = 'V1',
+}
+
+export enum OtelStatusCode {
+  UNSET = 'UNSET',
+  OK = 'OK',
+  ERROR = 'ERROR',
+}
+
+export enum OtelSpanKind {
+  UNSPECIFIED = 'UNSPECIFIED',
+  INTERNAL = 'INTERNAL',
+  SERVER = 'SERVER',
+  CLIENT = 'CLIENT',
+  PRODUCER = 'PRODUCER',
+  CONSUMER = 'CONSUMER',
 }
 
 export enum V1RunningFilter {
@@ -513,6 +532,15 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /**
+   * The external ID of the task associated with the log line.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId?: string;
+  /** The display name of the task associated with the log line. */
+  taskDisplayName?: string;
   /** The retry count of the log line. */
   retryCount?: number;
   /** The attempt number of the log line. */
@@ -545,6 +573,19 @@ export interface V1CancelTaskRequest {
 export interface V1CancelledTasks {
   /** The list of task external ids that were cancelled */
   ids?: string[];
+}
+
+export interface V1LogsPointMetric {
+  /** @format date-time */
+  time: string;
+  DEBUG: number;
+  INFO: number;
+  WARN: number;
+  ERROR: number;
+}
+
+export interface V1LogsPointMetrics {
+  results?: V1LogsPointMetric[];
 }
 
 export interface V1ReplayTaskRequest {
@@ -716,6 +757,33 @@ export interface V1BranchDurableTaskResponse {
    * @format int64
    */
   branchId: number;
+}
+
+export interface OtelSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  spanName: string;
+  spanKind: OtelSpanKind;
+  serviceName: string;
+  statusCode: OtelStatusCode;
+  statusMessage?: string;
+  /** @format int64 */
+  durationNs: number;
+  /** @format date-time */
+  createdAt: string;
+  resourceAttributes?: Record<string, string>;
+  spanAttributes?: Record<string, string>;
+  scopeName?: string;
+  scopeVersion?: string;
+  /** @format int32 */
+  retryCount: number;
+}
+
+export interface OtelSpanList {
+  pagination?: PaginationResponse;
+  retryCounts?: number[];
+  rows?: OtelSpan[];
 }
 
 export interface V1TaskTiming {
@@ -2026,27 +2094,6 @@ export interface WorkflowMetrics {
   groupKeyCount?: number;
 }
 
-export type LogLineLevelField = LogLineLevel[];
-
-export type LogLineSearch = string;
-
-export interface LogLine {
-  /**
-   * The creation date of the log line.
-   * @format date-time
-   */
-  createdAt: string;
-  /** The log message. */
-  message: string;
-  /** The log metadata. */
-  metadata: object;
-}
-
-export interface LogLineList {
-  pagination?: PaginationResponse;
-  rows?: LogLine[];
-}
-
 export interface StepRunEvent {
   id: number;
   /** @format date-time */
@@ -2379,6 +2426,11 @@ export interface TaskStat {
 
 export type TaskStats = Record<string, TaskStat>;
 
+export interface FeatureFlagEvaluationResult {
+  /** Whether the feature flag is enabled for the tenant */
+  isEnabled: boolean;
+}
+
 export interface TenantList {
   pagination?: PaginationResponse;
   rows?: Tenant[];
@@ -2417,6 +2469,27 @@ export interface PullRequest {
 export interface ListPullRequestsResponse {
   pullRequests: PullRequest[];
 }
+
+export interface LogLine {
+  /**
+   * The creation date of the log line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The log message. */
+  message: string;
+  /** The log metadata. */
+  metadata: object;
+}
+
+export interface LogLineList {
+  pagination?: PaginationResponse;
+  rows?: LogLine[];
+}
+
+export type LogLineSearch = string;
+
+export type LogLineLevelField = LogLineLevel[];
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;

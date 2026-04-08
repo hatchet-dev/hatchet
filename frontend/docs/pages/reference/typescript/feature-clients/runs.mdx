@@ -6,6 +6,25 @@ The runs client is a client for interacting with task and workflow runs within H
 
 #### Methods
 
+<a id="branchdurabletask"></a>
+
+##### `branchDurableTask()`
+
+Fork (reset) a durable task from a specific node, triggering re-execution from that point.
+
+Parameters
+
+| Parameter        | Type     | Default value | Description                                   |
+| ---------------- | -------- | ------------- | --------------------------------------------- |
+| `taskExternalId` | `string` | `undefined`   | The external ID of the durable task to reset. |
+| `nodeId`         | `number` | `undefined`   | The node ID to replay from.                   |
+| `branchId`       | `number` | `0`           | -                                             |
+
+Returns
+
+`Promise`\<`AxiosResponse`\<`V1BranchDurableTaskResponse`, `any`, \{
+\}\>\>
+
 <a id="cancel"></a>
 
 ##### `cancel()`
@@ -61,6 +80,25 @@ Returns
 
 A promise that resolves to the status of the run.
 
+<a id="gettaskexternalid"></a>
+
+##### `getTaskExternalId()`
+
+Resolve the task external ID for a workflow run. For runs with multiple tasks,
+returns the first task's external ID.
+
+Parameters
+
+| Parameter       | Type     | Description                     |
+| --------------- | -------- | ------------------------------- |
+| `workflowRunId` | `string` | The workflow run ID to look up. |
+
+Returns
+
+`Promise`\<`string`\>
+
+The task external ID.
+
 <a id="list"></a>
 
 ##### `list()`
@@ -98,23 +136,22 @@ Returns
 
 A promise that resolves to the replayed run.
 
-<a id="runref"></a>
+<a id="restoretask"></a>
 
-##### `runRef()`
+##### `restoreTask()`
 
-Creates a run reference for a task or workflow run by its ID.
+Restore an evicted durable task so it can resume execution.
 
 Parameters
 
-| Parameter | Type     | Description                                  |
-| --------- | -------- | -------------------------------------------- |
-| `id`      | `string` | The ID of the run to create a reference for. |
+| Parameter        | Type     | Description                          |
+| ---------------- | -------- | ------------------------------------ |
+| `taskExternalId` | `string` | The external ID of the evicted task. |
 
 Returns
 
-`WorkflowRunRef`\<`T`\>
-
-A promise that resolves to the run reference.
+`Promise`\<`AxiosResponse`\<`V1RestoreTaskResponse`, `any`, \{
+\}\>\>
 
 <a id="subscribetostream"></a>
 

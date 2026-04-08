@@ -2,7 +2,6 @@ import CopyToClipboard from './copy-to-clipboard';
 import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
-import 'monaco-themes/themes/Pastels on Dark.json';
 import { useCallback, useEffect, useId, useRef } from 'react';
 
 interface CodeEditorProps {

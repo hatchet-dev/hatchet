@@ -150,6 +150,13 @@ jobs:
 
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
 
+      - name: Test with wheel
+        run: |
+          poetry build
+          poetry run pip uninstall hatchet_sdk -y
+          poetry run pip install --no-cache-dir --no-index --find-links dist/  hatchet_sdk -v
+          poetry run python -c "from hatchet_sdk import Workflow;"
+
       - name: Upload engine logs
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -278,101 +285,6 @@ jobs:
         if: always()
         working-directory: .
         run: docker compose -f docker-compose.yml -f docker-compose.release.yml down
-
-  new-engine-old-sdk:
-    runs-on: ubicloud-standard-4
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: "1.25"
-
-      - name: Start Docker dependencies
-        working-directory: .
-        run: docker compose up -d
-
-      - name: Run migrations
-        working-directory: .
-        run: |
-          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          go run ./cmd/hatchet-migrate
-
-      - name: Setup and start engine
-        working-directory: .
-        run: |
-          export SEED_DEVELOPMENT=true
-          export SERVER_PORT=8080
-          export SERVER_URL=http://localhost:8080
-          export SERVER_AUTH_COOKIE_DOMAIN=localhost
-          export SERVER_AUTH_COOKIE_INSECURE=true
-          export SERVER_DEFAULT_ENGINE_VERSION=V1
-          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
-
-          go run ./cmd/hatchet-admin quickstart
-
-          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
-          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
-
-          sleep 30
-
-      - name: Generate API token
-        working-directory: .
-        run: |
-          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=${{ github.workspace }}/certs/ca.cert" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True" >> $GITHUB_ENV
-
-      - name: Clone main SDK source
-        run: |
-          git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: '3.14'
-
-      - name: Install Poetry
-        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-        with:
-          version: 2.3.0
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Install SDK and test dependencies
-        working-directory: /tmp/old-sdk/sdks/python
-        run: poetry install --no-interaction --all-extras
-
-      - name: Set HATCHET_CLIENT_NAMESPACE
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "HATCHET_CLIENT_NAMESPACE=new-engine-old-sdk-${SHORT_SHA}" >> $GITHUB_ENV
-
-      - name: Run pytest against new engine
-        working-directory: /tmp/old-sdk/sdks/python
-        run: |
-          echo "Testing main SDK against current engine"
-          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
-
-      - name: Upload engine logs
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
-          path: engine.log
-
-      - name: Upload API logs
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
-          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4

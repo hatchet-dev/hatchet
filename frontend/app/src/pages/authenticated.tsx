@@ -3,18 +3,16 @@ import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
+import { WelcomeModal } from '@/components/modals/welcome-modal';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
-import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { Loading, Spinner } from '@/components/v1/ui/loading.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import {
@@ -28,13 +26,14 @@ import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
+import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import {
   useLoaderData,
   useLocation,
@@ -152,6 +151,16 @@ function AuthenticatedInner() {
   useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
 
+    const storeRedirectPath = () => {
+      if (
+        pathname !== '/' &&
+        !pathname.startsWith('/onboarding/') &&
+        !pathname.startsWith('/auth/')
+      ) {
+        sessionStorage.setItem(REDIRECT_TARGET_KEY, pathname);
+      }
+    };
+
     // Skip all redirects for organization pages
     if (isOrganizationsPage) {
       return;
@@ -159,11 +168,13 @@ function AuthenticatedInner() {
 
     // If we definitively have no user, always go to login.
     if (!isUserLoading && !currentUser && !isAuthPage) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
@@ -200,6 +211,7 @@ function AuthenticatedInner() {
         isCloudEnabled && organizations.length === 0;
 
       if (shouldHaveAnOrganizationButDoesnt) {
+        storeRedirectPath();
         navigate({
           to: appRoutes.onboardingCreateOrganizationRoute.to,
           replace: true,
@@ -208,6 +220,7 @@ function AuthenticatedInner() {
       }
 
       if (tenantMemberships.length === 0) {
+        storeRedirectPath();
         navigate({
           to: appRoutes.onboardingCreateTenantRoute.to,
           replace: true,
@@ -218,6 +231,13 @@ function AuthenticatedInner() {
 
     // If user has memberships and we're at the bare root, go to their first tenant
     if (pathname === '/' && tenantMemberships && tenantMemberships.length > 0) {
+      const savedRedirect = sessionStorage.getItem(REDIRECT_TARGET_KEY);
+      if (savedRedirect) {
+        sessionStorage.removeItem(REDIRECT_TARGET_KEY);
+        navigate({ to: savedRedirect, replace: true } as never);
+        return;
+      }
+
       const lastTenantId = lastTenant?.metadata.id;
 
       const lastTenantInMemberships = lastTenantId
@@ -280,13 +300,9 @@ function AuthenticatedInner() {
     isCloudEnabled,
     isUserUniverseLoaded,
     organizations,
+    isOnboardingCreateOrganizationPage,
+    isOnboardingCreateTenantPage,
   ]);
-
-  useEffect(() => {
-    if (userError && !isAuthPage) {
-      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-    }
-  }, [isAuthPage, navigate, userError]);
 
   useEffect(
     () =>
@@ -326,11 +342,6 @@ function AuthenticatedInner() {
       });
     }
   }, [tenant?.metadata.id, capture]);
-
-  const welcomePlansQuery = useQuery({
-    ...queries.cloud.subscriptionPlans(),
-    enabled: showWelcome,
-  });
 
   if (!currentUser) {
     return <Loading />;
@@ -415,85 +426,11 @@ function AuthenticatedInner() {
             }}
           />
         )}
-        <Dialog
+        <WelcomeModal
+          tenantId={tenant?.metadata.id}
           open={showWelcome}
-          onOpenChange={(open) => {
-            if (!open) {
-              localStorage.removeItem('hatchet:show-welcome');
-              setShowWelcome(false);
-            }
-          }}
-        >
-          <DialogContent className="max-w-lg text-center">
-            <div className="flex flex-col items-center gap-6">
-              <HatchetLogo variant="mark" className="h-10 w-10" />
-              <div className="space-y-2">
-                <DialogTitle className="text-center text-2xl">
-                  Welcome to Hatchet
-                </DialogTitle>
-                <DialogDescription className="text-center text-base text-muted-foreground">
-                  You&apos;re on the free plan with generous limits to get
-                  started. We&apos;ll let you know when you&apos;re getting
-                  close.
-                </DialogDescription>
-              </div>
-              <ul className="w-full text-left text-base space-y-2.5 rounded-md border border-border/50 bg-muted/30 p-5">
-                {welcomePlansQuery.isLoading ? (
-                  <li className="flex justify-center py-2">
-                    <Spinner />
-                  </li>
-                ) : (
-                  welcomePlansQuery.data?.freeLimits?.map((fl) => (
-                    <li key={fl.featureId} className="flex justify-between">
-                      <span className="text-muted-foreground">{fl.name}</span>
-                      <span className="font-medium">
-                        {fl.limit.toLocaleString()}
-                      </span>
-                    </li>
-                  ))
-                )}
-              </ul>
-              <p className="text-sm text-muted-foreground">
-                You can upgrade anytime from Billing &amp; Limits in your tenant
-                settings.
-              </p>
-              <div className="flex w-full flex-col gap-2">
-                <Button
-                  className="w-full"
-                  onClick={() => {
-                    capture('welcome_modal_dismissed', {
-                      tenant_id: tenant?.metadata.id,
-                      cta: 'get_started',
-                    });
-                    localStorage.removeItem('hatchet:show-welcome');
-                    setShowWelcome(false);
-                  }}
-                >
-                  Explore Hatchet for Free with Limits &rarr;
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => {
-                    capture('welcome_modal_upgrade_clicked', {
-                      tenant_id: tenant?.metadata.id,
-                    });
-                    localStorage.removeItem('hatchet:show-welcome');
-                    setShowWelcome(false);
-                    if (tenant?.metadata.id) {
-                      navigate({
-                        to: '/tenants/$tenant/tenant-settings/billing-and-limits',
-                        params: { tenant: tenant.metadata.id },
-                      });
-                    }
-                  }}
-                >
-                  Add a payment method to remove limits, no commitment required
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+          onClose={() => setShowWelcome(false)}
+        />
       </SupportChat>
     </PostHogProvider>
   );

@@ -56,8 +56,11 @@ const useSaveTenant = ({
         return { type: 'regular' as const, tenant };
       }
     },
-    onSuccess: (data) => {
-      invalidateUserUniverse();
+    onSuccess: async (data) => {
+      await invalidateUserUniverse();
+      // Yield a tick so React can flush the universe context update
+      // before afterSave navigates away.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       if (data.type === 'cloud') {
         localStorage.setItem('hatchet:show-welcome', '1');
       }

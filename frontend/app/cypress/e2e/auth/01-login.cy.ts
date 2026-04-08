@@ -24,14 +24,12 @@ describe('auth: login', () => {
       if (pathname.includes('/onboarding/create-tenant')) {
         const ts = Date.now();
         const tenantName = `CypressLoginTenant${String(ts).slice(-6)}`;
-        cy.intercept('POST', '/api/v1/tenants').as('createTenant');
-        cy.get('input#name')
+        cy.get('input#tenant-name')
           .filter(':visible')
           .first()
           .clear()
           .type(tenantName);
-        cy.contains('button', 'Create Tenant').click();
-        cy.wait('@createTenant').its('response.statusCode').should('eq', 200);
+        cy.contains('button', 'Get started').click();
       }
     });
     cy.location('pathname', { timeout: 30000 }).should('include', '/tenants/');

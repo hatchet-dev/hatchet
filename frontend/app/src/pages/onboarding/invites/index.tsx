@@ -69,8 +69,7 @@ const OrganizationInviteList = ({
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
   const { capture } = useAnalytics();
-  const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
-    useUserUniverse();
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
 
   return (
     <>
@@ -118,10 +117,8 @@ const OrganizationInviteList = ({
                         capture('onboarding_org_invite_accepted', {
                           invite_id: invite.metadata.id,
                         });
-                        invalidateUserUniverse();
-                        const refetchingUserUniversePromise = getUserUniverse();
+                        await invalidateUserUniverse();
                         onDealtWithInvite(invite.organizationId, true);
-                        return refetchingUserUniversePromise;
                       },
                     },
                   );
@@ -164,7 +161,7 @@ const TenantInviteList = ({
       return data.tenantId;
     },
     onSuccess: async (tenantId: string) => {
-      invalidateUserUniverse();
+      await invalidateUserUniverse();
 
       const { tenantMemberships } = await getUserUniverse();
 

@@ -1,3 +1,6 @@
+import datetime
+
+from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -47,12 +50,16 @@ class SleepMatchCondition(_message.Message):
     def __init__(self, base: _Optional[_Union[BaseMatchCondition, _Mapping]] = ..., sleep_for: _Optional[str] = ...) -> None: ...
 
 class UserEventMatchCondition(_message.Message):
-    __slots__ = ("base", "user_event_key")
+    __slots__ = ("base", "user_event_key", "event_scope", "consider_events_since")
     BASE_FIELD_NUMBER: _ClassVar[int]
     USER_EVENT_KEY_FIELD_NUMBER: _ClassVar[int]
+    EVENT_SCOPE_FIELD_NUMBER: _ClassVar[int]
+    CONSIDER_EVENTS_SINCE_FIELD_NUMBER: _ClassVar[int]
     base: BaseMatchCondition
     user_event_key: str
-    def __init__(self, base: _Optional[_Union[BaseMatchCondition, _Mapping]] = ..., user_event_key: _Optional[str] = ...) -> None: ...
+    event_scope: str
+    consider_events_since: _timestamp_pb2.Timestamp
+    def __init__(self, base: _Optional[_Union[BaseMatchCondition, _Mapping]] = ..., user_event_key: _Optional[str] = ..., event_scope: _Optional[str] = ..., consider_events_since: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class TaskConditions(_message.Message):
     __slots__ = ("parent_override_conditions", "sleep_conditions", "user_event_conditions")
