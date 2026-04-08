@@ -274,11 +274,20 @@ export const waitForOrEventLookback = hatchet.durableTask({
   fn: async (input: { scope: string }, ctx) => {
     const start = Date.now();
     const now = await ctx.now();
-    const considerEventsSince = new Date(now.getTime() - durationToMs(LOOKBACK_WINDOW)).toISOString();
+    const considerEventsSince = new Date(
+      now.getTime() - durationToMs(LOOKBACK_WINDOW)
+    ).toISOString();
     await ctx.waitFor(
       Or(
         new SleepCondition(SLEEP_TIME),
-        new UserEventCondition(EVENT_KEY, '', undefined, undefined, input.scope, considerEventsSince)
+        new UserEventCondition(
+          EVENT_KEY,
+          '',
+          undefined,
+          undefined,
+          input.scope,
+          considerEventsSince
+        )
       )
     );
     return {
