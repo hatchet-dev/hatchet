@@ -1,9 +1,10 @@
-package rbac
+package authz
 
 import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/stretchr/testify/assert"
@@ -34,13 +35,13 @@ func operationIdsFromSpec() []string {
 }
 
 func TestAuthorizeTenantOperations(t *testing.T) {
-	r, err := NewAuthorizer()
+	r, err := newHatchetAuthorizer()
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
 		assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleADMIN, operationId), true)
 		assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleOWNER, operationId), true)
-		if OperationIn(operationId, adminAndOwnerOnly) {
+		if rbac.OperationIn(operationId, adminAndOwnerOnly) {
 			assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleMEMBER, operationId), false)
 		} else {
 			assert.Equal(t, r.IsAuthorized(sqlcv1.TenantMemberRoleMEMBER, operationId), true)
@@ -49,6 +50,6 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 }
 
 func TestValidateSpec(t *testing.T) {
-	_, err := NewAuthorizer()
+	_, err := newHatchetAuthorizer()
 	assert.Nil(t, err)
 }

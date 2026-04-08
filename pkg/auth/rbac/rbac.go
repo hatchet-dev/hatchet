@@ -1,15 +1,12 @@
 package rbac
 
 import (
-	_ "embed"
 	"fmt"
 	"maps"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
-
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -28,16 +25,11 @@ type Authorizer struct {
 	permissionMap PermissionMap
 }
 
-func NewAuthorizer() (*Authorizer, error) {
-	permMap, err := LoadYaml()
-	if err != nil {
-		return nil, err
-	}
-	spec, err := gen.GetSwagger()
-	if err != nil {
-		return nil, err
-	}
-	err = permMap.ValidateSpec(*spec)
+func NewAuthorizer(
+	permMap *PermissionMap,
+	spec *openapi3.T,
+) (*Authorizer, error) {
+	err := permMap.ValidateSpec(*spec)
 	if err != nil {
 		return nil, err
 	}
@@ -146,12 +138,9 @@ func (p *PermissionMap) ValidateSpec(spec openapi3.T) error {
 	return nil
 }
 
-//go:embed rbac.yaml
-var yamlFile []byte
-
-func LoadYaml() (*PermissionMap, error) {
+func LoadPermissionMap(yamlBytes []byte) (*PermissionMap, error) {
 	var yamlContents PermissionMap
-	err := yaml.Unmarshal(yamlFile, &yamlContents)
+	err := yaml.Unmarshal(yamlBytes, &yamlContents)
 	if err != nil {
 		return nil, err
 	}
