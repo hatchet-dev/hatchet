@@ -996,7 +996,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   ): Promise<unknown> {
     const now = await this.now();
     const considerEventsSince = lookbackWindow
-      ? new Date(now.getMilliseconds() - durationToMs(lookbackWindow)).toISOString()
+      ? new Date(now.getTime() - durationToMs(lookbackWindow)).toISOString()
       : undefined;
 
     const res = await this.waitFor({
