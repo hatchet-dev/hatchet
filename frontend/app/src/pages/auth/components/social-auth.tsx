@@ -2,7 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
 import React from 'react';
 
-export type SocialAuthProvider = 'google' | 'github';
+export type SocialAuthProvider = 'google' | 'github' | 'propelauth';
 
 const PROVIDER_CONFIG: Record<
   SocialAuthProvider,
@@ -16,6 +16,11 @@ const PROVIDER_CONFIG: Record<
   github: {
     href: '/api/v1/users/github/start',
     label: 'GitHub',
+    icon: <Icons.gitHub className="size-4" />,
+  },
+  propelauth: {
+    href: './propelauth-login.tsx',
+    label: 'Propel Auth',
     icon: <Icons.gitHub className="size-4" />,
   },
 };
@@ -41,7 +46,6 @@ export function SocialAuthButton({
   provider: SocialAuthProvider;
 }) {
   const cfg = PROVIDER_CONFIG[provider];
-
   return (
     <a href={cfg.href} className="w-full">
       <Button
@@ -65,7 +69,6 @@ export function SocialAuthButtons({
   if (providers.length === 0) {
     return null;
   }
-
   return (
     <div className="grid sm:grid-flow-col gap-3">
       {providers.map((p) => (

@@ -27,11 +27,13 @@ export function AuthPage({
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
+  const propelAuthEnabled = schemes.includes('propelauth');
 
   const providers = [
     googleEnabled && 'google',
     githubEnabled && 'github',
-  ].filter(Boolean) as Array<'google' | 'github'>;
+    propelAuthEnabled && 'propelauth',
+  ].filter(Boolean) as Array<'google' | 'github' | 'propelauth'>;
 
   const sections = [
     providers.length > 0 && <SocialAuthButtons providers={providers} />,

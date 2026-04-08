@@ -24,6 +24,17 @@ export default function useApiMeta() {
     return metaQuery.data?.data;
   }, [metaQuery.data]);
 
+  const cloudMetaQuery = useQuery({
+    queryKey: ['cloudmetadata:get'],
+    queryFn: async () => {
+      const meta = await api.cloudMetadataGet();
+      return meta;
+    },
+    staleTime: 1000 * 60,
+  });
+  if (!cloudMetaQuery.isError && cloudMetaQuery.data?.data?.ssoEnabled) {
+    data?.auth?.schemes?.push('propelauth');
+  }
   return {
     meta: data,
     isLoading: false,

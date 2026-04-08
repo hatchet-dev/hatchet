@@ -56,13 +56,15 @@ import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
+import PropelAuthPage from "@/pages/organizations/$organization/components/propelauth-setup.tsx";
 
-type Section = 'tenants' | 'members' | 'tokens';
+type Section = 'tenants' | 'members' | 'tokens' | 'sso';
 
 const NAV_ITEMS: { key: Section; label: string; icon: typeof KeyIcon }[] = [
   { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
   { key: 'members', label: 'Members', icon: UserIcon },
   { key: 'tokens', label: 'Management Tokens', icon: KeyIcon },
+  { key: 'sso', label: 'SSO', icon: KeyIcon },
 ];
 
 export default function OrganizationPage() {
@@ -572,6 +574,9 @@ export default function OrganizationPage() {
               >
                 Create Token
               </Button>
+            )}
+            {activeSection === 'sso' && (
+              <PropelAuthPage></PropelAuthPage>
             )}
           </div>
 
