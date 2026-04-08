@@ -137,16 +137,10 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await cloudApi.workflowRunEventsGetMetrics(tenant, query)).data,
     }),
-  },
-  user: {
-    current: {
-      queryKey: ['user:get'],
-      queryFn: async () => (await api.userGetCurrent()).data,
-    },
-    listInvites: {
-      queryKey: ['user:list:tenant-invites'],
-      queryFn: async () => (await api.userListTenantInvites()).data,
-    },
+    offers: () => ({
+      queryKey: ['offers:list'],
+      queryFn: async () => (await cloudApi.userOffersList()).data,
+    }),
   },
   alertingSettings: {
     get: (tenant: string) => ({
@@ -158,12 +152,6 @@ export const queries = createQueryKeyStore({
     get: (tenant: string) => ({
       queryKey: ['tenant-resource-policy:get', tenant],
       queryFn: async () => (await api.tenantResourcePolicyGet(tenant)).data,
-    }),
-  },
-  members: {
-    list: (tenant: string) => ({
-      queryKey: ['tenant-member:list', tenant],
-      queryFn: async () => (await api.tenantMemberList(tenant)).data,
     }),
   },
   tokens: {
@@ -188,12 +176,6 @@ export const queries = createQueryKeyStore({
     list: (tenant: string) => ({
       queryKey: ['sns:list', tenant],
       queryFn: async () => (await api.snsList(tenant)).data,
-    }),
-  },
-  invites: {
-    list: (tenant: string) => ({
-      queryKey: ['tenant-invite:list', tenant],
-      queryFn: async () => (await api.tenantInviteList(tenant)).data,
     }),
   },
   workflows: {

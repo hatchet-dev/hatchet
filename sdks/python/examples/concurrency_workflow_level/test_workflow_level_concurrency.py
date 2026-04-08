@@ -14,7 +14,7 @@ from examples.concurrency_workflow_level.worker import (
     WorkflowInput,
     concurrency_workflow_level_workflow,
 )
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
@@ -55,24 +55,23 @@ class RunMetadata(BaseModel):
 async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
-    run_refs = await concurrency_workflow_level_workflow.aio_run_many_no_wait(
+    run_refs = await concurrency_workflow_level_workflow.aio_run_many(
         [
             concurrency_workflow_level_workflow.create_bulk_run_item(
                 WorkflowInput(
                     name=(name := choice(characters)),
                     digit=(digit := choice([str(i) for i in range(6)])),
                 ),
-                options=TriggerWorkflowOptions(
-                    additional_metadata={
-                        "test_run_id": test_run_id,
-                        "key": f"{name}-{digit}",
-                        "name": name,
-                        "digit": digit,
-                    },
-                ),
+                additional_metadata={
+                    "test_run_id": test_run_id,
+                    "key": f"{name}-{digit}",
+                    "name": name,
+                    "digit": digit,
+                },
             )
             for _ in range(100)
-        ]
+        ],
+        wait_for_result=False,
     )
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])

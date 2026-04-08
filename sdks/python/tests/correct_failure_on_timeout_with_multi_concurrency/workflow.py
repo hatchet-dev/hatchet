@@ -17,7 +17,7 @@ class InputModel(BaseModel):
     concurrency_key: str
 
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 multiple_concurrent_cancellations_test_workflow = hatchet.workflow(
     name="workflow-bug-test",

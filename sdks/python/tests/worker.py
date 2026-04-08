@@ -12,7 +12,7 @@ from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
 )
 from tests.concurrency_strategies.workflow import concurrency_strategy_workflow
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 HatchetInstrumentor().instrument()
 
 

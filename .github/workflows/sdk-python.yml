@@ -21,6 +21,9 @@ defaults:
 jobs:
   lint:
     runs-on: ubicloud-standard-4
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -28,7 +31,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
         uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
@@ -146,6 +149,13 @@ jobs:
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
+
+      - name: Test with wheel
+        run: |
+          poetry build
+          poetry run pip uninstall hatchet_sdk -y
+          poetry run pip install --no-cache-dir --no-index --find-links dist/  hatchet_sdk -v
+          poetry run python -c "from hatchet_sdk import Workflow;"
 
       - name: Upload engine logs
         if: always()

@@ -59,15 +59,13 @@ export class LspAnalyzer {
           if (token.isCancellationRequested) return null;
 
           try {
-            const doc = await vscode.workspace.openTextDocument(location.uri);
+            const bytes = await vscode.workspace.fs.readFile(location.uri);
+            const allLines = new TextDecoder().decode(bytes).split(/\r?\n/);
             const refLine = location.range.start.line;
             const startLine = Math.max(0, refLine - 2);
-            const endLine = Math.min(doc.lineCount - 1, refLine + 30);
+            const endLine = Math.min(allLines.length - 1, refLine + 30);
 
-            const lines = Array.from(
-              { length: endLine - startLine + 1 },
-              (_, i) => doc.lineAt(startLine + i).text,
-            );
+            const lines = allLines.slice(startLine, endLine + 1);
 
             return extractTaskAtLocation(
               lines,

@@ -845,9 +845,9 @@ export default function CreateWorkerForm({
                             );
 
                             // If min replicas is greater than max replicas, update max replicas
-                            const maxReplicas = watch(
-                              'runtimeConfig.autoscaling.maxReplicas',
-                            );
+                            const maxReplicas =
+                              watch('runtimeConfig.autoscaling.maxReplicas') ??
+                              0;
                             if (maxReplicas < minValue) {
                               setValue(
                                 'runtimeConfig.autoscaling.maxReplicas',
@@ -1176,7 +1176,7 @@ export default function CreateWorkerForm({
   );
 }
 
-export function getRepoOwnerName(repoOwner: string, repoName: string) {
+export function getRepoOwnerName(repoOwner?: string, repoName?: string) {
   if (!repoOwner || !repoName) {
     return;
   }

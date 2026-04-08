@@ -226,6 +226,21 @@ ORDER BY
     m.id
 FOR UPDATE;
 
+-- name: GetPreviousMatchingEventsByKeysWithScopeHint :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@keys::text[]) AS key,
+        UNNEST(@seenSinces::timestamptz[]) AS since,
+        UNNEST(@scopes::text[]) AS scope
+)
+
+SELECT e.*
+FROM v1_event e
+JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
+WHERE tenant_id = @tenantId::uuid
+ORDER BY e.seen_at DESC
+;
+
 -- name: CleanupMatchWithMatchConditions :exec
 WITH deleted_match_ids AS (
     DELETE FROM

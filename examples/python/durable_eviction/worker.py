@@ -8,7 +8,7 @@ from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventC
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from pydantic import BaseModel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 EVICTION_TTL_SECONDS = 5

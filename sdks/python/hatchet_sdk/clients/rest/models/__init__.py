@@ -76,6 +76,10 @@ from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
     EventWorkflowRunSummary,
 )
 from hatchet_sdk.clients.rest.models.events import Events
+from hatchet_sdk.clients.rest.models.feature_flag_evaluation_result import (
+    FeatureFlagEvaluationResult,
+)
+from hatchet_sdk.clients.rest.models.feature_flag_id import FeatureFlagId
 from hatchet_sdk.clients.rest.models.get_step_run_diff_response import (
     GetStepRunDiffResponse,
 )

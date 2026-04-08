@@ -21,10 +21,10 @@ import {
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Loading } from '@/components/v1/ui/loading';
 import { OnboardingCard } from '@/components/v1/ui/onboarding-card';
+import useCloud from '@/hooks/use-cloud';
 import api from '@/lib/api/api';
 import { docsPages } from '@/lib/generated/docs';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.rate_limit import RateLimit
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 class DynamicRateLimitInput(BaseModel):

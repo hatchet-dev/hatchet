@@ -44,6 +44,9 @@ from examples.durable.worker import (
     durable_replay_reset,
     memo_task,
     memo_now_caching,
+    wait_for_event_lookback,
+    wait_for_or_event_lookback,
+    wait_for_two_events_second_pushed_first,
 )
 from examples.durable_event.worker import (
     durable_event_task,
@@ -86,7 +89,7 @@ from examples.opentelemetry_instrumentation.worker import (
 )
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 def main() -> None:
@@ -162,6 +165,9 @@ def main() -> None:
             eviction_child_task,
             eviction_bulk_child_task,
             memo_now_caching,
+            wait_for_event_lookback,
+            wait_for_or_event_lookback,
+            wait_for_two_events_second_pushed_first,
             otel_simple_task,
             otel_spawn_parent,
             otel_workflow,

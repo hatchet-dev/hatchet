@@ -3,7 +3,7 @@ from typing import Generator
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=False)
+hatchet = Hatchet()
 
 # > Streaming
 
