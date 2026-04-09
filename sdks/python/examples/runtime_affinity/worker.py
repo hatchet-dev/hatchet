@@ -2,6 +2,7 @@ import argparse
 
 from hatchet_sdk import Context, EmptyModel, Hatchet, WorkerLabel
 from pydantic import BaseModel
+import asyncio
 
 hatchet = Hatchet()
 
@@ -15,16 +16,19 @@ runtime_affinity_workflow = hatchet.workflow(name="runtime_affinity_workflow")
 
 @runtime_affinity_workflow.task()
 async def validate_input(i: EmptyModel, c: Context) -> AffinityResult:
+    await asyncio.sleep(1)
     return AffinityResult(worker_id=c.worker_id)
 
 
 @runtime_affinity_workflow.task(parents=[validate_input])
 async def load_search_scope_meta(i: EmptyModel, c: Context) -> AffinityResult:
+    await asyncio.sleep(1)
     return AffinityResult(worker_id=c.worker_id)
 
 
 @runtime_affinity_workflow.task(parents=[validate_input])
 async def resolve_assessment_type(i: EmptyModel, c: Context) -> AffinityResult:
+    await asyncio.sleep(1)
     return AffinityResult(worker_id=c.worker_id)
 
 
@@ -32,6 +36,7 @@ async def resolve_assessment_type(i: EmptyModel, c: Context) -> AffinityResult:
     parents=[resolve_assessment_type, load_search_scope_meta]
 )
 async def prepare_queries_and_exceptions(i: EmptyModel, c: Context) -> AffinityResult:
+    await asyncio.sleep(1)
     return AffinityResult(worker_id=c.worker_id)
 
 
@@ -39,6 +44,7 @@ async def prepare_queries_and_exceptions(i: EmptyModel, c: Context) -> AffinityR
     parents=[prepare_queries_and_exceptions, load_search_scope_meta]
 )
 async def retrieve_context_chunks(i: EmptyModel, c: Context) -> AffinityResult:
+    await asyncio.sleep(1)
     return AffinityResult(worker_id=c.worker_id)
 
 
@@ -46,6 +52,7 @@ async def retrieve_context_chunks(i: EmptyModel, c: Context) -> AffinityResult:
     parents=[prepare_queries_and_exceptions, retrieve_context_chunks, validate_input]
 )
 async def generate_llm_answer(i: EmptyModel, c: Context) -> AffinityResult:
+    await asyncio.sleep(1)
     return AffinityResult(worker_id=c.worker_id)
 
 
@@ -57,6 +64,7 @@ async def generate_llm_answer(i: EmptyModel, c: Context) -> AffinityResult:
     ]
 )
 async def post_process_and_snippets(i: EmptyModel, c: Context) -> AffinityResult:
+    await asyncio.sleep(1)
     return AffinityResult(worker_id=c.worker_id)
 
 
