@@ -121,23 +121,29 @@ async def test_runtime_affinity(
     assert set(worker_label_to_id.keys()) == set(labels)
 
     expected_tasks = [t.name for t in runtime_affinity_workflow.tasks]
+    N = 50
 
-    for _ in range(50):
-        target_worker = choice(labels)
-        res = await runtime_affinity_workflow.aio_run(
-            desired_worker_labels=[
-                DesiredWorkerLabel(
-                    key="affinity",
-                    value=target_worker,
-                    required=True,
-                ),
-            ],
-        )
+    target_workers = [choice(labels) for _ in range(N)]
+    res = await runtime_affinity_workflow.aio_run_many(
+        [
+            runtime_affinity_workflow.create_bulk_run_item(
+                desired_worker_labels=[
+                    DesiredWorkerLabel(
+                        key="affinity",
+                        value=target_worker,
+                        required=True,
+                    ),
+                ],
+            )
+            for target_worker in target_workers
+        ]
+    )
 
+    for run, target_worker in zip(res, target_workers):
         expected_worker_id = worker_label_to_id[target_worker]
 
         for task_name in expected_tasks:
-            assert task_name in res, f"Task {task_name} not found in workflow result"
-            assert res[task_name]["worker_id"] == expected_worker_id, (
-                f"Task {task_name} ran on wrong worker. Expected {expected_worker_id}, got {res[task_name]['worker_id']}"
-            )
+            assert task_name in run, f"Task {task_name} not found in workflow result"
+            assert (
+                run[task_name]["worker_id"] == expected_worker_id
+            ), f"Task {task_name} ran on wrong worker. Expected {expected_worker_id}, got {run[task_name]['worker_id']}"
