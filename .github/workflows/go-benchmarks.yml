@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   benchmark:
-    runs-on: ubicloud-standard-8
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       pull-requests: write
