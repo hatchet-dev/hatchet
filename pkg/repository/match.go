@@ -591,7 +591,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				if err := json.Unmarshal(dagData.DesiredWorkerLabels, &labels); err == nil {
 					dagIdsToDesiredWorkerLabels[dagData.DagID] = labels
 				} else {
-					m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", dagData.DagID, dagData.DagInsertedAt)
+					m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", dagData.DagID, dagData.DagInsertedAt.Time)
 				}
 			}
 		}
