@@ -93,5 +93,5 @@ async def test_runtime_affinity(
                 ),
             ],
         )
-        assert res["affinity_t1"]["worker_id"] == worker_label_to_id[target_worker]
-        assert res["affinity_t2"]["worker_id"] == worker_label_to_id[target_worker]
+        assert res["affinity_task_1"]["worker_id"] == worker_label_to_id[target_worker]
+        assert res["affinity_task_2"]["worker_id"] == worker_label_to_id[target_worker]
