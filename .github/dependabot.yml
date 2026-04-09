@@ -3,7 +3,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
     groups:
       github-actions:
         patterns:
@@ -14,7 +15,11 @@ updates:
       - "/"
       - "/examples/go/quickstart"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
     groups:
       go-modules:
         patterns:
@@ -28,6 +33,19 @@ updates:
         update-types:
           - "major"
 
+  - package-ecosystem: "gomod"
+    directories:
+      - "/"
+      - "/examples/go/quickstart"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    groups:
+      go-modules-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
   - package-ecosystem: "pip"
     directories:
       - "/sdks/python"
@@ -35,7 +53,11 @@ updates:
       - "/cmd/hatchet-cli/cli/templates/python/poetry"
       - "/examples/python/quickstart"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
     groups:
       python-deps:
         patterns:
@@ -44,6 +66,47 @@ updates:
           - "patch"
           - "minor"
       python-deps-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/sdks/python"
+      - "/sdks/python/examples/quickstart"
+      - "/cmd/hatchet-cli/cli/templates/python/poetry"
+      - "/examples/python/quickstart"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    groups:
+      python-deps-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/frontend/app"
+      - "/frontend/docs"
+      - "/sdks/typescript"
+      - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
+      - "/examples/typescript"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
+    groups:
+      npm-deps:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
+      npm-deps-major:
         patterns:
           - "*"
         update-types:
@@ -58,25 +121,23 @@ updates:
       - "/examples/typescript"
     schedule:
       interval: "daily"
+    open-pull-requests-limit: 10
     groups:
-      npm-deps:
+      npm-deps-security:
+        applies-to: security-updates
         patterns:
           - "*"
-        update-types:
-          - "patch"
-          - "minor"
-      npm-deps-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
 
   - package-ecosystem: "bundler"
     directories:
       - "/sdks/ruby/src"
       - "/sdks/ruby/examples"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
     groups:
       ruby-deps:
         patterns:
@@ -89,3 +150,16 @@ updates:
           - "*"
         update-types:
           - "major"
+
+  - package-ecosystem: "bundler"
+    directories:
+      - "/sdks/ruby/src"
+      - "/sdks/ruby/examples"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    groups:
+      ruby-deps-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
