@@ -111,10 +111,10 @@ class WorkerActionListenerProcess:
 
         loop = asyncio.get_event_loop()
         loop.add_signal_handler(
-            signal.SIGINT, lambda: asyncio.create_task(self.exit_gracefully())
+            signal.SIGINT, lambda: asyncio.create_task(self.pause_task_assignment())
         )
         loop.add_signal_handler(
-            signal.SIGTERM, lambda: asyncio.create_task(self.exit_gracefully())
+            signal.SIGTERM, lambda: asyncio.create_task(self.pause_task_assignment())
         )
         loop.add_signal_handler(
             signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())

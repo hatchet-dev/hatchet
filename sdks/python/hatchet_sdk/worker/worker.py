@@ -732,18 +732,8 @@ class Worker:
 
         self._killing = True
 
-        for process in [
-            self._action_listener_process,
-            self._durable_action_listener_process,
-        ]:
-            if process is not None and process.pid is not None:
-                try:
-                    if process.is_alive():
-                        os.kill(process.pid, signal.SIGTERM)
-                except Exception:
-                    pass
-
         if self._action_runner:
+            # TODO-DURABLE: we nee to ensure that the worker is paused before calling this in all SDKs
             await self._action_runner.evict_all_waiting_durable_runs()
             await self._action_runner.wait_for_tasks()
             await self._action_runner.exit_gracefully()
@@ -754,7 +744,14 @@ class Worker:
             await self._legacy_durable_action_runner.wait_for_tasks()
             await self._legacy_durable_action_runner.exit_gracefully()
 
-        self._terminate_processes()
+        if self._action_listener_process and self._action_listener_process.is_alive():
+            self._action_listener_process.kill()
+
+        if (
+            self._durable_action_listener_process
+            and self._durable_action_listener_process.is_alive()
+        ):
+            self._durable_action_listener_process.kill()
 
         try:
             await self._cleanup_lifespan()
