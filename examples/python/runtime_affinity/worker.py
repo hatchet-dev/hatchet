@@ -10,8 +10,16 @@ class AffinityResult(BaseModel):
     worker_id: str
 
 
-@hatchet.task()
-async def affinity_example_task(i: EmptyModel, c: Context) -> AffinityResult:
+runtime_affinity_workflow = hatchet.workflow(name="runtime_affinity_workflow")
+
+
+@runtime_affinity_workflow.task()
+async def affinity_task_1(i: EmptyModel, c: Context) -> AffinityResult:
+    return AffinityResult(worker_id=c.worker_id)
+
+
+@runtime_affinity_workflow.task(parents=[affinity_task_1])
+async def affinity_task_2(i: EmptyModel, c: Context) -> AffinityResult:
     return AffinityResult(worker_id=c.worker_id)
 
 
@@ -23,7 +31,7 @@ def main() -> None:
     worker = hatchet.worker(
         "runtime-affinity-worker",
         labels={"affinity": args.label},
-        workflows=[affinity_example_task],
+        workflows=[runtime_affinity_workflow],
     )
 
     worker.start()

@@ -74,7 +74,8 @@ describe('runtime-affinity-e2e', () => {
         }
       );
 
-      expect(res.worker_id).toBe(workerLabelToId[targetWorker]);
+      expect(res.affinity_t1.worker_id).toBe(workerLabelToId[targetWorker]);
+      expect(res.affinity_t2.worker_id).toBe(workerLabelToId[targetWorker]);
     }
   }, 120_000);
 });

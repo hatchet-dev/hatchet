@@ -129,6 +129,9 @@ type createDAGOpts struct {
 	AdditionalMetadata []byte
 
 	ParentTaskExternalID *uuid.UUID
+
+	// (optional) overrides for desired worker labels, propagated to all downstream tasks
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
 }
 
 type TriggerRepository interface {
@@ -1126,6 +1129,7 @@ func (r *sharedRepository) triggerWorkflows(
 				WorkflowName:         tuple.workflowName,
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
+				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
 			})
 		}
 	}
@@ -1364,6 +1368,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	workflowVersionIds := make([]uuid.UUID, 0, len(opts))
 	parentTaskExternalIds := make([]uuid.UUID, 0, len(opts))
 	dagIdToOpt := make(map[uuid.UUID]createDAGOpts, 0)
+	desiredWorkerLabels := make([][]byte, 0, len(opts))
 
 	unix := time.Now().UnixMilli()
 
@@ -1380,6 +1385,18 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			parentTaskExternalIds = append(parentTaskExternalIds, *opt.ParentTaskExternalID)
 		}
 
+		var desiredWorkerLabelsBytes []byte
+		var err error
+
+		if len(opt.DesiredWorkerLabels) > 0 {
+			desiredWorkerLabelsBytes, err = json.Marshal(opt.DesiredWorkerLabels)
+			if err != nil {
+				return nil, fmt.Errorf("could not marshal desired worker labels: %w", err)
+			}
+		}
+
+		desiredWorkerLabels = append(desiredWorkerLabels, desiredWorkerLabelsBytes)
+
 		dagIdToOpt[opt.ExternalId] = opt
 	}
 
@@ -1390,6 +1407,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 		Workflowids:           workflowIds,
 		Workflowversionids:    workflowVersionIds,
 		Parenttaskexternalids: parentTaskExternalIds,
+		Desiredworkerlabels:   desiredWorkerLabels,
 	})
 
 	if err != nil {

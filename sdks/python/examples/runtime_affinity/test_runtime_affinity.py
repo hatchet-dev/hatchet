@@ -3,7 +3,7 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.labels import DesiredWorkerLabel
 from subprocess import Popen
 from typing import Any, Generator
-from examples.runtime_affinity.worker import affinity_example_task
+from examples.runtime_affinity.worker import runtime_affinity_workflow
 from random import choice
 from conftest import _on_demand_worker_fixture
 
@@ -84,7 +84,7 @@ async def test_runtime_affinity(
 
     for _ in range(20):
         target_worker = choice(labels)
-        res = await affinity_example_task.aio_run(
+        res = await runtime_affinity_workflow.aio_run(
             desired_worker_labels=[
                 DesiredWorkerLabel(
                     key="affinity",
@@ -93,4 +93,5 @@ async def test_runtime_affinity(
                 ),
             ],
         )
-        assert res.worker_id == worker_label_to_id[target_worker]
+        assert res["affinity_task_1"]["worker_id"] == worker_label_to_id[target_worker]
+        assert res["affinity_task_2"]["worker_id"] == worker_label_to_id[target_worker]
