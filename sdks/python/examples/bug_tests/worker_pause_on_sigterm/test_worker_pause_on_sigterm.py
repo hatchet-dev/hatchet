@@ -51,6 +51,10 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
     assert matching
     assert matching[0].status == "PAUSED"
 
-    await hatchet.runs.aio_cancel(ref.workflow_run_id)
-
-    await asyncio.sleep(3)
+    for _ in range(30):
+        run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+        if run.status == RunStatus.COMPLETED:
+            break
+        await asyncio.sleep(1)
+    else:
+        assert False, "Task never completed"

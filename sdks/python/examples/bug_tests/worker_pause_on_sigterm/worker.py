@@ -9,7 +9,7 @@ WORKER_NAME = "pause-on-sigterm-worker"
 
 @hatchet.task()
 def long_sleep(input: EmptyModel, ctx: Context) -> None:
-    time.sleep(10)
+    time.sleep(6)
 
 
 def main() -> None:
