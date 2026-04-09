@@ -104,20 +104,16 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 const getDAGData = `-- name: GetDAGData :many
 WITH input AS (
     SELECT
-        dag_id, dag_inserted_at
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS dag_id,
-                unnest($2::timestamptz[]) AS dag_inserted_at
-        ) AS subquery
+        unnest($1::bigint[]) AS dag_id,
+        unnest($2::timestamptz[]) AS dag_inserted_at
 )
-SELECT
-    v1_dag_data.dag_id, v1_dag_data.dag_inserted_at, input, additional_metadata, input.dag_id, input.dag_inserted_at
-FROM
-    v1_dag_data
-JOIN
-    input USING (dag_id, dag_inserted_at)
+SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels
+FROM v1_dag d
+JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
+WHERE (d.id, d.inserted_at) IN (
+    SELECT dag_id, dag_inserted_at
+    FROM input
+)
 `
 
 type GetDAGDataParams struct {
@@ -126,12 +122,11 @@ type GetDAGDataParams struct {
 }
 
 type GetDAGDataRow struct {
-	DagID              int64              `json:"dag_id"`
-	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
-	Input              []byte             `json:"input"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
-	DagID_2            interface{}        `json:"dag_id_2"`
-	DagInsertedAt_2    interface{}        `json:"dag_inserted_at_2"`
+	DagID               int64              `json:"dag_id"`
+	DagInsertedAt       pgtype.Timestamptz `json:"dag_inserted_at"`
+	Input               []byte             `json:"input"`
+	AdditionalMetadata  []byte             `json:"additional_metadata"`
+	DesiredWorkerLabels []byte             `json:"desired_worker_labels"`
 }
 
 func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*GetDAGDataRow, error) {
@@ -148,8 +143,7 @@ func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams)
 			&i.DagInsertedAt,
 			&i.Input,
 			&i.AdditionalMetadata,
-			&i.DagID_2,
-			&i.DagInsertedAt_2,
+			&i.DesiredWorkerLabels,
 		); err != nil {
 			return nil, err
 		}

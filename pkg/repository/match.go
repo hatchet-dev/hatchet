@@ -567,6 +567,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
+		dagIdsToDesiredWorkerLabels := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
 		for _, dagData := range dagInputDatas {
 			retrieveOpts := RetrievePayloadOpts{
@@ -584,6 +585,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
+
+			if len(dagData.DesiredWorkerLabels) > 0 {
+				var labels []*sqlcv1.GetDesiredLabelsRow
+				if err := json.Unmarshal(dagData.DesiredWorkerLabels, &labels); err == nil {
+					dagIdsToDesiredWorkerLabels[dagData.DagID] = labels
+				}
+			}
 		}
 
 		// determine which tasks to create based on step ids
@@ -657,6 +665,16 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
 						opt.DagId = &match.TriggerDagID.Int64
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
+
+						if dagLabels, ok := dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]; ok && len(dagLabels) > 0 {
+							labels := make([]*sqlcv1.GetDesiredLabelsRow, len(dagLabels))
+							for i, l := range dagLabels {
+								lCopy := *l
+								lCopy.StepId = *match.TriggerStepID
+								labels[i] = &lCopy
+							}
+							opt.DesiredWorkerLabels = labels
+						}
 					}
 
 					if match.TriggerParentTaskExternalID != nil {
