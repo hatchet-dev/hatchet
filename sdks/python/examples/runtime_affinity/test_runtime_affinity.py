@@ -3,7 +3,7 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.labels import DesiredWorkerLabel
 from subprocess import Popen
 from typing import Any, Generator
-from examples.runtime_affinity.worker import runtime_affinity_workflow
+from examples.runtime_affinity.worker import runtime_affinity_workflow, AffinityResult
 from random import choice
 from conftest import _on_demand_worker_fixture
 
@@ -144,6 +144,8 @@ async def test_runtime_affinity(
 
         for task_name in expected_tasks:
             assert task_name in run, f"Task {task_name} not found in workflow result"
+            result = AffinityResult.model_validate(run[task_name])
+            worker_id = result.worker_id
             assert (
-                run[task_name]["worker_id"] == expected_worker_id
-            ), f"Task {task_name} ran on wrong worker. Expected {expected_worker_id}, got {run[task_name]['worker_id']}"
+                worker_id == expected_worker_id
+            ), f"Task {task_name} ran on wrong worker. Expected {expected_worker_id}, got {worker_id}"
