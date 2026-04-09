@@ -14,12 +14,49 @@ runtime_affinity_workflow = hatchet.workflow(name="runtime_affinity_workflow")
 
 
 @runtime_affinity_workflow.task()
-async def affinity_task_1(i: EmptyModel, c: Context) -> AffinityResult:
+async def validate_input(i: EmptyModel, c: Context) -> AffinityResult:
     return AffinityResult(worker_id=c.worker_id)
 
 
-@runtime_affinity_workflow.task(parents=[affinity_task_1])
-async def affinity_task_2(i: EmptyModel, c: Context) -> AffinityResult:
+@runtime_affinity_workflow.task(parents=[validate_input])
+async def load_search_scope_meta(i: EmptyModel, c: Context) -> AffinityResult:
+    return AffinityResult(worker_id=c.worker_id)
+
+
+@runtime_affinity_workflow.task(parents=[validate_input])
+async def resolve_assessment_type(i: EmptyModel, c: Context) -> AffinityResult:
+    return AffinityResult(worker_id=c.worker_id)
+
+
+@runtime_affinity_workflow.task(
+    parents=[resolve_assessment_type, load_search_scope_meta]
+)
+async def prepare_queries_and_exceptions(i: EmptyModel, c: Context) -> AffinityResult:
+    return AffinityResult(worker_id=c.worker_id)
+
+
+@runtime_affinity_workflow.task(
+    parents=[prepare_queries_and_exceptions, load_search_scope_meta]
+)
+async def retrieve_context_chunks(i: EmptyModel, c: Context) -> AffinityResult:
+    return AffinityResult(worker_id=c.worker_id)
+
+
+@runtime_affinity_workflow.task(
+    parents=[prepare_queries_and_exceptions, retrieve_context_chunks, validate_input]
+)
+async def generate_llm_answer(i: EmptyModel, c: Context) -> AffinityResult:
+    return AffinityResult(worker_id=c.worker_id)
+
+
+@runtime_affinity_workflow.task(
+    parents=[
+        prepare_queries_and_exceptions,
+        retrieve_context_chunks,
+        generate_llm_answer,
+    ]
+)
+async def post_process_and_snippets(i: EmptyModel, c: Context) -> AffinityResult:
     return AffinityResult(worker_id=c.worker_id)
 
 
