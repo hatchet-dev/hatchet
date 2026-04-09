@@ -13,15 +13,12 @@ from hatchet_sdk import EmptyModel, Hatchet, RunStatus
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
-        (
-            [
-                "poetry",
-                "run",
-                "python",
-                "examples/bug_tests/worker_pause_on_sigterm/worker.py",
-            ],
-            8010,
-        )
+        [
+            "poetry",
+            "run",
+            "python",
+            "examples/bug_tests/worker_pause_on_sigterm/worker.py",
+        ]
     ],
     indirect=True,
 )
@@ -43,13 +40,15 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
     parent = psutil.Process(on_demand_worker.pid)
     parent.send_signal(signal.SIGTERM)
 
-    await asyncio.sleep(3)
-
-    worker_list = await hatchet.workers.aio_list()
-    matching = [w for w in (worker_list.rows or []) if w.name == WORKER_NAME]
-
-    assert matching
-    assert matching[0].status == "PAUSED"
+    matching = []
+    for _ in range(30):
+        worker_list = await hatchet.workers.aio_list()
+        matching = [w for w in (worker_list.rows or []) if w.name == WORKER_NAME]
+        if matching and matching[0].status == "PAUSED":
+            break
+        await asyncio.sleep(1)
+    else:
+        assert False, f"Worker {WORKER_NAME} never reported PAUSED"
 
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
