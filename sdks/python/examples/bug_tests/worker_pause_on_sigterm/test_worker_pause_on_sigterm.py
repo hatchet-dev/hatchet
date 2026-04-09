@@ -43,8 +43,14 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
     matching = []
     for _ in range(30):
         worker_list = await hatchet.workers.aio_list()
-        matching = [w for w in (worker_list.rows or []) if w.name == WORKER_NAME]
-        if matching and matching[0].status == "PAUSED":
+
+        matching = [
+            w
+            for w in (worker_list.rows or [])
+            if w.name == WORKER_NAME and w.status == "PAUSED"
+        ]
+
+        if matching:
             break
         await asyncio.sleep(1)
     else:
