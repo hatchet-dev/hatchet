@@ -1,6 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
-import React from 'react';
+import React, { useState } from 'react';
 
 export type SocialAuthProvider = 'google' | 'github' | 'propelauth';
 
@@ -19,7 +19,7 @@ const PROVIDER_CONFIG: Record<
     icon: <Icons.gitHub className="size-4" />,
   },
   propelauth: {
-    href: './propelauth-login.tsx',
+    href: '/api/v1/cloud/users/sso/start',
     label: 'Propel Auth',
     icon: <Icons.gitHub className="size-4" />,
   },
@@ -46,6 +46,57 @@ export function SocialAuthButton({
   provider: SocialAuthProvider;
 }) {
   const cfg = PROVIDER_CONFIG[provider];
+  const [expanded, setExpanded] = useState(false);
+  const [org, setOrg] = useState('');
+
+  if (provider === 'propelauth') {
+    return (
+      <div className="w-full flex flex-col gap-2">
+        <Button
+          variant="outline"
+          type="button"
+          fullWidth
+          onClick={() => setExpanded((prev) => !prev)}
+          className="h-11 justify-center gap-2 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+        >
+          {cfg.icon}
+          {cfg.label}
+        </Button>
+        {expanded && (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={org}
+              onChange={(e) => setOrg(e.target.value)}
+              placeholder="Enter your organization"
+              className="h-10 flex-1 rounded-md border border-muted-foreground/20 bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <a
+              href={
+                org ? `${cfg.href}?org=${encodeURIComponent(org)}` : '#'
+              }
+              onClick={(e) => {
+                if (!org) {
+                  e.preventDefault();
+                }
+              }}
+              tabIndex={org ? 0 : -1}
+            >
+              <Button
+                variant="outline"
+                type="button"
+                disabled={!org}
+                className="h-10 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+              >
+                Continue
+              </Button>
+            </a>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <a href={cfg.href} className="w-full">
       <Button
