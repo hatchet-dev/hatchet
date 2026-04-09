@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Fixes a bug in the shutdown handlers that wouldn't correctly trigger graceful shutdown if only the parent process received a shutdown signal like `SIGTERM`, which might often be the case on e.g. Kubernetes.
+- Fixes an issue where we generated protobufs using a more recent grpcio version than the minimum allowed, causing breakages on older versions.
 
 ## [1.32.0] - 2026-04-07
 
