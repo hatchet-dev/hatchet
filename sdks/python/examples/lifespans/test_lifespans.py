@@ -24,10 +24,7 @@ async def test_lifespans() -> None:
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
-        (
-            ["poetry", "run", "python", "examples/lifespans/drain.py"],
-            8009,
-        )
+        ["poetry", "run", "python", "examples/lifespans/drain.py"],
     ],
     indirect=True,
 )

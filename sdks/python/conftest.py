@@ -9,7 +9,7 @@ from pytest import FixtureRequest
 from hatchet_sdk import Hatchet
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
-from tests.worker_fixture import hatchet_worker
+from tests.worker_fixture import get_free_port, hatchet_worker
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -63,9 +63,9 @@ def worker() -> Generator[Popen[bytes], None, None]:
 def _on_demand_worker_fixture(
     request: FixtureRequest,
 ) -> Generator[Popen[bytes], None, None]:
-    command, port = cast(tuple[list[str], int], request.param)
+    command = cast(list[str], request.param)
 
-    with hatchet_worker(command, port) as proc:
+    with hatchet_worker(command, get_free_port()) as proc:
         yield proc
 
 

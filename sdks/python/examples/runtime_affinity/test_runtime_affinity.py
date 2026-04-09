@@ -27,34 +27,28 @@ def on_demand_worker_b(
 @pytest.mark.parametrize(
     "on_demand_worker_a",
     [
-        (
-            [
-                "poetry",
-                "run",
-                "python",
-                "examples/runtime_affinity/worker.py",
-                "--label",
-                labels[0],
-            ],
-            8003,
-        )
+        [
+            "poetry",
+            "run",
+            "python",
+            "examples/runtime_affinity/worker.py",
+            "--label",
+            labels[0],
+        ]
     ],
     indirect=True,
 )
 @pytest.mark.parametrize(
     "on_demand_worker_b",
     [
-        (
-            [
-                "poetry",
-                "run",
-                "python",
-                "examples/runtime_affinity/worker.py",
-                "--label",
-                labels[1],
-            ],
-            8004,
-        )
+        [
+            "poetry",
+            "run",
+            "python",
+            "examples/runtime_affinity/worker.py",
+            "--label",
+            labels[1],
+        ]
     ],
     indirect=True,
 )
