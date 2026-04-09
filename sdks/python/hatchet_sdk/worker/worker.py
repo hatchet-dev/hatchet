@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import multiprocessing
 import multiprocessing.context
 import os
@@ -732,8 +733,19 @@ class Worker:
 
         self._killing = True
 
+        # IMPORTANT: Ideally, we'd pause task assignment on the parent process,
+        # but only the listeners know what worker id we're on, so instead we need
+        # to propagate the SIGTERM to all child listener processes. Each child's SIGTERM
+        # handler calls pause_task_assignment() to pause assignment to this worker
+        for process in [
+            self._action_listener_process,
+            self._durable_action_listener_process,
+        ]:
+            if process is not None and process.pid is not None and process.is_alive():
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(process.pid, signal.SIGTERM)
+
         if self._action_runner:
-            # TODO-DURABLE: we nee to ensure that the worker is paused before calling this in all SDKs
             await self._action_runner.evict_all_waiting_durable_runs()
             await self._action_runner.wait_for_tasks()
             await self._action_runner.exit_gracefully()

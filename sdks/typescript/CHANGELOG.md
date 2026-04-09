@@ -5,6 +5,17 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-04-08
+
+### Added
+
+- runMany and runManyNoWait APIs for workflows and standalone tasks to support bulk runs with per-run options.
+- RunManyOpt input shape containing an input object and an options object.
+
+### Changed
+
+- Bulk docs to include runMany and runManyNoWait examples.
+
 ## [1.20.1] - 2026-04-07
 
 ### Fixed

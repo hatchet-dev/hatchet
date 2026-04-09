@@ -96,6 +96,11 @@ export type RunOpts = {
   >;
 };
 
+export type RunManyOpt<I extends InputType = UnknownInputType> = {
+  input: I;
+  opts?: RunOpts;
+};
+
 /**
  * Helper type to safely extract output types from task results
  * @hidden
@@ -448,6 +453,81 @@ export class BaseWorkflowDeclaration<
   }
 
   /**
+   * Synchronously trigger multiple workflow runs without waiting for completion.
+   * @param runs A list of run requests containing input and per-run options.
+   * @returns WorkflowRunRef values in the same order as input runs.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
+  async runManyNoWait(
+    runs: RunManyOpt<I>[],
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>[]> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    const parentRunContext = parentRunContextManager.getContext();
+
+    const hasChildKeyOrSticky = runs.some((run) => run.opts?.childKey || run.opts?.sticky);
+
+    if (!parentRunContext && hasChildKeyOrSticky) {
+      this.client.admin.logger.warn(
+        'ignoring childKey or sticky because run is not being spawned from a parent task'
+      );
+    }
+
+    const inheritedSignal = parentRunContext?.signal;
+
+    throwIfAborted(inheritedSignal, {
+      isTrigger: true,
+      context: parentRunContext?.parentTaskRunExternalId
+        ? `task run ${parentRunContext.parentTaskRunExternalId}`
+        : undefined,
+      warn: (message) => this.client!.admin.logger.warn(message),
+    });
+
+    parentRunContextManager.incrementChildIndex(runs.length);
+
+    const baseOpts = {
+      parentId: parentRunContext?.parentId,
+      parentTaskRunExternalId: parentRunContext?.parentTaskRunExternalId,
+      childIndex: parentRunContext?.childIndex,
+    };
+
+    let resp: WorkflowRunRef<O>[] = [];
+    for (let i = 0; i < runs.length; i += 500) {
+      const batch = runs.slice(i, i + 500);
+      const batchResp = await this.client.admin.runWorkflows<I, O>(
+        batch.map((run, batchIndex) => {
+          const { sticky, ...restOpts } = run.opts ?? {};
+
+          return {
+            workflowName: this.definition.name,
+            input: run.input,
+            options: {
+              ...baseOpts,
+              ...restOpts,
+              childIndex: (baseOpts.childIndex ?? 0) + i + batchIndex,
+              desiredWorkerId: sticky ? parentRunContext?.desiredWorkerId : undefined,
+              childKey: run.opts?.childKey,
+            },
+          };
+        })
+      );
+      resp = resp.concat(batchResp);
+    }
+
+    resp.forEach((ref) => {
+      if (_standaloneTaskName) {
+        ref._standaloneTaskName = _standaloneTaskName;
+      }
+      ref.defaultSignal = inheritedSignal;
+    });
+
+    return resp;
+  }
+
+  /**
    * @alias run
    * Triggers a workflow run and waits for the result.
    * @template I - The input type for the workflow
@@ -516,6 +596,47 @@ export class BaseWorkflowDeclaration<
 
     const res = await this.runNoWait(input, options, _standaloneTaskName);
     return res.result();
+  }
+
+  /**
+   * Executes many workflow runs and waits for all results.
+   * @param runs A list of run requests containing input and per-run options.
+   * @returns Results in the same order as input runs.
+   */
+  async runMany(runs: RunManyOpt<I>[], _standaloneTaskName?: string): Promise<O[]> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    const durableCtx = parentRunContextManager.getContext()?.durableContext;
+    if (durableCtx) {
+      return durableCtx.spawnChildren(
+        runs.map((run) => ({
+          workflow: this,
+          input: run.input,
+          options: run.opts,
+        }))
+      );
+    }
+
+    const refs = await this.runManyNoWait(runs, _standaloneTaskName);
+    const returnExceptions = runs.some((run) => run.opts?.returnExceptions);
+
+    if (returnExceptions) {
+      const settled = await Promise.allSettled(refs.map((ref) => ref.result()));
+      return settled.map((s) => {
+        if (s.status === 'fulfilled') {
+          return s.value;
+        }
+        const { reason } = s;
+        if (reason instanceof Error) {
+          return reason;
+        }
+        return new Error(Array.isArray(reason) ? reason.join('; ') : String(reason));
+      }) as O[];
+    }
+
+    return Promise.all(refs.map((ref) => ref.result()));
   }
 
   /**
@@ -728,6 +849,7 @@ export class BaseWorkflowDeclaration<
  * - Scheduled execution with `schedule()`
  * - Cron-based recurring execution with `cron()`
  * - Bulk execution by passing an array input to `run()` and `runNoWait()`
+ * - Per-run bulk execution options with `runMany()` and `runManyNoWait()`
  *
  * Tasks within workflows can be defined with `workflow.task()` or
  * `workflow.durableTask()` and arranged into complex dependency patterns.
@@ -1021,6 +1143,32 @@ export class TaskWorkflowDeclaration<
       : (super.runNoWait(input, options, this._standalone_task_name) as Promise<
           WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>
         >);
+  }
+
+  /**
+   * Triggers many task runs and waits for all results.
+   * @param runs - The list of inputs and optional per-run options.
+   * @returns A promise that resolves with ordered task outputs.
+   */
+  async runMany(
+    runs: RunManyOpt<I & GlobalInput>[]
+  ): Promise<(O & Resolved<GlobalOutput, MiddlewareAfter>)[]> {
+    return super.runMany(runs, this._standalone_task_name) as Promise<
+      (O & Resolved<GlobalOutput, MiddlewareAfter>)[]
+    >;
+  }
+
+  /**
+   * Triggers many task runs without waiting for completion.
+   * @param runs - The list of inputs and optional per-run options.
+   * @returns WorkflowRunRef values for each scheduled run.
+   */
+  async runManyNoWait(
+    runs: RunManyOpt<I & GlobalInput>[]
+  ): Promise<WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]> {
+    return super.runManyNoWait(runs, this._standalone_task_name) as Promise<
+      WorkflowRunRef<O & Resolved<GlobalOutput, MiddlewareAfter>>[]
+    >;
   }
 
   /**
