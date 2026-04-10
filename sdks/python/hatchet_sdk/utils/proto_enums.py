@@ -44,4 +44,12 @@ def convert_proto_enum_to_python(
     if value is None:
         return None
 
-    return python_enum_class[proto_enum.Name(value)]
+    name = proto_enum.Name(value)
+
+    try:
+        return python_enum_class[name]
+    except KeyError:
+        # Unknown enum values (e.g., from a newer server) are returned as None
+        # so callers can skip them gracefully. This prevents SDK crashes when the
+        # engine sends new ActionType values like STREAM_KEEPALIVE.
+        return None
