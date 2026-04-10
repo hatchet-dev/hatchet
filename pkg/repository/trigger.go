@@ -1453,17 +1453,11 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			AdditionalMetadata: additionalMeta,
 		})
 
-		parentTaskExternalID := uuid.UUID{}
-
-		if opt.ParentTaskExternalID != nil {
-			parentTaskExternalID = *opt.ParentTaskExternalID
-		}
-
 		res = append(res, &DAGWithData{
 			V1Dag:                dag,
 			Input:                input,
 			AdditionalMetadata:   additionalMeta,
-			ParentTaskExternalID: &parentTaskExternalID,
+			ParentTaskExternalID: opt.ParentTaskExternalID,
 			TotalTasks:           len(opt.TaskIds),
 			TaskExternalIDs:      opt.TaskIds,
 			TaskStepReadableIDs:  opt.TaskStepReadableIds,
