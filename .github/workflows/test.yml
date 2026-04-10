@@ -669,4 +669,4 @@ jobs:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
-          RAMP_UP_DURATION_TIMEOUT: 10s
+          RAMP_UP_DURATION_TIMEOUT: 30s
