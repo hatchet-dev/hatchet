@@ -65,12 +65,6 @@ func up20260408190713(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("create index on %s: %w", v1RunsOlapTable, err)
 	}
 
-	stmt = "ANALYZE v1_runs_olap, v1_dags_olap, v1_tasks_olap"
-
-	if _, err := db.ExecContext(ctx, stmt); err != nil {
-		return fmt.Errorf("analyze tables: %w", err)
-	}
-
 	return nil
 }
 
