@@ -1004,6 +1004,7 @@ WITH tenants AS (
     FROM
         locked_events
 )
+
 SELECT
     -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
     -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
@@ -1012,6 +1013,319 @@ SELECT
     t.*
 FROM
     all_result_tasks t;
+
+-- name: UpdateTaskStatusesFromMQ :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@statuses::v1_readable_status_olap[]) AS readable_status,
+        UNNEST(@workerIds::UUID[]) AS worker_id,
+        UNNEST(@retryCounts::int[]) AS retry_count
+), locked_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        t.readable_status,
+        t.latest_retry_count,
+        t.external_id,
+        t.latest_worker_id,
+        t.workflow_id,
+        t.dag_id,
+        t.dag_inserted_at,
+        (t.dag_id IS NOT NULL)::boolean AS is_dag_task,
+        i.readable_status AS new_readable_status,
+        i.retry_count AS new_retry_count,
+        i.worker_id AS new_worker_id
+    FROM
+        inputs i
+    JOIN
+        v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (i.tenant_id, i.task_id, i.task_inserted_at)
+    FOR UPDATE
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status).
+    -- This avoids PK violations during row movement when the target sub-partition already has
+    -- a copy (e.g. from a previous partial update).
+    SELECT
+        lt.tenant_id,
+        lt.id,
+        lt.inserted_at,
+        lt.readable_status AS old_readable_status,
+        lt.new_readable_status,
+        lt.new_retry_count,
+        lt.external_id,
+        lt.latest_worker_id,
+        lt.workflow_id,
+        lt.dag_id,
+        lt.dag_inserted_at,
+        lt.is_dag_task
+    FROM
+        locked_tasks lt
+    JOIN
+        v1_tasks_olap t ON
+            t.inserted_at = lt.inserted_at
+            AND t.id = lt.id
+            AND t.readable_status = lt.new_readable_status
+    WHERE
+        lt.readable_status != lt.new_readable_status
+), deleted_duplicate_tasks AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM
+        v1_tasks_olap t
+    USING
+        already_in_target_partition ap
+    WHERE
+        (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), tasks_to_update AS (
+    -- Tasks that need updating and don't already exist in the target partition
+    SELECT *
+    FROM locked_tasks lt
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM already_in_target_partition ap
+        WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    )
+    AND (
+        -- If the retry count is greater than the latest retry count, update the status
+        (
+            lt.new_retry_count > lt.latest_retry_count
+            AND lt.new_readable_status != lt.readable_status
+        ) OR
+        -- If the retry count is equal, only update if the new status has higher priority
+        (
+            lt.new_retry_count = lt.latest_retry_count
+            AND v1_status_to_priority(lt.new_readable_status) > v1_status_to_priority(lt.readable_status)
+        ) OR
+        -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+        (
+            lt.new_retry_count = lt.latest_retry_count
+            AND lt.readable_status = 'EVICTED'
+            AND lt.new_readable_status != 'EVICTED'
+        )
+    )
+), updated_tasks AS (
+    UPDATE v1_tasks_olap t
+    SET
+        readable_status = tu.new_readable_status,
+        latest_retry_count = tu.new_retry_count,
+        latest_worker_id = CASE
+            WHEN tu.new_worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN tu.new_worker_id
+            ELSE t.latest_worker_id
+        END
+    FROM
+        tasks_to_update tu
+    WHERE
+        (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
+    RETURNING
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
+), all_result_tasks AS (
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, TRUE AS was_updated
+    FROM updated_tasks
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, new_readable_status AS readable_status, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, TRUE AS was_updated
+    FROM already_in_target_partition
+    UNION ALL
+    -- Tasks from inputs that were found but not updated (status already at target or higher priority)
+    SELECT
+        lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.dag_id, lt.dag_inserted_at, lt.is_dag_task, FALSE AS was_updated
+    FROM locked_tasks lt
+    WHERE NOT EXISTS (
+        SELECT 1 FROM updated_tasks ut WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM already_in_target_partition ap WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    )
+)
+
+SELECT
+    tenant_id,
+    id AS task_id,
+    inserted_at AS task_inserted_at,
+    readable_status,
+    external_id,
+    latest_worker_id,
+    workflow_id,
+    dag_id,
+    dag_inserted_at,
+    is_dag_task,
+    was_updated
+FROM all_result_tasks;
+
+-- name: UpdateDAGStatusesFromMQ :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+), locked_dags AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.readable_status,
+        d.tenant_id,
+        d.total_tasks
+    FROM
+        v1_dags_olap d
+    WHERE
+        d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT
+                i.dag_inserted_at, i.dag_id, i.tenant_id
+            FROM
+                inputs i
+        )
+    ORDER BY
+        d.inserted_at, d.id
+    FOR UPDATE
+), relevant_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        d.id AS dag_id,
+        d.inserted_at AS dag_inserted_at,
+        t.readable_status
+    FROM
+        locked_dags d
+    JOIN
+        v1_dag_to_task_olap dt ON
+            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN
+        v1_tasks_olap t ON
+            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
+    -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
+    -- each of which can take a long time to scan. This can be very pathological since we partition on
+    -- both the status and the date, so 14 days of data with 5 statuses is 70 partitions to index scan.
+    ORDER BY t.inserted_at DESC
+), dag_task_counts AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.readable_status,
+        d.tenant_id,
+        d.total_tasks,
+        COUNT(t.id) AS task_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'EVICTED') AS evicted_count
+    FROM
+        locked_dags d
+    LEFT JOIN
+        relevant_tasks t ON (d.tenant_id, d.id, d.inserted_at) = (t.tenant_id, t.dag_id, t.dag_inserted_at)
+    GROUP BY
+        d.id, d.inserted_at, d.readable_status, d.tenant_id, d.total_tasks
+), dag_new_statuses AS (
+    SELECT
+        dtc.id,
+        dtc.inserted_at,
+        dtc.readable_status AS old_readable_status,
+        dtc.tenant_id,
+        CASE
+            -- If we only have queued events, we should keep the status as is
+            WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
+            -- If the task count is not equal to the total tasks, we should set the status to running
+            WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
+            -- If we have any running or queued tasks, we should set the status to running
+            WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            -- If all tasks are evicted, mark DAG as evicted
+            WHEN dtc.evicted_count = dtc.task_count AND dtc.task_count = dtc.total_tasks THEN 'EVICTED'
+            WHEN dtc.failed_count > 0 THEN 'FAILED'
+            WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
+            WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
+            ELSE 'RUNNING'
+        END::v1_readable_status_olap AS new_readable_status
+    FROM
+        dag_task_counts dtc
+), already_in_target_partition AS (
+    -- Check if rows already exist in the target partition (with the new readable_status)
+    -- This is to avoid rare cases of duplicates writes causing unique constraint violations,
+    -- when i.e. we write to one partition of QUEUED, that gets moved from QUEUED -> COMPLETED,
+    -- and we later insert into QUEUED again but try to update to COMPLETED again.
+    SELECT
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status
+    FROM
+        dag_new_statuses dns
+    JOIN
+        v1_dags_olap d ON
+            d.inserted_at = dns.inserted_at
+            AND d.id = dns.id
+            AND d.readable_status = dns.new_readable_status
+    WHERE
+        -- Only consider rows where we would actually change the status
+        dns.old_readable_status != dns.new_readable_status
+), updated_target_partition_dags AS (
+    -- Update the existing rows in the target partition
+    UPDATE
+        v1_dags_olap d
+    SET
+        -- Touch the row to ensure it's returned (no-op update)
+        readable_status = d.readable_status
+    FROM
+        already_in_target_partition ap
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.new_readable_status)
+    RETURNING
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), deleted_duplicate_dags AS (
+    -- Delete the old rows that already have a copy in the target partition
+    DELETE FROM
+        v1_dags_olap d
+    USING
+        already_in_target_partition ap
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+), dags_to_update AS (
+    -- DAGs that need updating and don't already exist in target partition
+    SELECT DISTINCT ON (dns.tenant_id, dns.id, dns.inserted_at)
+        dns.tenant_id,
+        dns.id,
+        dns.inserted_at,
+        dns.old_readable_status,
+        dns.new_readable_status
+    FROM
+        dag_new_statuses dns
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM already_in_target_partition ap
+            WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (dns.tenant_id, dns.id, dns.inserted_at)
+        )
+    ORDER BY
+        dns.tenant_id, dns.id, dns.inserted_at, dns.old_readable_status
+), updated_dags AS (
+    UPDATE
+        v1_dags_olap d
+    SET
+        readable_status = dtu.new_readable_status
+    FROM
+        dags_to_update dtu
+    WHERE
+        (d.inserted_at, d.id, d.readable_status) = (dtu.inserted_at, dtu.id, dtu.old_readable_status)
+        AND dtu.old_readable_status != dtu.new_readable_status
+    RETURNING
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+), all_result_dags AS (
+    -- Combine updated dags from both paths
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id
+    FROM updated_dags
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, readable_status, external_id, workflow_id
+    FROM updated_target_partition_dags
+)
+
+SELECT *
+FROM all_result_dags;
 
 -- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (

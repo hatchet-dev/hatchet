@@ -16,7 +16,6 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 	return func() {
 		o.l.Debug().Ctx(ctx).Msgf("partition: processing tenant alerts")
 
-		// list all tenants
 		tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
 
 		if err != nil {
@@ -26,10 +25,8 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 
 		o.processTenantAlertOperations.SetTenants(tenants)
 
-		for i := range tenants {
-			tenantId := tenants[i].ID.String()
-
-			o.processTenantAlertOperations.RunOrContinue(tenantId)
+		for _, tenantId := range tenants {
+			o.processTenantAlertOperations.RunOrContinue(tenantId.String())
 		}
 	}
 }
