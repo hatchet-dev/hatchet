@@ -20,8 +20,8 @@ export default {
   },
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
-  "bulk-run": "Bulk Runs",
-  "events": "Events",
+  "bulk-run": "Bulk Triggering",
+  events: "Events",
   webhooks: "Webhooks",
   "inter-service-triggering": "Inter-Service Triggering",
   "--reliability": {

@@ -3,9 +3,7 @@ import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 
-# Event Trigger
-
-> This example assumes we have a [task](/v1/tasks) registered on a running [worker](/v1/workers).
+# Triggering Runs from Events
 
 Run-on-event allows you to trigger one or more tasks when a specific event occurs. This is useful when you need to execute a task in response to an ephemeral event where the result is not important. A few common use cases for event-triggered task runs are:
 
@@ -49,9 +47,9 @@ To run a task on an event, you need to declare the event that will trigger the t
   `subscription:renew`, `subscription:cancel`, and so on.
 </Callout>
 
-# Pushing Events
+## Pushing Events to Hatchet
 
-You can push an event to Hatchet by calling the `push` method on the Hatchet event client and providing the event name and payload. Any tasks that have registered an [event trigger](/v1/external-events/run-on-event) for that event key will be run.
+You can push an event to Hatchet by calling the `push` method on the Hatchet event client and providing the event name and payload. Any tasks that have registered an event trigger with a matching event key will be run.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -73,11 +71,11 @@ You can push an event to Hatchet by calling the `push` method on the Hatchet eve
   received before the task is registered, the task will not be run.
 </Callout>
 
-# Event Filters
+## Event Filters
 
 Events can be _filtered_ in Hatchet, which allows you to push events to Hatchet and only trigger task runs from them in certain cases. **If you enable filters on a workflow, your workflow will be triggered once for each matching filter on any incoming event with a matching scope** (more on scopes below).
 
-## Basic Usage
+### Basic Usage
 
 There are two ways to create filters in Hatchet.
 
@@ -166,7 +164,7 @@ But this one will be triggered since the payload _does_ match the expression:
   filter to determine which tasks to trigger.
 </Callout>
 
-## Accessing the filter payload
+### Accessing the filter payload
 
 You can access the filter payload by using the `Context` in the task that was triggered by your event:
 
@@ -187,7 +185,7 @@ You can access the filter payload by using the `Context` in the task that was tr
   </Tabs.Tab>
 </UniversalTabs>
 
-## Advanced Usage
+### Advanced Usage
 
 In addition to referencing `input` in the expression (which corresponds to the _event_ payload), you can also reference the following fields:
 
