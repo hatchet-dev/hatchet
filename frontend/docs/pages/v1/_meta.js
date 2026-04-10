@@ -115,7 +115,4 @@ export default {
   "error-handling": {
     display: "hidden",
   },
-  "flow-control": {
-    display: "hidden",
-  },
 };
