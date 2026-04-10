@@ -5,92 +5,51 @@ import { snippets } from "@/lib/generated/snippets";
 
 # Concurrency Control in Hatchet Tasks
 
-Hatchet provides powerful concurrency control features to help you manage the execution of your tasks. This is particularly useful when you have tasks that may be triggered frequently or have long-running steps, and you want to limit the number of concurrent executions to prevent overloading your system, ensure fairness, or avoid race conditions.
+Hatchet provides powerful concurrency control features to help you manage the execution of your tasks. This is particularly useful when you have tasks that may be triggered frequently or have long-running steps, and you want to limit the number of concurrent executions to prevent overloading your system, ensure fairness, or avoid race conditions. Concurrency strategies can be added to both tasks and workflows
 
 <Callout type="info">
-  Concurrency strategies can be added to both `Tasks` and `Workflows`.
+  This page will discuss concurrency **keys** often. The key is the result of
+  evaluating a [CEL expression](https://celbyexample.com/) that you provide on
+  your tasks or workflows. The CEL expression you create can reference the
+  `input` to the workflow and the `additional_metadata`.
+
+For instance, the expression `input.user_id + ':' + additional_metadata.foobar` on a workflow run triggered with input `{"user_id": "abc"}` and additional metadata `{"foobar": "bazqux"}` would evaluate to `abc:bazqux`.
+
 </Callout>
 
-### Why use concurrency control?
+## Why use concurrency control?
 
 There are several reasons why you might want to use concurrency control in your Hatchet tasks:
 
 1. **Fairness**: When you have multiple clients or users triggering tasks, concurrency control can help ensure fair access to resources. By limiting the number of concurrent runs per client or user, you can prevent a single client from monopolizing the system and ensure that all clients get a fair share of the available resources.
 
-2. **Resource management**: If your task steps are resource-intensive (e.g., they make external API calls or perform heavy computations), running too many instances concurrently can overload your system. By limiting concurrency, you can ensure your system remains stable and responsive.
+2. **Resource management**: If your tasks are resource-intensive, running too many instances concurrently can overload your system. By limiting concurrency, you can ensure your system remains stable and responsive.
 
-3. **Avoiding race conditions**: If your task steps modify shared resources, running multiple instances concurrently can lead to race conditions and inconsistent data. Concurrency control helps you avoid these issues by ensuring only a limited number of instances run at a time.
+3. **Avoiding race conditions**: If your tasks modify shared resources, running multiple instances concurrently can lead to race conditions and inconsistent data. Concurrency control helps you avoid these issues by ensuring only a limited number of instances run at a time.
 
-4. **Compliance with external service limits**: If your task steps interact with external services that have rate limits, concurrency control can help you stay within those limits and avoid being throttled or blocked.
+4. **Compliance with external service limits**: If your tasks interact with external services that have rate limits, concurrency control can help you stay within those limits and avoid being throttled or blocked.
 
 5. **Spike Protection**: When you have tasks that are triggered by external events, such as webhooks or user actions, you may experience spikes in traffic that can overwhelm your system. Concurrency control can help you manage these spikes by limiting the number of concurrent runs and queuing new runs until resources become available.
 
-### Available Strategies:
+## Available Strategies:
 
-- [`GROUP_ROUND_ROBIN`](#group-round-robin): Distribute task instances across available slots in a round-robin fashion based on the `key` function.
-- [`CANCEL_IN_PROGRESS`](#cancel-in-progress): Cancel the currently running task instances for the same concurrency key to free up slots for the new instance.
-- [`CANCEL_NEWEST`](#cancel-newest): Cancel the newest task instance for the same concurrency key to free up slots for the new instance.
+- [**Group Round Robin**](#group-round-robin) queues incoming task and workflow runs and only dispatches them to workers and triggers them once an available slot is open.
+- [**Cancel In Progress**](#cancel-in-progress) cancels in-progress instances of the task or workflow with matching concurrency keys in order to free up slots for the newly-triggered task or workflow run.
+- [**Cancel Newest**](#cancel-newest) cancels any incoming task or workflow runs for a key once the number of runs in a running state for that key has reached a provided limit.
 
 > We're always open to adding more strategies to fit your needs. Join our [discord](https://hatchet.run/discord) to let us know.
 
-### Setting concurrency on workers
-
-In addition to setting concurrency limits at the task level, you can also control concurrency at the worker level by passing the `slots` option when creating a new `Worker` instance:
-
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
-  <Tabs.Tab>
-    <Snippet
-      src={
-        snippets.python.concurrency_limit_rr.worker
-          .concurrency_strategy_with_key
-      }
-    />
-  </Tabs.Tab>
-  <Tabs.Tab>
-    <Snippet
-      src={
-        snippets.typescript.concurrency_rr.workflow
-          .concurrency_strategy_with_key
-      }
-    />
-  </Tabs.Tab>
-  <Tabs.Tab>
-    <Snippet src={snippets.go.concurrency.main.concurrency_strategy_with_key} />
-  </Tabs.Tab>
-  <Tabs.Tab>
-    <Snippet
-      src={
-        snippets.ruby.concurrency_limit_rr.worker.concurrency_strategy_with_key
-      }
-    />
-  </Tabs.Tab>
-</UniversalTabs>
-
-This example will only let 1 run in each group run at a given time to fairly distribute the load across the workers.
-
 ## Group Round Robin
-
-### How it works
 
 When a new task instance is triggered, the `GROUP_ROUND_ROBIN` strategy will:
 
-1. Determine the group that the instance belongs to based on the `key` function defined in the task's concurrency configuration.
-2. Check if there are any available slots for the instance's group based on the `slots` limit of available workers.
-3. If a slot is available, the new task instance starts executing immediately.
-4. If no slots are available, the new task instance is added to a queue for its group.
+1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
+3. If a slot is available, the new task or workflow starts executing immediately.
+4. If no slots are available, the new task or workflow is added to a queue for its key.
 5. When a running task instance completes and a slot becomes available for a group, the next queued instance for that group (in round-robin order) is dequeued and starts executing.
 
-This strategy ensures that task instances are processed fairly across different groups, preventing any one group from monopolizing the available resources. It also helps to reduce latency for instances within each group, as they are processed in a round-robin fashion rather than strictly in the order they were triggered.
-
-### When to use `GROUP_ROUND_ROBIN`
-
-The `GROUP_ROUND_ROBIN` strategy is particularly useful in scenarios where:
-
-- You have multiple clients or users triggering task instances, and you want to ensure fair resource allocation among them.
-- You want to process instances within each group in a round-robin fashion to minimize latency and ensure that no single instance within a group is starved for resources.
-- You have long-running task instances and want to avoid one group's instances monopolizing the available slots.
-
-Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all use cases, especially those that require strict ordering or prioritization of the most recent events.
+Group round robin ensures that task instances are processed fairly across different groups, preventing any one group from monopolizing the available resources. It also helps to reduce latency for instances within each group, as they are processed in a round-robin fashion rather than strictly in the order they were triggered. Group round robin is also useful as a global concurrency control for the maximum number of runs of a single task or workflow that you want executing at any given time, regardless of any grouping. You can set a constant concurrency key as the expression, such as `'*'`, to enable this global concurrency control behavior.
 
 ## Cancel In Progress
 
