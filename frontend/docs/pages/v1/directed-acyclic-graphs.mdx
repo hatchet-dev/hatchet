@@ -217,19 +217,4 @@ For more complex logic, you can declare multiple or groups on a single task. As 
 
 To proceed when `(A or B)` **and** `(A or C)` are both satisfied, you'd declare two separate or groups: one containing `A or B`, and the other containing `A or C`. The task runs once both groups are satisfied. If `A` is true, both groups pass immediately. If `A` is false, the task needs both `B` (the sleep expires) and `C` (the event arrives) before it can run.
 
-### Common combinations
 
-A few combinations of conditions come up often enough to be worth highlighting:
-
-| Combination    | Use case                                                                             |
-| -------------- | ------------------------------------------------------------------------------------ |
-| Sleep + Event  | Proceed after a timeout _or_ when an external signal arrives (whichever comes first) |
-| Parent + Event | Proceed if a parent output meets a threshold _or_ a manual override event arrives    |
-| Parent + Sleep | Proceed if a parent indicates readiness _or_ after a maximum wait time               |
-| All three      | Complex gates combining data-driven, time-based, and event-driven conditions         |
-
-## Fixed pipelines
-
-DAGs naturally model multi-stage pipelines where every step is known ahead of time. ETL workflows, document processing pipelines, and CI/CD-style workflows are all good examples — each stage depends on the previous one, and the overall structure is visible and predictable in the dashboard.
-
-<PipelineDiagram />
