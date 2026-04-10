@@ -57,6 +57,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
 import PropelAuthPage from "@/pages/organizations/$organization/components/propelauth-setup.tsx";
+import {useUserUniverse} from "@/providers/user-universe.tsx";
 
 type Section = 'tenants' | 'members' | 'tokens' | 'sso';
 
@@ -90,7 +91,11 @@ export default function OrganizationPage() {
   const [activeSection, setActiveSection] = useState<Section>('tenants');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
-
+  const {
+    organizations: organizationData,
+    isLoaded: isUserUniverseLoaded,
+    isCloudEnabled,
+  } = useUserUniverse();
   const handleStartEdit = () => {
     if (organizationQuery.data?.name) {
       setEditedName(organizationQuery.data.name);
@@ -575,7 +580,7 @@ export default function OrganizationPage() {
                 Create Token
               </Button>
             )}
-            {activeSection === 'sso' && (
+            {activeSection === 'sso' && isCloudEnabled && (
               <PropelAuthPage></PropelAuthPage>
             )}
           </div>
