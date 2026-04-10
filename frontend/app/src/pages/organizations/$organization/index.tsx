@@ -56,7 +56,7 @@ import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
-import PropelAuthPage from "@/pages/organizations/$organization/components/propelauth-setup.tsx";
+import SSOPage from "@/pages/organizations/$organization/components/sso-setup.tsx";
 import {useUserUniverse} from "@/providers/user-universe.tsx";
 
 type Section = 'tenants' | 'members' | 'tokens' | 'sso';
@@ -581,7 +581,7 @@ export default function OrganizationPage() {
               </Button>
             )}
             {activeSection === 'sso' && isCloudEnabled && (
-              <PropelAuthPage></PropelAuthPage>
+              <SSOPage></SSOPage>
             )}
           </div>
 

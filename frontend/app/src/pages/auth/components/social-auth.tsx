@@ -1,6 +1,7 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
 import React, { useState } from 'react';
+import { LockOpen } from 'lucide-react';
 
 export type SocialAuthProvider = 'google' | 'github' | 'propelauth';
 
@@ -20,8 +21,8 @@ const PROVIDER_CONFIG: Record<
   },
   propelauth: {
     href: '/api/v1/cloud/users/sso/start',
-    label: 'Propel Auth',
-    icon: <Icons.gitHub className="size-4" />,
+    label: 'SSO',
+    icon: <LockOpen className="size-4" />,
   },
 };
 

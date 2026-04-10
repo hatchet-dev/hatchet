@@ -40,7 +40,7 @@ const makeApi = (orgId: string): SsoApi => ({
   },
 });
 
-export default function PropelAuthPage() {
+export default function SSOPage() {
   const { organization: orgId } = useParams({
     from: appRoutes.organizationsRoute.to,
   });
