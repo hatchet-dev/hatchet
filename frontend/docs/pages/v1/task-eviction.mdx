@@ -5,9 +5,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 When a task needs to wait (for time, an event, or child results), how does Hatchet handle the worker slot? The answer depends on which pattern you're using.
 
-<UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
-<Tabs.Tab title="Durable Tasks">
-
 ## Task Eviction
 
 When a durable task enters a wait, whether from `SleepFor`, `WaitForEvent`, or `WaitFor`, Hatchet **evicts** the task from the worker. The worker slot is released, the task's progress is persisted in the durable event log, and the task does not consume slots or hold resources while it is idle.
@@ -51,45 +48,3 @@ By isolating slot pools, Hatchet ensures that durable tasks waiting on children 
 
 Because a task may be evicted and resumed on a different worker at any time, the code between checkpoints must be [deterministic](/v1/patterns/durable-tasks). On resume, Hatchet replays the event log; it does not re-execute completed operations. If the code has changed between the original run and the replay, the checkpoint sequence may not match, leading to unexpected behavior.
 
-</Tabs.Tab>
-<Tabs.Tab title="DAGs">
-
-## No Eviction Needed
-
-DAG tasks do not require eviction because they are **never assigned to a worker until they can actually run**. A worker slot is only allocated when all of the task's conditions are met: parent tasks have completed, sleep durations have elapsed, and expected events have arrived.
-
-This means resources are only consumed during active execution, never during waits.
-
-### How DAG scheduling works
-
-```mermaid
-graph LR
-    PENDING -->|"All conditions met (parents, sleep, events)"| QUEUED
-    QUEUED -->|Assigned to worker| RUNNING
-    RUNNING -->|Completes| COMPLETED
-```
-
-1. **Task is pending.** The task exists in the workflow but is not queued. No worker slot is allocated. No resources are consumed.
-2. **Conditions are met.** All parent tasks have completed, any sleep duration has elapsed, and any required events have arrived.
-3. **Task is queued.** Only now does Hatchet place the task in the queue for worker assignment.
-4. **Task runs to completion.** A worker picks up the task, executes it, and the slot is freed.
-
-### Why this matters
-
-Because DAG tasks are only scheduled when ready, there is no wasted capacity:
-
-- **Sleep conditions** — A task that waits 24 hours after its parent completes does not hold a slot. It sits in a pending state until the timer expires, then gets queued.
-- **Event conditions** — A task waiting for an external event consumes no resources. When the event arrives, the task is queued and assigned a slot.
-- **Parent dependencies** — Tasks waiting on upstream results are not queued until those results are available.
-
-This is one of the advantages of DAGs: the scheduling model is simpler. You declare the conditions upfront, and Hatchet handles the timing. There is no eviction, no checkpointing, and no replay, because the task never starts until it's ready to run straight through.
-
-<Callout type="info">
-  If you need a task to start running and then pause partway through (for
-  example, to wait for an event based on intermediate results), use a [durable
-  task](/v1/patterns/durable-tasks) instead. DAG tasks run from start to finish
-  once scheduled.
-</Callout>
-
-</Tabs.Tab>
-</UniversalTabs>
