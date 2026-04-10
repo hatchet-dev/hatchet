@@ -11,12 +11,16 @@ import FanoutDiagram from "@/components/FanoutDiagram";
 A task can spawn child tasks at runtime — including other durable tasks or entire DAG workflows. Children run independently on any available worker, and the parent can wait for their results before continuing. You can spawn children out of any task (durable or not).
 
 <Callout type="info">
-  While child spawning is not unique to durable tasks, we often recommend using durable tasks when spawning children is the main responsibility (or one of the main responsibilities) of a task. For instance, an agent might spawn many children (tool calls) as its main responsibility, making a durable task a good fit.
+  While child spawning is not unique to durable tasks, we often recommend using
+  durable tasks when spawning children is the main responsibility (or one of the
+  main responsibilities) of a task. For instance, an agent might spawn many
+  children (i.e. tool calls) as its main responsibility, making a durable task a
+  good fit.
 </Callout>
 
 ### Spawning a child task
 
-Any task can spawn child tasks, but the implementation details differ by language.
+You can spawn child tasks similarly to how you run tasks normally, but the implementation details differ slightly by language. Any task can spawn child tasks.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
@@ -43,7 +47,7 @@ Any task can spawn child tasks, but the implementation details differ by languag
 
 ### Spawning many children at once
 
-Spawn many children and wait for all of their results. The parent is evicted during the wait, so it consumes no resources while children run.
+You can also spawn children in bulk, exactly the same as you can spawn any other tasks in bulk.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -102,7 +106,6 @@ A durable task can spawn any runnable:
     <Snippet src={snippets.ruby.fanout.example_child_spawn.error_handling} />
   </Tabs.Tab>
 </UniversalTabs>
-
 
 ## Ways to use child spawning
 

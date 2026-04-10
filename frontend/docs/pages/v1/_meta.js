@@ -46,10 +46,7 @@ export default {
     title: "Durable Execution",
     type: "separator",
   },
-  patterns: {
-    title: "Workflow Design",
-    theme: { collapsed: true },
-  },
+  "durable-tasks": "Durable Tasks",
   "child-spawning": "Child Spawning",
   sleep: "Sleeps",
   events: "Wait For Events",
