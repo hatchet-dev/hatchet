@@ -335,7 +335,7 @@ jobs:
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
-          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./cmd/hatchet-loadtest/... -p 5 -v -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
@@ -379,7 +379,7 @@ jobs:
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
-          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./cmd/hatchet-loadtest/... ./pkg/repository/... -p 5 -v -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
@@ -620,7 +620,7 @@ jobs:
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
-          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./cmd/hatchet-loadtest/... -p 5 -v -race -failfast -timeout 20m
         env:
           # This job adds go-deadlock + -race overhead; relax perf threshold to avoid flakes.
           HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD: 1s
@@ -664,7 +664,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags rampup ./... -p 5 -v -race -failfast -timeout 20m
+          go test -tags rampup ./cmd/hatchet-loadtest/rampup/... -p 5 -v -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
