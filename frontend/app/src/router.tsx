@@ -1,3 +1,4 @@
+import { config } from './config';
 import { getCloudMetadataQuery } from './hooks/use-cloud.ts';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
@@ -673,6 +674,7 @@ const routeTree = rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  basepath: config.BASE_PATH,
 });
 
 declare module '@tanstack/react-router' {
