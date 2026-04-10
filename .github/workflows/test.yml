@@ -12,7 +12,7 @@ on:
 
 jobs:
   generate:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
@@ -57,7 +57,7 @@ jobs:
         run: docker compose down
 
   unit:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup Go
@@ -75,7 +75,7 @@ jobs:
         run: go test $(go list ./... | grep -v "quickstart") -v -failfast
 
   integration:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
@@ -120,7 +120,7 @@ jobs:
         run: docker compose down
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -209,7 +209,7 @@ jobs:
         run: docker compose down
 
   e2e-pgmq:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -300,7 +300,7 @@ jobs:
         run: docker compose down
 
   load:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     strategy:
       matrix:
@@ -344,7 +344,7 @@ jobs:
           HATCHET_LOADTEST_STARTUP_SLEEP: 120s
 
   load-pgbouncer:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     strategy:
       matrix:
@@ -389,7 +389,7 @@ jobs:
           HATCHET_LOADTEST_STARTUP_SLEEP: 120s
 
   load-online-migrate:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -537,7 +537,7 @@ jobs:
           docker compose down
 
   load-deadlock:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     strategy:
       matrix:
@@ -632,7 +632,7 @@ jobs:
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
   rampup:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-8
     timeout-minutes: 30
     strategy:
       matrix:
