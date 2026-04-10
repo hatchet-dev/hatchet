@@ -9,8 +9,7 @@ import { Input } from '@/components/v1/ui/input';
 import { cn } from '@/lib/utils';
 import React from 'react';
 
-interface TimePickerInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+interface TimePickerInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   picker: TimePickerType;
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;

@@ -46,8 +46,11 @@ const useSaveOrganization = ({
         .mutationFn({ name: tenantName, slug: generateTenantSlug(tenantName) });
       return { organization, tenant };
     },
-    onSuccess: (data) => {
-      invalidateUserUniverse();
+    onSuccess: async (data) => {
+      await invalidateUserUniverse();
+      // Yield a tick so React can flush the universe context update
+      // before afterSave navigates away.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       localStorage.setItem('hatchet:show-welcome', '1');
       capture('onboarding_tenant_created', {
         tenant_type: 'cloud',

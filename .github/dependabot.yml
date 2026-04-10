@@ -3,7 +3,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
     groups:
       github-actions:
         patterns:
@@ -14,7 +15,11 @@ updates:
       - "/"
       - "/examples/go/quickstart"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
     groups:
       go-modules:
         patterns:
@@ -35,7 +40,11 @@ updates:
       - "/cmd/hatchet-cli/cli/templates/python/poetry"
       - "/examples/python/quickstart"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
     groups:
       python-deps:
         patterns:
@@ -57,7 +66,11 @@ updates:
       - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
       - "/examples/typescript"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
     groups:
       npm-deps:
         patterns:
@@ -76,7 +89,11 @@ updates:
       - "/sdks/ruby/src"
       - "/sdks/ruby/examples"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 3
+      semver-major-days: 3
     groups:
       ruby-deps:
         patterns:

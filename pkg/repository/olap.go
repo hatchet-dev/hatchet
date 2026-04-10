@@ -3528,7 +3528,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * (*inlineStoreTTL + 12*time.Hour)),
+		Time:  time.Now().Add(-1 * *inlineStoreTTL),
 		Valid: true,
 	}
 
