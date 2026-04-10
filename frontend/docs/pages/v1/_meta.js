@@ -44,9 +44,9 @@ export default {
     type: "separator",
   },
   "durable-tasks": "Durable Tasks",
+  "child-spawning": "Child Spawning",
   "durable-sleep": "Sleeps",
   "durable-event-waits": "Event Waits",
-  "child-spawning": "Child Spawning",
   "task-eviction": "Task Eviction",
   "directed-acyclic-graphs": "DAGs as Durable Workflows",
   "--workers-section": {
