@@ -48,7 +48,6 @@ export default {
   "durable-event-waits": "Event Waits",
   "child-spawning": "Child Spawning",
   "task-eviction": "Task Eviction",
-  conditions: "Conditions & Branching",
   "directed-acyclic-graphs": "DAGs as Durable Workflows",
   "--workers-section": {
     title: "Workers",

@@ -63,4 +63,4 @@ This differs from a DAG, where every task and dependency is declared before exec
 
 ## The durable context
 
-When you declare a task as durable, it receives a durable context instead of a regular context. The durable context includes everything in the normal context, plus the durable execution toolkit you'll use to construct your durable task. These methods allow you to [wait for sleeps to complete](/v1/sleep), [wait for events to be received](/v1/events), [wait for children to complete](/v1/child-spawning), or use [or groups](/v1/conditions#or-groups) to combine them using boolean "or" logic.
+When you declare a task as durable, it receives a durable context instead of a regular context. The durable context includes everything in the normal context, plus the durable execution toolkit you'll use to construct your durable task. These methods allow you to [wait for sleeps to complete](/v1/durable-sleep), [wait for events to be received](/v1/durable-event-waits), [wait for children to complete](/v1/child-spawning), or use [or groups](/v1/directed-acyclic-graphs#waiting-on-conditions-with-or-groups) to combine them using boolean "or" logic.
