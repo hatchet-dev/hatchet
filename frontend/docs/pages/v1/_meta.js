@@ -47,7 +47,7 @@ export default {
     type: "separator",
   },
   "durable-tasks": "Durable Tasks",
-  "task-eviction": "Worker Slots & Task Eviction",
+  "task-eviction": "Task Eviction",
   "child-spawning": "Child Spawning",
   sleep: "Sleeps",
   events: "Wait For Events",
