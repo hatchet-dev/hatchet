@@ -66,7 +66,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "hatchet.workflow — defining a workflow",
     query: "hatchet.workflow",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/directed-acyclic-graphs", "v1/priority", "reference/python/runnables"],
+    expectAnyOf: ["v1/durable-execution", "v1/directed-acyclic-graphs", "v1/priority", "reference/python/runnables"],
     topN: 10,
   },
 
@@ -166,7 +166,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "event trigger",
     query: "event trigger",
-    expectAnyOf: ["v1/external-events/run-on-event"],
+    expectAnyOf: ["v1/events"],
     topN: 10,
   },
   {
@@ -215,13 +215,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "DAG",
     query: "DAG",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/directed-acyclic-graphs"],
+    expectAnyOf: ["v1/durable-execution", "v1/directed-acyclic-graphs"],
     topN: 10,
   },
   {
     name: "conditional workflows",
     query: "conditional workflows",
-    expectAnyOf: ["v1/durable-execution", "v1/conditions"],
+    expectAnyOf: ["v1/durable-execution", "v1/directed-acyclic-graphs"],
     topN: 10,
   },
   {
@@ -249,7 +249,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "durable execution",
     query: "durable execution",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns", "v1/patterns/durable-tasks"],
+    expectAnyOf: ["v1/durable-execution", "v1/durable-tasks"],
   },
   {
     name: "durable events",
@@ -259,7 +259,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "durable sleep",
     query: "durable sleep",
-    expectAnyOf: ["v1/durable-execution", "v1/sleep"],
+    expectAnyOf: ["v1/durable-execution", "v1/durable-sleep"],
   },
   {
     name: "durable best practices",
@@ -581,12 +581,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "NewStandaloneTask — Go API",
     query: "NewStandaloneTask",
-    expectAnyOf: ["v1/tasks", "v1/migrating/migration-guide-go", "v1/external-events/run-on-event"],
+    expectAnyOf: ["v1/tasks", "v1/migrating/migration-guide-go", "v1/events"],
   },
   {
     name: "DurableContext",
     query: "DurableContext",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns", "v1/patterns/durable-tasks"],
+    expectAnyOf: ["v1/durable-execution", "v1/durable-tasks"],
     skip: true,
   },
   {
@@ -633,7 +633,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "delay → scheduled/sleep",
     query: "delay",
-    expectAnyOf: ["v1/durable-execution", "v1/sleep", "v1/scheduled-runs"],
+    expectAnyOf: ["v1/durable-execution", "v1/durable-sleep", "v1/scheduled-runs"],
   },
   {
     name: "debounce → concurrency",
@@ -693,7 +693,7 @@ const TEST_CASES: SearchTestCase[] = [
     query: "pipeline",
     expectAnyOf: [
       "v1/durable-execution",
-      "v1/patterns/directed-acyclic-graphs",
+      "v1/directed-acyclic-graphs",
       "cookbooks/rag-and-indexing",
       "cookbooks/document-processing",
     ],
@@ -702,7 +702,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "long running task → durable",
     query: "long running task",
-    expectAnyOf: ["v1/durable-execution", "v1/patterns/durable-tasks", "v1/patterns", "v1/sleep"],
+    expectAnyOf: ["v1/durable-execution", "v1/durable-tasks", "v1/durable-sleep"],
     topN: 10,
   },
   {
@@ -714,7 +714,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "if else → conditional",
     query: "if else workflow",
-    expectAnyOf: ["v1/durable-execution", "v1/conditions"],
+    expectAnyOf: ["v1/durable-execution", "v1/directed-acyclic-graphs"],
     topN: 10,
   },
   {
@@ -788,7 +788,7 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "wait for event → durable events",
     query: "wait for event",
-    expectAnyOf: ["v1/durable-execution", "v1/events", "v1/external-events/pushing-events", "v1/external-events/event-filters", "v1/sleep"],
+    expectAnyOf: ["v1/durable-execution", "v1/events", "v1/durable-event-waits", "v1/durable-sleep"],
     topN: 10,
   },
   {
