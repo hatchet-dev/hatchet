@@ -376,10 +376,10 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     assert result.event2.order == "second"
 
 
-@pytest.mark.skip(reason="seems to be broken, need to fix this on the engine")
 @pytest.mark.asyncio(loop_scope="session")
 async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
     scope = str(uuid4())
+    key = str(uuid4())
 
     event = None
     iters = list(range(100))
@@ -387,7 +387,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
 
     for i in iters:
         event = hatchet.event.push(
-            EVENT_KEY,
+            key,
             {"order": str(i)},
             options=PushEventOptions(scope=scope),
         )
@@ -395,7 +395,9 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
     assert event
     await asyncio.sleep(1)
 
-    res = await wait_for_event_lookback.aio_run(EventLookbackInput(scope=scope))
+    res = await wait_for_event_lookback.aio_run(
+        EventLookbackInput(scope=scope, key=key)
+    )
 
     payload = cast(dict[str, str], json.loads(event.payload))
 

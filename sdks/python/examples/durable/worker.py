@@ -253,6 +253,7 @@ async def durable_sleep_event_spawn(
 
 class EventLookbackInput(BaseModel):
     scope: str
+    key: str | None = None
 
 
 class LookbackEventPayload(BaseModel):
@@ -278,8 +279,11 @@ async def wait_for_event_lookback(
     input: EventLookbackInput, ctx: DurableContext
 ) -> EventLookbackResultWithEvent:
     start = time.time()
+    if not input.key:
+        raise ValueError("Key must be provided for wait_for_event_lookback")
+
     event = await ctx.aio_wait_for_event(
-        EVENT_KEY,
+        input.key,
         scope=input.scope,
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
