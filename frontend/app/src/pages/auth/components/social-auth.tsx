@@ -1,7 +1,7 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
+import {ArrowLeft, LockOpen} from 'lucide-react';
 import React, { useState } from 'react';
-import { LockOpen } from 'lucide-react';
 
 export type SocialAuthProvider = 'google' | 'github' | 'propelauth';
 
@@ -43,27 +43,32 @@ export function OrContinueWith() {
 
 export function SocialAuthButton({
   provider,
+  ssoExpanded,
+  setSsoExpanded,
 }: {
   provider: SocialAuthProvider;
+  ssoExpanded: boolean;
+  setSsoExpanded: any;
 }) {
   const cfg = PROVIDER_CONFIG[provider];
-  const [expanded, setExpanded] = useState(false);
   const [email, setEmail] = useState('');
 
   if (provider === 'propelauth') {
     return (
       <div className="w-full flex flex-col gap-2">
-        <Button
-          variant="outline"
-          type="button"
-          fullWidth
-          onClick={() => setExpanded((prev) => !prev)}
-          className="h-11 justify-center gap-2 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
-        >
-          {cfg.icon}
-          {cfg.label}
-        </Button>
-        {expanded && (
+        {!ssoExpanded && (
+          <Button
+            variant="outline"
+            type="button"
+            fullWidth
+            onClick={() => setSsoExpanded(true)}
+            className="h-11 justify-center gap-2 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+          >
+            {cfg.icon}
+            {cfg.label}
+          </Button>
+        )}
+        {ssoExpanded && (
           <div className="flex gap-2">
             <input
               type="text"
@@ -72,51 +77,69 @@ export function SocialAuthButton({
               placeholder="Enter your email"
               className="h-10 flex-1 rounded-md border border-muted-foreground/20 bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
-            <a
-              href={
-                email ? `${cfg.href}?email=${encodeURIComponent(email)}` : '#'
-              }
-              onClick={(e) => {
-                if (!email) {
-                  e.preventDefault();
-                }
-              }}
-              tabIndex={email ? 0 : -1}
-            >
-              <Button
-                variant="outline"
-                type="button"
-                disabled={!email}
-                className="h-10 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
-              >
-                Continue
-              </Button>
-            </a>
+
           </div>
         )}
+        {ssoExpanded && <a
+          href={
+            email ? `${cfg.href}?email=${encodeURIComponent(email)}` : '#'
+          }
+          onClick={(e) => {
+            if (!email) {
+              e.preventDefault();
+            }
+          }}
+          tabIndex={email ? 0 : -1}
+        >
+          <Button
+            variant="outline"
+            type="button"
+            fullWidth
+            disabled={!email}
+            className="h-10 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+          >
+            Continue
+          </Button>
+        </a>}
+        {ssoExpanded && <Button
+          variant="ghost"
+          type="button"
+          size="sm"
+          onClick={() => setSsoExpanded(false)}
+          className="h-11 justify-left gap-1 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+        >
+            <ArrowLeft className="size-4" />
+            Back
+        </Button>}
       </div>
     );
   }
 
   return (
-    <a href={cfg.href} className="w-full">
-      <Button
-        variant="outline"
-        type="button"
-        fullWidth
-        className="h-11 justify-center gap-2 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
-      >
-        {cfg.icon}
-        {cfg.label}
-      </Button>
-    </a>
+    !ssoExpanded && (
+      <a href={cfg.href} className="w-full">
+        <Button
+          variant="outline"
+          type="button"
+          fullWidth
+          className="h-11 justify-center gap-2 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+        >
+          {cfg.icon}
+          {cfg.label}
+        </Button>
+      </a>
+    )
   );
 }
 
 export function SocialAuthButtons({
   providers,
+  ssoExpanded,
+  setSsoExpanded,
 }: {
   providers: SocialAuthProvider[];
+  ssoExpanded: boolean;
+  setSsoExpanded: any;
 }) {
   if (providers.length === 0) {
     return null;
@@ -124,7 +147,12 @@ export function SocialAuthButtons({
   return (
     <div className="grid sm:grid-flow-col gap-3">
       {providers.map((p) => (
-        <SocialAuthButton key={p} provider={p} />
+        <SocialAuthButton
+          key={p}
+          provider={p}
+          ssoExpanded={ssoExpanded}
+          setSsoExpanded={setSsoExpanded}
+        />
       ))}
     </div>
   );
