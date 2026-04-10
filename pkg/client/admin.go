@@ -77,22 +77,22 @@ type RunDetails struct {
 type AdminClient interface {
 	// Deprecated: PutWorkflow is part of the legacy v0 workflow definition system.
 	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
+	PutWorkflow(ctx context.Context, workflow *types.Workflow, opts ...PutOptFunc) error //nolint:staticcheck // SA1019: Retained for backwards compatability
 	// Deprecated: PutWorkflowV1 is an internal method used by the new Go SDK.
 	// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-	PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, opts ...PutOptFunc) error
+	PutWorkflowV1(ctx context.Context, workflow *v1contracts.CreateWorkflowVersionRequest, opts ...PutOptFunc) error
 
-	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
+	ScheduleWorkflow(ctx context.Context, workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
-	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (*Workflow, error)
+	RunWorkflow(ctx context.Context, workflowName string, input interface{}, opts ...RunOptFunc) (*Workflow, error)
 
-	BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error)
+	BulkRunWorkflow(ctx context.Context, workflows []*WorkflowRun) ([]string, error)
 
-	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
-	RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error)
+	RunChildWorkflow(ctx context.Context, workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
+	RunChildWorkflows(ctx context.Context, workflows []*RunChildWorkflowsOpts) ([]string, error)
 
-	PutRateLimit(key string, opts *types.RateLimitOpts) error
+	PutRateLimit(ctx context.Context, key string, opts *types.RateLimitOpts) error
 
 	GetRunDetails(ctx context.Context, externalId uuid.UUID) (*RunDetails, error)
 }
@@ -149,7 +149,7 @@ func defaultPutOpts() *putOpts {
 
 // Deprecated: PutWorkflow is part of the legacy v0 workflow definition system.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc) error {
+func (a *adminClientImpl) PutWorkflow(ctx context.Context, workflow *types.Workflow, fs ...PutOptFunc) error {
 	opts := defaultPutOpts()
 
 	for _, f := range fs {
@@ -162,7 +162,7 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 		return fmt.Errorf("could not get put opts: %w", err)
 	}
 
-	_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
+	_, err = a.client.PutWorkflow(a.ctx.newContext(ctx), req)
 
 	if err != nil {
 		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
@@ -173,14 +173,14 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 
 // Deprecated: PutWorkflowV1 is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, fs ...PutOptFunc) error {
+func (a *adminClientImpl) PutWorkflowV1(ctx context.Context, workflow *v1contracts.CreateWorkflowVersionRequest, fs ...PutOptFunc) error {
 	opts := defaultPutOpts()
 
 	for _, f := range fs {
 		f(opts)
 	}
 
-	_, err := a.v1Client.PutWorkflow(a.ctx.newContext(context.Background()), workflow)
+	_, err := a.v1Client.PutWorkflow(a.ctx.newContext(ctx), workflow)
 
 	if err != nil {
 		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
@@ -213,7 +213,7 @@ func defaultScheduleOpts() *scheduleOpts {
 	return &scheduleOpts{}
 }
 
-func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOptFunc) error {
+func (a *adminClientImpl) ScheduleWorkflow(ctx context.Context, workflowName string, fs ...ScheduleOptFunc) error {
 	opts := defaultScheduleOpts()
 
 	for _, f := range fs {
@@ -238,7 +238,7 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 
 	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
-	_, err = a.client.ScheduleWorkflow(a.ctx.newContext(context.Background()), &admincontracts.ScheduleWorkflowRequest{
+	_, err = a.client.ScheduleWorkflow(a.ctx.newContext(ctx), &admincontracts.ScheduleWorkflowRequest{
 		Name:      workflowName,
 		Schedules: pbSchedules,
 		Input:     string(inputBytes),
@@ -327,7 +327,7 @@ func desiredWorkerLabelsToProto(labels map[string]*types.DesiredWorkerLabel) map
 // 	}
 // }
 
-func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (*Workflow, error) {
+func (a *adminClientImpl) RunWorkflow(ctx context.Context, workflowName string, input interface{}, options ...RunOptFunc) (*Workflow, error) {
 	inputBytes, err := json.Marshal(input)
 
 	if err != nil {
@@ -348,7 +348,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 		}
 	}
 
-	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), request)
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(ctx), request)
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
@@ -372,7 +372,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	}, nil
 }
 
-func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
+func (a *adminClientImpl) BulkRunWorkflow(ctx context.Context, workflows []*WorkflowRun) ([]string, error) {
 
 	triggerWorkflowRequests := make([]*v1contracts.TriggerWorkflowRequest, len(workflows))
 
@@ -400,7 +400,7 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 		Workflows: triggerWorkflowRequests,
 	}
 
-	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &r)
+	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(ctx), &r)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not bulk trigger workflows: %w", err)
@@ -410,7 +410,7 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 
 }
 
-func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
+func (a *adminClientImpl) RunChildWorkflow(ctx context.Context, workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
 	inputBytes, err := json.Marshal(input)
 
 	if err != nil {
@@ -429,7 +429,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	metadata := string(metadataBytes)
 
-	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &v1contracts.TriggerWorkflowRequest{
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(ctx), &admincontracts.TriggerWorkflowRequest{
 		Name:                    workflowName,
 		Input:                   string(inputBytes),
 		ParentId:                &opts.ParentId,
@@ -462,7 +462,7 @@ type RunChildWorkflowsOpts struct {
 	Opts         *ChildWorkflowOpts
 }
 
-func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error) {
+func (a *adminClientImpl) RunChildWorkflows(ctx context.Context, workflows []*RunChildWorkflowsOpts) ([]string, error) {
 
 	triggerWorkflowRequests := make([]*v1contracts.TriggerWorkflowRequest, len(workflows))
 
@@ -507,7 +507,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 
 	}
 
-	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.BulkTriggerWorkflowRequest{
+	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(ctx), &admincontracts.BulkTriggerWorkflowRequest{
 		Workflows: triggerWorkflowRequests,
 	})
 
@@ -519,7 +519,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 	return res.WorkflowRunIds, nil
 }
 
-func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) error {
+func (a *adminClientImpl) PutRateLimit(ctx context.Context, key string, opts *types.RateLimitOpts) error {
 	if err := a.v.Validate(opts); err != nil {
 		return fmt.Errorf("could not validate rate limit opts: %w", err)
 	}
@@ -540,7 +540,7 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 		putParams.Duration = admincontracts.RateLimitDuration_SECOND
 	}
 
-	_, err := a.client.PutRateLimit(a.ctx.newContext(context.Background()), putParams)
+	_, err := a.client.PutRateLimit(a.ctx.newContext(ctx), putParams)
 
 	if err != nil {
 		return fmt.Errorf("could not upsert rate limit: %w", err)
@@ -806,21 +806,21 @@ func (a *adminClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte
 	return metadataBytes, nil
 }
 
-func (h *adminClientImpl) saveOrLoadListener() (*WorkflowRunsListener, error) {
-	h.listenerMu.Lock()
-	defer h.listenerMu.Unlock()
+func (a *adminClientImpl) saveOrLoadListener() (*WorkflowRunsListener, error) {
+	a.listenerMu.Lock()
+	defer a.listenerMu.Unlock()
 
-	if h.listener != nil {
-		return h.listener, nil
+	if a.listener != nil {
+		return a.listener, nil
 	}
 
-	listener, err := h.subscriber.SubscribeToWorkflowRunEvents(context.Background())
+	listener, err := a.subscriber.SubscribeToWorkflowRunEvents(context.Background())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
 	}
 
-	h.listener = listener
+	a.listener = listener
 
 	return listener, nil
 }
