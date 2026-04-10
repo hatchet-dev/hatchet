@@ -793,7 +793,7 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.sort_id ASC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.sort_id ASC
         LIMIT $3::int
     ) cs ON true
 ), schedule_timeout_slots AS (
@@ -953,7 +953,7 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled, rn
     FROM (
         SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled,
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id DESC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled ASC, sort_id DESC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = $1::uuid
@@ -1030,7 +1030,7 @@ WITH locked_workflow_concurrency_slots AS (
     SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled, rn
     FROM (
         SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled,
-            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY is_filled DESC, sort_id ASC) as rn
         FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = $1::uuid
@@ -1106,7 +1106,7 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
+        ORDER BY wcs_all.is_filled DESC, wcs_all.priority DESC, wcs_all.sort_id ASC
         LIMIT $3::int
     ) wsc ON true
 ), eligible_slots AS (
