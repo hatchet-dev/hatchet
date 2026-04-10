@@ -33,19 +33,6 @@ updates:
         update-types:
           - "major"
 
-  - package-ecosystem: "gomod"
-    directories:
-      - "/"
-      - "/examples/go/quickstart"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    groups:
-      go-modules-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-
   - package-ecosystem: "pip"
     directories:
       - "/sdks/python"
@@ -70,21 +57,6 @@ updates:
           - "*"
         update-types:
           - "major"
-
-  - package-ecosystem: "pip"
-    directories:
-      - "/sdks/python"
-      - "/sdks/python/examples/quickstart"
-      - "/cmd/hatchet-cli/cli/templates/python/poetry"
-      - "/examples/python/quickstart"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    groups:
-      python-deps-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
 
   - package-ecosystem: "npm"
     directories:
@@ -112,22 +84,6 @@ updates:
         update-types:
           - "major"
 
-  - package-ecosystem: "npm"
-    directories:
-      - "/frontend/app"
-      - "/frontend/docs"
-      - "/sdks/typescript"
-      - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
-      - "/examples/typescript"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    groups:
-      npm-deps-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-
   - package-ecosystem: "bundler"
     directories:
       - "/sdks/ruby/src"
@@ -150,16 +106,3 @@ updates:
           - "*"
         update-types:
           - "major"
-
-  - package-ecosystem: "bundler"
-    directories:
-      - "/sdks/ruby/src"
-      - "/sdks/ruby/examples"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    groups:
-      ruby-deps-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
