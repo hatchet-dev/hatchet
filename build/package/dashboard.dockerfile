@@ -33,6 +33,8 @@ COPY --from=frontend-build /app/dist /usr/share/nginx/html
 # Make entrypoint script executable
 RUN chmod +x ./entrypoint.sh
 
+# TODO: switch to nginx-unprivileged to enable non-root operation
+
 EXPOSE 80
 
 # Run the entrypoint script

@@ -74,11 +74,17 @@ WORKDIR /hatchet
 # openssl and bash needed for admin build
 RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates tzdata
 
-COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
+# Create non-root user for Kubernetes Pod Security Standards compliance.
+# Image defaults to root for backward compatibility. To run as non-root,
+# set securityContext.runAsUser: 1000 in your Kubernetes pod spec or
+# pass --user 1000 to docker run.
+RUN addgroup -S hatchet && adduser -S -G hatchet -H -s /sbin/nologin -u 1000 hatchet
+
+COPY --chown=hatchet:hatchet --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
 
 # NOTE: this is just here for backwards compatibility with old migrate images which require the atlas-apply.sh script.
 # This script is just a wrapped for `/hatchet/hatchet-migrate`.
-COPY /hack/db/atlas-apply.sh ./atlas-apply.sh
+COPY --chown=hatchet:hatchet /hack/db/atlas-apply.sh ./atlas-apply.sh
 RUN chmod +x ./atlas-apply.sh
 
 EXPOSE 8080
