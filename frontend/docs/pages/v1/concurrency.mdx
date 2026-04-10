@@ -41,7 +41,7 @@ There are several reasons why you might want to use concurrency control in your 
 
 ## Group Round Robin
 
-When a new task instance is triggered, the `GROUP_ROUND_ROBIN` strategy will:
+When a new task instance is triggered, the Group Round Robin strategy will:
 
 1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
 2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
@@ -53,37 +53,25 @@ Group round robin ensures that task instances are processed fairly across differ
 
 ## Cancel In Progress
 
-### How it works
+When a new task instance is triggered, the Cancel In Progress strategy will:
 
-When a new task instance is triggered, the `CANCEL_IN_PROGRESS` strategy will:
+1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
+3. If a slot is available, the new task or workflow starts executing immediately.
+4. If no slots are available, a running instance of the task or workflow with the same concurrency key will be cancelled cancelled to free up a slot, and the new instance will start executing immediately.
 
-1. Determine the group that the instance belongs to based on the `key` function defined in the task's concurrency configuration.
-2. Check if there are any available slots for the instance's group based on the `maxRuns` limit of available workers.
-3. If a slot is available, the new task instance starts executing immediately.
-4. If there are no available slots, currently running task instances for the same concurrency key are cancelled to free up slots for the new instance.
-5. The new task instance starts executing immediately.
-
-### When to use Cancel In Progress
-
-The `CANCEL_IN_PROGRESS` strategy is particularly useful in scenarios where:
-
-- You have long-running task instances that may become stale or irrelevant if newer instances are triggered.
-- You want to prioritize processing the most recent data or events, even if it means canceling older task instances.
-- You have resource-intensive tasks where it's more efficient to cancel an in-progress instance and start a new one than to wait for the old instance to complete.
-- Your user UI allows for multiple inputs, but only the most recent is relevant (i.e. chat messages, form submissions, etc.).
+Cancel In Progress ensures that the most recently triggered runs always take priority over older ones, which is useful when newer inputs supersede older ones and in-progress work becomes stale or irrelevant as soon as a newer run arrives. It's particularly well suited for user-facing interactions where only the latest input matters (such as chat messages, form submissions, or search-as-you-type), for resource-intensive tasks where it's more efficient to abandon an old run than wait for it to complete, and for any scenario where you want to prioritize processing the most recent data or events over older ones.
 
 ## Cancel Newest
 
-### How it works
+When a new task instance is triggered, the Cancel Newest strategy will:
 
-The `CANCEL_NEWEST` strategy is similar to `CANCEL_IN_PROGRESS`, but it cancels the newly enqueued run instead of the oldest.
+1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
+3. If a slot is available, the new task or workflow starts executing immediately.
+4. If no slots are available, the newly triggered run is cancelled immediately, allowing the in-progress runs to continue uninterrupted.
 
-### When to use `CANCEL_NEWEST`
-
-The `CANCEL_NEWEST` strategy is particularly useful in scenarios where:
-
-- You want to allow in progress runs to complete before starting new work.
-- You have long-running task instances and want to avoid one group's instances monopolizing the available slots.
+Cancel Newest is the inverse of Cancel In Progress: rather than preempting running work in favor of new arrivals, it protects in-progress runs from being disrupted by allowing them to complete before any new work for the same key is started. This is useful when you want to guarantee that long-running task instances finish without interference, when the cost of restarting work outweighs the value of processing newer inputs, and when you want to prevent a single group's instances from monopolizing the available slots by rejecting excess runs outright instead of queuing them.
 
 ## Multiple concurrency strategies
 
