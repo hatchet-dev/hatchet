@@ -48,7 +48,7 @@ export function SocialAuthButton({
 }) {
   const cfg = PROVIDER_CONFIG[provider];
   const [expanded, setExpanded] = useState(false);
-  const [org, setOrg] = useState('');
+  const [email, setEmail] = useState('');
 
   if (provider === 'propelauth') {
     return (
@@ -67,26 +67,26 @@ export function SocialAuthButton({
           <div className="flex gap-2">
             <input
               type="text"
-              value={org}
-              onChange={(e) => setOrg(e.target.value)}
-              placeholder="Enter your organization"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
               className="h-10 flex-1 rounded-md border border-muted-foreground/20 bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <a
               href={
-                org ? `${cfg.href}?org=${encodeURIComponent(org)}` : '#'
+                email ? `${cfg.href}?email=${encodeURIComponent(email)}` : '#'
               }
               onClick={(e) => {
-                if (!org) {
+                if (!email) {
                   e.preventDefault();
                 }
               }}
-              tabIndex={org ? 0 : -1}
+              tabIndex={email ? 0 : -1}
             >
               <Button
                 variant="outline"
                 type="button"
-                disabled={!org}
+                disabled={!email}
                 className="h-10 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
               >
                 Continue

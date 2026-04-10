@@ -37,6 +37,8 @@ import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import SSOPage from '@/pages/organizations/$organization/components/sso-setup.tsx';
+import { useUserUniverse } from '@/providers/user-universe.tsx';
 import { appRoutes } from '@/router';
 import {
   PlusIcon,
@@ -56,8 +58,6 @@ import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
-import SSOPage from "@/pages/organizations/$organization/components/sso-setup.tsx";
-import {useUserUniverse} from "@/providers/user-universe.tsx";
 
 type Section = 'tenants' | 'members' | 'tokens' | 'sso';
 
@@ -74,8 +74,12 @@ export default function OrganizationPage() {
   });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { handleUpdateOrganization, updateOrganizationLoading } =
-    useOrganizations();
+  const {
+    handleUpdateOrganization,
+    updateOrganizationLoading,
+    handleCreateOrganizationSsoDomain,
+    handleDeleteOrganizationSsoDomain,
+  } = useOrganizations();
   const orgApi = useOrganizationApi();
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
@@ -91,9 +95,12 @@ export default function OrganizationPage() {
   const [activeSection, setActiveSection] = useState<Section>('tenants');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
+
+  // SSO domain state
+  const [newSsoDomain, setNewSsoDomain] = useState('');
+  const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
+
   const {
-    organizations: organizationData,
-    isLoaded: isUserUniverseLoaded,
     isCloudEnabled,
   } = useUserUniverse();
   const handleStartEdit = () => {
@@ -180,6 +187,36 @@ export default function OrganizationPage() {
     ...orgApi.organizationInviteListQuery(orgId),
     enabled: !!orgId,
   });
+
+  const organizationSsoDomainGetQuery = useQuery({
+    ...orgApi.organizationSsoDomainGetQuery(orgId),
+    enabled: !!orgId,
+  });
+
+  const handleAddSsoDomain = async () => {
+    if (!orgId || !newSsoDomain.trim()) {
+      return;
+    }
+    setIsAddingSsoDomain(true);
+    handleCreateOrganizationSsoDomain(orgId, newSsoDomain.trim(), () => {
+      setIsAddingSsoDomain(false);
+      setNewSsoDomain('');
+      queryClient.invalidateQueries({
+        queryKey: ['organization:sso_domain:get', orgId],
+      });
+    });
+  };
+
+  const handleDeleteSsoDomain = async (domain: string) => {
+    if (!orgId) {
+      return;
+    }
+    handleDeleteOrganizationSsoDomain(orgId, domain, () => {
+      queryClient.invalidateQueries({
+        queryKey: ['organization:sso_domain:get', orgId],
+      });
+    });
+  };
 
   const { currentUser } = useCurrentUser();
 
@@ -452,6 +489,34 @@ export default function OrganizationPage() {
     },
   ];
 
+  // SSO domains table columns
+  const ssoDomainColumns = [
+    {
+      columnLabel: 'Domain',
+      cellRenderer: (row: { metadata: { id: string }; domain: string }) => (
+        <span className="font-mono text-sm">{row.domain}</span>
+      ),
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (row: { metadata: { id: string }; domain: string }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleDeleteSsoDomain(row.domain)}>
+              <TrashIcon className="mr-2 size-4" />
+              Remove Domain
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
   const pendingInvites = organizationInvitesQuery.data?.rows?.filter(
     (invite) =>
       invite.status === OrganizationInviteStatus.PENDING ||
@@ -580,9 +645,7 @@ export default function OrganizationPage() {
                 Create Token
               </Button>
             )}
-            {activeSection === 'sso' && isCloudEnabled && (
-              <SSOPage></SSOPage>
-            )}
+            {activeSection === 'sso' && isCloudEnabled && <SSOPage />}
           </div>
 
           <div className="flex-1 overflow-y-auto px-8">
@@ -693,6 +756,66 @@ export default function OrganizationPage() {
                   </div>
                 )}
               </>
+            )}
+
+            {activeSection === 'sso' && (
+              <div className="space-y-8">
+                {/* SSO Domains Table */}
+                {organizationSsoDomainGetQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loading />
+                  </div>
+                ) : organizationSsoDomainGetQuery.data &&
+                  organizationSsoDomainGetQuery.data.length > 0 ? (
+                  <SimpleTable
+                    data={organizationSsoDomainGetQuery.data.map((v) => {
+                      return {
+                        metadata: { id: v.sso_domain },
+                        domain: v.sso_domain,
+                      };
+                    })}
+                    columns={ssoDomainColumns}
+                  />
+                ) : (
+                  <div className="py-16 text-center">
+                    <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <h3 className="mb-2 text-lg font-medium">No SSO Domains</h3>
+                    <p className="mb-4 text-muted-foreground">
+                      Add a domain below to enable SSO for your organization.
+                    </p>
+                  </div>
+                )}
+
+                {/* Add New SSO Domain */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Add Domain
+                  </h3>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="example.com"
+                      value={newSsoDomain}
+                      onChange={(e) => setNewSsoDomain(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleAddSsoDomain();
+                        }
+                      }}
+                      className="max-w-sm"
+                      disabled={isAddingSsoDomain}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddSsoDomain}
+                      disabled={isAddingSsoDomain || !newSsoDomain.trim()}
+                      leftIcon={<PlusIcon className="size-4" />}
+                    >
+                      Add Domain
+                    </Button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

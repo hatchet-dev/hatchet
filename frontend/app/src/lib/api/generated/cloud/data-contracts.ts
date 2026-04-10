@@ -136,6 +136,11 @@ export interface APICloudMetadata {
    * @example 3600000
    */
   inactivityLogoutMs?: number;
+  /**
+   * whether SSO is enabled
+   * @example false
+   */
+  ssoEnabled?: boolean;
 }
 
 export type APIErrors = any;
@@ -759,6 +764,10 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
+}
+
+export interface CreateOrganizationSsoDomainRequest {
+  ssoDomain: string;
 }
 
 export interface UpdateOrganizationRequest {
