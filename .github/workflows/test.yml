@@ -341,6 +341,7 @@ jobs:
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
+          HATCHET_LOADTEST_STARTUP_SLEEP: 120s
 
   load-pgbouncer:
     runs-on: ubicloud-standard-8
@@ -385,6 +386,7 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
           TESTING_MATRIX_PGBOUNCER_ENABLED: "true"
+          HATCHET_LOADTEST_STARTUP_SLEEP: 120s
 
   load-online-migrate:
     runs-on: ubicloud-standard-8
@@ -623,7 +625,7 @@ jobs:
           # This job adds go-deadlock + -race overhead; relax perf threshold to avoid flakes.
           HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD: 1s
           # Give the engine a bit more time to come up under instrumentation.
-          HATCHET_LOADTEST_STARTUP_SLEEP: 30s
+          HATCHET_LOADTEST_STARTUP_SLEEP: 120s
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
@@ -667,3 +669,4 @@ jobs:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          RAMP_UP_DURATION_TIMEOUT: 30s
