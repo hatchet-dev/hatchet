@@ -844,13 +844,13 @@ WITH input AS (
     INSERT INTO v1_queue_item (
         tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id,
         workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority,
-        sticky, desired_worker_id, retry_count
+        sticky, desired_worker_id, retry_count, desired_worker_label
     )
     SELECT
         t.tenant_id, t.queue, t.id, t.inserted_at, t.external_id, t.action_id, t.step_id,
         t.workflow_id, t.workflow_run_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
-        t.step_timeout, 4, t.sticky, t.desired_worker_id, t.retry_count
+        t.step_timeout, 4, t.sticky, t.desired_worker_id, t.retry_count, t.desired_worker_label
     FROM
         selected_tasks t
     ON CONFLICT DO NOTHING
