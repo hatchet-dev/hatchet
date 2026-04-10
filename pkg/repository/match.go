@@ -456,10 +456,14 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	sortedEventIds := make([]eventIdWithTime, 0, len(matches))
 
-	for eventId := range matches {
+	for _, celEvalResult := range matches {
+		if celEvalResult == nil {
+			continue
+		}
+
 		sortedEventIds = append(sortedEventIds, eventIdWithTime{
-			id:        eventId,
-			timestamp: idsToEvents[eventId].EventTimestamp,
+			id:        celEvalResult.EventId,
+			timestamp: idsToEvents[celEvalResult.EventId].EventTimestamp,
 		})
 	}
 
@@ -476,8 +480,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	conditionIds := make([]int64, 0, len(matches))
 	datas := make([][]byte, 0, len(matches))
 
+	matchEventIdToConditions := make(map[uuid.UUID][]*sqlcv1.ListMatchConditionsForEventRow)
+	for _, match := range matches {
+		matchEventIdToConditions[match.EventId] = append(matchEventIdToConditions[match.EventId], match.Conditions)
+	}
+
 	for _, eid := range sortedEventIds {
-		for _, condition := range matches[eid.id] {
+		for _, condition := range matchEventIdToConditions[eid.id] {
 			event, ok := idsToEvents[eid.id]
 
 			if !ok {
@@ -890,7 +899,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	return res, nil
 }
 
-func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[uuid.UUID][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+type CELEvaluationResult struct {
+	EventId    uuid.UUID
+	Conditions *sqlcv1.ListMatchConditionsForEventRow
+}
+
+func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) ([]*CELEvaluationResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "MatchRepositoryImpl.processCELExpressions")
 	defer span.End()
 
@@ -934,7 +948,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 	}
 
 	// map of event ids to matched conditions
-	matches := make(map[uuid.UUID][]*sqlcv1.ListMatchConditionsForEventRow)
+	matches := make([]*CELEvaluationResult, 0)
 
 	for _, event := range events {
 		inputData := map[string]interface{}{}
@@ -1007,7 +1021,10 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			}
 
 			if b, ok := out.Value().(bool); ok && b {
-				matches[event.ID] = append(matches[event.ID], conditionIdsToConditions[conditionId])
+				matches = append(matches, &CELEvaluationResult{
+					EventId:    event.ID,
+					Conditions: conditionIdsToConditions[conditionId],
+				})
 			}
 		}
 	}
