@@ -7,15 +7,15 @@ import PipelineDiagram from "@/components/PipelineDiagram";
 
 # DAGs as Durable Workflows
 
-A directed acyclic graph (DAG) is a workflow where every task and every dependency between tasks is declared upfront, before the workflow runs. You describe the shape of the work — which tasks exist, which ones depend on which — and Hatchet handles the rest: execution order, parallelism for independent tasks, passing outputs from parents to children, dashboard visibility, and so on.
+A directed acyclic graph (DAG) is a workflow where every task, along with the dependencies between them, is declared upfront, before the workflow runs. In Hatchet, you define a DAG by creating a workflow, adding tasks to it, and then declaring which tasks depend on which other tasks as their parents. At runtime, Hatchet schedules the tasks in the right order, runs tasks that don't depend on each other in parallel, and passes the outputs of parent tasks to their children automatically.
 
 <WorkflowDiagram />
 
-DAGs in Hatchet are, by definition, a form of [durable execution](/v1/durable-execution). Each task in a DAG is effectively a checkpoint: once a task completes, Hatchet writes its output to the durable event log, and if the workflow is interrupted or a later task has to retry, Hatchet does not re-run any task that has already finished successfully. You get the same exactly-once-style guarantees as a [durable task](/v1/durable-tasks), just with the shape of the work declared ahead of time rather than decided at runtime.
+In Hatchet, DAGs are a form of [durable execution](/v1/durable-execution) by definition. Every time a task in a DAG completes, Hatchet writes its output to the durable event log as a checkpoint. If the workflow is interrupted partway through, or if a later task needs to retry, Hatchet will not re-run any task that has already finished successfully — it just picks up from the checkpoints it already has. This gives DAGs the same exactly-once-style guarantees you'd get from a [durable task](/v1/durable-tasks), without having to write any explicit durable execution code yourself.
 
-What makes DAGs particularly nice is that you get those durable properties _alongside_ a set of workflow-building features that you'd otherwise have to construct by hand: automatic parallelism between independent tasks, typed inputs and outputs flowing between parents and children, [parent-driven branching](#branching-with-parent-conditions), [or groups](#waiting-on-conditions-with-or-groups) for combining sleeps, events, and parent outputs into arbitrary wait conditions, and a clear, visual representation of the workflow in the Hatchet dashboard. The result is that for any workload whose structure is known upfront, a DAG is usually the most ergonomic way to get durable execution in Hatchet.
+The nice thing about DAGs is that those durable properties come bundled with a set of workflow-building features you'd otherwise have to construct by hand. For instance, you get automatic parallelism between tasks that don't depend on each other, typed inputs and outputs that flow from parents to children, [parent-driven branching](#branching-with-parent-conditions), [or groups](#waiting-on-conditions-with-or-groups) for expressing complex wait conditions over sleeps and events, and a clear visual representation of the workflow in the Hatchet dashboard. In general, if the shape of the work is known before the workflow starts, a DAG is probably the most ergonomic way to get durable execution out of Hatchet.
 
-Use a DAG when you know the shape of the work before it starts. ETL pipelines, document processing, CI/CD-style jobs, and other fixed multi-stage workflows are all good fits. If the shape of the work _isn't_ known upfront — for example, if you need to spawn children based on runtime data, or loop until some condition is met — reach for [durable tasks](/v1/durable-tasks) instead.
+DAGs are most useful when you know the shape of the work up front. Common examples are ETL pipelines, document processing pipelines, and CI/CD-style workflows. If you don't know the shape of the work up front — for instance, if the number of children you need to spawn depends on a runtime input, or if you need to loop until some condition is satisfied — you should reach for [durable tasks](/v1/durable-tasks) instead.
 
 ## Defining a workflow
 
@@ -216,5 +216,3 @@ For more complex logic, you can declare multiple or groups on a single task. As 
 - **Condition C**: A `payment:processed` event arrives
 
 To proceed when `(A or B)` **and** `(A or C)` are both satisfied, you'd declare two separate or groups: one containing `A or B`, and the other containing `A or C`. The task runs once both groups are satisfied. If `A` is true, both groups pass immediately. If `A` is false, the task needs both `B` (the sleep expires) and `C` (the event arrives) before it can run.
-
-
