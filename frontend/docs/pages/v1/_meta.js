@@ -21,11 +21,8 @@ export default {
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
   "bulk-run": "Bulk Runs",
+  "events": "Events",
   webhooks: "Webhooks",
-  "external-events": {
-    title: "Event Triggers",
-    theme: { collapsed: true },
-  },
   "inter-service-triggering": "Inter-Service Triggering",
   "--reliability": {
     title: "Reliability",
@@ -47,8 +44,8 @@ export default {
     type: "separator",
   },
   "durable-tasks": "Durable Tasks",
-  sleep: "Sleeps",
-  events: "Wait For Events",
+  "durable-sleep": "Sleeps",
+  "durable-event-waits": "Wait For Events",
   "child-spawning": "Child Spawning",
   "task-eviction": "Task Eviction",
   conditions: "Conditions & Branching",
