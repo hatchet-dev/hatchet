@@ -1,0 +1,54 @@
+import SsoSetup from '@/components/sso/sso-setup.tsx';
+import type { SsoApi } from '@/lib/sso/sso-types.ts';
+import { appRoutes } from '@/router.tsx';
+import { useParams } from '@tanstack/react-router';
+
+const makeApi = (orgId: string): SsoApi => ({
+  async get() {
+    const r = await fetch(`/api/v1/management/organizations/${orgId}/sso`);
+    if (!r.ok) {
+      return {
+        ok: false,
+        error: { status: r.status, message: await r.text() },
+      };
+    }
+    return { ok: true, data: await r.json() };
+  },
+  async upsert(body) {
+    const r = await fetch(
+      `/api/v1/management/organizations/${orgId}/sso`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    console.log(r);
+    return r.ok
+      ? { ok: true, data: undefined }
+      : { ok: false, error: { status: r.status, message: await r.text() } };
+  },
+  async remove() {
+    const r = await fetch(
+      `/api/v1/management/organizations/${orgId}/sso`,
+      {
+        method: 'DELETE',
+    });
+    return r.ok
+      ? { ok: true, data: undefined }
+      : { ok: false, error: { status: r.status, message: await r.text() } };
+  },
+});
+
+export default function SSOPage() {
+  const { organization: orgId } = useParams({
+    from: appRoutes.organizationsRoute.to,
+  });
+
+  return (
+    <SsoSetup
+      redirectUrl={`${window.location.origin}/api/v1/cloud/users/sso/callback`}
+      api={makeApi(orgId)}
+    />
+  );
+}
