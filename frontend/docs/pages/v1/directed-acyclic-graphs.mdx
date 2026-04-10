@@ -7,19 +7,19 @@ import PipelineDiagram from "@/components/PipelineDiagram";
 
 # DAGs as Durable Workflows
 
-A directed acyclic graph (DAG) is a workflow where every task, along with the dependencies between them, is declared upfront, before the workflow runs. In Hatchet, you define a DAG by creating a workflow, adding tasks to it, and then declaring which tasks depend on which other tasks as their parents. At runtime, Hatchet schedules the tasks in the right order, runs tasks that don't depend on each other in parallel, and passes the outputs of parent tasks to their children automatically.
+A directed acyclic graph (DAG) is a workflow where every task, along with the dependencies between them, is declared upfront, before the workflow runs. At runtime, Hatchet schedules the tasks in the right order, runs tasks that don't depend on each other in parallel, and passes the outputs of parent tasks to their children automatically.
 
 <WorkflowDiagram />
 
-In Hatchet, DAGs are a form of [durable execution](/v1/durable-execution) by definition. Every time a task in a DAG completes, Hatchet writes its output to the durable event log as a checkpoint. If the workflow is interrupted partway through, or if a later task needs to retry, Hatchet will not re-run any task that has already finished successfully — it just picks up from the checkpoints it already has. This gives DAGs the same exactly-once-style guarantees you'd get from a [durable task](/v1/durable-tasks), without having to write any explicit durable execution code yourself.
+DAGs in Hatchet are a form of [durable execution](/v1/durable-execution) by definition. Every time a task in a DAG completes, Hatchet persists its status and result so that the DAG can be retried without re-executing succeeded parts. This gives DAGs similar exactly-once-style guarantees you'd get from a [durable task](/v1/durable-tasks), without having to write any explicit durable execution code yourself.
 
-The nice thing about DAGs is that those durable properties come bundled with a set of workflow-building features you'd otherwise have to construct by hand. For instance, you get automatic parallelism between tasks that don't depend on each other, typed inputs and outputs that flow from parents to children, [parent-driven branching](#branching-with-parent-conditions), [or groups](#waiting-on-conditions-with-or-groups) for expressing complex wait conditions over sleeps and events, and a clear visual representation of the workflow in the Hatchet dashboard. In general, if the shape of the work is known before the workflow starts, a DAG is probably the most ergonomic way to get durable execution out of Hatchet.
+On top of those durable properties, DAGs come bundled with a set of workflow-building features you'd otherwise have to construct by hand: automatic parallelism between independent tasks, typed inputs and outputs flowing from parents to children, [branching](#branching-with-parent-conditions), [or groups](#waiting-on-conditions-with-or-groups) for expressing complex wait conditions, and a clear visual representation of the workflow in the Hatchet dashboard.
 
-DAGs are most useful when you know the shape of the work up front. Common examples are ETL pipelines, document processing pipelines, and CI/CD-style workflows. If you don't know the shape of the work up front — for instance, if the number of children you need to spawn depends on a runtime input, or if you need to loop until some condition is satisfied — you should reach for [durable tasks](/v1/durable-tasks) instead.
+Common examples of good fits for DAGs are ETL pipelines such as for document or image processing, and CI/CD-style workflows.
 
 ## Defining a workflow
 
-You start by declaring a workflow with a name. The workflow object also accepts additional configuration options (retry policies, timeouts, concurrency settings, and so on), which are covered in the [tasks documentation](/v1/tasks#configuration).
+To define a DAG, start by declaring a workflow.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -42,9 +42,9 @@ You start by declaring a workflow with a name. The workflow object also accepts 
   </Tabs.Tab>
 </UniversalTabs>
 
-## Defining a task
+### Defining a task
 
-Once you have a workflow, you can add tasks to it. Each task is a function that receives the workflow's input and optionally returns some output. As with standalone tasks, every task in a DAG can declare its own retries, timeouts, concurrency settings, and other configuration. For more details on how to define tasks, see the [tasks documentation](/v1/tasks).
+Once you have a workflow, you can add tasks to it. Each task is a function that receives the workflow's input and optionally returns an output. Just like a standalone task, every task in a DAG can declare its own retries, timeouts, concurrency settings, and so on. For more on how tasks work, see the [tasks documentation](/v1/tasks).
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -67,9 +67,9 @@ Once you have a workflow, you can add tasks to it. Each task is a function that 
   </Tabs.Tab>
 </UniversalTabs>
 
-## Adding task dependencies
+### Adding task dependencies
 
-The real power of a DAG comes from connecting tasks. A task can declare one or more **parent** tasks — those parents must complete successfully before this task starts, and any tasks that don't have a dependency relationship between them are run in parallel. When a task runs, its parents' outputs are available on the context object, so data flows naturally from one stage of the DAG to the next.
+Once you have more than one task on a workflow, you can start to declare dependencies between them. A task can declare one or more **parent** tasks, meaning that those parent tasks must complete successfully before the child task is allowed to run. Tasks that don't depend on each other will be run in parallel. When a task runs, the outputs of its parents are available on its context object, so data flows naturally from one part of the DAG to the next.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
@@ -94,23 +94,23 @@ The real power of a DAG comes from connecting tasks. A task can declare one or m
 
 ## Running a workflow
 
-Once you've defined a workflow and registered it on a [worker](/v1/workers), you can trigger it the same way you'd trigger a standalone task — run and wait for a result, enqueue it and let it run in the background, schedule it for the future, and so on. See the [Running Tasks](/v1/running-your-task) documentation for the full set of options.
+Once you've defined a workflow and registered it on a [worker](/v1/workers), you can trigger it in all of the same ways you can trigger a standalone task. You can run it and wait for the result, enqueue it and let it run in the background, schedule it for the future, and so on. See the [Running Tasks](/v1/running-your-task) documentation for the full set of options.
 
 ## Branching with parent conditions
 
-Even though a DAG's structure is fixed at definition time, individual tasks can decide whether to run based on data produced earlier in the workflow. **Parent conditions** let a task inspect a parent's output and either skip or cancel itself based on what it finds. There are two operators available:
+Even though the structure of a DAG is fixed when you define it, individual tasks can still decide at runtime whether or not they should run, based on data produced earlier in the workflow. **Parent conditions** let a task inspect the output of one of its parents and either skip itself or cancel itself based on what that output contains. There are two operators available:
 
-- **`skip_if`** — skip this task if the parent's output matches the condition. Downstream tasks can [check whether a parent was skipped](#checking-if-a-parent-was-skipped) and react accordingly.
-- **`cancel_if`** — cancel this task if the parent's output matches the condition.
+- **`skip_if`**: Skip this task if the parent's output matches the condition. Downstream tasks can [check whether a parent was skipped](#checking-if-a-parent-was-skipped) and behave accordingly.
+- **`cancel_if`**: Cancel this task if the parent's output matches the condition.
 
 <Callout type="warning">
   A task cancelled by `cancel_if` behaves like any other cancellation in
   Hatchet, meaning its downstream dependents will be cancelled as well.
 </Callout>
 
-The most common use for parent conditions is to express sibling branches in a DAG. You declare a base task that returns some data, then define two sibling tasks with complementary `skip_if` conditions so that only one of the two runs per workflow execution.
+A common way to use parent conditions is to express sibling branches in a DAG. You declare a base task that returns some data, and then add two sibling tasks with complementary `skip_if` conditions, so that exactly one of them runs on any given workflow execution.
 
-First, declare the base task that returns a value:
+First, declare the base task that returns the value the branches will key off of:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -131,7 +131,7 @@ First, declare the base task that returns a value:
   </Tabs.Tab>
 </UniversalTabs>
 
-Then add two branches that use a parent condition with `skip_if` to decide whether to run, based on the output of the base task:
+Then add two branches that each use a `skip_if` parent condition to decide whether they should run, based on the output of the base task:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -152,11 +152,9 @@ Then add two branches that use a parent condition with `skip_if` to decide wheth
   </Tabs.Tab>
 </UniversalTabs>
 
-These two tasks check whether the output of the base task was greater or less than `50`, respectively. Only one of the two will run per workflow execution, and the other will be skipped.
-
 ### Checking if a parent was skipped
 
-When both branches of a parent condition feed into a common downstream task, that downstream task often needs to know which of the two branches actually ran. You can check whether a parent was skipped using `ctx.was_skipped`:
+When two sibling branches both feed into a common downstream task, the downstream task often needs to know which of its parents actually ran, as opposed to which one was skipped. You can check this on the context with `ctx.was_skipped`:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
@@ -177,13 +175,13 @@ When both branches of a parent condition feed into a common downstream task, tha
 
 ## Waiting on conditions with or groups
 
-In addition to parent conditions, a task in a DAG can wait for external signals before it runs: a sleep timer to expire, a [user event](/v1/events) to arrive, or some combination of these alongside parent conditions. You compose these together using **or groups**.
+In addition to parent conditions, a task in a DAG can wait for external signals before it starts running. It might wait for a sleep timer to expire, for a [user event](/v1/events) to arrive, or for some combination of these alongside parent conditions. You compose conditions like these using **or groups**.
 
-An or group is a set of conditions combined with an `Or` operator, which evaluates to `True` if **at least one** of its conditions is satisfied. Multiple or groups on the same task are combined with `AND`, so every group must have at least one satisfied condition for the task to proceed. Taken together, this lets you express arbitrarily complex sets of conditions in [conjunctive normal form](https://en.wikipedia.org/wiki/Conjunctive_normal_form) (CNF).
+An or group is a set of conditions combined with an `Or` operator, which evaluates to `True` as soon as **at least one** of the conditions inside it is satisfied. If you declare more than one or group on the same task, the groups are combined with `AND`, meaning that every group must have at least one of its conditions satisfied before the task is allowed to run. Between these two operators, you can express arbitrarily complex wait conditions in [conjunctive normal form](https://en.wikipedia.org/wiki/Conjunctive_normal_form) (CNF).
 
 ### Sleep + event example
 
-The most common combination is a sleep condition alongside an event condition: proceed when an external signal arrives _or_ after a timeout, whichever comes first. This is a natural fit for human-in-the-loop workflows where you want a deadline on how long you'll wait for a response.
+A common pattern is to combine a sleep condition and an event condition in the same or group, so that the task proceeds as soon as either an external signal arrives _or_ a timeout expires, whichever happens first. This is a natural fit for human-in-the-loop workflows, where you want to put a deadline on how long you'll wait for a response before moving on.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
@@ -205,14 +203,12 @@ The most common combination is a sleep condition alongside an event condition: p
   </Tabs.Tab>
 </UniversalTabs>
 
-In each of these snippets, a single or group wraps a sleep condition and a user event condition. The task starts as soon as either the sleep expires or the event arrives.
-
 ### Combining multiple or groups
 
-For more complex logic, you can declare multiple or groups on a single task. As an example, consider these three conditions:
+For more complicated wait logic, you can declare more than one or group on the same task. As an example, consider these three conditions:
 
-- **Condition A**: A parent task's output is greater than 50
-- **Condition B**: A 30 second sleep timer expires
-- **Condition C**: A `payment:processed` event arrives
+- **Condition A**: A parent task's output is greater than 50.
+- **Condition B**: A 30 second sleep timer expires.
+- **Condition C**: A `payment:processed` event arrives.
 
-To proceed when `(A or B)` **and** `(A or C)` are both satisfied, you'd declare two separate or groups: one containing `A or B`, and the other containing `A or C`. The task runs once both groups are satisfied. If `A` is true, both groups pass immediately. If `A` is false, the task needs both `B` (the sleep expires) and `C` (the event arrives) before it can run.
+If you want the task to proceed when `(A or B)` **and** `(A or C)` are both satisfied, you'd declare two separate or groups on the task: one containing `A or B`, and the other containing `A or C`. The task will only start once both groups have been satisfied. If `A` is true, both groups pass immediately. If `A` is false, the task needs both `B` (the sleep expires) and `C` (the event arrives) before it can run.
