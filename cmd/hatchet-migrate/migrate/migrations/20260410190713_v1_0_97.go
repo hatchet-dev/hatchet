@@ -9,15 +9,17 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(up20260408190713, down20260408190713)
+	goose.AddMigrationNoTxContext(up20260410190713, down20260410190713)
 }
 
 func v1RunsOlapTenantStatusInsAtIdxName(table string) string {
 	return fmt.Sprintf("ix_%s_tenant_status_ins_at", table)
 }
 
-func up20260408190713(ctx context.Context, db *sql.DB) error {
+func up20260410190713(ctx context.Context, db *sql.DB) error {
 	// drop the old outdated index first
+	// note: can't do this concurrently or in parts (i.e. dropping children first)
+	// see: https://stackoverflow.com/a/76167838
 	stmt := "DROP INDEX IF EXISTS ix_v1_runs_olap_tenant_id"
 
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
@@ -68,7 +70,7 @@ func up20260408190713(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func down20260408190713(ctx context.Context, db *sql.DB) error {
+func down20260410190713(ctx context.Context, db *sql.DB) error {
 	// drop the new index first so we can rebuild the old one bottom-up
 	stmt := "DROP INDEX IF EXISTS ix_v1_runs_olap_tenant_status_ins_at"
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
