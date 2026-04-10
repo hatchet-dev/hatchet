@@ -45,11 +45,10 @@ export default {
   },
   "durable-tasks": "Durable Tasks",
   "durable-sleep": "Sleeps",
-  "durable-event-waits": "Wait For Events",
+  "durable-event-waits": "Event Waits",
   "child-spawning": "Child Spawning",
   "task-eviction": "Task Eviction",
   conditions: "Conditions & Branching",
-  "on-failure": "Error Handling",
   "directed-acyclic-graphs": "DAGs as Durable Workflows",
   "--workers-section": {
     title: "Workers",
