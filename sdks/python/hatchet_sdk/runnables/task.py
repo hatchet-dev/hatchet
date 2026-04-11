@@ -201,13 +201,13 @@ class Task(Generic[TWorkflowInput, R]):
         if isinstance(resolved_parents, dict):
             # if it's a dict, they're using the new method
             self.parents = list(resolved_parents.values())
-            self.parent_kwarg_name_to_parent_task_name: dict[str, str] | None = {
-                k: v.name for k, v in resolved_parents.items()
-            }
+            self.parent_kwarg_name_to_parent_task: dict[str, Task[Any, Any]] | None = (
+                resolved_parents
+            )
         else:
             # otherwise, it's the legacy method, which we can remove in v2.0.0
             self.parents = resolved_parents
-            self.parent_kwarg_name_to_parent_task_name = None
+            self.parent_kwarg_name_to_parent_task = None
 
         self.retries = retries
         self.rate_limits = rate_limits or []

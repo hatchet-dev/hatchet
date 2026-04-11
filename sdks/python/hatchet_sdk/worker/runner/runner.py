@@ -338,10 +338,10 @@ class Runner:
 
         parent_output_kwargs = (
             {
-                kwarg_name: ctx._data.parents[task_name]
-                for kwarg_name, task_name in task.parent_kwarg_name_to_parent_task_name.items()
+                kwarg_name: ctx.task_output(task)
+                for kwarg_name, task in task.parent_kwarg_name_to_parent_task.items()
             }
-            if task.parent_kwarg_name_to_parent_task_name
+            if task.parent_kwarg_name_to_parent_task
             else None
         )
 
@@ -367,12 +367,13 @@ class Runner:
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
             parent_output_kwargs = (
                 {
-                    kwarg_name: ctx._data.parents[task_name]
-                    for kwarg_name, task_name in task.parent_kwarg_name_to_parent_task_name.items()
+                    kwarg_name: ctx.task_output(task)
+                    for kwarg_name, task in task.parent_kwarg_name_to_parent_task.items()
                 }
-                if task.parent_kwarg_name_to_parent_task_name
+                if task.parent_kwarg_name_to_parent_task
                 else None
             )
+
             try:
                 if task._is_async_function:
                     return await task.aio_call(ctx, dependencies, parent_output_kwargs)
