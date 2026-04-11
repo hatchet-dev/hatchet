@@ -373,22 +373,31 @@ class Task(Generic[TWorkflowInput, R]):
         finally:
             resolution_stack.discard(fn_name)
 
-    def _extract_parent(self, p: Parameter) -> "Task[Any, Any] | None":
+    def _extract_parent(self, param_name: str, p: Parameter) -> "Task[Any, Any] | None":
         annotation = p.annotation
         if is_typealiastype(annotation):
             annotation = annotation.__value__
 
-        if get_origin(annotation) is Annotated:
-            args = get_args(annotation)
+        if get_origin(annotation) is not Annotated:
+            return None
 
-            if len(args) < 2:
-                return None
+        args = get_args(annotation)
+        if len(args) < 2:
+            return None
 
-            metadata = args[1:]
+        declared = args[0]
 
-            for item in metadata:
-                if isinstance(item, Parent):
-                    return item.task
+        for item in args[1:]:
+            if isinstance(item, Parent):
+                parent_return = get_type_hints(item.task._fn).get("return")
+                if parent_return is not None and declared != parent_return:
+                    raise InvalidDependencyError(
+                        f"Task '{self.name}' declares parameter '{param_name}' "
+                        f"as '{declared}', but parent task "
+                        f"'{item.task.name}' returns '{parent_return}'. "
+                        f"These must match."
+                    )
+                return item.task
 
         return None
 
@@ -398,7 +407,7 @@ class Task(Generic[TWorkflowInput, R]):
         return {
             n: task
             for n, p in sig.parameters.items()
-            if (task := self._extract_parent(p))
+            if (task := self._extract_parent(n, p))
         }
 
     async def _parse_parameter(
