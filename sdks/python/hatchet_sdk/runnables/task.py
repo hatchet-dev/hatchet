@@ -87,6 +87,11 @@ def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
     return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
 
 
+class Parent(Generic[R]):
+    def __init__(self, task: "Task[Any, R]") -> None:
+        self.task = task
+
+
 class DependencyFunc(Protocol[T_co, TWorkflowInput_contra]):
     def __call__(
         self, input: TWorkflowInput_contra, ctx: Context, *args: Any, **kwargs: Any
@@ -215,6 +220,14 @@ class Task(Generic[TWorkflowInput, R]):
             logger.warning(
                 f"{self.fn.__name__} is defined as a synchronous, durable task. in the future, durable tasks will only support `async`. please update this durable task to be async, or make it non-durable."
             )
+
+    def _resolve_parents(
+        self, declarative: "list[Task[Any, Any]] | None"
+    ) -> "list[Task[Any, Any]]":
+        if declarative:
+            return declarative
+
+        return self._extract_parents()
 
     @property
     def fn(self):  # type: ignore[no-untyped-def]
@@ -346,6 +359,32 @@ class Task(Generic[TWorkflowInput, R]):
             return dependencies
         finally:
             resolution_stack.discard(fn_name)
+
+    def _extract_parent(self, p: Parameter) -> "Task[Any, Any] | None":
+        annotation = p.annotation
+        if is_typealiastype(annotation):
+            annotation = annotation.__value__
+
+        if get_origin(annotation) is Annotated:
+            args = get_args(annotation)
+
+            if len(args) < 2:
+                return None
+
+            metadata = args[1:]
+
+            for item in metadata:
+                if isinstance(item, Parent):
+                    return item.task
+
+        return None
+
+    def _extract_parents(self) -> "list[Task[Any, Any]]":
+        sig = signature(self._fn)
+
+        return [
+            task for p in sig.parameters.values() if (task := self._extract_parent(p))
+        ]
 
     async def _parse_parameter(
         self,
