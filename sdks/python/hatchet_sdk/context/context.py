@@ -318,6 +318,12 @@ class Context:
         from hatchet_sdk.runnables.types import R
         from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
+        warn(
+            "`task_output` is deprecated and will be removed in v2.0.0. Declare parent tasks as dependencies instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         if self.was_skipped(task):
             raise ValueError(f"{task.name} was skipped")
 
