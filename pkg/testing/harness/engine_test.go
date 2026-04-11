@@ -1,3 +1,5 @@
+//go:build e2e || integration
+
 package harness
 
 import (
