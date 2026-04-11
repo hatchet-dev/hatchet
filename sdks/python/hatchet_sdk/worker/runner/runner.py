@@ -336,7 +336,16 @@ class Runner:
         if action.step_run_id:
             self.threads[action.key] = current_thread()
 
-        return task.call(ctx, dependencies)
+        parent_output_kwargs = (
+            {
+                kwarg_name: ctx._data.parents[task_name]
+                for kwarg_name, task_name in task.parent_kwarg_name_to_parent_task_name.items()
+            }
+            if task.parent_kwarg_name_to_parent_task_name
+            else None
+        )
+
+        return task.call(ctx, dependencies, parent_outputs=parent_output_kwargs)
 
     # We wrap all actions in an async func
     async def async_wrapped_action_func(
@@ -356,9 +365,17 @@ class Runner:
         )
 
         async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
+            parent_output_kwargs = (
+                {
+                    kwarg_name: ctx._data.parents[task_name]
+                    for kwarg_name, task_name in task.parent_kwarg_name_to_parent_task_name.items()
+                }
+                if task.parent_kwarg_name_to_parent_task_name
+                else None
+            )
             try:
                 if task._is_async_function:
-                    return await task.aio_call(ctx, dependencies)
+                    return await task.aio_call(ctx, dependencies, parent_output_kwargs)
 
                 pfunc = functools.partial(
                     # we must copy the context vars to the new thread, as only asyncio natively supports

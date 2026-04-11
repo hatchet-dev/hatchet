@@ -195,7 +195,20 @@ class Task(Generic[TWorkflowInput, R]):
         self.execution_timeout = execution_timeout
         self.schedule_timeout = schedule_timeout
         self.name = name
-        self.parents = parents or []
+
+        resolved_parents = self._resolve_parents(parents)
+
+        if isinstance(resolved_parents, dict):
+            # if it's a dict, they're using the new method
+            self.parents = list(resolved_parents.values())
+            self.parent_kwarg_name_to_parent_task_name: dict[str, str] | None = {
+                k: v.name for k, v in resolved_parents.items()
+            }
+        else:
+            # otherwise, it's the legacy method, which we can remove in v2.0.0
+            self.parents = resolved_parents
+            self.parent_kwarg_name_to_parent_task_name = None
+
         self.retries = retries
         self.rate_limits = rate_limits or []
         self.desired_worker_labels: list[DesiredWorkerLabel] = (
@@ -223,7 +236,7 @@ class Task(Generic[TWorkflowInput, R]):
 
     def _resolve_parents(
         self, declarative: "list[Task[Any, Any]] | None"
-    ) -> "list[Task[Any, Any]]":
+    ) -> "dict[str, Task[Any, Any]] | list[Task[Any, Any]]":
         if declarative:
             return declarative
 
@@ -379,12 +392,14 @@ class Task(Generic[TWorkflowInput, R]):
 
         return None
 
-    def _extract_parents(self) -> "list[Task[Any, Any]]":
+    def _extract_parents(self) -> "dict[str, Task[Any, Any]]":
         sig = signature(self._fn)
 
-        return [
-            task for p in sig.parameters.values() if (task := self._extract_parent(p))
-        ]
+        return {
+            n: task
+            for n, p in sig.parameters.items()
+            if (task := self._extract_parent(p))
+        }
 
     async def _parse_parameter(
         self,
@@ -473,21 +488,33 @@ class Task(Generic[TWorkflowInput, R]):
                     await asyncio.to_thread(cm.__exit__, None, None, None)
 
     def call(
-        self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
+        self,
+        ctx: Context | DurableContext,
+        dependencies: dict[str, Any] | None = None,
+        parent_outputs: dict[str, Any] | None = None,
     ) -> R:
         if self._is_async_function:
             raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
+        parent_outputs = parent_outputs or {}
 
         if is_sync_fn(self._fn):  # type: ignore
-            return self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
+            return self._fn(
+                workflow_input,  # type: ignore
+                ctx,
+                **dependencies,
+                **parent_outputs,
+            )
 
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
     async def aio_call(
-        self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
+        self,
+        ctx: Context | DurableContext,
+        dependencies: dict[str, Any] | None = None,
+        parent_outputs: dict[str, Any] | None = None,
     ) -> R:
         if not self._is_async_function:
             raise TypeError(
@@ -496,9 +523,15 @@ class Task(Generic[TWorkflowInput, R]):
 
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
+        parent_outputs = parent_outputs or {}
 
         if is_async_fn(self._fn):  # type: ignore
-            return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
+            return await self._fn(
+                workflow_input,  # type: ignore
+                ctx,
+                **dependencies,
+                **parent_outputs,
+            )
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
