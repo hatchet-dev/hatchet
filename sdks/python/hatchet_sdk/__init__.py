@@ -141,7 +141,7 @@ from hatchet_sdk.exceptions import (
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.runnables.task import Depends, Task
+from hatchet_sdk.runnables.task import Depends, Parent, Task
 from hatchet_sdk.runnables.types import (
     DefaultFilter,
     EmptyModel,
@@ -241,6 +241,7 @@ __all__ = [
     "OpenTelemetryConfig",
     "OrGroup",
     "PaginationResponse",
+    "Parent",
     "ParentCondition",
     "Priority",
     "PullRequest",

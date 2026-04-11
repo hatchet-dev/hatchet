@@ -1374,6 +1374,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         _warn_if_str_duration(schedule_timeout, execution_timeout)
 
+        if parents is not None:
+            warnings.warn(
+                "Support for providing a list of parents on the task decorator is deprecated, and will be removed in v2.0.0. Please pass declare parents as positional arguments to the task instead.",
+                DeprecationWarning,
+                stacklevel=4,
+            )
+
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
@@ -1487,6 +1494,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a `Task` object.
         """
+
+        if parents is not None:
+            warnings.warn(
+                "Support for providing a list of parents on the task decorator is deprecated, and will be removed in v2.0.0. Please pass declare parents as positional arguments to the task instead.",
+                DeprecationWarning,
+                stacklevel=4,
+            )
 
         _warn_if_str_duration(schedule_timeout, execution_timeout)
 

@@ -1,10 +1,10 @@
 import random
 import time
 from datetime import timedelta
-
+from typing import Annotated
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, EmptyModel, Hatchet, Parent
 
 
 class StepOutput(BaseModel):
@@ -38,10 +38,16 @@ async def step2(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_workflow.task(parents=[step1, step2])
-async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
-    one = ctx.task_output(step1).random_number
-    two = ctx.task_output(step2).random_number
+@dag_workflow.task()
+async def step3(
+    input: EmptyModel,
+    ctx: Context,
+    step_1: Annotated[StepOutput, Parent(step1)],
+    step_2: Annotated[StepOutput, Parent(step2)],
+) -> RandomSum:
+    print(step_1)
+    one = step_1.random_number
+    two = step_2.random_number
 
     return RandomSum(sum=one + two)
 
