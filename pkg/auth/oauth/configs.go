@@ -1,6 +1,8 @@
 package oauth
 
 import (
+	"strings"
+
 	"golang.org/x/oauth2"
 )
 
@@ -9,6 +11,16 @@ type Config struct {
 	ClientSecret string
 	Scopes       []string
 	BaseURL      string
+}
+
+type OIDCConfig struct {
+	ClientID     string
+	ClientSecret string
+	Scopes       []string
+	BaseURL      string
+	IssuerURL    string
+	AuthURL      string
+	TokenURL     string
 }
 
 const (
@@ -55,6 +67,19 @@ func NewSlackClient(cfg *Config) *oauth2.Config {
 			TokenURL: SlackTokenURL,
 		},
 		RedirectURL: cfg.BaseURL + "/api/v1/users/slack/callback",
+		Scopes:      cfg.Scopes,
+	}
+}
+
+func NewOIDCClient(cfg *OIDCConfig) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  cfg.AuthURL,
+			TokenURL: cfg.TokenURL,
+		},
+		RedirectURL: strings.TrimRight(cfg.BaseURL, "/") + "/api/v1/users/oidc/callback",
 		Scopes:      cfg.Scopes,
 	}
 }
