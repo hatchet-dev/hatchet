@@ -228,6 +228,36 @@ oauth-callback-github:
     summary: Complete OAuth flow
     tags:
       - User
+oauth-start-oidc:
+  get:
+    description: Starts the OIDC OAuth flow
+    operationId: user:update:oidc-oauth-start
+    responses:
+      "302":
+        description: Successfully started the OAuth flow
+        headers:
+          location:
+            schema:
+              type: string
+    security: []
+    summary: Start OIDC OAuth flow
+    tags:
+      - User
+oauth-callback-oidc:
+  get:
+    description: Completes the OIDC OAuth flow
+    operationId: user:update:oidc-oauth-callback
+    responses:
+      "302":
+        description: Successfully completed the OAuth flow
+        headers:
+          location:
+            schema:
+              type: string
+    security: []
+    summary: Complete OIDC OAuth flow
+    tags:
+      - User
 oauth-start-slack:
   get:
     x-resources: ["tenant"]
