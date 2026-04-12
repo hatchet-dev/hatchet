@@ -505,6 +505,9 @@ type ConfigFileAuthOIDC struct {
 	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	IssuerURL    string   `mapstructure:"issuerURL" json:"issuerURL,omitempty"`
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
+	// ScopesString is used to bind the SERVER_AUTH_OIDC_SCOPES env var, since
+	// direct env-to-[]string binding is unreliable without a decode hook.
+	ScopesString string `mapstructure:"scopesString" json:"scopesString,omitempty"`
 }
 
 type ConfigFileAuthCookie struct {
@@ -858,6 +861,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.oidc.clientSecret", "SERVER_AUTH_OIDC_CLIENT_SECRET")
 	_ = v.BindEnv("auth.oidc.issuerURL", "SERVER_AUTH_OIDC_ISSUER_URL")
 	_ = v.BindEnv("auth.oidc.scopes", "SERVER_AUTH_OIDC_SCOPES")
+	_ = v.BindEnv("auth.oidc.scopesString", "SERVER_AUTH_OIDC_SCOPES")
 
 	// task queue options
 	// legacy options
