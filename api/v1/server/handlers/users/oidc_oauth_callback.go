@@ -21,6 +21,10 @@ import (
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (u *UserService) UserUpdateOidcOauthCallback(ctx echo.Context, _ gen.UserUpdateOidcOauthCallbackRequestObject) (gen.UserUpdateOidcOauthCallbackResponseObject, error) {
+	if u.config.Auth.OIDCOAuthConfig == nil || u.config.Auth.OIDCProvider == nil {
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "OIDC authentication is not configured.")
+	}
+
 	isValid, _, err := authn.NewSessionHelpers(u.config.SessionStore).ValidateOAuthState(ctx, "oidc")
 
 	if err != nil || !isValid {
@@ -79,6 +83,10 @@ func (u *UserService) upsertOIDCUserFromToken(ctx context.Context, config *serve
 		return nil, err
 	}
 
+	if !claims.EmailVerified {
+		return nil, fmt.Errorf("OIDC provider did not verify the email address")
+	}
+
 	expiresAt := tok.Expiry
 
 	accessTokenEncrypted, err := config.Encryption.Encrypt([]byte(tok.AccessToken), "oidc_access_token")
@@ -118,6 +126,10 @@ func (u *UserService) upsertOIDCUserFromToken(ctx context.Context, config *serve
 			return nil, fmt.Errorf("failed to update user: %s", err.Error())
 		}
 	case pgx.ErrNoRows:
+		if !config.Runtime.AllowSignup {
+			return nil, fmt.Errorf("user signup is disabled")
+		}
+
 		user, err = u.config.V1.User().CreateUser(ctx, &v1.CreateUserOpts{
 			Email:         claims.Email,
 			EmailVerified: v1.BoolPtr(claims.EmailVerified),
@@ -160,6 +172,33 @@ func getOIDCClaimsFromToken(ctx context.Context, config *server.ServerConfig, to
 	claims := &oidcClaims{}
 	if err := idToken.Claims(claims); err != nil {
 		return nil, fmt.Errorf("failed to parse ID token claims: %s", err.Error())
+	}
+
+	// Fall back to UserInfo endpoint when the ID token is missing optional claims.
+	// The OIDC spec does not require providers to include email/name in the ID token.
+	if claims.Email == "" || claims.Name == "" || !claims.EmailVerified {
+		userInfo, uiErr := config.Auth.OIDCProvider.UserInfo(ctx, oauth2.StaticTokenSource(tok))
+		if uiErr == nil {
+			uiClaims := &oidcClaims{}
+			if err := userInfo.Claims(uiClaims); err == nil {
+				// Per OIDC spec, the UserInfo sub must match the ID token sub.
+				if uiClaims.Sub != "" && claims.Sub != "" && uiClaims.Sub != claims.Sub {
+					return nil, fmt.Errorf("OIDC UserInfo sub claim (%s) does not match ID token sub claim (%s)", uiClaims.Sub, claims.Sub)
+				}
+				if claims.Email == "" {
+					claims.Email = uiClaims.Email
+				}
+				if claims.Name == "" {
+					claims.Name = uiClaims.Name
+				}
+				if !claims.EmailVerified && uiClaims.EmailVerified {
+					claims.EmailVerified = true
+				}
+				if claims.Sub == "" {
+					claims.Sub = uiClaims.Sub
+				}
+			}
+		}
 	}
 
 	if claims.Email == "" {

@@ -1,6 +1,8 @@
 package oauth
 
 import (
+	"strings"
+
 	"golang.org/x/oauth2"
 )
 
@@ -77,7 +79,7 @@ func NewOIDCClient(cfg *OIDCConfig) *oauth2.Config {
 			AuthURL:  cfg.AuthURL,
 			TokenURL: cfg.TokenURL,
 		},
-		RedirectURL: cfg.BaseURL + "/api/v1/users/oidc/callback",
+		RedirectURL: strings.TrimRight(cfg.BaseURL, "/") + "/api/v1/users/oidc/callback",
 		Scopes:      cfg.Scopes,
 	}
 }
