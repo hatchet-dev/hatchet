@@ -208,7 +208,7 @@ function EmailGroupsList() {
       </div>
       <Separator className="my-4" />
       {groups.length > 0 ? (
-        <SimpleTable columns={emailGroupColumns} data={gro`ups} />
+        <SimpleTable columns={emailGroupColumns} data={groups} />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
           No email groups found. Create a group to receive alerts via email.

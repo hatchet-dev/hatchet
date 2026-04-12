@@ -26,9 +26,7 @@ type OrganizationInviteRejectRequest = Parameters<
 type OrganizationInviteCreateRequest = Parameters<
   typeof cloudApi.organizationInviteCreate
 >[1];
-type OrganizationSsoDomainCreateRequest = Parameters<
-  typeof cloudApi.ssoDomainCreate
->[0];
+
 export function useOrganizationApi() {
   const { isControlPlaneEnabled } = useControlPlane();
 
