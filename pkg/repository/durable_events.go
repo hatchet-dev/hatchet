@@ -994,7 +994,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 
 		if len(newTriggerOpts) > 0 {
-			createdTasks, createdDags, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
+			createdTasks, createdDags, _, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
 
 			if triggerErr != nil {
 				return nil, fmt.Errorf("failed to trigger workflows: %w", triggerErr)

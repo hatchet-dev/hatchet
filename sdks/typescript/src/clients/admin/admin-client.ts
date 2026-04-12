@@ -77,6 +77,7 @@ export type WorkflowRun<T = object> = {
     parentStepRunId?: string | undefined;
     childIndex?: number | undefined;
     childKey?: string | undefined;
+    idempotencyKey?: string | undefined;
     additionalMetadata?: Record<string, string> | undefined;
   };
 };
@@ -196,6 +197,7 @@ export class AdminClient {
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
+      idempotencyKey?: string | undefined;
       additionalMetadata?: Record<string, string> | undefined;
     }
   ) {
@@ -228,6 +230,7 @@ export class AdminClient {
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
+      idempotencyKey?: string | undefined;
       additionalMetadata?: Record<string, string> | undefined;
       desiredWorkerId?: string | undefined;
       priority?: Priority;
@@ -291,6 +294,7 @@ export class AdminClient {
         parentStepRunId?: string | undefined;
         childIndex?: number | undefined;
         childKey?: string | undefined;
+        idempotencyKey?: string | undefined;
         additionalMetadata?: Record<string, string> | undefined;
         desiredWorkerId?: string | undefined;
         priority?: Priority;
