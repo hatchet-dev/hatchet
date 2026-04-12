@@ -1,9 +1,11 @@
 package security
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 
@@ -51,8 +53,17 @@ func (a DefaultSecurityCheck) Check() {
 		return
 	}
 
-	req := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, ident)
-	resp, err := http.Get(req) // #nosec
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	reqURL := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, ident)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		a.Logger.Debug().Msgf("Error creating security check request: %s", err)
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req) // #nosec
 	if err != nil {
 		a.Logger.Debug().Msgf("Error making request to security endpoint: %s", err)
 		return
