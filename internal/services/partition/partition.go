@@ -284,6 +284,8 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 
 	p.schedulerCron.Start()
 
+	rebalanceInactiveSchedulerPartitions(ctx, p.l, p.repo) // nolint: errcheck
+
 	return cleanup, nil
 }
 
