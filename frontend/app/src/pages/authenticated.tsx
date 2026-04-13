@@ -65,7 +65,7 @@ export async function loader(_args: { request: Request }) {
 }
 
 function AuthenticatedInner() {
-  const { tenant } = useTenantDetails();
+  const { tenant, limit } = useTenantDetails();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -334,14 +334,31 @@ function AuthenticatedInner() {
 
   useEffect(() => {
     const key = 'hatchet:show-welcome';
-    if (localStorage.getItem(key)) {
-      localStorage.removeItem(key);
-      setShowWelcome(true);
-      capture('welcome_modal_shown', {
-        tenant_id: tenant?.metadata.id,
-      });
+    if (!localStorage.getItem(key)) {
+      return;
     }
-  }, [tenant?.metadata.id, capture]);
+
+    if (limit.isLoading || !limit.isFetched) {
+      return;
+    }
+
+    if (!limit.data?.length) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    localStorage.removeItem(key);
+    setShowWelcome(true);
+    capture('welcome_modal_shown', {
+      tenant_id: tenant?.metadata.id,
+    });
+  }, [
+    tenant?.metadata.id,
+    capture,
+    limit.isLoading,
+    limit.isFetched,
+    limit.data,
+  ]);
 
   if (!currentUser) {
     return <Loading />;

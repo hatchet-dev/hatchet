@@ -42,7 +42,7 @@ lint = [
     "types-protobuf>=5.28.3.20241030",
     "black==26.3.1",
     "types-psutil>=6.1.0.20241221",
-    "ruff==0.15.9",
+    "ruff==0.15.10",
     "types-requests>=2.32.0.20241016",
     "psutil>=6.0.0",
     "types-grpcio>=1.0.0",
