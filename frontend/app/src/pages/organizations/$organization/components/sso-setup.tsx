@@ -1,42 +1,64 @@
 import SsoSetup from '@/components/sso/sso-setup.tsx';
+import { cloudApi } from '@/lib/api/api';
 import type { SsoApi } from '@/lib/sso/sso-types.ts';
 import { appRoutes } from '@/router.tsx';
 import { useParams } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 
 const makeApi = (orgId: string): SsoApi => ({
   async get() {
-    const r = await fetch(`/api/v1/management/organizations/${orgId}/sso`);
-    if (!r.ok) {
-      return {
-        ok: false,
-        error: { status: r.status, message: await r.text() },
-      };
+    try {
+      const r = await cloudApi.ssoGet(orgId);
+      return { ok: true, data: r.data };
+    } catch (error: any) {
+      if (error instanceof AxiosError) {
+        return {
+          ok: false,
+          error: { status: error.status, message: error.message },
+        };
+      } else {
+        return {
+          ok: false,
+          error: { message: 'unspecified error' },
+        };
+      }
     }
-    return { ok: true, data: await r.json() };
   },
   async upsert(body) {
-    const r = await fetch(
-      `/api/v1/management/organizations/${orgId}/sso`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-    );
-    console.log(r);
-    return r.ok
-      ? { ok: true, data: undefined }
-      : { ok: false, error: { status: r.status, message: await r.text() } };
+    try {
+      await cloudApi.ssoCreate(orgId, body);
+      return { ok: true, data: undefined };
+    } catch (error: any) {
+      if (error instanceof AxiosError) {
+        return {
+          ok: false,
+          error: { status: error.status, message: error.message },
+        };
+      } else {
+        return {
+          ok: false,
+          error: { message: 'unspecified error' },
+        };
+      }
+    }
   },
   async remove() {
-    const r = await fetch(
-      `/api/v1/management/organizations/${orgId}/sso`,
-      {
-        method: 'DELETE',
-    });
-    return r.ok
-      ? { ok: true, data: undefined }
-      : { ok: false, error: { status: r.status, message: await r.text() } };
+    try {
+      await cloudApi.ssoDelete(orgId);
+      return { ok: true, data: undefined };
+    } catch (error: any) {
+      if (error instanceof AxiosError) {
+        return {
+          ok: false,
+          error: { status: error.status, message: error.message },
+        };
+      } else {
+        return {
+          ok: false,
+          error: { message: 'unspecified error' },
+        };
+      }
+    }
   },
 });
 
