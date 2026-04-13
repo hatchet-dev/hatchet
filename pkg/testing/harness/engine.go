@@ -147,6 +147,7 @@ func startEngine() func() {
 	os.Setenv("SERVER_LOGGER_FORMAT", "console")
 	os.Setenv("DATABASE_LOGGER_LEVEL", "error")
 	os.Setenv("DATABASE_LOGGER_FORMAT", "console")
+	os.Setenv("SERVER_SECURITY_CHECK_ENABLED", "false")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT", "console")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
