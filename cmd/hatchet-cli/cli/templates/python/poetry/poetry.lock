@@ -473,14 +473,14 @@ setuptools = ">=77.0.1"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.31.0"
+version = "1.32.1"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
 python-versions = "<4,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.31.0-py3-none-any.whl", hash = "sha256:190b5c08cddbc9b1f6bed5756050e8257c2e0dccbd9ac660cf94d5f838a6d207"},
-    {file = "hatchet_sdk-1.31.0.tar.gz", hash = "sha256:9519529cef65b43992c7f6f1d5247ef3181d3a85349ef969cafe161bf23d84a6"},
+    {file = "hatchet_sdk-1.32.1-py3-none-any.whl", hash = "sha256:b359aaf15ad9c692cb8a8a61490ae29fe7e1f7efcde335b64a298ec1ad00d373"},
+    {file = "hatchet_sdk-1.32.1.tar.gz", hash = "sha256:48d735bc26a591f1692650cf8022a8e2485f1030fce1de1f7b783650dd96fabf"},
 ]
 
 [package.dependencies]
@@ -626,14 +626,14 @@ typing-extensions = {version = ">=4.1.0", markers = "python_version < \"3.11\""}
 
 [[package]]
 name = "prometheus-client"
-version = "0.24.1"
+version = "0.25.0"
 description = "Python client for the Prometheus monitoring system."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "prometheus_client-0.24.1-py3-none-any.whl", hash = "sha256:150db128af71a5c2482b36e588fc8a6b95e498750da4b17065947c16070f4055"},
-    {file = "prometheus_client-0.24.1.tar.gz", hash = "sha256:7e0ced7fbbd40f7b84962d5d2ab6f17ef88a72504dcf7c0b40737b43b2a461f9"},
+    {file = "prometheus_client-0.25.0-py3-none-any.whl", hash = "sha256:d5aec89e349a6ec230805d0df882f3807f74fd6c1a2fa86864e3c2279059fed1"},
+    {file = "prometheus_client-0.25.0.tar.gz", hash = "sha256:5e373b75c31afb3c86f1a52fa1ad470c9aace18082d39ec0d2f918d11cc9ba28"},
 ]
 
 [package.extras]
@@ -1173,4 +1173,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "770e2341b5a18ca7d0a7a64c91128b42181ee220888394736e39c87e44f36e90"
+content-hash = "3d130255f923d128f27361d8a275394d1fe9b46e9c5aa87c04542708ac8e2a84"

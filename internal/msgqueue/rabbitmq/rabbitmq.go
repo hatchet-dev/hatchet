@@ -754,13 +754,10 @@ func (t *MessageQueueImpl) subscribe(
 			return err
 		}
 
-		wg.Add(1) // we add an extra delta for the deliveries channel to be closed
-		defer wg.Done()
-
 		for rabbitMsg := range deliveries {
 			wg.Add(1)
 
-			go func(rabbitMsg amqp.Delivery) {
+			go func(rabbitMsg amqp.Delivery, session int) {
 				defer wg.Done()
 
 				msg := &msgqueue.Message{}
@@ -831,7 +828,7 @@ func (t *MessageQueueImpl) subscribe(
 					}
 				}
 
-				t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
+				t.l.Debug().Msgf("(session: %d) got msg", session)
 
 				if err := preAck(msg); err != nil {
 					if isPermanentPreAckError(err) {
@@ -868,7 +865,7 @@ func (t *MessageQueueImpl) subscribe(
 					t.l.Error().Msgf("error in post-ack: %v", err)
 					return
 				}
-			}(rabbitMsg)
+			}(rabbitMsg, sessionCount)
 		}
 
 		t.l.Info().Msg("deliveries channel closed")
@@ -876,7 +873,9 @@ func (t *MessageQueueImpl) subscribe(
 		return nil
 	}
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		retryCount := 0
 		lastRetry := time.Now()
 

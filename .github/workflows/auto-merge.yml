@@ -4,7 +4,7 @@ on: pull_request_target
 
 jobs:
   auto-merge:
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-latest
     # TODO(gregfurman): Disabled for now. When do we _actully_ want changes to be auto-merged in?
     if: false
     permissions:
