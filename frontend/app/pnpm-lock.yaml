@@ -26,10 +26,10 @@ importers:
         version: 3.10.0(react-hook-form@7.72.1(react@18.3.1))
       '@lukemorales/query-key-factory':
         specifier: ^1.3.4
-        version: 1.3.4(@tanstack/query-core@5.96.2)(@tanstack/react-query@5.96.2(react@18.3.1))
+        version: 1.3.4(@tanstack/query-core@5.97.0)(@tanstack/react-query@5.97.0(react@18.3.1))
       '@melloware/react-logviewer':
-        specifier: ^6.5.1
-        version: 6.5.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)
+        specifier: ^6.5.2
+        version: 6.5.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)
       '@monaco-editor/react':
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -94,11 +94,11 @@ importers:
         specifier: ^2.23.0
         version: 2.23.1
       '@tanstack/react-query':
-        specifier: ^5.96.2
-        version: 5.96.2(react@18.3.1)
+        specifier: ^5.97.0
+        version: 5.97.0(react@18.3.1)
       '@tanstack/react-query-devtools':
-        specifier: ^5.96.2
-        version: 5.96.2(@tanstack/react-query@5.96.2(react@18.3.1))(react@18.3.1)
+        specifier: ^5.97.0
+        version: 5.97.0(@tanstack/react-query@5.97.0(react@18.3.1))(react@18.3.1)
       '@tanstack/react-router':
         specifier: ^1.141.0
         version: 1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -112,8 +112,8 @@ importers:
         specifier: ^4.17.24
         version: 4.17.24
       axios:
-        specifier: ^1.14.0
-        version: 1.14.0
+        specifier: ^1.15.0
+        version: 1.15.0
       better-emitter:
         specifier: ^4.0.1
         version: 4.0.1
@@ -142,8 +142,8 @@ importers:
         specifier: ^3.3.3
         version: 3.3.3
       jotai:
-        specifier: ^2.19.0
-        version: 2.19.0(@babel/core@7.28.3)(@babel/template@7.28.6)(@types/react@18.3.23)(react@18.3.1)
+        specifier: ^2.19.1
+        version: 2.19.1(@babel/core@7.28.3)(@babel/template@7.28.6)(@types/react@18.3.23)(react@18.3.1)
       js-confetti:
         specifier: ^0.13.1
         version: 0.13.1
@@ -151,17 +151,17 @@ importers:
         specifier: ^4.18.1
         version: 4.18.1
       lucide-react:
-        specifier: ^1.7.0
-        version: 1.7.0(react@18.3.1)
+        specifier: ^1.8.0
+        version: 1.8.0(react@18.3.1)
       monaco-themes:
         specifier: ^0.4.8
         version: 0.4.8
       posthog-js:
-        specifier: ^1.364.7
-        version: 1.364.7
+        specifier: ^1.367.0
+        version: 1.367.0
       qs:
         specifier: '>=6.14.2'
-        version: 6.15.0
+        version: 6.15.1
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -216,7 +216,7 @@ importers:
     devDependencies:
       '@trivago/prettier-plugin-sort-imports':
         specifier: ^6.0.2
-        version: 6.0.2(prettier@3.8.1)
+        version: 6.0.2(prettier@3.8.2)
       '@types/dagre':
         specifier: ^0.7.54
         version: 0.7.54
@@ -246,7 +246,7 @@ importers:
         version: 4.7.0(vite@6.4.1(@types/node@20.19.10)(jiti@2.5.1)(tsx@4.21.0)(yaml@2.8.3))
       autoprefixer:
         specifier: ^10.4.27
-        version: 10.4.27(postcss@8.5.8)
+        version: 10.4.27(postcss@8.5.9)
       cypress:
         specifier: ^13.17.0
         version: 13.17.0
@@ -264,7 +264,7 @@ importers:
         version: 2.32.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.9.2))(eslint@8.57.1)
       eslint-plugin-prettier:
         specifier: ^5.5.5
-        version: 5.5.5(@types/eslint@8.56.12)(eslint-config-prettier@9.1.2(eslint@8.57.1))(eslint@8.57.1)(prettier@3.8.1)
+        version: 5.5.5(@types/eslint@8.56.12)(eslint-config-prettier@9.1.2(eslint@8.57.1))(eslint@8.57.1)(prettier@3.8.2)
       eslint-plugin-react:
         specifier: ^7.37.4
         version: 7.37.5(eslint@8.57.1)
@@ -278,14 +278,14 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0(@typescript-eslint/eslint-plugin@7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.9.2))(eslint@8.57.1)(typescript@5.9.2))(eslint@8.57.1)
       postcss:
-        specifier: ^8.5.8
-        version: 8.5.8
+        specifier: ^8.5.9
+        version: 8.5.9
       prettier:
-        specifier: ^3.8.1
-        version: 3.8.1
+        specifier: ^3.8.2
+        version: 3.8.2
       prettier-plugin-tailwindcss:
         specifier: ^0.7.2
-        version: 0.7.2(@trivago/prettier-plugin-sort-imports@6.0.2(prettier@3.8.1))(prettier@3.8.1)
+        version: 0.7.2(@trivago/prettier-plugin-sort-imports@6.0.2(prettier@3.8.2))(prettier@3.8.2)
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.17
@@ -807,8 +807,8 @@ packages:
       '@tanstack/query-core': '>= 4.0.0'
       '@tanstack/react-query': '>= 4.0.0'
 
-  '@melloware/react-logviewer@6.5.1':
-    resolution: {integrity: sha512-ZDC8ATqdmvzPx+He7mZyG2/8nRnt0Hkn3ZWNOyzFw0LZ8RME4/t2ZStmaUK9YqJlAWnnUyMVHIg/wqaG2skZRg==}
+  '@melloware/react-logviewer@6.5.2':
+    resolution: {integrity: sha512-ZvlwhkJzM+aX+z3DaJOiL4Tm+0QwU44jupuQyyAAza3PNPeJ4QQIaYGRkM3rYKRPbXVO7SO1zvOYHRfrGzpKww==}
     peerDependencies:
       react: '>=17.0.0'
       react-dom: '>=17.0.0'
@@ -915,11 +915,11 @@ packages:
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
 
-  '@posthog/core@1.24.6':
-    resolution: {integrity: sha512-9WkcRKqmXSWIJcca6m3VwA9YbFd4HiG2hKEtDq6FcwEHlvfDhQQUZ5/sJZ47Fw8OtyNMHQ6rW4+COttk4Bg5NQ==}
+  '@posthog/core@1.25.2':
+    resolution: {integrity: sha512-h2FO7ut/BbfwpAXWpwdDHTzQgUo9ibDFEs6ZO+3cI3KPWQt5XwczK1OLAuPprcjm8T/jl0SH8jSFo5XdU4RbTg==}
 
-  '@posthog/types@1.364.7':
-    resolution: {integrity: sha512-Rg6q4wSu8krrn8f3Nv44kGXjor4qh5iG0typt2sB7/SYQFRSbXYE2C46+qDMcBYGxmRMsWBitBcZ9x94DQCnfA==}
+  '@posthog/types@1.367.0':
+    resolution: {integrity: sha512-FUcTEAeKhuHKyCcTQPx/sTN3s8S+PusPsiP8T/LrG/T7pDkwMfNZG0/P630JX6fT6qiW0moVvVSsaXgZDJF7wg==}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -1854,20 +1854,20 @@ packages:
     resolution: {integrity: sha512-NaOGLRrddszbQj9upGat6HG/4TKvXLvu+osAIgfxPYA+eIvYKv8GKDJOrY2D3/U9MRnKfMWD7bU4jeD4xmqyIg==}
     engines: {node: '>=20.19'}
 
-  '@tanstack/query-core@5.96.2':
-    resolution: {integrity: sha512-hzI6cTVh4KNRk8UtoIBS7Lv9g6BnJPXvBKsvYH1aGWvv0347jT3BnSvztOE+kD76XGvZnRC/t6qdW1CaIfwCeA==}
+  '@tanstack/query-core@5.97.0':
+    resolution: {integrity: sha512-QdpLP5VzVMgo4VtaPppRA2W04UFjIqX+bxke/ZJhE5cfd5UPkRzqIAJQt9uXkQJjqE8LBOMbKv7f8HCsZltXlg==}
 
-  '@tanstack/query-devtools@5.96.2':
-    resolution: {integrity: sha512-vBTB1Qhbm3nHSbEUtQwks/EdcAtFfEapr1WyBW4w2ExYKuXVi3jIxUIHf5MlSltiHuL7zNyUuanqT/7sI2sb6g==}
+  '@tanstack/query-devtools@5.97.0':
+    resolution: {integrity: sha512-ZMjAuYhQCKwKLKFMrD+HJDehHwWBVTGOuWBf4vEjR9unO+UGUjQ1mw2TuVbQKoLN/eRwB7qtlPsWBqobBoRBMQ==}
 
-  '@tanstack/react-query-devtools@5.96.2':
-    resolution: {integrity: sha512-nTFKLGuTOFvmFRvcyZ3ArWC/DnMNPoBh6h/2yD6rsf7TCTJCQt+oUWOp2uKPTIuEPtF/vN9Kw5tl5mD1Kbposw==}
+  '@tanstack/react-query-devtools@5.97.0':
+    resolution: {integrity: sha512-X4/VZKCbBIRj8cVD/oZCKTwwPmFXrY1VOfwUT5qI/+/JZYAUS+8vGNMqwBXbaAu1ZsVzzDzkT/wtBE/5OtQYGg==}
     peerDependencies:
-      '@tanstack/react-query': ^5.96.2
+      '@tanstack/react-query': ^5.97.0
       react: ^18 || ^19
 
-  '@tanstack/react-query@5.96.2':
-    resolution: {integrity: sha512-sYyzzJT4G0g02azzJ8o55VFFV31XvFpdUpG+unxS0vSaYsJnSPKGoI6WdPwUucJL1wpgGfwfmntNX/Ub1uOViA==}
+  '@tanstack/react-query@5.97.0':
+    resolution: {integrity: sha512-y4So4eGcQoK2WVMAcDNZE9ofB/p5v1OlKvtc1F3uqHwrtifobT7q+ZnXk2mRkc8E84HKYSlAE9z6HXl2V0+ySQ==}
     peerDependencies:
       react: ^18 || ^19
 
@@ -2323,8 +2323,8 @@ packages:
   aws4@1.13.2:
     resolution: {integrity: sha512-lHe62zvbTB5eEABUVi/AwVh0ZKY9rMMDhmm+eeyuuUQbQ3+J+fONVQOZyj+DdrvD4BY33uYniyRJ4UJIaSKAfw==}
 
-  axios@1.14.0:
-    resolution: {integrity: sha512-3Y8yrqLSwjuzpXuZ0oIYZ/XGgLwUIBU3uLvbcpb0pidD9ctpShJd43KSlEEkVQg6DS0G9NKyzOvBfUtDKEyHvQ==}
+  axios@1.15.0:
+    resolution: {integrity: sha512-wWyJDlAatxk30ZJer+GeCWS209sA42X+N5jU2jy6oHTp7ufw8uzUTVFBX9+wTfAlhiJXGS0Bq7X6efruWjuK9Q==}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -3426,8 +3426,8 @@ packages:
     resolution: {integrity: sha512-twQoecYPiVA5K/h6SxtORw/Bs3ar+mLUtoPSc7iMXzQzK8d7eJ/R09wmTwAjiamETn1cXYPGfNnu7DMoHgu12w==}
     hasBin: true
 
-  jotai@2.19.0:
-    resolution: {integrity: sha512-r2wwxEXP1F2JteDLZEOPoIpAHhV89paKsN5GWVYndPNMMP/uVZDcC+fNj0A8NjKgaPWzdyO8Vp8YcYKe0uCEqQ==}
+  jotai@2.19.1:
+    resolution: {integrity: sha512-sqm9lVZiqBHZH8aSRk32DSiZDHY3yUIlulXYn9GQj7/LvoUdYXSMti7ZPJGo+6zjzKFt5a25k/I6iBCi43PJcw==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@babel/core': '>=7.0.0'
@@ -3573,8 +3573,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.7.0:
-    resolution: {integrity: sha512-yI7BeItCLZJTXikmK4KNUGCKoGzSvbKlfCvw44bU4fXAL6v3gYS4uHD1jzsLkfwODYwI6Drw5Tu9Z5ulDe0TSg==}
+  lucide-react@1.8.0:
+    resolution: {integrity: sha512-WuvlsjngSk7TnTBJ1hsCy3ql9V9VOdcPkd3PKcSmM34vJD8KG6molxz7m7zbYFgICwsanQWmJ13JlYs4Zp7Arw==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -3846,12 +3846,12 @@ packages:
   postcss-value-parser@4.2.0:
     resolution: {integrity: sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==}
 
-  postcss@8.5.8:
-    resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
+  postcss@8.5.9:
+    resolution: {integrity: sha512-7a70Nsot+EMX9fFU3064K/kdHWZqGVY+BADLyXc8Dfv+mTLLVl6JzJpPaCZ2kQL9gIJvKXSLMHhqdRRjwQeFtw==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.364.7:
-    resolution: {integrity: sha512-mjYUjim0PSNUjxbGR8MGl7hnbbJMCU+Dy4gRexMRGMRlZT9tskGzsgS4Q6Cvx+63lpkQg5kJrC4bHCuILnQ4/A==}
+  posthog-js@1.367.0:
+    resolution: {integrity: sha512-jWNwB8XjlVUC9PbGaIlmsyohUDMBrwf7cvLuOY3lIOmWVO3L6VxTE3GZShjxpFKQtmWcPxFbf1hcbct1YCb6xg==}
 
   preact@10.28.2:
     resolution: {integrity: sha512-lbteaWGzGHdlIuiJ0l2Jq454m6kcpI1zNje6d8MlGAFlYvP2GO4ibnat7P74Esfz4sPTdM6UxtTwh/d3pwM9JA==}
@@ -3919,8 +3919,8 @@ packages:
       prettier-plugin-svelte:
         optional: true
 
-  prettier@3.8.1:
-    resolution: {integrity: sha512-UOnG6LftzbdaHZcKoPFtOcCKztrQ57WkHDeRD9t/PTQtmT0NHSeWWepj6pS0z/N7+08BHFDQVUrfmfMRcZwbMg==}
+  prettier@3.8.2:
+    resolution: {integrity: sha512-8c3mgTe0ASwWAJK+78dpviD+A8EqhndQPUBpNUIPt6+xWlIigCwfN01lWr9MAede4uqXGTEKeQWTvzb3vjia0Q==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -3967,8 +3967,8 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
-  qs@6.15.0:
-    resolution: {integrity: sha512-mAZTtNCeetKMH+pSjrb76NAM8V9a05I9aBZOHztWy/UqcJdQYNsf59vrRKWnojAT9Y+GbIvoTBC++CPHqpDBhQ==}
+  qs@6.15.1:
+    resolution: {integrity: sha512-6YHEFRL9mfgcAvql/XhwTvf5jKcOiiupt2FiJxHkiX1z4j7WL8J/jRHYLluORvc1XxB5rV20KoeK00gVJamspg==}
     engines: {node: '>=0.6'}
 
   query-selector-shadow-dom@1.0.1:
@@ -4231,8 +4231,8 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  side-channel-list@1.0.0:
-    resolution: {integrity: sha512-FCLHtRD/gnpCiCHEiJLOwdmFP+wzCmDEkc9y7NsYxeF4u7Btsn1ZuwgwJGxImImHicJArLP4R0yX4c2KCrMrTA==}
+  side-channel-list@1.0.1:
+    resolution: {integrity: sha512-mjn/0bi/oUURjc5Xl7IaWi/OJJJumuoJFQJfDDyO46+hBWsfaVM65TBHq2eoZBhzl9EchxOijpkbRC8SVBQU0w==}
     engines: {node: '>= 0.4'}
 
   side-channel-map@1.0.1:
@@ -4870,7 +4870,7 @@ snapshots:
       json-stringify-safe: 5.0.1
       mime-types: 2.1.35
       performance-now: 2.1.0
-      qs: 6.15.0
+      qs: 6.15.1
       safe-buffer: 5.2.1
       tough-cookie: 5.1.2
       tunnel-agent: 0.6.0
@@ -5122,12 +5122,12 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lukemorales/query-key-factory@1.3.4(@tanstack/query-core@5.96.2)(@tanstack/react-query@5.96.2(react@18.3.1))':
+  '@lukemorales/query-key-factory@1.3.4(@tanstack/query-core@5.97.0)(@tanstack/react-query@5.97.0(react@18.3.1))':
     dependencies:
-      '@tanstack/query-core': 5.96.2
-      '@tanstack/react-query': 5.96.2(react@18.3.1)
+      '@tanstack/query-core': 5.97.0
+      '@tanstack/react-query': 5.97.0(react@18.3.1)
 
-  '@melloware/react-logviewer@6.5.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)':
+  '@melloware/react-logviewer@6.5.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)':
     dependencies:
       hotkeys-js: 4.0.3
       immutable: 5.1.5
@@ -5245,9 +5245,9 @@ snapshots:
 
   '@pkgr/core@0.2.9': {}
 
-  '@posthog/core@1.24.6': {}
+  '@posthog/core@1.25.2': {}
 
-  '@posthog/types@1.364.7': {}
+  '@posthog/types@1.367.0': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -6228,19 +6228,19 @@ snapshots:
 
   '@tanstack/history@1.161.6': {}
 
-  '@tanstack/query-core@5.96.2': {}
+  '@tanstack/query-core@5.97.0': {}
 
-  '@tanstack/query-devtools@5.96.2': {}
+  '@tanstack/query-devtools@5.97.0': {}
 
-  '@tanstack/react-query-devtools@5.96.2(@tanstack/react-query@5.96.2(react@18.3.1))(react@18.3.1)':
+  '@tanstack/react-query-devtools@5.97.0(@tanstack/react-query@5.97.0(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@tanstack/query-devtools': 5.96.2
-      '@tanstack/react-query': 5.96.2(react@18.3.1)
+      '@tanstack/query-devtools': 5.97.0
+      '@tanstack/react-query': 5.97.0(react@18.3.1)
       react: 18.3.1
 
-  '@tanstack/react-query@5.96.2(react@18.3.1)':
+  '@tanstack/react-query@5.97.0(react@18.3.1)':
     dependencies:
-      '@tanstack/query-core': 5.96.2
+      '@tanstack/query-core': 5.97.0
       react: 18.3.1
 
   '@tanstack/react-router-devtools@1.141.0(@tanstack/react-router@1.141.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@tanstack/router-core@1.168.9)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(solid-js@1.9.10)':
@@ -6310,7 +6310,7 @@ snapshots:
 
   '@tanstack/table-core@8.21.3': {}
 
-  '@trivago/prettier-plugin-sort-imports@6.0.2(prettier@3.8.1)':
+  '@trivago/prettier-plugin-sort-imports@6.0.2(prettier@3.8.2)':
     dependencies:
       '@babel/generator': 7.29.1
       '@babel/parser': 7.29.2
@@ -6320,7 +6320,7 @@ snapshots:
       lodash-es: 4.18.1
       minimatch: 9.0.9
       parse-imports-exports: 0.2.4
-      prettier: 3.8.1
+      prettier: 3.8.2
     transitivePeerDependencies:
       - supports-color
 
@@ -6757,13 +6757,13 @@ snapshots:
 
   at-least-node@1.0.0: {}
 
-  autoprefixer@10.4.27(postcss@8.5.8):
+  autoprefixer@10.4.27(postcss@8.5.9):
     dependencies:
       browserslist: 4.28.2
       caniuse-lite: 1.0.30001785
       fraction.js: 5.3.4
       picocolors: 1.1.1
-      postcss: 8.5.8
+      postcss: 8.5.9
       postcss-value-parser: 4.2.0
 
   available-typed-arrays@1.0.7:
@@ -6774,7 +6774,7 @@ snapshots:
 
   aws4@1.13.2: {}
 
-  axios@1.14.0:
+  axios@1.15.0:
     dependencies:
       follow-redirects: 1.15.11
       form-data: 4.0.5
@@ -7435,10 +7435,10 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-plugin-prettier@5.5.5(@types/eslint@8.56.12)(eslint-config-prettier@9.1.2(eslint@8.57.1))(eslint@8.57.1)(prettier@3.8.1):
+  eslint-plugin-prettier@5.5.5(@types/eslint@8.56.12)(eslint-config-prettier@9.1.2(eslint@8.57.1))(eslint@8.57.1)(prettier@3.8.2):
     dependencies:
       eslint: 8.57.1
-      prettier: 3.8.1
+      prettier: 3.8.2
       prettier-linter-helpers: 1.0.1
       synckit: 0.11.12
     optionalDependencies:
@@ -8070,7 +8070,7 @@ snapshots:
   jiti@2.5.1:
     optional: true
 
-  jotai@2.19.0(@babel/core@7.28.3)(@babel/template@7.28.6)(@types/react@18.3.23)(react@18.3.1):
+  jotai@2.19.1(@babel/core@7.28.3)(@babel/template@7.28.6)(@types/react@18.3.23)(react@18.3.1):
     optionalDependencies:
       '@babel/core': 7.28.3
       '@babel/template': 7.28.6
@@ -8204,7 +8204,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.7.0(react@18.3.1):
+  lucide-react@1.8.0(react@18.3.1):
     dependencies:
       react: 18.3.1
 
@@ -8414,28 +8414,28 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postcss-import@15.1.0(postcss@8.5.8):
+  postcss-import@15.1.0(postcss@8.5.9):
     dependencies:
-      postcss: 8.5.8
+      postcss: 8.5.9
       postcss-value-parser: 4.2.0
       read-cache: 1.0.0
       resolve: 1.22.10
 
-  postcss-js@4.0.1(postcss@8.5.8):
+  postcss-js@4.0.1(postcss@8.5.9):
     dependencies:
       camelcase-css: 2.0.1
-      postcss: 8.5.8
+      postcss: 8.5.9
 
-  postcss-load-config@4.0.2(postcss@8.5.8):
+  postcss-load-config@4.0.2(postcss@8.5.9):
     dependencies:
       lilconfig: 3.1.3
       yaml: 2.8.3
     optionalDependencies:
-      postcss: 8.5.8
+      postcss: 8.5.9
 
-  postcss-nested@6.2.0(postcss@8.5.8):
+  postcss-nested@6.2.0(postcss@8.5.9):
     dependencies:
-      postcss: 8.5.8
+      postcss: 8.5.9
       postcss-selector-parser: 6.1.2
 
   postcss-selector-parser@6.1.2:
@@ -8445,21 +8445,21 @@ snapshots:
 
   postcss-value-parser@4.2.0: {}
 
-  postcss@8.5.8:
+  postcss@8.5.9:
     dependencies:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.364.7:
+  posthog-js@1.367.0:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.208.0
       '@opentelemetry/exporter-logs-otlp-http': 0.208.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.6.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-logs': 0.208.0(@opentelemetry/api@1.9.1)
-      '@posthog/core': 1.24.6
-      '@posthog/types': 1.364.7
+      '@posthog/core': 1.25.2
+      '@posthog/types': 1.367.0
       core-js: 3.49.0
       dompurify: 3.3.3
       fflate: 0.4.8
@@ -8475,13 +8475,13 @@ snapshots:
     dependencies:
       fast-diff: 1.3.0
 
-  prettier-plugin-tailwindcss@0.7.2(@trivago/prettier-plugin-sort-imports@6.0.2(prettier@3.8.1))(prettier@3.8.1):
+  prettier-plugin-tailwindcss@0.7.2(@trivago/prettier-plugin-sort-imports@6.0.2(prettier@3.8.2))(prettier@3.8.2):
     dependencies:
-      prettier: 3.8.1
+      prettier: 3.8.2
     optionalDependencies:
-      '@trivago/prettier-plugin-sort-imports': 6.0.2(prettier@3.8.1)
+      '@trivago/prettier-plugin-sort-imports': 6.0.2(prettier@3.8.2)
 
-  prettier@3.8.1: {}
+  prettier@3.8.2: {}
 
   pretty-bytes@5.6.0: {}
 
@@ -8529,7 +8529,7 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  qs@6.15.0:
+  qs@6.15.1:
     dependencies:
       side-channel: 1.1.0
 
@@ -8850,7 +8850,7 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  side-channel-list@1.0.0:
+  side-channel-list@1.0.1:
     dependencies:
       es-errors: 1.3.0
       object-inspect: 1.13.4
@@ -8874,7 +8874,7 @@ snapshots:
     dependencies:
       es-errors: 1.3.0
       object-inspect: 1.13.4
-      side-channel-list: 1.0.0
+      side-channel-list: 1.0.1
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
@@ -9041,11 +9041,11 @@ snapshots:
       normalize-path: 3.0.0
       object-hash: 3.0.0
       picocolors: 1.1.1
-      postcss: 8.5.8
-      postcss-import: 15.1.0(postcss@8.5.8)
-      postcss-js: 4.0.1(postcss@8.5.8)
-      postcss-load-config: 4.0.2(postcss@8.5.8)
-      postcss-nested: 6.2.0(postcss@8.5.8)
+      postcss: 8.5.9
+      postcss-import: 15.1.0(postcss@8.5.9)
+      postcss-js: 4.0.1(postcss@8.5.9)
+      postcss-load-config: 4.0.2(postcss@8.5.9)
+      postcss-nested: 6.2.0(postcss@8.5.9)
       postcss-selector-parser: 6.1.2
       resolve: 1.22.10
       sucrase: 3.35.0
@@ -9266,7 +9266,7 @@ snapshots:
       esbuild: 0.25.9
       fdir: 6.5.0(picomatch@4.0.3)
       picomatch: 4.0.3
-      postcss: 8.5.8
+      postcss: 8.5.9
       rollup: 4.59.0
       tinyglobby: 0.2.15
     optionalDependencies:
