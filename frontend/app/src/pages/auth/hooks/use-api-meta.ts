@@ -3,6 +3,7 @@ import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { useMemo } from 'react';
+import {getCloudMetadataQuery} from "@/hooks/use-cloud.ts";
 
 export default function useApiMeta() {
   const { handleApiError } = useApiError({});
@@ -24,15 +25,8 @@ export default function useApiMeta() {
     return metaQuery.data?.data;
   }, [metaQuery.data]);
 
-  const cloudMetaQuery = useQuery({
-    queryKey: ['cloudmetadata:get'],
-    queryFn: async () => {
-      const meta = await api.cloudMetadataGet();
-      return meta;
-    },
-    staleTime: 1000 * 60,
-  });
-  if (!cloudMetaQuery.isError && cloudMetaQuery.data?.data?.ssoEnabled) {
+  const cloudMetaQuery = useQuery(getCloudMetadataQuery);
+  if (!cloudMetaQuery.isError && cloudMetaQuery.data?.ssoEnabled) {
     data?.auth?.schemes?.push('propelauth');
   }
   return {
