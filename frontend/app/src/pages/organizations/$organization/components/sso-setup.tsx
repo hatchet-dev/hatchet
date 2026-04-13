@@ -26,7 +26,7 @@ const makeApi = (orgId: string): SsoApi => ({
   },
   async upsert(body) {
     try {
-      await cloudApi.ssoCreate(orgId, body);
+      await cloudApi.ssoUpsert(orgId, body);
       return { ok: true, data: undefined };
     } catch (error: any) {
       if (error instanceof AxiosError) {

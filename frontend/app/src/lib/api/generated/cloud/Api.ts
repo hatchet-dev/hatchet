@@ -33,7 +33,6 @@ import {
   FeatureFlags,
   InfraAsCodeRequest,
   InstanceList,
-  LabelName,
   ListGithubAppInstallationsResponse,
   ListGithubBranchesResponse,
   ListGithubReposResponse,
@@ -1403,10 +1402,10 @@ export class Api<
       ...params,
     });
   /**
-   * @description List all organizations the authenticated user is a member of
+   * @description List all SSO configurations the organization has created
    *
    * @name SsoGet
-   * @summary List Organizations
+   * @summary List Organization's SSO Configs
    * @request GET:/api/v1/management/organizations/{organization}/sso
    * @secure
    */
@@ -1419,77 +1418,40 @@ export class Api<
       ...params,
     });
   /**
-   * @description Create a new organization
+   * @description Create a new organization SSO config
    *
-   * @name SsoCreate
-   * @summary Create Organization
+   * @name SsoUpsert
+   * @summary Upsert organization SSO config
    * @request POST:/api/v1/management/organizations/{organization}/sso
    * @secure
    */
-  ssoCreate = (
+  ssoUpsert = (
     organization: string,
     data: {
       idpInfoFromCustomer: Record<string, any>;
     },
     params: RequestParams = {},
   ) =>
-    this.request<LabelName, APIError>({
+    this.request<void, APIError>({
       path: `/api/v1/management/organizations/${organization}/sso`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
       ...params,
     });
   /**
-   * @description Create a new organization
+   * @description Delete organization SSO config
    *
    * @name SsoDelete
    * @request DELETE:/api/v1/management/organizations/{organization}/sso
    * @secure
    */
   ssoDelete = (organization: string, params: RequestParams = {}) =>
-    this.request<LabelName, APIError>({
+    this.request<void, APIError>({
       path: `/api/v1/management/organizations/${organization}/sso`,
       method: "DELETE",
       secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Starts the OAuth flow
-   *
-   * @tags User
-   * @name UserUpdateSsoOauthStart
-   * @summary Start OAuth flow
-   * @request GET:/api/v1/cloud/users/sso/start
-   */
-  userUpdateSsoOauthStart = (
-    query: {
-      /** The user email */
-      email: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<any, void>({
-      path: `/api/v1/cloud/users/sso/start`,
-      method: "GET",
-      query: query,
-      ...params,
-    });
-  /**
-   * @description Completes the OAuth flow
-   *
-   * @tags User
-   * @name UserUpdateSsoOauthCallback
-   * @summary Complete OAuth flow
-   * @request GET:/api/v1/cloud/users/sso/callback
-   */
-  userUpdateSsoOauthCallback = (params: RequestParams = {}) =>
-    this.request<any, void>({
-      path: `/api/v1/cloud/users/sso/callback`,
-      method: "GET",
       ...params,
     });
   /**
@@ -1527,13 +1489,12 @@ export class Api<
     data: CreateOrganizationSsoDomainRequest,
     params: RequestParams = {},
   ) =>
-    this.request<LabelName, APIError>({
+    this.request<void, APIError>({
       path: `/api/v1/management/organizations/${organization}/sso_domain`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
       ...params,
     });
   /**
@@ -1550,13 +1511,47 @@ export class Api<
     },
     params: RequestParams = {},
   ) =>
-    this.request<LabelName, APIError>({
+    this.request<void, APIError>({
       path: `/api/v1/management/organizations/${organization}/sso_domain`,
       method: "DELETE",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateSsoOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/cloud/users/sso/start
+   */
+  userUpdateSsoOauthStart = (
+    query: {
+      /** The user email */
+      email: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<any, void>({
+      path: `/api/v1/cloud/users/sso/start`,
+      method: "GET",
+      query: query,
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateSsoOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/cloud/users/sso/callback
+   */
+  userUpdateSsoOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/cloud/users/sso/callback`,
+      method: "GET",
       ...params,
     });
 }
