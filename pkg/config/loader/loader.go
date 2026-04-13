@@ -512,7 +512,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Version:  version,
 		}, dc.V1.SecurityCheck())
 
-		defer securityCheck.Check()
+		go securityCheck.Check()
 	}
 
 	var analyticsEmitter analytics.Analytics
