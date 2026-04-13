@@ -1,4 +1,4 @@
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/v1/ui/input";
 import { SsoErrorText } from "./SsoErrorText";
 
 export function SsoFormInput({

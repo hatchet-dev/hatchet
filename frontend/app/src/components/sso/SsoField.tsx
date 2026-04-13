@@ -1,4 +1,4 @@
-import { Label } from "@/components/ui/label";
+import { Label } from "@/components/v1/ui/label";
 
 export function SsoField({
     label,

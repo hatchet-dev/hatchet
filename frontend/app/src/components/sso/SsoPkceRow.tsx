@@ -1,4 +1,4 @@
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@/components/v1/ui/switch";
 
 export function SsoPkceRow({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
     return (

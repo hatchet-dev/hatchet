@@ -1,4 +1,4 @@
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/v1/ui/alert";
 import { useSsoErrorAlert } from "@/hooks/sso/SsoSetupHooks";
 
 export function SsoErrorAlert() {

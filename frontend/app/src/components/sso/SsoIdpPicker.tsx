@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/v1/ui/button";
 import { PROVIDER_CONFIG } from "@/lib/sso/sso-constants";
 import { ProviderKey } from "@/lib/sso/sso-types";
 import { useSsoIdpPicker } from "@/hooks/sso/SsoSetupHooks";

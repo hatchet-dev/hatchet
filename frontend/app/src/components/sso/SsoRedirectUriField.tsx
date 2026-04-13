@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/v1/ui/button";
+import { Input } from "@/components/v1/ui/input";
 import { SsoField } from "./SsoField";
 import { copySsoToClipboard } from "@/lib/sso/sso-utils";
 

@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/v1/ui/button";
 import {
     Dialog,
     DialogContent,
@@ -7,7 +7,7 @@ import {
     DialogTitle,
     DialogDescription,
     DialogFooter,
-} from "@/components/ui/dialog";
+} from "@/components/v1/ui/dialog";
 import { useSsoDeleteConfirmation } from "@/hooks/sso/SsoSetupHooks";
 
 export function SsoDeleteConfirmationDialog() {
