@@ -17,17 +17,21 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { RetentionBanner } from '@/components/v1/retention-banner';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { isBeforeRetention } from '@/lib/utils/retention';
+import { useAppContext } from '@/providers/app-context';
 import { VisibilityState } from '@tanstack/react-table';
 import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 export default function Events() {
+  const { tenant } = useAppContext();
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
     null,
   );
@@ -77,13 +81,19 @@ export default function Events() {
     setOpenPayloadPopover,
   });
 
+  const defaultSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const isOutsideRetention =
+    !!tenant?.dataRetentionPeriod &&
+    isBeforeRetention(defaultSince, tenant.dataRetentionPeriod);
+
   return (
     <>
       <DataTable
         error={error}
         isLoading={isLoading}
         columns={tableColumns}
-        data={events}
+        data={isOutsideRetention ? [] : events}
         filters={[
           {
             columnId: keyKey,
@@ -137,15 +147,25 @@ export default function Events() {
         }}
         onResetFilters={resetFilters}
         emptyState={
-          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-            <p className="text-lg font-semibold">No events found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.v1['external-events']['run-on-event']}
-                label="Learn about pushing events to Hatchet"
-              />
+          isOutsideRetention ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-full max-w-lg">
+                <RetentionBanner
+                  retentionPeriod={tenant!.dataRetentionPeriod!}
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+              <p className="text-lg font-semibold">No events found</p>
+              <div className="w-fit">
+                <DocsButton
+                  doc={docsPages.v1['external-events']['run-on-event']}
+                  label="Learn about pushing events to Hatchet"
+                />
+              </div>
+            </div>
+          )
         }
       />
     </>

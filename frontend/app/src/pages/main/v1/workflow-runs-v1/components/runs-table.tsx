@@ -10,6 +10,7 @@ import {
   ZoomableChart,
 } from '@/components/v1/molecules/charts/zoomable';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { RetentionBanner } from '@/components/v1/retention-banner';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
@@ -23,14 +24,17 @@ import { Skeleton } from '@/components/v1/ui/skeleton';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { isBeforeRetention } from '@/lib/utils/retention';
+import { useAppContext } from '@/providers/app-context';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const GetWorkflowChart = () => {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const { refetchInterval } = useRefetchInterval();
 
   const {
@@ -84,7 +88,7 @@ const GetWorkflowChart = () => {
 };
 
 export function RunsTable({ leftLabel }: { leftLabel?: string }) {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant, tenantId } = useAppContext();
   const sidePanel = useSidePanel();
   const { setIsFrozen } = useRefetchInterval();
 
@@ -160,7 +164,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
   const tableColumns = useMemo(
     () =>
       columns(
-        tenantId,
+        tenantId!,
         selectedAdditionalMetaRunId,
         handleAdditionalMetadataClick,
         handleTaskRunIdClick,
@@ -193,6 +197,11 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
   const isRunningFirstLoad = isRunsLoading || isStatusCountsLoading;
+
+  const isOutsideRetention =
+    !!tenant?.dataRetentionPeriod &&
+    !!filters.apiFilters.since &&
+    isBeforeRetention(filters.apiFilters.since, tenant.dataRetentionPeriod);
 
   const leftActions = [
     ...(!hideCounts
@@ -253,21 +262,31 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       <div className="min-h-0 flex-1">
         <DataTable
           emptyState={
-            <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-              <p className="text-lg font-semibold">No runs found</p>
-              <div className="w-fit">
-                <DocsButton
-                  doc={docsPages.v1.quickstart}
-                  label={'Learn more about tasks'}
-                />
+            isOutsideRetention ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-full max-w-lg">
+                  <RetentionBanner
+                    retentionPeriod={tenant!.dataRetentionPeriod!}
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+                <p className="text-lg font-semibold">No runs found</p>
+                <div className="w-fit">
+                  <DocsButton
+                    doc={docsPages.v1.quickstart}
+                    label={'Learn more about tasks'}
+                  />
+                </div>
+              </div>
+            )
           }
           isLoading={isRunningFirstLoad}
           columns={tableColumns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
-          data={tableRows}
+          data={isOutsideRetention ? [] : tableRows}
           filters={toolbarFilters}
           leftActions={leftActions}
           columnFilters={filters.columnFilters}
