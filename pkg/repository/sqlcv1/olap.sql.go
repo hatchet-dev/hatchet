@@ -4218,32 +4218,29 @@ WITH inputs AS (
     )
     RETURNING
         t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
-), all_result_tasks AS (
-    SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, TRUE AS was_updated
-    FROM updated_tasks
-    UNION ALL
-    -- Tasks from inputs that were found but not updated (status already at target or higher priority)
-    SELECT
-        lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.dag_id, lt.dag_inserted_at, (lt.dag_id IS NOT NULL)::BOOLEAN AS is_dag_task, FALSE AS was_updated
-    FROM locked_tasks lt
-    WHERE NOT EXISTS (
-        SELECT 1 FROM updated_tasks ut WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
-    )
 )
 
 SELECT
     tenant_id,
-    id AS task_id,
-    inserted_at AS task_inserted_at,
+    id,
+    inserted_at,
     readable_status,
     external_id,
     latest_worker_id,
     workflow_id,
     dag_id,
     dag_inserted_at,
-    is_dag_task,
-    was_updated
-FROM all_result_tasks
+    (dag_id IS NOT NULL)::BOOLEAN AS is_dag_task,
+    (SELECT EXISTS (
+        SELECT 1
+        FROM updated_tasks ut
+        WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (all_result_tasks.tenant_id, all_result_tasks.id, all_result_tasks.inserted_at)
+    )) AS was_updated
+FROM v1_tasks_olap
+WHERE (inserted_at, id, tenant_id) IN (
+    SELECT task_inserted_at, task_id, tenant_id
+    FROM inputs
+)
 `
 
 type UpdateTaskStatusesFromMQParams struct {
@@ -4257,8 +4254,8 @@ type UpdateTaskStatusesFromMQParams struct {
 
 type UpdateTaskStatusesFromMQRow struct {
 	TenantID       uuid.UUID            `json:"tenant_id"`
-	TaskID         int64                `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
+	ID             int64                `json:"id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	ExternalID     uuid.UUID            `json:"external_id"`
 	LatestWorkerID *uuid.UUID           `json:"latest_worker_id"`
@@ -4287,8 +4284,8 @@ func (q *Queries) UpdateTaskStatusesFromMQ(ctx context.Context, db DBTX, arg Upd
 		var i UpdateTaskStatusesFromMQRow
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.TaskID,
-			&i.TaskInsertedAt,
+			&i.ID,
+			&i.InsertedAt,
 			&i.ReadableStatus,
 			&i.ExternalID,
 			&i.LatestWorkerID,
