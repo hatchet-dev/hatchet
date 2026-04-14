@@ -1787,11 +1787,6 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 				return fmt.Errorf("failed to find min inserted at for task status updates: %w", err)
 			}
 
-			// two-shot thing here - instead of reading from the temp tables, we should:
-			// 1. read off of Rabbit
-			// 2. dedupe using the "highest" status value
-			// 3. update statuses
-			// 4. ack the rabbit message
 			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
