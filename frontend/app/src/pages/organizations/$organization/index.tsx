@@ -36,6 +36,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import SSOPage from '@/pages/organizations/$organization/components/sso-setup.tsx';
 import { useUserUniverse } from '@/providers/user-universe.tsx';
@@ -58,15 +59,17 @@ import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
-import useApiMeta from "@/pages/auth/hooks/use-api-meta.ts";
 
 type Section = 'tenants' | 'members' | 'tokens' | 'sso';
 
-const NAV_ITEMS: { key: Section; label: string; icon: typeof KeyIcon }[] = [
-  { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
-  { key: 'members', label: 'Members', icon: UserIcon },
-  { key: 'tokens', label: 'Management Tokens', icon: KeyIcon },
-];
+const NAV_ITEMS: Record<
+  string,
+  { key: Section; label: string; icon: typeof KeyIcon }
+> = {
+  tenants: { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
+  members: { key: 'members', label: 'Members', icon: UserIcon },
+  tokens: { key: 'tokens', label: 'Management Tokens', icon: KeyIcon },
+};
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams({
@@ -98,14 +101,12 @@ export default function OrganizationPage() {
   const { ssoEnabled } = useApiMeta();
   // conditionally enable the SSO button
   if (ssoEnabled) {
-    NAV_ITEMS.push({ key: 'sso', label: 'SSO', icon: KeyIcon });
+    NAV_ITEMS.sso = { key: 'sso', label: 'SSO', icon: KeyIcon };
   }
   const [newSsoDomain, setNewSsoDomain] = useState('');
   const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
 
-  const {
-    isCloudEnabled,
-  } = useUserUniverse();
+  const { isCloudEnabled } = useUserUniverse();
   const handleStartEdit = () => {
     if (organizationQuery.data?.name) {
       setEditedName(organizationQuery.data.name);
@@ -585,7 +586,7 @@ export default function OrganizationPage() {
       <div className="grid flex-1 grid-cols-[240px_1fr] overflow-hidden">
         <div className="flex flex-col border-r">
           <nav className="flex-1 space-y-1 px-3 py-3">
-            {NAV_ITEMS.map((item) => (
+            {Object.values(NAV_ITEMS).map((item) => (
               <button
                 key={item.key}
                 onClick={() => setActiveSection(item.key)}
@@ -606,7 +607,7 @@ export default function OrganizationPage() {
         <div className="flex flex-col overflow-hidden">
           <div className="flex h-12 shrink-0 items-center justify-between p-8">
             <h2 className="text-lg font-semibold">
-              {NAV_ITEMS.find((i) => i.key === activeSection)?.label}
+              {NAV_ITEMS[activeSection]?.label}
             </h2>
             {activeSection === 'tenants' && (
               <Button
@@ -647,9 +648,7 @@ export default function OrganizationPage() {
                 Create Token
               </Button>
             )}
-            {activeSection === 'sso' && isCloudEnabled && (
-              <SSOPage />
-            )}
+            {activeSection === 'sso' && isCloudEnabled && <SSOPage />}
           </div>
 
           <div className="flex-1 overflow-y-auto px-8">
@@ -762,7 +761,7 @@ export default function OrganizationPage() {
               </>
             )}
 
-            {activeSection === 'sso' && ssoEnabled (
+            {activeSection === 'sso' && ssoEnabled && (
               <div className="space-y-8">
                 {/* SSO Domains Table */}
                 {organizationSsoDomainGetQuery.isLoading ? (
