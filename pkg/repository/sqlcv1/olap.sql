@@ -1079,7 +1079,7 @@ WITH inputs AS (
     UNION ALL
     -- Tasks from inputs that were found but not updated (status already at target or higher priority)
     SELECT
-        lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.dag_id, lt.dag_inserted_at, lt.is_dag_task, FALSE AS was_updated
+        lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.dag_id, lt.dag_inserted_at, (lt.dag_id IS NOT NULL)::BOOLEAN AS is_dag_task, FALSE AS was_updated
     FROM locked_tasks lt
     WHERE NOT EXISTS (
         SELECT 1 FROM updated_tasks ut WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
