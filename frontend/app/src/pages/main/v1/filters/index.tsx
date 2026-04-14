@@ -98,7 +98,7 @@ export default function Filters() {
           <div className="w-fit">
             <DocsButton
               doc={docsPages.v1.events}
-              scrollTo="event-filtering"
+              scrollTo="event-filters"
               label="Learn about event filters"
             />
           </div>
