@@ -2,10 +2,12 @@ package tasks
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -29,6 +31,12 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 
 	if !ok {
 		return nil, echo.NewHTTPError(500, "Task type assertion failed")
+	}
+
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+
+	if ts := task.InsertedAt; ts.Valid && v1handlers.IsBeforeRetention(ts.Time, tenant.DataRetentionPeriod) {
+		return nil, echo.NewHTTPError(http.StatusGone, "task is outside the data retention window")
 	}
 
 	attempt := request.Params.Attempt

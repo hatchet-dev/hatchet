@@ -7,12 +7,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
-
-	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
 func allOlapStatuses(runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStatusOlap {
@@ -97,13 +97,13 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, retentionPeriod string) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
 	var (
 		statuses       = allOlapStatuses(request.Params.RunningFilter)
-		since          = request.Params.Since
+		since          = v1handlers.ClampToRetention(request.Params.Since, retentionPeriod)
 		limit    int64 = 50
 		offset   int64
 	)
@@ -244,13 +244,13 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, retentionPeriod string) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
 	var (
 		statuses          = allOlapStatuses(request.Params.RunningFilter)
-		since             = request.Params.Since
+		since             = v1handlers.ClampToRetention(request.Params.Since, retentionPeriod)
 		workflowIds       = []uuid.UUID{}
 		limit       int64 = 50
 		offset      int64
@@ -359,9 +359,9 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	defer span.End()
 
 	if request.Params.OnlyTasks {
-		return t.OnlyTasks(spanContext, request, tenantId)
+		return t.OnlyTasks(spanContext, request, tenantId, tenant.DataRetentionPeriod)
 	} else {
-		return t.WithDags(spanContext, request, tenantId)
+		return t.WithDags(spanContext, request, tenantId, tenant.DataRetentionPeriod)
 	}
 }
 

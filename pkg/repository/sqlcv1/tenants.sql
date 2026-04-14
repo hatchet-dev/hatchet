@@ -611,7 +611,8 @@ SELECT
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
     t."version" as "tenantVersion",
-    t."environment" as "tenantEnvironment"
+    t."environment" as "tenantEnvironment",
+    t."dataRetentionPeriod" as "tenantDataRetentionPeriod"
 FROM
     "TenantMember" tm
 JOIN
