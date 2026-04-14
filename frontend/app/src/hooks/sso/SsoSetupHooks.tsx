@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PROVIDER_CONFIG } from "@/lib/sso/sso-constants";
 import { createFormSchema, editFormSchema, FormValues } from "@/lib/sso/sso-schemas";
 import { IdpInfoFromCustomer, ProviderKey, SsoApi, SsoSetupStep } from "@/lib/sso/sso-types";
@@ -23,8 +24,8 @@ export type SsoSetupContextValue = {
     isOpen: boolean;
     setIsOpen: (open: boolean) => void;
     onChange: (key: string, value: string | boolean) => void;
-    onSave: () => Promise<void>;
-    onDelete: () => Promise<void>;
+    onSave: () => void;
+    onDelete: () => void;
     handleProviderSelect: (p: ProviderKey) => void;
     handleBack: () => void;
     reset: () => void;
@@ -51,9 +52,6 @@ export function SsoSetupProvider({
     const [form, setForm] = useState<FormValues>(() => PROVIDER_CONFIG.Generic.defaultForm as FormValues);
 
     const [step, setStep] = useState<SsoSetupStep>(SsoSetupStep.ProviderSelection);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [deleting, setDeleting] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -63,29 +61,64 @@ export function SsoSetupProvider({
     const [isOpen, setIsOpen] = useState(false);
 
     const safeApi = useMemo(() => normalizeSsoApi(api), [api]);
+    const queryClient = useQueryClient();
 
     // Load existing configuration
-    useEffect(() => {
-        let mounted = true;
-        (async () => {
-            const res = await safeApi.get();
-            console.log(res)
-            if (!mounted) return;
-            if (res.ok && res.data.idpInfoFromCustomer) {
-                const existingIdpInfo = res.data.idpInfoFromCustomer;
-                setIdpConfiguration(existingIdpInfo);
-                const inferredProvider = inferSsoProvider(existingIdpInfo);
-                setProvider(inferredProvider);
-                setForm(hydrateSsoForm(inferredProvider, existingIdpInfo));
-                // Go to step 2 if there's existing config
-                setStep(SsoSetupStep.Configuration);
+    const { isLoading: loading, data: ssoConfigData } = useQuery({
+        queryKey: ["sso-config"],
+        queryFn: () => safeApi.get(),
+        staleTime: Infinity,
+    });
+
+    // Sync fetched config into local form state (runs once when data arrives)
+    const [configInitialized, setConfigInitialized] = useState(false);
+    if (!configInitialized && ssoConfigData) {
+        if (ssoConfigData.ok && ssoConfigData.data.idpInfoFromCustomer) {
+            const existingIdpInfo = ssoConfigData.data.idpInfoFromCustomer;
+            setIdpConfiguration(existingIdpInfo);
+            const inferredProvider = inferSsoProvider(existingIdpInfo);
+            setProvider(inferredProvider);
+            setForm(hydrateSsoForm(inferredProvider, existingIdpInfo));
+            setStep(SsoSetupStep.Configuration);
+        }
+        setConfigInitialized(true);
+    }
+
+    // Upsert mutation
+    const upsertMutation = useMutation({
+        mutationFn: (idpInfo: IdpInfoFromCustomer) =>
+            safeApi.upsert({ idpInfoFromCustomer: idpInfo }),
+        onSuccess: (res, idpInfo) => {
+            if (res.ok) {
+                queryClient.invalidateQueries({ queryKey: ["sso-config"] });
+                setIdpConfiguration(idpInfo);
+                setHasUnsavedChanges(false);
+                onSaveCallback?.(idpInfo);
+                setIsOpen(false);
+            } else {
+                setApiError(res.error?.message || "Failed to save");
             }
-            setLoading(false);
-        })();
-        return () => {
-            mounted = false;
-        };
-    }, [safeApi]);
+        },
+    });
+
+    // Delete mutation
+    const deleteMutation = useMutation({
+        mutationFn: () => safeApi.remove(),
+        onSuccess: (res) => {
+            if (res.ok) {
+                queryClient.invalidateQueries({ queryKey: ["sso-config"] });
+                setIdpConfiguration(null);
+                onDeleteCallback?.();
+                resetToClean();
+                setIsOpen(false);
+            } else {
+                setApiError(res.error?.message || "Failed to delete");
+            }
+        },
+    });
+
+    const saving = upsertMutation.isPending;
+    const deleting = deleteMutation.isPending;
 
     // Form update handler
     function onChange(key: string, value: string | boolean) {
@@ -94,48 +127,23 @@ export function SsoSetupProvider({
     }
 
     // Save handler
-    async function onSave() {
-        setSaving(true);
+    function onSave() {
         setApiError(null);
         setShouldValidate(true);
 
-        // Use edit schema if we have existing config, create schema for new configs
         const schema = idpConfiguration ? editFormSchema : createFormSchema;
         const parsed = schema.safeParse(form);
         if (!parsed.success) {
-            setSaving(false);
             return;
         }
 
-        const idpInfo = toSsoIdpInfo(parsed.data);
-        const res = await safeApi.upsert({ idpInfoFromCustomer: idpInfo });
-
-        if (res.ok) {
-            setIdpConfiguration(idpInfo);
-            setHasUnsavedChanges(false);
-            onSaveCallback?.(idpInfo);
-            setIsOpen(false); // Close dialog on successful save
-        } else {
-            setApiError(res.error?.message || "Failed to save");
-        }
-        setSaving(false);
+        upsertMutation.mutate(toSsoIdpInfo(parsed.data));
     }
 
     // Delete handler
-    async function onDelete() {
-        setDeleting(true);
+    function onDelete() {
         setApiError(null);
-
-        const res = await safeApi.remove();
-        if (res.ok) {
-            setIdpConfiguration(null);
-            onDeleteCallback?.();
-            resetToClean();
-            setIsOpen(false); // Close dialog on successful delete
-        } else {
-            setApiError(res.error?.message || "Failed to delete");
-        }
-        setDeleting(false);
+        deleteMutation.mutate();
     }
 
     // Validation errors
