@@ -4198,24 +4198,26 @@ WITH inputs AS (
         END
     FROM locked_tasks lt
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
-    WHERE (
-        -- If the retry count is greater than the latest retry count, update the status
-        (
-            i.retry_count > lt.latest_retry_count
-            AND i.readable_status != lt.readable_status
-        ) OR
-        -- If the retry count is equal, only update if the new status has higher priority
-        (
-            i.retry_count = lt.latest_retry_count
-            AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(lt.readable_status)
-        ) OR
-        -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
-        (
-            i.retry_count = lt.latest_retry_count
-            AND lt.readable_status = 'EVICTED'
-            AND i.readable_status != 'EVICTED'
+    WHERE
+        (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
+        AND (
+            -- If the retry count is greater than the latest retry count, update the status
+            (
+                i.retry_count > lt.latest_retry_count
+                AND i.readable_status != lt.readable_status
+            ) OR
+            -- If the retry count is equal, only update if the new status has higher priority
+            (
+                i.retry_count = lt.latest_retry_count
+                AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(lt.readable_status)
+            ) OR
+            -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+            (
+                i.retry_count = lt.latest_retry_count
+                AND lt.readable_status = 'EVICTED'
+                AND i.readable_status != 'EVICTED'
+            )
         )
-    )
     RETURNING
         t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
 )
