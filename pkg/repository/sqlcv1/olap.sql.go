@@ -4254,6 +4254,7 @@ type UpdateTaskStatusesFromMQParams struct {
 
 type UpdateTaskStatusesFromMQRow struct {
 	TenantID       uuid.UUID            `json:"tenant_id"`
+	TaskID         int64                `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	ExternalID     uuid.UUID            `json:"external_id"`
