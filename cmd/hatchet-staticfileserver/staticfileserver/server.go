@@ -1,26 +1,35 @@
 package staticfileserver
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )
 
-func NewStaticFileServer(staticFilePath string) *chi.Mux {
+func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 	r := chi.NewRouter()
 
 	fs := http.FileServer(http.Dir(staticFilePath))
 
 	r.Use(middleware.Logger)
 
+	if basePath != "/" {
+		// Dynamcally build and serve the index.html and config.js when we have a custom basePath
+		r.Get("/", handleIndex(staticFilePath, basePath))
+		r.Get("/config.js", handleJsConfig(basePath))
+	}
+
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
 
-		if _, err := os.Stat(staticFilePath + r.RequestURI); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(staticFilePath, r.URL.Path)); os.IsNotExist(err) { //nolint gosec
 			w.Header().Set("Cache-Control", "no-cache")
 
 			http.StripPrefix(r.URL.Path, fs).ServeHTTP(w, r)
@@ -36,4 +45,43 @@ func NewStaticFileServer(staticFilePath string) *chi.Mux {
 	})
 
 	return r
+}
+
+// handleJsConfig serves a dynamic config.js that sets window.__CONFIG__ with runtime values
+// allowing the frontend to read deployment configuration at startup.
+func handleJsConfig(basePath string) http.HandlerFunc {
+	var conf struct {
+		BasePath string `json:"BASE_PATH"`
+	}
+
+	conf.BasePath = basePath
+	return func(w http.ResponseWriter, r *http.Request) {
+		contents, err := json.Marshal(conf)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("X-Frame-Options", "DENY")
+		fmt.Fprintf(w, "window.__CONFIG__ = %s;\n", contents)
+	}
+}
+
+// handleIndex serves index.html with the <base href> tag rewritten to basePath,
+// enabling the router to resolve routes correctly when hosted under a sub-path.
+func handleIndex(staticFilePath, basePath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		b, err := os.ReadFile(filepath.Join(staticFilePath, "index.html"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		content := strings.ReplaceAll(string(b), `<base href="/">`, `<base href="`+basePath+`">`)
+		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write([]byte(content))
+	}
 }

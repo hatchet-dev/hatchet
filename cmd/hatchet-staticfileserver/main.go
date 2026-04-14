@@ -14,9 +14,10 @@ import (
 func main() {
 	port := flag.String("port", "80", "port to listen on")
 	staticAssetDir := flag.String("static-asset-dir", ".", "directory to serve static assets from")
+	basePath := flag.String("base-path", "/", "base path the app is served under (e.g. /hatchet)")
 	flag.Parse()
 
-	c := staticfileserver.NewStaticFileServer(*staticAssetDir)
+	c := staticfileserver.NewStaticFileServer(*staticAssetDir, *basePath)
 
 	s := &http.Server{
 		Addr:              fmt.Sprintf(":%s", *port),

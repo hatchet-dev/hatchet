@@ -1,9 +1,9 @@
 import { config } from './config';
-import { getCloudMetadataQuery } from './pages/auth/hooks/use-cloud';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 import { userUniverseQuery } from './providers/user-universe';
+import { getCloudMetadataQuery } from '@/hooks/use-cloud';
 import api, { TenantMember } from '@/lib/api';
 import {
   controlPlaneApi,
