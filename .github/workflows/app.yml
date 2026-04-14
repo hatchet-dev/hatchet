@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "frontend/app/**"
+      - "frontend/docs/**"
 
 jobs:
   lint:
