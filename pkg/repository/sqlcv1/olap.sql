@@ -1078,7 +1078,7 @@ SELECT
     (SELECT EXISTS (
         SELECT 1
         FROM updated_tasks ut
-        WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (all_result_tasks.tenant_id, all_result_tasks.id, all_result_tasks.inserted_at)
+        WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     )) AS was_updated
 FROM v1_tasks_olap
 WHERE (inserted_at, id, tenant_id) IN (
