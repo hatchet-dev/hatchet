@@ -237,7 +237,7 @@ type OLAPRepository interface {
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) error
-	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error
+	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) (notFound []sqlcv1.CreateTaskEventsOLAPParams, err error)
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
@@ -1647,9 +1647,10 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	}
 }
 
-func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
+func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) ([]sqlcv1.CreateTaskEventsOLAPParams, error) {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
+	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, event := range events {
@@ -1664,6 +1665,8 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 			eventsToWrite = append(eventsToWrite, event)
 		}
 
+		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
+
 		if event.ExternalID != nil {
 			// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
 			dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
@@ -1676,30 +1679,57 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		}
 	}
 
-	if len(eventsToWrite) == 0 {
-		return nil
+	if len(eventsForStatusUpdate) == 0 {
+		return nil, nil
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer rollback()
 
-	_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
+	if len(eventsToWrite) > 0 {
+		_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsToWrite)
+	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsForStatusUpdate)
+
+	suj, _ := json.MarshalIndent(statusUpdates, "", "  ")
+	fmt.Println("\n\nProcessing update batch")
+	fmt.Println("Status update batch:", string(suj))
 
 	taskRows, err := r.queries.UpdateTaskStatusesFromMQ(ctx, tx, statusUpdates)
 
+	fmt.Println("Task rows returned:", len(taskRows), "error:", err)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	foundTaskIDs := make(map[int64]struct{}, len(taskRows))
+	updatedTaskCount := 0
+	for _, row := range taskRows {
+		foundTaskIDs[row.TaskID] = struct{}{}
+
+		if row.WasUpdated {
+			updatedTaskCount++
+		}
+	}
+
+	fmt.Println("Task rows updated:", updatedTaskCount, "out of", len(taskRows))
+	fmt.Println("Found task IDs:", foundTaskIDs)
+
+	var notFoundEvents []sqlcv1.CreateTaskEventsOLAPParams
+	for _, event := range eventsForStatusUpdate {
+		if _, ok := foundTaskIDs[event.TaskID]; !ok {
+			notFoundEvents = append(notFoundEvents, event)
+		}
 	}
 
 	dagStatusUpdates := r.prepareDAGStatusUpdateBatch(taskRows)
@@ -1708,23 +1738,25 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		_, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	_, err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
+	if len(payloadsToWrite) > 0 {
+		_, err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := commit(ctx); err != nil {
-		return err
+		return nil, err
 	}
 
 	r.saveEventsToCache(eventsToWrite)
 
-	return nil
+	return notFoundEvents, nil
 }
 
 func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error) {
@@ -1843,15 +1875,22 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 func compareStatuses(status1, status2 sqlcv1.V1ReadableStatusOlap) bool {
 	ordering := map[sqlcv1.V1ReadableStatusOlap]int{
-		sqlcv1.V1ReadableStatusOlapQUEUED:    0,
-		sqlcv1.V1ReadableStatusOlapRUNNING:   1,
-		sqlcv1.V1ReadableStatusOlapCOMPLETED: 2,
-		sqlcv1.V1ReadableStatusOlapCANCELLED: 3,
-		sqlcv1.V1ReadableStatusOlapFAILED:    4,
-		// handle evicted status here somehow
+		sqlcv1.V1ReadableStatusOlapQUEUED:    1,
+		sqlcv1.V1ReadableStatusOlapRUNNING:   2,
+		sqlcv1.V1ReadableStatusOlapEVICTED:   3,
+		sqlcv1.V1ReadableStatusOlapCANCELLED: 4,
+		sqlcv1.V1ReadableStatusOlapFAILED:    5,
+		sqlcv1.V1ReadableStatusOlapCOMPLETED: 6,
 	}
 
-	return ordering[status1] > ordering[status2]
+	left, leftOk := ordering[status1]
+	right, rightOk := ordering[status2]
+
+	if !leftOk || !rightOk {
+		return false
+	}
+
+	return left > right
 }
 
 func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error) {
@@ -2088,7 +2127,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
+func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) ([]sqlcv1.CreateTaskEventsOLAPParams, error) {
 	return r.writeTaskEventBatch(ctx, tenantId, events)
 }
 
