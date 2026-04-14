@@ -1024,44 +1024,38 @@ WITH inputs AS (
         UNNEST(@workerIds::UUID[]) AS worker_id,
         UNNEST(@retryCounts::int[]) AS retry_count
 ), locked_tasks AS (
-    SELECT
-        t.tenant_id,
-        t.id,
-        t.inserted_at,
-        t.readable_status,
-        t.latest_retry_count,
-        t.external_id,
-        t.latest_worker_id,
-        t.workflow_id,
-        t.dag_id,
-        t.dag_inserted_at,
-        (t.dag_id IS NOT NULL)::boolean AS is_dag_task,
-        i.readable_status AS new_readable_status,
-        i.retry_count AS new_retry_count,
-        i.worker_id AS new_worker_id
-    FROM v1_tasks_olap t
-    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    SELECT *
+    FROM v1_tasks_olap
+    WHERE (inserted_at, id, tenant_id) IN (
+        SELECT task_inserted_at, task_id, tenant_id
+        FROM inputs
+    )
     FOR UPDATE
 ), tasks_to_update AS (
     -- Tasks that need monotonic status updates
-    SELECT *
+    SELECT
+        lt.*,
+        i.readable_status AS new_readable_status,
+        i.worker_id AS new_worker_id,
+        i.retry_count AS new_retry_count
     FROM locked_tasks lt
+    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
     WHERE (
         -- If the retry count is greater than the latest retry count, update the status
         (
-            lt.new_retry_count > lt.latest_retry_count
-            AND lt.new_readable_status != lt.readable_status
+            i.retry_count > lt.latest_retry_count
+            AND i.readable_status != lt.readable_status
         ) OR
         -- If the retry count is equal, only update if the new status has higher priority
         (
-            lt.new_retry_count = lt.latest_retry_count
-            AND v1_status_to_priority(lt.new_readable_status) > v1_status_to_priority(lt.readable_status)
+            i.retry_count = lt.latest_retry_count
+            AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(lt.readable_status)
         ) OR
         -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
         (
-            lt.new_retry_count = lt.latest_retry_count
+            i.retry_count = lt.latest_retry_count
             AND lt.readable_status = 'EVICTED'
-            AND lt.new_readable_status != 'EVICTED'
+            AND i.readable_status != 'EVICTED'
         )
     )
 ), updated_tasks AS (
