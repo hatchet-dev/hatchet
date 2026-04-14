@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -20,9 +21,8 @@ func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 	return time.Now().UTC().Add(-d), nil
 }
 
-func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx context.Context, tenant sqlcv1.Tenant) error) error {
+func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx context.Context, tenant uuid.UUID) error) error {
 
-	// list all tenants
 	tenants, err := rc.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV0)
 
 	if err != nil {
@@ -34,7 +34,7 @@ func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx co
 	for i := range tenants {
 		index := i
 		g.Go(func() error {
-			return f(ctx, *tenants[index])
+			return f(ctx, tenants[index])
 		})
 	}
 
