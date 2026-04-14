@@ -6,13 +6,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
-
-	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
 func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1TenantLogLineListRequestObject) (gen.V1TenantLogLineListResponseObject, error) {
@@ -45,6 +45,12 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 
 	if request.Params.Since != nil {
 		since = request.Params.Since
+	}
+
+	if since != nil && v1handlers.IsBeforeRetention(*since, tenant.DataRetentionPeriod) {
+		t.config.Analytics.Count(ctx.Request().Context(), analytics.Log, analytics.List, analytics.Properties{
+			"outside_retention": true,
+		})
 	}
 
 	if request.Params.Until != nil {

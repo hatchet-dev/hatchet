@@ -6,7 +6,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -29,6 +31,14 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 
 	if !ok {
 		return nil, echo.NewHTTPError(500, "Task type assertion failed")
+	}
+
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+
+	if ts := task.InsertedAt; ts.Valid && v1handlers.IsBeforeRetention(ts.Time, tenant.DataRetentionPeriod) {
+		t.config.Analytics.Count(ctx.Request().Context(), analytics.TaskRun, analytics.Get, analytics.Properties{
+			"outside_retention": true,
+		})
 	}
 
 	attempt := request.Params.Attempt

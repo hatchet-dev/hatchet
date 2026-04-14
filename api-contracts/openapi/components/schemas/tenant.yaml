@@ -20,6 +20,9 @@ Tenant:
     environment:
       $ref: "#/TenantEnvironment"
       description: The environment type of the tenant.
+    dataRetentionPeriod:
+      type: string
+      description: The data retention period for the tenant, e.g. 720h.
   required:
     - metadata
     - name

@@ -21,10 +21,12 @@ import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
+import { RetentionBanner } from '@/components/v1/retention-banner';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   Tabs,
   TabsContent,
@@ -40,7 +42,9 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import { isBeforeRetention } from '@/lib/utils/retention';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import { useAppContext } from '@/providers/app-context';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -55,6 +59,51 @@ class StatusError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+function RetentionExpired({ retentionPeriod }: { retentionPeriod: string }) {
+  return (
+    <div className="relative h-full w-full flex-grow">
+      <div className="pointer-events-none select-none blur-[3px] opacity-40">
+        <div className="mx-auto px-4 pt-2 sm:px-6 lg:px-8">
+          <Skeleton className="mb-2 h-6 w-48" />
+          <Skeleton className="mb-4 h-4 w-32" />
+          <Separator className="my-4" />
+          <div className="mb-4 flex flex-row gap-x-4">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+          <div className="h-4" />
+          <div className="mb-4 flex gap-2 border-b border-border/40 pb-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-12" />
+          </div>
+          <div className="rounded-md border border-border/40 bg-muted/10">
+            <Skeleton className="h-48 w-full rounded-md" />
+          </div>
+          <div className="mt-6 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-4 border-b border-border/40 px-2 py-3"
+              >
+                <Skeleton className="h-4 w-4 rounded-full" />
+                <Skeleton className="h-4 flex-[2]" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 flex-[1.5]" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center p-8">
+        <div className="w-full max-w-lg">
+          <RetentionBanner retentionPeriod={retentionPeriod} />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function statusToBadgeVariant(status: V1TaskStatus) {
@@ -137,6 +186,7 @@ async function fetchDAGRun(id: string) {
 export default function Run() {
   const params = useParams({ from: appRoutes.tenantRunRoute.to });
   const { run } = params;
+  const { tenant } = useAppContext();
 
   const taskRunQuery = useQuery({
     queryKey: ['workflow-run', run],
@@ -176,6 +226,10 @@ export default function Run() {
       throw new Error(`Task or Workflow Run with ID ${run} not found`);
     },
     refetchInterval: (query) => {
+      if (query.state.error) {
+        return false;
+      }
+
       const status = query.state.data?.status;
 
       if (isTerminalState(status)) {
@@ -194,7 +248,6 @@ export default function Run() {
   if (taskRunQuery.isError) {
     const status = getErrorStatus(taskRunQuery.error);
 
-    // Treat malformed IDs (often 400) and missing resources (404) as not found.
     if (status === 400 || status === 404) {
       return (
         <ResourceNotFound
@@ -217,6 +270,19 @@ export default function Run() {
 
   if (!runData) {
     return null;
+  }
+
+  const createdAt =
+    runData.type === 'dag'
+      ? runData.dag?.run?.metadata?.createdAt
+      : runData.task?.metadata?.createdAt;
+
+  if (
+    tenant?.dataRetentionPeriod &&
+    createdAt &&
+    isBeforeRetention(createdAt, tenant.dataRetentionPeriod)
+  ) {
+    return <RetentionExpired retentionPeriod={tenant.dataRetentionPeriod} />;
   }
 
   if (runData.type === 'task') {

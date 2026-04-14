@@ -900,6 +900,8 @@ export interface Tenant {
   version: TenantVersion;
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
+  /** The data retention period for the tenant, e.g. 720h. */
+  dataRetentionPeriod?: string;
 }
 
 export interface V1EventWorkflowRunSummary {
