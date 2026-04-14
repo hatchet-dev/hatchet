@@ -1,9 +1,5 @@
 import { EditFormValues, FormValues } from './sso-schemas';
-import { IdpInfoFromCustomer, ProviderKey, SsoApi } from './sso-types';
-
-/* ============================================================================
- * Utility Functions
- * ========================================================================= */
+import { IdpInfoFromCustomer, ProviderKey } from './sso-types';
 
 export function copySsoToClipboard(text: string, onDone?: () => void) {
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -11,50 +7,8 @@ export function copySsoToClipboard(text: string, onDone?: () => void) {
   }
 }
 
-export function normalizeSsoApi(api?: Partial<SsoApi>): SsoApi {
-  return {
-    async get() {
-      if (api?.get) {
-        return api.get();
-      }
-      console.error(
-        'SsoSetup: api.get not implemented. Pass an `api` prop to implement.',
-      );
-      return { ok: true, data: {} };
-    },
-    async upsert(args) {
-      if (api?.upsert) {
-        return api.upsert(args);
-      }
-      const message =
-        'SsoSetup: api.upsert not implemented. Pass an `api` prop to implement.';
-      console.error(message);
-      return { ok: false, error: { message } };
-    },
-    async remove() {
-      if (api?.remove) {
-        return api.remove();
-      }
-      const message =
-        'SsoSetup: api.remove not implemented. Pass an `api` prop to implement.';
-      console.warn(message);
-      return { ok: false, error: { message } };
-    },
-  };
-}
-
-/* ============================================================================
- * Data Transformation Functions
- * ========================================================================= */
-
 export function inferSsoProvider(info: IdpInfoFromCustomer): ProviderKey {
-  if (info.idpType === 'Okta') {
-    return 'Okta';
-  }
-  if (info.idpType === 'MicrosoftEntra') {
-    return 'MicrosoftEntra';
-  }
-  return 'Generic';
+  return info.idpType
 }
 
 export function hydrateSsoForm(
