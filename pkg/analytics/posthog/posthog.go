@@ -147,11 +147,27 @@ func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resourc
 			merged[k] = v
 		}
 	}
+
+	// Extract count from last properties arg if multiple are provided.
+	// Allows passing aggregated counts instead of always using 1.
+	var n int64
+	if len(props) > 1 && props[len(props)-1] != nil {
+		for _, v := range props[len(props)-1] {
+			if value, ok := v.(int64); ok {
+				n += value
+			}
+		}
+	}
+
+	if n == 0 {
+		n = 1
+	}
+
 	if source := analytics.SourceFromContext(ctx); source != "" {
 		merged["source"] = string(source)
 	}
 
-	p.aggregator.Count(resource, action, tid, tokenID, 1, merged)
+	p.aggregator.Count(resource, action, tid, tokenID, n, merged)
 }
 
 func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties analytics.Properties) {
