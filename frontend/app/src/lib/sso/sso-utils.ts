@@ -14,7 +14,8 @@ export function isIdpInfoFromCustomer(
 
   if (
     typeof value.clientId !== 'string' ||
-    (value.clientSecret !== undefined && typeof value.clientSecret !== 'string') ||
+    (value.clientSecret !== undefined &&
+      typeof value.clientSecret !== 'string') ||
     typeof value.usesPkce !== 'boolean'
   ) {
     return false;
@@ -52,7 +53,7 @@ export function copySsoToClipboard(text: string, onDone?: () => void) {
 }
 
 export function inferSsoProvider(info: IdpInfoFromCustomer): ProviderKey {
-  return info.idpType
+  return info.idpType;
 }
 
 export function hydrateSsoForm(
