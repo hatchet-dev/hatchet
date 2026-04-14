@@ -20,12 +20,9 @@ export default {
   },
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
-  "bulk-run": "Bulk Runs",
+  "bulk-run": "Bulk Triggering",
+  events: "Events",
   webhooks: "Webhooks",
-  "external-events": {
-    title: "Event Triggers",
-    theme: { collapsed: true },
-  },
   "inter-service-triggering": "Inter-Service Triggering",
   "--reliability": {
     title: "Reliability",
@@ -43,19 +40,15 @@ export default {
   "rate-limits": "Rate Limits",
   priority: "Priority",
   "--durable-workflows-section": {
-    title: "Durable Workflows",
+    title: "Durable Execution",
     type: "separator",
   },
-  patterns: {
-    title: "Patterns",
-    theme: { collapsed: true },
-  },
+  "durable-tasks": "Durable Tasks",
   "child-spawning": "Child Spawning",
-  sleep: "Sleep & Delays",
-  events: "Wait For Events",
-  conditions: "Conditions & Branching",
-  "on-failure": "Error Handling",
-  "task-eviction": "Resource Management",
+  "durable-sleep": "Sleeps",
+  "durable-event-waits": "Event Waits",
+  "task-eviction": "Task Eviction",
+  "directed-acyclic-graphs": "DAGs as Durable Workflows",
   "--workers-section": {
     title: "Workers",
     type: "separator",
@@ -120,9 +113,6 @@ export default {
     display: "hidden",
   },
   "error-handling": {
-    display: "hidden",
-  },
-  "flow-control": {
     display: "hidden",
   },
 };
