@@ -1618,7 +1618,6 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	tenantIds := make([]uuid.UUID, 0)
 	dagIds := make([]int64, 0)
 	dagInsertedAts := make([]pgtype.Timestamptz, 0)
-	minDagInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now())
 
 	for _, row := range taskRows {
 		if !row.DagID.Valid {
@@ -1632,10 +1631,6 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 			tenantIds = append(tenantIds, row.TenantID)
 			dagIds = append(dagIds, row.DagID.Int64)
 			dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
-
-			if row.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
-				minDagInsertedAt = row.DagInsertedAt
-			}
 		}
 	}
 
@@ -1643,7 +1638,6 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 		Tenantids:      tenantIds,
 		Dagids:         dagIds,
 		Daginsertedats: dagInsertedAts,
-		Mininsertedat:  minDagInsertedAt,
 	}
 }
 
