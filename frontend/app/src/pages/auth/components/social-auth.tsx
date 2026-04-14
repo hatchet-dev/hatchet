@@ -1,6 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
-import {ArrowLeft, LockOpen} from 'lucide-react';
+import { ArrowLeft, LockOpen } from 'lucide-react';
 import React, { useState } from 'react';
 
 export type SocialAuthProvider = 'google' | 'github' | 'sso';
@@ -77,40 +77,43 @@ export function SocialAuthButton({
               placeholder="Enter your email"
               className="h-10 flex-1 rounded-md border border-muted-foreground/20 bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
-
           </div>
         )}
-        {ssoExpanded && <a
-          href={
-            email ? `${cfg.href}?email=${encodeURIComponent(email)}` : '#'
-          }
-          onClick={(e) => {
-            if (!email) {
-              e.preventDefault();
+        {ssoExpanded && (
+          <a
+            href={
+              email ? `${cfg.href}?email=${encodeURIComponent(email)}` : '#'
             }
-          }}
-          tabIndex={email ? 0 : -1}
-        >
-          <Button
-            variant="outline"
-            type="button"
-            fullWidth
-            disabled={!email}
-            className="h-10 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+            onClick={(e) => {
+              if (!email) {
+                e.preventDefault();
+              }
+            }}
+            tabIndex={email ? 0 : -1}
           >
-            Continue
-          </Button>
-        </a>}
-        {ssoExpanded && <Button
-          variant="ghost"
-          type="button"
-          size="sm"
-          onClick={() => setSsoExpanded(false)}
-          className="h-11 justify-left gap-1 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
-        >
+            <Button
+              variant="outline"
+              type="button"
+              fullWidth
+              disabled={!email}
+              className="h-10 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+            >
+              Continue
+            </Button>
+          </a>
+        )}
+        {ssoExpanded && (
+          <Button
+            variant="ghost"
+            type="button"
+            size="sm"
+            onClick={() => setSsoExpanded(false)}
+            className="h-11 justify-left gap-1 border-muted-foreground/20 bg-background shadow-sm hover:bg-muted/40"
+          >
             <ArrowLeft className="size-4" />
             Back
-        </Button>}
+          </Button>
+        )}
       </div>
     );
   }

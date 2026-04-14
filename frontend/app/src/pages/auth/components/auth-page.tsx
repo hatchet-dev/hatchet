@@ -18,6 +18,7 @@ export function AuthPage({
 }) {
   useErrorParam();
   const { meta, isLoading, ssoEnabled } = useApiMeta();
+  const [ssoExpanded, setSsoExpanded] = useState(false);
 
   if (isLoading) {
     return <Loading />;
@@ -27,7 +28,6 @@ export function AuthPage({
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
-  const [ssoExpanded, setSsoExpanded] = useState(false);
 
   const providers = [
     googleEnabled && 'google',

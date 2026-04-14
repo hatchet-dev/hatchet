@@ -1,9 +1,9 @@
+import { getCloudMetadataQuery } from '@/hooks/use-cloud.ts';
 import api from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { useMemo } from 'react';
-import {getCloudMetadataQuery} from "@/hooks/use-cloud.ts";
 
 export default function useApiMeta() {
   const { handleApiError } = useApiError({});
@@ -27,7 +27,11 @@ export default function useApiMeta() {
 
   const cloudMetaQuery = useQuery(getCloudMetadataQuery);
   let ssoEnabled = false;
-  if (!cloudMetaQuery.isError && cloudMetaQuery.data?.ssoEnabled) {
+  if (
+    !cloudMetaQuery.isError &&
+    cloudMetaQuery.data?.isCloudEnabled &&
+    cloudMetaQuery.data.ssoEnabled
+  ) {
     data?.auth?.schemes?.push('propelauth');
     ssoEnabled = true;
   }

@@ -201,7 +201,6 @@ export function useOrganizations() {
     },
   });
 
-
   const createOrganizationSsoDomainMutation = useMutation({
     mutationFn: async (data: { organizationId: string; ssoDomain: string }) => {
       return orgApi
@@ -353,8 +352,8 @@ export function useOrganizations() {
       createOrganizationSsoDomainMutation.mutate(
         { organizationId, ssoDomain },
         {
-          onSuccess: (data) => {
-            onSuccess(data);
+          onSuccess: () => {
+            onSuccess(organizationId);
           },
           onError: () => {
             // Error handling is done by the mutation itself via handleApiError
@@ -374,8 +373,8 @@ export function useOrganizations() {
       deleteOrganizationSsoDomainMutation.mutate(
         { organizationId, ssoDomain },
         {
-          onSuccess: (data) => {
-            onSuccess(data);
+          onSuccess: () => {
+            onSuccess(organizationId);
           },
           onError: () => {
             // Error handling is done by the mutation itself via handleApiError
