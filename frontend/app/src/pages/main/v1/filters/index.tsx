@@ -96,7 +96,9 @@ export default function Filters() {
           <p className="text-lg font-semibold">No filters found</p>
           <div className="w-fit">
             <DocsButton
-              doc={{ href: 'https://docs.hatchet.run/v1/external-events/run-on-event' }}
+              doc={{
+                href: 'https://docs.hatchet.run/v1/external-events/run-on-event',
+              }}
               scrollTo="event-filtering"
               label="Learn about event filters"
             />

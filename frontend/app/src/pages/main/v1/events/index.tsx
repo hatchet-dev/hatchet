@@ -140,7 +140,9 @@ export default function Events() {
             <p className="text-lg font-semibold">No events found</p>
             <div className="w-fit">
               <DocsButton
-                doc={{ href: 'https://docs.hatchet.run/v1/external-events/run-on-event' }}
+                doc={{
+                  href: 'https://docs.hatchet.run/v1/external-events/run-on-event',
+                }}
                 label="Learn about pushing events to Hatchet"
               />
             </div>
