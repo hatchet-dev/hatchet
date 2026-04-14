@@ -1,6 +1,50 @@
 import { EditFormValues, FormValues } from './sso-schemas';
 import { IdpInfoFromCustomer, ProviderKey } from './sso-types';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+export function isIdpInfoFromCustomer(
+  value: unknown,
+): value is IdpInfoFromCustomer {
+  if (!isRecord(value) || typeof value.idpType !== 'string') {
+    return false;
+  }
+
+  if (
+    typeof value.clientId !== 'string' ||
+    (value.clientSecret !== undefined && typeof value.clientSecret !== 'string') ||
+    typeof value.usesPkce !== 'boolean'
+  ) {
+    return false;
+  }
+
+  switch (value.idpType) {
+    case 'Okta':
+      return typeof value.ssoDomain === 'string';
+    case 'MicrosoftEntra':
+      return typeof value.tenantId === 'string';
+    case 'Generic':
+      return (
+        typeof value.authUrl === 'string' &&
+        typeof value.tokenUrl === 'string' &&
+        typeof value.userinfoUrl === 'string'
+      );
+    default:
+      return false;
+  }
+}
+
+export function extractSsoIdpInfo(value: unknown): IdpInfoFromCustomer | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const idpInfo = value.idpInfoFromCustomer;
+  return isIdpInfoFromCustomer(idpInfo) ? idpInfo : null;
+}
+
 export function copySsoToClipboard(text: string, onDone?: () => void) {
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => onDone?.());

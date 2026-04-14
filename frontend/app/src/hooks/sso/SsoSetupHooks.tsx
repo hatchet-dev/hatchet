@@ -1,5 +1,6 @@
 'use client';
 
+import { useSsoConfig } from './useSsoConfig';
 import { PROVIDER_CONFIG } from '@/lib/sso/sso-constants';
 import {
   createFormSchema,
@@ -9,17 +10,14 @@ import {
 import {
   IdpInfoFromCustomer,
   ProviderKey,
-  SsoApi,
   SsoSetupStep,
 } from '@/lib/sso/sso-types';
 import {
   hydrateSsoForm,
   inferSsoProvider,
-  normalizeSsoApi,
   toSsoIdpInfo,
 } from '@/lib/sso/sso-utils';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 
 export type SsoSetupContextValue = {
   provider: ProviderKey;
@@ -49,7 +47,7 @@ const SsoSetupContext = createContext<SsoSetupContextValue | null>(null);
 
 export type SsoSetupProviderProps = {
   children: React.ReactNode;
-  api?: Partial<SsoApi>;
+  orgId: string;
   redirectUrl: string;
   onSave?: (data: IdpInfoFromCustomer) => void;
   onDelete?: () => void;
@@ -57,119 +55,104 @@ export type SsoSetupProviderProps = {
 
 export function SsoSetupProvider({
   children,
-  api,
+  orgId,
   redirectUrl,
   onSave: onSaveCallback,
   onDelete: onDeleteCallback,
 }: SsoSetupProviderProps) {
-  const [provider, setProvider] = useState<ProviderKey>('Generic');
-  const [form, setForm] = useState<FormValues>(
-    () => PROVIDER_CONFIG.Generic.defaultForm as FormValues,
-  );
-
-  const [step, setStep] = useState<SsoSetupStep>(
-    SsoSetupStep.ProviderSelection,
-  );
+  const [draftForm, setDraftForm] = useState<FormValues | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  const [idpConfiguration, setIdpConfiguration] =
-    useState<IdpInfoFromCustomer | null>(null);
   const [shouldValidate, setShouldValidate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
-  const safeApi = useMemo(() => normalizeSsoApi(api), [api]);
-  const queryClient = useQueryClient();
+  const { idpConfiguration, loading, upsertMutation, deleteMutation } =
+    useSsoConfig(orgId);
 
-  // Load existing configuration
-  const { isLoading: loading, data: ssoConfigData } = useQuery({
-    queryKey: ['sso-config'],
-    queryFn: () => safeApi.get(),
-    staleTime: Infinity,
-  });
+  const existingForm = idpConfiguration
+    ? hydrateSsoForm(inferSsoProvider(idpConfiguration), idpConfiguration)
+    : null;
+  const form =
+    draftForm ??
+    existingForm ??
+    (PROVIDER_CONFIG.Generic.defaultForm as FormValues);
+  const provider = form.provider as ProviderKey;
+  const step =
+    idpConfiguration || draftForm
+      ? SsoSetupStep.Configuration
+      : SsoSetupStep.ProviderSelection;
 
-  // Sync fetched config into local form state (runs once when data arrives)
-  const [configInitialized, setConfigInitialized] = useState(false);
-  if (!configInitialized && ssoConfigData) {
-    if (ssoConfigData.ok && ssoConfigData.data.idpInfoFromCustomer) {
-      const existingIdpInfo = ssoConfigData.data.idpInfoFromCustomer;
-      setIdpConfiguration(existingIdpInfo);
-      const inferredProvider = inferSsoProvider(existingIdpInfo);
-      setProvider(inferredProvider);
-      setForm(hydrateSsoForm(inferredProvider, existingIdpInfo));
-      setStep(SsoSetupStep.Configuration);
-    }
-    setConfigInitialized(true);
-  }
-
-  // Upsert mutation
-  const upsertMutation = useMutation({
-    mutationFn: (idpInfo: IdpInfoFromCustomer) =>
-      safeApi.upsert({ idpInfoFromCustomer: idpInfo }),
-    onSuccess: (res, idpInfo) => {
-      if (res.ok) {
-        queryClient.invalidateQueries({ queryKey: ['sso-config'] });
-        setIdpConfiguration(idpInfo);
-        setHasUnsavedChanges(false);
-        onSaveCallback?.(idpInfo);
-        setIsOpen(false);
-      } else {
-        setApiError(res.error?.message || 'Failed to save');
-      }
-    },
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: () => safeApi.remove(),
-    onSuccess: (res) => {
-      if (res.ok) {
-        queryClient.invalidateQueries({ queryKey: ['sso-config'] });
-        setIdpConfiguration(null);
-        onDeleteCallback?.();
-        resetToClean();
-        setIsOpen(false);
-      } else {
-        setApiError(res.error?.message || 'Failed to delete');
-      }
-    },
-  });
+  const validationSchema = idpConfiguration ? editFormSchema : createFormSchema;
 
   const saving = upsertMutation.isPending;
   const deleting = deleteMutation.isPending;
 
+  function clearTransientState() {
+    setHasUnsavedChanges(false);
+    setShouldValidate(false);
+    setApiError(null);
+  }
+
+  function resetDraftState() {
+    setDraftForm(null);
+    clearTransientState();
+  }
+
   // Form update handler
   function onChange(key: string, value: string | boolean) {
-    setForm((f) => ({ ...f, [key]: value }) as FormValues);
+    setDraftForm(
+      (currentForm) =>
+        ({
+          ...(currentForm ?? form),
+          [key]: value,
+        }) as FormValues,
+    );
     setHasUnsavedChanges(true);
   }
 
   // Save handler
   function onSave() {
-    setApiError(null);
+    clearTransientState();
     setShouldValidate(true);
 
-    const schema = idpConfiguration ? editFormSchema : createFormSchema;
-    const parsed = schema.safeParse(form);
+    const parsed = validationSchema.safeParse(form);
     if (!parsed.success) {
       return;
     }
 
-    upsertMutation.mutate(toSsoIdpInfo(parsed.data));
+    upsertMutation.mutate(toSsoIdpInfo(parsed.data), {
+      onSuccess: (idpInfo) => {
+        resetDraftState();
+        onSaveCallback?.(idpInfo);
+        setIsOpen(false);
+      },
+      onError: (error) => {
+        setApiError(error.message || 'Failed to save');
+      },
+    });
   }
 
   // Delete handler
   function onDelete() {
     setApiError(null);
-    deleteMutation.mutate();
+    deleteMutation.mutate(undefined, {
+      onSuccess: () => {
+        resetDraftState();
+        setShowDeleteConfirm(false);
+        onDeleteCallback?.();
+        setIsOpen(false);
+      },
+      onError: (error) => {
+        setApiError(error.message || 'Failed to delete');
+      },
+    });
   }
 
   // Validation errors
   const errors: Record<string, string | undefined> = {};
   if (shouldValidate) {
-    const schema = idpConfiguration ? editFormSchema : createFormSchema;
-    const v = schema.safeParse(form);
+    const v = validationSchema.safeParse(form);
     if (!v.success) {
       for (const issue of v.error.issues) {
         errors[issue.path.join('.')] = issue.message;
@@ -183,48 +166,16 @@ export function SsoSetupProvider({
       return;
     }
 
-    setProvider(p);
-    setForm(PROVIDER_CONFIG[p].defaultForm as FormValues);
-    setStep(SsoSetupStep.Configuration);
+    setDraftForm(PROVIDER_CONFIG[p].defaultForm as FormValues);
   };
 
   const handleBack = () => {
-    setStep(SsoSetupStep.ProviderSelection);
-    setShouldValidate(false);
-    setApiError(null);
+    resetDraftState();
   };
 
   const reset = () => {
-    setStep(
-      idpConfiguration
-        ? SsoSetupStep.Configuration
-        : SsoSetupStep.ProviderSelection,
-    );
-    setHasUnsavedChanges(false);
-    setShouldValidate(false);
-    setApiError(null);
+    resetDraftState();
     setShowDeleteConfirm(false);
-
-    if (idpConfiguration) {
-      // Restore to existing config
-      const inferred = inferSsoProvider(idpConfiguration);
-      setProvider(inferred);
-      setForm(hydrateSsoForm(inferred, idpConfiguration));
-    } else {
-      // No config exists, reset to clean state
-      setProvider('Generic');
-      setForm(PROVIDER_CONFIG.Generic.defaultForm as FormValues);
-    }
-  };
-
-  const resetToClean = () => {
-    setStep(SsoSetupStep.ProviderSelection);
-    setHasUnsavedChanges(false);
-    setShouldValidate(false);
-    setApiError(null);
-    setShowDeleteConfirm(false);
-    setProvider('Generic');
-    setForm(PROVIDER_CONFIG.Generic.defaultForm as FormValues);
   };
 
   const value: SsoSetupContextValue = {

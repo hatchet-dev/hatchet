@@ -23,12 +23,18 @@ import {
   useSsoSetupFormMetadata,
 } from '@/hooks/sso/SsoSetupHooks';
 import { PROVIDER_CONFIG } from '@/lib/sso/sso-constants';
-import { SsoSetupProps, SsoSetupStep } from '@/lib/sso/sso-types';
+import { SsoSetupStep } from '@/lib/sso/sso-types';
 import { Loader2, ShieldCheck } from 'lucide-react';
 
-export default function SsoSetup({ redirectUrl, api }: SsoSetupProps) {
+export default function SsoSetup({
+  redirectUrl,
+  orgId,
+}: {
+  redirectUrl: string;
+  orgId: string;
+}) {
   return (
-    <SsoSetupProvider redirectUrl={redirectUrl} api={api}>
+    <SsoSetupProvider redirectUrl={redirectUrl} orgId={orgId}>
       <SsoSetupDialogWrapper />
     </SsoSetupProvider>
   );
