@@ -26,11 +26,14 @@ export default function useApiMeta() {
   }, [metaQuery.data]);
 
   const cloudMetaQuery = useQuery(getCloudMetadataQuery);
+  let ssoEnabled = false;
   if (!cloudMetaQuery.isError && cloudMetaQuery.data?.ssoEnabled) {
     data?.auth?.schemes?.push('propelauth');
+    ssoEnabled = true;
   }
   return {
     meta: data,
     isLoading: false,
+    ssoEnabled: ssoEnabled,
   };
 }

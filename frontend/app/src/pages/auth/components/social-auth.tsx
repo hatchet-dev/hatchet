@@ -3,7 +3,7 @@ import { Icons } from '@/components/v1/ui/icons';
 import {ArrowLeft, LockOpen} from 'lucide-react';
 import React, { useState } from 'react';
 
-export type SocialAuthProvider = 'google' | 'github' | 'propelauth';
+export type SocialAuthProvider = 'google' | 'github' | 'sso';
 
 const PROVIDER_CONFIG: Record<
   SocialAuthProvider,
@@ -19,7 +19,7 @@ const PROVIDER_CONFIG: Record<
     label: 'GitHub',
     icon: <Icons.gitHub className="size-4" />,
   },
-  propelauth: {
+  sso: {
     href: '/api/v1/cloud/users/sso/start',
     label: 'SSO',
     icon: <LockOpen className="size-4" />,
@@ -53,7 +53,7 @@ export function SocialAuthButton({
   const cfg = PROVIDER_CONFIG[provider];
   const [email, setEmail] = useState('');
 
-  if (provider === 'propelauth') {
+  if (provider === 'sso') {
     return (
       <div className="w-full flex flex-col gap-2">
         {!ssoExpanded && (

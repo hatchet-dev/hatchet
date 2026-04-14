@@ -58,6 +58,7 @@ import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useAtomValue } from 'jotai';
 import { useState } from 'react';
+import useApiMeta from "@/pages/auth/hooks/use-api-meta.ts";
 
 type Section = 'tenants' | 'members' | 'tokens' | 'sso';
 
@@ -65,7 +66,6 @@ const NAV_ITEMS: { key: Section; label: string; icon: typeof KeyIcon }[] = [
   { key: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
   { key: 'members', label: 'Members', icon: UserIcon },
   { key: 'tokens', label: 'Management Tokens', icon: KeyIcon },
-  { key: 'sso', label: 'SSO', icon: KeyIcon },
 ];
 
 export default function OrganizationPage() {
@@ -95,7 +95,11 @@ export default function OrganizationPage() {
   const [activeSection, setActiveSection] = useState<Section>('tenants');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
-
+  const { ssoEnabled } = useApiMeta();
+  // conditionally enable the SSO button
+  if (ssoEnabled) {
+    NAV_ITEMS.push({ key: 'sso', label: 'SSO', icon: KeyIcon });
+  }
   const [newSsoDomain, setNewSsoDomain] = useState('');
   const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
 
@@ -521,7 +525,6 @@ export default function OrganizationPage() {
       invite.status === OrganizationInviteStatus.PENDING ||
       invite.status === OrganizationInviteStatus.EXPIRED,
   );
-
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
@@ -644,7 +647,9 @@ export default function OrganizationPage() {
                 Create Token
               </Button>
             )}
-            {activeSection === 'sso' && isCloudEnabled && <SSOPage />}
+            {activeSection === 'sso' && isCloudEnabled && (
+              <SSOPage />
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-8">
@@ -757,7 +762,7 @@ export default function OrganizationPage() {
               </>
             )}
 
-            {activeSection === 'sso' && (
+            {activeSection === 'sso' && ssoEnabled (
               <div className="space-y-8">
                 {/* SSO Domains Table */}
                 {organizationSsoDomainGetQuery.isLoading ? (
