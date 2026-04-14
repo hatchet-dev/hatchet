@@ -43,8 +43,15 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 		limit = *request.Params.Limit
 	}
 
-	clampedSince := v1handlers.ClampToRetentionPtr(request.Params.Since, tenant.DataRetentionPeriod)
-	since = &clampedSince
+	if request.Params.Since != nil {
+		since = request.Params.Since
+	}
+
+	if since != nil && v1handlers.IsBeforeRetention(*since, tenant.DataRetentionPeriod) {
+		t.config.Analytics.Count(ctx.Request().Context(), analytics.Log, analytics.List, analytics.Properties{
+			"outside_retention": true,
+		})
+	}
 
 	if request.Params.Until != nil {
 		until = request.Params.Until

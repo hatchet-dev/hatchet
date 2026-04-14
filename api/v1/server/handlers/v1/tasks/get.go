@@ -2,13 +2,13 @@ package tasks
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -36,7 +36,9 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	if ts := task.InsertedAt; ts.Valid && v1handlers.IsBeforeRetention(ts.Time, tenant.DataRetentionPeriod) {
-		return nil, echo.NewHTTPError(http.StatusGone, "task is outside the data retention window")
+		t.config.Analytics.Count(ctx.Request().Context(), analytics.TaskRun, analytics.Get, analytics.Properties{
+			"outside_retention": true,
+		})
 	}
 
 	attempt := request.Params.Attempt

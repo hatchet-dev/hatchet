@@ -10,6 +10,7 @@ import (
 	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -97,13 +98,21 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, retentionPeriod string) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenant *sqlcv1.Tenant) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
+	tenantId := tenant.ID
+	since := request.Params.Since
+
+	if v1handlers.IsBeforeRetention(since, tenant.DataRetentionPeriod) {
+		t.config.Analytics.Count(ctx, analytics.WorkflowRun, analytics.List, analytics.Properties{
+			"outside_retention": true,
+		})
+	}
+
 	var (
 		statuses       = allOlapStatuses(request.Params.RunningFilter)
-		since          = v1handlers.ClampToRetention(request.Params.Since, retentionPeriod)
 		limit    int64 = 50
 		offset   int64
 	)
@@ -244,13 +253,21 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, retentionPeriod string) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenant *sqlcv1.Tenant) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
+	tenantId := tenant.ID
+	since := request.Params.Since
+
+	if v1handlers.IsBeforeRetention(since, tenant.DataRetentionPeriod) {
+		t.config.Analytics.Count(ctx, analytics.WorkflowRun, analytics.List, analytics.Properties{
+			"outside_retention": true,
+		})
+	}
+
 	var (
 		statuses          = allOlapStatuses(request.Params.RunningFilter)
-		since             = v1handlers.ClampToRetention(request.Params.Since, retentionPeriod)
 		workflowIds       = []uuid.UUID{}
 		limit       int64 = 50
 		offset      int64
@@ -353,15 +370,14 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID
 
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
 
 	if request.Params.OnlyTasks {
-		return t.OnlyTasks(spanContext, request, tenantId, tenant.DataRetentionPeriod)
+		return t.OnlyTasks(spanContext, request, tenant)
 	} else {
-		return t.WithDags(spanContext, request, tenantId, tenant.DataRetentionPeriod)
+		return t.WithDags(spanContext, request, tenant)
 	}
 }
 

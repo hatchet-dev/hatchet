@@ -3,7 +3,6 @@ package workflowruns
 import (
 	"context"
 	"errors"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -11,6 +10,7 @@ import (
 
 	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -23,7 +23,9 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
 	if ts := rawWorkflowRun.WorkflowRun.CreatedAt; ts.Valid && v1handlers.IsBeforeRetention(ts.Time, tenant.DataRetentionPeriod) {
-		return nil, echo.NewHTTPError(http.StatusGone, "workflow run is outside the data retention window")
+		t.config.Analytics.Count(ctx.Request().Context(), analytics.WorkflowRun, analytics.Get, analytics.Properties{
+			"outside_retention": true,
+		})
 	}
 
 	requestContext := ctx.Request().Context()

@@ -13,30 +13,6 @@ func retentionBoundary(retentionPeriod string) time.Time {
 	return time.Now().Add(-retention)
 }
 
-// ClampToRetention ensures the requested time is not earlier than the tenant's
-// retention boundary (now - retentionPeriod).
-func ClampToRetention(requested time.Time, retentionPeriod string) time.Time {
-	boundary := retentionBoundary(retentionPeriod)
-
-	if requested.IsZero() || requested.Before(boundary) {
-		return boundary
-	}
-
-	return requested
-}
-
-// ClampToRetentionPtr is like ClampToRetention but accepts a pointer. A nil
-// pointer is treated as "no constraint" and gets clamped to the boundary.
-func ClampToRetentionPtr(requested *time.Time, retentionPeriod string) time.Time {
-	boundary := retentionBoundary(retentionPeriod)
-
-	if requested == nil || requested.Before(boundary) {
-		return boundary
-	}
-
-	return *requested
-}
-
 // IsBeforeRetention returns true when the given timestamp is older than the
 // tenant's retention window (now - retentionPeriod).
 func IsBeforeRetention(t time.Time, retentionPeriod string) bool {
