@@ -1701,13 +1701,8 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 
 	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsForStatusUpdate)
 
-	suj, _ := json.MarshalIndent(statusUpdates, "", "  ")
-	fmt.Println("\n\nProcessing update batch")
-	fmt.Println("Status update batch:", string(suj))
-
 	taskRows, err := r.queries.UpdateTaskStatusesFromMQ(ctx, tx, statusUpdates)
 
-	fmt.Println("Task rows returned:", len(taskRows), "error:", err)
 	if err != nil {
 		return nil, err
 	}
@@ -1721,10 +1716,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 			updatedTaskCount++
 		}
 	}
-
-	fmt.Println("Task rows updated:", updatedTaskCount, "out of", len(taskRows))
-	fmt.Println("Found task IDs:", foundTaskIDs)
-
 	var notFoundEvents []sqlcv1.CreateTaskEventsOLAPParams
 	for _, event := range eventsForStatusUpdate {
 		if _, ok := foundTaskIDs[event.TaskID]; !ok {

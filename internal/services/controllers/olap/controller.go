@@ -927,8 +927,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			notFoundTaskIDs[e.TaskID] = struct{}{}
 		}
 
-		fmt.Println("Requeuing monitoring events for tasks not yet in OLAP table:", notFoundTaskIDs)
-
 		requeueCount := 0
 
 		for _, msg := range msgs {
