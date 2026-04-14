@@ -22,6 +22,7 @@ import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Event, V1Filter } from '@/lib/api';
+import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
 import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -140,9 +141,7 @@ export default function Events() {
             <p className="text-lg font-semibold">No events found</p>
             <div className="w-fit">
               <DocsButton
-                doc={{
-                  href: 'https://docs.hatchet.run/v1/external-events/run-on-event',
-                }}
+                doc={docsPages.v1['external-events']['run-on-event']}
                 label="Learn about pushing events to Hatchet"
               />
             </div>
