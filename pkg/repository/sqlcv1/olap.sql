@@ -1066,8 +1066,8 @@ WITH inputs AS (
 
 SELECT
     tenant_id,
-    id,
-    inserted_at,
+    id AS task_id,
+    inserted_at AS task_inserted_at,
     readable_status,
     external_id,
     latest_worker_id,

@@ -4222,8 +4222,8 @@ WITH inputs AS (
 
 SELECT
     tenant_id,
-    id,
-    inserted_at,
+    id AS task_id,
+    inserted_at AS task_inserted_at,
     readable_status,
     external_id,
     latest_worker_id,
@@ -4254,8 +4254,7 @@ type UpdateTaskStatusesFromMQParams struct {
 
 type UpdateTaskStatusesFromMQRow struct {
 	TenantID       uuid.UUID            `json:"tenant_id"`
-	ID             int64                `json:"id"`
-	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	ExternalID     uuid.UUID            `json:"external_id"`
 	LatestWorkerID *uuid.UUID           `json:"latest_worker_id"`
@@ -4284,8 +4283,8 @@ func (q *Queries) UpdateTaskStatusesFromMQ(ctx context.Context, db DBTX, arg Upd
 		var i UpdateTaskStatusesFromMQRow
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.ID,
-			&i.InsertedAt,
+			&i.TaskID,
+			&i.TaskInsertedAt,
 			&i.ReadableStatus,
 			&i.ExternalID,
 			&i.LatestWorkerID,
