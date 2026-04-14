@@ -142,7 +142,10 @@ function FilterControl<TData>({
                   <SelectItem value="1h">1 hour</SelectItem>
                   <SelectItem value="6h">6 hours</SelectItem>
                   <SelectItem value="1d">1 day</SelectItem>
+                  <SelectItem value="3d">3 days</SelectItem>
                   <SelectItem value="7d">7 days</SelectItem>
+                  <SelectItem value="14d">14 days</SelectItem>
+                  <SelectItem value="30d">30 days</SelectItem>
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
