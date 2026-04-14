@@ -1042,50 +1042,11 @@ WITH inputs AS (
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     FOR UPDATE
-), already_in_target_partition AS (
-    -- Check if rows already exist in the target partition (with the new readable_status).
-    -- This avoids PK violations during row movement when the target sub-partition already has
-    -- a copy (e.g. from a previous partial update).
-    SELECT
-        lt.tenant_id,
-        lt.id,
-        lt.inserted_at,
-        lt.readable_status AS old_readable_status,
-        lt.new_readable_status,
-        lt.new_retry_count,
-        lt.external_id,
-        lt.latest_worker_id,
-        lt.workflow_id,
-        lt.dag_id,
-        lt.dag_inserted_at,
-        lt.is_dag_task
-    FROM
-        locked_tasks lt
-    JOIN
-        v1_tasks_olap t ON
-            t.inserted_at = lt.inserted_at
-            AND t.id = lt.id
-            AND t.readable_status = lt.new_readable_status
-    WHERE
-        lt.readable_status != lt.new_readable_status
-), deleted_duplicate_tasks AS (
-    -- Delete the old rows that already have a copy in the target partition
-    DELETE FROM
-        v1_tasks_olap t
-    USING
-        already_in_target_partition ap
-    WHERE
-        (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
 ), tasks_to_update AS (
-    -- Tasks that need updating and don't already exist in the target partition
+    -- Tasks that need monotonic status updates
     SELECT *
     FROM locked_tasks lt
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM already_in_target_partition ap
-        WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
-    )
-    AND (
+    WHERE (
         -- If the retry count is greater than the latest retry count, update the status
         (
             lt.new_retry_count > lt.latest_retry_count
@@ -1122,18 +1083,12 @@ WITH inputs AS (
     SELECT tenant_id, id, inserted_at, readable_status, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, TRUE AS was_updated
     FROM updated_tasks
     UNION ALL
-    SELECT tenant_id, id, inserted_at, new_readable_status AS readable_status, external_id, latest_worker_id, workflow_id, dag_id, dag_inserted_at, is_dag_task, TRUE AS was_updated
-    FROM already_in_target_partition
-    UNION ALL
     -- Tasks from inputs that were found but not updated (status already at target or higher priority)
     SELECT
         lt.tenant_id, lt.id, lt.inserted_at, lt.readable_status, lt.external_id, lt.latest_worker_id, lt.workflow_id, lt.dag_id, lt.dag_inserted_at, lt.is_dag_task, FALSE AS was_updated
     FROM locked_tasks lt
     WHERE NOT EXISTS (
         SELECT 1 FROM updated_tasks ut WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM already_in_target_partition ap WHERE (ap.tenant_id, ap.id, ap.inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
     )
 )
 
