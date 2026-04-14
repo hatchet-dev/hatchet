@@ -1031,13 +1031,15 @@ WITH inputs AS (
         FROM inputs
     )
     FOR UPDATE
-), tasks_to_update AS (
-    -- Tasks that need monotonic status updates
-    SELECT
-        lt.*,
-        i.readable_status AS new_readable_status,
-        i.worker_id AS new_worker_id,
-        i.retry_count AS new_retry_count
+), updated_tasks AS (
+    UPDATE v1_tasks_olap t
+    SET
+        readable_status = i.retry_count,
+        latest_retry_count = i.retry_count,
+        latest_worker_id = CASE
+            WHEN i.worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN i.worker_id
+            ELSE t.latest_worker_id
+        END
     FROM locked_tasks lt
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
     WHERE (
@@ -1058,19 +1060,6 @@ WITH inputs AS (
             AND i.readable_status != 'EVICTED'
         )
     )
-), updated_tasks AS (
-    UPDATE v1_tasks_olap t
-    SET
-        readable_status = tu.new_readable_status,
-        latest_retry_count = tu.new_retry_count,
-        latest_worker_id = CASE
-            WHEN tu.new_worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN tu.new_worker_id
-            ELSE t.latest_worker_id
-        END
-    FROM
-        tasks_to_update tu
-    WHERE
-        (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
     RETURNING
         t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
 ), all_result_tasks AS (
