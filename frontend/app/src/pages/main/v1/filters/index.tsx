@@ -12,7 +12,6 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Filter } from '@/lib/api';
-import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
 import { useState } from 'react';
 
@@ -97,7 +96,7 @@ export default function Filters() {
           <p className="text-lg font-semibold">No filters found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.v1['external-events']['run-on-event']}
+              doc={{ href: 'https://docs.hatchet.run/v1/external-events/run-on-event' }}
               scrollTo="event-filtering"
               label="Learn about event filters"
             />
