@@ -28,16 +28,30 @@ const createEntraSchema = createBaseSchema.extend({
   tenantId: z.string().min(1, 'Tenant ID is required'),
 });
 
-const createGenericSchema = createBaseSchema.extend({
-  provider: z.union([
-    z.literal('Generic'),
-    z.literal('Google'),
-    z.literal('OneLogin'),
-    z.literal('JumpCloud'),
-  ]),
+const createGenericUrlFields = {
   authUrl: z.string().url('Must be a valid URL'),
   tokenUrl: z.string().url('Must be a valid URL'),
   userinfoUrl: z.string().url('Must be a valid URL'),
+};
+
+const createGenericSchema = createBaseSchema.extend({
+  provider: z.literal('Generic'),
+  ...createGenericUrlFields,
+});
+
+const createGoogleSchema = createBaseSchema.extend({
+  provider: z.literal('Google'),
+  ...createGenericUrlFields,
+});
+
+const createOneLoginSchema = createBaseSchema.extend({
+  provider: z.literal('OneLogin'),
+  ...createGenericUrlFields,
+});
+
+const createJumpCloudSchema = createBaseSchema.extend({
+  provider: z.literal('JumpCloud'),
+  ...createGenericUrlFields,
 });
 
 // Edit schemas (clientSecret optional)
@@ -51,27 +65,47 @@ const editEntraSchema = editBaseSchema.extend({
   tenantId: z.string().min(1, 'Tenant ID is required'),
 });
 
-const editGenericSchema = editBaseSchema.extend({
-  provider: z.union([
-    z.literal('Generic'),
-    z.literal('Google'),
-    z.literal('OneLogin'),
-    z.literal('JumpCloud'),
-  ]),
+const editGenericUrlFields = {
   authUrl: z.string().url('Must be a valid URL'),
   tokenUrl: z.string().url('Must be a valid URL'),
   userinfoUrl: z.string().url('Must be a valid URL'),
+};
+
+const editGenericSchema = editBaseSchema.extend({
+  provider: z.literal('Generic'),
+  ...editGenericUrlFields,
+});
+
+const editGoogleSchema = editBaseSchema.extend({
+  provider: z.literal('Google'),
+  ...editGenericUrlFields,
+});
+
+const editOneLoginSchema = editBaseSchema.extend({
+  provider: z.literal('OneLogin'),
+  ...editGenericUrlFields,
+});
+
+const editJumpCloudSchema = editBaseSchema.extend({
+  provider: z.literal('JumpCloud'),
+  ...editGenericUrlFields,
 });
 
 export const createFormSchema = z.discriminatedUnion('provider', [
   createOktaSchema,
   createEntraSchema,
   createGenericSchema,
+  createGoogleSchema,
+  createOneLoginSchema,
+  createJumpCloudSchema,
 ]);
 export const editFormSchema = z.discriminatedUnion('provider', [
   editOktaSchema,
   editEntraSchema,
   editGenericSchema,
+  editGoogleSchema,
+  editOneLoginSchema,
+  editJumpCloudSchema,
 ]);
 export type FormValues = z.infer<typeof createFormSchema>;
 export type EditFormValues = z.infer<typeof editFormSchema>;
