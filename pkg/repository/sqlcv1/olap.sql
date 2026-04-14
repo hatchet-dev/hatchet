@@ -1039,10 +1039,8 @@ WITH inputs AS (
         i.readable_status AS new_readable_status,
         i.retry_count AS new_retry_count,
         i.worker_id AS new_worker_id
-    FROM
-        inputs i
-    JOIN
-        v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (i.tenant_id, i.task_id, i.task_inserted_at)
+    FROM v1_tasks_olap t
+    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     FOR UPDATE
 ), already_in_target_partition AS (
     -- Check if rows already exist in the target partition (with the new readable_status).
