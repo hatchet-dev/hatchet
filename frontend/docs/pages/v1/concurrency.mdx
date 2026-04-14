@@ -5,7 +5,7 @@ import { snippets } from "@/lib/generated/snippets";
 
 # Concurrency Control in Hatchet Tasks
 
-Hatchet provides powerful concurrency control features to help you manage the execution of your tasks. This is particularly useful when you have tasks that may be triggered frequently or have long-running steps, and you want to limit the number of concurrent executions to prevent overloading your system, ensure fairness, or avoid race conditions.
+Hatchet provides powerful concurrency control features to help you manage the execution of your tasks. This is particularly useful when you have tasks that may be triggered frequently or have long-running tasks, and you want to limit the number of concurrent executions to prevent overloading your system, ensure fairness, or avoid race conditions.
 
 <Callout type="info">
   Concurrency strategies can be added to both `Tasks` and `Workflows`.
@@ -17,11 +17,11 @@ There are several reasons why you might want to use concurrency control in your 
 
 1. **Fairness**: When you have multiple clients or users triggering tasks, concurrency control can help ensure fair access to resources. By limiting the number of concurrent runs per client or user, you can prevent a single client from monopolizing the system and ensure that all clients get a fair share of the available resources.
 
-2. **Resource management**: If your task steps are resource-intensive (e.g., they make external API calls or perform heavy computations), running too many instances concurrently can overload your system. By limiting concurrency, you can ensure your system remains stable and responsive.
+2. **Resource management**: If your tasks are resource-intensive (e.g., they make external API calls or perform heavy computations), running too many instances concurrently can overload your system. By limiting concurrency, you can ensure your system remains stable and responsive.
 
-3. **Avoiding race conditions**: If your task steps modify shared resources, running multiple instances concurrently can lead to race conditions and inconsistent data. Concurrency control helps you avoid these issues by ensuring only a limited number of instances run at a time.
+3. **Avoiding race conditions**: If your tasks modify shared resources, running multiple instances concurrently can lead to race conditions and inconsistent data. Concurrency control helps you avoid these issues by ensuring only a limited number of instances run at a time.
 
-4. **Compliance with external service limits**: If your task steps interact with external services that have rate limits, concurrency control can help you stay within those limits and avoid being throttled or blocked.
+4. **Compliance with external service limits**: If your tasks interact with external services that have rate limits, concurrency control can help you stay within those limits and avoid being throttled or blocked.
 
 5. **Spike Protection**: When you have tasks that are triggered by external events, such as webhooks or user actions, you may experience spikes in traffic that can overwhelm your system. Concurrency control can help you manage these spikes by limiting the number of concurrent runs and queuing new runs until resources become available.
 
@@ -35,7 +35,8 @@ There are several reasons why you might want to use concurrency control in your 
 
 ### Setting concurrency on workers
 
-In addition to setting concurrency limits at the task level, you can also control concurrency at the worker level by passing the `slots` option when creating a new `Worker` instance:
+To set up concurrency on workers, specify a concurrency expression on the workflow or task. The `expression` field determines
+the key which is used to evaluate the concurrency type, and the maximum runs limits the number of concurrent runs.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
@@ -74,8 +75,8 @@ This example will only let 1 run in each group run at a given time to fairly dis
 
 When a new task instance is triggered, the `GROUP_ROUND_ROBIN` strategy will:
 
-1. Determine the group that the instance belongs to based on the `key` function defined in the task's concurrency configuration.
-2. Check if there are any available slots for the instance's group based on the `slots` limit of available workers.
+1. Determine the group that the instance belongs to based on the `expression` function defined in the task's concurrency configuration.
+2. Check if there are any available slots for the instance's group based on the `maxRuns` limit of available workers.
 3. If a slot is available, the new task instance starts executing immediately.
 4. If no slots are available, the new task instance is added to a queue for its group.
 5. When a running task instance completes and a slot becomes available for a group, the next queued instance for that group (in round-robin order) is dequeued and starts executing.
@@ -98,7 +99,7 @@ Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all u
 
 When a new task instance is triggered, the `CANCEL_IN_PROGRESS` strategy will:
 
-1. Determine the group that the instance belongs to based on the `key` function defined in the task's concurrency configuration.
+1. Determine the group that the instance belongs to based on the `expression` function defined in the task's concurrency configuration.
 2. Check if there are any available slots for the instance's group based on the `maxRuns` limit of available workers.
 3. If a slot is available, the new task instance starts executing immediately.
 4. If there are no available slots, currently running task instances for the same concurrency key are cancelled to free up slots for the new instance.
@@ -130,7 +131,7 @@ The `CANCEL_NEWEST` strategy is particularly useful in scenarios where:
 
 You can also combine multiple concurrency strategies to create a more complex concurrency control system. For example, you can use one group key to represent a specific team, and another group to represent a specific resource in that team, giving you more control over the rate at which tasks are executed.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
     <Snippet
       src={

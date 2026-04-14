@@ -3,11 +3,15 @@ import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
 
-# Rate Limiting Step Runs in Hatchet
+# Rate Limiting Task Runs in Hatchet
 
 Hatchet allows you to enforce rate limits on task runs, enabling you to control the rate at which your service runs consume resources, such as external API calls, database queries, or other services. By defining rate limits, you can prevent task runs from exceeding a certain number of requests per time window (e.g., per second, minute, or hour), ensuring efficient resource utilization and avoiding overloading external services.
 
 The state of active rate limits can be viewed in the dashboard in the `Rate Limit` resource tab.
+
+### Limiting Workflow Runs
+
+To rate limit an entire workflow run, it's recommended to specify the rate limit configuration on the entry task (i.e., the first task in the workflow). This will gate the execution of all downstream tasks in the workflow.
 
 ## Dynamic vs Static Rate Limits
 
@@ -22,9 +26,8 @@ Dynamic rate limits are ideal for complex scenarios where rate limits need to be
 
 This pattern is especially useful for:
 
-1. Rate limiting individual users or tenants
-2. Implementing variable rate limits based on subscription tiers or user roles
-3. Dynamically adjusting limits based on real-time system load or other factors
+1. Rate limiting individual users or tenants based on user roles or subscription tiers
+2. Dynamically adjusting limits based on real-time system load or other factors
 
 ### How It Works
 
@@ -51,7 +54,7 @@ We can add one or more rate limits to a task by adding the `rate_limits` configu
   <Tabs.Tab>
 > Note: `dynamicKey` must be a CEL expression. `units` and `limit` can be either an integer or a CEL expression.
 
-We can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
+You can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
 
 <Snippet src={snippets.typescript.rate_limit.workflow.dynamic} />
 
@@ -115,7 +118,7 @@ Define the static rate limits that can be consumed by any step run across all wo
 
 With your rate limit key defined, specify the units of consumption for a specific key in each step definition by adding the `rate_limits` configuration to your step definition in your workflow.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]} variant="hidden">
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 <Snippet src={snippets.python.rate_limit.worker.static} />
@@ -134,7 +137,3 @@ With your rate limit key defined, specify the units of consumption for a specifi
     <Snippet src={snippets.ruby.rate_limit.worker.static} />
   </Tabs.Tab>
 </UniversalTabs>
-
-### Limiting Workflow Runs
-
-To rate limit an entire workflow run, it's recommended to specify the rate limit configuration on the entry step (i.e., the first step in the workflow). This will gate the execution of all downstream steps in the workflow.
