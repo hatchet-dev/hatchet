@@ -13,7 +13,7 @@ Methods:
 
 | Name                   | Description                                                                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](/v1/conditions#checking-if-a-task-was-skipped).                                             |
+| `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).                              |
 | `task_output`          | Get the output of a parent task in a DAG.                                                                                                                                |
 | `cancel`               | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
 | `aio_cancel`           | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
@@ -146,7 +146,7 @@ Returns:
 
 #### `was_skipped`
 
-Check if a given task was skipped. You can read about skipping in [the docs](/v1/conditions#checking-if-a-task-was-skipped).
+Check if a given task was skipped. You can read about skipping in [the docs](/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).
 
 Parameters:
 
