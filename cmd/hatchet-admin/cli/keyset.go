@@ -81,6 +81,12 @@ func runCreateLocalKeysets() error {
 		return err
 	}
 
+	privateInsecureEc256, publicInsecureEc256, err := encryption.GenerateInsecureLocalKeys()
+
+	if err != nil {
+		return err
+	}
+
 	if encryptionKeyDir != "" {
 		// we write these as .key files so that they're gitignored by default
 		err = os.WriteFile(encryptionKeyDir+"/master.key", masterKeyBytes, 0600)
@@ -96,6 +102,18 @@ func runCreateLocalKeysets() error {
 		}
 
 		err = os.WriteFile(encryptionKeyDir+"/public_ec256.key", publicEc256, 0600)
+
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(encryptionKeyDir+"/private_insecure_ec256.key", privateInsecureEc256, 0600)
+
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(encryptionKeyDir+"/public_insecure_ec256.key", publicInsecureEc256, 0600)
 
 		if err != nil {
 			return err
