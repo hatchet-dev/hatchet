@@ -17,6 +17,8 @@ from hatchet_sdk.config import ClientConfig, TenacityConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
+    STEP_EVENT_TYPE_COMPLETED,
+    STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
     GetVersionRequest,
     GetVersionResponse,
@@ -144,9 +146,21 @@ class DispatcherClient:
                 action, event_type, payload, should_not_retry
             )
         except Exception:
-            logger.exception(
-                f"Failed to send step action event {event_type} for action {action.action_id}"
-            )
+            was_completed = event_type == STEP_EVENT_TYPE_COMPLETED
+            was_failed = event_type == STEP_EVENT_TYPE_FAILED
+
+            message = f"failed to send step action event {event_type} for action {action.action_id}."
+
+            if was_completed:
+                message += "\n**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
+
+            if was_failed:
+                message += "\n**IMPORTANT**: the task failed, but the engine failed to receive the failed event."
+
+            if was_completed or was_failed:
+                message += "\nthe engine will eventually consider the task timed out, and invoke any retries configured on the task."
+
+            logger.exception(message)
             return None
 
     async def _try_send_step_action_event(
