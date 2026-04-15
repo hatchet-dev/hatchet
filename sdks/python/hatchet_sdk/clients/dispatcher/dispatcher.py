@@ -152,13 +152,13 @@ class DispatcherClient:
             message = f"failed to send step action event {event_type} for action {action.action_id}."
 
             if was_completed:
-                message += "\n**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
+                message += "**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
 
             if was_failed:
-                message += "\n**IMPORTANT**: the task failed, but the engine failed to receive the failed event."
+                message += "**IMPORTANT**: the task failed, but the engine failed to receive the failed event."
 
             if was_completed or was_failed:
-                message += "\nthe engine will eventually consider the task timed out, and invoke any retries configured on the task."
+                message += "the engine will eventually consider the task timed out, and invoke any retries configured on the task."
 
             logger.exception(message)
             return None
