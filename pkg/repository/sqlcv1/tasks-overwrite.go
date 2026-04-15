@@ -452,11 +452,11 @@ type ReplayTasksParams struct {
 	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
 	// probably need to change. Current hack is to group tasks by their step id where these
 	// multi-dimensional arrays are the same length.
-	Concurrencykeys             [][]string    `json:"concurrencykeys"`
-	InitialStateReasons         []pgtype.Text `json:"initialStateReasons"`
-	DesiredWorkerLabels         [][]byte      `json:"desiredWorkerLabels"`
-	TriggeringEventExternalIds  []*uuid.UUID  `json:"triggeringEventExternalIds"`
-	TriggeringEventKeys         []pgtype.Text `json:"triggeringEventKeys"`
+	Concurrencykeys            [][]string    `json:"concurrencykeys"`
+	InitialStateReasons        []pgtype.Text `json:"initialStateReasons"`
+	DesiredWorkerLabels        [][]byte      `json:"desiredWorkerLabels"`
+	TriggeringEventExternalIds []*uuid.UUID  `json:"triggeringEventExternalIds"`
+	TriggeringEventKeys        []pgtype.Text `json:"triggeringEventKeys"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks

@@ -248,9 +248,9 @@ type CreateMatchesForDAGTriggersParams struct {
 	TriggerChildIndex             []pgtype.Int8        `json:"triggerchildIndex"`
 	TriggerChildKey               []pgtype.Text        `json:"triggerchildKey"`
 	TriggerPriorities             []pgtype.Int4        `json:"triggerPriorities"`
-	TriggerEventExternalIds        []*uuid.UUID         `json:"triggerEventExternalIds"`
-	TriggerEventKeys               []pgtype.Text        `json:"triggerEventKeys"`
-	TriggerDesiredWorkerLabels     [][]byte             `json:"triggerDesiredWorkerLabels"`
+	TriggerEventExternalIds       []*uuid.UUID         `json:"triggerEventExternalIds"`
+	TriggerEventKeys              []pgtype.Text        `json:"triggerEventKeys"`
+	TriggerDesiredWorkerLabels    [][]byte             `json:"triggerDesiredWorkerLabels"`
 }
 
 func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg CreateMatchesForDAGTriggersParams) ([]*V1Match, error) {
