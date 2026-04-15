@@ -29,6 +29,8 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
 ) -> None:
     ref = await long_sleep.aio_run(input=EmptyModel(), wait_for_result=False)
 
+    await asyncio.sleep(2)
+
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
         if run.status == RunStatus.RUNNING:
