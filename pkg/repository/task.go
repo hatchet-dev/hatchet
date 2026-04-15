@@ -78,6 +78,12 @@ type CreateTaskOpts struct {
 
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
+
+	// (optional) the external id of the event that triggered the workflow run, if there was one
+	TriggeringEventExternalId *uuid.UUID
+
+	// (optional) the key of the event that triggered the workflow run, if there was one
+	TriggeringEventKey *string
 }
 
 type ReplayTasksResult struct {
@@ -2154,6 +2160,8 @@ func (r *sharedRepository) insertTasks(
 				Inputs:                       make([][]byte, 0),
 				IsDurables:                   make([]bool, 0),
 				DesiredWorkerLabels:          make([][]byte, 0),
+				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
+				TriggeringEventKeys:          make([]pgtype.Text, 0),
 			}
 		}
 
@@ -2191,6 +2199,18 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
+		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
+
+		triggeringEventKey := pgtype.Text{}
+
+		if task.TriggeringEventKey != nil {
+			triggeringEventKey = pgtype.Text{
+				String: *task.TriggeringEventKey,
+				Valid:  true,
+			}
+		}
+
+		params.TriggeringEventKeys = append(params.TriggeringEventKeys, triggeringEventKey)
 
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
