@@ -76,6 +76,12 @@ from examples.return_exceptions.worker import (
 from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
 from examples.simple.worker import simple, simple_durable
+from examples.support_agent.worker import (
+    escalate_ticket,
+    generate_reply,
+    support_agent,
+    triage_ticket,
+)
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from examples.webhook_with_scope.worker import (
     webhook_with_scope,
@@ -171,6 +177,10 @@ def main() -> None:
             otel_simple_task,
             otel_spawn_parent,
             otel_workflow,
+            support_agent,
+            triage_ticket,
+            generate_reply,
+            escalate_ticket,
         ],
         lifespan=lifespan,
     )

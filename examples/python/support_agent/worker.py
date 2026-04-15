@@ -41,7 +41,6 @@ class EscalationOutput(BaseModel):
     assigned_to: str
 
 
-# !!
 
 
 # > Triage task
@@ -69,7 +68,6 @@ async def triage_ticket(input: SupportTicketInput, ctx: Context) -> TriageOutput
     return TriageOutput(category=category, priority=priority)
 
 
-# !!
 
 
 # > Generate reply task
@@ -84,9 +82,8 @@ async def generate_reply(input: SupportTicketInput, ctx: Context) -> ReplyOutput
             "We are looking into this and will get back to you shortly."
         )
 
-    import importlib
+    import anthropic
 
-    anthropic = importlib.import_module("anthropic")
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
     response = await client.messages.create(
@@ -110,7 +107,6 @@ async def generate_reply(input: SupportTicketInput, ctx: Context) -> ReplyOutput
     return ReplyOutput(message=text)
 
 
-# !!
 
 
 # > Escalate task
@@ -123,7 +119,6 @@ async def escalate_ticket(input: SupportTicketInput, ctx: Context) -> Escalation
     )
 
 
-# !!
 
 
 # > Support agent workflow
@@ -179,7 +174,6 @@ async def support_agent(
     }
 
 
-# !!
 
 
 def main() -> None:

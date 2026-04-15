@@ -1,0 +1,132 @@
+import { Steps } from "nextra/components";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+
+# How to Create a Support Agent Using Hatchet
+
+Support workflows are a natural fit for Hatchet because they combine human input, long waits, and time-based escalation. In this cookbook, we will build a simple support agent that triages a ticket, generates an initial reply, then waits for either a customer response or a timeout. If the customer replies, the workflow resolves. If no reply arrives in time, the workflow escalates the ticket to a human team.
+
+## What this example builds
+
+This example implements the following durable support workflow:
+
+```
+      +-------------------------+
+      | Support ticket received |
+      +-------------------------+
+                  |
+                  v
+        +--------------------+
+        | Triage the ticket  |
+        +--------------------+
+                  |
+                  v
+      +--------------------------+
+      | Generate initial reply   |
+      +--------------------------+
+                  |
+                  v
+    +------------------------------+
+    | Wait for reply or timeout    |
+    +------------------------------+
+             /            \
+            v              v
++----------------+   +--------------------+
+| Customer reply |   | Timeout fires      |
++----------------+   +--------------------+
+        |                     |
+        v                     v
++----------------+  +----------------------+
+| Resolve ticket |  | Escalate to human    |
++----------------+  +----------------------+
+```
+
+The workflow is built around Hatchet’s durable execution model, child task spawning, and event waiting primitives.
+
+## Setup
+
+<Steps>
+
+### Prepare your environment
+
+To run this example, you will need:
+
+- a working local Hatchet environment or access to Hatchet Cloud
+- the Python SDK example environment
+- optionally, an `ANTHROPIC_API_KEY`
+
+Without `ANTHROPIC_API_KEY`, the example still runs using a canned fallback reply.
+
+### Define the models
+
+Start with a few small Pydantic models for the workflow input and outputs.
+
+<Snippet src={snippets.python.support_agent.worker.models} />
+
+These models keep the task boundaries explicit and make the workflow easier to follow.
+
+### Add the child tasks
+
+The durable workflow delegates its work to a few small child tasks.
+
+First, add a task to classify the incoming ticket:
+
+<Snippet src={snippets.python.support_agent.worker.triage_task} />
+
+Next, add a task to generate the initial support reply. This task calls Claude when `ANTHROPIC_API_KEY` is present, and falls back to a fixed response when it is not.
+
+<Snippet src={snippets.python.support_agent.worker.generate_reply_task} />
+
+Finally, add a task to represent escalation to a human team:
+
+<Snippet src={snippets.python.support_agent.worker.escalate_task} />
+
+### Build the durable workflow
+
+Now tie everything together in a durable Hatchet workflow.
+
+<Snippet src={snippets.python.support_agent.worker.support_agent_workflow} />
+
+This workflow:
+
+1. triages the ticket
+2. generates an initial reply
+3. waits for either a scoped customer reply event or a timeout
+4. resolves or escalates depending on which condition fires first
+
+The key detail that makes this workflow reliable is `consider_events_since` on the reply event condition. A customer reply could arrive while the workflow is still finishing the triage or reply-generation steps. By using `consider_events_since`, the workflow can still capture that reply when the wait becomes active.
+
+### Trigger the workflow
+
+The example also includes a small trigger script that starts the workflow, pushes a scoped reply event, and waits for the result.
+
+<Snippet src={snippets.python.support_agent.trigger.trigger_the_workflow} />
+
+Because the workflow uses `consider_events_since`, the trigger can push the reply event immediately after starting the support agent.
+
+### Test it
+
+This example includes two end-to-end tests against a live Hatchet instance:
+
+- a resolved path, where the customer reply event arrives before the timeout
+- a timeout path, where no reply arrives and the workflow escalates
+
+Together, these tests validate both branches of the support workflow and confirm that early reply events are handled safely without coordination sleeps.
+
+</Steps>
+
+## Why Hatchet fits this workflow
+
+This example is small, but it illustrates why support workflows map naturally to Hatchet:
+
+- the workflow needs to preserve state across multiple steps
+- it needs to wait for human input
+- it needs to branch on timeout versus event
+- it should not lose early reply events
+- it benefits from being inspectable and testable as a single durable workflow
+
+A simpler queue can handle isolated tasks, but the full interaction becomes much easier to model when the workflow itself is durable.
+
+## Next steps
+
+From here, you could extend this example by integrating with a real ticketing system, escalating only when the customer explicitly asks for a human and supporting multi-turn conversations instead of resolving on the first reply. For a first support-agent example, this version is enough to show the core idea clearly. Hatchet makes it straightforward to build a durable support workflow that can wait, react, and escalate without fragile coordination logic.
