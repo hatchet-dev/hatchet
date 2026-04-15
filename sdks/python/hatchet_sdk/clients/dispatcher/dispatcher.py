@@ -32,6 +32,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
@@ -138,9 +139,15 @@ class DispatcherClient:
         payload: str | None,
         should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
-        return await self._try_send_step_action_event(
-            action, event_type, payload, should_not_retry
-        )
+        try:
+            return await self._try_send_step_action_event(
+                action, event_type, payload, should_not_retry
+            )
+        except Exception:
+            logger.exception(
+                f"Failed to send step action event {event_type} for action {action.action_id}"
+            )
+            return None
 
     async def _try_send_step_action_event(
         self,
