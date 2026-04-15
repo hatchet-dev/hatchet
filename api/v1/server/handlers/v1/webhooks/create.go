@@ -130,6 +130,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		params.Name = basicAuth.Name
 		params.Eventkeyexpression = basicAuth.EventKeyExpression
 		params.ScopeExpression = basicAuth.ScopeExpression
+		params.ReturnEventAsResponsePayload = basicAuth.ReturnEventAsResponsePayload != nil && *basicAuth.ReturnEventAsResponsePayload
 		if basicAuth.StaticPayload != nil {
 			payloadBytes, err := json.Marshal(basicAuth.StaticPayload)
 			if err != nil {
@@ -165,6 +166,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		params.Name = apiKeyAuth.Name
 		params.Eventkeyexpression = apiKeyAuth.EventKeyExpression
 		params.ScopeExpression = apiKeyAuth.ScopeExpression
+		params.ReturnEventAsResponsePayload = apiKeyAuth.ReturnEventAsResponsePayload != nil && *apiKeyAuth.ReturnEventAsResponsePayload
 		if apiKeyAuth.StaticPayload != nil {
 			payloadBytes, err := json.Marshal(apiKeyAuth.StaticPayload)
 			if err != nil {
@@ -200,6 +202,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		params.Name = hmacAuth.Name
 		params.Eventkeyexpression = hmacAuth.EventKeyExpression
 		params.ScopeExpression = hmacAuth.ScopeExpression
+		params.ReturnEventAsResponsePayload = hmacAuth.ReturnEventAsResponsePayload != nil && *hmacAuth.ReturnEventAsResponsePayload
 		if hmacAuth.StaticPayload != nil {
 			payloadBytes, err := json.Marshal(hmacAuth.StaticPayload)
 			if err != nil {

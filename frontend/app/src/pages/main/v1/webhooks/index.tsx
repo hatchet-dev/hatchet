@@ -22,6 +22,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import { Switch } from '@/components/v1/ui/switch';
 import { Spinner } from '@/components/v1/ui/loading';
 import {
   Select,
@@ -151,6 +152,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
   const basePayload = {
     scopeExpression: data.scopeExpression || undefined,
     staticPayload: parseStaticPayload(data.staticPayload),
+    returnEventAsResponsePayload: data.returnEventAsResponsePayload ?? true,
   };
 
   switch (data.sourceName) {
@@ -397,6 +399,7 @@ const CreateWebhookModal = () => {
       eventKeyExpression: 'input.id',
       username: '',
       password: '',
+      returnEventAsResponsePayload: true,
     },
   });
 
@@ -404,6 +407,7 @@ const CreateWebhookModal = () => {
   const authType = watch('authType');
   const webhookName = watch('name');
   const eventKeyExpression = watch('eventKeyExpression');
+  const returnEventAsResponsePayload = watch('returnEventAsResponsePayload');
 
   /* Update default event key expression when source changes */
   useEffect(() => {
@@ -651,6 +655,24 @@ const CreateWebhookModal = () => {
             </div>
           </div>
 
+          <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="returnEventAsResponsePayload" className="text-sm font-medium">
+                Return event as response payload
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                When enabled, the triggered event will be returned as the HTTP response body.
+              </p>
+            </div>
+            <Switch
+              id="returnEventAsResponsePayload"
+              checked={returnEventAsResponsePayload ?? true}
+              onCheckedChange={(checked) =>
+                setValue('returnEventAsResponsePayload', checked)
+              }
+            />
+          </div>
+
           <div className="space-y-4">
             <div className="space-y-4 border-l-2 border-gray-200 pl-4">
               {sourceName === V1WebhookSourceName.GENERIC && (
@@ -723,6 +745,8 @@ export const EditWebhookModal = ({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     reset,
     formState: { errors },
   } = useForm<WebhookUpdateFormData>({
@@ -733,8 +757,12 @@ export const EditWebhookModal = ({
       staticPayload: webhook.staticPayload
         ? JSON.stringify(webhook.staticPayload, null, 2)
         : '',
+      returnEventAsResponsePayload:
+        webhook.returnEventAsResponsePayload ?? true,
     },
   });
+
+  const returnEventAsResponsePayload = watch('returnEventAsResponsePayload');
 
   useEffect(() => {
     if (open) {
@@ -744,6 +772,8 @@ export const EditWebhookModal = ({
         staticPayload: webhook.staticPayload
           ? JSON.stringify(webhook.staticPayload, null, 2)
           : '',
+        returnEventAsResponsePayload:
+          webhook.returnEventAsResponsePayload ?? true,
       });
     }
   }, [webhook, open, reset]);
@@ -759,6 +789,8 @@ export const EditWebhookModal = ({
             eventKeyExpression: data.eventKeyExpression,
             scopeExpression: data.scopeExpression ?? '',
             staticPayload: staticPayload ?? {},
+            returnEventAsResponsePayload:
+              data.returnEventAsResponsePayload ?? true,
           },
         },
         {
@@ -845,6 +877,28 @@ export const EditWebhookModal = ({
             <p className="text-xs text-muted-foreground">
               JSON object to merge into the webhook payload.
             </p>
+          </div>
+
+          <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="edit-returnEventAsResponsePayload"
+                className="text-sm font-medium"
+              >
+                Return event as response payload
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                When enabled, the triggered event will be returned as the HTTP
+                response body.
+              </p>
+            </div>
+            <Switch
+              id="edit-returnEventAsResponsePayload"
+              checked={returnEventAsResponsePayload ?? true}
+              onCheckedChange={(checked) =>
+                setValue('returnEventAsResponsePayload', checked)
+              }
+            />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
