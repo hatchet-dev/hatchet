@@ -1,0 +1,178 @@
+## Hatchet Python V2 Migration Guide
+
+This guide will help you migrate Hatchet workflows from the V1 SDK to the V2 SDK.
+
+V2 is a focused cleanup release: it removes everything that was deprecated in V1 (primarily in V1.31.0), enforces types that were previously coerced or warned about, and makes async a first-class requirement for durable tasks. There are no new concepts to learn — the goal is to arrive at a codebase with no deprecation warnings.
+
+#### Running without wait
+
+In V1, running a workflow without waiting for the result was done with dedicated `_no_wait` methods:
+
+```python
+# V1
+ref = workflow.run_no_wait(input)
+ref = await workflow.aio_run_no_wait(input)
+refs = workflow.run_many_no_wait([input1, input2])
+refs = await workflow.aio_run_many_no_wait([input1, input2])
+```
+
+These methods have been removed in V2. Pass `wait_for_result=False` to the standard `run` methods instead:
+
+```python
+# V2
+ref = workflow.run(input, wait_for_result=False)
+ref = await workflow.aio_run(input, wait_for_result=False)
+refs = workflow.run_many([input1, input2], wait_for_result=False)
+refs = await workflow.aio_run_many([input1, input2], wait_for_result=False)
+```
+
+#### Options objects removed in favor of inline parameters
+
+`PushEventOptions`, `BulkPushEventOptions`, and passing a `TriggerWorkflowOptions` or `ScheduleTriggerWorkflowOptions` instance to `run()`, `schedule()`, and related methods have all been removed. Pass the options as keyword arguments directly instead.
+
+**Events:**
+
+```python
+# V1
+from hatchet_sdk import PushEventOptions
+
+hatchet.events.push("my-event", payload, options=PushEventOptions(additional_metadata={"key": "value"}))
+```
+
+```python
+# V2
+hatchet.events.push("my-event", payload, additional_metadata={"key": "value"})
+```
+
+**Running and scheduling workflows:**
+
+```python
+# V1
+from hatchet_sdk import TriggerWorkflowOptions
+
+workflow.run(input, options=TriggerWorkflowOptions(additional_metadata={"key": "value"}, priority=1))
+workflow.schedule(run_at, input, options=ScheduleTriggerWorkflowOptions(additional_metadata={"key": "value"}))
+```
+
+```python
+# V2
+workflow.run(input, additional_metadata={"key": "value"}, priority=1)
+workflow.schedule(run_at, input, additional_metadata={"key": "value"})
+```
+
+#### Context property renames
+
+Several properties on `Context` have been renamed or removed.
+
+| V1 | V2 |
+|---|---|
+| `ctx.step_run_id` | `ctx.task_run_id` |
+| `ctx.workflow_input` | The `input` argument to the task function |
+| `ctx.input` | The `input` argument to the task function |
+| `ctx.done` | `ctx.is_cancelled` |
+| `ctx.exit_flag` | `ctx.is_cancelled` |
+| `ctx.aio_task_output(task)` | `ctx.task_output(task)` |
+| `ctx.fetch_task_run_error(task)` | `ctx.get_task_run_error(task)` |
+| `ctx.worker` | Use specific properties: `ctx.worker_id`, etc. |
+
+Internal context properties (`ctx.data`, `ctx.action`, `ctx.dispatcher_client`, `ctx.admin_client`, `ctx.event_client`, `ctx.runs_client`) have also been removed. These were never intended for external use.
+
+#### Hatchet client changes
+
+`Hatchet.get_current_context()` has been removed. Use the `current_context` property instead:
+
+```python
+# V1
+ctx = hatchet.get_current_context()
+
+# V2
+ctx = hatchet.current_context
+```
+
+The `debug` constructor parameter has been removed. Enable debug mode via the `HATCHET_CLIENT_DEBUG` environment variable instead:
+
+```bash
+HATCHET_CLIENT_DEBUG=true
+```
+
+The `client` constructor parameter has also been removed.
+
+#### Durations must be `timedelta` objects
+
+Passing duration parameters such as `timeout`, `schedule_timeout`, and `execution_timeout` as strings (e.g. `"10s"`) is no longer supported. Use `datetime.timedelta` objects:
+
+```python
+from datetime import timedelta
+
+# V1
+@workflow.task(timeout="10s", schedule_timeout="30m")
+def my_task(input: MyInput, ctx: Context) -> None: ...
+
+# V2
+@workflow.task(timeout=timedelta(seconds=10), schedule_timeout=timedelta(minutes=30))
+def my_task(input: MyInput, ctx: Context) -> None: ...
+```
+
+#### Priority must use the `Priority` enum
+
+Passing `priority` as an integer to task and workflow decorators is no longer supported. Use the `Priority` enum:
+
+```python
+from hatchet_sdk import Priority
+
+# V1
+@workflow.task(priority=1)
+def my_task(input: MyInput, ctx: Context) -> None: ...
+
+# V2
+@workflow.task(priority=Priority.HIGH)
+def my_task(input: MyInput, ctx: Context) -> None: ...
+```
+
+`Priority.LOW`, `Priority.MEDIUM`, and `Priority.HIGH` correspond to the integer values `1`, `2`, and `3` from V1.
+
+#### Worker labels must use typed objects
+
+Passing `desired_worker_labels` as a `dict` is no longer supported. Use a `list[DesiredWorkerLabel]` with the `key` field set:
+
+```python
+from hatchet_sdk import DesiredWorkerLabel, WorkerLabelComparator
+
+# V1
+@workflow.task(desired_worker_labels={"region": {"value": "us-east-1", "comparator": 4}})
+def my_task(input: MyInput, ctx: Context) -> None: ...
+
+# V2
+@workflow.task(
+    desired_worker_labels=[
+        DesiredWorkerLabel(
+            key="region",
+            value="us-east-1",
+            comparator=WorkerLabelComparator.EQUAL,
+        )
+    ]
+)
+def my_task(input: MyInput, ctx: Context) -> None: ...
+```
+
+The `comparator` field on `DesiredWorkerLabel` must now be a `WorkerLabelComparator` enum value rather than an integer.
+
+#### Durable tasks must be async
+
+Synchronous durable tasks are no longer supported. Convert durable task functions to `async def`:
+
+```python
+# V1
+@workflow.durable_task()
+def my_durable_task(input: MyInput, ctx: DurableContext) -> dict[str, str]:
+    ...
+
+# V2
+@workflow.durable_task()
+async def my_durable_task(input: MyInput, ctx: DurableContext) -> dict[str, str]:
+    ...
+```
+
+#### Internal `Worker` properties removed
+
+Several internal `Worker` properties that were never intended for external use have been removed: `worker.config`, `worker.slot_config`, `worker.debug`, `worker.labels`, `worker.handle_kill`, `worker.owned_loop`, `worker.action_registry`, `worker.killing`, and `worker.action_listener_process`. If your code accessed any of these, remove those usages.
