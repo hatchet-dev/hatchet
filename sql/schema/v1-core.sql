@@ -307,6 +307,8 @@ CREATE TABLE v1_task (
     retry_max_backoff INTEGER,
     is_durable BOOLEAN,
     desired_worker_label JSONB,
+    triggering_event_external_id UUID,
+    triggering_event_key TEXT,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

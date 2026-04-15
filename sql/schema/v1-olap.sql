@@ -189,6 +189,8 @@ CREATE TABLE v1_tasks_olap (
     dag_id BIGINT,
     dag_inserted_at TIMESTAMPTZ,
     parent_task_external_id UUID,
+    triggering_event_external_id UUID,
+    triggering_event_key TEXT,
 
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
