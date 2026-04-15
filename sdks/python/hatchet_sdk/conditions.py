@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -17,7 +17,6 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import (
-    Duration,
     timedelta_to_expr,
 )
 
@@ -65,7 +64,7 @@ class Condition(ABC):
 
 class SleepCondition(Condition):
     def __init__(
-        self, duration: Duration, readable_data_key: str | None = None
+        self, duration: timedelta, readable_data_key: str | None = None
     ) -> None:
         super().__init__(
             BaseCondition(

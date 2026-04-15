@@ -3,7 +3,6 @@ import contextlib
 import logging
 import signal
 import time
-import warnings
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum

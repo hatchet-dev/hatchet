@@ -6,6 +6,7 @@ from contextlib import (
     asynccontextmanager,
 )
 from dataclasses import asdict, dataclass, is_dataclass
+from datetime import timedelta
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -57,7 +58,7 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
@@ -138,8 +139,8 @@ class Task(Generic[TWorkflowInput, R]):
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        execution_timeout: Duration,
-        schedule_timeout: Duration,
+        execution_timeout: timedelta,
+        schedule_timeout: timedelta,
         parents: "list[Task[TWorkflowInput, Any]] | None",
         retries: int,
         rate_limits: list[CreateTaskRateLimit] | None,
@@ -189,7 +190,7 @@ class Task(Generic[TWorkflowInput, R]):
         return_type = get_type_hints(_fn).get("return")
 
         self._validators: TaskIOValidator = TaskIOValidator(
-            workflow_input=workflow._config.input_validator,
+            workflow_input=workflow._config.input_validator,  # type: ignore[arg-type]
             step_output=TypeAdapter(normalize_validator(return_type)),
         )
 

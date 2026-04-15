@@ -53,7 +53,6 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.timedelta_to_expression import (
-    Duration,
     expr_to_timedelta,
     timedelta_to_expr,
 )
@@ -380,7 +379,7 @@ class Context:
         """
         await asyncio.to_thread(self.put_stream, data)
 
-    def refresh_timeout(self, increment_by: Duration) -> None:
+    def refresh_timeout(self, increment_by: timedelta) -> None:
         """
         Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/home/timeouts#refreshing-timeouts).
 
@@ -396,7 +395,7 @@ class Context:
         except Exception:
             logger.exception("error refreshing timeout")
 
-    async def aio_refresh_timeout(self, increment_by: Duration) -> None:
+    async def aio_refresh_timeout(self, increment_by: timedelta) -> None:
         """
         Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/home/timeouts#refreshing-timeouts).
 
@@ -670,7 +669,7 @@ class DurableContext(Context):
 
         return result.payload or {}
 
-    async def aio_sleep_for(self, duration: Duration) -> SleepResult:
+    async def aio_sleep_for(self, duration: timedelta) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 

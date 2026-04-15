@@ -13,7 +13,6 @@ from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
 from typing import Any, TypeVar
-from warnings import warn
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig

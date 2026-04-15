@@ -6,7 +6,7 @@ MINUTE = 60
 Duration = timedelta
 
 
-def timedelta_to_expr(td: Duration) -> str:
+def timedelta_to_expr(td: timedelta) -> str:
     ## `total_seconds` gives the entire duration,
     ## while `seconds` gives the seconds component of the timedelta
     ## e.g. 1 day and 1 second would give 86401 total seconds but 1 second

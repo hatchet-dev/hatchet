@@ -43,7 +43,6 @@ from hatchet_sdk.runnables.eviction import (
 )
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
-    EmptyModel,
     R,
     StepType,
     TaskDefaults,
@@ -62,7 +61,6 @@ from hatchet_sdk.types.trigger import (
 )
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -97,8 +95,8 @@ def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -
 
 
 class ComputedTaskParameters(BaseModel):
-    schedule_timeout: Duration
-    execution_timeout: Duration
+    schedule_timeout: timedelta
+    execution_timeout: timedelta
     retries: int
     backoff_factor: float | None
     backoff_max_seconds: int | None
@@ -210,10 +208,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             _concurrency = None
             _concurrency_arr = []
 
-        # Hack to not send a JSON schema if the input type is None/EmptyModel
-        input_type = self._config.input_validator.core_schema.get("cls")
-
-        if input_type is None or input_type is EmptyModel:
+        if self._config.input_validator is None:
             json_schema = None
         else:
             try:
@@ -244,6 +239,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
+        if self._config.input_validator is None:
+            return cast(TWorkflowInput, None)
+
         return cast(
             TWorkflowInput,
             self._config.input_validator.validate_python(
@@ -297,11 +295,15 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     @property
-    def input_validator(self) -> TypeAdapter[TWorkflowInput]:
+    def input_validator(self) -> TypeAdapter[TWorkflowInput] | None:
+        if self._config.input_validator is None:
+            return None
         return cast(TypeAdapter[TWorkflowInput], self._config.input_validator)
 
     @property
-    def input_validator_type(self) -> type[TWorkflowInput]:
+    def input_validator_type(self) -> type[TWorkflowInput] | None:
+        if self._config.input_validator is None:
+            return None
         return cast(type[TWorkflowInput], self._config.input_validator._type)
 
     @property
@@ -325,7 +327,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def create_bulk_run_item(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         key: str | None = None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -363,6 +365,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:
+        if self._config.input_validator is None:
+            return None
+
         return self._config.input_validator.dump_json(
             input,  # type: ignore[arg-type]
             context=HATCHET_PYDANTIC_SENTINEL,
@@ -371,6 +376,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _serialize_input_to_dict(
         self, input: TWorkflowInput | None
     ) -> JSONSerializableMapping:
+        if self._config.input_validator is None:
+            return {}
+
         return cast(
             JSONSerializableMapping,
             self._config.input_validator.dump_python(
@@ -558,7 +566,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -590,7 +598,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -619,7 +627,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | Priority | None = None,
     ) -> CronWorkflows:
@@ -647,7 +655,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | Priority | None = None,
     ) -> CronWorkflows:
@@ -723,7 +731,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 "Set description= when defining the workflow or task."
             )
         description = self._config.description
-        if self.input_validator_type is EmptyModel:
+        if self.input_validator is None:
             raise ValueError(
                 f"Runnable '{self._config.name}' has no input validator. "
                 "Set input_validator= when defining the workflow or task."
@@ -827,7 +835,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -900,7 +908,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -1118,8 +1126,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
@@ -1220,8 +1228,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def durable_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
@@ -1334,8 +1342,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
@@ -1404,8 +1412,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_success_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
@@ -1612,7 +1620,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -1692,7 +1700,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast(TWorkflowInput, None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
