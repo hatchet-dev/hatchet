@@ -117,6 +117,8 @@ type CreateMatchOpts struct {
 
 	TriggerEventKey pgtype.Text
 
+	TriggerDesiredWorkerLabels []byte
+
 	SignalTaskId *int64
 
 	SignalTaskInsertedAt pgtype.Timestamptz
@@ -571,7 +573,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
-		dagIdsToDesiredWorkerLabels := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
+		dagIdsToDesiredWorkerLabels := make(map[int64][]byte)
 
 		for _, dagData := range dagInputDatas {
 			retrieveOpts := RetrievePayloadOpts{
@@ -589,15 +591,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
-
-			if len(dagData.DesiredWorkerLabels) > 0 {
-				var labels []*sqlcv1.GetDesiredLabelsRow
-				if err := json.Unmarshal(dagData.DesiredWorkerLabels, &labels); err == nil {
-					dagIdsToDesiredWorkerLabels[dagData.DagID] = labels
-				} else {
-					m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", dagData.DagID, dagData.DagInsertedAt.Time)
-				}
-			}
+			dagIdsToDesiredWorkerLabels[dagData.DagID] = dagData.DesiredWorkerLabels
 		}
 
 		// determine which tasks to create based on step ids
@@ -673,15 +667,27 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.DagId = &match.TriggerDagID.Int64
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
 
-						if dagLabels, ok := dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]; ok && len(dagLabels) > 0 {
-							labels := make([]*sqlcv1.GetDesiredLabelsRow, len(dagLabels))
-							for i, l := range dagLabels {
-								lCopy := *l
-								lCopy.StepId = *match.TriggerStepID
-								labels[i] = &lCopy
-							}
-							opt.DesiredWorkerLabels = labels
+						// Prefer labels stored on the match; fall back to the DAG for rows
+						// created before the migration added trigger_desired_worker_labels.
+						// fixme: remove this later when we've upgraded everyone and are sure there are no
+						// more dags with desired worker labels only on the dag row
+						rawLabels := match.TriggerDesiredWorkerLabels
+						if len(rawLabels) == 0 {
+							rawLabels = dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]
 						}
+
+						var labels []*sqlcv1.GetDesiredLabelsRow
+						if err := json.Unmarshal(rawLabels, &labels); err != nil {
+							m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", *opt.DagId, opt.DagInsertedAt.Time)
+						}
+
+						for i, l := range labels {
+							lCopy := *l
+							lCopy.StepId = *match.TriggerStepID
+							labels[i] = &lCopy
+						}
+
+						opt.DesiredWorkerLabels = labels
 					}
 
 					if match.TriggerParentTaskExternalID != nil {
@@ -1074,6 +1080,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerPriorities := make([]pgtype.Int4, len(dagMatches))
 		triggerEventExternalIds := make([]*uuid.UUID, len(dagMatches))
 		triggerEventKeys := make([]pgtype.Text, len(dagMatches))
+		triggerDesiredWorkerLabels := make([][]byte, len(dagMatches))
 
 		for i, match := range dagMatches {
 			dagTenantIds[i] = tenantId
@@ -1102,6 +1109,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerExistingTaskInsertedAts[i] = match.TriggerExistingTaskInsertedAt
 			triggerEventExternalIds[i] = match.TriggerEventExternalId
 			triggerEventKeys[i] = match.TriggerEventKey
+			triggerDesiredWorkerLabels[i] = match.TriggerDesiredWorkerLabels
 		}
 
 		// Create matches in the database
@@ -1128,6 +1136,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerPriorities:             triggerPriorities,
 				TriggerEventExternalIds:       triggerEventExternalIds,
 				TriggerEventKeys:              triggerEventKeys,
+				TriggerDesiredWorkerLabels:    triggerDesiredWorkerLabels,
 			},
 		)
 
@@ -1386,6 +1395,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerPriority:               match.TriggerPriority,
 				TriggerEventExternalId:        match.TriggerEventExternalID,
 				TriggerEventKey:               match.TriggerEventKey,
+				TriggerDesiredWorkerLabels:    match.TriggerDesiredWorkerLabels,
 			}
 
 			for _, condition := range conditions {

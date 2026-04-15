@@ -710,6 +710,7 @@ CREATE TABLE v1_dag (
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
     parent_task_external_id UUID,
+    desired_worker_labels JSONB,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

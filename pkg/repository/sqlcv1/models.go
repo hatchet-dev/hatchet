@@ -3116,6 +3116,7 @@ type V1Dag struct {
 	WorkflowID           uuid.UUID          `json:"workflow_id"`
 	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
+	DesiredWorkerLabels  []byte             `json:"desired_worker_labels"`
 }
 
 type V1DagData struct {

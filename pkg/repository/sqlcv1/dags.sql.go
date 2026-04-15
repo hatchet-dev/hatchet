@@ -50,7 +50,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id
+    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id, desired_worker_labels
 `
 
 type CreateDAGsParams struct {
@@ -89,6 +89,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
 			&i.ParentTaskExternalID,
+			&i.DesiredWorkerLabels,
 		); err != nil {
 			return nil, err
 		}
@@ -103,12 +104,13 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 const getDAGData = `-- name: GetDAGData :many
 WITH input AS (
     SELECT
-        UNNEST($1::bigint[]) AS dag_id,
-        UNNEST($2::timestamptz[]) AS dag_inserted_at
+        unnest($1::bigint[]) AS dag_id,
+        unnest($2::timestamptz[]) AS dag_inserted_at
 )
-SELECT dag_id, dag_inserted_at, input, additional_metadata
-FROM v1_dag_data
-WHERE (dag_id, dag_inserted_at) IN (
+SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels
+FROM v1_dag d
+JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
+WHERE (d.id, d.inserted_at) IN (
     SELECT dag_id, dag_inserted_at
     FROM input
 )
@@ -119,20 +121,29 @@ type GetDAGDataParams struct {
 	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
 }
 
-func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*V1DagData, error) {
+type GetDAGDataRow struct {
+	DagID               int64              `json:"dag_id"`
+	DagInsertedAt       pgtype.Timestamptz `json:"dag_inserted_at"`
+	Input               []byte             `json:"input"`
+	AdditionalMetadata  []byte             `json:"additional_metadata"`
+	DesiredWorkerLabels []byte             `json:"desired_worker_labels"`
+}
+
+func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*GetDAGDataRow, error) {
 	rows, err := db.Query(ctx, getDAGData, arg.Dagids, arg.Daginsertedats)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1DagData
+	var items []*GetDAGDataRow
 	for rows.Next() {
-		var i V1DagData
+		var i GetDAGDataRow
 		if err := rows.Scan(
 			&i.DagID,
 			&i.DagInsertedAt,
 			&i.Input,
 			&i.AdditionalMetadata,
+			&i.DesiredWorkerLabels,
 		); err != nil {
 			return nil, err
 		}
