@@ -4,7 +4,7 @@ import { Snippet } from "@/components/code";
 
 # How to Create a Support Agent Using Hatchet
 
-Support workflows are a natural fit for Hatchet because they combine human input, long waits, and time-based escalation. In this cookbook, we will build a simple support agent that triages a ticket, generates an initial reply, then waits for either a customer response or a timeout. If the customer replies, the workflow resolves. If no reply arrives in time, the workflow escalates the ticket to a human team.
+Support workflows are a natural fit for Hatchet because they combine human input, long waits, and time-based escalation. In this cookbook, we will build a simple support agent that triages a ticket, generates an initial reply, then waits for either a customer response or a timeout. If the customer replies, the workflow resolves. If no reply arrives in time, the workflow escalates the ticket to human support personnel.
 
 ## What this example builds
 
@@ -55,7 +55,7 @@ To run this example, you will need:
 - the Python SDK example environment
 - optionally, an `ANTHROPIC_API_KEY`
 
-Without `ANTHROPIC_API_KEY`, the example still runs using a canned fallback reply.
+Without `ANTHROPIC_API_KEY`, the example still runs using a fixed fallback reply.
 
 ### Define the models
 
