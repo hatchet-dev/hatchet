@@ -113,6 +113,10 @@ type CreateMatchOpts struct {
 
 	TriggerPriority pgtype.Int4
 
+	TriggerEventExternalId *uuid.UUID
+
+	TriggerEventKey pgtype.Text
+
 	SignalTaskId *int64
 
 	SignalTaskInsertedAt pgtype.Timestamptz
@@ -1063,6 +1067,8 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
 		triggerChildKeys := make([]pgtype.Text, len(dagMatches))
 		triggerPriorities := make([]pgtype.Int4, len(dagMatches))
+		triggerEventExternalIds := make([]*uuid.UUID, len(dagMatches))
+		triggerEventKeys := make([]pgtype.Text, len(dagMatches))
 
 		for i, match := range dagMatches {
 			dagTenantIds[i] = tenantId
@@ -1089,6 +1095,8 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerWorkflowRunIds[i] = match.TriggerWorkflowRunId
 
 			triggerExistingTaskInsertedAts[i] = match.TriggerExistingTaskInsertedAt
+			triggerEventExternalIds[i] = match.TriggerEventExternalId
+			triggerEventKeys[i] = match.TriggerEventKey
 		}
 
 		// Create matches in the database
@@ -1113,6 +1121,8 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerChildIndex:             triggerChildIndices,
 				TriggerChildKey:               triggerChildKeys,
 				TriggerPriorities:             triggerPriorities,
+				TriggerEventExternalIds:       triggerEventExternalIds,
+				TriggerEventKeys:              triggerEventKeys,
 			},
 		)
 
@@ -1369,6 +1379,8 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerChildIndex:             match.TriggerChildIndex,
 				TriggerChildKey:               match.TriggerChildKey,
 				TriggerPriority:               match.TriggerPriority,
+				TriggerEventExternalId:        match.TriggerEventExternalID,
+				TriggerEventKey:               match.TriggerEventKey,
 			}
 
 			for _, condition := range conditions {

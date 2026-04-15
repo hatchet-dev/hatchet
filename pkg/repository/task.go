@@ -3352,6 +3352,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 					// the task already exists
 					TriggerExistingTaskId:         &task.ID,
 					TriggerExistingTaskInsertedAt: task.InsertedAt,
+
+					// fixme: probably want to provide triggering event ket and external id here
 				})
 			default:
 				conditions := make([]GroupMatchCondition, 0)
@@ -3411,6 +3413,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 					// the task already exists
 					TriggerExistingTaskId:         &task.ID,
 					TriggerExistingTaskInsertedAt: task.InsertedAt,
+
+					// fixme: probably want to provide triggering event ket and external id here
 				})
 			}
 		}

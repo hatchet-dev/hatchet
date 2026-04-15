@@ -827,6 +827,7 @@ func (r *sharedRepository) triggerWorkflows(
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
 					priority             pgtype.Int4
+					triggeringEventKey   pgtype.Text
 				)
 
 				if tuple.parentExternalId != nil {
@@ -866,6 +867,13 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
+				if tuple.triggeringEventKey != nil {
+					triggeringEventKey = pgtype.Text{
+						String: *tuple.triggeringEventKey,
+						Valid:  true,
+					}
+				}
+
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
 					Conditions:           conditions,
@@ -882,6 +890,8 @@ func (r *sharedRepository) triggerWorkflows(
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
 					TriggerPriority:             priority,
+					TriggerEventExternalId:      tuple.triggeringEventExternalId,
+					TriggerEventKey:             triggeringEventKey,
 				})
 			case len(step.Parents) == 0:
 				// if we have additional match conditions, create a match instead of triggering a workflow for this step
@@ -930,6 +940,7 @@ func (r *sharedRepository) triggerWorkflows(
 						childIndex           pgtype.Int8
 						childKey             pgtype.Text
 						priority             pgtype.Int4
+						triggeringEventKey   pgtype.Text
 					)
 
 					if tuple.parentExternalId != nil {
@@ -969,6 +980,13 @@ func (r *sharedRepository) triggerWorkflows(
 						}
 					}
 
+					if tuple.triggeringEventKey != nil {
+						triggeringEventKey = pgtype.Text{
+							String: *tuple.triggeringEventKey,
+							Valid:  true,
+						}
+					}
+
 					eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 						Kind:                 sqlcv1.V1MatchKindTRIGGER,
 						Conditions:           groupConditions,
@@ -985,6 +1003,8 @@ func (r *sharedRepository) triggerWorkflows(
 						TriggerChildIndex:           childIndex,
 						TriggerChildKey:             childKey,
 						TriggerPriority:             priority,
+						TriggerEventExternalId:      tuple.triggeringEventExternalId,
+						TriggerEventKey:             triggeringEventKey,
 					})
 				} else {
 					labels := tuple.desiredWorkerLabels
@@ -1063,6 +1083,7 @@ func (r *sharedRepository) triggerWorkflows(
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
 					priority             pgtype.Int4
+					triggeringEventKey   pgtype.Text
 				)
 
 				if tuple.parentExternalId != nil {
@@ -1101,6 +1122,13 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
+				if tuple.triggeringEventKey != nil {
+					triggeringEventKey = pgtype.Text{
+						String: *tuple.triggeringEventKey,
+						Valid:  true,
+					}
+				}
+
 				// create an event match
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
@@ -1118,6 +1146,8 @@ func (r *sharedRepository) triggerWorkflows(
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
 					TriggerPriority:             priority,
+					TriggerEventExternalId:      tuple.triggeringEventExternalId,
+					TriggerEventKey:             triggeringEventKey,
 				})
 			}
 		}
