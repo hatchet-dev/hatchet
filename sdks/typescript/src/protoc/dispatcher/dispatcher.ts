@@ -443,6 +443,10 @@ export interface AssignedAction {
   workflowVersionId?: string | undefined;
   /** (optional) the invocation count for durable task events (required for durable events, otherwise null) */
   durableTaskInvocationCount?: number | undefined;
+  /** (optional) the external id of the event that triggered this workflow run (if any) */
+  triggeringEventExternalId?: string | undefined;
+  /** (optional) the key of the event that triggered this workflow run (if any) */
+  triggeringEventKey?: string | undefined;
 }
 
 export interface WorkerListenRequest {
@@ -1681,6 +1685,8 @@ function createBaseAssignedAction(): AssignedAction {
     workflowId: undefined,
     workflowVersionId: undefined,
     durableTaskInvocationCount: undefined,
+    triggeringEventExternalId: undefined,
+    triggeringEventKey: undefined,
   };
 }
 
@@ -1748,6 +1754,12 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     }
     if (message.durableTaskInvocationCount !== undefined) {
       writer.uint32(168).int32(message.durableTaskInvocationCount);
+    }
+    if (message.triggeringEventExternalId !== undefined) {
+      writer.uint32(178).string(message.triggeringEventExternalId);
+    }
+    if (message.triggeringEventKey !== undefined) {
+      writer.uint32(186).string(message.triggeringEventKey);
     }
     return writer;
   },
@@ -1927,6 +1939,22 @@ export const AssignedAction: MessageFns<AssignedAction> = {
           message.durableTaskInvocationCount = reader.int32();
           continue;
         }
+        case 22: {
+          if (tag !== 178) {
+            break;
+          }
+
+          message.triggeringEventExternalId = reader.string();
+          continue;
+        }
+        case 23: {
+          if (tag !== 186) {
+            break;
+          }
+
+          message.triggeringEventKey = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2039,6 +2067,16 @@ export const AssignedAction: MessageFns<AssignedAction> = {
         : isSet(object.durable_task_invocation_count)
           ? globalThis.Number(object.durable_task_invocation_count)
           : undefined,
+      triggeringEventExternalId: isSet(object.triggeringEventExternalId)
+        ? globalThis.String(object.triggeringEventExternalId)
+        : isSet(object.triggering_event_external_id)
+          ? globalThis.String(object.triggering_event_external_id)
+          : undefined,
+      triggeringEventKey: isSet(object.triggeringEventKey)
+        ? globalThis.String(object.triggeringEventKey)
+        : isSet(object.triggering_event_key)
+          ? globalThis.String(object.triggering_event_key)
+          : undefined,
     };
   },
 
@@ -2107,6 +2145,12 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.durableTaskInvocationCount !== undefined) {
       obj.durableTaskInvocationCount = Math.round(message.durableTaskInvocationCount);
     }
+    if (message.triggeringEventExternalId !== undefined) {
+      obj.triggeringEventExternalId = message.triggeringEventExternalId;
+    }
+    if (message.triggeringEventKey !== undefined) {
+      obj.triggeringEventKey = message.triggeringEventKey;
+    }
     return obj;
   },
 
@@ -2136,6 +2180,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.workflowId = object.workflowId ?? undefined;
     message.workflowVersionId = object.workflowVersionId ?? undefined;
     message.durableTaskInvocationCount = object.durableTaskInvocationCount ?? undefined;
+    message.triggeringEventExternalId = object.triggeringEventExternalId ?? undefined;
+    message.triggeringEventKey = object.triggeringEventKey ?? undefined;
     return message;
   },
 };

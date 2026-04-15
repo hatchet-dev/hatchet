@@ -158,6 +158,14 @@ func (c *testHatchetContext) ChildKey() *string {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) TriggeringEventId() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) TriggeringEventKey() *string {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) ActionId() string {
 	panic("not implemented")
 }
