@@ -634,6 +634,7 @@ CREATE TABLE v1_incoming_webhook (
     event_key_expression TEXT NOT NULL,
     scope_expression TEXT,
     static_payload JSONB,
+    return_event_as_response_payload BOOLEAN NOT NULL DEFAULT TRUE,
 
     auth_method v1_incoming_webhook_auth_type NOT NULL,
 

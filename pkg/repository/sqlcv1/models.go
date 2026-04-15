@@ -3278,6 +3278,7 @@ type V1IncomingWebhook struct {
 	EventKeyExpression           string                             `json:"event_key_expression"`
 	ScopeExpression              pgtype.Text                        `json:"scope_expression"`
 	StaticPayload                []byte                             `json:"static_payload"`
+	ReturnEventAsResponsePayload bool                               `json:"return_event_as_response_payload"`
 	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`
 	AuthBasicUsername            pgtype.Text                        `json:"auth__basic__username"`
 	AuthBasicPassword            []byte                             `json:"auth__basic__password"`
