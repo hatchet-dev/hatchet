@@ -151,7 +151,7 @@ class DispatcherClient:
                     action,
                     STEP_EVENT_TYPE_FAILED,
                     "Failed to send finished event: " + str(e),
-                    should_not_retry=False,
+                    should_not_retry=should_not_retry,
                 )
 
             return None
