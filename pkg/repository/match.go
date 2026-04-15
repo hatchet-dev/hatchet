@@ -676,18 +676,20 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 							rawLabels = dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]
 						}
 
-						var labels []*sqlcv1.GetDesiredLabelsRow
-						if err := json.Unmarshal(rawLabels, &labels); err != nil {
-							m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", *opt.DagId, opt.DagInsertedAt.Time)
-						}
+						if len(rawLabels) > 0 {
+							var labels []*sqlcv1.GetDesiredLabelsRow
+							if err := json.Unmarshal(rawLabels, &labels); err != nil {
+								m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", *opt.DagId, opt.DagInsertedAt.Time)
+							}
 
-						for i, l := range labels {
-							lCopy := *l
-							lCopy.StepId = *match.TriggerStepID
-							labels[i] = &lCopy
-						}
+							for i, l := range labels {
+								lCopy := *l
+								lCopy.StepId = *match.TriggerStepID
+								labels[i] = &lCopy
+							}
 
-						opt.DesiredWorkerLabels = labels
+							opt.DesiredWorkerLabels = labels
+						}
 					}
 
 					if match.TriggerParentTaskExternalID != nil {
