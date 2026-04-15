@@ -6,7 +6,7 @@ import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, cast, overload
 from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
@@ -96,6 +96,52 @@ def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> b
     h.update(json.dumps(args, default=str, sort_keys=True).encode())
     h.update(json.dumps(kwargs, default=str, sort_keys=True).encode())
     return h.digest()
+
+
+TSagaOperationResult = TypeVar("TSagaOperationResult")
+
+
+class SagaOperation(Generic[TSagaOperationResult]):
+    def __init__(
+        self,
+        operation_fn: Callable[[], TSagaOperationResult],
+        compensation_fn: Callable[[], None],
+    ):
+        self._compensation_fn = compensation_fn
+        self._operation_fn = operation_fn
+
+    def apply(self) -> TSagaOperationResult:
+        return self._operation_fn()
+
+    def rollback(self) -> None:
+        return self._compensation_fn()
+
+
+class Saga:
+    def __init__(self) -> None:
+        self._stack: list[SagaOperation[Any]] = []
+
+    def add(
+        self,
+        operation_fn: Callable[[], TSagaOperationResult],
+        compensation_fn: Callable[[], None],
+    ) -> TSagaOperationResult:
+        operation = SagaOperation(operation_fn, compensation_fn)
+        self._stack.append(operation)
+
+        try:
+            return operation.apply()
+        except Exception as e:
+            self._rollback()
+            raise e
+
+    def _rollback(self) -> None:
+        while self._stack:
+            operation = self._stack.pop()
+            try:
+                operation.rollback()
+            except Exception:
+                logger.exception("Error during compensation")
 
 
 class Context:
@@ -720,6 +766,9 @@ class Context:
             return None
 
         return TaskRunError.deserialize(error)
+
+    def begin_compensation_chain(self) -> Saga:
+        return Saga()
 
 
 @dataclass
