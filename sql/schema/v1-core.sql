@@ -703,6 +703,7 @@ CREATE TABLE v1_dag (
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
     parent_task_external_id UUID,
+    desired_worker_labels JSONB,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -2239,7 +2240,7 @@ CREATE TABLE v1_event (
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
 
-CREATE INDEX v1_event_key_idx ON v1_event (tenant_id, key);
+CREATE INDEX v1_event_key_scope_idx ON v1_event (tenant_id, key, scope);
 
 CREATE TABLE v1_event_lookup_table (
     tenant_id UUID NOT NULL,

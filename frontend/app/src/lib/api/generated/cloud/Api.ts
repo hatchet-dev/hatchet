@@ -16,6 +16,7 @@ import {
   APIError,
   APIErrors,
   APITokenList,
+  AuditLogList,
   AutumnWebhookEvent,
   Build,
   CreateManagedWorkerFromTemplateRequest,
@@ -45,6 +46,8 @@ import {
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
+  RedeemOfferRequest,
+  RedeemOfferResponse,
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
@@ -57,6 +60,7 @@ import {
   UpdateOrganizationTenantRequest,
   UpdateTenantSubscriptionRequest,
   UpdateTenantSubscriptionResponse,
+  UserOffer,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
 } from "./data-contracts";
@@ -869,6 +873,42 @@ export class Api<
       ...params,
     });
   /**
+   * @description List all offers for the authenticated user
+   *
+   * @tags Billing
+   * @name UserOffersList
+   * @summary List offers for the authenticated user
+   * @request GET:/api/v1/billing/offers
+   * @secure
+   */
+  userOffersList = (params: RequestParams = {}) =>
+    this.request<UserOffer[], APIErrors>({
+      path: `/api/v1/billing/offers`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Redeem an offer for the authenticated user, applying credit to the specified organization
+   *
+   * @tags Billing
+   * @name UserOfferRedeem
+   * @summary Redeem an offer
+   * @request POST:/api/v1/billing/offers/redeem
+   * @secure
+   */
+  userOfferRedeem = (data: RedeemOfferRequest, params: RequestParams = {}) =>
+    this.request<RedeemOfferResponse, APIErrors>({
+      path: `/api/v1/billing/offers/redeem`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get all feature flags for the tenant
    *
    * @tags Feature Flags
@@ -1303,6 +1343,61 @@ export class Api<
       path: `/api/v1/management/organization-invites/${organizationInvite}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all audit logs for an organization
+   *
+   * @tags Management
+   * @name OrganizationListAuditLogs
+   * @summary List Audit Logs for Organization
+   * @request GET:/api/v1/management/organizations/{organization}/audit-logs
+   * @secure
+   */
+  organizationListAuditLogs = (
+    organization: string,
+    query?: {
+      /**
+       * The tenant ID belonging to the organization
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant?: string;
+      /**
+       * The maximum number of audit logs to return
+       * @format int32
+       * @min 1
+       * @max 1000
+       * @default 1000
+       */
+      limit?: number;
+      /**
+       * The number of audit logs to skip
+       * @format int32
+       * @min 0
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The start of the time range to filter audit logs (defaults to 24 hours ago)
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end of the time range to filter audit logs (defaults to now)
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<AuditLogList, APIError>({
+      path: `/api/v1/management/organizations/${organization}/audit-logs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
       ...params,
     });
 }

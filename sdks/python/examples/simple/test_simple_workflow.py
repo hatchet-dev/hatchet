@@ -16,23 +16,30 @@ async def test_simple_workflow_running_options(
     x3 = task.run_many([task.create_bulk_run_item()])[0]
     x4 = (await task.aio_run_many([task.create_bulk_run_item()]))[0]
 
-    x5 = task.run_no_wait().result()
-    x6 = (await task.aio_run_no_wait()).result()
-    x7 = [x.result() for x in task.run_many_no_wait([task.create_bulk_run_item()])][0]
+    x5 = task.run(wait_for_result=False).result()
+    x6 = (await task.aio_run(wait_for_result=False)).result()
+    x7 = [
+        x.result()
+        for x in task.run_many([task.create_bulk_run_item()], wait_for_result=False)
+    ][0]
     x8 = [
         x.result()
-        for x in await task.aio_run_many_no_wait([task.create_bulk_run_item()])
+        for x in await task.aio_run_many(
+            [task.create_bulk_run_item()], wait_for_result=False
+        )
     ][0]
 
-    x9 = await task.run_no_wait().aio_result()
-    x10 = await (await task.aio_run_no_wait()).aio_result()
+    x9 = await task.run(wait_for_result=False).aio_result()
+    x10 = await (await task.aio_run(wait_for_result=False)).aio_result()
     x11 = [
         await x.aio_result()
-        for x in task.run_many_no_wait([task.create_bulk_run_item()])
+        for x in task.run_many([task.create_bulk_run_item()], wait_for_result=False)
     ][0]
     x12 = [
         await x.aio_result()
-        for x in await task.aio_run_many_no_wait([task.create_bulk_run_item()])
+        for x in await task.aio_run_many(
+            [task.create_bulk_run_item()], wait_for_result=False
+        )
     ][0]
 
     assert all(

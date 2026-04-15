@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -316,12 +317,11 @@ func NewOLAPRepositoryFromPool(
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
-	enableDurableUserEventLog bool,
 	shouldPartitionOtelTables bool,
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }
@@ -3412,7 +3412,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * (*inlineStoreTTL + 12*time.Hour)),
+		Time:  time.Now().Add(-1 * *inlineStoreTTL),
 		Valid: true,
 	}
 
@@ -3434,6 +3434,22 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	return nil
+}
+
+func DeriveIDBytes(size int, parts ...[]byte) []byte {
+	h := sha256.New()
+	for _, p := range parts {
+		h.Write(p)
+	}
+	return h.Sum(nil)[:size]
+}
+
+func DeriveWorkflowRunTraceID(workflowRunExternalID uuid.UUID) []byte {
+	return DeriveIDBytes(16, []byte("hatchet-engine-wf-trace:"), workflowRunExternalID[:])
+}
+
+func DeriveWorkflowRunSpanID(workflowRunExternalID uuid.UUID) []byte {
+	return DeriveIDBytes(8, []byte("hatchet-engine-wf-span:"), workflowRunExternalID[:])
 }
 
 type SpanData struct {
@@ -3618,14 +3634,6 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
 	lookupTenantIds := make([]uuid.UUID, 0)
 	lookupExternalIds := make([]uuid.UUID, 0)
 	lookupRetryCounts := make([]int32, 0)
@@ -3667,6 +3675,14 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 			}
 		}
 	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
 
 	err = o.queries.InsertOTelTraceLookup(ctx, tx, sqlcv1.InsertOTelTraceLookupParams{
 		Tenantids:   lookupTenantIds,

@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/api/v1/server/rbac"
+	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -20,7 +20,7 @@ type AuthZ struct {
 }
 
 func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
-	rbacAuthorizer, err := rbac.NewAuthorizer()
+	rbacAuthorizer, err := newHatchetAuthorizer()
 	if err != nil {
 		return nil, err
 	}
@@ -65,49 +65,13 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 }
 
 func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
-	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
-
-	ctx := c.Request().Context()
-
 	if err := a.ensureVerifiedEmail(c, r); err != nil {
-		a.l.Debug().Ctx(ctx).Err(err).Msgf("error ensuring verified email")
+		a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email")
 		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
 	}
 
-	// if tenant is set in the context, verify that the user is a member of the tenant
-	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok {
-		user, ok := c.Get("user").(*sqlcv1.User)
-
-		if !ok {
-			a.l.Debug().Ctx(ctx).Msgf("user not found in context")
-
-			return unauthorized
-		}
-
-		// check if the user is a member of the tenant
-		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
-
-		if err != nil {
-			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
-
-			return unauthorized
-		}
-
-		if tenantMember == nil {
-			a.l.Debug().Ctx(ctx).Msgf("user is not a member of the tenant")
-
-			return unauthorized
-		}
-
-		// set the tenant member in the context
-		c.Set("tenant-member", tenantMember)
-
-		// authorize tenant operations
-		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
-			a.l.Debug().Ctx(ctx).Err(err).Msgf("error authorizing tenant operations")
-
-			return unauthorized
-		}
+	if err := a.validateUserTenantPermissions(c, r); err != nil {
+		return err
 	}
 
 	if a.config.Auth.CustomAuthenticator != nil {
@@ -127,6 +91,24 @@ var restrictedWithBearerToken = []string{
 // At the moment, there's no further bearer auth because bearer tokens are admin-scoped
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
+	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
+	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
+		if a.config.Auth.ExchangeTokenClient == nil {
+			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
+			return echo.NewHTTPError(http.StatusInternalServerError, "Exchange token client is not configured")
+		}
+
+		if err := a.ensureVerifiedEmail(c, r); err != nil {
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email for exchange token user")
+			return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
+		}
+
+		if err := a.validateUserTenantPermissions(c, r); err != nil {
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error validating user tenant permissions for exchange token user")
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+		}
+	}
+
 	if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
@@ -165,6 +147,49 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 	return nil
 }
 
+func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.RouteInfo) error {
+	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+	ctx := c.Request().Context()
+
+	// if tenant is set in the context, verify that the user is a member of the tenant
+	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok {
+		user, ok := c.Get("user").(*sqlcv1.User)
+
+		if !ok {
+			a.l.Debug().Ctx(ctx).Msgf("user not found in context")
+
+			return unauthorized
+		}
+
+		// check if the user is a member of the tenant
+		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
+
+		if err != nil {
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
+
+			return unauthorized
+		}
+
+		if tenantMember == nil {
+			a.l.Debug().Ctx(ctx).Msgf("user is not a member of the tenant")
+
+			return unauthorized
+		}
+
+		// set the tenant member in the context
+		c.Set("tenant-member", tenantMember)
+
+		// authorize tenant operations
+		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error authorizing tenant operations")
+
+			return unauthorized
+		}
+	}
+
+	return nil
+}
+
 func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRole, r *middleware.RouteInfo) error {
 	// if the operation is in the allowed operations, skip the RBAC check this is needed for extensions
 	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) {
@@ -172,7 +197,7 @@ func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRo
 	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {
+	if !a.rbac.IsAuthorized(string(tenantMemberRole), r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 

@@ -1,7 +1,7 @@
 [project]
 name = "hatchet-sdk"
-version = "1.29.3"
-description = "Official Python SDK for Hatchet, a distributed, fault-tolerant task queue."
+version = "1.32.1"
+description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10,<4"
@@ -38,11 +38,11 @@ otel = [
 ]
 
 lint = [
-    "mypy==1.19.1",
+    "mypy==1.20.0",
     "types-protobuf>=5.28.3.20241030",
-    "black==26.1.0",
+    "black==26.3.1",
     "types-psutil>=6.1.0.20241221",
-    "ruff==0.15.0",
+    "ruff==0.15.10",
     "types-requests>=2.32.0.20241016",
     "psutil>=6.0.0",
     "types-grpcio>=1.0.0",
@@ -63,16 +63,22 @@ docs = [
     "mkdocstrings[python]>=0.29.1,<1",
     "pydoclint>=0.6.6",
     "markdownify>=1.1.0",
-    "openai>=1.75.0,<2",
+    "openai>=2.30.0,<3",
     "bs4>=0.0.2",
     "types-beautifulsoup4>=4.12.0.20250204",
     "fastapi>=0.115.14,<1",
     "uvicorn>=0.34.3,<1",
 ]
 
+claude = ["claude-agent-sdk", "mcp"]
+openai = ["openai-agents"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hatchet_sdk"]
 
 [tool.hatch.build]
 include = ["hatchet_sdk/py.typed"]
@@ -124,8 +130,28 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["F","E","W","I","N","UP","ASYNC","B","SIM","C4","PIE","RET","ARG","G","RUF","DTZ","FIX","PERF","T201"]
-ignore = ["E501","N806","B008","ARG001","ARG002","RET503","FIX","RET506"]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+    "N",
+    "UP",
+    "ASYNC",
+    "B",
+    "SIM",
+    "C4",
+    "PIE",
+    "RET",
+    "ARG",
+    "G",
+    "RUF",
+    "DTZ",
+    "FIX",
+    "PERF",
+    "T201",
+]
+ignore = ["E501", "N806", "B008", "ARG001", "ARG002", "RET503", "FIX", "RET506"]
 exclude = [
     "examples/*",
     "docs/*",

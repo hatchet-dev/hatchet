@@ -42,6 +42,10 @@ export function conditionsToPb(conditions: Condition[], namespace?: string): Tas
           expression: condition.expression || '',
         },
         userEventKey: applyNamespace(condition.eventKey, namespace),
+        eventScope: condition.scope,
+        considerEventsSince: condition.considerEventsSince
+          ? new Date(condition.considerEventsSince)
+          : undefined,
       });
     } else if (condition instanceof ParentCondition) {
       parentOverrideConditions.push({

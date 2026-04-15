@@ -19,17 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
-  const { isEnabled: isWorkflowFilterEnabled } = useIsFeatureEnabled(
-    FeatureFlagId.TenantLogWorkflowFilterEnabled,
-    true,
-  );
-
   const {
     logs,
     isLoading,
@@ -56,8 +50,8 @@ export default function TenantLogsPage() {
   const sidePanel = useSidePanel();
 
   const autocompleteContext = useMemo<LogAutocompleteContext>(
-    () => ({ workflowNames: isWorkflowFilterEnabled ? workflowNames : [] }),
-    [workflowNames, isWorkflowFilterEnabled],
+    () => ({ workflowNames }),
+    [workflowNames],
   );
 
   const handleViewRun = useCallback(
@@ -91,9 +85,7 @@ export default function TenantLogsPage() {
             return {
               ...result,
               suggestions: result.suggestions.filter(
-                (s) =>
-                  s.value !== 'attempt:' &&
-                  (isWorkflowFilterEnabled || s.value !== 'workflow:'), // only show workflow filter if feature is enabled
+                (s) => s.value !== 'attempt:',
               ),
             };
           }}
@@ -106,15 +98,11 @@ export default function TenantLogsPage() {
               label: 'Level',
               description: 'Filter by log level',
             },
-            ...(isWorkflowFilterEnabled
-              ? [
-                  {
-                    key: 'workflow:',
-                    label: 'Workflow',
-                    description: 'Filter by workflow name',
-                  },
-                ]
-              : []),
+            {
+              key: 'workflow:',
+              label: 'Workflow',
+              description: 'Filter by workflow name',
+            },
           ]}
           className="flex-1"
         />

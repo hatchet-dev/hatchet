@@ -1,5 +1,5 @@
 import sleep from '@hatchet/util/sleep';
-import { makeE2EClient, checkDurableEvictionSupport } from '../__e2e__/harness';
+import { makeE2EClient, checkDurableEvictionSupport, makeTestScope } from '../__e2e__/harness';
 import {
   durableWorkflow,
   EVENT_KEY,
@@ -13,6 +13,9 @@ import {
   durableSpawnDag,
   durableNonDeterminism,
   durableReplayReset,
+  waitForEventLookback,
+  waitForOrEventLookback,
+  waitForTwoEventsSecondPushedFirst,
 } from './workflow';
 
 describe('durable-e2e', () => {
@@ -218,4 +221,49 @@ describe('durable-e2e', () => {
     },
     300_000
   );
+
+  it('event lookback: finds event pushed before wait', async () => {
+    const userId = 1234;
+
+    await hatchet.events.push(
+      'user:create',
+      { order: 'first', user_id: userId },
+      { scope: `user_id:${userId}` }
+    );
+    await sleep(1000);
+
+    const result = await waitForEventLookback.run({ userId });
+
+    expect(result.elapsed).toBeLessThan(5);
+    expect(result.event).toMatchObject({ order: 'first' });
+  }, 30_000);
+
+  it('or-group event lookback: finds event pushed before wait', async () => {
+    const scope = makeTestScope();
+
+    await hatchet.events.push(EVENT_KEY, { order: 'first' }, { scope });
+    await sleep(1000);
+
+    const result = await waitForOrEventLookback.run({ scope });
+
+    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+  }, 60_000);
+
+  it('two event waits: second event pushed before workflow starts', async () => {
+    const scope = makeTestScope();
+
+    await hatchet.events.push('key2', { order: 'second' }, { scope });
+    await sleep(1000);
+
+    const ref = await waitForTwoEventsSecondPushedFirst.runNoWait({ scope });
+
+    await sleep(1000);
+    await hatchet.events.push('key1', { order: 'first' }, { scope });
+
+    const result = await ref.output;
+
+    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+    expect(result.event1).toMatchObject({ order: 'first' });
+    expect(result.event2).toMatchObject({ order: 'second' });
+  }, 60_000);
 });

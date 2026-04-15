@@ -4,8 +4,9 @@ on: pull_request_target
 
 jobs:
   auto-merge:
-    runs-on: ubicloud-standard-2
-    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    # TODO(gregfurman): Disabled for now. When do we _actully_ want changes to be auto-merged in?
+    if: false
     permissions:
       pull-requests: write
       issues: write
@@ -14,7 +15,7 @@ jobs:
     steps:
       - name: "Metadata"
         id: metadata
-        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
+        uses: dependabot/fetch-metadata@ffa630c65fa7e0ecfa0625b5ceda64399aea1b36 # v3.0.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       - name: "Enable auto-squash"

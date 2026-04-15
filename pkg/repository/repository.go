@@ -100,11 +100,10 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
-	enableDurableUserEventLog bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -115,7 +114,7 @@ func NewRepository(
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),
-		triggers:          newTriggerRepository(shared, enableDurableUserEventLog),
+		triggers:          newTriggerRepository(shared),
 		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:         newSchedulerRepository(shared),
 		matches:           newMatchRepository(shared),

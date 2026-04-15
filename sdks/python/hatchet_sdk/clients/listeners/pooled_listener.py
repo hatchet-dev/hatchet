@@ -13,7 +13,7 @@ from hatchet_sdk.clients.event_ts import (
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_LISTENER_RETRY_COUNT = 5
@@ -249,7 +249,7 @@ class PooledListener(Generic[R, T, L], ABC):
 
                 return await self.create_subscription(
                     self._request(),
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 )
 
             except grpc.RpcError as e:  # noqa: PERF203

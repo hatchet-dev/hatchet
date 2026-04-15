@@ -4,6 +4,7 @@ import {
   CONNECTOR_WIDTH,
   CONNECTOR_GAP,
   SHOW_MORE_BATCH,
+  rowHighlightClass,
   type FlatRow,
   type SpanGroupInfo,
 } from './trace-timeline-utils';
@@ -81,25 +82,40 @@ function ExpandToggle({
 
 function LabelRow({
   selected,
+  childOfSelected,
+  hovered,
   dimmed,
+  contextOnly,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
   children,
+  'data-row-key': dataRowKey,
 }: {
   selected?: boolean;
+  childOfSelected?: boolean;
+  hovered?: boolean;
   dimmed?: boolean;
+  contextOnly?: boolean;
   onClick?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   children: ReactNode;
+  'data-row-key'?: string;
 }) {
   return (
     <div
       className={cn(
         'flex shrink-0 items-center px-2',
-        onClick && 'cursor-pointer rounded-l transition-colors',
-        selected ? 'bg-primary/8' : onClick && 'hover:bg-muted/50',
-        dimmed && 'opacity-40',
+        onClick && 'cursor-pointer transition-colors',
+        rowHighlightClass({ hovered, selected, childOfSelected }),
+        dimmed ? 'opacity-40' : contextOnly && 'opacity-50',
       )}
       style={{ height: ROW_HEIGHT }}
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      data-row-key={dataRowKey}
     >
       {children}
     </div>
@@ -110,6 +126,9 @@ interface TimelineLabelsProps {
   flatRows: FlatRow[];
   selectedSpan?: OtelSpanTree;
   selectedGroupId?: string;
+  selectedDescendantIds: Set<string>;
+  hoveredRowKey: string | null;
+  onRowHover: (key: string | null) => void;
   onSpanSelect?: (span: OtelSpanTree) => void;
   onGroupSelect?: (group: SpanGroupInfo) => void;
   onShowMore: (groupId: string, newVisibleCount: number) => void;
@@ -121,6 +140,9 @@ export const TimelineLabels = memo(function TimelineLabels({
   flatRows,
   selectedSpan,
   selectedGroupId,
+  selectedDescendantIds,
+  hoveredRowKey,
+  onRowHover,
   onSpanSelect,
   onGroupSelect,
   onShowMore,
@@ -163,10 +185,14 @@ export const TimelineLabels = memo(function TimelineLabels({
             <LabelRow
               key={row.rowKey}
               selected={isSelected}
+              hovered={hoveredRowKey === row.rowKey}
+              data-row-key={row.rowKey}
               onClick={() => {
                 expandOnly(row.group.groupId);
                 onGroupSelect?.(row.group);
               }}
+              onMouseEnter={() => onRowHover(row.rowKey)}
+              onMouseLeave={() => onRowHover(null)}
             >
               <ConnectorLines
                 depth={row.depth}
@@ -208,13 +234,19 @@ export const TimelineLabels = memo(function TimelineLabels({
           <LabelRow
             key={row.rowKey}
             selected={isSelected}
+            childOfSelected={selectedDescendantIds.has(row.span.spanId)}
+            hovered={hoveredRowKey === row.rowKey}
             dimmed={!row.matchesFilter}
+            contextOnly={row.isContextOnly}
+            data-row-key={row.rowKey}
             onClick={() => {
               if (row.hasChildren) {
                 expandOnly(row.rowKey);
               }
               onSpanSelect?.(row.span);
             }}
+            onMouseEnter={() => onRowHover(row.rowKey)}
+            onMouseLeave={() => onRowHover(null)}
           >
             <ConnectorLines
               depth={row.depth}

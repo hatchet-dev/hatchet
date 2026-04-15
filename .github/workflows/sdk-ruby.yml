@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -60,7 +60,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "1.25"
 
@@ -94,7 +94,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -125,7 +125,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -277,7 +277,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -304,7 +304,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -374,130 +374,6 @@ jobs:
         working-directory: .
         run: docker compose -f docker-compose.yml -f docker-compose.release.yml down
 
-  new-engine-old-sdk:
-    runs-on: ubicloud-standard-4
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
-        with:
-          go-version: "1.25"
-
-      - name: Start Docker dependencies
-        working-directory: .
-        run: docker compose up -d
-
-      - name: Run migrations
-        working-directory: .
-        run: |
-          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          go run ./cmd/hatchet-migrate
-
-      - name: Setup and start engine
-        working-directory: .
-        run: |
-          export SEED_DEVELOPMENT=true
-          export SERVER_PORT=8080
-          export SERVER_URL=http://localhost:8080
-          export SERVER_AUTH_COOKIE_DOMAIN=localhost
-          export SERVER_AUTH_COOKIE_INSECURE=true
-          export SERVER_DEFAULT_ENGINE_VERSION=V1
-          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
-
-          go run ./cmd/hatchet-admin quickstart
-
-          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
-          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
-
-          sleep 30
-
-      - name: Generate API token
-        working-directory: .
-        run: |
-          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=${{ github.workspace }}/certs/ca.cert" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=true" >> $GITHUB_ENV
-
-      - name: Clone main SDK source
-        working-directory: .
-        run: |
-          git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
-
-      - name: Set up Ruby for old SDK
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
-        with:
-          ruby-version: "3.2"
-          bundler-cache: true
-          working-directory: /tmp/old-sdk/sdks/ruby/src
-
-      - name: Set HATCHET_CLIENT_NAMESPACE
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "HATCHET_CLIENT_NAMESPACE=new-engine-old-sdk-rb-${SHORT_SHA}" >> $GITHUB_ENV
-
-      - name: Run unit tests
-        working-directory: /tmp/old-sdk/sdks/ruby/src
-        run: |
-          echo "Testing main SDK against current engine"
-          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
-          bundle exec rspec --format documentation --tag ~integration
-
-      - name: Run integration tests
-        working-directory: /tmp/old-sdk/sdks/ruby/src
-        run: bundle exec rspec spec/integration/ --format documentation --tag integration
-
-      - name: Set up Ruby for old examples
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
-        with:
-          ruby-version: "3.2"
-          bundler-cache: true
-          working-directory: /tmp/old-sdk/sdks/ruby/examples
-
-      - name: Start example worker
-        working-directory: /tmp/old-sdk/sdks/ruby/examples
-        run: bundle exec ruby worker.rb > worker.log 2>&1 &
-
-      - name: Wait for worker health
-        working-directory: .
-        run: |
-          for i in $(seq 1 60); do
-            if curl -s http://localhost:8001/health > /dev/null 2>&1; then
-              echo "Worker is healthy after ${i}s"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Worker failed to start within 60s"
-          cat /tmp/old-sdk/sdks/ruby/examples/worker.log || true
-          exit 1
-
-      - name: Run e2e tests
-        working-directory: /tmp/old-sdk/sdks/ruby/examples
-        run: bundle exec rspec -f d --fail-fast
-
-      - name: Upload worker logs
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-worker-logs
-          path: /tmp/old-sdk/sdks/ruby/examples/worker.log
-
-      - name: Upload engine logs
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
-          path: engine.log
-
-      - name: Upload API logs
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
-          path: api.log
-
   publish:
     runs-on: ubicloud-standard-4
     needs: [lint, test]
@@ -512,7 +388,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+        uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
         with:
           ruby-version: "3.2"
           bundler-cache: true

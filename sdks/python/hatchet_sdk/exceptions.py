@@ -21,7 +21,7 @@ class NonDeterminismError(Exception):
         )
 
         super().__init__(
-            f"{detail}\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/v1/patterns/mixing-patterns"
+            f"{detail}\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/v1/patterns"
         )
 
 
