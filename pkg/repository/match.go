@@ -649,12 +649,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					replayTaskOpts = append(replayTaskOpts, opt)
 				} else {
 					opt := CreateTaskOpts{
-						ExternalId:         *match.TriggerExternalID,
-						WorkflowRunId:      *match.TriggerWorkflowRunID,
-						StepId:             *match.TriggerStepID,
-						StepIndex:          int(match.TriggerStepIndex.Int64),
-						AdditionalMetadata: additionalMetadata,
-						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
+						ExternalId:                *match.TriggerExternalID,
+						WorkflowRunId:             *match.TriggerWorkflowRunID,
+						StepId:                    *match.TriggerStepID,
+						StepIndex:                 int(match.TriggerStepIndex.Int64),
+						AdditionalMetadata:        additionalMetadata,
+						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+						TriggeringEventExternalId: match.TriggerEventExternalID,
 					}
 
 					switch matchData.Action() {
@@ -705,6 +706,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					if match.TriggerPriority.Valid {
 						opt.Priority = &match.TriggerPriority.Int32
+					}
+
+					if match.TriggerEventKey.Valid {
+						opt.TriggeringEventKey = &match.TriggerEventKey.String
 					}
 
 					createTaskOpts = append(createTaskOpts, opt)
