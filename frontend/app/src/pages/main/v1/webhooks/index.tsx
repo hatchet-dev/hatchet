@@ -22,7 +22,6 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { Switch } from '@/components/v1/ui/switch';
 import { Spinner } from '@/components/v1/ui/loading';
 import {
   Select,
@@ -31,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { Switch } from '@/components/v1/ui/switch';
 import {
   V1CreateWebhookRequest,
   V1Webhook,
@@ -657,11 +657,15 @@ const CreateWebhookModal = () => {
 
           <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
             <div className="space-y-0.5">
-              <Label htmlFor="returnEventAsResponsePayload" className="text-sm font-medium">
+              <Label
+                htmlFor="returnEventAsResponsePayload"
+                className="text-sm font-medium"
+              >
                 Return event as response payload
               </Label>
               <p className="text-xs text-muted-foreground">
-                When enabled, the triggered event will be returned as the HTTP response body.
+                When enabled, the triggered event will be returned as the HTTP
+                response body.
               </p>
             </div>
             <Switch
