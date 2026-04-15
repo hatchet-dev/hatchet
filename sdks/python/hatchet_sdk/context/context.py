@@ -767,7 +767,7 @@ class Context:
 
         return TaskRunError.deserialize(error)
 
-    def begin_compensation(self) -> Saga:
+    def begin_compensation_chain(self) -> Saga:
         return Saga()
 
 
