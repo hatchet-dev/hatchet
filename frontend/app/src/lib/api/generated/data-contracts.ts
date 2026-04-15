@@ -1049,6 +1049,8 @@ export interface V1Webhook {
   staticPayload?: object;
   /** The type of authentication to use for the webhook */
   authType: V1WebhookAuthType;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1WebhookList {
@@ -1067,6 +1069,8 @@ export interface V1CreateWebhookRequestBase {
   scopeExpression?: string;
   /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
   staticPayload?: object;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1WebhookBasicAuth {
@@ -1131,6 +1135,8 @@ export interface V1UpdateWebhookRequest {
   scopeExpression?: string;
   /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
   staticPayload?: object;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1CELDebugRequest {
