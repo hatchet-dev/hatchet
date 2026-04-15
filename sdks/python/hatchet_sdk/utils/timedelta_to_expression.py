@@ -3,8 +3,6 @@ from datetime import timedelta
 HOUR = 3600
 MINUTE = 60
 
-Duration = timedelta
-
 
 def timedelta_to_expr(td: timedelta) -> str:
     ## `total_seconds` gives the entire duration,
