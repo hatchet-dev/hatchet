@@ -181,6 +181,7 @@ async def support_agent(
 
 # !!
 
+
 # > Worker registration
 def main() -> None:
     worker = hatchet.worker(
@@ -188,6 +189,7 @@ def main() -> None:
         workflows=[support_agent, triage_ticket, generate_reply, escalate_ticket],
     )
     worker.start()
+
 
 if __name__ == "__main__":
     main()
