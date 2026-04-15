@@ -17,8 +17,6 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
-    STEP_EVENT_TYPE_COMPLETED,
-    STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
     GetVersionRequest,
     GetVersionResponse,
@@ -140,27 +138,9 @@ class DispatcherClient:
         payload: str | None,
         should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
-        try:
-            return await self._try_send_step_action_event(
-                action, event_type, payload, should_not_retry
-            )
-        except Exception as e:
-            # for step action events, send a failure event when we cannot send the completed event
-            if event_type in (STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_FAILED):
-                try:
-                    await self._try_send_step_action_event(
-                        action,
-                        STEP_EVENT_TYPE_FAILED,
-                        "Failed to send finished event: " + str(e),
-                        should_not_retry=should_not_retry,
-                    )
-                except Exception:
-                    ## fixme: this is a hack to not drop errors here
-                    ## not sure how to handle this case better since
-                    ## we probably don't want to raise here either
-                    return None
-
-            return None
+        return await self._try_send_step_action_event(
+            action, event_type, payload, should_not_retry
+        )
 
     async def _try_send_step_action_event(
         self,
