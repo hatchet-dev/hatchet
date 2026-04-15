@@ -550,27 +550,29 @@ type CreateTaskEventsOLAPTmpParams struct {
 }
 
 type CreateTasksOLAPParams struct {
-	TenantID             uuid.UUID            `json:"tenant_id"`
-	ID                   int64                `json:"id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	Queue                string               `json:"queue"`
-	ActionID             string               `json:"action_id"`
-	StepID               uuid.UUID            `json:"step_id"`
-	WorkflowID           uuid.UUID            `json:"workflow_id"`
-	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
-	WorkflowRunID        uuid.UUID            `json:"workflow_run_id"`
-	ScheduleTimeout      string               `json:"schedule_timeout"`
-	StepTimeout          pgtype.Text          `json:"step_timeout"`
-	Priority             pgtype.Int4          `json:"priority"`
-	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID      *uuid.UUID           `json:"desired_worker_id"`
-	ExternalID           uuid.UUID            `json:"external_id"`
-	DisplayName          string               `json:"display_name"`
-	Input                []byte               `json:"input"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	DagID                pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	TenantID                  uuid.UUID            `json:"tenant_id"`
+	ID                        int64                `json:"id"`
+	InsertedAt                pgtype.Timestamptz   `json:"inserted_at"`
+	Queue                     string               `json:"queue"`
+	ActionID                  string               `json:"action_id"`
+	StepID                    uuid.UUID            `json:"step_id"`
+	WorkflowID                uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID         uuid.UUID            `json:"workflow_version_id"`
+	WorkflowRunID             uuid.UUID            `json:"workflow_run_id"`
+	ScheduleTimeout           string               `json:"schedule_timeout"`
+	StepTimeout               pgtype.Text          `json:"step_timeout"`
+	Priority                  pgtype.Int4          `json:"priority"`
+	Sticky                    V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID           *uuid.UUID           `json:"desired_worker_id"`
+	ExternalID                uuid.UUID            `json:"external_id"`
+	DisplayName               string               `json:"display_name"`
+	Input                     []byte               `json:"input"`
+	AdditionalMetadata        []byte               `json:"additional_metadata"`
+	DagID                     pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt             pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID      *uuid.UUID           `json:"parent_task_external_id"`
+	TriggeringEventExternalID *uuid.UUID           `json:"triggering_event_external_id"`
+	TriggeringEventKey        pgtype.Text          `json:"triggering_event_key"`
 }
 
 const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
