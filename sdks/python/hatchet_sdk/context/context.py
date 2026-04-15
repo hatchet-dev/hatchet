@@ -681,6 +681,14 @@ class Context:
     def task_name(self) -> str:
         return self._task_name
 
+    @property
+    def triggering_event_id(self) -> str | None:
+        return self._action.triggering_event_external_id
+
+    @property
+    def triggering_event_key(self) -> str | None:
+        return self._action.triggering_event_key
+
     def fetch_task_run_error(
         self,
         task: Task[TWorkflowInput, R],
