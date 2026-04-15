@@ -550,29 +550,27 @@ type CreateTaskEventsOLAPTmpParams struct {
 }
 
 type CreateTasksOLAPParams struct {
-	TenantID                  uuid.UUID            `json:"tenant_id"`
-	ID                        int64                `json:"id"`
-	InsertedAt                pgtype.Timestamptz   `json:"inserted_at"`
-	Queue                     string               `json:"queue"`
-	ActionID                  string               `json:"action_id"`
-	StepID                    uuid.UUID            `json:"step_id"`
-	WorkflowID                uuid.UUID            `json:"workflow_id"`
-	WorkflowVersionID         uuid.UUID            `json:"workflow_version_id"`
-	WorkflowRunID             uuid.UUID            `json:"workflow_run_id"`
-	ScheduleTimeout           string               `json:"schedule_timeout"`
-	StepTimeout               pgtype.Text          `json:"step_timeout"`
-	Priority                  pgtype.Int4          `json:"priority"`
-	Sticky                    V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID           *uuid.UUID           `json:"desired_worker_id"`
-	ExternalID                uuid.UUID            `json:"external_id"`
-	DisplayName               string               `json:"display_name"`
-	Input                     []byte               `json:"input"`
-	AdditionalMetadata        []byte               `json:"additional_metadata"`
-	DagID                     pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt             pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID      *uuid.UUID           `json:"parent_task_external_id"`
-	TriggeringEventExternalID *uuid.UUID           `json:"triggering_event_external_id"`
-	TriggeringEventKey        pgtype.Text          `json:"triggering_event_key"`
+	TenantID             uuid.UUID            `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	Queue                string               `json:"queue"`
+	ActionID             string               `json:"action_id"`
+	StepID               uuid.UUID            `json:"step_id"`
+	WorkflowID           uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
+	WorkflowRunID        uuid.UUID            `json:"workflow_run_id"`
+	ScheduleTimeout      string               `json:"schedule_timeout"`
+	StepTimeout          pgtype.Text          `json:"step_timeout"`
+	Priority             pgtype.Int4          `json:"priority"`
+	Sticky               V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID      *uuid.UUID           `json:"desired_worker_id"`
+	ExternalID           uuid.UUID            `json:"external_id"`
+	DisplayName          string               `json:"display_name"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	DagID                pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 }
 
 const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
@@ -2547,7 +2545,7 @@ WITH selected_retry_count AS (
     )
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.triggering_event_external_id, t.triggering_event_key,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
@@ -2586,42 +2584,40 @@ type PopulateSingleTaskRunDataParams struct {
 }
 
 type PopulateSingleTaskRunDataRow struct {
-	TenantID                  uuid.UUID            `json:"tenant_id"`
-	ID                        int64                `json:"id"`
-	InsertedAt                pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID                uuid.UUID            `json:"external_id"`
-	Queue                     string               `json:"queue"`
-	ActionID                  string               `json:"action_id"`
-	StepID                    uuid.UUID            `json:"step_id"`
-	WorkflowID                uuid.UUID            `json:"workflow_id"`
-	WorkflowVersionID         uuid.UUID            `json:"workflow_version_id"`
-	WorkflowRunID             uuid.UUID            `json:"workflow_run_id"`
-	ScheduleTimeout           string               `json:"schedule_timeout"`
-	StepTimeout               pgtype.Text          `json:"step_timeout"`
-	Priority                  pgtype.Int4          `json:"priority"`
-	Sticky                    V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID           *uuid.UUID           `json:"desired_worker_id"`
-	DisplayName               string               `json:"display_name"`
-	Input                     []byte               `json:"input"`
-	AdditionalMetadata        []byte               `json:"additional_metadata"`
-	ReadableStatus            V1ReadableStatusOlap `json:"readable_status"`
-	LatestRetryCount          int32                `json:"latest_retry_count"`
-	LatestWorkerID            *uuid.UUID           `json:"latest_worker_id"`
-	DagID                     pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt             pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID      *uuid.UUID           `json:"parent_task_external_id"`
-	TriggeringEventExternalID *uuid.UUID           `json:"triggering_event_external_id"`
-	TriggeringEventKey        pgtype.Text          `json:"triggering_event_key"`
-	IsStandalone              bool                 `json:"is_standalone"`
-	Status                    V1ReadableStatusOlap `json:"status"`
-	FinishedAt                pgtype.Timestamptz   `json:"finished_at"`
-	StartedAt                 pgtype.Timestamptz   `json:"started_at"`
-	QueuedAt                  pgtype.Timestamptz   `json:"queued_at"`
-	OutputEventExternalID     *uuid.UUID           `json:"output_event_external_id"`
-	Output                    []byte               `json:"output"`
-	ErrorMessage              pgtype.Text          `json:"error_message"`
-	SpawnedChildren           pgtype.Int8          `json:"spawned_children"`
-	RetryCount                int32                `json:"retry_count"`
+	TenantID              uuid.UUID            `json:"tenant_id"`
+	ID                    int64                `json:"id"`
+	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID            uuid.UUID            `json:"external_id"`
+	Queue                 string               `json:"queue"`
+	ActionID              string               `json:"action_id"`
+	StepID                uuid.UUID            `json:"step_id"`
+	WorkflowID            uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
+	WorkflowRunID         uuid.UUID            `json:"workflow_run_id"`
+	ScheduleTimeout       string               `json:"schedule_timeout"`
+	StepTimeout           pgtype.Text          `json:"step_timeout"`
+	Priority              pgtype.Int4          `json:"priority"`
+	Sticky                V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID       *uuid.UUID           `json:"desired_worker_id"`
+	DisplayName           string               `json:"display_name"`
+	Input                 []byte               `json:"input"`
+	AdditionalMetadata    []byte               `json:"additional_metadata"`
+	ReadableStatus        V1ReadableStatusOlap `json:"readable_status"`
+	LatestRetryCount      int32                `json:"latest_retry_count"`
+	LatestWorkerID        *uuid.UUID           `json:"latest_worker_id"`
+	DagID                 pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
+	IsStandalone          bool                 `json:"is_standalone"`
+	Status                V1ReadableStatusOlap `json:"status"`
+	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
+	StartedAt             pgtype.Timestamptz   `json:"started_at"`
+	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
+	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	Output                []byte               `json:"output"`
+	ErrorMessage          pgtype.Text          `json:"error_message"`
+	SpawnedChildren       pgtype.Int8          `json:"spawned_children"`
+	RetryCount            int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
@@ -2657,8 +2653,6 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
-		&i.TriggeringEventExternalID,
-		&i.TriggeringEventKey,
 		&i.IsStandalone,
 		&i.Status,
 		&i.FinishedAt,
@@ -3095,7 +3089,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.triggering_event_external_id, t.triggering_event_key,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     e.output,
     e.external_id AS event_external_id,
     e.error_message
@@ -3108,35 +3102,33 @@ JOIN
 `
 
 type ReadTaskByExternalIDRow struct {
-	TenantID                  uuid.UUID            `json:"tenant_id"`
-	ID                        int64                `json:"id"`
-	InsertedAt                pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID                uuid.UUID            `json:"external_id"`
-	Queue                     string               `json:"queue"`
-	ActionID                  string               `json:"action_id"`
-	StepID                    uuid.UUID            `json:"step_id"`
-	WorkflowID                uuid.UUID            `json:"workflow_id"`
-	WorkflowVersionID         uuid.UUID            `json:"workflow_version_id"`
-	WorkflowRunID             uuid.UUID            `json:"workflow_run_id"`
-	ScheduleTimeout           string               `json:"schedule_timeout"`
-	StepTimeout               pgtype.Text          `json:"step_timeout"`
-	Priority                  pgtype.Int4          `json:"priority"`
-	Sticky                    V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID           *uuid.UUID           `json:"desired_worker_id"`
-	DisplayName               string               `json:"display_name"`
-	Input                     []byte               `json:"input"`
-	AdditionalMetadata        []byte               `json:"additional_metadata"`
-	ReadableStatus            V1ReadableStatusOlap `json:"readable_status"`
-	LatestRetryCount          int32                `json:"latest_retry_count"`
-	LatestWorkerID            *uuid.UUID           `json:"latest_worker_id"`
-	DagID                     pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt             pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID      *uuid.UUID           `json:"parent_task_external_id"`
-	TriggeringEventExternalID *uuid.UUID           `json:"triggering_event_external_id"`
-	TriggeringEventKey        pgtype.Text          `json:"triggering_event_key"`
-	Output                    []byte               `json:"output"`
-	EventExternalID           *uuid.UUID           `json:"event_external_id"`
-	ErrorMessage              pgtype.Text          `json:"error_message"`
+	TenantID             uuid.UUID            `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           uuid.UUID            `json:"external_id"`
+	Queue                string               `json:"queue"`
+	ActionID             string               `json:"action_id"`
+	StepID               uuid.UUID            `json:"step_id"`
+	WorkflowID           uuid.UUID            `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
+	WorkflowRunID        uuid.UUID            `json:"workflow_run_id"`
+	ScheduleTimeout      string               `json:"schedule_timeout"`
+	StepTimeout          pgtype.Text          `json:"step_timeout"`
+	Priority             pgtype.Int4          `json:"priority"`
+	Sticky               V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID      *uuid.UUID           `json:"desired_worker_id"`
+	DisplayName          string               `json:"display_name"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	LatestRetryCount     int32                `json:"latest_retry_count"`
+	LatestWorkerID       *uuid.UUID           `json:"latest_worker_id"`
+	DagID                pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	Output               []byte               `json:"output"`
+	EventExternalID      *uuid.UUID           `json:"event_external_id"`
+	ErrorMessage         pgtype.Text          `json:"error_message"`
 }
 
 func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid uuid.UUID) (*ReadTaskByExternalIDRow, error) {
@@ -3167,8 +3159,6 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
-		&i.TriggeringEventExternalID,
-		&i.TriggeringEventKey,
 		&i.Output,
 		&i.EventExternalID,
 		&i.ErrorMessage,

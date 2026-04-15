@@ -176,9 +176,7 @@ INSERT INTO v1_tasks_olap (
     additional_metadata,
     dag_id,
     dag_inserted_at,
-    parent_task_external_id,
-    triggering_event_external_id,
-    triggering_event_key
+    parent_task_external_id
 ) VALUES (
     $1,
     $2,
@@ -200,9 +198,7 @@ INSERT INTO v1_tasks_olap (
     $18,
     $19,
     $20,
-    $21,
-    $22,
-    $23
+    $21
 );
 
 -- name: CreateDAGsOLAP :copyfrom
