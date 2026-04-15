@@ -147,12 +147,18 @@ class DispatcherClient:
         except Exception as e:
             # for step action events, send a failure event when we cannot send the completed event
             if event_type in (STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_FAILED):
-                await self._try_send_step_action_event(
-                    action,
-                    STEP_EVENT_TYPE_FAILED,
-                    "Failed to send finished event: " + str(e),
-                    should_not_retry=should_not_retry,
-                )
+                try:
+                    await self._try_send_step_action_event(
+                        action,
+                        STEP_EVENT_TYPE_FAILED,
+                        "Failed to send finished event: " + str(e),
+                        should_not_retry=should_not_retry,
+                    )
+                except Exception:
+                    ## fixme: this is a hack to not drop errors here
+                    ## not sure how to handle this case better since
+                    ## we probably don't want to raise here either
+                    return None
 
             return None
 
