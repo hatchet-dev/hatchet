@@ -562,6 +562,8 @@ CREATE TABLE v1_match (
     trigger_priority integer,
     trigger_event_external_id UUID,
     trigger_event_key TEXT,
+    trigger_desired_worker_labels JSONB,
+
     durable_event_log_entry_node_id bigint,
     durable_event_log_entry_branch_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
@@ -708,7 +710,6 @@ CREATE TABLE v1_dag (
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
     parent_task_external_id UUID,
-    desired_worker_labels JSONB,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

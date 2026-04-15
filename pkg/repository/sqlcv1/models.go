@@ -3116,7 +3116,6 @@ type V1Dag struct {
 	WorkflowID           uuid.UUID          `json:"workflow_id"`
 	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
-	DesiredWorkerLabels  []byte             `json:"desired_worker_labels"`
 }
 
 type V1DagData struct {
@@ -3358,6 +3357,7 @@ type V1Match struct {
 	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
 	TriggerEventExternalID        *uuid.UUID         `json:"trigger_event_external_id"`
 	TriggerEventKey               pgtype.Text        `json:"trigger_event_key"`
+	TriggerDesiredWorkerLabels    []byte             `json:"trigger_desired_worker_labels"`
 	DurableEventLogEntryNodeID    pgtype.Int8        `json:"durable_event_log_entry_node_id"`
 	DurableEventLogEntryBranchID  pgtype.Int8        `json:"durable_event_log_entry_branch_id"`
 }

@@ -13,7 +13,13 @@ ALTER TABLE v1_tasks_olap
 
 ALTER TABLE v1_match
     ADD COLUMN trigger_event_external_id UUID,
-    ADD COLUMN trigger_event_key TEXT
+    ADD COLUMN trigger_event_key TEXT,
+    ADD COLUMN trigger_desired_worker_labels JSONB
+;
+
+ALTER TABLE v1_dag
+    DROP COLUMN desired_worker_labels
+;
 -- +goose StatementEnd
 
 -- +goose Down
@@ -30,6 +36,11 @@ ALTER TABLE v1_tasks_olap
 
 ALTER TABLE v1_match
     DROP COLUMN trigger_event_external_id,
-    DROP COLUMN trigger_event_key
+    DROP COLUMN trigger_event_key,
+    DROP COLUMN trigger_desired_worker_labels
+;
+
+ALTER TABLE v1_dag
+    ADD COLUMN desired_worker_labels JSONB
 ;
 -- +goose StatementEnd
