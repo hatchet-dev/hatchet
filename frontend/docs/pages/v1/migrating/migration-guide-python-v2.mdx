@@ -64,16 +64,16 @@ workflow.schedule(run_at, input, additional_metadata={"key": "value"})
 
 Several properties on `Context` have been renamed or removed.
 
-| V1 | V2 |
-|---|---|
-| `ctx.step_run_id` | `ctx.task_run_id` |
-| `ctx.workflow_input` | The `input` argument to the task function |
-| `ctx.input` | The `input` argument to the task function |
-| `ctx.done` | `ctx.is_cancelled` |
-| `ctx.exit_flag` | `ctx.is_cancelled` |
-| `ctx.aio_task_output(task)` | `ctx.task_output(task)` |
-| `ctx.fetch_task_run_error(task)` | `ctx.get_task_run_error(task)` |
-| `ctx.worker` | Use specific properties: `ctx.worker_id`, etc. |
+| V1                               | V2                                             |
+| -------------------------------- | ---------------------------------------------- |
+| `ctx.step_run_id`                | `ctx.task_run_id`                              |
+| `ctx.workflow_input`             | The `input` argument to the task function      |
+| `ctx.input`                      | The `input` argument to the task function      |
+| `ctx.done`                       | `ctx.is_cancelled`                             |
+| `ctx.exit_flag`                  | `ctx.is_cancelled`                             |
+| `ctx.aio_task_output(task)`      | `ctx.task_output(task)`                        |
+| `ctx.fetch_task_run_error(task)` | `ctx.get_task_run_error(task)`                 |
+| `ctx.worker`                     | Use specific properties: `ctx.worker_id`, etc. |
 
 Internal context properties (`ctx.data`, `ctx.action`, `ctx.dispatcher_client`, `ctx.admin_client`, `ctx.event_client`, `ctx.runs_client`) have also been removed. These were never intended for external use.
 
