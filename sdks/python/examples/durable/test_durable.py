@@ -29,7 +29,7 @@ from examples.durable.worker import (
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
 )
-from hatchet_sdk import Hatchet, PushEventOptions
+from hatchet_sdk import Hatchet
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
@@ -316,15 +316,17 @@ async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
-    scope = str(uuid4())
+    user_id = 1234
 
     hatchet.event.push(
-        EVENT_KEY, {"order": "first"}, options=PushEventOptions(scope=scope)
+        "user:create",
+        {"order": "first", "user_id": user_id},
+        scope=f"user_id:{user_id}",
     )
 
     await asyncio.sleep(1)
 
-    result = await wait_for_event_lookback.aio_run(EventLookbackInput(scope=scope))
+    result = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
     assert (
         result.elapsed < 1
@@ -336,9 +338,7 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
-    hatchet.event.push(
-        EVENT_KEY, {"order": "first"}, options=PushEventOptions(scope=scope)
-    )
+    hatchet.event.push(EVENT_KEY, {"order": "first"}, scope=scope)
     await asyncio.sleep(1)
 
     result = await wait_for_or_event_lookback.aio_run(EventLookbackInput(scope=scope))
@@ -353,7 +353,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     hatchet.event.push(
         "key2",
         {"order": "second"},
-        options=PushEventOptions(scope=scope),
+        scope=scope,
     )
     await asyncio.sleep(1)
 
@@ -363,11 +363,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(3)
 
-    hatchet.event.push(
-        "key1",
-        {"order": "first"},
-        options=PushEventOptions(scope=scope),
-    )
+    hatchet.event.push("key1", {"order": "first"}, scope=scope)
 
     result = await ref.aio_result()
 
@@ -379,7 +375,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
 @pytest.mark.skip(reason="seems to be broken, need to fix this on the engine")
 @pytest.mark.asyncio(loop_scope="session")
 async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
-    scope = str(uuid4())
+    user_id = 1234
 
     event = None
     iters = list(range(100))
@@ -387,15 +383,15 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
 
     for i in iters:
         event = hatchet.event.push(
-            EVENT_KEY,
-            {"order": str(i)},
-            options=PushEventOptions(scope=scope),
+            "user:create",
+            {"order": str(i), "user_id": user_id},
+            scope=f"user_id:{user_id}",
         )
 
     assert event
     await asyncio.sleep(1)
 
-    res = await wait_for_event_lookback.aio_run(EventLookbackInput(scope=scope))
+    res = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
     payload = cast(dict[str, str], json.loads(event.payload))
 

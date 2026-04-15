@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/api/v1/server/rbac"
+	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -20,7 +20,7 @@ type AuthZ struct {
 }
 
 func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
-	rbacAuthorizer, err := rbac.NewAuthorizer()
+	rbacAuthorizer, err := newHatchetAuthorizer()
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRo
 	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {
+	if !a.rbac.IsAuthorized(string(tenantMemberRole), r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
