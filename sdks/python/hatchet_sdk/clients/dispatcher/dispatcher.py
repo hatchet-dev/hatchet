@@ -13,7 +13,7 @@ from hatchet_sdk.clients.rest.tenacity_utils import (
     tenacity_retry,
     tenacity_should_retry,
 )
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, TenacityConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
@@ -170,14 +170,17 @@ class DispatcherClient:
             should_not_retry=should_not_retry,
         )
 
-        send_step_action_event = tenacity_retry(
-            self.aio_client.SendStepActionEvent, self.config.tenacity
+        send = tenacity_retry(
+            self.aio_client.SendStepActionEvent,
+            TenacityConfig(
+                max_attempts=10,
+            ),
         )
 
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
             # fixme: figure out how to get typing right here
-            await send_step_action_event(  # type: ignore[misc]
+            await send(  # type: ignore[misc]
                 event,
                 metadata=create_authorization_header(self.token),
             ),
