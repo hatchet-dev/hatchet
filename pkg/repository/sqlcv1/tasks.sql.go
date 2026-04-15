@@ -1880,7 +1880,10 @@ WITH RECURSIVE augmented_tasks AS (
         t.parent_task_inserted_at,
         t.step_index,
         t.child_index,
-        t.child_key
+        t.child_key,
+        t.desired_worker_label,
+        t.triggering_event_external_id,
+        t.triggering_event_key
     FROM
         v1_task t
     WHERE
@@ -1926,6 +1929,9 @@ SELECT
     t.step_index,
     t.child_index,
     t.child_key,
+    t.desired_worker_label,
+    t.triggering_event_external_id,
+    t.triggering_event_key,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -1945,25 +1951,28 @@ type ListTasksForReplayParams struct {
 }
 
 type ListTasksForReplayRow struct {
-	ID                   int64              `json:"id"`
-	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount           int32              `json:"retry_count"`
-	DagID                pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt        pgtype.Timestamptz `json:"dag_inserted_at"`
-	StepReadableID       string             `json:"step_readable_id"`
-	StepID               uuid.UUID          `json:"step_id"`
-	WorkflowID           uuid.UUID          `json:"workflow_id"`
-	ExternalID           uuid.UUID          `json:"external_id"`
-	Input                []byte             `json:"input"`
-	AdditionalMetadata   []byte             `json:"additional_metadata"`
-	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
-	ParentTaskID         pgtype.Int8        `json:"parent_task_id"`
-	ParentTaskInsertedAt pgtype.Timestamptz `json:"parent_task_inserted_at"`
-	StepIndex            int64              `json:"step_index"`
-	ChildIndex           pgtype.Int8        `json:"child_index"`
-	ChildKey             pgtype.Text        `json:"child_key"`
-	JobKind              JobKind            `json:"jobKind"`
-	Parents              []uuid.UUID        `json:"parents"`
+	ID                        int64              `json:"id"`
+	InsertedAt                pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount                int32              `json:"retry_count"`
+	DagID                     pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt             pgtype.Timestamptz `json:"dag_inserted_at"`
+	StepReadableID            string             `json:"step_readable_id"`
+	StepID                    uuid.UUID          `json:"step_id"`
+	WorkflowID                uuid.UUID          `json:"workflow_id"`
+	ExternalID                uuid.UUID          `json:"external_id"`
+	Input                     []byte             `json:"input"`
+	AdditionalMetadata        []byte             `json:"additional_metadata"`
+	ParentTaskExternalID      *uuid.UUID         `json:"parent_task_external_id"`
+	ParentTaskID              pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt      pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	StepIndex                 int64              `json:"step_index"`
+	ChildIndex                pgtype.Int8        `json:"child_index"`
+	ChildKey                  pgtype.Text        `json:"child_key"`
+	DesiredWorkerLabel        []byte             `json:"desired_worker_label"`
+	TriggeringEventExternalID *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey        pgtype.Text        `json:"triggering_event_key"`
+	JobKind                   JobKind            `json:"jobKind"`
+	Parents                   []uuid.UUID        `json:"parents"`
 }
 
 // Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
@@ -1995,6 +2004,9 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.StepIndex,
 			&i.ChildIndex,
 			&i.ChildKey,
+			&i.DesiredWorkerLabel,
+			&i.TriggeringEventExternalID,
+			&i.TriggeringEventKey,
 			&i.JobKind,
 			&i.Parents,
 		); err != nil {

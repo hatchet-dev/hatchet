@@ -418,7 +418,10 @@ WITH input AS (
         unnest($3::jsonb[]) AS input,
         unnest(cast($4::text[] as v1_task_initial_state[])) AS initial_state,
         unnest_nd_1d($5::text[][]) AS concurrency_keys,
-        unnest($6::text[]) AS initial_state_reason
+        unnest($6::text[]) AS initial_state_reason,
+        unnest($7::jsonb[]) AS desired_worker_label,
+        unnest($8::uuid[]) AS triggering_event_external_id,
+        unnest($9::text[]) AS triggering_event_key
 )
 UPDATE
     v1_task
@@ -429,13 +432,16 @@ SET
     input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
     initial_state = i.initial_state,
     concurrency_keys = i.concurrency_keys,
-    initial_state_reason = i.initial_state_reason
+    initial_state_reason = i.initial_state_reason,
+    desired_worker_label = COALESCE(i.desired_worker_label, v1_task.desired_worker_label),
+    triggering_event_external_id = COALESCE(i.triggering_event_external_id, v1_task.triggering_event_external_id),
+    triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key)
 FROM
     input i
 WHERE
 	(v1_task.id, v1_task.inserted_at) = (i.task_id, i.task_inserted_at)
 RETURNING
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key
 `
 
 type ReplayTasksParams struct {
@@ -446,8 +452,11 @@ type ReplayTasksParams struct {
 	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
 	// probably need to change. Current hack is to group tasks by their step id where these
 	// multi-dimensional arrays are the same length.
-	Concurrencykeys     [][]string    `json:"concurrencykeys"`
-	InitialStateReasons []pgtype.Text `json:"initialStateReasons"`
+	Concurrencykeys             [][]string    `json:"concurrencykeys"`
+	InitialStateReasons         []pgtype.Text `json:"initialStateReasons"`
+	DesiredWorkerLabels         [][]byte      `json:"desiredWorkerLabels"`
+	TriggeringEventExternalIds  []*uuid.UUID  `json:"triggeringEventExternalIds"`
+	TriggeringEventKeys         []pgtype.Text `json:"triggeringEventKeys"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -459,6 +468,9 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.InitialStates,
 		arg.Concurrencykeys,
 		arg.InitialStateReasons,
+		arg.DesiredWorkerLabels,
+		arg.TriggeringEventExternalIds,
+		arg.TriggeringEventKeys,
 	)
 	if err != nil {
 		return nil, err
@@ -500,6 +512,9 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
+			&i.DesiredWorkerLabel,
+			&i.TriggeringEventExternalID,
+			&i.TriggeringEventKey,
 		); err != nil {
 			return nil, err
 		}

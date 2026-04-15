@@ -646,7 +646,10 @@ WITH RECURSIVE augmented_tasks AS (
         t.parent_task_inserted_at,
         t.step_index,
         t.child_index,
-        t.child_key
+        t.child_key,
+        t.desired_worker_label,
+        t.triggering_event_external_id,
+        t.triggering_event_key
     FROM
         v1_task t
     WHERE
@@ -692,6 +695,9 @@ SELECT
     t.step_index,
     t.child_index,
     t.child_key,
+    t.desired_worker_label,
+    t.triggering_event_external_id,
+    t.triggering_event_key,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
