@@ -175,7 +175,7 @@ async def support_agent(
 
 
 
-
+# > Worker registration
 def main() -> None:
     worker = hatchet.worker(
         "support-agent-worker",
@@ -183,6 +183,7 @@ def main() -> None:
     )
     worker.start()
 
-
 if __name__ == "__main__":
     main()
+
+

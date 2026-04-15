@@ -96,6 +96,14 @@ This workflow:
 
 The key detail that makes this workflow reliable is `consider_events_since` on the reply event condition. A customer reply could arrive while the workflow is still finishing the triage or reply-generation steps. By using `consider_events_since`, the workflow can still capture that reply when the wait becomes active.
 
+### Register and start the worker
+
+To run this workflow, register the workflow and its child tasks on a Hatchet worker, then start it.
+
+<Snippet src={snippets.python.support_agent.worker.worker_main} />
+
+With the worker running, you can trigger the workflow and observe either the resolved or escalated outcome.
+
 ### Trigger the workflow
 
 The example also includes a small trigger script that starts the workflow, pushes a scoped reply event, and waits for the result.
