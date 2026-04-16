@@ -122,3 +122,78 @@ func (w *WorkflowsClient) Delete(ctx context.Context, workflowName string) (*res
 
 	return resp, nil
 }
+
+// Pause pauses a workflow by its name.
+func (w *WorkflowsClient) Pause(ctx context.Context, workflowName string) (*rest.Workflow, error) {
+	workflowId, err := w.GetId(ctx, workflowName)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow ID")
+	}
+
+	paused := true
+
+	resp, err := w.api.WorkflowUpdateWithResponse(
+		ctx,
+		workflowId,
+		rest.WorkflowUpdateJSONRequestBody{
+			IsPaused: &paused,
+		},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to pause workflow")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	w.cache.Set(workflowName, resp.JSON200)
+
+	return resp.JSON200, nil
+}
+
+// Unpause unpauses a workflow by its name.
+func (w *WorkflowsClient) Unpause(ctx context.Context, workflowName string) (*rest.Workflow, error) {
+	workflowId, err := w.GetId(ctx, workflowName)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow ID")
+	}
+
+	paused := false
+
+	resp, err := w.api.WorkflowUpdateWithResponse(
+		ctx,
+		workflowId,
+		rest.WorkflowUpdateJSONRequestBody{
+			IsPaused: &paused,
+		},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to unpause workflow")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	w.cache.Set(workflowName, resp.JSON200)
+
+	return resp.JSON200, nil
+}
+
+// IsPaused reports whether a workflow is currently paused.
+func (w *WorkflowsClient) IsPaused(ctx context.Context, workflowName string) (bool, error) {
+	// Bypass the in-memory cache so we always read the live server state.
+	w.cache.Set(workflowName, nil)
+
+	workflow, err := w.Get(ctx, workflowName)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get workflow")
+	}
+
+	if workflow.IsPaused == nil {
+		return false, nil
+	}
+
+	return *workflow.IsPaused, nil
+}
