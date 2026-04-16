@@ -73,6 +73,9 @@ docs = [
 claude = ["claude-agent-sdk", "mcp"]
 openai = ["openai-agents"]
 
+[project.entry-points."mkdocs.plugins"]
+"markdown-export" = "docs.generator.markdown_export:MarkdownExportPlugin"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
