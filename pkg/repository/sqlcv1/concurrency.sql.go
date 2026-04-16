@@ -75,10 +75,11 @@ WITH latest_workflow_version AS (
     SELECT
         EXISTS(SELECT 1 FROM latest_workflow_version) AND
         (
-            -- We must match the first active strategy, otherwise we could have another concurrency strategy
-            -- that is active and has this concurrency strategy as a child.
+            -- A task can flow through multiple step concurrency strategies sequentially via
+            -- v1_concurrency_slot.next_strategy_ids. If this strategy is not the lowest-id active
+            -- strategy on the workflow version, an earlier strategy is still draining and may
+            -- hand off a task here next — so we can't deactivate even if no slots exist yet.
             (first_active_strategy.id != $4::bigint) OR
-            latest_workflow_version."workflowVersionId" = $3::uuid OR
             EXISTS(SELECT 1 FROM active_slot) OR
             EXISTS(SELECT 1 FROM active_parent_slot)
         ) AS "isActive"
@@ -95,8 +96,9 @@ type CheckStrategyActiveParams struct {
 	Strategyid        int64     `json:"strategyid"`
 }
 
-// A strategy is active if the workflow is not deleted, and it is attached to the latest workflow version or it has
-// at least one concurrency slot that is not filled (the concurrency slot could be on the parent).
+// A strategy is active if the workflow is not deleted and it has at least one concurrency slot
+// (the concurrency slot could be on the parent). Strategies on idle workflows will be deactivated
+// and re-activated by the after_v1_concurrency_slot_insert trigger when new work arrives.
 func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStrategyActiveParams) (bool, error) {
 	row := db.QueryRow(ctx, checkStrategyActive,
 		arg.Workflowid,
