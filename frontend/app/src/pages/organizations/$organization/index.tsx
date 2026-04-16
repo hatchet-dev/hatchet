@@ -213,7 +213,7 @@ export default function OrganizationPage() {
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => {
-        return <span className="font-medium">{row.name || 'Loading...'}</span>;
+        return <span className="font-medium">{row.name || row.id}</span>;
       },
     },
     {
