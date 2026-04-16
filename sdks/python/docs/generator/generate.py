@@ -105,9 +105,7 @@ def main() -> None:
     args = parser.parse_args()
 
     selections = (
-        [f"{name.strip()}.md" for name in args.select.split(",")]
-        if args.select
-        else []
+        [f"{name.strip()}.md" for name in args.select.split(",")] if args.select else []
     )
 
     asyncio.run(run(selections))
