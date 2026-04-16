@@ -199,11 +199,30 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
         )}
         onClick={row.original.onClick}
       >
-        {row.getVisibleCells().map((cell) => (
-          <TableCell key={cell.id}>
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          const shouldTruncate = (
+            cell.column.columnDef.meta as { truncate?: boolean } | undefined
+          )?.truncate;
+          return (
+            <TableCell
+              key={cell.id}
+              className={shouldTruncate ? 'overflow-hidden' : undefined}
+              style={
+                shouldTruncate
+                  ? { maxWidth: cell.column.getSize() }
+                  : undefined
+              }
+            >
+              {shouldTruncate ? (
+                <div className="truncate">
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </div>
+              ) : (
+                flexRender(cell.column.columnDef.cell, cell.getContext())
+              )}
+            </TableCell>
+          );
+        })}
       </TableRow>
     );
   };
