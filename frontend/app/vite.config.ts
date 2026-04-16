@@ -9,6 +9,7 @@ const controlPlaneApiProxyTarget =
   process.env.VITE_CONTROL_PLANE_API_PROXY_TARGET ?? 'http://127.0.0.1:8081';
 
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     sentryVitePlugin({

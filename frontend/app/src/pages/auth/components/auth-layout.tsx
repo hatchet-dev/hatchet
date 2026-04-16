@@ -1,9 +1,10 @@
 import { HeroPanel } from './hero-panel';
 import { CSSProperties, PropsWithChildren } from 'react';
+import { config } from '@/config';
 
 export function AuthLayout({ children }: PropsWithChildren) {
   const bgContentStyle = {
-    '--noise-url': 'url("/noise.png")',
+    '--noise-url': `url("${config.BASE_PATH}/noise.png")`,
   } as CSSProperties;
 
   return (

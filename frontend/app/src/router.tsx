@@ -924,7 +924,7 @@ const routeTree = rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
-  basepath: config.BASE_PATH,
+  basepath: config.BASE_PATH || '/',
 });
 
 declare module '@tanstack/react-router' {
