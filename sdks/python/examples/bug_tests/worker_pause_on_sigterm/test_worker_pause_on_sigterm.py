@@ -35,7 +35,9 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
             break
         await asyncio.sleep(1)
     else:
-        assert False, "Task never started running"
+        assert False, (
+            f"Task never started running, status was {run.status}\n\nrun details: {run.model_dump_json(indent=2)}"
+        )
 
     parent = psutil.Process(on_demand_worker.pid)
     parent.send_signal(signal.SIGTERM)
