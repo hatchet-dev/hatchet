@@ -525,12 +525,12 @@ export class Api<
    *
    * @name SsoGet
    * @summary List Organization's SSO Configs
-   * @request GET:/api/v1/management/organizations/{organization}/sso
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso
    * @secure
    */
   ssoGet = (organization: string, params: RequestParams = {}) =>
     this.request<object, APIError>({
-      path: `/api/v1/management/organizations/${organization}/sso`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
       method: "GET",
       secure: true,
       format: "json",
@@ -541,7 +541,7 @@ export class Api<
    *
    * @name SsoUpsert
    * @summary Upsert organization SSO config
-   * @request POST:/api/v1/management/organizations/{organization}/sso
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso
    * @secure
    */
   ssoUpsert = (
@@ -552,7 +552,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<void, APIError>({
-      path: `/api/v1/management/organizations/${organization}/sso`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
       method: "POST",
       body: data,
       secure: true,
@@ -563,12 +563,12 @@ export class Api<
    * @description Delete organization SSO config
    *
    * @name SsoDelete
-   * @request DELETE:/api/v1/management/organizations/{organization}/sso
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/sso
    * @secure
    */
   ssoDelete = (organization: string, params: RequestParams = {}) =>
     this.request<void, APIError>({
-      path: `/api/v1/management/organizations/${organization}/sso`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
       method: "DELETE",
       secure: true,
       ...params,
@@ -578,7 +578,7 @@ export class Api<
    *
    * @name SsoDomainGet
    * @summary List Organization's SSO Domains
-   * @request GET:/api/v1/management/organizations/{organization}/sso_domain
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso_domain
    * @secure
    */
   ssoDomainGet = (organization: string, params: RequestParams = {}) =>
@@ -589,7 +589,7 @@ export class Api<
       }[],
       APIError
     >({
-      path: `/api/v1/management/organizations/${organization}/sso_domain`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso_domain`,
       method: "GET",
       secure: true,
       format: "json",
@@ -600,7 +600,7 @@ export class Api<
    *
    * @name SsoDomainCreate
    * @summary Create Organization SSO Domain
-   * @request POST:/api/v1/management/organizations/{organization}/sso_domain
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso_domain
    * @secure
    */
   ssoDomainCreate = (
@@ -609,7 +609,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<void, APIError>({
-      path: `/api/v1/management/organizations/${organization}/sso_domain`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso_domain`,
       method: "POST",
       body: data,
       secure: true,
@@ -620,7 +620,7 @@ export class Api<
    * @description Delete SSO Domain for organization
    *
    * @name SsoDomainDelete
-   * @request DELETE:/api/v1/management/organizations/{organization}/sso_domain
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/sso_domain
    * @secure
    */
   ssoDomainDelete = (
@@ -631,7 +631,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<void, APIError>({
-      path: `/api/v1/management/organizations/${organization}/sso_domain`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso_domain`,
       method: "DELETE",
       body: data,
       secure: true,
@@ -644,7 +644,7 @@ export class Api<
    * @tags User
    * @name CloudUserUpdateSsoOauthStart
    * @summary Start OAuth flow
-   * @request GET:/api/v1/cloud/users/sso/start
+   * @request GET:/api/v1/control-plane/users/sso/start
    */
   cloudUserUpdateSsoOauthStart = (
     query: {
@@ -654,7 +654,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<any, void>({
-      path: `/api/v1/cloud/users/sso/start`,
+      path: `/api/v1/control-plane/users/sso/start`,
       method: "GET",
       query: query,
       ...params,
@@ -665,11 +665,11 @@ export class Api<
    * @tags User
    * @name CloudUserUpdateSsoOauthCallback
    * @summary Complete OAuth flow
-   * @request GET:/api/v1/cloud/users/sso/callback
+   * @request GET:/api/v1/control-plane/users/sso/callback
    */
   cloudUserUpdateSsoOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
-      path: `/api/v1/cloud/users/sso/callback`,
+      path: `/api/v1/control-plane/users/sso/callback`,
       method: "GET",
       ...params,
     });

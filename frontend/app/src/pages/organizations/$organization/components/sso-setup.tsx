@@ -62,7 +62,7 @@ export default function SSOPage() {
 
   return (
     <SsoSetup
-      redirectUrl={`${window.location.origin}/api/v1/cloud/users/sso/callback`}
+      redirectUrl={`${window.location.origin}/api/v1/control-plane/users/sso/callback`}
       api={api}
     />
   );
