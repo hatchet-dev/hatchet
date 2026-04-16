@@ -11,7 +11,7 @@ import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { z } from 'zod';
 
 const workersQuerySchema = z
@@ -44,6 +44,16 @@ export default function Workers() {
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
+  const handleSetOpenLabelsPopover = useCallback(
+    (id: string | null) => setOpenLabelsPopover(id),
+    [],
+  );
+
+  const tableColumns = useMemo(
+    () => columns(tenantId, openLabelsPopover, handleSetOpenLabelsPopover),
+    [tenantId, openLabelsPopover, handleSetOpenLabelsPopover],
+  );
+
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),
     refetchInterval,
@@ -72,7 +82,7 @@ export default function Workers() {
 
   return (
     <DataTable
-      columns={columns(tenantId, openLabelsPopover, setOpenLabelsPopover)}
+      columns={tableColumns}
       data={paginatedData}
       filters={[
         {
