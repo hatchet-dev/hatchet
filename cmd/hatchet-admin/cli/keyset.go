@@ -101,7 +101,7 @@ func runCreateLocalKeysets() error {
 			return err
 		}
 
-		err = os.WriteFile(encryptionKeyDir+"/public_handle_ec256.key", insecurePublicHandleEc256, 0600)
+		err = os.WriteFile(encryptionKeyDir+"/public_handle_unencrypted_ec256.key", insecurePublicHandleEc256, 0600)
 
 		if err != nil {
 			return err
@@ -158,7 +158,7 @@ func runCreateCloudKMSJWTKeyset() error {
 			return err
 		}
 
-		err = os.WriteFile(encryptionKeyDir+"/public_handle_ec256.key", insecurePublicHandleEc256, 0600)
+		err = os.WriteFile(encryptionKeyDir+"/public_handle_unencrypted_ec256.key", insecurePublicHandleEc256, 0600)
 
 		if err != nil {
 			return err
