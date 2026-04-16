@@ -226,18 +226,15 @@ class Hatchet:
         Create a Hatchet worker on which to run workflows.
 
         :param name: The name of the worker.
-
         :param slots: slot count for standard tasks.
-
         :param durable_slots: slot count for durable tasks.
-
         :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
-
         :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.
-
         :param lifespan: A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks.
 
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
+
+        :raises TypeError: If any of the items in `workflows` is not an instance of `Workflow` or `Standalone`, which are the two types of workflow objects that can be passed to a worker. This is to catch a common mistake where users pass the result of a task declaration method like `Workflow.task` instead of the workflow object itself.
         """
 
         for workflow in workflows or []:
