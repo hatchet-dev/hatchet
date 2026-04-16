@@ -240,6 +240,12 @@ class Hatchet:
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
         """
 
+        for workflow in workflows or []:
+            if not isinstance(workflow, BaseWorkflow):
+                raise TypeError(
+                    f"workflows passed to a Hatchet worker need to be either a `Workflow` or a `Standalone`, created via `hatchet.workflow`, `hatchet.task`, or `hatchet.durable_task`. Got {type(workflow)}. hint: you likely passed the result of `Workflow.task`, `Workflow.durable_task`, etc. instead of the workflow itself."
+                )
+
         resolved_config = resolve_worker_slot_config(
             None,
             slots,
