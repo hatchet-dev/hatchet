@@ -28,6 +28,7 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
     on_demand_worker: Popen[Any],
 ) -> None:
     ref = await long_sleep.aio_run(input=EmptyModel(), wait_for_result=False)
+    run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
@@ -35,9 +36,9 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
             break
         await asyncio.sleep(1)
     else:
-        assert False, (
-            f"Task never started running, status was {run.status}\n\nrun details: {run.model_dump_json(indent=2)}"
-        )
+        assert (
+            False
+        ), f"Task never started running, status was {run.status}\n\nrun details: {run.model_dump_json(indent=2)}"
 
     parent = psutil.Process(on_demand_worker.pid)
     parent.send_signal(signal.SIGTERM)
