@@ -31,6 +31,9 @@ export default function Workers() {
     usePagination({
       key: paramKey,
     });
+  const [openLabelsPopover, setOpenLabelsPopover] = useState<string | null>(
+    null,
+  );
 
   const {
     state: { s: statuses },
@@ -69,7 +72,7 @@ export default function Workers() {
 
   return (
     <DataTable
-      columns={columns(tenantId)}
+      columns={columns(tenantId, openLabelsPopover, setOpenLabelsPopover)}
       data={paginatedData}
       filters={[
         {
