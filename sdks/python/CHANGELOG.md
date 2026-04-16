@@ -5,6 +5,18 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.3] - 2026-04-16
+
+### Changed
+
+- Fixes a couple of internal uses of deprecated methods
+
+## [1.32.2] - 2026-04-15
+
+### Changed
+
+- Fixes a bug where failures sending a completed or failed event from the worker to the engine would fail the task and bypass any retries, even if some were configured on the task
+
 ## [1.32.1] - 2026-04-09
 
 ### Changed

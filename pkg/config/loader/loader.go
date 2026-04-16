@@ -167,7 +167,17 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return err
 	}
 
-	config, err := pgxpool.ParseConfig(databaseUrl)
+	// Determine which URL the main pool should use:
+	// - If DATABASE_PGBOUNCER_URL is set, main pool connects through pgbouncer
+	// - Otherwise, main pool connects directly via DATABASE_URL
+	mainPoolUrl := databaseUrl
+	if cf.PgBouncerURL != "" {
+		mainPoolUrl = cf.PgBouncerURL
+
+		l.Info().Msgf("main pool will connect through pgbouncer")
+	}
+
+	config, err := pgxpool.ParseConfig(mainPoolUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -264,38 +274,24 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
-	// A small direct pool for DDL operations that cannot go through pgbouncer
-	// (e.g. DETACH PARTITION CONCURRENTLY which cannot run inside a transaction block).
-	var directPool *pgxpool.Pool
-
-	if cf.PgBouncerEnabled && cf.DirectDatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_PGBOUNCER_ENABLED is set but DATABASE_DIRECT_URL is not; " +
-			"a direct PostgreSQL connection is required for DDL operations like DETACH PARTITION CONCURRENTLY")
+	// Create a separate direct pool using DATABASE_URL for DDL operations. These operations are
+	// critical and cannot use the main pool if it's routed through pgbouncer, so a separate pool
+	// is justified.
+	ddlConfig, err := pgxpool.ParseConfig(databaseUrl)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
 
-	if cf.DirectDatabaseURL != "" {
-		directConfig, err := pgxpool.ParseConfig(cf.DirectDatabaseURL)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse direct database url: %w", err)
-		}
+	ddlConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
+	ddlConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
+	ddlConfig.MaxConnLifetime = cf.MaxConnLifetime
+	ddlConfig.MaxConnIdleTime = cf.MaxConnIdleTime
+	ddlConfig.AfterConnect = pgxpoolConnAfterConnect
+	ddlConfig.ConnConfig.Tracer = newOTelPgxTracer()
 
-		if cf.DirectDatabaseMaxConns != 0 {
-			directConfig.MaxConns = int32(cf.DirectDatabaseMaxConns) // nolint: gosec
-		}
-
-		if cf.DirectDatabaseMinConns != 0 {
-			directConfig.MinConns = int32(cf.DirectDatabaseMinConns) // nolint: gosec
-		}
-
-		directConfig.MaxConnLifetime = cf.MaxConnLifetime
-		directConfig.MaxConnIdleTime = cf.MaxConnIdleTime
-		directConfig.AfterConnect = pgxpoolConnAfterConnect
-		directConfig.ConnConfig.Tracer = newOTelPgxTracer()
-
-		directPool, err = pgxpool.NewWithConfig(context.Background(), directConfig)
-		if err != nil {
-			return nil, fmt.Errorf("could not connect to direct database: %w", err)
-		}
+	ddlPool, err := pgxpool.NewWithConfig(context.Background(), ddlConfig)
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to direct database: %w", err)
 	}
 
 	ch := cache.New(cf.CacheDuration)
@@ -340,7 +336,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	v1, cleanupV1 := repov1.NewRepository(
 		pool,
-		directPool,
+		ddlPool,
 		&l,
 		cf.CacheDuration,
 		retentionPeriod,
@@ -363,13 +359,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			return cleanupV1()
 		},
-		Pool:       pool,
-		QueuePool:  pool,
-		DirectPool: directPool,
-		V1:         v1,
-		Seed:       cf.Seed,
+		Pool:    pool,
+		DDLPool: ddlPool,
+		V1:      v1,
+		Seed:    cf.Seed,
 	}, nil
-
 }
 
 type ServerConfigFileOverride func(*server.ServerConfigFile)
@@ -723,6 +717,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerConcurrencyRateLimit,
 		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
 		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+		cf.Runtime.SchedulerCheckActiveMinInterval,
+		cf.Runtime.SchedulerCheckActiveMaxInterval,
 		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,

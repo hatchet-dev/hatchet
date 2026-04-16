@@ -53,6 +53,7 @@ type Repository interface {
 	User() UserRepository
 	UserSession() UserSessionRepository
 	WorkflowSchedules() WorkflowScheduleRepository
+	Sync() SyncRepository
 }
 
 type repositoryImpl struct {
@@ -87,11 +88,11 @@ type repositoryImpl struct {
 	user              UserRepository
 	userSession       UserSessionRepository
 	workflowSchedules WorkflowScheduleRepository
+	sync              SyncRepository
 }
 
 func NewRepository(
-	pool *pgxpool.Pool,
-	directPool *pgxpool.Pool,
+	pool, ddlPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
@@ -104,7 +105,7 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, directPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -140,6 +141,7 @@ func NewRepository(
 		user:              newUserRepository(shared),
 		userSession:       newUserSessionRepository(shared),
 		workflowSchedules: newWorkflowScheduleRepository(shared),
+		sync:              NewSyncRepository(pool, l),
 	}
 
 	return impl, func() error {
@@ -291,4 +293,8 @@ func (r *repositoryImpl) UserSession() UserSessionRepository {
 
 func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
 	return r.workflowSchedules
+}
+
+func (r *repositoryImpl) Sync() SyncRepository {
+	return r.sync
 }
