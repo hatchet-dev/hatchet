@@ -1,5 +1,5 @@
 import SsoSetup from '@/components/sso/sso-setup.tsx';
-import { cloudApi, controlPlaneApi } from '@/lib/api/api';
+import { controlPlaneApi } from '@/lib/api/api';
 import type { SsoApi } from '@/lib/sso/sso-types.ts';
 import { appRoutes } from '@/router.tsx';
 import { useParams } from '@tanstack/react-router';
