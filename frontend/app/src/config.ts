@@ -7,5 +7,7 @@ declare global {
 }
 
 export const config = {
-  BASE_PATH: window.__CONFIG__?.BASE_PATH || '/',
+  get BASE_PATH() {
+    return window.__CONFIG__?.BASE_PATH || '';
+  },
 };

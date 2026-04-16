@@ -20,27 +20,27 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 
 	r.Use(middleware.Logger)
 
-	if basePath != "/" {
+	basePath = strings.TrimRight(basePath, "/")
+	if basePath != "" {
 		// Dynamcally build and serve the index.html and config.js when we have a custom basePath
-		r.Get("/", handleIndex(staticFilePath, basePath))
-		r.Get("/config.js", handleJsConfig(basePath))
+		r.Get(basePath, handleIndex(staticFilePath, basePath))
+		r.Get(basePath+"/config.js", handleJsConfig(basePath))
 	}
 
-	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+	r.Get(basePath+"/*", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
-
-		if _, err := os.Stat(filepath.Join(staticFilePath, r.URL.Path)); os.IsNotExist(err) { //nolint gosec
+		assetPath := strings.TrimPrefix(r.URL.Path, basePath)
+		localAssetPath := filepath.Join(staticFilePath, filepath.FromSlash(assetPath))
+		if _, err := os.Stat(localAssetPath); os.IsNotExist(err) { //nolint gosec
 			w.Header().Set("Cache-Control", "no-cache")
-
-			http.StripPrefix(r.URL.Path, fs).ServeHTTP(w, r)
+			handleIndex(staticFilePath, basePath)(w, r)
 		} else {
 			// Set static files involving html, js, or empty cache to "no-cache", which means they must be validated
 			// for changes before the browser uses the cache
 			if base := path.Base(r.URL.Path); strings.Contains(base, "html") || strings.Contains(base, "js") || base == "." || base == "/" {
 				w.Header().Set("Cache-Control", "no-cache")
 			}
-
-			fs.ServeHTTP(w, r)
+			http.StripPrefix(basePath, fs).ServeHTTP(w, r)
 		}
 	})
 
@@ -79,7 +79,7 @@ func handleIndex(staticFilePath, basePath string) http.HandlerFunc {
 			return
 		}
 
-		content := strings.ReplaceAll(string(b), `<base href="/">`, `<base href="`+basePath+`">`)
+		content := strings.ReplaceAll(string(b), `<base href="/">`, `<base href="`+basePath+`/">`)
 		w.Header().Set("Content-Type", "text/html")
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write([]byte(content))
