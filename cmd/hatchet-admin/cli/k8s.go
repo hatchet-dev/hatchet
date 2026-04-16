@@ -190,10 +190,9 @@ func runK8sQuickstart() error {
 	}
 
 	if k8sQuickstartOverwrite || res.encryptionMasterKeyset == "" || res.encryptionJwtPrivateKeyset == "" || res.encryptionJwtPublicKeyset == "" {
-		masterKeyBytes, privateEc256, publicEc256, _, eErr := encryption.GenerateLocalKeys()
-
-		if eErr != nil {
-			return eErr
+		masterKeyBytes, privateEc256, publicEc256, _, generationErr := encryption.GenerateLocalKeys()
+		if generationErr != nil {
+			return generationErr
 		}
 
 		res.encryptionMasterKeyset = string(masterKeyBytes)

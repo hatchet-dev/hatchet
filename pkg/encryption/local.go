@@ -122,7 +122,6 @@ func generateJWTKeysets(masterKey tink.AEAD) (privateEc256 []byte, publicEc256 [
 	}
 
 	insecurePublicHandleEc256, err = insecureBytesFromHandle(publicHandle)
-
 	if err != nil {
 		return
 	}
