@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import os
-from typing import cast
 
 from docs.generator.doc_types import Document
 from docs.generator.llm import parse_markdown
@@ -99,14 +98,17 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--select",
-        nargs="*",
         type=str,
-        help="Select a subset of docs to generate. Note that this will prevent the `_meta.js` file from being generated.",
+        help="Comma-separated list of doc names to generate (e.g. client,context,runnables). Note that this will prevent the `_meta.js` file from being generated.",
     )
 
     args = parser.parse_args()
 
-    selections = cast(list[str], args.select or [])
+    selections = (
+        [f"{name.strip()}.md" for name in args.select.split(",")]
+        if args.select
+        else []
+    )
 
     asyncio.run(run(selections))
 
