@@ -8,6 +8,6 @@ declare global {
 
 export const config = {
   get BASE_PATH() {
-    return window.__CONFIG__?.BASE_PATH || '';
+    return window.__CONFIG__?.BASE_PATH || '/';
   },
 };
