@@ -20,7 +20,7 @@ func TestNewCloudKMSEncryptionValid(t *testing.T) {
 	assert.NoError(t, err)
 
 	// generate JWT keysets
-	privateEc256, publicEc256, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
+	privateEc256, publicEc256, _, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
 
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestEncryptDecryptCloudKMS(t *testing.T) {
 	assert.NoError(t, err)
 
 	// generate JWT keysets
-	privateEc256, publicEc256, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
+	privateEc256, publicEc256, _, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
 
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestEncryptDecryptCloudKMSStringBase64(t *testing.T) {
 	assert.NoError(t, err)
 
 	// generate JWT keysets
-	privateEc256, publicEc256, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
+	privateEc256, publicEc256, _, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
 
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +118,7 @@ func TestEncryptDecryptCloudKMSWithEmptyDataID(t *testing.T) {
 	assert.NoError(t, err)
 
 	// generate JWT keysets
-	privateEc256, publicEc256, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
+	privateEc256, publicEc256, _, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
 
 	if err != nil {
 		t.Fatal(err)
