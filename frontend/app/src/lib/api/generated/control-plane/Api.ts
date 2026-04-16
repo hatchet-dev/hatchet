@@ -21,6 +21,7 @@ import {
   CreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest,
   CreateOrganizationRequest,
+  CreateOrganizationSsoDomainRequest,
   CreateTenantInviteRequest,
   ManagementTokenList,
   Organization,
@@ -517,6 +518,159 @@ export class Api<
       path: `/api/v1/control-plane/organization-invites/${organizationInvite}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all SSO configurations the organization has created
+   *
+   * @name SsoGet
+   * @summary List Organization's SSO Configs
+   * @request GET:/api/v1/management/organizations/{organization}/sso
+   * @secure
+   */
+  ssoGet = (organization: string, params: RequestParams = {}) =>
+    this.request<object, APIError>({
+      path: `/api/v1/management/organizations/${organization}/sso`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new organization SSO config
+   *
+   * @name SsoUpsert
+   * @summary Upsert organization SSO config
+   * @request POST:/api/v1/management/organizations/{organization}/sso
+   * @secure
+   */
+  ssoUpsert = (
+    organization: string,
+    data: {
+      idpInfoFromCustomer: Record<string, any>;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organizations/${organization}/sso`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Delete organization SSO config
+   *
+   * @name SsoDelete
+   * @request DELETE:/api/v1/management/organizations/{organization}/sso
+   * @secure
+   */
+  ssoDelete = (organization: string, params: RequestParams = {}) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organizations/${organization}/sso`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description List all SSO domains for organization
+   *
+   * @name SsoDomainGet
+   * @summary List Organization's SSO Domains
+   * @request GET:/api/v1/management/organizations/{organization}/sso_domain
+   * @secure
+   */
+  ssoDomainGet = (organization: string, params: RequestParams = {}) =>
+    this.request<
+      {
+        /** @example "acme.com" */
+        sso_domain: string;
+      }[],
+      APIError
+    >({
+      path: `/api/v1/management/organizations/${organization}/sso_domain`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Add a new SSO Domain for an organization
+   *
+   * @name SsoDomainCreate
+   * @summary Create Organization SSO Domain
+   * @request POST:/api/v1/management/organizations/{organization}/sso_domain
+   * @secure
+   */
+  ssoDomainCreate = (
+    organization: string,
+    data: CreateOrganizationSsoDomainRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organizations/${organization}/sso_domain`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Delete SSO Domain for organization
+   *
+   * @name SsoDomainDelete
+   * @request DELETE:/api/v1/management/organizations/{organization}/sso_domain
+   * @secure
+   */
+  ssoDomainDelete = (
+    organization: string,
+    data: {
+      ssoDomain: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organizations/${organization}/sso_domain`,
+      method: "DELETE",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateSsoOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/cloud/users/sso/start
+   */
+  cloudUserUpdateSsoOauthStart = (
+    query: {
+      /** The user email */
+      email: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<any, void>({
+      path: `/api/v1/cloud/users/sso/start`,
+      method: "GET",
+      query: query,
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateSsoOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/cloud/users/sso/callback
+   */
+  cloudUserUpdateSsoOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/cloud/users/sso/callback`,
+      method: "GET",
       ...params,
     });
   /**

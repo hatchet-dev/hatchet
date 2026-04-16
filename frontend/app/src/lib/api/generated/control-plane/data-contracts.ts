@@ -38,6 +38,11 @@ export interface APIControlPlaneMetadata {
    * @example 3600000
    */
   inactivityLogoutMs?: number;
+  /**
+   * whether SSO is enabled
+   * @example false
+   */
+  ssoEnabled?: boolean;
 }
 
 export type { APIErrors } from '@/lib/api/generated/cloud/data-contracts';
@@ -171,6 +176,10 @@ export interface ManagementToken {
    * @format date-time
    */
   expiresAt?: string;
+}
+
+export interface CreateOrganizationSsoDomainRequest {
+  ssoDomain: string;
 }
 
 export interface ManagementTokenList {

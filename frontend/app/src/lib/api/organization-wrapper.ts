@@ -56,7 +56,8 @@ export function useOrganizationApi() {
 
       organizationSsoDomainGetQuery: (organization: string) => ({
         queryKey: ['organization:sso_domain:get', organization] as const,
-        queryFn: async () => (await cloudApi.ssoDomainGet(organization)).data,
+        queryFn: async () =>
+          (await controlPlaneApi.ssoDomainGet(organization)).data,
       }),
       managementTokenListQuery: (organization: string) => ({
         queryKey: ['management-tokens:list', organization] as const,
@@ -94,7 +95,7 @@ export function useOrganizationApi() {
         mutationKey: ['organization:sso_domain:create', organization] as const,
         mutationFn: async (ssoDomain: string) => {
           return (
-            await cloudApi.ssoDomainCreate(organization, {
+            await controlPlaneApi.ssoDomainCreate(organization, {
               ssoDomain: ssoDomain,
             })
           ).data;
@@ -105,7 +106,7 @@ export function useOrganizationApi() {
         mutationKey: ['organization:sso_domain:create', organization] as const,
         mutationFn: async (ssoDomain: string) => {
           return (
-            await cloudApi.ssoDomainDelete(organization, {
+            await controlPlaneApi.ssoDomainDelete(organization, {
               ssoDomain: ssoDomain,
             })
           ).data;

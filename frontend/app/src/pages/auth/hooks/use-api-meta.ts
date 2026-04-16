@@ -1,5 +1,7 @@
 import { getCloudMetadataQuery } from '@/hooks/use-cloud.ts';
+import useControlPlane from '@/hooks/use-control-plane.ts';
 import api from '@/lib/api';
+import { controlPlaneApi, controlPlaneMetaQuery } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
@@ -24,14 +26,10 @@ export default function useApiMeta() {
   const data = useMemo(() => {
     return metaQuery.data?.data;
   }, [metaQuery.data]);
-
-  const cloudMetaQuery = useQuery(getCloudMetadataQuery);
+  const { isControlPlaneEnabled, controlPlaneMeta } = useControlPlane();
+  console.log(controlPlaneMeta);
   let ssoEnabled = false;
-  if (
-    !cloudMetaQuery.isError &&
-    cloudMetaQuery.data?.isCloudEnabled &&
-    cloudMetaQuery.data.ssoEnabled
-  ) {
+  if (isControlPlaneEnabled && controlPlaneMeta.ssoEnabled) {
     data?.auth?.schemes?.push('propelauth');
     ssoEnabled = true;
   }

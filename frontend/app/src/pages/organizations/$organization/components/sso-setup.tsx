@@ -1,5 +1,5 @@
 import SsoSetup from '@/components/sso/sso-setup.tsx';
-import { cloudApi } from '@/lib/api/api';
+import { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import type { SsoApi } from '@/lib/sso/sso-types.ts';
 import { appRoutes } from '@/router.tsx';
 import { useParams } from '@tanstack/react-router';
@@ -10,7 +10,7 @@ function makeApi(orgId: string): SsoApi {
   return {
     async get() {
       try {
-        const r = await cloudApi.ssoGet(orgId);
+        const r = await controlPlaneApi.ssoGet(orgId);
         return { ok: true, data: r.data };
       } catch (error: any) {
         if (error instanceof AxiosError) {
@@ -24,7 +24,7 @@ function makeApi(orgId: string): SsoApi {
     },
     async upsert(body) {
       try {
-        await cloudApi.ssoUpsert(orgId, body);
+        await controlPlaneApi.ssoUpsert(orgId, body);
         return { ok: true, data: undefined };
       } catch (error: any) {
         if (error instanceof AxiosError) {
@@ -38,7 +38,7 @@ function makeApi(orgId: string): SsoApi {
     },
     async remove() {
       try {
-        await cloudApi.ssoDelete(orgId);
+        await controlPlaneApi.ssoDelete(orgId);
         return { ok: true, data: undefined };
       } catch (error: any) {
         if (error instanceof AxiosError) {

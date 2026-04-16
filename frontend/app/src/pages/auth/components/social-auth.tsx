@@ -20,7 +20,7 @@ const PROVIDER_CONFIG: Record<
     icon: <Icons.gitHub className="size-4" />,
   },
   sso: {
-    href: '/api/v1/cloud/users/sso/start',
+    href: '/api/v1/users/sso/start',
     label: 'SSO',
     icon: <LockOpen className="size-4" />,
   },
