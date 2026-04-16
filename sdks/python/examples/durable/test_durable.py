@@ -328,9 +328,9 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 
     result = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    assert (
-        result.elapsed < 1
-    ), "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    assert result.elapsed < 1, (
+        "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    )
     assert result.event.order == "first"
 
 
@@ -357,8 +357,8 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     )
     await asyncio.sleep(1)
 
-    ref = await wait_for_two_events_second_pushed_first.aio_run_no_wait(
-        EventLookbackInput(scope=scope)
+    ref = await wait_for_two_events_second_pushed_first.aio_run(
+        EventLookbackInput(scope=scope), wait_for_result=False
     )
 
     await asyncio.sleep(3)
