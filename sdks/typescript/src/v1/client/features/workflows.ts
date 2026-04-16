@@ -163,70 +163,80 @@ export class WorkflowsClient {
     }
   }
 
-  // async isPaused(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
-  //   const wf = await this.get(workflow);
-  //   return wf.isPaused;
-  // }
+  /**
+   * Check if a workflow is currently paused.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to whether the workflow is paused.
+   */
+  async isPaused(workflow: string | BaseWorkflowDeclaration<any, any>) {
+    this.workflowCache.delete(workflowNameString(workflow));
+    const wf = await this.get(workflow);
+    return wf.isPaused ?? false;
+  }
 
-  // async pause(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
-  //   const name = workflowNameString(workflow);
+  /**
+   * Pause a workflow, preventing new runs from being scheduled.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to the updated workflow.
+   */
+  async pause(workflow: string | BaseWorkflowDeclaration<any, any>) {
+    const name = workflowNameString(workflow);
 
-  //   try {
-  //     // Get the workflow first to find its ID
-  //     const workflowObj = await this.get(name);
+    try {
+      const workflowObj = await this.get(name);
 
-  //     if (!workflowObj || !workflowObj.metadata || !workflowObj.metadata.id) {
-  //       throw new Error(`Could not find workflow with name ${name}`);
-  //     }
+      if (!workflowObj || !workflowObj.metadata || !workflowObj.metadata.id) {
+        throw new Error(`Could not find workflow with name ${name}`);
+      }
 
-  //     const { data } = await this.api.workflowUpdate(workflowObj.metadata.id, {
-  //       isPaused: true,
-  //     });
+      const { data } = await this.api.workflowUpdate(workflowObj.metadata.id, {
+        isPaused: true,
+      });
 
-  //     // Update cache
-  //     if (data) {
-  //       this.workflowCache.set(name, {
-  //         workflow: data,
-  //         expiry: Date.now() + this.cacheTTL,
-  //       });
-  //     }
+      if (data) {
+        this.workflowCache.set(name, {
+          workflow: data,
+          expiry: Date.now() + this.cacheTTL,
+        });
+      }
 
-  //     return data;
-  //   } catch (error) {
-  //     // Clear cache on error
-  //     this.workflowCache.delete(name);
-  //     throw error;
-  //   }
-  // }
+      return data;
+    } catch (error) {
+      this.workflowCache.delete(name);
+      throw error;
+    }
+  }
 
-  // async unpause(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
-  //   const name = workflowNameString(workflow);
+  /**
+   * Unpause a workflow, allowing runs to be scheduled again.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to the updated workflow.
+   */
+  async unpause(workflow: string | BaseWorkflowDeclaration<any, any>) {
+    const name = workflowNameString(workflow);
 
-  //   try {
-  //     // Get the workflow first to find its ID
-  //     const workflowObj = await this.get(name);
+    try {
+      const workflowObj = await this.get(name);
 
-  //     if (!workflowObj || !workflowObj.metadata || !workflowObj.metadata.id) {
-  //       throw new Error(`Could not find workflow with name ${name}`);
-  //     }
+      if (!workflowObj || !workflowObj.metadata || !workflowObj.metadata.id) {
+        throw new Error(`Could not find workflow with name ${name}`);
+      }
 
-  //     const { data } = await this.api.workflowUpdate(workflowObj.metadata.id, {
-  //       isPaused: false,
-  //     });
+      const { data } = await this.api.workflowUpdate(workflowObj.metadata.id, {
+        isPaused: false,
+      });
 
-  //     // Update cache
-  //     if (data) {
-  //       this.workflowCache.set(name, {
-  //         workflow: data,
-  //         expiry: Date.now() + this.cacheTTL,
-  //       });
-  //     }
+      if (data) {
+        this.workflowCache.set(name, {
+          workflow: data,
+          expiry: Date.now() + this.cacheTTL,
+        });
+      }
 
-  //     return data;
-  //   } catch (error) {
-  //     // Clear cache on error
-  //     this.workflowCache.delete(name);
-  //     throw error;
-  //   }
-  // }
+      return data;
+    } catch (error) {
+      this.workflowCache.delete(name);
+      throw error;
+    }
+  }
 }
