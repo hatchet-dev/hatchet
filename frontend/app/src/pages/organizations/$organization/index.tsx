@@ -23,7 +23,6 @@ import {
 } from '@/components/v1/ui/tooltip';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
-import api from '@/lib/api';
 import {
   OrganizationMember,
   ManagementToken,
@@ -50,7 +49,7 @@ import {
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
