@@ -354,6 +354,9 @@ class Context:
 
         :return: True if the workflow was triggered by an event, False otherwise.
         """
+        if self._action.triggering_event_external_id is not None:
+            return True
+
         return self._data.triggered_by == "event"
 
     @property
