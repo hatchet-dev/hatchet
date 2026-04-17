@@ -40,8 +40,6 @@ type SyncRepository interface {
 	SyncUpsertTenantMember(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantMemberParams) (*sqlcv1.TenantMember, error)
 	SyncUpdateTenantMember(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpdateTenantMemberParams) (*sqlcv1.TenantMember, error)
 	SyncDeleteTenantMember(ctx context.Context, db sqlcv1.DBTX, id uuid.UUID) error
-
-	SyncUpsertSlackWebhook(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertSlackWebhookParams) (*sqlcv1.SlackAppWebhook, error)
 }
 
 type syncRepository struct {
@@ -100,8 +98,4 @@ func (r *syncRepository) SyncUpdateTenantMember(ctx context.Context, db sqlcv1.D
 
 func (r *syncRepository) SyncDeleteTenantMember(ctx context.Context, db sqlcv1.DBTX, id uuid.UUID) error {
 	return r.queries.DeleteTenantMember(ctx, db, id)
-}
-
-func (r *syncRepository) SyncUpsertSlackWebhook(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertSlackWebhookParams) (*sqlcv1.SlackAppWebhook, error) {
-	return r.queries.SyncUpsertSlackWebhook(ctx, db, arg)
 }
