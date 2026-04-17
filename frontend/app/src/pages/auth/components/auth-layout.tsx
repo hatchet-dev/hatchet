@@ -1,6 +1,6 @@
 import { HeroPanel } from './hero-panel';
-import { CSSProperties, PropsWithChildren } from 'react';
 import { config } from '@/config';
+import { CSSProperties, PropsWithChildren } from 'react';
 
 export function AuthLayout({ children }: PropsWithChildren) {
   const bgContentStyle = {
