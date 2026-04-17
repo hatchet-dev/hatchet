@@ -101,6 +101,8 @@ type CreateMonitoringEventPayload struct {
 	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
 	EventPayload   string    `json:"event_payload" validate:"required"`
 	EventMessage   string    `json:"event_message,omitempty"`
+
+	RequeueCount int32 `json:"requeue_count,omitempty"`
 }
 
 func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {

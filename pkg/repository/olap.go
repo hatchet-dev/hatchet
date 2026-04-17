@@ -237,7 +237,7 @@ type OLAPRepository interface {
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) error
-	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error
+	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) (notFound []sqlcv1.CreateTaskEventsOLAPParams, err error)
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
@@ -1550,10 +1550,101 @@ func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
 	return fmt.Sprintf("%d-%s-%d-%d", event.TaskID, event.EventType, event.RetryCount, event.DurableInvocationCount)
 }
 
-func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
+func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) sqlcv1.UpdateTaskStatusesFromMQParams {
+	type statusRetryCountWorkerIdTuple struct {
+		Status     sqlcv1.V1ReadableStatusOlap
+		RetryCount int32
+		WorkerId   *uuid.UUID
+	}
+
+	taskIdInsertedAtToMeta := make(map[IdInsertedAt]statusRetryCountWorkerIdTuple)
+
+	for _, event := range events {
+		statusAndRetryCount, seen := taskIdInsertedAtToMeta[IdInsertedAt{
+			ID:         event.TaskID,
+			InsertedAt: event.TaskInsertedAt,
+		}]
+
+		if !seen || event.RetryCount > statusAndRetryCount.RetryCount || compareStatuses(event.ReadableStatus, statusAndRetryCount.Status) {
+			taskIdInsertedAtToMeta[IdInsertedAt{
+				ID:         event.TaskID,
+				InsertedAt: event.TaskInsertedAt,
+			}] = statusRetryCountWorkerIdTuple{
+				Status:     event.ReadableStatus,
+				RetryCount: event.RetryCount,
+				WorkerId:   event.WorkerID,
+			}
+		}
+	}
+
+	tenantIds := make([]uuid.UUID, 0)
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	statuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
+	workerIds := make([]uuid.UUID, 0)
+	retryCounts := make([]int32, 0)
+
+	for idInsertedAt, meta := range taskIdInsertedAtToMeta {
+		tenantIds = append(tenantIds, tenantId)
+		taskIds = append(taskIds, idInsertedAt.ID)
+		taskInsertedAts = append(taskInsertedAts, idInsertedAt.InsertedAt)
+		statuses = append(statuses, meta.Status)
+		retryCounts = append(retryCounts, meta.RetryCount)
+
+		if meta.WorkerId != nil {
+			workerIds = append(workerIds, *meta.WorkerId)
+		} else {
+			workerIds = append(workerIds, uuid.Nil)
+		}
+	}
+
+	return sqlcv1.UpdateTaskStatusesFromMQParams{
+		Tenantids:       tenantIds,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Statuses:        statuses,
+		Workerids:       workerIds,
+		Retrycounts:     retryCounts,
+	}
+}
+
+func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.UpdateTaskStatusesFromMQRow) sqlcv1.UpdateDAGStatusesFromMQParams {
+	type dagKey struct {
+		DagID         int64
+		DagInsertedAt pgtype.Timestamptz
+	}
+
+	seen := make(map[dagKey]struct{})
+	tenantIds := make([]uuid.UUID, 0)
+	dagIds := make([]int64, 0)
+	dagInsertedAts := make([]pgtype.Timestamptz, 0)
+
+	for _, row := range taskRows {
+		if !row.DagID.Valid {
+			continue
+		}
+
+		key := dagKey{DagID: row.DagID.Int64, DagInsertedAt: row.DagInsertedAt}
+
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			tenantIds = append(tenantIds, row.TenantID)
+			dagIds = append(dagIds, row.DagID.Int64)
+			dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
+		}
+	}
+
+	return sqlcv1.UpdateDAGStatusesFromMQParams{
+		Tenantids:      tenantIds,
+		Dagids:         dagIds,
+		Daginsertedats: dagInsertedAts,
+	}
+}
+
+func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) ([]sqlcv1.CreateTaskEventsOLAPParams, error) {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
-	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
+	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, event := range events {
@@ -1566,17 +1657,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 			}
 
 			eventsToWrite = append(eventsToWrite, event)
-
-			tmpEventsToWrite = append(tmpEventsToWrite, sqlcv1.CreateTaskEventsOLAPTmpParams{
-				TenantID:       event.TenantID,
-				TaskID:         event.TaskID,
-				TaskInsertedAt: event.TaskInsertedAt,
-				EventType:      event.EventType,
-				RetryCount:     event.RetryCount,
-				ReadableStatus: event.ReadableStatus,
-				WorkerID:       event.WorkerID,
-			})
 		}
+
+		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
 
 		if event.ExternalID != nil {
 			// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
@@ -1590,43 +1673,75 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		}
 	}
 
-	if len(eventsToWrite) == 0 {
-		return nil
+	if len(eventsForStatusUpdate) == 0 {
+		return nil, nil
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer rollback()
 
-	_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
+	if len(eventsToWrite) > 0 {
+		_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	_, err = r.queries.CreateTaskEventsOLAPTmp(ctx, tx, tmpEventsToWrite)
+	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsForStatusUpdate)
+
+	taskRows, err := r.queries.UpdateTaskStatusesFromMQ(ctx, tx, statusUpdates)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
+	foundTaskIDs := make(map[int64]struct{}, len(taskRows))
+	updatedTaskCount := 0
+	for _, row := range taskRows {
+		foundTaskIDs[row.TaskID] = struct{}{}
 
-	if err != nil {
-		return err
+		if row.WasUpdated {
+			updatedTaskCount++
+		}
+	}
+	var notFoundEvents []sqlcv1.CreateTaskEventsOLAPParams
+	for _, event := range eventsForStatusUpdate {
+		if _, ok := foundTaskIDs[event.TaskID]; !ok {
+			notFoundEvents = append(notFoundEvents, event)
+		}
+	}
+
+	dagStatusUpdates := r.prepareDAGStatusUpdateBatch(taskRows)
+
+	if len(dagStatusUpdates.Dagids) > 0 {
+		_, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(payloadsToWrite) > 0 {
+		_, err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := commit(ctx); err != nil {
-		return err
+		return nil, err
 	}
 
 	r.saveEventsToCache(eventsToWrite)
 
-	return nil
+	return notFoundEvents, nil
 }
 
 func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error) {
@@ -1642,7 +1757,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
 
-	for i := 0; i < NUM_PARTITIONS; i++ {
+	for i := range NUM_PARTITIONS {
 		partitionNumber := i
 
 		innerCtx, innerSpan := telemetry.NewSpan(ctx, "olap_repository.update_task_statuses.partition")
@@ -1736,6 +1851,26 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	)
 
 	return isSaturated, rows, nil
+}
+
+func compareStatuses(status1, status2 sqlcv1.V1ReadableStatusOlap) bool {
+	ordering := map[sqlcv1.V1ReadableStatusOlap]int{
+		sqlcv1.V1ReadableStatusOlapQUEUED:    1,
+		sqlcv1.V1ReadableStatusOlapRUNNING:   2,
+		sqlcv1.V1ReadableStatusOlapEVICTED:   3,
+		sqlcv1.V1ReadableStatusOlapCANCELLED: 4,
+		sqlcv1.V1ReadableStatusOlapFAILED:    5,
+		sqlcv1.V1ReadableStatusOlapCOMPLETED: 6,
+	}
+
+	left, leftOk := ordering[status1]
+	right, rightOk := ordering[status2]
+
+	if !leftOk || !rightOk {
+		return false
+	}
+
+	return left > right
 }
 
 func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error) {
@@ -1972,7 +2107,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
+func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) ([]sqlcv1.CreateTaskEventsOLAPParams, error) {
 	return r.writeTaskEventBatch(ctx, tenantId, events)
 }
 
