@@ -395,7 +395,7 @@ BEGIN
 END;
 $$`
 
-const v1DagsOlapMirrorTrigger = `CREATE TRIGGER v1_dags_olap_mirror
+const v1DagsOlapMirrorTrigger = `CREATE OR REPLACE TRIGGER v1_dags_olap_mirror
 AFTER INSERT OR DELETE ON v1_dags_olap
 FOR EACH ROW EXECUTE FUNCTION v1_dags_olap_mirror_fn()`
 
