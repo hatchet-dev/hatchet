@@ -25,8 +25,8 @@ func buildCreateMirrorTableSQL(oldParent, newParent, colDefs string) string {
 	return `
 DO $$
 DECLARE
-	r         RECORD;
-	part_date date;
+	r         	   RECORD;
+	partition_date date;
 BEGIN
 	CREATE TABLE IF NOT EXISTS ` + newParent + ` (
 ` + colDefs + `,
@@ -431,13 +431,12 @@ func up20260410190713(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("create %s_new: %w", v1RunsOlapTable, err)
 	}
 
-	// drive-by creating the new tenant, status, inserted_at index here since the new tables have no data yet, so this should be instantaneous
-	if _, err := db.ExecContext(ctx, fmt.Sprintf(
-		`CREATE INDEX IF NOT EXISTS %s ON %s (tenant_id, readable_status, inserted_at DESC)`,
-		quoteIdent(v1RunsOlapTenantStatusInsAtIdxName(v1RunsOlapTable+"_new")),
-		quoteIdent(v1RunsOlapTable+"_new"),
-	)); err != nil {
-		return fmt.Errorf("create index on %s_new: %w", v1RunsOlapTable, err)
+	if _, err := db.ExecContext(ctx, "CREATE INDEX ix_v1_runs_olap_new_parent_task_external_id ON v1_runs_olap_new (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL"); err != nil {
+		return fmt.Errorf("failed to create index ix_v1_runs_olap_new_parent_task_external_id: %w", err)
+	}
+
+	if _, err := db.ExecContext(ctx, "CREATE INDEX ix_v1_runs_olap_new_tenant_status_ins_at ON v1_runs_olap_new (tenant_id, readable_status, inserted_at DESC);"); err != nil {
+		return fmt.Errorf("failed to create index ix_v1_runs_olap_new_tenant_status_ins_at: %w", err)
 	}
 
 	if _, err := db.ExecContext(ctx, v1RunsOlapMirrorFn); err != nil {
@@ -455,6 +454,13 @@ func up20260410190713(ctx context.Context, db *sql.DB) error {
 	if _, err := db.ExecContext(ctx, buildCreateMirrorTableSQL(v1TasksOlapTable, v1TasksOlapTable+"_new", v1TasksOlapNewColDefs)); err != nil {
 		return fmt.Errorf("create %s_new: %w", v1TasksOlapTable, err)
 	}
+
+	if _, err := db.ExecContext(ctx, "CREATE INDEX v1_tasks_olap_new_workflow_id_idx ON v1_tasks_olap_new (tenant_id, workflow_id)"); err != nil {
+		return fmt.Errorf("failed to create index v1_tasks_olap_new_workflow_id_idx: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "CREATE INDEX v1_tasks_olap_new_worker_id_idx ON v1_tasks_olap_new (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL"); err != nil {
+		return fmt.Errorf("failed to create index v1_tasks_olap_new_worker_id_idx: %w", err)
+	}
 	if _, err := db.ExecContext(ctx, v1TasksOlapMirrorFn); err != nil {
 		return fmt.Errorf("create mirror function for %s: %w", v1TasksOlapTable, err)
 	}
@@ -469,6 +475,9 @@ func up20260410190713(ctx context.Context, db *sql.DB) error {
 
 	if _, err := db.ExecContext(ctx, buildCreateMirrorTableSQL(v1DagsOlapTable, v1DagsOlapTable+"_new", v1DagsOlapNewColDefs)); err != nil {
 		return fmt.Errorf("create %s_new: %w", v1DagsOlapTable, err)
+	}
+	if _, err := db.ExecContext(ctx, "CREATE INDEX v1_dags_olap_new_workflow_id_idx ON v1_dags_olap_new (tenant_id, workflow_id)"); err != nil {
+		return fmt.Errorf("failed to create index v1_dags_olap_new_workflow_id_idx: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, v1DagsOlapMirrorFn); err != nil {
 		return fmt.Errorf("create mirror function for %s: %w", v1DagsOlapTable, err)
