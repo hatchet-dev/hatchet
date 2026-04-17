@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
@@ -447,6 +448,8 @@ type ConfigFileAuth struct {
 
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
 
+	OIDC ConfigFileAuthOIDC `mapstructure:"oidc" json:"oidc,omitempty"`
+
 	ControlPlaneExchangeTokenConfig ConfigFileAuthControlPlaneExchangeToken `mapstructure:"controlPlaneExchangeToken" json:"controlPlaneExchangeToken,omitempty"`
 }
 
@@ -498,6 +501,18 @@ type ConfigFileAuthGithub struct {
 	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"read:user\", \"user:email\"]"`
+}
+
+type ConfigFileAuthOIDC struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+	IssuerURL    string   `mapstructure:"issuerURL" json:"issuerURL,omitempty"`
+	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
+	// ScopesString is used to bind the SERVER_AUTH_OIDC_SCOPES env var, since
+	// direct env-to-[]string binding is unreliable without a decode hook.
+	ScopesString string `mapstructure:"scopesString" json:"scopesString,omitempty"`
 }
 
 type ConfigFileAuthCookie struct {
@@ -596,6 +611,12 @@ type AuthConfig struct {
 	GoogleOAuthConfig *oauth2.Config
 
 	GithubOAuthConfig *oauth2.Config
+
+	OIDCOAuthConfig *oauth2.Config
+
+	// OIDCProvider is the cached OIDC provider, created at startup via discovery.
+	// Reuse this instead of calling oidc.NewProvider on every request.
+	OIDCProvider *oidc.Provider
 
 	JWTManager token.JWTManager
 
@@ -842,6 +863,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.github.clientID", "SERVER_AUTH_GITHUB_CLIENT_ID")
 	_ = v.BindEnv("auth.github.clientSecret", "SERVER_AUTH_GITHUB_CLIENT_SECRET")
 	_ = v.BindEnv("auth.github.scopes", "SERVER_AUTH_GITHUB_SCOPES")
+	_ = v.BindEnv("auth.oidc.enabled", "SERVER_AUTH_OIDC_ENABLED")
+	_ = v.BindEnv("auth.oidc.clientID", "SERVER_AUTH_OIDC_CLIENT_ID")
+	_ = v.BindEnv("auth.oidc.clientSecret", "SERVER_AUTH_OIDC_CLIENT_SECRET")
+	_ = v.BindEnv("auth.oidc.issuerURL", "SERVER_AUTH_OIDC_ISSUER_URL")
+	_ = v.BindEnv("auth.oidc.scopes", "SERVER_AUTH_OIDC_SCOPES")
+	_ = v.BindEnv("auth.oidc.scopesString", "SERVER_AUTH_OIDC_SCOPES")
 
 	// task queue options
 	// legacy options

@@ -1,8 +1,9 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
+import { LockKeyhole } from 'lucide-react';
 import React from 'react';
 
-export type SocialAuthProvider = 'google' | 'github';
+export type SocialAuthProvider = 'google' | 'github' | 'oidc';
 
 const PROVIDER_CONFIG: Record<
   SocialAuthProvider,
@@ -17,6 +18,11 @@ const PROVIDER_CONFIG: Record<
     href: '/api/v1/users/github/start',
     label: 'GitHub',
     icon: <Icons.gitHub className="size-4" />,
+  },
+  oidc: {
+    href: '/api/v1/users/oidc/start',
+    label: 'SSO',
+    icon: <LockKeyhole className="size-4" />,
   },
 };
 

@@ -101,6 +101,10 @@ paths:
     $ref: "./paths/user/user.yaml#/oauth-start-github"
   /api/v1/users/github/callback:
     $ref: "./paths/user/user.yaml#/oauth-callback-github"
+  /api/v1/users/oidc/start:
+    $ref: "./paths/user/user.yaml#/oauth-start-oidc"
+  /api/v1/users/oidc/callback:
+    $ref: "./paths/user/user.yaml#/oauth-callback-oidc"
   /api/v1/tenants/{tenant}/slack/start:
     $ref: "./paths/user/user.yaml#/oauth-start-slack"
   /api/v1/users/slack/callback:

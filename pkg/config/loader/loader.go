@@ -20,6 +20,8 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -610,6 +612,59 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ClientSecret: cf.Auth.Github.ClientSecret,
 			BaseURL:      cf.Runtime.ServerURL,
 			Scopes:       cf.Auth.Github.Scopes,
+		})
+	}
+
+	if cf.Auth.OIDC.Enabled {
+		// Parse ScopesString before building OIDCOAuthConfig so the env var is used.
+		if cf.Auth.OIDC.ScopesString != "" {
+			cf.Auth.OIDC.Scopes = getStrArr(cf.Auth.OIDC.ScopesString)
+		}
+
+		if cf.Auth.OIDC.ClientID == "" {
+			return nil, nil, fmt.Errorf("oidc client id is required")
+		}
+
+		if cf.Auth.OIDC.ClientSecret == "" {
+			return nil, nil, fmt.Errorf("oidc client secret is required")
+		}
+
+		if cf.Auth.OIDC.IssuerURL == "" {
+			return nil, nil, fmt.Errorf("oidc issuer url is required")
+		}
+
+		// Ensure "openid" scope is always present, since we rely on the ID token.
+		hasOpenID := false
+		for _, s := range cf.Auth.OIDC.Scopes {
+			if s == "openid" {
+				hasOpenID = true
+				break
+			}
+		}
+
+		if !hasOpenID {
+			cf.Auth.OIDC.Scopes = append([]string{"openid"}, cf.Auth.OIDC.Scopes...)
+		}
+
+		discoveryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		oidcProvider, err := oidc.NewProvider(discoveryCtx, cf.Auth.OIDC.IssuerURL)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create OIDC provider from issuer URL %s: %w", cf.Auth.OIDC.IssuerURL, err)
+		}
+
+		endpoint := oidcProvider.Endpoint()
+
+		auth.OIDCProvider = oidcProvider
+		auth.OIDCOAuthConfig = oauth.NewOIDCClient(&oauth.OIDCConfig{
+			ClientID:     cf.Auth.OIDC.ClientID,
+			ClientSecret: cf.Auth.OIDC.ClientSecret,
+			BaseURL:      cf.Runtime.ServerURL,
+			Scopes:       cf.Auth.OIDC.Scopes,
+			IssuerURL:    cf.Auth.OIDC.IssuerURL,
+			AuthURL:      endpoint.AuthURL,
+			TokenURL:     endpoint.TokenURL,
 		})
 	}
 
