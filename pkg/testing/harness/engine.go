@@ -531,7 +531,7 @@ func setTestingKeysInEnv() {
 
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", fmt.Sprintf("%s %s", cookieHashKey, cookieBlockKey))
 
-	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+	masterKeyBytes, privateEc256, publicEc256, _, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		log.Fatalf("could not generate local keys: %v", err)

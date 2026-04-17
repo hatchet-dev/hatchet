@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "1.32.2"
+version = "1.32.3"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -72,6 +72,9 @@ docs = [
 
 claude = ["claude-agent-sdk", "mcp"]
 openai = ["openai-agents"]
+
+[project.entry-points."mkdocs.plugins"]
+"markdown-export" = "docs.generator.markdown_export:MarkdownExportPlugin"
 
 [build-system]
 requires = ["hatchling"]
