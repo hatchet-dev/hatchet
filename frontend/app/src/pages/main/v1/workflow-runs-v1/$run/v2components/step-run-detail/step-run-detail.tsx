@@ -140,7 +140,7 @@ export const TaskRunDetail = ({
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-4 h-full">
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
@@ -215,7 +215,7 @@ export const TaskRunDetail = ({
             Logs
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="min-h-0 flex-1">
+        <TabsContent value="overview" className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap
               onClick={handleMiniMapClick}
@@ -223,7 +223,10 @@ export const TaskRunDetail = ({
             />
           </div>
           <div className="h-4" />
-          <Tabs defaultValue={defaultOpenTab}>
+          <Tabs
+            defaultValue={defaultOpenTab}
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <TabsList layout="underlined">
               <TabsTrigger variant="underlined" value={TabOption.Activity}>
                 Activity
@@ -313,7 +316,10 @@ export const TaskRunDetail = ({
               />
             </TabsContent>
             {taskRun.isDurable && (
-              <TabsContent value={TabOption.DurableEventLog}>
+              <TabsContent
+                value={TabOption.DurableEventLog}
+                className="mt-4 min-h-[25rem] flex-1"
+              >
                 <DurableEventLog taskRunId={taskRunId} />
               </TabsContent>
             )}

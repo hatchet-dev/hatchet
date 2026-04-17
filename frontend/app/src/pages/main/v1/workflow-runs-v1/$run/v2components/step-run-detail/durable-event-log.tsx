@@ -29,7 +29,7 @@ export function DurableEventLog({ taskRunId }: DurableEventLogProps) {
   }
 
   return (
-    <div className="my-4 flex min-h-[18rem] flex-col">
+    <div className="flex h-full min-h-[25rem] flex-1 flex-col">
       <LogViewer logs={logs} emptyMessage="No durable event log entries yet." />
     </div>
   );
