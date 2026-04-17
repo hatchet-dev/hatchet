@@ -72,6 +72,64 @@ $$;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
+DROP TRIGGER IF EXISTS v1_tasks_olap_status_insert_trigger ON v1_tasks_olap;
+CREATE TRIGGER v1_tasks_olap_status_insert_trigger
+AFTER INSERT ON v1_tasks_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tasks_olap_insert_function();
+
+DROP TRIGGER IF EXISTS v1_tasks_olap_status_delete_trigger ON v1_tasks_olap;
+CREATE TRIGGER v1_tasks_olap_status_delete_trigger
+AFTER DELETE ON v1_tasks_olap
+REFERENCING OLD TABLE AS old_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tasks_olap_delete_function();
+
+DROP TRIGGER IF EXISTS v1_tasks_olap_status_update_trigger ON v1_tasks_olap;
+CREATE TRIGGER v1_tasks_olap_status_update_trigger
+AFTER UPDATE ON v1_tasks_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tasks_olap_status_update_function();
+
+DROP TRIGGER IF EXISTS v1_dags_olap_status_insert_trigger ON v1_dags_olap;
+CREATE TRIGGER v1_dags_olap_status_insert_trigger
+AFTER INSERT ON v1_dags_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_dags_olap_insert_function();
+
+DROP TRIGGER IF EXISTS v1_dags_olap_status_delete_trigger ON v1_dags_olap;
+CREATE TRIGGER v1_dags_olap_status_delete_trigger
+AFTER DELETE ON v1_dags_olap
+REFERENCING OLD TABLE AS old_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_dags_olap_delete_function();
+
+DROP TRIGGER IF EXISTS v1_dags_olap_status_update_trigger ON v1_dags_olap;
+CREATE TRIGGER v1_dags_olap_status_update_trigger
+AFTER UPDATE ON v1_dags_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_dags_olap_status_update_function();
+
+DROP TRIGGER IF EXISTS v1_runs_olap_status_insert_trigger ON v1_runs_olap;
+CREATE TRIGGER v1_runs_olap_status_insert_trigger
+AFTER INSERT ON v1_runs_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_runs_olap_insert_function();
+
+DROP TRIGGER IF EXISTS v1_runs_olap_status_update_trigger ON v1_runs_olap;
+CREATE TRIGGER v1_runs_olap_status_update_trigger
+AFTER UPDATE ON v1_runs_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_runs_olap_status_update_function();
+-- +goose StatementEnd
+
+-- +goose StatementBegin
 DROP FUNCTION IF EXISTS v1_runs_olap_mirror_fn();
 DROP FUNCTION IF EXISTS v1_tasks_olap_mirror_fn();
 DROP FUNCTION IF EXISTS v1_dags_olap_mirror_fn();
