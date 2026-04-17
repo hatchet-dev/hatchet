@@ -380,53 +380,8 @@ func down20260410190713(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
-	// Rebuild the original ix_v1_runs_olap_tenant_id index bottom-up.
-	// Can't drop concurrently or in parts; drop the parent index first.
-	// see: https://stackoverflow.com/a/76167838
-	if _, err := db.ExecContext(ctx, `DROP INDEX IF EXISTS ix_v1_runs_olap_tenant_status_ins_at`); err != nil {
-		return fmt.Errorf("drop tenant_status_ins_at index on %s: %w", v1RunsOlapTable, err)
-	}
-
-	grandchildPartitions, err := listLeafPartitions(ctx, db, v1RunsOlapTable, 2)
-	if err != nil {
-		return err
-	}
-
-	for _, partition := range grandchildPartitions {
-		stmt := fmt.Sprintf(
-			`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (tenant_id, inserted_at, id, readable_status, kind)`,
-			quoteIdent(idxNameForPartition(partition)),
-			quoteIdent(partition),
-		)
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("create index concurrently on %s: %w", partition, err)
-		}
-	}
-
-	childPartitions, err := listLeafPartitions(ctx, db, v1RunsOlapTable, 1)
-	if err != nil {
-		return err
-	}
-
-	for _, partition := range childPartitions {
-		stmt := fmt.Sprintf(
-			`CREATE INDEX IF NOT EXISTS %s ON %s (tenant_id, inserted_at, id, readable_status, kind)`,
-			quoteIdent(idxNameForPartition(partition)),
-			quoteIdent(partition),
-		)
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("create index on partition %s: %w", partition, err)
-		}
-	}
-
-	stmt := fmt.Sprintf(
-		`CREATE INDEX IF NOT EXISTS %s ON %s (tenant_id, inserted_at, id, readable_status, kind)`,
-		quoteIdent(idxNameForPartition(v1RunsOlapTable)),
-		quoteIdent(v1RunsOlapTable),
-	)
-	if _, err := db.ExecContext(ctx, stmt); err != nil {
-		return fmt.Errorf("create index on %s: %w", v1RunsOlapTable, err)
-	}
+	// intentionally not recreating / re-dropping indexes in the down, since we use `IF NOT EXISTS`
+	// in the up migration anyways
 
 	return nil
 }
