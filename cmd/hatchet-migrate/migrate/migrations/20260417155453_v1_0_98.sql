@@ -166,7 +166,7 @@ BEGIN
         additional_metadata,
         parent_task_external_id
     FROM new_rows
-    ON CONFLICT (inserted_at, id, readable_status, kind) DO NOTHING;
+    ON CONFLICT (inserted_at, id) DO NOTHING;
 
     INSERT INTO v1_lookup_table_olap (
         tenant_id,
