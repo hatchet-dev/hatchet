@@ -31,8 +31,8 @@ Hatchet’s durable execution model helps keep the whole interaction in one work
 
 To run this example, you will need:
 
-- a working local Hatchet environment or access to Hatchet Cloud
-- the Python SDK example environment
+- a working local Hatchet environment or access to [Hatchet Cloud](https://cloud.onhatchet.run)
+- the Python SDK example environment (see the [Quickstart](/v1/quickstart))
 - optionally, an `ANTHROPIC_API_KEY`
 
 Without `ANTHROPIC_API_KEY`, the example still runs using a fixed fallback reply.
@@ -45,9 +45,9 @@ Start with a few small Pydantic models for the workflow input and outputs.
 
 The models keep the inputs and outputs for each task explicit, which makes the workflow easier to inspect and test.
 
-### Add the child tasks
+### Add the workflow tasks
 
-The durable workflow delegates its work to a few small child tasks.
+The durable workflow delegates its work to a few small [tasks](/v1/tasks).
 
 First, add a task to classify the incoming ticket:
 
@@ -65,13 +65,13 @@ Keeping triage, reply generation, and escalation as separate tasks keeps the wor
 
 ### Build the durable workflow
 
-Now tie everything together in a durable Hatchet workflow.
+Now tie everything together in a [durable Hatchet workflow](/v1/durable-execution).
 
 <Snippet src={snippets.python.support_agent.worker.support_agent_workflow} />
 
 As you can see, the workflow runs triage first, generates an initial reply, and then waits for one of two things to happen: either a customer reply event arrives for that ticket, or the timeout fires. From there, the workflow either resolves the ticket or escalates it.
 
-The detail that matters most here is `consider_events_since` on the reply event condition. A customer reply could arrive while the workflow is still finishing triage or generating the first response. By using `consider_events_since`, the workflow can still pick up that reply once the wait becomes active instead of missing it because the event arrived slightly early.
+The detail that matters most here is [`consider_events_since`](/v1/durable-event-waits#lookback-windows) on the reply event condition. A customer reply could arrive while the workflow is still finishing triage or generating the first response. By using `consider_events_since`, the workflow can still pick up that reply once the wait becomes active instead of missing it because the event arrived slightly early.
 
 ### Register and start the worker
 
