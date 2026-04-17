@@ -17,10 +17,6 @@ const (
 	v1DagsOlapTable  = "v1_dags_olap"
 )
 
-func v1RunsOlapTenantStatusInsAtIdxName(table string) string {
-	return fmt.Sprintf("ix_%s_tenant_status_ins_at", table)
-}
-
 func buildCreateMirrorTableSQL(oldParent, newParent, colDefs string) string {
 	return `
 DO $$
@@ -472,7 +468,6 @@ func up20260410190713(ctx context.Context, db *sql.DB) error {
 	}
 
 	// dags
-
 	if _, err := db.ExecContext(ctx, buildCreateMirrorTableSQL(v1DagsOlapTable, v1DagsOlapTable+"_new", v1DagsOlapNewColDefs)); err != nil {
 		return fmt.Errorf("create %s_new: %w", v1DagsOlapTable, err)
 	}
