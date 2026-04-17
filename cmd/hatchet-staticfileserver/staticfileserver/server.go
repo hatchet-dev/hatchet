@@ -18,7 +18,11 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 
 	fs := http.FileServer(http.Dir(staticFilePath))
 
-	r.Use(middleware.Logger)
+	r.Use(
+		middleware.Logger,
+		middleware.CleanPath,    // handles invalid multi-slashes ('/runs//<id>' -> '/runs/<id>')
+		middleware.StripSlashes, // strips trailing slash ('/hatchet/' -> '/hatchet')
+	)
 
 	basePath = strings.TrimRight(basePath, "/")
 	if basePath != "" {
