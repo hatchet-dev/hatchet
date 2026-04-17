@@ -325,8 +325,7 @@ ON CONFLICT (inserted_at, id) DO UPDATE
 				OR v1_tasks_olap_new.latest_retry_count > EXCLUDED.latest_retry_count
 			THEN v1_tasks_olap_new.readable_status
 			ELSE EXCLUDED.readable_status
-		ELSE EXCLUDED.readable_status
-	END
+		END
 `
 
 const v1DagsOlapNewColDefs = `
@@ -431,7 +430,7 @@ FROM v1_dags_olap
 ON CONFLICT (inserted_at, id) DO UPDATE
 SET
 	readable_status = CASE
-		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.readable_status
+		WHEN v1_status_to_priority(v1_dags_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_dags_olap_new.readable_status
 		ELSE EXCLUDED.readable_status
 	END
 `
