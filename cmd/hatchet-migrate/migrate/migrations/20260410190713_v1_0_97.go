@@ -137,7 +137,13 @@ SELECT
 	additional_metadata,
 	parent_task_external_id
 FROM v1_runs_olap
-ON CONFLICT (inserted_at, id) DO NOTHING`
+ON CONFLICT (inserted_at, id) DO UPDATE
+SET
+	readable_status = CASE
+		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.readable_status
+		ELSE EXCLUDED.readable_status
+	END
+`
 
 const v1TasksOlapNewColDefs = `
 		tenant_id               UUID NOT NULL,
@@ -310,7 +316,17 @@ SELECT
 	dag_inserted_at,
 	parent_task_external_id
 FROM v1_tasks_olap
-ON CONFLICT (inserted_at, id) DO NOTHING`
+ON CONFLICT (inserted_at, id) DO UPDATE
+	SET
+		readable_status = CASE
+			WHEN
+				v1_status_to_priority(v1_tasks_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status)
+				OR v1_tasks_olap_new.latest_retry_count > EXCLUDED.latest_retry_count
+			THEN v1_tasks_olap_new.readable_status
+			ELSE EXCLUDED.readable_status
+		ELSE EXCLUDED.readable_status
+	END
+`
 
 const v1DagsOlapNewColDefs = `
 		id                      BIGINT NOT NULL,
@@ -411,7 +427,13 @@ SELECT
 	parent_task_external_id,
 	total_tasks
 FROM v1_dags_olap
-ON CONFLICT (inserted_at, id) DO NOTHING`
+ON CONFLICT (inserted_at, id) DO UPDATE
+SET
+	readable_status = CASE
+		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.readable_status
+		ELSE EXCLUDED.readable_status
+	END
+`
 
 func up20260410190713(ctx context.Context, db *sql.DB) error {
 	// runs first, then tasks, then dags
