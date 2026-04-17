@@ -101,6 +101,18 @@ BEGIN
 			additional_metadata     = EXCLUDED.additional_metadata,
 			parent_task_external_id = EXCLUDED.parent_task_external_id;
 		RETURN NEW;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE v1_runs_olap_new SET
+			tenant_id               = NEW.tenant_id,
+			external_id             = NEW.external_id,
+			readable_status         = NEW.readable_status,
+			kind                    = NEW.kind,
+			workflow_id             = NEW.workflow_id,
+			workflow_version_id     = NEW.workflow_version_id,
+			additional_metadata     = NEW.additional_metadata,
+			parent_task_external_id = NEW.parent_task_external_id
+		WHERE inserted_at = NEW.inserted_at AND id = NEW.id;
+		RETURN NEW;
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM v1_runs_olap_new
 		WHERE inserted_at = OLD.inserted_at AND id = OLD.id;
@@ -111,7 +123,7 @@ END;
 $$`
 
 const v1RunsOlapMirrorTrigger = `CREATE OR REPLACE TRIGGER v1_runs_olap_mirror
-AFTER INSERT OR DELETE ON v1_runs_olap
+AFTER INSERT OR UPDATE OR DELETE ON v1_runs_olap
 FOR EACH ROW EXECUTE FUNCTION v1_runs_olap_mirror_fn()`
 
 const v1RunsOlapBackfill = `INSERT INTO v1_runs_olap_new (
@@ -143,6 +155,10 @@ SET
 	readable_status = CASE
 		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.readable_status
 		ELSE EXCLUDED.readable_status
+	END,
+	kind = CASE
+		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.kind
+		ELSE EXCLUDED.kind
 	END
 `
 
@@ -252,6 +268,32 @@ BEGIN
 			dag_inserted_at         = EXCLUDED.dag_inserted_at,
 			parent_task_external_id = EXCLUDED.parent_task_external_id;
 		RETURN NEW;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE v1_tasks_olap_new SET
+			tenant_id               = NEW.tenant_id,
+			external_id             = NEW.external_id,
+			queue                   = NEW.queue,
+			action_id               = NEW.action_id,
+			step_id                 = NEW.step_id,
+			workflow_id             = NEW.workflow_id,
+			workflow_version_id     = NEW.workflow_version_id,
+			workflow_run_id         = NEW.workflow_run_id,
+			schedule_timeout        = NEW.schedule_timeout,
+			step_timeout            = NEW.step_timeout,
+			priority                = NEW.priority,
+			sticky                  = NEW.sticky,
+			desired_worker_id       = NEW.desired_worker_id,
+			display_name            = NEW.display_name,
+			input                   = NEW.input,
+			additional_metadata     = NEW.additional_metadata,
+			readable_status         = NEW.readable_status,
+			latest_retry_count      = NEW.latest_retry_count,
+			latest_worker_id        = NEW.latest_worker_id,
+			dag_id                  = NEW.dag_id,
+			dag_inserted_at         = NEW.dag_inserted_at,
+			parent_task_external_id = NEW.parent_task_external_id
+		WHERE inserted_at = NEW.inserted_at AND id = NEW.id;
+		RETURN NEW;
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM v1_tasks_olap_new
 		WHERE inserted_at = OLD.inserted_at AND id = OLD.id;
@@ -262,7 +304,7 @@ END;
 $$`
 
 const v1TasksOlapMirrorTrigger = `CREATE OR REPLACE TRIGGER v1_tasks_olap_mirror
-AFTER INSERT OR DELETE ON v1_tasks_olap
+AFTER INSERT OR UPDATE OR DELETE ON v1_tasks_olap
 FOR EACH ROW EXECUTE FUNCTION v1_tasks_olap_mirror_fn()`
 
 const v1TasksOlapBackfill = `INSERT INTO v1_tasks_olap_new (
@@ -386,6 +428,20 @@ BEGIN
 			parent_task_external_id = EXCLUDED.parent_task_external_id,
 			total_tasks             = EXCLUDED.total_tasks;
 		RETURN NEW;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE v1_dags_olap_new SET
+			tenant_id               = NEW.tenant_id,
+			external_id             = NEW.external_id,
+			display_name            = NEW.display_name,
+			workflow_id             = NEW.workflow_id,
+			workflow_version_id     = NEW.workflow_version_id,
+			readable_status         = NEW.readable_status,
+			input                   = NEW.input,
+			additional_metadata     = NEW.additional_metadata,
+			parent_task_external_id = NEW.parent_task_external_id,
+			total_tasks             = NEW.total_tasks
+		WHERE inserted_at = NEW.inserted_at AND id = NEW.id;
+		RETURN NEW;
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM v1_dags_olap_new
 		WHERE inserted_at = OLD.inserted_at AND id = OLD.id;
@@ -396,7 +452,7 @@ END;
 $$`
 
 const v1DagsOlapMirrorTrigger = `CREATE OR REPLACE TRIGGER v1_dags_olap_mirror
-AFTER INSERT OR DELETE ON v1_dags_olap
+AFTER INSERT OR UPDATE OR DELETE ON v1_dags_olap
 FOR EACH ROW EXECUTE FUNCTION v1_dags_olap_mirror_fn()`
 
 const v1DagsOlapBackfill = `INSERT INTO v1_dags_olap_new (
