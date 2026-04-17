@@ -145,3 +145,4 @@ roles:
       - V1TenantLogLineList
       - V1TenantLogLineGetPointMetrics
       - TenantFeatureFlagEvaluate
+      - V1DurableTaskEventLogList

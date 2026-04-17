@@ -318,6 +318,16 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.v1LogLineList(task, query)).data,
     }),
   },
+  v1DurableTasks: {
+    eventLog: (task: string) => ({
+      queryKey: ['v1-durable-task:event-log', task],
+      queryFn: async () => (await api.v1DurableTaskEventLogList(task)).data,
+    }),
+    waits: (task: string) => ({
+      queryKey: ['v1-durable-task:waits', task],
+      queryFn: async () => (await api.v1DurableTaskWaitsList(task)).data,
+    }),
+  },
   v1TaskEvents: {
     list: (
       tenant: string,

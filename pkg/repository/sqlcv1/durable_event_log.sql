@@ -89,7 +89,9 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id
 ), updated AS (
     UPDATE v1_durable_event_log_entry
-    SET is_satisfied = true
+    SET
+        is_satisfied = true,
+        satisfied_at = NOW()
     FROM inputs
     WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
       AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
@@ -164,7 +166,9 @@ WITH inputs AS (
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
-        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied
+        UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
+        UNNEST(@userMessages::TEXT[]) AS user_message,
+        UNNEST(@readableSummaries::TEXT[]) AS readable_summary
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -176,7 +180,9 @@ WITH inputs AS (
         node_id,
         branch_id,
         idempotency_key,
-        is_satisfied
+        is_satisfied,
+        user_message,
+        readable_summary
     )
     SELECT
         i.tenant_id,
@@ -188,7 +194,9 @@ WITH inputs AS (
         i.node_id,
         i.branch_id,
         i.idempotency_key,
-        i.is_satisfied
+        i.is_satisfied,
+        NULLIF(i.user_message, ''),
+        NULLIF(i.readable_summary, '')
     FROM inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *
@@ -224,4 +232,13 @@ WHERE
     AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
     AND tenant_id = @tenantId::UUID
 ORDER BY id ASC
+;
+
+-- name: ListDurableEventLogForTask :many
+SELECT e.*
+FROM v1_durable_event_log_entry e
+WHERE e.durable_task_id = @durableTaskId::BIGINT
+  AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND e.tenant_id = @tenantId::UUID
+ORDER BY e.branch_id ASC, e.node_id ASC
 ;

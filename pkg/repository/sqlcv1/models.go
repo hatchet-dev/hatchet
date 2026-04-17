@@ -3178,6 +3178,9 @@ type V1DurableEventLogEntry struct {
 	BranchID              int64                 `json:"branch_id"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
+	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
+	UserMessage           pgtype.Text           `json:"user_message"`
+	ReadableSummary       pgtype.Text           `json:"readable_summary"`
 }
 
 type V1DurableEventLogFile struct {
@@ -3719,6 +3722,7 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	IsDurable            bool                 `json:"is_durable"`
 }
 
 type V1WorkerSlotConfig struct {

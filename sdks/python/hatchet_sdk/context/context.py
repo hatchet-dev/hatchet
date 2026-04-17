@@ -807,6 +807,7 @@ class DurableContext(Context):
         self,
         signal_key: str,
         *conditions: SleepCondition | UserEventCondition | OrGroup,
+        label: str | None = None,
     ) -> dict[str, Any]:
         """
         Durably wait for either a sleep or an event.
@@ -836,7 +837,7 @@ class DurableContext(Context):
         ack = await listener.send_event(
             durable_task_external_id=self.step_run_id,
             invocation_count=self.invocation_count,
-            event=WaitForEvent(wait_for_conditions=conditions_proto),
+            event=WaitForEvent(wait_for_conditions=conditions_proto, label=label),
         )
 
         if not isinstance(ack, DurableTaskEventWaitForAck):
@@ -860,7 +861,9 @@ class DurableContext(Context):
 
         return result.payload or {}
 
-    async def aio_sleep_for(self, duration: Duration) -> SleepResult:
+    async def aio_sleep_for(
+        self, duration: Duration, label: str | None = None
+    ) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
@@ -873,6 +876,7 @@ class DurableContext(Context):
         res = await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
+            label=label,
         )
 
         ## lots of implicit use of engine semantics / internal logic here.
@@ -899,6 +903,7 @@ class DurableContext(Context):
         payload_validator: type[TPayload],
         scope: str | None = None,
         lookback_window: timedelta | None = None,
+        label: str | None = None,
     ) -> TPayload: ...
 
     @overload
@@ -910,6 +915,7 @@ class DurableContext(Context):
         payload_validator: None = None,
         scope: str | None = None,
         lookback_window: timedelta | None = None,
+        label: str | None = None,
     ) -> dict[str, Any]: ...
 
     async def aio_wait_for_event(
@@ -920,6 +926,7 @@ class DurableContext(Context):
         payload_validator: type[Any] | None = None,
         scope: str | None = None,
         lookback_window: timedelta | None = None,
+        label: str | None = None,
     ) -> Any:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
@@ -954,6 +961,7 @@ class DurableContext(Context):
                 scope=scope,
                 consider_events_since=consider_events_since,
             ),
+            label=label,
         )
 
         ## lots of implicit use of engine semantics / internal logic here.

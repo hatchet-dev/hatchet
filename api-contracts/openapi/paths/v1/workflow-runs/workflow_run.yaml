@@ -581,3 +581,48 @@ getTimings:
     summary: List timings for a workflow run
     tags:
       - Workflow Runs
+
+listDurableEventLog:
+  get:
+    x-resources: ["durable-task"]
+    description: Lists all event log entries for a durable task.
+    operationId: v1-durable-task:event-log:list
+    parameters:
+      - description: The durable task external id
+        in: path
+        name: durable-task
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1DurableEventLogList"
+        description: Successfully listed event log entries
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: List durable event log
+    tags:
+      - Durable Tasks
+

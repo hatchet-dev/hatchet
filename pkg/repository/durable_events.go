@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -51,6 +52,8 @@ type IngestTriggerRunsOpts struct {
 
 type IngestWaitForOpts struct {
 	WaitForConditions []CreateExternalSignalConditionOpt
+	// Label is an optional human-readable message to display for this wait (e.g. "Waiting for payment confirmation").
+	Label *string
 }
 
 type IngestDurableTaskEventOpts struct {
@@ -319,6 +322,9 @@ type GetOrCreateLogEntryOpt struct {
 	BranchId        int64
 	InvocationCount int32
 	IsSatisfied     bool
+	UserMessage     *string
+	ReadableSummary *string
+	SatisfiedAt     *time.Time
 }
 
 type GetOrCreateLogEntryOpts struct {
@@ -410,6 +416,52 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
+}
+
+type waitForConditionData struct {
+	Type       string `json:"type"`
+	OrGroupID  string `json:"orGroupId"`
+	DataKey    string `json:"dataKey"`
+	SleepFor   string `json:"sleepFor,omitempty"`
+	EventKey   string `json:"eventKey,omitempty"`
+	Expression string `json:"expression,omitempty"`
+}
+
+func createReadableSummaryForEvent(conditions []CreateExternalSignalConditionOpt) string {
+	if len(conditions) == 0 {
+		return "waiting"
+	}
+
+	parts := make([]string, 0, len(conditions))
+	for _, c := range conditions {
+		switch c.Kind {
+		case CreateExternalSignalConditionKindSLEEP:
+			if c.SleepFor != nil {
+				parts = append(parts, "sleeping for "+*c.SleepFor)
+			} else {
+				parts = append(parts, "sleeping")
+			}
+		case CreateExternalSignalConditionKindUSEREVENT:
+			if c.UserEventKey != nil {
+				parts = append(parts, "waiting for event "+*c.UserEventKey)
+			} else {
+				parts = append(parts, "waiting for event")
+			}
+		default:
+			parts = append(parts, "waiting for "+string(c.Kind))
+		}
+	}
+
+	if len(parts) == 1 {
+		return parts[0]
+	}
+
+	return "waiting for any of: " + strings.Join(parts, ", ")
+}
+
+func marshalWaitForConditions(conditions []CreateExternalSignalConditionOpt) (*string, error) {
+	s := createReadableSummaryForEvent(conditions)
+	return &s, nil
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
@@ -650,6 +702,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			Branchids:              make([]int64, 0),
 			Idempotencykeys:        make([][]byte, 0),
 			Issatisfieds:           make([]bool, 0),
+			Usermessages:           make([]string, 0),
+			Readablesummaries:      make([]string, 0),
 		}
 
 		for _, entry := range nodeIdBranchIdToNewEntry {
@@ -662,6 +716,18 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			createParams.Branchids = append(createParams.Branchids, entry.BranchId)
 			createParams.Idempotencykeys = append(createParams.Idempotencykeys, entry.IdempotencyKey)
 			createParams.Issatisfieds = append(createParams.Issatisfieds, entry.IsSatisfied)
+
+			if entry.UserMessage != nil {
+				createParams.Usermessages = append(createParams.Usermessages, *entry.UserMessage)
+			} else {
+				createParams.Usermessages = append(createParams.Usermessages, "")
+			}
+
+			if entry.ReadableSummary != nil {
+				createParams.Readablesummaries = append(createParams.Readablesummaries, *entry.ReadableSummary)
+			} else {
+				createParams.Readablesummaries = append(createParams.Readablesummaries, "")
+			}
 		}
 
 		createdRows, createErr := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
@@ -879,6 +945,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
 		}
 
+		conditionData, dataErr := marshalWaitForConditions(opts.WaitFor.WaitForConditions)
+		if dataErr != nil {
+			return nil, fmt.Errorf("failed to marshal wait for condition data: %w", dataErr)
+		}
+
 		getOrCreateOpts = GetOrCreateLogEntryOpts{
 			TenantId:              tenantId,
 			DurableTaskExternalId: task.ExternalID,
@@ -891,6 +962,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				InvocationCount: opts.InvocationCount,
 				IdempotencyKey:  idempotencyKey,
 				InputPayload:    inputPayload,
+				UserMessage:     opts.WaitFor.Label,
+				ReadableSummary: conditionData,
 			}},
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:

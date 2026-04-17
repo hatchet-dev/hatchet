@@ -176,7 +176,8 @@ INSERT INTO v1_tasks_olap (
     additional_metadata,
     dag_id,
     dag_inserted_at,
-    parent_task_external_id
+    parent_task_external_id,
+    is_durable
 ) VALUES (
     $1,
     $2,
@@ -198,7 +199,8 @@ INSERT INTO v1_tasks_olap (
     $18,
     $19,
     $20,
-    $21
+    $21,
+    $22
 );
 
 -- name: CreateDAGsOLAP :copyfrom
@@ -556,7 +558,8 @@ SELECT
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
-    (SELECT retry_count FROM selected_retry_count) as retry_count
+    (SELECT retry_count FROM selected_retry_count) as retry_count,
+    COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -605,7 +608,8 @@ WITH input AS (
         t.parent_task_external_id,
         t.workflow_run_id,
         t.latest_retry_count,
-        t.dag_id
+        t.dag_id,
+        t.is_durable
     FROM
         v1_tasks_olap t
     JOIN
@@ -737,7 +741,8 @@ SELECT
         WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB as output,
-    o.output_event_external_id AS output_event_external_id
+    o.output_event_external_id AS output_event_external_id,
+    COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
 LEFT JOIN

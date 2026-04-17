@@ -86,6 +86,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		Attempt:               &attempt,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
 		IsEvicted:             &isEvicted,
+		IsDurable:             &task.IsDurable,
 	}
 
 	return summary
@@ -339,16 +340,14 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		Attempt:               &attempt,
 		WorkflowConfig:        &workflowConfig,
 		ParentTaskExternalId:  parentTaskExternalId,
+		IsDurable:             &taskWithData.IsDurable,
+		IsEvicted:             &isEvicted,
 	}
 
 	if workflowVersion != nil {
 		summary.WorkflowVersionId = &workflowVersion.WorkflowVersion.ID
 	} else if taskWithData.WorkflowVersionID != uuid.Nil {
 		summary.WorkflowVersionId = &taskWithData.WorkflowVersionID
-	}
-
-	if isEvicted {
-		summary.IsEvicted = &isEvicted
 	}
 
 	return summary

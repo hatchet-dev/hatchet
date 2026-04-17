@@ -99,6 +99,7 @@ import {
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
+  V1DurableEventLogList,
   V1Event,
   V1EventList,
   V1Filter,
@@ -652,6 +653,27 @@ export class Api<
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Lists all event log entries for a durable task.
+   *
+   * @tags Durable Tasks
+   * @name V1DurableTaskEventLogList
+   * @summary List durable event log
+   * @request GET:/api/v1/stable/durable-tasks/{durable-task}
+   * @secure
+   */
+  v1DurableTaskEventLogList = Object.assign((
+    durableTask: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1DurableEventLogList, APIErrors>({
+      path: `/api/v1/stable/durable-tasks/${durableTask}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["durable-task"],
+    }), { resources: new Set<string>(["durable-task"]) });
   /**
    * @description Get a workflow run and its metadata to display on the "detail" page
    *

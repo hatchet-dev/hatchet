@@ -6,6 +6,7 @@ import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
+import { DurableEventLog } from './durable-event-log';
 import { Observability } from './observability/observability';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
@@ -38,6 +39,7 @@ export enum TabOption {
   Traces = 'traces',
   AdditionalMetadata = 'additional-metadata',
   Activity = 'activity',
+  DurableEventLog = 'durable-event-log',
 }
 
 interface TaskRunDetailProps {
@@ -252,6 +254,14 @@ export const TaskRunDetail = ({
                   </span>
                 </span>
               </TabsTrigger>
+              {taskRun.isDurable && (
+                <TabsTrigger
+                  variant="underlined"
+                  value={TabOption.DurableEventLog}
+                >
+                  Event Log
+                </TabsTrigger>
+              )}
             </TabsList>
             <TabsContent value={TabOption.Output}>
               <V1StepRunOutput taskRunId={taskRunId} />
@@ -302,6 +312,11 @@ export const TaskRunDetail = ({
                 code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
               />
             </TabsContent>
+            {taskRun.isDurable && (
+              <TabsContent value={TabOption.DurableEventLog}>
+                <DurableEventLog taskRunId={taskRunId} />
+              </TabsContent>
+            )}
           </Tabs>
         </TabsContent>
         <TabsContent value="traces" className="min-h-0 flex-1">

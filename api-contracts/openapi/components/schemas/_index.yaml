@@ -384,6 +384,12 @@ V1BranchDurableTaskRequest:
   $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskRequest"
 V1BranchDurableTaskResponse:
   $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskResponse"
+V1DurableEventLogKind:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogKind"
+V1DurableEventLogEntry:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogEntry"
+V1DurableEventLogList:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogList"
 V1LogLine:
   $ref: "./v1/logs.yaml#/V1LogLine"
 V1LogLineLevel:

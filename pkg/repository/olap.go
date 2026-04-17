@@ -250,6 +250,8 @@ type OLAPRepository interface {
 	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
 	ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
+	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogEntry, error)
+
 	GetTaskTimings(ctx context.Context, tenantId, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 
 	// Events queries
@@ -685,6 +687,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 			RetryCount:            taskRun.RetryCount,
 			OutputEventExternalID: taskRun.OutputEventExternalID,
 			IsStandalone:          taskRun.IsStandalone,
+			IsDurable:             taskRun.IsDurable,
 		},
 		input,
 		output,
@@ -1883,6 +1886,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
 			Input:                payloadToWriteToTask,
+			IsDurable:            task.IsDurable.Bool,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
@@ -3790,4 +3794,15 @@ func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode
 	default:
 		return sqlcv1.V1OtelStatusCodeUNSET
 	}
+}
+
+func (r *OLAPRepositoryImpl) ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.V1DurableEventLogEntry, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-durable-event-log-olap")
+	defer span.End()
+
+	return r.queries.ListDurableEventLogForTask(ctx, r.readPool, sqlcv1.ListDurableEventLogForTaskParams{
+		Durabletaskid:         taskId,
+		Durabletaskinsertedat: taskInsertedAt,
+		Tenantid:              tenantId,
+	})
 }
