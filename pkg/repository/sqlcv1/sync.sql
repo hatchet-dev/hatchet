@@ -147,3 +147,31 @@ SET
     "role" = @role::"TenantMemberRole"
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: SyncUpsertSlackWebhook :one
+INSERT INTO "SlackAppWebhook" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "teamId",
+    "teamName",
+    "channelId",
+    "channelName",
+    "webhookURL"
+) VALUES (
+    @id::uuid,
+    @createdAt::timestamp,
+    @updatedAt::timestamp,
+    @tenantId::uuid,
+    @teamId::text,
+    @teamName::text,
+    @channelId::text,
+    @channelName::text,
+    @webhookURL::bytea
+) ON CONFLICT ("id") DO UPDATE SET
+    "updatedAt" = @updatedAt::timestamp,
+    "teamName" = @teamName::text,
+    "channelName" = @channelName::text,
+    "webhookURL" = @webhookURL::bytea
+RETURNING *;
