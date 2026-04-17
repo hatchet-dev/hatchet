@@ -418,18 +418,23 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
 }
 
-type waitForConditionData struct {
-	Type       string `json:"type"`
-	OrGroupID  string `json:"orGroupId"`
-	DataKey    string `json:"dataKey"`
-	SleepFor   string `json:"sleepFor,omitempty"`
-	EventKey   string `json:"eventKey,omitempty"`
-	Expression string `json:"expression,omitempty"`
+func createReadableSummaryForRun(triggerOpts *WorkflowNameTriggerOpts) *string {
+	if triggerOpts == nil {
+		waitingStr := "running"
+		return &waitingStr
+	}
+
+	name := triggerOpts.WorkflowName
+
+	msg := "running " + name
+	return &msg
 }
 
-func createReadableSummaryForEvent(conditions []CreateExternalSignalConditionOpt) string {
+func createReadableSummaryForWait(conditions []CreateExternalSignalConditionOpt) *string {
+	// todo: rework this into something actually useful
 	if len(conditions) == 0 {
-		return "waiting"
+		waitingStr := "waiting"
+		return &waitingStr
 	}
 
 	parts := make([]string, 0, len(conditions))
@@ -453,15 +458,12 @@ func createReadableSummaryForEvent(conditions []CreateExternalSignalConditionOpt
 	}
 
 	if len(parts) == 1 {
-		return parts[0]
+		msg := parts[0]
+		return &msg
 	}
 
-	return "waiting for any of: " + strings.Join(parts, ", ")
-}
-
-func marshalWaitForConditions(conditions []CreateExternalSignalConditionOpt) (*string, error) {
-	s := createReadableSummaryForEvent(conditions)
-	return &s, nil
+	msg := "waiting for any of: " + strings.Join(parts, ", ")
+	return &msg
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
@@ -918,6 +920,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				InvocationCount: opts.InvocationCount,
 				IdempotencyKey:  idempotencyKey,
 				InputPayload:    inputPayload,
+				ReadableSummary: createReadableSummaryForRun(triggerOpts),
 			}
 
 			nodeBranchKey := NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}
@@ -945,11 +948,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
 		}
 
-		conditionData, dataErr := marshalWaitForConditions(opts.WaitFor.WaitForConditions)
-		if dataErr != nil {
-			return nil, fmt.Errorf("failed to marshal wait for condition data: %w", dataErr)
-		}
-
 		getOrCreateOpts = GetOrCreateLogEntryOpts{
 			TenantId:              tenantId,
 			DurableTaskExternalId: task.ExternalID,
@@ -963,7 +961,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				IdempotencyKey:  idempotencyKey,
 				InputPayload:    inputPayload,
 				UserMessage:     opts.WaitFor.Label,
-				ReadableSummary: conditionData,
+				ReadableSummary: createReadableSummaryForWait(opts.WaitFor.WaitForConditions),
 			}},
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
