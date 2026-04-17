@@ -65,7 +65,7 @@ Keeping triage, reply generation, and escalation as separate tasks keeps the wor
 
 ### Build the durable workflow
 
-Now tie everything together in a [durable Hatchet workflow](/v1/durable-execution).
+Now tie everything together in a [durable Hatchet workflow](/v1/durable-execution). A durable workflow is a good fit here because this interaction may stay open for some time while waiting for a customer reply. Hatchet persists the workflow state and its wait conditions, so the workflow can survive long delays, worker restarts, or even a worker crash, then continue later on another worker. That gives you a straightforward way to model the whole interaction without adding custom recovery logic.
 
 <Snippet src={snippets.python.support_agent.worker.support_agent_workflow} />
 
@@ -75,7 +75,7 @@ The detail that matters most here is [`consider_events_since`](/v1/durable-event
 
 ### Register and start the worker
 
-To run this workflow, register the workflow and its child tasks on a Hatchet worker, then start it.
+To run this workflow, register the workflow and its tasks on a Hatchet worker, then start it.
 
 <Snippet src={snippets.python.support_agent.worker.worker_registration} />
 
@@ -108,9 +108,7 @@ Together, these tests validate both branches of the workflow and confirm that ea
 
 ## Why Hatchet fits this workflow
 
-The interesting part of this example is not the LLM call. It is the combination of waiting, branching, and keeping the full interaction in one place. A support flow like this usually needs to preserve state across several steps, wait for human input, and react differently depending on whether a reply arrives before a deadline.
-
-Hatchet supports that model well because the workflow can own the whole interaction directly. Instead of stitching together separate jobs, external timers, and custom retry logic, you can express the event wait and timeout branch as part of the workflow itself. That also makes the result easier to inspect and easier to test.
+The interesting part of this example is not the LLM call. It is the combination of waiting, branching, and keeping the full interaction in one place. A support flow like this usually needs to preserve state across several steps, wait for human input, and react differently depending on whether a reply arrives before a deadline. Hatchet fits that pattern well because you can express the event wait and timeout branch directly in the workflow. That makes the control flow easier to inspect, easier to test, and easier to extend as the interaction becomes more complex.
 
 ## Next steps
 
