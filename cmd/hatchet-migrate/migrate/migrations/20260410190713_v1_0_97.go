@@ -35,17 +35,19 @@ BEGIN
 
 	FOR r IN (
 		SELECT c.relname
-		FROM   pg_class c
-		JOIN   pg_inherits i ON c.oid  = i.inhrelid
-		JOIN   pg_class    p ON p.oid  = i.inhparent
-		WHERE  p.relname = '` + oldParent + `'
-		  AND  c.relkind IN ('r', 'p')
+		FROM pg_class c
+		JOIN pg_inherits i ON c.oid  = i.inhrelid
+		JOIN pg_class p ON p.oid  = i.inhparent
+		WHERE
+			p.relname = '` + oldParent + `'
+		  	AND c.relkind IN ('r', 'p')
 	) LOOP
-		part_date := to_date(
+		partition_date := to_date(
 			substring(r.relname from length('` + oldParent + `_') + 1),
 			'YYYYMMDD'
 		);
-		PERFORM create_v1_range_partition('` + newParent + `', part_date);
+
+		PERFORM create_v1_range_partition('` + newParent + `', partition_date);
 	END LOOP;
 END;
 $$`
@@ -69,17 +71,30 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
 		INSERT INTO v1_runs_olap_new (
-			tenant_id, id, inserted_at, external_id,
-			readable_status, kind,
-			workflow_id, workflow_version_id,
-			additional_metadata, parent_task_external_id
+			tenant_id,
+			id,
+			inserted_at,
+			external_id,
+			readable_status,
+			kind,
+			workflow_id,
+			workflow_version_id,
+			additional_metadata,
+			parent_task_external_id
 		) VALUES (
-			NEW.tenant_id, NEW.id, NEW.inserted_at, NEW.external_id,
-			NEW.readable_status, NEW.kind,
-			NEW.workflow_id, NEW.workflow_version_id,
-			NEW.additional_metadata, NEW.parent_task_external_id
+			NEW.tenant_id,
+			NEW.id,
+			NEW.inserted_at,
+			NEW.external_id,
+			NEW.readable_status,
+			NEW.kind,
+			NEW.workflow_id,
+			NEW.workflow_version_id,
+			NEW.additional_metadata,
+			NEW.parent_task_external_id
 		)
-		ON CONFLICT (inserted_at, id) DO UPDATE SET
+		ON CONFLICT (inserted_at, id)
+		DO UPDATE SET
 			tenant_id               = EXCLUDED.tenant_id,
 			external_id             = EXCLUDED.external_id,
 			readable_status         = EXCLUDED.readable_status,
@@ -103,16 +118,28 @@ AFTER INSERT OR DELETE ON v1_runs_olap
 FOR EACH ROW EXECUTE FUNCTION v1_runs_olap_mirror_fn()`
 
 const v1RunsOlapBackfill = `INSERT INTO v1_runs_olap_new (
-	tenant_id, id, inserted_at, external_id,
-	readable_status, kind,
-	workflow_id, workflow_version_id,
-	additional_metadata, parent_task_external_id
+	tenant_id,
+	id,
+	inserted_at,
+	external_id,
+	readable_status,
+	kind,
+	workflow_id,
+	workflow_version_id,
+	additional_metadata,
+	parent_task_external_id
 )
 SELECT
-	tenant_id, id, inserted_at, external_id,
-	readable_status, kind,
-	workflow_id, workflow_version_id,
-	additional_metadata, parent_task_external_id
+	tenant_id,
+	id,
+	inserted_at,
+	external_id,
+	readable_status,
+	kind,
+	workflow_id,
+	workflow_version_id,
+	additional_metadata,
+	parent_task_external_id
 FROM v1_runs_olap
 ON CONFLICT (inserted_at, id) DO NOTHING`
 
@@ -147,25 +174,58 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
 		INSERT INTO v1_tasks_olap_new (
-			tenant_id, id, inserted_at, external_id,
-			queue, action_id, step_id,
-			workflow_id, workflow_version_id, workflow_run_id,
-			schedule_timeout, step_timeout, priority, sticky,
-			desired_worker_id, display_name, input,
-			additional_metadata, readable_status,
-			latest_retry_count, latest_worker_id,
-			dag_id, dag_inserted_at, parent_task_external_id
+			tenant_id,
+			id,
+			inserted_at,
+			external_id,
+			queue,
+			action_id,
+			step_id,
+			workflow_id,
+			workflow_version_id,
+			workflow_run_id,
+			schedule_timeout,
+			step_timeout,
+			priority,
+			sticky,
+			desired_worker_id,
+			display_name,
+			input,
+			additional_metadata,
+			readable_status,
+			latest_retry_count,
+			latest_worker_id,
+			dag_id,
+			dag_inserted_at,
+			parent_task_external_id
 		) VALUES (
-			NEW.tenant_id, NEW.id, NEW.inserted_at, NEW.external_id,
-			NEW.queue, NEW.action_id, NEW.step_id,
-			NEW.workflow_id, NEW.workflow_version_id, NEW.workflow_run_id,
-			NEW.schedule_timeout, NEW.step_timeout, NEW.priority, NEW.sticky,
-			NEW.desired_worker_id, NEW.display_name, NEW.input,
-			NEW.additional_metadata, NEW.readable_status,
-			NEW.latest_retry_count, NEW.latest_worker_id,
-			NEW.dag_id, NEW.dag_inserted_at, NEW.parent_task_external_id
+			NEW.tenant_id,
+			NEW.id,
+			NEW.inserted_at,
+			NEW.external_id,
+			NEW.queue,
+			NEW.action_id,
+			NEW.step_id,
+			NEW.workflow_id,
+			NEW.workflow_version_id,
+			NEW.workflow_run_id,
+			NEW.schedule_timeout,
+			NEW.step_timeout,
+			NEW.priority,
+			NEW.sticky,
+			NEW.desired_worker_id,
+			NEW.display_name,
+			NEW.input,
+			NEW.additional_metadata,
+			NEW.readable_status,
+			NEW.latest_retry_count,
+			NEW.latest_worker_id,
+			NEW.dag_id,
+			NEW.dag_inserted_at,
+			NEW.parent_task_external_id
 		)
-		ON CONFLICT (inserted_at, id) DO UPDATE SET
+		ON CONFLICT (inserted_at, id)
+		DO UPDATE SET
 			tenant_id               = EXCLUDED.tenant_id,
 			external_id             = EXCLUDED.external_id,
 			queue                   = EXCLUDED.queue,
@@ -203,24 +263,56 @@ AFTER INSERT OR DELETE ON v1_tasks_olap
 FOR EACH ROW EXECUTE FUNCTION v1_tasks_olap_mirror_fn()`
 
 const v1TasksOlapBackfill = `INSERT INTO v1_tasks_olap_new (
-	tenant_id, id, inserted_at, external_id,
-	queue, action_id, step_id,
-	workflow_id, workflow_version_id, workflow_run_id,
-	schedule_timeout, step_timeout, priority, sticky,
-	desired_worker_id, display_name, input,
-	additional_metadata, readable_status,
-	latest_retry_count, latest_worker_id,
-	dag_id, dag_inserted_at, parent_task_external_id
+	tenant_id,
+	id,
+	inserted_at,
+	external_id,
+	queue,
+	action_id,
+	step_id,
+	workflow_id,
+	workflow_version_id,
+	workflow_run_id,
+	schedule_timeout,
+	step_timeout,
+	priority,
+	sticky,
+	desired_worker_id,
+	display_name,
+	input,
+	additional_metadata,
+	readable_status,
+	latest_retry_count,
+	latest_worker_id,
+	dag_id,
+	dag_inserted_at,
+	parent_task_external_id
 )
 SELECT
-	tenant_id, id, inserted_at, external_id,
-	queue, action_id, step_id,
-	workflow_id, workflow_version_id, workflow_run_id,
-	schedule_timeout, step_timeout, priority, sticky,
-	desired_worker_id, display_name, input,
-	additional_metadata, readable_status,
-	latest_retry_count, latest_worker_id,
-	dag_id, dag_inserted_at, parent_task_external_id
+	tenant_id,
+	id,
+	inserted_at,
+	external_id,
+	queue,
+	action_id,
+	step_id,
+	workflow_id,
+	workflow_version_id,
+	workflow_run_id,
+	schedule_timeout,
+	step_timeout,
+	priority,
+	sticky,
+	desired_worker_id,
+	display_name,
+	input,
+	additional_metadata,
+	readable_status,
+	latest_retry_count,
+	latest_worker_id,
+	dag_id,
+	dag_inserted_at,
+	parent_task_external_id
 FROM v1_tasks_olap
 ON CONFLICT (inserted_at, id) DO NOTHING`
 
@@ -243,17 +335,34 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
 		INSERT INTO v1_dags_olap_new (
-			id, inserted_at, tenant_id, external_id,
-			display_name, workflow_id, workflow_version_id,
-			readable_status, input, additional_metadata,
-			parent_task_external_id, total_tasks
+			id,
+			inserted_at,
+			tenant_id,
+			external_id,
+			display_name,
+			workflow_id,
+			workflow_version_id,
+			readable_status,
+			input,
+			additional_metadata,
+			parent_task_external_id,
+			total_tasks
 		) VALUES (
-			NEW.id, NEW.inserted_at, NEW.tenant_id, NEW.external_id,
-			NEW.display_name, NEW.workflow_id, NEW.workflow_version_id,
-			NEW.readable_status, NEW.input, NEW.additional_metadata,
-			NEW.parent_task_external_id, NEW.total_tasks
+			NEW.id,
+			NEW.inserted_at,
+			NEW.tenant_id,
+			NEW.external_id,
+			NEW.display_name,
+			NEW.workflow_id,
+			NEW.workflow_version_id,
+			NEW.readable_status,
+			NEW.input,
+			NEW.additional_metadata,
+			NEW.parent_task_external_id,
+			NEW.total_tasks
 		)
-		ON CONFLICT (inserted_at, id) DO UPDATE SET
+		ON CONFLICT (inserted_at, id)
+		DO UPDATE SET
 			tenant_id               = EXCLUDED.tenant_id,
 			external_id             = EXCLUDED.external_id,
 			display_name            = EXCLUDED.display_name,
@@ -279,16 +388,32 @@ AFTER INSERT OR DELETE ON v1_dags_olap
 FOR EACH ROW EXECUTE FUNCTION v1_dags_olap_mirror_fn()`
 
 const v1DagsOlapBackfill = `INSERT INTO v1_dags_olap_new (
-	id, inserted_at, tenant_id, external_id,
-	display_name, workflow_id, workflow_version_id,
-	readable_status, input, additional_metadata,
-	parent_task_external_id, total_tasks
+	id,
+	inserted_at,
+	tenant_id,
+	external_id,
+	display_name,
+	workflow_id,
+	workflow_version_id,
+	readable_status,
+	input,
+	additional_metadata,
+	parent_task_external_id,
+	total_tasks
 )
 SELECT
-	id, inserted_at, tenant_id, external_id,
-	display_name, workflow_id, workflow_version_id,
-	readable_status, input, additional_metadata,
-	parent_task_external_id, total_tasks
+	id,
+	inserted_at,
+	tenant_id,
+	external_id,
+	display_name,
+	workflow_id,
+	workflow_version_id,
+	readable_status,
+	input,
+	additional_metadata,
+	parent_task_external_id,
+	total_tasks
 FROM v1_dags_olap
 ON CONFLICT (inserted_at, id) DO NOTHING`
 
