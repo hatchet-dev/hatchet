@@ -1,9 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 DROP FUNCTION IF EXISTS create_v1_olap_partition_with_date_and_status(text, date);
--- +goose StatementEnd
 
--- +goose StatementBegin
 DO $$
 DECLARE
     base_name  text;
@@ -69,9 +67,7 @@ BEGIN
     END LOOP;
 END;
 $$;
--- +goose StatementEnd
 
--- +goose StatementBegin
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
 $$
@@ -234,9 +230,7 @@ AFTER UPDATE ON v1_runs_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_runs_olap_status_update_function();
--- +goose StatementEnd
 
--- +goose StatementBegin
 DROP FUNCTION IF EXISTS v1_runs_olap_mirror_fn();
 DROP FUNCTION IF EXISTS v1_tasks_olap_mirror_fn();
 DROP FUNCTION IF EXISTS v1_dags_olap_mirror_fn();
