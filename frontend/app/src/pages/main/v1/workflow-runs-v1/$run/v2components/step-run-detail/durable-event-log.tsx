@@ -89,6 +89,10 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
   const lines: LogLine[] = [];
 
   for (const entry of entries) {
+    if (entry.kind === V1DurableEventLogKind.MEMO) {
+      continue;
+    }
+
     const message = entryMessage(entry);
 
     lines.push({

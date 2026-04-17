@@ -259,7 +259,7 @@ export const TaskRunDetail = ({
                   variant="underlined"
                   value={TabOption.DurableEventLog}
                 >
-                  Event Log
+                  Durable Event Log
                 </TabsTrigger>
               )}
             </TabsList>
