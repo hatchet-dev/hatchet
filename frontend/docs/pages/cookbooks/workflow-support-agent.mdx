@@ -10,35 +10,15 @@ Support workflows can become difficult to manage and scale once they involve lon
 
 This example implements the following durable support workflow:
 
-```
-      +-------------------------+
-      | Support ticket received |
-      +-------------------------+
-                  |
-                  v
-        +--------------------+
-        | Triage the ticket  |
-        +--------------------+
-                  |
-                  v
-      +--------------------------+
-      | Generate initial reply   |
-      +--------------------------+
-                  |
-                  v
-    +------------------------------+
-    | Wait for reply or timeout    |
-    +------------------------------+
-             /            \
-            v              v
-+----------------+   +--------------------+
-| Customer reply |   | Timeout fires      |
-+----------------+   +--------------------+
-        |                     |
-        v                     v
-+----------------+  +----------------------+
-| Resolve ticket |  | Escalate to human    |
-+----------------+  +----------------------+
+```mermaid
+flowchart TD
+    A[Support ticket received] --> B[Triage the ticket]
+    B --> C[Generate initial reply]
+    C --> D[Wait for reply or timeout]
+    D --> E[Customer reply]
+    D --> F[Timeout fires]
+    E --> G[Resolve ticket]
+    F --> H[Escalate to human support]
 ```
 
 Hatchet’s durable execution model helps keep the whole interaction in one workflow rather than scattering it across separate queue jobs and ad hoc timers.
