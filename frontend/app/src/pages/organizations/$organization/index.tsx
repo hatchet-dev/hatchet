@@ -202,13 +202,20 @@ export default function OrganizationPage() {
       return;
     }
     setIsAddingSsoDomain(true);
-    handleCreateOrganizationSsoDomain(orgId, newSsoDomain.trim(), () => {
-      setIsAddingSsoDomain(false);
-      setNewSsoDomain('');
-      queryClient.invalidateQueries({
-        queryKey: ['organization:sso_domain:get', orgId],
-      });
-    });
+    handleCreateOrganizationSsoDomain(
+      orgId,
+      newSsoDomain.trim(),
+      () => {
+        setIsAddingSsoDomain(false);
+        setNewSsoDomain('');
+        queryClient.invalidateQueries({
+          queryKey: ['organization:sso_domain:get', orgId],
+        });
+      },
+      () => {
+        setIsAddingSsoDomain(false);
+      },
+    );
   };
 
   const handleDeleteSsoDomain = async (domain: string) => {

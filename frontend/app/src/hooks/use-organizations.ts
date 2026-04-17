@@ -348,6 +348,7 @@ export function useOrganizations() {
       organizationId: string,
       ssoDomain: string,
       onSuccess: (organizationId: string) => void,
+      onError?: () => void,
     ) => {
       createOrganizationSsoDomainMutation.mutate(
         { organizationId, ssoDomain },
@@ -356,7 +357,7 @@ export function useOrganizations() {
             onSuccess(organizationId);
           },
           onError: () => {
-            // Error handling is done by the mutation itself via handleApiError
+            onError?.();
           },
         },
       );
