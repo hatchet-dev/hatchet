@@ -239,7 +239,7 @@ export default function Run() {
 }
 
 function ExpandedTaskRun({ id }: { id: string }) {
-  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />;
+  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Activity} />;
 }
 
 function ExpandedWorkflowRun({ id }: { id: string }) {
@@ -262,7 +262,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
         type: 'task-run-details',
         content: {
           taskRunId,
-          defaultOpenTab: TabOption.Output,
+          defaultOpenTab: TabOption.Activity,
           showViewTaskRunButton: true,
         },
       });
