@@ -392,13 +392,15 @@ SELECT
   t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
-  t.additional__event_message
+  t.additional__event_message,
+  tsk.display_name AS task_display_name
 FROM aggregated_events a
 JOIN v1_task_events_olap t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
+JOIN v1_tasks_olap tsk ON (tsk.id, tsk.inserted_at) = (t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: ListTaskEventsForWorkflowRun :many

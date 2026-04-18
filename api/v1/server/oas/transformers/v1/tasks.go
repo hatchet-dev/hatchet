@@ -162,15 +162,16 @@ func ToTaskRunEventMany(
 		attempt := retryCount + 1
 
 		toReturn[i] = gen.V1TaskEvent{
-			Id:           int(event.ID),
-			ErrorMessage: &event.ErrorMessage.String,
-			EventType:    gen.V1TaskEventType(event.EventType),
-			Message:      event.AdditionalEventMessage.String,
-			Timestamp:    event.EventTimestamp.Time,
-			WorkerId:     event.WorkerID,
-			TaskId:       taskExternalId,
-			RetryCount:   &retryCount,
-			Attempt:      &attempt,
+			Id:              int(event.ID),
+			ErrorMessage:    &event.ErrorMessage.String,
+			EventType:       gen.V1TaskEventType(event.EventType),
+			Message:         event.AdditionalEventMessage.String,
+			Timestamp:       event.EventTimestamp.Time,
+			WorkerId:        event.WorkerID,
+			TaskId:          taskExternalId,
+			RetryCount:      &retryCount,
+			Attempt:         &attempt,
+			TaskDisplayName: &event.TaskDisplayName,
 		}
 	}
 

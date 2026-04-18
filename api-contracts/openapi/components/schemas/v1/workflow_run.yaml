@@ -225,12 +225,23 @@ V1DurableEventLogEntry:
     userMessage:
       type: string
       description: A user-provided message or label, sent when establishing a durable wait.
+    taskExternalId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The external id of the durable task this event log entry is associated with.
+    taskDisplayName:
+      type: string
+      description: The display name of the durable task this event log entry is associated with.
   required:
     - nodeId
     - branchId
     - kind
     - isSatisfied
     - insertedAt
+    - taskExternalId
+    - taskDisplayName
 
 V1DurableEventLogList:
   type: array

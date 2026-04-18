@@ -25,7 +25,7 @@ func (t *DurableTasksService) V1DurableTaskEventLogList(ctx echo.Context, reques
 		return nil, echo.NewHTTPError(500, "durable task type assertion failed")
 	}
 
-	entries, err := t.config.V1.OLAP().ListDurableEventLog(
+	entries, err := t.config.V1.DurableEvents().ListDurableEventLog(
 		ctx.Request().Context(),
 		task.TenantID,
 		task.ID,
@@ -38,7 +38,7 @@ func (t *DurableTasksService) V1DurableTaskEventLogList(ctx echo.Context, reques
 	return gen.V1DurableTaskEventLogList200JSONResponse(toDurableEventLogEntries(entries)), nil
 }
 
-func toDurableEventLogEntries(entries []*sqlcv1.V1DurableEventLogEntry) []gen.V1DurableEventLogEntry {
+func toDurableEventLogEntries(entries []*sqlcv1.ListDurableEventLogForTaskRow) []gen.V1DurableEventLogEntry {
 	result := make([]gen.V1DurableEventLogEntry, 0, len(entries))
 
 	for _, e := range entries {
@@ -48,11 +48,13 @@ func toDurableEventLogEntries(entries []*sqlcv1.V1DurableEventLogEntry) []gen.V1
 		}
 
 		entry := gen.V1DurableEventLogEntry{
-			NodeId:      e.NodeID,
-			BranchId:    e.BranchID,
-			Kind:        gen.V1DurableEventLogKind(e.Kind),
-			IsSatisfied: e.IsSatisfied,
-			InsertedAt:  insertedAt,
+			NodeId:          e.NodeID,
+			BranchId:        e.BranchID,
+			Kind:            gen.V1DurableEventLogKind(e.Kind),
+			IsSatisfied:     e.IsSatisfied,
+			InsertedAt:      insertedAt,
+			TaskExternalId:  e.DurableTaskExternalID,
+			TaskDisplayName: e.DurableTaskDisplayName,
 		}
 
 		if e.UserMessage.Valid {

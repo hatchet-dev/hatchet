@@ -235,8 +235,9 @@ ORDER BY id ASC
 ;
 
 -- name: ListDurableEventLogForTask :many
-SELECT e.*
+SELECT e.*, t.external_id AS durable_task_external_id, t.display_name AS durable_task_display_name
 FROM v1_durable_event_log_entry e
+JOIN v1_task t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE e.durable_task_id = @durableTaskId::BIGINT
   AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
   AND e.tenant_id = @tenantId::UUID

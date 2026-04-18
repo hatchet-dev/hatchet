@@ -820,6 +820,15 @@ export interface V1DurableEventLogEntry {
   insertedAt: string;
   /** A user-provided message or label, sent when establishing a durable wait. */
   userMessage?: string;
+  /**
+   * The external id of the durable task this event log entry is associated with.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The display name of the durable task this event log entry is associated with. */
+  taskDisplayName: string;
 }
 
 export type V1DurableEventLogList = V1DurableEventLogEntry[];

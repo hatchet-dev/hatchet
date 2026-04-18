@@ -1622,6 +1622,12 @@ type V1DurableEventLogEntry struct {
 	// SatisfiedAt When this entry was satisfied, if it has been satisfied.
 	SatisfiedAt *time.Time `json:"satisfiedAt,omitempty"`
 
+	// TaskDisplayName The display name of the durable task this event log entry is associated with.
+	TaskDisplayName string `json:"taskDisplayName"`
+
+	// TaskExternalId The external id of the durable task this event log entry is associated with.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+
 	// UserMessage A user-provided message or label, sent when establishing a durable wait.
 	UserMessage *string     `json:"userMessage,omitempty"`
 	WaitData    *V1WaitData `json:"waitData,omitempty"`

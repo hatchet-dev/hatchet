@@ -18,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type TaskExternalIdNodeIdBranchId struct {
@@ -138,6 +139,7 @@ type DurableEventsRepository interface {
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
+	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
 }
 
 type durableEventsRepository struct {
@@ -547,7 +549,6 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
 }
-
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
 	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
@@ -1637,4 +1638,15 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 	}
 
 	return result, nil
+}
+
+func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.ListDurableEventLogForTaskRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-durable-event-log-olap")
+	defer span.End()
+
+	return r.queries.ListDurableEventLogForTask(ctx, r.pool, sqlcv1.ListDurableEventLogForTaskParams{
+		Durabletaskid:         taskId,
+		Durabletaskinsertedat: taskInsertedAt,
+		Tenantid:              tenantId,
+	})
 }

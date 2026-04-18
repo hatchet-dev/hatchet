@@ -502,8 +502,9 @@ func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, 
 }
 
 const listDurableEventLogForTask = `-- name: ListDurableEventLogForTask :many
-SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.wait_data
+SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.wait_data, t.external_id AS durable_task_external_id, t.display_name AS durable_task_display_name
 FROM v1_durable_event_log_entry e
+JOIN v1_task t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE e.durable_task_id = $1::BIGINT
   AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
   AND e.tenant_id = $3::UUID
@@ -516,15 +517,34 @@ type ListDurableEventLogForTaskParams struct {
 	Tenantid              uuid.UUID          `json:"tenantid"`
 }
 
-func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg ListDurableEventLogForTaskParams) ([]*V1DurableEventLogEntry, error) {
+type ListDurableEventLogForTaskRow struct {
+	TenantID               uuid.UUID             `json:"tenant_id"`
+	ExternalID             uuid.UUID             `json:"external_id"`
+	InsertedAt             pgtype.Timestamptz    `json:"inserted_at"`
+	ID                     int64                 `json:"id"`
+	DurableTaskID          int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt  pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                   V1DurableEventLogKind `json:"kind"`
+	NodeID                 int64                 `json:"node_id"`
+	BranchID               int64                 `json:"branch_id"`
+	IdempotencyKey         []byte                `json:"idempotency_key"`
+	IsSatisfied            bool                  `json:"is_satisfied"`
+	SatisfiedAt            pgtype.Timestamptz    `json:"satisfied_at"`
+	UserMessage            pgtype.Text           `json:"user_message"`
+	WaitData               []byte                `json:"wait_data"`
+	DurableTaskExternalID  uuid.UUID             `json:"durable_task_external_id"`
+	DurableTaskDisplayName string                `json:"durable_task_display_name"`
+}
+
+func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg ListDurableEventLogForTaskParams) ([]*ListDurableEventLogForTaskRow, error) {
 	rows, err := db.Query(ctx, listDurableEventLogForTask, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1DurableEventLogEntry
+	var items []*ListDurableEventLogForTaskRow
 	for rows.Next() {
-		var i V1DurableEventLogEntry
+		var i ListDurableEventLogForTaskRow
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.ExternalID,
@@ -540,6 +560,8 @@ func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg L
 			&i.SatisfiedAt,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.DurableTaskExternalID,
+			&i.DurableTaskDisplayName,
 		); err != nil {
 			return nil, err
 		}

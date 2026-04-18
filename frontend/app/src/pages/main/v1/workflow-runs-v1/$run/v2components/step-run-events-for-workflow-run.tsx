@@ -1,4 +1,5 @@
 import { eventTypeToSeverity, mapEventTypeToTitle } from './event-utils';
+import { TabOption } from './step-run-detail/step-run-detail';
 import {
   LogLine,
   V1LogLineLevelIncludingEvictionNotice,
@@ -6,6 +7,7 @@ import {
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { Loading } from '@/components/v1/ui/loading';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   V1DurableEventLogEntry,
@@ -17,7 +19,7 @@ import {
   queries,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 export type EventWithMetadata = V1TaskEvent & {
   metadata: {
@@ -45,6 +47,8 @@ export function StepRunEvents({
 
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
+  const { open } = useSidePanel();
+  const executingRef = useRef(false);
 
   const eventsQuery = useQuery({
     ...queries.v1TaskEvents.list(
@@ -70,6 +74,32 @@ export function StepRunEvents({
     return mergeByTimestamp(taskLines, durableLines);
   }, [eventsQuery.data, durableLogQuery.data, isDurable, isDag]);
 
+  const handleTaskRunExpand = useCallback(
+    (taskRunId: string) => {
+      // hack to prevent click handler from firing multiple times,
+      // causing index offset issues
+      if (executingRef.current) {
+        return;
+      }
+
+      executingRef.current = true;
+
+      open({
+        type: 'task-run-details',
+        content: {
+          taskRunId,
+          defaultOpenTab: TabOption.Activity,
+          showViewTaskRunButton: true,
+        },
+      });
+
+      setTimeout(() => {
+        executingRef.current = false;
+      }, 100);
+    },
+    [open],
+  );
+
   if (eventsQuery.isLoading) {
     return <Loading />;
   }
@@ -80,6 +110,11 @@ export function StepRunEvents({
         logs={logs}
         emptyMessage="No events found."
         showTaskName={isDag}
+        onViewRun={(taskExternalId) => {
+          if (taskExternalId) {
+            handleTaskRunExpand(taskExternalId);
+          }
+        }}
       />
     </div>
   );
@@ -135,6 +170,7 @@ function toTaskEventLogLines(events: V1TaskEvent[], isDag: boolean): LogLine[] {
       level,
       line,
       taskDisplayName: event.taskDisplayName,
+      taskExternalId: event.taskId,
     };
   });
 }
@@ -310,6 +346,8 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
         timestamp: first.insertedAt,
         level: V1LogLineLevel.DEBUG,
         line: withContextPrefix(first, capitalizeFirst(label)),
+        taskDisplayName: first.taskDisplayName,
+        taskExternalId: first.taskExternalId,
       });
 
       const satisfiedEntries = groupEntries.filter(
@@ -324,6 +362,8 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
           timestamp: lastSatisfiedAt,
           level: V1LogLineLevel.INFO,
           line: withContextPrefix(first, completionMessage(label)),
+          taskDisplayName: first.taskDisplayName,
+          taskExternalId: first.taskExternalId,
         });
       }
     } else {
@@ -336,6 +376,8 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
             ? V1LogLineLevel.WARN
             : V1LogLineLevel.DEBUG,
         line: withContextPrefix(item, capitalizeFirst(message)),
+        taskDisplayName: item.taskDisplayName,
+        taskExternalId: item.taskExternalId,
       });
 
       if (item.isSatisfied && item.satisfiedAt) {
@@ -343,6 +385,8 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
           timestamp: item.satisfiedAt,
           level: V1LogLineLevel.INFO,
           line: withContextPrefix(item, completionMessage(message)),
+          taskDisplayName: item.taskDisplayName,
+          taskExternalId: item.taskExternalId,
         });
       }
     }
