@@ -1,11 +1,13 @@
 package durabletasks
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -57,16 +59,40 @@ func toDurableEventLogEntries(entries []*sqlcv1.V1DurableEventLogEntry) []gen.V1
 			entry.UserMessage = &e.UserMessage.String
 		}
 
-		if e.ReadableSummary.Valid {
-			entry.HumanReadableMessage = &e.ReadableSummary.String
-		}
-
 		if e.SatisfiedAt.Valid {
 			entry.SatisfiedAt = &e.SatisfiedAt.Time
+		}
+
+		if len(e.WaitData) > 0 {
+			entry.WaitData = toGenWaitData(e.WaitData)
 		}
 
 		result = append(result, entry)
 	}
 
 	return result
+}
+
+func toGenWaitData(raw []byte) *gen.V1WaitData {
+	var wd repository.WaitData
+	if err := json.Unmarshal(raw, &wd); err != nil {
+		return nil
+	}
+
+	orGroups := make([]gen.V1DurableWaitOrGroup, 0, len(wd.OrGroups))
+	for _, g := range wd.OrGroups {
+		conditions := make([]gen.V1DurableWaitCondition, 0, len(g.Conditions))
+		for _, c := range g.Conditions {
+			cond := gen.V1DurableWaitCondition{
+				Kind:            gen.V1DurableWaitConditionKind(c.Kind),
+				SleepDurationMs: c.SleepDurationMs,
+				EventKey:        c.EventKey,
+				WorkflowName:    c.WorkflowName,
+			}
+			conditions = append(conditions, cond)
+		}
+		orGroups = append(orGroups, gen.V1DurableWaitOrGroup{Conditions: conditions})
+	}
+
+	return &gen.V1WaitData{OrGroups: orGroups}
 }

@@ -25,7 +25,7 @@ WITH inputs AS (
         UNNEST($8::BYTEA[]) AS idempotency_key,
         UNNEST($9::BOOLEAN[]) AS is_satisfied,
         UNNEST($10::TEXT[]) AS user_message,
-        UNNEST($11::TEXT[]) AS readable_summary
+        UNNEST($11::TEXT[]) AS wait_data
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -39,7 +39,7 @@ WITH inputs AS (
         idempotency_key,
         is_satisfied,
         user_message,
-        readable_summary
+        wait_data
     )
     SELECT
         i.tenant_id,
@@ -53,13 +53,13 @@ WITH inputs AS (
         i.idempotency_key,
         i.is_satisfied,
         NULLIF(i.user_message, ''),
-        NULLIF(i.readable_summary, '')
+        CASE WHEN i.wait_data = '' THEN NULL ELSE i.wait_data::JSONB END
     FROM inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
-    RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, user_message, readable_summary
+    RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, user_message, wait_data
 )
 
-SELECT i.tenant_id, i.external_id, i.inserted_at, i.id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, i.satisfied_at, i.user_message, i.readable_summary, lf.latest_invocation_count AS invocation_count
+SELECT i.tenant_id, i.external_id, i.inserted_at, i.id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, i.satisfied_at, i.user_message, i.wait_data, lf.latest_invocation_count AS invocation_count
 FROM inserts i
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 `
@@ -75,7 +75,7 @@ type BulkCreateDurableEventLogEntriesParams struct {
 	Idempotencykeys        [][]byte             `json:"idempotencykeys"`
 	Issatisfieds           []bool               `json:"issatisfieds"`
 	Usermessages           []string             `json:"usermessages"`
-	Readablesummaries      []string             `json:"readablesummaries"`
+	Waitdatas              []string             `json:"waitdatas"`
 }
 
 type BulkCreateDurableEventLogEntriesRow struct {
@@ -92,7 +92,7 @@ type BulkCreateDurableEventLogEntriesRow struct {
 	IsSatisfied           bool                  `json:"is_satisfied"`
 	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
 	UserMessage           pgtype.Text           `json:"user_message"`
-	ReadableSummary       pgtype.Text           `json:"readable_summary"`
+	WaitData              []byte                `json:"wait_data"`
 	InvocationCount       int32                 `json:"invocation_count"`
 }
 
@@ -108,7 +108,7 @@ func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX,
 		arg.Idempotencykeys,
 		arg.Issatisfieds,
 		arg.Usermessages,
-		arg.Readablesummaries,
+		arg.Waitdatas,
 	)
 	if err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX,
 			&i.IsSatisfied,
 			&i.SatisfiedAt,
 			&i.UserMessage,
-			&i.ReadableSummary,
+			&i.WaitData,
 			&i.InvocationCount,
 		); err != nil {
 			return nil, err
@@ -150,7 +150,7 @@ WITH inputs AS (
         UNNEST($3::BIGINT[]) AS branch_id,
         UNNEST($4::BIGINT[]) AS node_id
 )
-SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.readable_summary, lf.latest_invocation_count AS invocation_count
+SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.wait_data, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
@@ -179,7 +179,7 @@ type BulkGetDurableEventLogEntriesRow struct {
 	IsSatisfied           bool                  `json:"is_satisfied"`
 	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
 	UserMessage           pgtype.Text           `json:"user_message"`
-	ReadableSummary       pgtype.Text           `json:"readable_summary"`
+	WaitData              []byte                `json:"wait_data"`
 	InvocationCount       int32                 `json:"invocation_count"`
 }
 
@@ -211,7 +211,7 @@ func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, ar
 			&i.IsSatisfied,
 			&i.SatisfiedAt,
 			&i.UserMessage,
-			&i.ReadableSummary,
+			&i.WaitData,
 			&i.InvocationCount,
 		); err != nil {
 			return nil, err
@@ -297,7 +297,7 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 }
 
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
-SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, user_message, readable_summary
+SELECT tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, user_message, wait_data
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -334,7 +334,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 		&i.IsSatisfied,
 		&i.SatisfiedAt,
 		&i.UserMessage,
-		&i.ReadableSummary,
+		&i.WaitData,
 	)
 	return &i, err
 }
@@ -502,7 +502,7 @@ func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, 
 }
 
 const listDurableEventLogForTask = `-- name: ListDurableEventLogForTask :many
-SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.readable_summary
+SELECT e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.wait_data
 FROM v1_durable_event_log_entry e
 WHERE e.durable_task_id = $1::BIGINT
   AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -539,7 +539,7 @@ func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg L
 			&i.IsSatisfied,
 			&i.SatisfiedAt,
 			&i.UserMessage,
-			&i.ReadableSummary,
+			&i.WaitData,
 		); err != nil {
 			return nil, err
 		}
@@ -565,7 +565,7 @@ WITH inputs AS (
 )
 
 SELECT
-    e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.readable_summary,
+    e.tenant_id, e.external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.wait_data,
     twn.external_id AS task_external_id,
     lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
@@ -597,7 +597,7 @@ type ListSatisfiedEntriesRow struct {
 	IsSatisfied           bool                  `json:"is_satisfied"`
 	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
 	UserMessage           pgtype.Text           `json:"user_message"`
-	ReadableSummary       pgtype.Text           `json:"readable_summary"`
+	WaitData              []byte                `json:"wait_data"`
 	TaskExternalID        uuid.UUID             `json:"task_external_id"`
 	InvocationCount       int32                 `json:"invocation_count"`
 }
@@ -625,7 +625,7 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 			&i.IsSatisfied,
 			&i.SatisfiedAt,
 			&i.UserMessage,
-			&i.ReadableSummary,
+			&i.WaitData,
 			&i.TaskExternalID,
 			&i.InvocationCount,
 		); err != nil {
@@ -646,7 +646,7 @@ WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
   AND branch_id = $3::BIGINT
   AND node_id = $4::BIGINT
-RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, user_message, readable_summary
+RETURNING tenant_id, external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, user_message, wait_data
 `
 
 type MarkDurableEventLogEntrySatisfiedParams struct {
@@ -678,7 +678,7 @@ func (q *Queries) MarkDurableEventLogEntrySatisfied(ctx context.Context, db DBTX
 		&i.IsSatisfied,
 		&i.SatisfiedAt,
 		&i.UserMessage,
-		&i.ReadableSummary,
+		&i.WaitData,
 	)
 	return &i, err
 }
@@ -700,10 +700,10 @@ WITH inputs AS (
       AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
       AND v1_durable_event_log_entry.node_id = inputs.node_id
       AND v1_durable_event_log_entry.branch_id = inputs.branch_id
-    RETURNING v1_durable_event_log_entry.tenant_id, v1_durable_event_log_entry.external_id, v1_durable_event_log_entry.inserted_at, v1_durable_event_log_entry.id, v1_durable_event_log_entry.durable_task_id, v1_durable_event_log_entry.durable_task_inserted_at, v1_durable_event_log_entry.kind, v1_durable_event_log_entry.node_id, v1_durable_event_log_entry.branch_id, v1_durable_event_log_entry.idempotency_key, v1_durable_event_log_entry.is_satisfied, v1_durable_event_log_entry.satisfied_at, v1_durable_event_log_entry.user_message, v1_durable_event_log_entry.readable_summary
+    RETURNING v1_durable_event_log_entry.tenant_id, v1_durable_event_log_entry.external_id, v1_durable_event_log_entry.inserted_at, v1_durable_event_log_entry.id, v1_durable_event_log_entry.durable_task_id, v1_durable_event_log_entry.durable_task_inserted_at, v1_durable_event_log_entry.kind, v1_durable_event_log_entry.node_id, v1_durable_event_log_entry.branch_id, v1_durable_event_log_entry.idempotency_key, v1_durable_event_log_entry.is_satisfied, v1_durable_event_log_entry.satisfied_at, v1_durable_event_log_entry.user_message, v1_durable_event_log_entry.wait_data
 )
 
-SELECT updated.tenant_id, updated.external_id, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.user_message, updated.readable_summary, lf.latest_invocation_count AS invocation_count
+SELECT updated.tenant_id, updated.external_id, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.user_message, updated.wait_data, lf.latest_invocation_count AS invocation_count
 FROM updated
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 `
@@ -729,7 +729,7 @@ type UpdateDurableEventLogEntriesSatisfiedRow struct {
 	IsSatisfied           bool                  `json:"is_satisfied"`
 	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
 	UserMessage           pgtype.Text           `json:"user_message"`
-	ReadableSummary       pgtype.Text           `json:"readable_summary"`
+	WaitData              []byte                `json:"wait_data"`
 	InvocationCount       int32                 `json:"invocation_count"`
 }
 
@@ -761,7 +761,7 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 			&i.IsSatisfied,
 			&i.SatisfiedAt,
 			&i.UserMessage,
-			&i.ReadableSummary,
+			&i.WaitData,
 			&i.InvocationCount,
 		); err != nil {
 			return nil, err

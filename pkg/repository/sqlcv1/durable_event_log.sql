@@ -168,7 +168,7 @@ WITH inputs AS (
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
         UNNEST(@userMessages::TEXT[]) AS user_message,
-        UNNEST(@readableSummaries::TEXT[]) AS readable_summary
+        UNNEST(@waitDatas::TEXT[]) AS wait_data
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -182,7 +182,7 @@ WITH inputs AS (
         idempotency_key,
         is_satisfied,
         user_message,
-        readable_summary
+        wait_data
     )
     SELECT
         i.tenant_id,
@@ -196,7 +196,7 @@ WITH inputs AS (
         i.idempotency_key,
         i.is_satisfied,
         NULLIF(i.user_message, ''),
-        NULLIF(i.readable_summary, '')
+        CASE WHEN i.wait_data = '' THEN NULL ELSE i.wait_data::JSONB END
     FROM inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *

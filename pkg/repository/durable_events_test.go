@@ -445,7 +445,7 @@ func TestFormatStoredPayload_WaitFor(t *testing.T) {
 	payload, _ := json.Marshal([]CreateExternalSignalConditionOpt{
 		{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("2s")},
 	})
-	assert.Equal(t, "waitFor(sleep(2s))", formatStoredPayload(sqlcv1.V1DurableEventLogKindWAITFOR, payload))
+	assert.Equal(t, "sleep(2s)", formatStoredPayload(sqlcv1.V1DurableEventLogKindWAITFOR, payload))
 }
 
 func TestFormatStoredPayload_NoPayload(t *testing.T) {
@@ -466,8 +466,8 @@ func TestNonDeterminismDetail_WithPayload(t *testing.T) {
 		},
 	}
 	detail := nonDeterminismDetail(opts, sqlcv1.V1DurableEventLogKindWAITFOR, existingPayload)
-	assert.Equal(t, "waitFor(sleep(2s))", detail.Expected)
-	assert.Equal(t, "waitFor(sleep(4s))", detail.Received)
+	assert.Equal(t, "sleep(2s)", detail.Expected)
+	assert.Equal(t, "sleep(4s)", detail.Received)
 }
 
 func TestNonDeterminismDetail_KindMismatch(t *testing.T) {

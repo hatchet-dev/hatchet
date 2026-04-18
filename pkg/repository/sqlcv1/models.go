@@ -3180,7 +3180,7 @@ type V1DurableEventLogEntry struct {
 	IsSatisfied           bool                  `json:"is_satisfied"`
 	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
 	UserMessage           pgtype.Text           `json:"user_message"`
-	ReadableSummary       pgtype.Text           `json:"readable_summary"`
+	WaitData              []byte                `json:"wait_data"`
 }
 
 type V1DurableEventLogFile struct {

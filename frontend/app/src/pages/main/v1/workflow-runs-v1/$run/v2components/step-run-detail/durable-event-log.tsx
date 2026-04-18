@@ -4,6 +4,10 @@ import { Loading } from '@/components/v1/ui/loading';
 import {
   V1DurableEventLogEntry,
   V1DurableEventLogKind,
+  V1DurableWaitCondition,
+  V1DurableWaitConditionKind,
+  V1DurableWaitOrGroup,
+  V1WaitData,
   queries,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -48,10 +52,50 @@ function kindLabel(kind: V1DurableEventLogKind): string {
   }
 }
 
+function formatDurationMs(ms: number): string {
+  if (ms === 0) return '0s';
+  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
+  if (ms % 60_000 === 0) return `${ms / 60_000}m`;
+  if (ms % 1_000 === 0) return `${ms / 1_000}s`;
+  return `${ms}ms`;
+}
+
+function describeCondition(c: V1DurableWaitCondition): string {
+  switch (c.kind) {
+    case V1DurableWaitConditionKind.SLEEP:
+      return c.sleepDurationMs != null
+        ? `sleep(${formatDurationMs(c.sleepDurationMs)})`
+        : 'sleep';
+    case V1DurableWaitConditionKind.USER_EVENT:
+      return c.eventKey ? `event(${c.eventKey})` : 'event';
+    case V1DurableWaitConditionKind.CHILD_WORKFLOW:
+      return c.workflowName ? `run(${c.workflowName})` : 'run';
+    default:
+      return String(c.kind).toLowerCase();
+  }
+}
+
+function describeOrGroup(group: V1DurableWaitOrGroup): string {
+  if (group.conditions.length === 0) {
+    return 'waiting';
+  }
+  const parts = group.conditions.map(describeCondition);
+  return parts.length === 1 ? parts[0] : `any of: ${parts.join(', ')}`;
+}
+
+function toReadableMessage(waitData: V1WaitData): string {
+  if (waitData.orGroups.length === 0) {
+    return 'waiting';
+  }
+  const parts = waitData.orGroups.map(describeOrGroup);
+  return parts.length === 1 ? parts[0] : parts.join(' and ');
+}
+
 function entryMessage(entry: V1DurableEventLogEntry): string {
-  return (
-    entry.humanReadableMessage ?? entry.userMessage ?? kindLabel(entry.kind)
-  );
+  if (entry.waitData) {
+    return toReadableMessage(entry.waitData);
+  }
+  return entry.userMessage ?? kindLabel(entry.kind);
 }
 
 function capitalizeFirst(value: string): string {
@@ -62,18 +106,7 @@ function capitalizeFirst(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function completionMessage(
-  entry: V1DurableEventLogEntry,
-  message: string,
-): string {
-  if (entry.kind === V1DurableEventLogKind.WAIT_FOR) {
-    const stripped = message.replace(/^waiting for\s+/i, '').trim();
-
-    if (stripped.length > 0) {
-      return `${capitalizeFirst(stripped)} completed`;
-    }
-  }
-
+function completionMessage(message: string): string {
   return `${capitalizeFirst(message)} completed`;
 }
 
@@ -105,7 +138,7 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
       lines.push({
         timestamp: entry.satisfiedAt,
         level: 'info',
-        line: withContextPrefix(entry, completionMessage(entry, message)),
+        line: withContextPrefix(entry, completionMessage(message)),
       });
     }
   }
