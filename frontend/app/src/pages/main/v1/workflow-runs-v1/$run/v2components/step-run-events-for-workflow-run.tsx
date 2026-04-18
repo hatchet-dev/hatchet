@@ -31,7 +31,6 @@ export function StepRunEvents({
   taskRunId,
   workflowRunId,
   isDurable,
-  taskDisplayName,
 }: {
   taskRunId?: string;
   workflowRunId?: string;
@@ -40,6 +39,10 @@ export function StepRunEvents({
   fallbackTaskDisplayName?: string;
   onClick?: (stepRunId: string) => void;
 }) {
+  const isDag =
+    (!taskRunId && !!workflowRunId) ||
+    (!!taskRunId && !!workflowRunId && taskRunId !== workflowRunId);
+
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
 
@@ -60,15 +63,12 @@ export function StepRunEvents({
   });
 
   const logs = useMemo(() => {
-    const taskLines = toTaskEventLogLines(
-      eventsQuery.data?.rows ?? [],
-      taskDisplayName,
-    );
+    const taskLines = toTaskEventLogLines(eventsQuery.data?.rows ?? [], isDag);
     const durableLines = isDurable
-      ? toDurableEventLogLines(durableLogQuery.data ?? [], taskDisplayName)
+      ? toDurableEventLogLines(durableLogQuery.data ?? [])
       : [];
     return mergeByTimestamp(taskLines, durableLines);
-  }, [eventsQuery.data, durableLogQuery.data, isDurable, taskDisplayName]);
+  }, [eventsQuery.data, durableLogQuery.data, isDurable, isDag]);
 
   if (eventsQuery.isLoading) {
     return <Loading />;
@@ -79,7 +79,7 @@ export function StepRunEvents({
       <LogViewer
         logs={logs}
         emptyMessage="No events found."
-        showTaskName={!!taskDisplayName}
+        showTaskName={isDag}
       />
     </div>
   );
@@ -88,17 +88,18 @@ export function StepRunEvents({
 function mergeByTimestamp(a: LogLine[], b: LogLine[]): LogLine[] {
   const merged = [...a, ...b];
   merged.sort((x, y) => {
-    if (!x.timestamp) return -1;
-    if (!y.timestamp) return 1;
+    if (!x.timestamp) {
+      return -1;
+    }
+    if (!y.timestamp) {
+      return 1;
+    }
     return x.timestamp < y.timestamp ? -1 : x.timestamp > y.timestamp ? 1 : 0;
   });
   return merged;
 }
 
-function toTaskEventLogLines(
-  events: V1TaskEvent[],
-  taskDisplayName?: string,
-): LogLine[] {
+function toTaskEventLogLines(events: V1TaskEvent[], isDag: boolean): LogLine[] {
   return events.map((event) => {
     const severity = eventTypeToSeverity(event.eventType);
     let level: V1LogLineLevelIncludingEvictionNotice;
@@ -133,7 +134,7 @@ function toTaskEventLogLines(
       timestamp: event.timestamp,
       level,
       line,
-      taskDisplayName: event.taskDisplayName ?? taskDisplayName,
+      taskDisplayName: event.taskDisplayName,
     };
   });
 }
@@ -141,10 +142,18 @@ function toTaskEventLogLines(
 // ----- durable event log helpers -----
 
 function formatDurationMs(ms: number): string {
-  if (ms === 0) return '0s';
-  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
-  if (ms % 60_000 === 0) return `${ms / 60_000}m`;
-  if (ms % 1_000 === 0) return `${ms / 1_000}s`;
+  if (ms === 0) {
+    return '0s';
+  }
+  if (ms % 3_600_000 === 0) {
+    return `${ms / 3_600_000}h`;
+  }
+  if (ms % 60_000 === 0) {
+    return `${ms / 60_000}m`;
+  }
+  if (ms % 1_000 === 0) {
+    return `${ms / 1_000}s`;
+  }
   return `${ms}ms`;
 }
 
@@ -179,7 +188,9 @@ function describeWaitItem(item: V1WaitItem): string {
 }
 
 function toReadableMessage(items: V1WaitItem[]): string {
-  if (items.length === 0) return 'waiting';
+  if (items.length === 0) {
+    return 'waiting';
+  }
   const parts = items.map(describeWaitItem);
   return parts.length === 1 ? parts[0] : parts.join(' and ');
 }
@@ -283,10 +294,8 @@ function runGroupLabel(entries: V1DurableEventLogEntry[]): string {
   return `run(${names.map((n) => n ?? 'unknown').join(', ')})`;
 }
 
-function toDurableEventLogLines(
-  entries: V1DurableEventLogEntry[],
-  taskDisplayName?: string,
-): LogLine[] {
+function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
+  // fixme: need to map the task id -> display name here
   const lines: LogLine[] = [];
   const visible = entries.filter((e) => e.kind !== V1DurableEventLogKind.MEMO);
   const grouped = groupConsecutiveRuns(visible);
@@ -301,7 +310,6 @@ function toDurableEventLogLines(
         timestamp: first.insertedAt,
         level: V1LogLineLevel.DEBUG,
         line: withContextPrefix(first, capitalizeFirst(label)),
-        taskDisplayName,
       });
 
       const satisfiedEntries = groupEntries.filter(
@@ -316,7 +324,6 @@ function toDurableEventLogLines(
           timestamp: lastSatisfiedAt,
           level: V1LogLineLevel.INFO,
           line: withContextPrefix(first, completionMessage(label)),
-          taskDisplayName,
         });
       }
     } else {
@@ -329,7 +336,6 @@ function toDurableEventLogLines(
             ? V1LogLineLevel.WARN
             : V1LogLineLevel.DEBUG,
         line: withContextPrefix(item, capitalizeFirst(message)),
-        taskDisplayName,
       });
 
       if (item.isSatisfied && item.satisfiedAt) {
@@ -337,7 +343,6 @@ function toDurableEventLogLines(
           timestamp: item.satisfiedAt,
           level: V1LogLineLevel.INFO,
           line: withContextPrefix(item, completionMessage(message)),
-          taskDisplayName,
         });
       }
     }
