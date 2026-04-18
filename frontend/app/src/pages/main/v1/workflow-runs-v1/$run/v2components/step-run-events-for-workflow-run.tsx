@@ -1,3 +1,4 @@
+import { eventTypeToSeverity, mapEventTypeToTitle } from './event-utils';
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { Loading } from '@/components/v1/ui/loading';
@@ -7,13 +8,13 @@ import {
   V1DurableEventLogEntry,
   V1DurableEventLogKind,
   V1DurableWaitConditionKind,
+  V1LogLineLevel,
   V1TaskEvent,
   V1WaitItem,
   queries,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { eventTypeToSeverity, mapEventTypeToTitle } from './event-utils';
 
 export type EventWithMetadata = V1TaskEvent & {
   metadata: {
@@ -56,7 +57,10 @@ export function StepRunEvents({
   });
 
   const logs = useMemo(() => {
-    const taskLines = toTaskEventLogLines(eventsQuery.data?.rows ?? [], taskDisplayName);
+    const taskLines = toTaskEventLogLines(
+      eventsQuery.data?.rows ?? [],
+      taskDisplayName,
+    );
     const durableLines = isDurable
       ? toDurableEventLogLines(durableLogQuery.data ?? [], taskDisplayName)
       : [];
@@ -69,7 +73,11 @@ export function StepRunEvents({
 
   return (
     <div className="flex h-full min-h-[25rem] flex-1 flex-col">
-      <LogViewer logs={logs} emptyMessage="No events found." showTaskName={!!taskDisplayName} />
+      <LogViewer
+        logs={logs}
+        emptyMessage="No events found."
+        showTaskName={!!taskDisplayName}
+      />
     </div>
   );
 }
@@ -84,19 +92,22 @@ function mergeByTimestamp(a: LogLine[], b: LogLine[]): LogLine[] {
   return merged;
 }
 
-function toTaskEventLogLines(events: V1TaskEvent[], taskDisplayName?: string): LogLine[] {
+function toTaskEventLogLines(
+  events: V1TaskEvent[],
+  taskDisplayName?: string,
+): LogLine[] {
   return events.map((event) => {
     const severity = eventTypeToSeverity(event.eventType);
-    let level: string;
+    let level: V1LogLineLevel;
     switch (severity) {
       case 'CRITICAL':
-        level = 'error';
+        level = V1LogLineLevel.ERROR;
         break;
       case 'WARNING':
-        level = 'warn';
+        level = V1LogLineLevel.WARN;
         break;
       default:
-        level = 'info';
+        level = V1LogLineLevel.DEBUG;
         break;
     }
 
@@ -259,7 +270,10 @@ function runGroupLabel(entries: V1DurableEventLogEntry[]): string {
   return `run(${names.map((n) => n ?? 'unknown').join(', ')})`;
 }
 
-function toDurableEventLogLines(entries: V1DurableEventLogEntry[], taskDisplayName?: string): LogLine[] {
+function toDurableEventLogLines(
+  entries: V1DurableEventLogEntry[],
+  taskDisplayName?: string,
+): LogLine[] {
   const lines: LogLine[] = [];
   const visible = entries.filter((e) => e.kind !== V1DurableEventLogKind.MEMO);
   const grouped = groupConsecutiveRuns(visible);
@@ -272,7 +286,7 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[], taskDisplayNa
 
       lines.push({
         timestamp: first.insertedAt,
-        level: 'debug',
+        level: V1LogLineLevel.DEBUG,
         line: withContextPrefix(first, capitalizeFirst(label)),
         taskDisplayName,
       });
@@ -287,7 +301,7 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[], taskDisplayNa
         );
         lines.push({
           timestamp: lastSatisfiedAt,
-          level: 'info',
+          level: V1LogLineLevel.INFO,
           line: withContextPrefix(first, completionMessage(label)),
           taskDisplayName,
         });
@@ -297,7 +311,10 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[], taskDisplayNa
 
       lines.push({
         timestamp: item.insertedAt,
-        level: item.kind === V1DurableEventLogKind.WAIT_FOR ? 'warn' : 'debug',
+        level:
+          item.kind === V1DurableEventLogKind.WAIT_FOR
+            ? V1LogLineLevel.WARN
+            : V1LogLineLevel.DEBUG,
         line: withContextPrefix(item, capitalizeFirst(message)),
         taskDisplayName,
       });
@@ -305,7 +322,7 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[], taskDisplayNa
       if (item.isSatisfied && item.satisfiedAt) {
         lines.push({
           timestamp: item.satisfiedAt,
-          level: 'info',
+          level: V1LogLineLevel.INFO,
           line: withContextPrefix(item, completionMessage(message)),
           taskDisplayName,
         });

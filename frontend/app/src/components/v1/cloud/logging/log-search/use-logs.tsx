@@ -36,7 +36,7 @@ export interface LogLine {
   timestamp?: string;
   line?: string;
   instance?: string;
-  level?: string;
+  level?: V1LogLineLevel;
   metadata?: Record<string, unknown>;
   attempt?: number;
   taskExternalId?: string;

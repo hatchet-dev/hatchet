@@ -6,6 +6,7 @@ import {
   V1DurableEventLogKind,
   V1DurableWaitCondition,
   V1DurableWaitConditionKind,
+  V1LogLineLevel,
   V1WaitItem,
   queries,
 } from '@/lib/api';
@@ -208,7 +209,7 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
 
       lines.push({
         timestamp: first.insertedAt,
-        level: 'debug',
+        level: V1LogLineLevel.DEBUG,
         line: withContextPrefix(first, capitalizeFirst(label)),
       });
 
@@ -222,7 +223,7 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
         );
         lines.push({
           timestamp: lastSatisfiedAt,
-          level: 'info',
+          level: V1LogLineLevel.INFO,
           line: withContextPrefix(first, completionMessage(label)),
         });
       }
@@ -231,14 +232,17 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
 
       lines.push({
         timestamp: item.insertedAt,
-        level: item.kind === V1DurableEventLogKind.WAIT_FOR ? 'warn' : 'debug',
+        level:
+          item.kind === V1DurableEventLogKind.WAIT_FOR
+            ? V1LogLineLevel.WARN
+            : V1LogLineLevel.DEBUG,
         line: withContextPrefix(item, capitalizeFirst(message)),
       });
 
       if (item.isSatisfied && item.satisfiedAt) {
         lines.push({
           timestamp: item.satisfiedAt,
-          level: 'info',
+          level: V1LogLineLevel.INFO,
           line: withContextPrefix(item, completionMessage(message)),
         });
       }
