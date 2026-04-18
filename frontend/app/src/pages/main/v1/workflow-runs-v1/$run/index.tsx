@@ -79,11 +79,9 @@ function statusToBadgeVariant(status: V1TaskStatus) {
 const GraphView = ({
   shape,
   handleTaskRunExpand,
-  onMiniMapClick,
 }: {
   shape: WorkflowRunShapeForWorkflowRunDetails;
   handleTaskRunExpand: (stepRunId: string) => void;
-  onMiniMapClick: (stepRunId: string) => void;
 }) => {
   const [view] = useAtom(preferredWorkflowRunViewAtom);
 
@@ -96,7 +94,7 @@ const GraphView = ({
     <JobMiniMap
       onClick={(stepRunId) => {
         if (stepRunId) {
-          onMiniMapClick(stepRunId);
+          handleTaskRunExpand(stepRunId);
         }
       }}
     />
@@ -276,13 +274,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const handleMiniMapClick = useCallback(
-    (taskRunId: string) => {
-      search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
-    },
-    [search],
-  );
-
   const { workflowRun, shape, taskRuns, isLoading, isError } =
     useWorkflowDetails();
 
@@ -351,7 +342,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               <GraphView
                 shape={shape}
                 handleTaskRunExpand={handleTaskRunExpand}
-                onMiniMapClick={handleMiniMapClick}
               />
               <ViewToggle />
             </div>
