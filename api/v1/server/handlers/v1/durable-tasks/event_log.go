@@ -73,26 +73,52 @@ func toDurableEventLogEntries(entries []*sqlcv1.V1DurableEventLogEntry) []gen.V1
 	return result
 }
 
+func toGenCond(c repository.DurableWaitCondition) gen.V1DurableWaitCondition {
+	return gen.V1DurableWaitCondition{
+		Kind:            gen.V1DurableWaitConditionKind(c.Kind),
+		SleepDurationMs: c.SleepDurationMs,
+		EventKey:        c.EventKey,
+		WorkflowName:    c.WorkflowName,
+	}
+}
+
 func toGenWaitData(raw []byte) *gen.V1WaitData {
 	var wd repository.WaitData
 	if err := json.Unmarshal(raw, &wd); err != nil {
 		return nil
 	}
 
-	orGroups := make([]gen.V1DurableWaitOrGroup, 0, len(wd.OrGroups))
-	for _, g := range wd.OrGroups {
-		conditions := make([]gen.V1DurableWaitCondition, 0, len(g.Conditions))
-		for _, c := range g.Conditions {
-			cond := gen.V1DurableWaitCondition{
-				Kind:            gen.V1DurableWaitConditionKind(c.Kind),
-				SleepDurationMs: c.SleepDurationMs,
-				EventKey:        c.EventKey,
-				WorkflowName:    c.WorkflowName,
-			}
-			conditions = append(conditions, cond)
-		}
-		orGroups = append(orGroups, gen.V1DurableWaitOrGroup{Conditions: conditions})
+	var conditions []gen.V1DurableWaitCondition
+	var orGroups []gen.V1DurableWaitOrGroup
+
+	for _, c := range wd.Conditions {
+		conditions = append(conditions, toGenCond(c))
 	}
 
-	return &gen.V1WaitData{OrGroups: orGroups}
+	for _, g := range wd.OrGroups {
+		if len(g.Conditions) == 1 {
+			// normalize legacy single-condition OR groups
+			conditions = append(conditions, toGenCond(g.Conditions[0]))
+			continue
+		}
+		genConds := make([]gen.V1DurableWaitCondition, 0, len(g.Conditions))
+		for _, c := range g.Conditions {
+			genConds = append(genConds, toGenCond(c))
+		}
+		orGroups = append(orGroups, gen.V1DurableWaitOrGroup{Conditions: genConds})
+	}
+
+	if len(conditions) == 0 && len(orGroups) == 0 {
+		return nil
+	}
+
+	result := &gen.V1WaitData{}
+	if len(conditions) > 0 {
+		result.Conditions = &conditions
+	}
+	if len(orGroups) > 0 {
+		result.OrGroups = &orGroups
+	}
+
+	return result
 }

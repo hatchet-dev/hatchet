@@ -86,10 +86,18 @@ function describeOrGroup(group: V1DurableWaitOrGroup): string {
 }
 
 function toReadableMessage(waitData: V1WaitData): string {
-  if (waitData.orGroups.length === 0) {
+  const parts: string[] = [];
+
+  for (const c of waitData.conditions ?? []) {
+    parts.push(describeCondition(c));
+  }
+  for (const g of waitData.orGroups ?? []) {
+    parts.push(describeOrGroup(g));
+  }
+
+  if (parts.length === 0) {
     return 'waiting';
   }
-  const parts = waitData.orGroups.map(describeOrGroup);
   return parts.length === 1 ? parts[0] : parts.join(' and ');
 }
 
@@ -166,9 +174,14 @@ function runGroupLabel(entries: V1DurableEventLogEntry[]): string {
   }
 
   const names = entries.map((e) => {
-    const conds = e.waitData?.orGroups;
-    if (conds?.length === 1 && conds[0].conditions.length === 1) {
-      const c = conds[0].conditions[0];
+    const standalone = e.waitData?.conditions;
+    if (standalone?.length === 1 && standalone[0].kind === V1DurableWaitConditionKind.CHILD_WORKFLOW) {
+      return standalone[0].workflowName ?? null;
+    }
+    // legacy: single-condition OR group (already normalized server-side, but handle defensively)
+    const orGroups = e.waitData?.orGroups;
+    if (orGroups?.length === 1 && orGroups[0].conditions.length === 1) {
+      const c = orGroups[0].conditions[0];
       if (c.kind === V1DurableWaitConditionKind.CHILD_WORKFLOW) {
         return c.workflowName ?? null;
       }

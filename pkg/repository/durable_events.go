@@ -209,7 +209,8 @@ type DurableWaitOrGroup struct {
 }
 
 type WaitData struct {
-	OrGroups []DurableWaitOrGroup `json:"orGroups"`
+	Conditions []DurableWaitCondition `json:"conditions,omitempty"`
+	OrGroups   []DurableWaitOrGroup   `json:"orGroups,omitempty"`
 }
 
 func parseDurationMs(s *string) *int64 {
@@ -287,20 +288,25 @@ func describeOrGroup(group DurableWaitOrGroup) string {
 }
 
 func (w *WaitData) ToReadableMessage() string {
-	if w == nil || len(w.OrGroups) == 0 {
+	if w == nil || (len(w.Conditions) == 0 && len(w.OrGroups) == 0) {
 		return "waiting"
 	}
 
-	groupDescriptions := make([]string, 0, len(w.OrGroups))
+	parts := make([]string, 0, len(w.Conditions)+len(w.OrGroups))
+
+	for _, c := range w.Conditions {
+		parts = append(parts, describeCondition(c))
+	}
+
 	for _, group := range w.OrGroups {
-		groupDescriptions = append(groupDescriptions, describeOrGroup(group))
+		parts = append(parts, describeOrGroup(group))
 	}
 
-	if len(groupDescriptions) == 1 {
-		return groupDescriptions[0]
+	if len(parts) == 1 {
+		return parts[0]
 	}
 
-	return strings.Join(groupDescriptions, " and ")
+	return strings.Join(parts, " and ")
 }
 
 func waitDataFromWaitForConditions(conditions []CreateExternalSignalConditionOpt) *WaitData {
@@ -331,12 +337,19 @@ func waitDataFromWaitForConditions(conditions []CreateExternalSignalConditionOpt
 		groups[c.OrGroupId] = append(groups[c.OrGroupId], cond)
 	}
 
-	orGroups := make([]DurableWaitOrGroup, 0, len(groupOrder))
+	var standalone []DurableWaitCondition
+	var orGroups []DurableWaitOrGroup
+
 	for _, id := range groupOrder {
-		orGroups = append(orGroups, DurableWaitOrGroup{Conditions: groups[id]})
+		g := groups[id]
+		if len(g) == 1 {
+			standalone = append(standalone, g[0])
+		} else if len(g) > 1 {
+			orGroups = append(orGroups, DurableWaitOrGroup{Conditions: g})
+		}
 	}
 
-	return &WaitData{OrGroups: orGroups}
+	return &WaitData{Conditions: standalone, OrGroups: orGroups}
 }
 
 func waitDataFromTriggerOpt(triggerOpt *WorkflowNameTriggerOpts) *WaitData {
@@ -346,9 +359,7 @@ func waitDataFromTriggerOpt(triggerOpt *WorkflowNameTriggerOpts) *WaitData {
 
 	name := triggerOpt.WorkflowName
 	return &WaitData{
-		OrGroups: []DurableWaitOrGroup{
-			{Conditions: []DurableWaitCondition{{Kind: DurableWaitConditionKindChildWorkflow, WorkflowName: &name}}},
-		},
+		Conditions: []DurableWaitCondition{{Kind: DurableWaitConditionKindChildWorkflow, WorkflowName: &name}},
 	}
 }
 

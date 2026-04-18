@@ -776,25 +776,19 @@ export interface V1BranchDurableTaskResponse {
 
 export interface V1DurableWaitCondition {
   kind: V1DurableWaitConditionKind;
-  /**
-   * Sleep duration in milliseconds. Only present for SLEEP conditions.
-   * @format int64
-   */
+  /** @format int64 */
   sleepDurationMs?: number;
-  /** The event key to wait for. Only present for USER_EVENT conditions. */
   eventKey?: string;
-  /** The name of the child workflow. Only present for CHILD_WORKFLOW conditions. */
   workflowName?: string;
 }
 
-/** A set of conditions where any one satisfies the group (OR semantics). */
 export interface V1DurableWaitOrGroup {
   conditions: V1DurableWaitCondition[];
 }
 
-/** Structured description of what a durable task is waiting for. All orGroups must be satisfied (AND semantics); within each group any condition satisfies it (OR semantics). */
 export interface V1WaitData {
-  orGroups: V1DurableWaitOrGroup[];
+  conditions?: V1DurableWaitCondition[];
+  orGroups?: V1DurableWaitOrGroup[];
 }
 
 export interface V1DurableEventLogEntry {
@@ -809,7 +803,6 @@ export interface V1DurableEventLogEntry {
    */
   branchId: number;
   kind: V1DurableEventLogKind;
-  /** Structured description of what a durable task is waiting for. All orGroups must be satisfied (AND semantics); within each group any condition satisfies it (OR semantics). */
   waitData?: V1WaitData;
   /** Whether this entry has been satisfied. */
   isSatisfied: boolean;

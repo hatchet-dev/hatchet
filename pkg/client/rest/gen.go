@@ -1623,10 +1623,8 @@ type V1DurableEventLogEntry struct {
 	SatisfiedAt *time.Time `json:"satisfiedAt,omitempty"`
 
 	// UserMessage A user-provided message or label, sent when establishing a durable wait.
-	UserMessage *string `json:"userMessage,omitempty"`
-
-	// WaitData Structured description of what a durable task is waiting for. All orGroups must be satisfied (AND semantics); within each group any condition satisfies it (OR semantics).
-	WaitData *V1WaitData `json:"waitData,omitempty"`
+	UserMessage *string     `json:"userMessage,omitempty"`
+	WaitData    *V1WaitData `json:"waitData,omitempty"`
 }
 
 // V1DurableEventLogKind defines model for V1DurableEventLogKind.
@@ -1637,21 +1635,16 @@ type V1DurableEventLogList = []V1DurableEventLogEntry
 
 // V1DurableWaitCondition defines model for V1DurableWaitCondition.
 type V1DurableWaitCondition struct {
-	// EventKey The event key to wait for. Only present for USER_EVENT conditions.
-	EventKey *string                    `json:"eventKey,omitempty"`
-	Kind     V1DurableWaitConditionKind `json:"kind"`
-
-	// SleepDurationMs Sleep duration in milliseconds. Only present for SLEEP conditions.
-	SleepDurationMs *int64 `json:"sleepDurationMs,omitempty"`
-
-	// WorkflowName The name of the child workflow. Only present for CHILD_WORKFLOW conditions.
-	WorkflowName *string `json:"workflowName,omitempty"`
+	EventKey        *string                    `json:"eventKey,omitempty"`
+	Kind            V1DurableWaitConditionKind `json:"kind"`
+	SleepDurationMs *int64                     `json:"sleepDurationMs,omitempty"`
+	WorkflowName    *string                    `json:"workflowName,omitempty"`
 }
 
 // V1DurableWaitConditionKind defines model for V1DurableWaitConditionKind.
 type V1DurableWaitConditionKind string
 
-// V1DurableWaitOrGroup A set of conditions where any one satisfies the group (OR semantics).
+// V1DurableWaitOrGroup defines model for V1DurableWaitOrGroup.
 type V1DurableWaitOrGroup struct {
 	Conditions []V1DurableWaitCondition `json:"conditions"`
 }
@@ -2069,9 +2062,10 @@ type V1UpdateWebhookRequest struct {
 	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
 }
 
-// V1WaitData Structured description of what a durable task is waiting for. All orGroups must be satisfied (AND semantics); within each group any condition satisfies it (OR semantics).
+// V1WaitData defines model for V1WaitData.
 type V1WaitData struct {
-	OrGroups []V1DurableWaitOrGroup `json:"orGroups"`
+	Conditions *[]V1DurableWaitCondition `json:"conditions,omitempty"`
+	OrGroups   *[]V1DurableWaitOrGroup   `json:"orGroups,omitempty"`
 }
 
 // V1Webhook defines model for V1Webhook.

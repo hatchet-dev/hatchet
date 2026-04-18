@@ -187,12 +187,14 @@ V1DurableWaitOrGroup:
 V1WaitData:
   type: object
   properties:
+    conditions:
+      type: array
+      items:
+        $ref: "#/V1DurableWaitCondition"
     orGroups:
       type: array
       items:
         $ref: "#/V1DurableWaitOrGroup"
-  required:
-    - orGroups
 
 V1DurableEventLogEntry:
   type: object
