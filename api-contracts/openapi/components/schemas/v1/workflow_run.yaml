@@ -174,27 +174,27 @@ V1DurableWaitCondition:
   required:
     - kind
 
-V1DurableWaitOrGroup:
+V1WaitItem:
   type: object
   properties:
-    conditions:
+    kind:
+      $ref: "#/V1DurableWaitConditionKind"
+    sleepDurationMs:
+      type: integer
+      format: int64
+    eventKey:
+      type: string
+    workflowName:
+      type: string
+    or:
       type: array
       items:
         $ref: "#/V1DurableWaitCondition"
-  required:
-    - conditions
 
 V1WaitData:
-  type: object
-  properties:
-    conditions:
-      type: array
-      items:
-        $ref: "#/V1DurableWaitCondition"
-    orGroups:
-      type: array
-      items:
-        $ref: "#/V1DurableWaitOrGroup"
+  type: array
+  items:
+    $ref: "#/V1WaitItem"
 
 V1DurableEventLogEntry:
   type: object

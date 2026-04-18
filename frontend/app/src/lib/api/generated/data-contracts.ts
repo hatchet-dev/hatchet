@@ -782,14 +782,16 @@ export interface V1DurableWaitCondition {
   workflowName?: string;
 }
 
-export interface V1DurableWaitOrGroup {
-  conditions: V1DurableWaitCondition[];
+export interface V1WaitItem {
+  kind?: V1DurableWaitConditionKind;
+  /** @format int64 */
+  sleepDurationMs?: number;
+  eventKey?: string;
+  workflowName?: string;
+  or?: V1DurableWaitCondition[];
 }
 
-export interface V1WaitData {
-  conditions?: V1DurableWaitCondition[];
-  orGroups?: V1DurableWaitOrGroup[];
-}
+export type V1WaitData = V1WaitItem[];
 
 export interface V1DurableEventLogEntry {
   /**

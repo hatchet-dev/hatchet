@@ -73,52 +73,53 @@ func toDurableEventLogEntries(entries []*sqlcv1.V1DurableEventLogEntry) []gen.V1
 	return result
 }
 
-func toGenCond(c repository.DurableWaitCondition) gen.V1DurableWaitCondition {
-	return gen.V1DurableWaitCondition{
-		Kind:            gen.V1DurableWaitConditionKind(c.Kind),
-		SleepDurationMs: c.SleepDurationMs,
-		EventKey:        c.EventKey,
-		WorkflowName:    c.WorkflowName,
-	}
-}
-
 func toGenWaitData(raw []byte) *gen.V1WaitData {
 	var wd repository.WaitData
 	if err := json.Unmarshal(raw, &wd); err != nil {
 		return nil
 	}
 
-	var conditions []gen.V1DurableWaitCondition
-	var orGroups []gen.V1DurableWaitOrGroup
+	var items []gen.V1WaitItem
 
 	for _, c := range wd.Conditions {
-		conditions = append(conditions, toGenCond(c))
+		kind := gen.V1DurableWaitConditionKind(c.Kind)
+		items = append(items, gen.V1WaitItem{
+			Kind:            &kind,
+			SleepDurationMs: c.SleepDurationMs,
+			EventKey:        c.EventKey,
+			WorkflowName:    c.WorkflowName,
+		})
 	}
 
 	for _, g := range wd.OrGroups {
 		if len(g.Conditions) == 1 {
 			// normalize legacy single-condition OR groups
-			conditions = append(conditions, toGenCond(g.Conditions[0]))
+			kind := gen.V1DurableWaitConditionKind(g.Conditions[0].Kind)
+			items = append(items, gen.V1WaitItem{
+				Kind:            &kind,
+				SleepDurationMs: g.Conditions[0].SleepDurationMs,
+				EventKey:        g.Conditions[0].EventKey,
+				WorkflowName:    g.Conditions[0].WorkflowName,
+			})
 			continue
 		}
 		genConds := make([]gen.V1DurableWaitCondition, 0, len(g.Conditions))
 		for _, c := range g.Conditions {
-			genConds = append(genConds, toGenCond(c))
+			kind := gen.V1DurableWaitConditionKind(c.Kind)
+			genConds = append(genConds, gen.V1DurableWaitCondition{
+				Kind:            kind,
+				SleepDurationMs: c.SleepDurationMs,
+				EventKey:        c.EventKey,
+				WorkflowName:    c.WorkflowName,
+			})
 		}
-		orGroups = append(orGroups, gen.V1DurableWaitOrGroup{Conditions: genConds})
+		items = append(items, gen.V1WaitItem{Or: &genConds})
 	}
 
-	if len(conditions) == 0 && len(orGroups) == 0 {
+	if len(items) == 0 {
 		return nil
 	}
 
-	result := &gen.V1WaitData{}
-	if len(conditions) > 0 {
-		result.Conditions = &conditions
-	}
-	if len(orGroups) > 0 {
-		result.OrGroups = &orGroups
-	}
-
-	return result
+	result := gen.V1WaitData(items)
+	return &result
 }

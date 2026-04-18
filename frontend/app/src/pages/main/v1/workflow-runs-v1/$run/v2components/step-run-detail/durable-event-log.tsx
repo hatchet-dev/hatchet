@@ -6,8 +6,7 @@ import {
   V1DurableEventLogKind,
   V1DurableWaitCondition,
   V1DurableWaitConditionKind,
-  V1DurableWaitOrGroup,
-  V1WaitData,
+  V1WaitItem,
   queries,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -55,10 +54,18 @@ function kindLabel(kind: V1DurableEventLogKind): string {
 }
 
 function formatDurationMs(ms: number): string {
-  if (ms === 0) return '0s';
-  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
-  if (ms % 60_000 === 0) return `${ms / 60_000}m`;
-  if (ms % 1_000 === 0) return `${ms / 1_000}s`;
+  if (ms === 0) {
+    return '0s';
+  }
+  if (ms % 3_600_000 === 0) {
+    return `${ms / 3_600_000}h`;
+  }
+  if (ms % 60_000 === 0) {
+    return `${ms / 60_000}m`;
+  }
+  if (ms % 1_000 === 0) {
+    return `${ms / 1_000}s`;
+  }
   return `${ms}ms`;
 }
 
@@ -77,32 +84,27 @@ function describeCondition(c: V1DurableWaitCondition): string {
   }
 }
 
-function describeOrGroup(group: V1DurableWaitOrGroup): string {
-  if (group.conditions.length === 0) {
-    return 'waiting';
+function describeWaitItem(item: V1WaitItem): string {
+  if (item.or && item.or.length > 0) {
+    const parts = item.or.map(describeCondition);
+    return `any of: ${parts.join(', ')}`;
   }
-  const parts = group.conditions.map(describeCondition);
-  return parts.length === 1 ? parts[0] : `any of: ${parts.join(', ')}`;
+  if (item.kind) {
+    return describeCondition(item as V1DurableWaitCondition);
+  }
+  return 'waiting';
 }
 
-function toReadableMessage(waitData: V1WaitData): string {
-  const parts: string[] = [];
-
-  for (const c of waitData.conditions ?? []) {
-    parts.push(describeCondition(c));
-  }
-  for (const g of waitData.orGroups ?? []) {
-    parts.push(describeOrGroup(g));
-  }
-
-  if (parts.length === 0) {
+function toReadableMessage(items: V1WaitItem[]): string {
+  if (items.length === 0) {
     return 'waiting';
   }
+  const parts = items.map(describeWaitItem);
   return parts.length === 1 ? parts[0] : parts.join(' and ');
 }
 
 function entryMessage(entry: V1DurableEventLogEntry): string {
-  if (entry.waitData) {
+  if (entry.waitData && entry.waitData.length > 0) {
     return toReadableMessage(entry.waitData);
   }
   return entry.userMessage ?? kindLabel(entry.kind);
@@ -174,17 +176,13 @@ function runGroupLabel(entries: V1DurableEventLogEntry[]): string {
   }
 
   const names = entries.map((e) => {
-    const standalone = e.waitData?.conditions;
-    if (standalone?.length === 1 && standalone[0].kind === V1DurableWaitConditionKind.CHILD_WORKFLOW) {
-      return standalone[0].workflowName ?? null;
-    }
-    // legacy: single-condition OR group (already normalized server-side, but handle defensively)
-    const orGroups = e.waitData?.orGroups;
-    if (orGroups?.length === 1 && orGroups[0].conditions.length === 1) {
-      const c = orGroups[0].conditions[0];
-      if (c.kind === V1DurableWaitConditionKind.CHILD_WORKFLOW) {
-        return c.workflowName ?? null;
-      }
+    const items = e.waitData;
+    if (
+      items?.length === 1 &&
+      !items[0].or &&
+      items[0].kind === V1DurableWaitConditionKind.CHILD_WORKFLOW
+    ) {
+      return items[0].workflowName ?? null;
     }
     return null;
   });
@@ -214,10 +212,12 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
         line: withContextPrefix(first, capitalizeFirst(label)),
       });
 
-      const satisfiedEntries = groupEntries.filter((e) => e.isSatisfied && e.satisfiedAt);
+      const satisfiedEntries = groupEntries.filter(
+        (e) => e.isSatisfied && e.satisfiedAt,
+      );
       if (satisfiedEntries.length > 0) {
-        const lastSatisfiedAt = satisfiedEntries.reduce((latest, e) =>
-          e.satisfiedAt! > latest ? e.satisfiedAt! : latest,
+        const lastSatisfiedAt = satisfiedEntries.reduce(
+          (latest, e) => (e.satisfiedAt! > latest ? e.satisfiedAt! : latest),
           satisfiedEntries[0].satisfiedAt!,
         );
         lines.push({

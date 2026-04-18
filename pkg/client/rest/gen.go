@@ -1644,11 +1644,6 @@ type V1DurableWaitCondition struct {
 // V1DurableWaitConditionKind defines model for V1DurableWaitConditionKind.
 type V1DurableWaitConditionKind string
 
-// V1DurableWaitOrGroup defines model for V1DurableWaitOrGroup.
-type V1DurableWaitOrGroup struct {
-	Conditions []V1DurableWaitCondition `json:"conditions"`
-}
-
 // V1Event defines model for V1Event.
 type V1Event struct {
 	// AdditionalMetadata Additional metadata for the event.
@@ -2063,9 +2058,15 @@ type V1UpdateWebhookRequest struct {
 }
 
 // V1WaitData defines model for V1WaitData.
-type V1WaitData struct {
-	Conditions *[]V1DurableWaitCondition `json:"conditions,omitempty"`
-	OrGroups   *[]V1DurableWaitOrGroup   `json:"orGroups,omitempty"`
+type V1WaitData = []V1WaitItem
+
+// V1WaitItem defines model for V1WaitItem.
+type V1WaitItem struct {
+	EventKey        *string                     `json:"eventKey,omitempty"`
+	Kind            *V1DurableWaitConditionKind `json:"kind,omitempty"`
+	Or              *[]V1DurableWaitCondition   `json:"or,omitempty"`
+	SleepDurationMs *int64                      `json:"sleepDurationMs,omitempty"`
+	WorkflowName    *string                     `json:"workflowName,omitempty"`
 }
 
 // V1Webhook defines model for V1Webhook.
