@@ -13,6 +13,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+const BULK_SPAWN_THRESHOLD_MS = 1000;
+
 interface DurableEventLogProps {
   taskRunId: string;
 }
@@ -118,28 +120,115 @@ function withContextPrefix(
   return `${prefix} ${message}`;
 }
 
-function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
-  const lines: LogLine[] = [];
+interface RunGroup {
+  entries: V1DurableEventLogEntry[];
+}
+
+function groupConsecutiveRuns(
+  entries: V1DurableEventLogEntry[],
+): (V1DurableEventLogEntry | RunGroup)[] {
+  const result: (V1DurableEventLogEntry | RunGroup)[] = [];
+  let currentGroup: RunGroup | null = null;
 
   for (const entry of entries) {
-    if (entry.kind === V1DurableEventLogKind.MEMO) {
-      continue;
+    if (entry.kind === V1DurableEventLogKind.RUN) {
+      if (currentGroup) {
+        const last = currentGroup.entries[currentGroup.entries.length - 1];
+        const delta =
+          new Date(entry.insertedAt).getTime() -
+          new Date(last.insertedAt).getTime();
+        if (delta <= BULK_SPAWN_THRESHOLD_MS) {
+          currentGroup.entries.push(entry);
+          continue;
+        }
+        result.push(currentGroup);
+      }
+      currentGroup = { entries: [entry] };
+    } else {
+      if (currentGroup) {
+        result.push(currentGroup);
+        currentGroup = null;
+      }
+      result.push(entry);
     }
+  }
 
-    const message = entryMessage(entry);
+  if (currentGroup) {
+    result.push(currentGroup);
+  }
 
-    lines.push({
-      timestamp: entry.insertedAt,
-      level: entry.kind === V1DurableEventLogKind.WAIT_FOR ? 'warn' : 'debug',
-      line: withContextPrefix(entry, capitalizeFirst(message)),
-    });
+  return result;
+}
 
-    if (entry.isSatisfied && entry.satisfiedAt) {
+function runGroupLabel(entries: V1DurableEventLogEntry[]): string {
+  if (entries.length === 1) {
+    return entryMessage(entries[0]);
+  }
+
+  const names = entries.map((e) => {
+    const conds = e.waitData?.orGroups;
+    if (conds?.length === 1 && conds[0].conditions.length === 1) {
+      const c = conds[0].conditions[0];
+      if (c.kind === V1DurableWaitConditionKind.CHILD_WORKFLOW) {
+        return c.workflowName ?? null;
+      }
+    }
+    return null;
+  });
+
+  const allSame = names.every((n) => n === names[0]);
+  if (allSame && names[0] !== null) {
+    return `${entries.length}x run(${names[0]})`;
+  }
+
+  return `run(${names.map((n) => n ?? 'unknown').join(', ')})`;
+}
+
+function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
+  const lines: LogLine[] = [];
+  const visible = entries.filter((e) => e.kind !== V1DurableEventLogKind.MEMO);
+  const grouped = groupConsecutiveRuns(visible);
+
+  for (const item of grouped) {
+    if ('entries' in item) {
+      const { entries: groupEntries } = item;
+      const first = groupEntries[0];
+      const label = runGroupLabel(groupEntries);
+
       lines.push({
-        timestamp: entry.satisfiedAt,
-        level: 'info',
-        line: withContextPrefix(entry, completionMessage(message)),
+        timestamp: first.insertedAt,
+        level: 'debug',
+        line: withContextPrefix(first, capitalizeFirst(label)),
       });
+
+      const satisfiedEntries = groupEntries.filter((e) => e.isSatisfied && e.satisfiedAt);
+      if (satisfiedEntries.length > 0) {
+        const lastSatisfiedAt = satisfiedEntries.reduce((latest, e) =>
+          e.satisfiedAt! > latest ? e.satisfiedAt! : latest,
+          satisfiedEntries[0].satisfiedAt!,
+        );
+        lines.push({
+          timestamp: lastSatisfiedAt,
+          level: 'info',
+          line: withContextPrefix(first, completionMessage(label)),
+        });
+      }
+    } else {
+      const message = entryMessage(item);
+
+      lines.push({
+        timestamp: item.insertedAt,
+        level: item.kind === V1DurableEventLogKind.WAIT_FOR ? 'warn' : 'debug',
+        line: withContextPrefix(item, capitalizeFirst(message)),
+      });
+
+      if (item.isSatisfied && item.satisfiedAt) {
+        lines.push({
+          timestamp: item.satisfiedAt,
+          level: 'info',
+          line: withContextPrefix(item, completionMessage(message)),
+        });
+      }
     }
   }
 
