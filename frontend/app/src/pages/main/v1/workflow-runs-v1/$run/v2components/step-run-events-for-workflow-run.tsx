@@ -1,5 +1,8 @@
 import { eventTypeToSeverity, mapEventTypeToTitle } from './event-utils';
-import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
+import {
+  LogLine,
+  V1LogLineLevelIncludingEvictionNotice,
+} from '@/components/v1/cloud/logging/log-search/use-logs';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { Loading } from '@/components/v1/ui/loading';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
@@ -98,17 +101,27 @@ function toTaskEventLogLines(
 ): LogLine[] {
   return events.map((event) => {
     const severity = eventTypeToSeverity(event.eventType);
-    let level: V1LogLineLevel;
-    switch (severity) {
-      case 'CRITICAL':
-        level = V1LogLineLevel.ERROR;
-        break;
-      case 'WARNING':
-        level = V1LogLineLevel.WARN;
-        break;
-      default:
-        level = V1LogLineLevel.DEBUG;
-        break;
+    let level: V1LogLineLevelIncludingEvictionNotice;
+
+    if (event.eventType === 'DURABLE_EVICTED') {
+      level = 'EVICTION_NOTICE';
+    } else if (event.eventType === 'DURABLE_RESTORING') {
+      level = 'RESTORE_NOTICE';
+    } else {
+      switch (severity) {
+        case 'CRITICAL':
+          level = V1LogLineLevel.ERROR;
+          break;
+        case 'WARNING':
+          level = V1LogLineLevel.WARN;
+          break;
+        case 'INFO':
+          level = V1LogLineLevel.INFO;
+          break;
+        default:
+          level = V1LogLineLevel.DEBUG;
+          break;
+      }
     }
 
     let line = mapEventTypeToTitle(event.eventType);

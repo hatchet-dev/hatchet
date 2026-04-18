@@ -1,7 +1,10 @@
 import { AnsiLine } from './ansi-line';
-import { LogLine } from './log-search/use-logs';
+import {
+  LogLine,
+  V1LogLineLevelIncludingEvictionNotice,
+} from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { V1TaskStatus } from '@/lib/api';
+import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
@@ -15,29 +18,59 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   hour12: false,
 };
 
-const LEVEL_STYLES: Record<string, { bg: string; text: string; dot: string }> =
-  {
-    error: {
-      bg: 'bg-red-500/10',
-      text: 'text-red-600 dark:text-red-400',
-      dot: 'bg-red-500',
-    },
-    warn: {
-      bg: 'bg-yellow-500/10',
-      text: 'text-yellow-600 dark:text-yellow-400',
-      dot: 'bg-yellow-500',
-    },
-    info: {
-      bg: 'bg-green-500/10',
-      text: 'text-green-600 dark:text-green-400',
-      dot: 'bg-green-500',
-    },
-    debug: {
-      bg: 'bg-gray-500/10',
-      text: 'text-gray-500 dark:text-gray-400',
-      dot: 'bg-gray-500',
-    },
-  };
+const levelToStyle = (
+  level: V1LogLineLevelIncludingEvictionNotice,
+): { bg: string; text: string; dot: string; content: string } => {
+  if (level == 'EVICTION_NOTICE') {
+    return {
+      bg: 'bg-indigo-500/20',
+      text: 'text-indigo-800 dark:text-indigo-300',
+      dot: 'bg-indigo-500',
+      content: 'info',
+    };
+  } else if (level == 'RESTORE_NOTICE') {
+    return {
+      bg: 'bg-indigo-500/20',
+      text: 'text-indigo-800 dark:text-indigo-300',
+      dot: 'bg-indigo-500',
+      content: 'info',
+    };
+  } else {
+    switch (level) {
+      case V1LogLineLevel.ERROR:
+        return {
+          bg: 'bg-red-500/10',
+          text: 'text-red-600 dark:text-red-400',
+          dot: 'bg-red-500',
+          content: 'error',
+        };
+      case V1LogLineLevel.WARN:
+        return {
+          bg: 'bg-yellow-500/10',
+          text: 'text-yellow-600 dark:text-yellow-400',
+          dot: 'bg-yellow-500',
+          content: 'warn',
+        };
+      case V1LogLineLevel.INFO:
+        return {
+          bg: 'bg-green-500/10',
+          text: 'text-green-600 dark:text-green-400',
+          dot: 'bg-green-500',
+          content: 'info',
+        };
+      case V1LogLineLevel.DEBUG:
+        return {
+          bg: 'bg-gray-500/10',
+          text: 'text-gray-500 dark:text-gray-400',
+          dot: 'bg-gray-500',
+          content: 'debug',
+        };
+      default:
+        const exhaustiveCheck: never = level;
+        throw new Error(`Unhandled log level: ${exhaustiveCheck}`);
+    }
+  }
+};
 
 const formatTimestamp = (timestamp: string): string => {
   return new Date(timestamp)
@@ -80,9 +113,12 @@ function getEmptyStateMessage(
   }
 }
 
-const LevelBadge = ({ level }: { level: string }) => {
-  const normalized = level.toLowerCase();
-  const style = LEVEL_STYLES[normalized] ?? LEVEL_STYLES.debug;
+const LevelBadge = ({
+  level,
+}: {
+  level: V1LogLineLevelIncludingEvictionNotice;
+}) => {
+  const style = levelToStyle(level);
 
   return (
     <span
@@ -93,7 +129,7 @@ const LevelBadge = ({ level }: { level: string }) => {
       )}
     >
       <span className={cn('size-1.5 rounded-full', style.dot)} />
-      {normalized}
+      {style.content}
     </span>
   );
 };

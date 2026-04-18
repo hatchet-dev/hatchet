@@ -32,11 +32,16 @@ const getLogLineKey = (log: V1LogLine): string => {
   return `${log.createdAt}-${log.message}`;
 };
 
+export type V1LogLineLevelIncludingEvictionNotice =
+  | V1LogLineLevel
+  | 'EVICTION_NOTICE'
+  | 'RESTORE_NOTICE';
+
 export interface LogLine {
   timestamp?: string;
   line?: string;
   instance?: string;
-  level?: V1LogLineLevel;
+  level?: V1LogLineLevelIncludingEvictionNotice;
   metadata?: Record<string, unknown>;
   attempt?: number;
   taskExternalId?: string;
