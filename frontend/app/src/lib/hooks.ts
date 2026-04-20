@@ -1,5 +1,7 @@
 import api, { APIErrors } from './api';
+import { controlPlaneApi } from './api/api';
 import { getFieldErrors } from './utils';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useToast } from '@/components/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
@@ -79,19 +81,22 @@ export function useApiError(
 }
 
 export function useApiMetaIntegrations() {
-  const { handleApiError } = useApiError({});
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const metaQuery = useQuery({
-    queryKey: ['metadata:get:integrations'],
+    queryKey: ['metadata:get:integrations', isControlPlaneEnabled],
     queryFn: async () => {
-      const meta = await api.metadataListIntegrations();
-      return meta;
+      try {
+        return isControlPlaneEnabled
+          ? await controlPlaneApi.metadataListIntegrations()
+          : await api.metadataListIntegrations();
+      } catch (e) {
+        console.error('Failed to get API meta integrations', e);
+        return null;
+      }
     },
+    retry: false,
   });
-
-  if (metaQuery.isError) {
-    handleApiError(metaQuery.error as AxiosError);
-  }
 
   return metaQuery.data?.data;
 }
