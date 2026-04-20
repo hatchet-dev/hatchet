@@ -1,12 +1,15 @@
 import json
+from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
 from logging import Logger, getLogger
 from typing import overload
 
+import tenacity
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_alert_retry
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
@@ -115,6 +118,8 @@ class TenacityConfig(BaseSettings):
         default_factory=lambda: [HTTPMethod.GET, HTTPMethod.DELETE],
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
+    wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter
+    retry_callable: Callable[[tenacity.RetryCallState], None] = tenacity_alert_retry
 
 
 DEFAULT_HOST_PORT = "localhost:7070"

@@ -30,9 +30,9 @@ def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, 
 
     return tenacity.retry(
         reraise=True,
-        wait=tenacity.wait_exponential_jitter(),
+        wait=config.wait(),
         stop=tenacity.stop_after_attempt(config.max_attempts),
-        before_sleep=tenacity_alert_retry,
+        before_sleep=config.retry_callable,
         retry=tenacity.retry_if_exception(should_retry),
     )(func)
 
