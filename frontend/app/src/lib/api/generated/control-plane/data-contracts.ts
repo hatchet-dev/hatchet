@@ -126,6 +126,10 @@ export interface OrganizationTenant {
    * @format uuid
    */
   id: string;
+  /** Name of the tenant */
+  name?: string;
+  /** Slug of the tenant */
+  slug?: string;
   /** Status of the tenant */
   status: TenantStatusType;
   /**
