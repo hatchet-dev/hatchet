@@ -1349,13 +1349,11 @@ export class Api<
    * @name MetadataListIntegrations
    * @summary List integrations
    * @request GET:/api/v1/meta/integrations
-   * @secure
    */
   metadataListIntegrations = Object.assign((params: RequestParams = {}) =>
     this.request<ListAPIMetaIntegration, APIErrors>({
       path: `/api/v1/meta/integrations`,
       method: "GET",
-      secure: true,
       format: "json",
       ...params,
       xResources: [],
