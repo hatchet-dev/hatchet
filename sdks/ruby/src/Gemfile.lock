@@ -78,7 +78,7 @@ GEM
       stringio
     racc (1.8.1)
     rainbow (3.1.1)
-    rake (13.3.1)
+    rake (13.4.2)
     rdoc (7.2.0)
       erb
       psych (>= 4.0.0)
@@ -134,7 +134,7 @@ DEPENDENCIES
   hatchet-sdk!
   irb
   json (~> 2.19)
-  rake (~> 13.3)
+  rake (~> 13.4)
   rspec (~> 3.13)
   rubocop (~> 1.86)
 
