@@ -9,9 +9,9 @@ import tenacity
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_alert_retry
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
+from hatchet_sdk.logger import logger
 
 
 def create_settings_config(env_prefix: str) -> SettingsConfigDict:
@@ -98,6 +98,12 @@ class HTTPMethod(str, Enum):
     HEAD = "HEAD"
     OPTIONS = "OPTIONS"
 
+def tenacity_before_sleep(retry_state: tenacity.RetryCallState) -> None:
+    """Called between tenacity retries."""
+    logger.debug(
+        f"retrying {retry_state.fn}: attempt "
+        f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
+    )
 
 class TenacityConfig(BaseSettings):
     model_config = create_settings_config(
@@ -119,7 +125,7 @@ class TenacityConfig(BaseSettings):
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
     wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter
-    retry: Callable[[tenacity.RetryCallState], None] = tenacity_alert_retry
+    before_sleep: Callable[[tenacity.RetryCallState], None] = tenacity_before_sleep
 
 
 DEFAULT_HOST_PORT = "localhost:7070"
