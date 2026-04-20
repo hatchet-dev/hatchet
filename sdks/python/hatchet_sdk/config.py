@@ -9,9 +9,9 @@ import tenacity
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hatchet_sdk.logger import logger
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
-from hatchet_sdk.logger import logger
 
 
 def create_settings_config(env_prefix: str) -> SettingsConfigDict:
@@ -98,12 +98,14 @@ class HTTPMethod(str, Enum):
     HEAD = "HEAD"
     OPTIONS = "OPTIONS"
 
+
 def tenacity_before_sleep(retry_state: tenacity.RetryCallState) -> None:
     """Called between tenacity retries."""
     logger.debug(
         f"retrying {retry_state.fn}: attempt "
         f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
     )
+
 
 class TenacityConfig(BaseSettings):
     model_config = create_settings_config(
