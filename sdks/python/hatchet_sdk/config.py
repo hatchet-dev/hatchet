@@ -119,7 +119,7 @@ class TenacityConfig(BaseSettings):
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
     wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter
-    retry_callable: Callable[[tenacity.RetryCallState], None] = tenacity_alert_retry
+    retry: Callable[[tenacity.RetryCallState], None] = tenacity_alert_retry
 
 
 DEFAULT_HOST_PORT = "localhost:7070"

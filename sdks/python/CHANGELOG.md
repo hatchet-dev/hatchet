@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Adds `wait` and `retry_callable` parameters to `TenacityConfig` to allow custom retry strategies and retry callbacks.
+- Adds `wait` and `retry` parameters to `TenacityConfig` to allow custom retry strategies and retry callbacks.
 
 ## [1.32.3] - 2026-04-16
 
