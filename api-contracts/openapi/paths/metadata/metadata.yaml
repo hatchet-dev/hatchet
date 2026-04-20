@@ -93,8 +93,6 @@ listIntegrations:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
-    security: []
-    x-security-optional: true
     summary: List integrations
     tags:
       - Metadata
