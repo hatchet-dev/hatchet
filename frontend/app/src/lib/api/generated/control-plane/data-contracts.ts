@@ -48,6 +48,10 @@ export type { PaginationResponse } from '@/lib/api/generated/cloud/data-contract
 
 export type { APIResourceMeta } from '@/lib/api/generated/cloud/data-contracts';
 
+export type ListAPIMetaIntegration = APIMetaIntegration[];
+
+export type { APIMetaIntegration } from '@/lib/api/generated/cloud/data-contracts';
+
 export type { User } from '@/lib/api/generated/cloud/data-contracts';
 
 export type { UserLoginRequest } from '@/lib/api/generated/cloud/data-contracts';
@@ -273,4 +277,32 @@ export interface TenantExchangeToken {
    * @format date-time
    */
   expiresAt: string;
+}
+
+export interface APIToken {
+  metadata: APIResourceMeta;
+  /** The name of the API token */
+  name: string;
+  /**
+   * The timestamp at which the token expires
+   * @format date-time
+   */
+  expiresAt: string;
+}
+
+export interface APITokenList {
+  rows: APIToken[];
+  pagination?: PaginationResponse;
+}
+
+export interface CreateTenantAPITokenRequest {
+  /** The name of the API token */
+  name: string;
+  /** The duration for which the token should be valid (e.g., "30d", "90d") */
+  expiresIn?: string;
+}
+
+export interface CreateTenantAPITokenResponse {
+  /** The generated API token */
+  token: string;
 }

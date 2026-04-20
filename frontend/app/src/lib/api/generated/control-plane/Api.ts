@@ -16,12 +16,16 @@ import {
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
+  APITokenList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest,
   CreateOrganizationRequest,
+  CreateTenantAPITokenRequest,
+  CreateTenantAPITokenResponse,
   CreateTenantInviteRequest,
+  ListAPIMetaIntegration,
   ManagementTokenList,
   Organization,
   OrganizationForUserList,
@@ -50,6 +54,34 @@ export class Api<
   SecurityDataType = unknown,
 > extends HttpClient<SecurityDataType> {
   /**
+   * @description Gets the readiness status
+   *
+   * @tags Healthcheck
+   * @name ReadinessGet
+   * @summary Get readiness
+   * @request GET:/api/ready
+   */
+  readinessGet = (params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/ready`,
+      method: "GET",
+      ...params,
+    });
+  /**
+   * @description Gets the liveness status
+   *
+   * @tags Healthcheck
+   * @name LivenessGet
+   * @summary Get liveness
+   * @request GET:/api/live
+   */
+  livenessGet = (params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/live`,
+      method: "GET",
+      ...params,
+    });
+  /**
    * @description Gets metadata for the Hatchet instance
    *
    * @tags Metadata
@@ -61,6 +93,23 @@ export class Api<
     this.request<APIControlPlaneMetadata, APIErrors>({
       path: `/api/v1/control-plane/metadata`,
       method: "GET",
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List all integrations
+   *
+   * @tags Metadata
+   * @name MetadataListIntegrations
+   * @summary List integrations
+   * @request GET:/api/v1/control-plane/metadata/integrations
+   * @secure
+   */
+  metadataListIntegrations = (params: RequestParams = {}) =>
+    this.request<ListAPIMetaIntegration, APIErrors>({
+      path: `/api/v1/control-plane/metadata/integrations`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });
@@ -211,6 +260,41 @@ export class Api<
       ...params,
     });
   /**
+   * @description Starts the Slack OAuth flow for a tenant
+   *
+   * @tags User
+   * @name CloudUserUpdateSlackOauthStart
+   * @summary Start Slack OAuth flow
+   * @request GET:/api/v1/control-plane/tenants/{tenant}/slack/start
+   * @secure
+   */
+  cloudUserUpdateSlackOauthStart = (
+    tenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/tenants/${tenant}/slack/start`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Completes the Slack OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateSlackOauthCallback
+   * @summary Complete Slack OAuth flow
+   * @request GET:/api/v1/control-plane/users/slack/callback
+   * @secure
+   */
+  cloudUserUpdateSlackOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/users/slack/callback`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
+  /**
    * @description List all organizations the authenticated user is a member of
    *
    * @name OrganizationList
@@ -324,6 +408,69 @@ export class Api<
       method: "DELETE",
       secure: true,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description List all API tokens for a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantListApiTokens
+   * @summary List API Tokens for Tenant
+   * @request GET:/api/v1/control-plane/organization-tenants/{tenant}/api-tokens
+   * @secure
+   */
+  organizationTenantListApiTokens = (
+    tenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<APITokenList, APIError>({
+      path: `/api/v1/control-plane/organization-tenants/${tenant}/api-tokens`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new API token for a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantCreateApiToken
+   * @summary Create API Token for Tenant
+   * @request POST:/api/v1/control-plane/organization-tenants/{tenant}/api-tokens
+   * @secure
+   */
+  organizationTenantCreateApiToken = (
+    tenant: string,
+    data: CreateTenantAPITokenRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<CreateTenantAPITokenResponse, APIError>({
+      path: `/api/v1/control-plane/organization-tenants/${tenant}/api-tokens`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete an API token for a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantDeleteApiToken
+   * @summary Delete API Token for Tenant
+   * @request DELETE:/api/v1/control-plane/organization-tenants/{tenant}/api-tokens/{api-token}
+   * @secure
+   */
+  organizationTenantDeleteApiToken = (
+    tenant: string,
+    apiToken: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organization-tenants/${tenant}/api-tokens/${apiToken}`,
+      method: "DELETE",
+      secure: true,
       ...params,
     });
   /**

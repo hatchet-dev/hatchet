@@ -3,9 +3,7 @@ import {
   APICloudMetadata,
   FeatureFlags,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
 
 export const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
   // @ts-expect-error errors is returned when this is oss
@@ -67,13 +65,7 @@ type UseCloudReturn =
     };
 
 export default function useCloud(tenantId?: string): UseCloudReturn {
-  const { handleApiError } = useApiError();
-
   const cloudMetaQuery = useQuery(getCloudMetadataQuery);
-
-  if (cloudMetaQuery.isError) {
-    handleApiError(cloudMetaQuery.error as AxiosError);
-  }
 
   const featureFlagsQuery = useQuery({
     queryKey: ['feature-flags:list', tenantId],
@@ -93,10 +85,6 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
     },
     staleTime: 1000 * 60,
   });
-
-  if (featureFlagsQuery.isError) {
-    handleApiError(featureFlagsQuery.error as AxiosError);
-  }
 
   if (cloudMetaQuery.data && cloudMetaQuery.data.isCloudEnabled) {
     return {
