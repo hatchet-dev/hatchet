@@ -10,7 +10,7 @@ function makeApi(orgId: string): SsoApi {
   return {
     async get() {
       try {
-        const r = await controlPlaneApi.ssoGet(orgId);
+        const r = await controlPlaneApi.ssoList(orgId);
         return { ok: true, data: r.data };
       } catch (error: any) {
         if (error instanceof AxiosError) {
@@ -24,7 +24,7 @@ function makeApi(orgId: string): SsoApi {
     },
     async upsert(body) {
       try {
-        await controlPlaneApi.ssoUpsert(orgId, body);
+        await controlPlaneApi.ssoUpdate(orgId, body);
         return { ok: true, data: undefined };
       } catch (error: any) {
         if (error instanceof AxiosError) {
