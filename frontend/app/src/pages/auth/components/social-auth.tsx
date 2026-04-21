@@ -1,5 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
+import useControlPlane from '@/hooks/use-control-plane.ts';
 import React from 'react';
 
 export type SocialAuthProvider = 'google' | 'github';
@@ -9,12 +10,12 @@ const PROVIDER_CONFIG: Record<
   { href: string; label: string; icon: React.ReactNode }
 > = {
   google: {
-    href: '/api/v1/users/google/start',
+    href: 'users/google/start',
     label: 'Google',
     icon: <Icons.google className="size-4" />,
   },
   github: {
-    href: '/api/v1/users/github/start',
+    href: 'users/github/start',
     label: 'GitHub',
     icon: <Icons.gitHub className="size-4" />,
   },
@@ -41,9 +42,12 @@ export function SocialAuthButton({
   provider: SocialAuthProvider;
 }) {
   const cfg = PROVIDER_CONFIG[provider];
-
+  const { isControlPlaneEnabled } = useControlPlane();
+  const basePath = isControlPlaneEnabled
+    ? '/api/v1/control-plane/'
+    : '/api/v1/';
   return (
-    <a href={cfg.href} className="w-full">
+    <a href={basePath + cfg.href} className="w-full">
       <Button
         variant="outline"
         type="button"
