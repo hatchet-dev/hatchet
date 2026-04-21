@@ -2560,8 +2560,7 @@ SELECT
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
-    (SELECT retry_count FROM selected_retry_count) as retry_count,
-    COALESCE(t.is_durable, FALSE) AS is_durable
+    (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -2625,7 +2624,6 @@ type PopulateSingleTaskRunDataRow struct {
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	SpawnedChildren       pgtype.Int8          `json:"spawned_children"`
 	RetryCount            int32                `json:"retry_count"`
-	IsDurable_2           bool                 `json:"is_durable_2"`
 }
 
 func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
@@ -2672,7 +2670,6 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.ErrorMessage,
 		&i.SpawnedChildren,
 		&i.RetryCount,
-		&i.IsDurable_2,
 	)
 	return &i, err
 }

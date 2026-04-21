@@ -560,8 +560,7 @@ SELECT
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
-    (SELECT retry_count FROM selected_retry_count) as retry_count,
-    COALESCE(t.is_durable, FALSE) AS is_durable
+    (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
 LEFT JOIN

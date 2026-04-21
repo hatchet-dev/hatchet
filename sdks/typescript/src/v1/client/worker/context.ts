@@ -909,6 +909,12 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @returns A promise that resolves with a SleepResult when the sleep duration has elapsed.
    */
   async sleepFor(duration: Duration, options?: SleepForOptions): Promise<SleepResult>;
+  async sleepFor(duration: Duration, readableDataKey?: string): Promise<SleepResult>;
+  async sleepFor(
+    duration: Duration,
+    readableDataKey?: string,
+    label?: string
+  ): Promise<SleepResult>;
   async sleepFor(
     duration: Duration,
     readableDataKeyOrOptions?: string | SleepForOptions,
