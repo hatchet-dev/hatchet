@@ -208,9 +208,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
               key={cell.id}
               className={shouldTruncate ? 'overflow-hidden' : undefined}
               style={
-                shouldTruncate
-                  ? { maxWidth: cell.column.getSize() }
-                  : undefined
+                shouldTruncate ? { maxWidth: cell.column.getSize() } : undefined
               }
             >
               {shouldTruncate ? (
