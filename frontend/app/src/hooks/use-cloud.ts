@@ -1,10 +1,10 @@
+import useControlPlane from '@/hooks/use-control-plane';
 import { cloudApi } from '@/lib/api/api';
 import {
   APICloudMetadata,
   FeatureFlags,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useQuery } from '@tanstack/react-query';
-import useControlPlane from '@/hooks/use-control-plane';
 
 export const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
   // @ts-expect-error errors is returned when this is oss
@@ -72,7 +72,10 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
   const featureFlagsQuery = useQuery({
     queryKey: ['feature-flags:list', tenantId],
     retry: false,
-    enabled: !isControlPlaneEnabled && cloudMetaQuery.data?.isCloudEnabled && !!tenantId,
+    enabled:
+      !isControlPlaneEnabled &&
+      cloudMetaQuery.data?.isCloudEnabled &&
+      !!tenantId,
     queryFn: async () => {
       try {
         // This shouldn't be possible because of the `enabled` above, and yet, Josh found it happening at runtime
