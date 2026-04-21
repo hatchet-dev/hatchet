@@ -124,7 +124,7 @@ type WorkerRepository interface {
 
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
-	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
+	CleanupOldWorkers(ctx context.Context) (bool, error)
 
 	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error)
 
@@ -723,22 +723,35 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 	return affinities, nil
 }
 
-func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
-	hasMore, err := w.queries.DeleteOldWorkers(ctx, w.pool, sqlcv1.DeleteOldWorkersParams{
-		Tenantid:            tenantId,
-		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
-		Limit:               20,
-	})
+func (w *workerRepository) CleanupOldWorkers(ctx context.Context) (bool, error) {
+	const timeout = 1000 * 60 // 1 minute
+	const batchSize int32 = 10000
+	const lockName = "cleanup-old-workers"
 
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, w.pool, w.l, timeout)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
+		return false, fmt.Errorf("error beginning transaction for %s: %w", lockName, err)
+	}
+	defer rollback()
 
-		return false, err
+	acquired, err := w.queries.TryAdvisoryLock(ctx, tx, hash(lockName))
+	if err != nil {
+		return false, fmt.Errorf("error acquiring advisory lock for %s: %w", lockName, err)
+	}
+	if !acquired {
+		return false, nil
 	}
 
-	return hasMore, nil
+	result, err := w.queries.CleanupOldWorkers(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up old workers: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, fmt.Errorf("error committing transaction for %s: %w", lockName, err)
+	}
+
+	return result.RowsAffected() == int64(batchSize), nil
 }
 
 func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {

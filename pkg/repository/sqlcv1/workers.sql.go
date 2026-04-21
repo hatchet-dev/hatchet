@@ -9,8 +9,24 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const cleanupOldWorkers = `-- name: CleanupOldWorkers :execresult
+WITH zombie_workers AS (
+    SELECT "id"
+    FROM "Worker"
+    WHERE "lastHeartbeatAt" < NOW() - INTERVAL '30 days'
+    LIMIT $1::int
+)
+DELETE FROM "Worker"
+WHERE "id" IN (SELECT "id" FROM zombie_workers)
+`
+
+func (q *Queries) CleanupOldWorkers(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupOldWorkers, batchsize)
+}
 
 const createWorker = `-- name: CreateWorker :one
 INSERT INTO "Worker" (
@@ -129,51 +145,6 @@ func (q *Queries) CreateWorkerSlotConfigs(ctx context.Context, db DBTX, arg Crea
 		arg.Maxunits,
 	)
 	return err
-}
-
-const deleteOldWorkers = `-- name: DeleteOldWorkers :one
-WITH for_delete AS (
-    SELECT
-        "id"
-    FROM "Worker" w
-    WHERE
-        w."tenantId" = $1::uuid AND
-        w."lastHeartbeatAt" < $2::timestamp
-    LIMIT $3 + 1
-), expired_with_limit AS (
-    SELECT
-        for_delete."id" as "id"
-    FROM for_delete
-    LIMIT $3
-), has_more AS (
-    SELECT
-        CASE
-            WHEN COUNT(*) > $3 THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM for_delete
-), delete_events AS (
-    DELETE FROM "WorkerAssignEvent" wae
-    WHERE wae."workerId" IN (SELECT "id" FROM expired_with_limit)
-    RETURNING wae."id"
-)
-DELETE FROM "Worker" w
-WHERE w."id" IN (SELECT "id" FROM expired_with_limit)
-RETURNING
-    (SELECT has_more FROM has_more) as has_more
-`
-
-type DeleteOldWorkersParams struct {
-	Tenantid            uuid.UUID        `json:"tenantid"`
-	Lastheartbeatbefore pgtype.Timestamp `json:"lastheartbeatbefore"`
-	Limit               interface{}      `json:"limit"`
-}
-
-func (q *Queries) DeleteOldWorkers(ctx context.Context, db DBTX, arg DeleteOldWorkersParams) (bool, error) {
-	row := db.QueryRow(ctx, deleteOldWorkers, arg.Tenantid, arg.Lastheartbeatbefore, arg.Limit)
-	var has_more bool
-	err := row.Scan(&has_more)
-	return has_more, err
 }
 
 const deleteWorker = `-- name: DeleteWorker :one
