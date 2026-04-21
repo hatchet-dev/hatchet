@@ -18,7 +18,6 @@ func NewDurableTasksService(config *server.ServerConfig) *DurableTasksService {
 	}
 }
 
-// waitForConditionData is the JSON shape stored in v1_durable_event_log_entry.data.
 type waitForConditionData struct {
 	Type       string `json:"type"`
 	OrGroupID  string `json:"orGroupId"`
@@ -37,7 +36,6 @@ func buildWaitForDescription(conditions []waitForConditionData) string {
 		return "Waiting"
 	}
 
-	// Group by orGroupId; conditions in the same group are OR-ed, groups are AND-ed.
 	groupOrder := make([]string, 0)
 	groups := make(map[string][]waitForConditionData)
 	for _, c := range conditions {
