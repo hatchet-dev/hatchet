@@ -175,6 +175,23 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 		}
 	}
 
+	if rc.workerRetention {
+		workerInterval := time.Hour
+
+		_, err := rc.s.NewJob(
+			gocron.DurationJob(workerInterval),
+			gocron.NewTask(
+				rc.runCleanupOldWorkers(ctx),
+			),
+			gocron.WithSingletonMode(gocron.LimitModeReschedule),
+		)
+
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not set up runCleanupOldWorkers: %w", err)
+		}
+	}
+
 	rc.s.Start()
 
 	cleanup := func() error {
