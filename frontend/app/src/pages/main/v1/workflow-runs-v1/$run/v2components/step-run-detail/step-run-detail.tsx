@@ -256,7 +256,10 @@ export const TaskRunDetail = ({
                 </span>
               </TabsTrigger>
             </TabsList>
-            <TabsContent value={TabOption.Output}>
+            <TabsContent
+              value={TabOption.Output}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
             <TabsContent
@@ -286,22 +289,24 @@ export const TaskRunDetail = ({
                 </RunsProvider>
               </div>
             </TabsContent>
-            <TabsContent value={TabOption.Input}>
+            <TabsContent
+              value={TabOption.Input}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               {taskRun.input && (
                 <CodeHighlighter
-                  className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-                  maxHeight="400px"
-                  minHeight="400px"
+                  className="my-4"
                   language="json"
                   code={JSON.stringify(taskRun.input, null, 2)}
                 />
               )}
             </TabsContent>
-            <TabsContent value={TabOption.AdditionalMetadata}>
+            <TabsContent
+              value={TabOption.AdditionalMetadata}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               <CodeHighlighter
-                className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-                maxHeight="400px"
-                minHeight="400px"
+                className="my-4"
                 language="json"
                 code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
               />

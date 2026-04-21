@@ -18,10 +18,8 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
 
   return (
     <CodeHighlighter
-      className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+      className="my-4"
       language="json"
-      maxHeight="400px"
-      minHeight="400px"
       code={outputData}
     />
   );
