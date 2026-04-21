@@ -13,11 +13,11 @@ import {
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import useCloud from '@/hooks/use-cloud';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { TenantMember, User } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import {
   Link,
