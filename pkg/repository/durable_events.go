@@ -229,32 +229,12 @@ func parseDurationMs(s *string) *int64 {
 	return &ms
 }
 
-func formatDurationMs(ms int64) string {
-	d := time.Duration(ms) * time.Millisecond
-	if d == 0 {
-		return "0s"
-	}
-
-	if d%time.Hour == 0 {
-		return fmt.Sprintf("%dh", int(d.Hours()))
-	}
-
-	if d%time.Minute == 0 {
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	}
-
-	if d%time.Second == 0 {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-
-	return fmt.Sprintf("%dms", ms)
-}
-
 func describeCondition(c DurableWaitCondition) string {
 	switch c.Kind {
 	case DurableWaitConditionKindSleep:
 		if c.SleepDurationMs != nil {
-			return "sleep(" + formatDurationMs(*c.SleepDurationMs) + ")"
+			sleepDurationMs := time.Duration(*c.SleepDurationMs) * time.Millisecond
+			return "sleep(" + sleepDurationMs.String() + ")"
 		}
 		return "sleep"
 	case DurableWaitConditionKindUserEvent:
