@@ -379,36 +379,16 @@ SET
     "strValue" = sqlc.narg('strValue')::text
 RETURNING *;
 
--- name: DeleteOldWorkers :one
-WITH for_delete AS (
-    SELECT
-        "id"
-    FROM "Worker" w
-    WHERE
-        w."tenantId" = @tenantId::uuid AND
-        w."lastHeartbeatAt" < @lastHeartbeatBefore::timestamp
-    LIMIT sqlc.arg('limit') + 1
-), expired_with_limit AS (
-    SELECT
-        for_delete."id" as "id"
-    FROM for_delete
-    LIMIT sqlc.arg('limit')
-), has_more AS (
-    SELECT
-        CASE
-            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM for_delete
-), delete_events AS (
-    DELETE FROM "WorkerAssignEvent" wae
-    WHERE wae."workerId" IN (SELECT "id" FROM expired_with_limit)
-    RETURNING wae."id"
+-- name: CleanupOldWorkers :execresult
+WITH old_workers AS (
+    SELECT "id"
+    FROM "Worker"
+    WHERE "tenantId" = @tenantId::uuid
+      AND "lastHeartbeatAt" < @lastHeartbeatBefore::timestamp
+    LIMIT @batchSize::int
 )
-DELETE FROM "Worker" w
-WHERE w."id" IN (SELECT "id" FROM expired_with_limit)
-RETURNING
-    (SELECT has_more FROM has_more) as has_more;
+DELETE FROM "Worker"
+WHERE "id" IN (SELECT "id" FROM old_workers);
 
 -- name: ListDispatcherIdsForWorkers :many
 SELECT
