@@ -346,3 +346,10 @@ export interface CreateTenantAPITokenResponse {
   /** The generated API token */
   token: string;
 }
+
+export interface SsoDomain {
+  /** @example "acme.com" */
+  sso_domain: string;
+}
+
+export type SsoDomainArray = SsoDomain[];

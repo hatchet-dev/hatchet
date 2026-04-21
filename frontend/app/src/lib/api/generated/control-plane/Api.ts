@@ -35,6 +35,7 @@ import {
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
+  SsoDomainArray,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
@@ -670,12 +671,12 @@ export class Api<
   /**
    * @description List all SSO configurations the organization has created
    *
-   * @name SsoGet
+   * @name SsoList
    * @summary List Organization's SSO Configs
    * @request GET:/api/v1/control-plane/organizations/{organization}/sso
    * @secure
    */
-  ssoGet = (organization: string, params: RequestParams = {}) =>
+  ssoList = (organization: string, params: RequestParams = {}) =>
     this.request<object, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/sso`,
       method: "GET",
@@ -686,12 +687,12 @@ export class Api<
   /**
    * @description Create a new organization SSO config
    *
-   * @name SsoUpsert
+   * @name SsoUpdate
    * @summary Upsert organization SSO config
    * @request POST:/api/v1/control-plane/organizations/{organization}/sso
    * @secure
    */
-  ssoUpsert = (
+  ssoUpdate = (
     organization: string,
     data: {
       idpInfoFromCustomer: Record<string, any>;
@@ -723,19 +724,13 @@ export class Api<
   /**
    * @description List all SSO domains for organization
    *
-   * @name SsoDomainGet
+   * @name SsoDomainList
    * @summary List Organization's SSO Domains
    * @request GET:/api/v1/control-plane/organizations/{organization}/sso_domain
    * @secure
    */
-  ssoDomainGet = (organization: string, params: RequestParams = {}) =>
-    this.request<
-      {
-        /** @example "acme.com" */
-        sso_domain: string;
-      }[],
-      APIError
-    >({
+  ssoDomainList = (organization: string, params: RequestParams = {}) =>
+    this.request<SsoDomainArray, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/sso_domain`,
       method: "GET",
       secure: true,

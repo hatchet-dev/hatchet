@@ -57,7 +57,7 @@ export function useOrganizationApi() {
       organizationSsoDomainGetQuery: (organization: string) => ({
         queryKey: ['organization:sso_domain:get', organization] as const,
         queryFn: async () =>
-          (await controlPlaneApi.ssoDomainGet(organization)).data,
+          (await controlPlaneApi.ssoDomainList(organization)).data,
       }),
       managementTokenListQuery: (organization: string) => ({
         queryKey: ['management-tokens:list', organization] as const,
