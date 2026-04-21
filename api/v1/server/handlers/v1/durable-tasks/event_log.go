@@ -12,18 +12,7 @@ import (
 )
 
 func (t *DurableTasksService) V1DurableTaskEventLogList(ctx echo.Context, request gen.V1DurableTaskEventLogListRequestObject) (gen.V1DurableTaskEventLogListResponseObject, error) {
-	taskInterface := ctx.Get("durable-task")
-
-	if taskInterface == nil {
-		return gen.V1DurableTaskEventLogList404JSONResponse{
-			Errors: []gen.APIError{{Description: "durable task not found"}},
-		}, nil
-	}
-
-	task, ok := taskInterface.(*sqlcv1.V1TasksOlap)
-	if !ok {
-		return nil, echo.NewHTTPError(500, "durable task type assertion failed")
-	}
+	task := ctx.Get("durable-task").(*sqlcv1.V1TasksOlap)
 
 	limit := int64(1000)
 	offset := int64(0)
