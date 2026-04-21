@@ -147,7 +147,6 @@ export const columns: (
         className="items-center justify-center px-2 text-center"
         status={row.original.status}
         errorMessage={row.original.errorMessage}
-        isEvicted={row.original.isEvicted}
       />
     ),
     enableSorting: false,

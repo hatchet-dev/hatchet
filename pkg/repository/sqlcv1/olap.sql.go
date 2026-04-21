@@ -571,6 +571,7 @@ type CreateTasksOLAPParams struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	IsDurable            bool                 `json:"is_durable"`
 }
 
 const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
@@ -1741,13 +1742,15 @@ SELECT
   t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
-  t.additional__event_message
+  t.additional__event_message,
+  tsk.display_name AS task_display_name
 FROM aggregated_events a
 JOIN v1_task_events_olap t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
+JOIN v1_tasks_olap tsk ON (tsk.id, tsk.inserted_at) = (t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
 `
 
@@ -1776,6 +1779,7 @@ type ListTaskEventsRow struct {
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+	TaskDisplayName        string               `json:"task_display_name"`
 }
 
 func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEventsParams) ([]*ListTaskEventsRow, error) {
@@ -1806,6 +1810,7 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 			&i.WorkerID,
 			&i.AdditionalEventData,
 			&i.AdditionalEventMessage,
+			&i.TaskDisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -2545,7 +2550,7 @@ WITH selected_retry_count AS (
     )
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable,
     (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
@@ -2608,6 +2613,7 @@ type PopulateSingleTaskRunDataRow struct {
 	DagID                 pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
+	IsDurable             bool                 `json:"is_durable"`
 	IsStandalone          bool                 `json:"is_standalone"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
@@ -2653,6 +2659,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
+		&i.IsDurable,
 		&i.IsStandalone,
 		&i.Status,
 		&i.FinishedAt,
@@ -2696,7 +2703,8 @@ WITH input AS (
         t.parent_task_external_id,
         t.workflow_run_id,
         t.latest_retry_count,
-        t.dag_id
+        t.dag_id,
+        t.is_durable
     FROM
         v1_tasks_olap t
     JOIN
@@ -2828,7 +2836,8 @@ SELECT
         WHEN $1::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB as output,
-    o.output_event_external_id AS output_event_external_id
+    o.output_event_external_id AS output_event_external_id,
+    COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
 LEFT JOIN
@@ -2879,6 +2888,7 @@ type PopulateTaskRunDataRow struct {
 	RetryCount            int32                `json:"retry_count"`
 	Output                []byte               `json:"output"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	IsDurable             bool                 `json:"is_durable"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -2923,6 +2933,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.RetryCount,
 			&i.Output,
 			&i.OutputEventExternalID,
+			&i.IsDurable,
 		); err != nil {
 			return nil, err
 		}
@@ -3089,7 +3100,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable,
     e.output,
     e.external_id AS event_external_id,
     e.error_message
@@ -3126,6 +3137,7 @@ type ReadTaskByExternalIDRow struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	IsDurable            bool                 `json:"is_durable"`
 	Output               []byte               `json:"output"`
 	EventExternalID      *uuid.UUID           `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
@@ -3159,6 +3171,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
+		&i.IsDurable,
 		&i.Output,
 		&i.EventExternalID,
 		&i.ErrorMessage,

@@ -3,6 +3,7 @@
 # import apis into api package
 from hatchet_sdk.clients.rest.api.api_token_api import APITokenApi
 from hatchet_sdk.clients.rest.api.cel_api import CELApi
+from hatchet_sdk.clients.rest.api.durable_tasks_api import DurableTasksApi
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.feature_flags_api import FeatureFlagsApi
 from hatchet_sdk.clients.rest.api.filter_api import FilterApi

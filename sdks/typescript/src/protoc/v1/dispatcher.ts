@@ -164,6 +164,11 @@ export interface DurableTaskWaitForRequest {
   durableTaskExternalId: string;
   /** Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR */
   waitForConditions?: DurableEventListenerConditions | undefined;
+  /**
+   * An optional human-readable label for this wait, displayed in the dashboard.
+   * Example: "Waiting for payment confirmation"
+   */
+  label?: string | undefined;
 }
 
 export interface DurableTaskRequest {
@@ -1817,7 +1822,12 @@ export const DurableTaskTriggerRunsRequest: MessageFns<DurableTaskTriggerRunsReq
 };
 
 function createBaseDurableTaskWaitForRequest(): DurableTaskWaitForRequest {
-  return { invocationCount: 0, durableTaskExternalId: '', waitForConditions: undefined };
+  return {
+    invocationCount: 0,
+    durableTaskExternalId: '',
+    waitForConditions: undefined,
+    label: undefined,
+  };
 }
 
 export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = {
@@ -1836,6 +1846,9 @@ export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = 
         message.waitForConditions,
         writer.uint32(26).fork()
       ).join();
+    }
+    if (message.label !== undefined) {
+      writer.uint32(34).string(message.label);
     }
     return writer;
   },
@@ -1874,6 +1887,14 @@ export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = 
           );
           continue;
         }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.label = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1900,6 +1921,7 @@ export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = 
         : isSet(object.wait_for_conditions)
           ? DurableEventListenerConditions.fromJSON(object.wait_for_conditions)
           : undefined,
+      label: isSet(object.label) ? globalThis.String(object.label) : undefined,
     };
   },
 
@@ -1913,6 +1935,9 @@ export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = 
     }
     if (message.waitForConditions !== undefined) {
       obj.waitForConditions = DurableEventListenerConditions.toJSON(message.waitForConditions);
+    }
+    if (message.label !== undefined) {
+      obj.label = message.label;
     }
     return obj;
   },
@@ -1928,6 +1953,7 @@ export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = 
       object.waitForConditions !== undefined && object.waitForConditions !== null
         ? DurableEventListenerConditions.fromPartial(object.waitForConditions)
         : undefined;
+    message.label = object.label ?? undefined;
     return message;
   },
 };

@@ -685,6 +685,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 			RetryCount:            taskRun.RetryCount,
 			OutputEventExternalID: taskRun.OutputEventExternalID,
 			IsStandalone:          taskRun.IsStandalone,
+			IsDurable:             taskRun.IsDurable,
 		},
 		input,
 		output,
@@ -1883,6 +1884,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
 			Input:                payloadToWriteToTask,
+			IsDurable:            task.IsDurable.Bool,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
