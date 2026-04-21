@@ -254,7 +254,8 @@ func (q *Queries) SyncUpsertTenant(ctx context.Context, db DBTX, arg SyncUpsertT
 const syncUpsertTenantAlertingSettings = `-- name: SyncUpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" ("id", "tenantId")
 VALUES ($1::uuid, $2::uuid)
-ON CONFLICT DO NOTHING
+ON CONFLICT ("id") DO UPDATE
+SET "tenantId" = EXCLUDED."tenantId"
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts", "enableTenantResourceLimitAlerts"
 `
 
@@ -263,6 +264,7 @@ type SyncUpsertTenantAlertingSettingsParams struct {
 	Tenantid uuid.UUID `json:"tenantid"`
 }
 
+// dummy update to avoid "ON CONFLICT DO NOTHING" which doesn't return the row
 func (q *Queries) SyncUpsertTenantAlertingSettings(ctx context.Context, db DBTX, arg SyncUpsertTenantAlertingSettingsParams) (*TenantAlertingSettings, error) {
 	row := db.QueryRow(ctx, syncUpsertTenantAlertingSettings, arg.ID, arg.Tenantid)
 	var i TenantAlertingSettings

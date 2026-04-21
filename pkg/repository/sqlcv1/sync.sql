@@ -151,5 +151,7 @@ RETURNING *;
 -- name: SyncUpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" ("id", "tenantId")
 VALUES (@id::uuid, @tenantId::uuid)
-ON CONFLICT DO NOTHING
+ON CONFLICT ("id") DO UPDATE
+-- dummy update to avoid "ON CONFLICT DO NOTHING" which doesn't return the row
+SET "tenantId" = EXCLUDED."tenantId"
 RETURNING *;
