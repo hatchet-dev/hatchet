@@ -2621,6 +2621,15 @@ type V1DagListTasksParams struct {
 	Tenant openapi_types.UUID `form:"tenant" json:"tenant"`
 }
 
+// V1DurableTaskEventLogListParams defines parameters for V1DurableTaskEventLogList.
+type V1DurableTaskEventLogListParams struct {
+	// Offset The number of event log entries to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number of event log entries to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // V1TaskGetParams defines parameters for V1TaskGet.
 type V1TaskGetParams struct {
 	// Attempt The attempt number
@@ -3496,7 +3505,7 @@ type ClientInterface interface {
 	V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1DurableTaskEventLogList request
-	V1DurableTaskEventLogList(ctx context.Context, durableTask openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1DurableTaskEventLogList(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskGet request
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4144,8 +4153,8 @@ func (c *Client) V1DagListTasks(ctx context.Context, params *V1DagListTasksParam
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1DurableTaskEventLogList(ctx context.Context, durableTask openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1DurableTaskEventLogListRequest(c.Server, durableTask)
+func (c *Client) V1DurableTaskEventLogList(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1DurableTaskEventLogListRequest(c.Server, durableTask, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6643,7 +6652,7 @@ func NewV1DagListTasksRequest(server string, params *V1DagListTasksParams) (*htt
 }
 
 // NewV1DurableTaskEventLogListRequest generates requests for V1DurableTaskEventLogList
-func NewV1DurableTaskEventLogListRequest(server string, durableTask openapi_types.UUID) (*http.Request, error) {
+func NewV1DurableTaskEventLogListRequest(server string, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6666,6 +6675,44 @@ func NewV1DurableTaskEventLogListRequest(server string, durableTask openapi_type
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -14180,7 +14227,7 @@ type ClientWithResponsesInterface interface {
 	V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error)
 
 	// V1DurableTaskEventLogListWithResponse request
-	V1DurableTaskEventLogListWithResponse(ctx context.Context, durableTask openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error)
+	V1DurableTaskEventLogListWithResponse(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error)
 
 	// V1TaskGetWithResponse request
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
@@ -18205,8 +18252,8 @@ func (c *ClientWithResponses) V1DagListTasksWithResponse(ctx context.Context, pa
 }
 
 // V1DurableTaskEventLogListWithResponse request returning *V1DurableTaskEventLogListResponse
-func (c *ClientWithResponses) V1DurableTaskEventLogListWithResponse(ctx context.Context, durableTask openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error) {
-	rsp, err := c.V1DurableTaskEventLogList(ctx, durableTask, reqEditors...)
+func (c *ClientWithResponses) V1DurableTaskEventLogListWithResponse(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error) {
+	rsp, err := c.V1DurableTaskEventLogList(ctx, durableTask, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

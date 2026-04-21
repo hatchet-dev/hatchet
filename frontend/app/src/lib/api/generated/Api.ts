@@ -664,11 +664,24 @@ export class Api<
    */
   v1DurableTaskEventLogList = Object.assign((
     durableTask: string,
+    query?: {
+      /**
+       * The number of event log entries to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number of event log entries to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
     params: RequestParams = {},
   ) =>
     this.request<V1DurableEventLogList, APIErrors>({
       path: `/api/v1/stable/durable-tasks/${durableTask}`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

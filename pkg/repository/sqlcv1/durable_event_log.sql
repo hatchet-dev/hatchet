@@ -244,4 +244,6 @@ WHERE e.durable_task_id = @durableTaskId::BIGINT
   AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
   AND e.tenant_id = @tenantId::UUID
 ORDER BY e.branch_id ASC, e.node_id ASC
+OFFSET @eventLogOffset::BIGINT
+LIMIT @eventLogLimit::BIGINT
 ;

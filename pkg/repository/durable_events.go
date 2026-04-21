@@ -139,7 +139,7 @@ type DurableEventsRepository interface {
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
-	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
+	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
 }
 
 type durableEventsRepository struct {
@@ -1640,7 +1640,7 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 	return result, nil
 }
 
-func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) ([]*sqlcv1.ListDurableEventLogForTaskRow, error) {
+func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-durable-event-log-olap")
 	defer span.End()
 
@@ -1648,5 +1648,7 @@ func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenan
 		Durabletaskid:         taskId,
 		Durabletaskinsertedat: taskInsertedAt,
 		Tenantid:              tenantId,
+		Eventlogoffset:        offset,
+		Eventloglimit:         limit,
 	})
 }

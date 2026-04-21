@@ -509,12 +509,16 @@ WHERE e.durable_task_id = $1::BIGINT
   AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
   AND e.tenant_id = $3::UUID
 ORDER BY e.branch_id ASC, e.node_id ASC
+OFFSET $4::BIGINT
+LIMIT $5::BIGINT
 `
 
 type ListDurableEventLogForTaskParams struct {
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 	Tenantid              uuid.UUID          `json:"tenantid"`
+	Eventlogoffset        int64              `json:"eventlogoffset"`
+	Eventloglimit         int64              `json:"eventloglimit"`
 }
 
 type ListDurableEventLogForTaskRow struct {
@@ -537,7 +541,13 @@ type ListDurableEventLogForTaskRow struct {
 }
 
 func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg ListDurableEventLogForTaskParams) ([]*ListDurableEventLogForTaskRow, error) {
-	rows, err := db.Query(ctx, listDurableEventLogForTask, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Tenantid)
+	rows, err := db.Query(ctx, listDurableEventLogForTask,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Tenantid,
+		arg.Eventlogoffset,
+		arg.Eventloglimit,
+	)
 	if err != nil {
 		return nil, err
 	}

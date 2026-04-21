@@ -25,11 +25,24 @@ func (t *DurableTasksService) V1DurableTaskEventLogList(ctx echo.Context, reques
 		return nil, echo.NewHTTPError(500, "durable task type assertion failed")
 	}
 
+	limit := int64(1000)
+	offset := int64(0)
+
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	if request.Params.Offset != nil {
+		offset = *request.Params.Offset
+	}
+
 	entries, err := t.config.V1.DurableEvents().ListDurableEventLog(
 		ctx.Request().Context(),
 		task.TenantID,
-		task.ID,
 		task.InsertedAt,
+		task.ID,
+		limit,
+		offset,
 	)
 	if err != nil {
 		return nil, err

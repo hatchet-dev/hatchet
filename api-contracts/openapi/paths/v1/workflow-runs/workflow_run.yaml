@@ -597,6 +597,20 @@ listDurableEventLog:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The number of event log entries to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number of event log entries to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
     responses:
       "200":
         content:
