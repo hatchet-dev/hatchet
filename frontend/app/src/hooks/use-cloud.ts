@@ -1,3 +1,4 @@
+import useControlPlane from '@/hooks/use-control-plane';
 import { cloudApi } from '@/lib/api/api';
 import {
   APICloudMetadata,
@@ -66,11 +67,14 @@ type UseCloudReturn =
 
 export default function useCloud(tenantId?: string): UseCloudReturn {
   const cloudMetaQuery = useQuery(getCloudMetadataQuery);
+  const { isControlPlaneEnabled, controlPlaneMeta } = useControlPlane();
 
   const featureFlagsQuery = useQuery({
     queryKey: ['feature-flags:list', tenantId],
     retry: false,
-    enabled: cloudMetaQuery.data?.isCloudEnabled && !!tenantId,
+    enabled:
+      (isControlPlaneEnabled || cloudMetaQuery.data?.isCloudEnabled) &&
+      !!tenantId,
     queryFn: async () => {
       try {
         // This shouldn't be possible because of the `enabled` above, and yet, Josh found it happening at runtime
@@ -85,6 +89,22 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
     },
     staleTime: 1000 * 60,
   });
+
+  if (isControlPlaneEnabled) {
+    return {
+      cloud: {
+        canBill: true,
+        canLinkGithub: true,
+        metricsEnabled: true,
+        requireBillingForManagedCompute: true,
+        inactivityLogoutMs: controlPlaneMeta?.inactivityLogoutMs,
+      },
+      isCloudEnabled: true,
+      isCloudLoaded: true,
+      isCloudLoading: false,
+      featureFlags: featureFlagsQuery.data?.data || null,
+    };
+  }
 
   if (cloudMetaQuery.data && cloudMetaQuery.data.isCloudEnabled) {
     return {
