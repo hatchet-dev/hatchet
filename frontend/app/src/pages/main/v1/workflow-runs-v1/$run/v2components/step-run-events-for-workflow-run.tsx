@@ -197,6 +197,8 @@ function toTaskEventLogLines(
 
 // ----- durable event log helpers -----
 
+const DURABLE_DISPLAY_LIMIT = 3;
+
 function formatDurationMs(ms: number): string {
   if (ms === 0) {
     return '0s';
@@ -222,20 +224,50 @@ function describeCondition(c: {
   switch (c.kind) {
     case V1DurableWaitConditionKind.SLEEP:
       return c.sleepDurationMs != null
-        ? `sleep(${formatDurationMs(c.sleepDurationMs)})`
-        : 'sleep';
+        ? `sleeping for ${formatDurationMs(c.sleepDurationMs)}`
+        : 'sleeping';
     case V1DurableWaitConditionKind.USER_EVENT:
-      return c.eventKey ? `event(${c.eventKey})` : 'event';
+      return c.eventKey
+        ? `waiting for event ${c.eventKey}`
+        : 'waiting for event';
     case V1DurableWaitConditionKind.CHILD_WORKFLOW:
-      return c.workflowName ? `run(${c.workflowName})` : 'run';
+      return c.workflowName
+        ? `waiting for child ${c.workflowName} to complete`
+        : 'waiting for child to complete';
     default:
       return String(c.kind ?? 'unknown').toLowerCase();
   }
 }
 
+function describeConditionCompletion(c: {
+  kind?: V1DurableWaitConditionKind;
+  eventKey?: string | null;
+  workflowName?: string | null;
+}): string {
+  switch (c.kind) {
+    case V1DurableWaitConditionKind.SLEEP:
+      return 'sleep completed';
+    case V1DurableWaitConditionKind.USER_EVENT:
+      return c.eventKey ? `received event ${c.eventKey}` : 'event received';
+    case V1DurableWaitConditionKind.CHILD_WORKFLOW:
+      return c.workflowName
+        ? `child ${c.workflowName} completed`
+        : 'child completed';
+    default:
+      return 'completed';
+  }
+}
+
 function describeWaitItem(item: V1WaitItem): string {
   if (item.or && item.or.length > 0) {
-    return `any of: ${item.or.map(describeCondition).join(', ')}`;
+    const shown = item.or
+      .slice(0, DURABLE_DISPLAY_LIMIT)
+      .map(describeCondition);
+    const extra = item.or.length - DURABLE_DISPLAY_LIMIT;
+    if (extra > 0) {
+      shown.push(`${extra} more`);
+    }
+    return `any of: ${shown.join(', ')}`;
   }
   if (item.kind) {
     return describeCondition(item);
@@ -247,42 +279,81 @@ function toReadableMessage(items: V1WaitItem[]): string {
   if (items.length === 0) {
     return 'waiting';
   }
-  const parts = items.map(describeWaitItem);
-  return parts.length === 1 ? parts[0] : parts.join(' and ');
-}
-
-function kindLabel(kind: V1DurableEventLogKind): string {
-  switch (kind) {
-    case V1DurableEventLogKind.RUN:
-      return 'run';
-    case V1DurableEventLogKind.WAIT_FOR:
-      return 'wait';
-    default:
-      return String(kind).toLowerCase();
+  if (items.length === 1) {
+    return describeWaitItem(items[0]);
   }
+  const shown = items.slice(0, DURABLE_DISPLAY_LIMIT).map(describeWaitItem);
+  const extra = items.length - DURABLE_DISPLAY_LIMIT;
+  if (extra > 0) {
+    return `${shown.join(', ')}, and ${extra} more`;
+  }
+  return `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
 }
 
-function capitalizeFirst(s: string): string {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-}
-
-function completionMessage(message: string): string {
-  return `${capitalizeFirst(message)} completed`;
+function toReadableCompletion(items: V1WaitItem[]): string {
+  if (items.length === 0) {
+    return 'completed';
+  }
+  if (items.length === 1) {
+    const item = items[0];
+    if (item.or && item.or.length > 0) {
+      return 'condition satisfied';
+    }
+    return describeConditionCompletion(item);
+  }
+  return 'all conditions satisfied';
 }
 
 function withContextPrefix(
   entry: V1DurableEventLogEntry,
   message: string,
 ): string {
-  const prefix = `[${kindLabel(entry.kind)}${entry.branchId > 1 ? ` b${entry.branchId}` : ''}]`;
-  return `${prefix} ${message}`;
+  const kind =
+    entry.kind === V1DurableEventLogKind.WAIT_FOR
+      ? 'durable wait'
+      : 'durable run';
+  const branch = entry.branchId > 1 ? ` b${entry.branchId}` : '';
+  return `[${kind}${branch}] ${message}`;
 }
 
 function entryMessage(entry: V1DurableEventLogEntry): string {
+  if (entry.kind === V1DurableEventLogKind.RUN) {
+    const item = entry.waitData?.[0];
+    if (
+      entry.waitData?.length === 1 &&
+      !item?.or &&
+      item?.kind === V1DurableWaitConditionKind.CHILD_WORKFLOW
+    ) {
+      return item.workflowName
+        ? `spawned child ${item.workflowName}`
+        : 'spawned child';
+    }
+    return entry.userMessage ?? 'spawned child';
+  }
   if (entry.waitData && entry.waitData.length > 0) {
     return toReadableMessage(entry.waitData);
   }
-  return entry.userMessage ?? kindLabel(entry.kind);
+  return entry.userMessage ?? 'waiting';
+}
+
+function entryCompletionMessage(entry: V1DurableEventLogEntry): string {
+  if (entry.kind === V1DurableEventLogKind.RUN) {
+    const item = entry.waitData?.[0];
+    if (
+      entry.waitData?.length === 1 &&
+      !item?.or &&
+      item?.kind === V1DurableWaitConditionKind.CHILD_WORKFLOW
+    ) {
+      return item.workflowName
+        ? `child ${item.workflowName} completed`
+        : 'child completed';
+    }
+    return 'completed';
+  }
+  if (entry.waitData && entry.waitData.length > 0) {
+    return toReadableCompletion(entry.waitData);
+  }
+  return 'completed';
 }
 
 interface RunGroup {
@@ -325,33 +396,57 @@ function groupConsecutiveRuns(
   return result;
 }
 
+function childNamesFromEntries(
+  entries: V1DurableEventLogEntry[],
+): (string | null)[] {
+  return entries.map((e) => {
+    const item = e.waitData?.[0];
+    if (
+      e.waitData?.length === 1 &&
+      !item?.or &&
+      item?.kind === V1DurableWaitConditionKind.CHILD_WORKFLOW
+    ) {
+      return item.workflowName ?? null;
+    }
+    return null;
+  });
+}
+
 function runGroupLabel(entries: V1DurableEventLogEntry[]): string {
   if (entries.length === 1) {
     return entryMessage(entries[0]);
   }
 
-  const names = entries.map((e) => {
-    const items = e.waitData;
-    if (
-      items?.length === 1 &&
-      !items[0].or &&
-      items[0].kind === V1DurableWaitConditionKind.CHILD_WORKFLOW
-    ) {
-      return items[0].workflowName ?? null;
-    }
-    return null;
-  });
-
+  const names = childNamesFromEntries(entries);
   const allSame = names.every((n) => n === names[0]);
   if (allSame && names[0] !== null) {
-    return `${entries.length}x run(${names[0]})`;
+    return `spawned ${entries.length}x ${names[0]} children`;
   }
 
-  return `run(${names.map((n) => n ?? 'unknown').join(', ')})`;
+  const shown = names
+    .slice(0, DURABLE_DISPLAY_LIMIT)
+    .map((n) => n ?? 'unknown');
+  const extra = names.length - DURABLE_DISPLAY_LIMIT;
+  if (extra > 0) {
+    return `spawned children: ${shown.join(', ')}, and ${extra} more`;
+  }
+  return `spawned children: ${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
+}
+
+function runGroupCompletionLabel(entries: V1DurableEventLogEntry[]): string {
+  if (entries.length === 1) {
+    return entryCompletionMessage(entries[0]);
+  }
+
+  const names = childNamesFromEntries(entries);
+  const allSame = names.every((n) => n === names[0]);
+  if (allSame && names[0] !== null) {
+    return `${entries.length}x ${names[0]} children completed`;
+  }
+  return 'children completed';
 }
 
 function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
-  // fixme: need to map the task id -> display name here
   const lines: LogLine[] = [];
   const visible = entries.filter((e) => e.kind !== V1DurableEventLogKind.MEMO);
   const grouped = groupConsecutiveRuns(visible);
@@ -360,12 +455,11 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
     if ('entries' in item) {
       const { entries: groupEntries } = item;
       const first = groupEntries[0];
-      const label = runGroupLabel(groupEntries);
 
       lines.push({
         timestamp: first.insertedAt,
-        level: V1LogLineLevel.DEBUG,
-        line: withContextPrefix(first, capitalizeFirst(label)),
+        level: 'EVICTION_NOTICE',
+        line: withContextPrefix(first, runGroupLabel(groupEntries)),
         taskDisplayName: first.taskDisplayName,
         taskExternalId: first.taskExternalId,
       });
@@ -381,21 +475,16 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
         lines.push({
           timestamp: lastSatisfiedAt,
           level: V1LogLineLevel.INFO,
-          line: withContextPrefix(first, completionMessage(label)),
+          line: withContextPrefix(first, runGroupCompletionLabel(groupEntries)),
           taskDisplayName: first.taskDisplayName,
           taskExternalId: first.taskExternalId,
         });
       }
     } else {
-      const message = entryMessage(item);
-
       lines.push({
         timestamp: item.insertedAt,
-        level:
-          item.kind === V1DurableEventLogKind.WAIT_FOR
-            ? V1LogLineLevel.WARN
-            : V1LogLineLevel.DEBUG,
-        line: withContextPrefix(item, capitalizeFirst(message)),
+        level: 'EVICTION_NOTICE',
+        line: withContextPrefix(item, entryMessage(item)),
         taskDisplayName: item.taskDisplayName,
         taskExternalId: item.taskExternalId,
       });
@@ -404,7 +493,7 @@ function toDurableEventLogLines(entries: V1DurableEventLogEntry[]): LogLine[] {
         lines.push({
           timestamp: item.satisfiedAt,
           level: V1LogLineLevel.INFO,
-          line: withContextPrefix(item, completionMessage(message)),
+          line: withContextPrefix(item, entryCompletionMessage(item)),
           taskDisplayName: item.taskDisplayName,
           taskExternalId: item.taskExternalId,
         });

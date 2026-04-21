@@ -8,7 +8,6 @@ import {
   V1LogLineLevel,
   V1LogLineOrderByDirection,
 } from '@/lib/api';
-import type { RegisteredRouter, ToPathOption } from '@tanstack/react-router';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
 import {
@@ -16,6 +15,7 @@ import {
   InfiniteData,
   useQueryClient,
 } from '@tanstack/react-query';
+import type { RegisteredRouter, ToPathOption } from '@tanstack/react-router';
 import {
   useMemo,
   useCallback,
