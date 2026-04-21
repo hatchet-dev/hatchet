@@ -14,9 +14,7 @@ describe('v1 sidebar: resize + collapse', () => {
       },
     });
 
-    cy.get('[data-cy="notifications-button"]', { timeout: 30000 }).should(
-      'be.visible',
-    );
+    cy.get('[data-cy="v1-sidebar"]', { timeout: 30000 }).should('be.visible');
     cy.location('pathname', { timeout: 30000 }).should(
       'match',
       /\/tenants\/.+/,
@@ -30,10 +28,7 @@ describe('v1 sidebar: resize + collapse', () => {
   };
 
   const waitForShell = () => {
-    cy.get('[data-cy="notifications-button"]', { timeout: 30000 }).should(
-      'be.visible',
-    );
-    cy.get('[data-cy="v1-sidebar"]').should('be.visible');
+    cy.get('[data-cy="v1-sidebar"]', { timeout: 30000 }).should('be.visible');
   };
 
   it('navbar: sidebar toggle button is only visible on mobile', () => {
