@@ -317,6 +317,8 @@ function withContextPrefix(
 }
 
 function entryMessage(entry: V1DurableEventLogEntry): string {
+  const userMessage = entry.userMessage?.trim();
+
   if (entry.kind === V1DurableEventLogKind.RUN) {
     const item = entry.waitData?.[0];
     if (
@@ -328,12 +330,15 @@ function entryMessage(entry: V1DurableEventLogEntry): string {
         ? `spawned child ${item.workflowName}`
         : 'spawned child';
     }
-    return entry.userMessage ?? 'spawned child';
+    return userMessage || 'spawned child';
+  }
+  if (userMessage) {
+    return userMessage;
   }
   if (entry.waitData && entry.waitData.length > 0) {
     return toReadableMessage(entry.waitData);
   }
-  return entry.userMessage ?? 'waiting';
+  return 'waiting';
 }
 
 function entryCompletionMessage(entry: V1DurableEventLogEntry): string {
