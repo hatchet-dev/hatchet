@@ -91,7 +91,7 @@ WITH inputs AS (
     UPDATE v1_durable_event_log_entry
     SET
         is_satisfied = true,
-        satisfied_at = NOW()
+        satisfied_at = COALESCE(satisfied_at, NOW())
     FROM inputs
     WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
       AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
@@ -135,7 +135,7 @@ WHERE
 UPDATE v1_durable_event_log_entry
 SET
     is_satisfied = true,
-    satisfied_at = NOW()
+    satisfied_at = COALESCE(satisfied_at, NOW())
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
   AND branch_id = @branchId::BIGINT
