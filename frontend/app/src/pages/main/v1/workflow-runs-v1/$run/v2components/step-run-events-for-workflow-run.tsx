@@ -20,7 +20,7 @@ import {
 } from '@/lib/api';
 import { emptyGolangUUID } from '@/lib/utils';
 import { appRoutes } from '@/router';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 
 export type EventWithMetadata = V1TaskEvent & {
@@ -35,10 +35,12 @@ export function StepRunEvents({
   taskRunId,
   workflowRunId,
   isDurable,
+  durableTaskIds,
 }: {
   taskRunId?: string;
   workflowRunId?: string;
   isDurable?: boolean;
+  durableTaskIds?: string[];
   taskDisplayName?: string;
   fallbackTaskDisplayName?: string;
   onClick?: (stepRunId: string) => void;
@@ -62,10 +64,12 @@ export function StepRunEvents({
     refetchInterval,
   });
 
-  const durableLogQuery = useQuery({
-    ...queries.v1DurableTasks.eventLog(taskRunId!),
-    refetchInterval: 2000,
-    enabled: !!isDurable && !!taskRunId,
+  // fixme: this is an n+1 query, would be better to have a bulk getter
+  const durableLogsQueries = useQueries({
+    queries: (durableTaskIds ?? []).map((id) => ({
+      ...queries.v1DurableTasks.eventLog(id),
+      refetchInterval: 5000,
+    })),
   });
 
   const logs = useMemo(() => {
@@ -74,11 +78,11 @@ export function StepRunEvents({
       isDag,
       tenantId,
     );
-    const durableLines = isDurable
-      ? toDurableEventLogLines(durableLogQuery.data ?? [])
-      : [];
-    return mergeByTimestamp(taskLines, durableLines);
-  }, [eventsQuery.data, durableLogQuery.data, isDurable, isDag, tenantId]);
+    const durableEventLogLines = durableLogsQueries.flatMap((q) =>
+      toDurableEventLogLines(q.data ?? []),
+    );
+    return mergeByTimestamp(taskLines, durableEventLogLines);
+  }, [eventsQuery.data, isDurable, isDag, tenantId, durableLogsQueries]);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {

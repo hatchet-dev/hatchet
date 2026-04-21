@@ -302,6 +302,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [taskRuns],
   );
 
+  const durableTaskIds = useMemo(
+    () => taskRuns.filter((t) => t.isDurable).map((t) => t.taskExternalId),
+    [taskRuns],
+  );
+
   if (isLoading || isError || !workflowRun) {
     return null;
   }
@@ -366,6 +371,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   workflowRunId={id}
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
+                  durableTaskIds={durableTaskIds}
                 />
               </TabsContent>
               <TabsContent value="output">
