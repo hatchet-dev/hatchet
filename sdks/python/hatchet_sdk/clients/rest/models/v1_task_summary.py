@@ -61,6 +61,11 @@ class V1TaskSummary(BaseModel):
     duration: Optional[StrictInt] = Field(
         default=None, description="The duration of the task run, in milliseconds."
     )
+    is_durable: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether this task was created as a durable task.",
+        alias="isDurable",
+    )
     error_message: Optional[StrictStr] = Field(
         default=None,
         description="The error message of the task run (for the latest run)",
@@ -133,6 +138,7 @@ class V1TaskSummary(BaseModel):
         "createdAt",
         "displayName",
         "duration",
+        "isDurable",
         "errorMessage",
         "finishedAt",
         "input",
@@ -232,6 +238,7 @@ class V1TaskSummary(BaseModel):
                 "createdAt": obj.get("createdAt"),
                 "displayName": obj.get("displayName"),
                 "duration": obj.get("duration"),
+                "isDurable": obj.get("isDurable"),
                 "errorMessage": obj.get("errorMessage"),
                 "finishedAt": obj.get("finishedAt"),
                 "input": obj.get("input"),

@@ -66,6 +66,7 @@ roles:
       - SnsDelete
       - StepRunListEvents
       - RateLimitList
+      - RateLimitDelete
       - WorkflowVersionGet
       - TenantGetPrometheusMetrics
       - EventUpdateCancel
@@ -145,3 +146,4 @@ roles:
       - V1TenantLogLineList
       - V1TenantLogLineGetPointMetrics
       - TenantFeatureFlagEvaluate
+      - V1DurableTaskEventLogList

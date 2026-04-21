@@ -29,7 +29,6 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
     isLoading,
     isError,
   } = useWorkflowDetails();
-
   const skippedTaskIds = useMemo(() => {
     const ids = new Set<string>();
     for (const event of taskEvents) {

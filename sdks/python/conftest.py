@@ -69,6 +69,6 @@ def _on_demand_worker_fixture(
         yield proc
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
     yield from _on_demand_worker_fixture(request)

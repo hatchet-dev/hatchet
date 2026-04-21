@@ -27,6 +27,10 @@ type sharedConfig struct {
 
 	schedulerConcurrencyPollingMaxInterval time.Duration
 
+	schedulerCheckActiveMinInterval time.Duration
+
+	schedulerCheckActiveMaxInterval time.Duration
+
 	schedulerAdvisoryLockTimeout time.Duration
 }
 
@@ -54,6 +58,8 @@ func NewSchedulingPool(
 	schedulerConcurrencyRateLimit int,
 	schedulerConcurrencyPollingMinInterval time.Duration,
 	schedulerConcurrencyPollingMaxInterval time.Duration,
+	schedulerCheckActiveMinInterval time.Duration,
+	schedulerCheckActiveMaxInterval time.Duration,
 	schedulerAdvisoryLockTimeout time.Duration,
 	optimisticSchedulingEnabled bool,
 	optimisticSlots int,
@@ -71,6 +77,8 @@ func NewSchedulingPool(
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
 			schedulerConcurrencyPollingMaxInterval: schedulerConcurrencyPollingMaxInterval,
+			schedulerCheckActiveMinInterval:        schedulerCheckActiveMinInterval,
+			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
 			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
 		},
 		resultsCh:                   resultsCh,

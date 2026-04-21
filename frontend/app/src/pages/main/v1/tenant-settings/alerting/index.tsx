@@ -13,6 +13,7 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
   CreateTenantAlertEmailGroupRequest,
@@ -311,6 +312,7 @@ function DeleteEmailGroup({
 
 function SlackWebhooksList() {
   const { tenantId } = useCurrentTenantId();
+  const { isControlPlaneEnabled } = useControlPlane();
   const [deleteSlack, setDeleteSlack] = useState<SlackWebhook | null>(null);
 
   const listWebhooksQuery = useQuery({
@@ -356,7 +358,13 @@ function SlackWebhooksList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Slack Webhooks
         </h3>
-        <a href={'/api/v1/tenants/' + tenantId + '/slack/start'}>
+        <a
+          href={
+            isControlPlaneEnabled
+              ? '/api/v1/control-plane/tenants/' + tenantId + '/slack/start'
+              : '/api/v1/tenants/' + tenantId + '/slack/start'
+          }
+        >
           <Button key="create-slack-webhook">Add Slack Webhook</Button>
         </a>
       </div>

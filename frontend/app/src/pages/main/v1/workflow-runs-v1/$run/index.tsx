@@ -79,11 +79,9 @@ function statusToBadgeVariant(status: V1TaskStatus) {
 const GraphView = ({
   shape,
   handleTaskRunExpand,
-  onMiniMapClick,
 }: {
   shape: WorkflowRunShapeForWorkflowRunDetails;
   handleTaskRunExpand: (stepRunId: string) => void;
-  onMiniMapClick: (stepRunId: string) => void;
 }) => {
   const [view] = useAtom(preferredWorkflowRunViewAtom);
 
@@ -96,7 +94,7 @@ const GraphView = ({
     <JobMiniMap
       onClick={(stepRunId) => {
         if (stepRunId) {
-          onMiniMapClick(stepRunId);
+          handleTaskRunExpand(stepRunId);
         }
       }}
     />
@@ -241,7 +239,7 @@ export default function Run() {
 }
 
 function ExpandedTaskRun({ id }: { id: string }) {
-  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />;
+  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Activity} />;
 }
 
 function ExpandedWorkflowRun({ id }: { id: string }) {
@@ -264,7 +262,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
         type: 'task-run-details',
         content: {
           taskRunId,
-          defaultOpenTab: TabOption.Output,
+          defaultOpenTab: TabOption.Activity,
           showViewTaskRunButton: true,
         },
       });
@@ -274,13 +272,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
       }, 100);
     },
     [open],
-  );
-
-  const handleMiniMapClick = useCallback(
-    (taskRunId: string) => {
-      search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
-    },
-    [search],
   );
 
   const { workflowRun, shape, taskRuns, isLoading, isError } =
@@ -308,6 +299,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
 
   const taskExternalIds = useMemo(
     () => taskRuns.map((t) => t.taskExternalId),
+    [taskRuns],
+  );
+
+  const durableTaskIds = useMemo(
+    () => taskRuns.filter((t) => t.isDurable).map((t) => t.taskExternalId),
     [taskRuns],
   );
 
@@ -351,7 +347,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               <GraphView
                 shape={shape}
                 handleTaskRunExpand={handleTaskRunExpand}
-                onMiniMapClick={handleMiniMapClick}
               />
               <ViewToggle />
             </div>
@@ -376,6 +371,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   workflowRunId={id}
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
+                  durableTaskIds={durableTaskIds}
                 />
               </TabsContent>
               <TabsContent value="output">

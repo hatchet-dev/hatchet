@@ -50,6 +50,13 @@ export interface SleepResult {
   durationMs: number;
 }
 
+export interface SleepForOptions {
+  /** Optional key used for condition result indexing. */
+  readableDataKey?: string;
+  /** Optional human-readable wait label shown in dashboard run details. */
+  label?: string;
+}
+
 type LogExtra = {
   extra?: any;
   error?: Error;
@@ -913,10 +920,31 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * Pauses execution for the specified duration.
    * Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
    * @param duration - The duration to sleep for.
+   * @param readableDataKeyOrOptions - Optional readable key string or options object containing readableDataKey and label.
+   * @param label - Optional wait label used when readableDataKey is passed as the second argument.
    * @returns A promise that resolves with a SleepResult when the sleep duration has elapsed.
    */
-  async sleepFor(duration: Duration, readableDataKey?: string): Promise<SleepResult> {
-    const res = await this.waitFor({ sleepFor: duration, readableDataKey });
+  async sleepFor(duration: Duration, options?: SleepForOptions): Promise<SleepResult>;
+  async sleepFor(duration: Duration, readableDataKey?: string): Promise<SleepResult>;
+  async sleepFor(
+    duration: Duration,
+    readableDataKey?: string,
+    label?: string
+  ): Promise<SleepResult>;
+  async sleepFor(
+    duration: Duration,
+    readableDataKeyOrOptions?: string | SleepForOptions,
+    label?: string
+  ): Promise<SleepResult> {
+    const opts: SleepForOptions =
+      typeof readableDataKeyOrOptions === 'string'
+        ? { readableDataKey: readableDataKeyOrOptions, label }
+        : (readableDataKeyOrOptions ?? {});
+
+    const res = await this.waitFor(
+      { sleepFor: duration, readableDataKey: opts.readableDataKey },
+      opts.label
+    );
 
     const matches: Record<string, any[]> = res['CREATE'] || {};
     const [firstMatch] = Object.values(matches);
@@ -949,7 +977,10 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param conditions - The conditions to wait for.
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
-  async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
+  async waitFor(
+    conditions: Conditions | Conditions[],
+    label?: string
+  ): Promise<Record<string, any>> {
     this.throwIfCancelled();
 
     if (!this.supportsEviction) {
@@ -968,6 +999,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
           sleepConditions: pbConditions.sleepConditions,
           userEventConditions: pbConditions.userEventConditions,
         },
+        label,
       }
     );
 
@@ -1005,33 +1037,39 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     expression?: string,
     payloadSchema?: T,
     scope?: string,
-    lookbackWindow?: Duration
+    lookbackWindow?: Duration,
+    label?: string
   ): Promise<z.infer<T>>;
   async waitForEvent(
     key: string,
     expression?: string,
     payloadSchema?: undefined,
     scope?: string,
-    lookbackWindow?: Duration
+    lookbackWindow?: Duration,
+    label?: string
   ): Promise<Record<string, any>>;
   async waitForEvent(
     key: string,
     expression?: string,
     payloadSchema?: z.ZodTypeAny,
     scope?: string,
-    lookbackWindow?: Duration
+    lookbackWindow?: Duration,
+    label?: string
   ): Promise<unknown> {
     const now = await this.now();
     const considerEventsSince = lookbackWindow
       ? new Date(now.getTime() - durationToMs(lookbackWindow)).toISOString()
       : undefined;
 
-    const res = await this.waitFor({
-      eventKey: key,
-      expression,
-      scope,
-      considerEventsSince,
-    });
+    const res = await this.waitFor(
+      {
+        eventKey: key,
+        expression,
+        scope,
+        considerEventsSince,
+      },
+      label
+    );
 
     // The engine returns an object like:
     // {"CREATE": {"signal_key_1": [{"id": ..., "data": {...}}]}}
