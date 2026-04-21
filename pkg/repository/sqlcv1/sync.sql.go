@@ -251,6 +251,37 @@ func (q *Queries) SyncUpsertTenant(ctx context.Context, db DBTX, arg SyncUpsertT
 	return &i, err
 }
 
+const syncUpsertTenantAlertingSettings = `-- name: SyncUpsertTenantAlertingSettings :one
+INSERT INTO "TenantAlertingSettings" ("id", "tenantId")
+VALUES ($1::uuid, $2::uuid)
+ON CONFLICT DO NOTHING
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts", "enableTenantResourceLimitAlerts"
+`
+
+type SyncUpsertTenantAlertingSettingsParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
+
+func (q *Queries) SyncUpsertTenantAlertingSettings(ctx context.Context, db DBTX, arg SyncUpsertTenantAlertingSettingsParams) (*TenantAlertingSettings, error) {
+	row := db.QueryRow(ctx, syncUpsertTenantAlertingSettings, arg.ID, arg.Tenantid)
+	var i TenantAlertingSettings
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.MaxFrequency,
+		&i.LastAlertedAt,
+		&i.TickerId,
+		&i.EnableExpiringTokenAlerts,
+		&i.EnableWorkflowRunFailureAlerts,
+		&i.EnableTenantResourceLimitAlerts,
+	)
+	return &i, err
+}
+
 const syncUpsertTenantInvite = `-- name: SyncUpsertTenantInvite :one
 INSERT INTO "TenantInviteLink" (
     "id",

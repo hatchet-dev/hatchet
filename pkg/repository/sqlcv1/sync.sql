@@ -147,3 +147,9 @@ SET
     "role" = @role::"TenantMemberRole"
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: SyncUpsertTenantAlertingSettings :one
+INSERT INTO "TenantAlertingSettings" ("id", "tenantId")
+VALUES (@id::uuid, @tenantId::uuid)
+ON CONFLICT DO NOTHING
+RETURNING *;
