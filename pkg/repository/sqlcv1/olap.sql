@@ -176,7 +176,8 @@ INSERT INTO v1_tasks_olap (
     additional_metadata,
     dag_id,
     dag_inserted_at,
-    parent_task_external_id
+    parent_task_external_id,
+    is_durable
 ) VALUES (
     $1,
     $2,
@@ -198,7 +199,8 @@ INSERT INTO v1_tasks_olap (
     $18,
     $19,
     $20,
-    $21
+    $21,
+    $22
 );
 
 -- name: CreateDAGsOLAP :copyfrom
@@ -390,13 +392,15 @@ SELECT
   t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
-  t.additional__event_message
+  t.additional__event_message,
+  tsk.display_name AS task_display_name
 FROM aggregated_events a
 JOIN v1_task_events_olap t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
+JOIN v1_tasks_olap tsk ON (tsk.id, tsk.inserted_at) = (t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: ListTaskEventsForWorkflowRun :many
@@ -605,7 +609,8 @@ WITH input AS (
         t.parent_task_external_id,
         t.workflow_run_id,
         t.latest_retry_count,
-        t.dag_id
+        t.dag_id,
+        t.is_durable
     FROM
         v1_tasks_olap t
     JOIN
@@ -737,7 +742,8 @@ SELECT
         WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB as output,
-    o.output_event_external_id AS output_event_external_id
+    o.output_event_external_id AS output_event_external_id,
+    COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
 LEFT JOIN

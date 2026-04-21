@@ -26,7 +26,7 @@ durableWorkflow.durableTask({
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     console.log('Waiting for sleep');
-    const sleepResult = await ctx.sleepFor(SLEEP_TIME);
+    const sleepResult = await ctx.sleepFor(SLEEP_TIME, { label: 'waiting for sleep' });
     console.log('Sleep finished');
 
     console.log('Waiting for event');

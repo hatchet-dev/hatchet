@@ -71,18 +71,18 @@ export const columns = ({
         <DataTableColumnHeader column={column} title={EventColumn.key} />
       ),
       cell: ({ row }) => (
-        <div className="w-full">
-          <Button
-            className="h-auto min-w-0 justify-start whitespace-normal pl-0 text-left"
-            variant="link"
-            onClick={() => {
-              onRowClick?.(row.original);
-            }}
-          >
-            <span className="break-all">{row.original.key}</span>
-          </Button>
-        </div>
+        <Button
+          className="h-auto min-w-0 justify-start pl-0 text-left"
+          variant="link"
+          onClick={() => {
+            onRowClick?.(row.original);
+          }}
+        >
+          {row.original.key}
+        </Button>
       ),
+      size: 220,
+      meta: { truncate: true },
       enableSorting: false,
       enableHiding: false,
     },
