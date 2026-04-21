@@ -45,6 +45,11 @@ export function Notifications() {
   const ariaLabel = `${count} notification${count !== 1 ? 's' : ''} for ${currentUser?.email ?? ''}`;
   const displayTitle =
     count > 0 ? notifications[0].shortTitle : 'Notifications';
+  const hasNotifications = count > 0;
+
+  if (!hasNotifications) {
+    return null;
+  }
 
   return (
     <DropdownMenu>
@@ -54,7 +59,8 @@ export function Notifications() {
           title={ariaLabel}
           aria-label={ariaLabel}
           data-cy="notifications-button"
-          className="relative gap-1.5 rounded-full border border-border px-2.5"
+          className="relative gap-1.5 rounded-md border border-border px-2.5"
+          size="sm"
         >
           <RiNotification3Line className="size-4" />
           <span className="text-xs font-medium leading-none">

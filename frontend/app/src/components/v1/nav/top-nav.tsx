@@ -108,13 +108,13 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex ml-auto items-center justify-end gap-2">
+          <Notifications />
           {showTenantSwitcher &&
             (isCloudEnabled ? (
               <OrganizationSelector memberships={tenantMemberships} />
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
             ))}
-          <Notifications />
         </div>
       </div>
 
@@ -183,13 +183,13 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex items-center justify-end gap-2 pr-4">
+          <Notifications />
           {showTenantSwitcher &&
             (isCloudEnabled ? (
               <OrganizationSelector memberships={tenantMemberships} />
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
             ))}
-          <Notifications />
         </div>
       </div>
     </header>
