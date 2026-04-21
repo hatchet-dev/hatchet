@@ -16,7 +16,7 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
   const actions = useMemo(() => {
     let baseActions = [
       !hideCancelAndReplayButtons && (
-        <div className="flex flex-row gap-x-1">
+        <div key="bulk-actions" className="flex flex-row gap-x-1">
           <TaskRunActionButton
             actionType="replay"
             disabled={false}
