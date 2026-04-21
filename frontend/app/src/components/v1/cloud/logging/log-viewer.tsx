@@ -393,8 +393,7 @@ export function LogViewer({
               )}
               <div
                 className={cn(
-                  'px-3 py-1.5 font-mono text-xs text-foreground flex items-baseline gap-2',
-                  !log.linkTo && 'truncate',
+                  'px-3 py-1.5 font-mono text-xs text-foreground truncate flex flex-row items-baseline gap-x-1',
                   selectedLogIndex === ix && 'whitespace-normal break-words',
                 )}
                 onClick={() => {
@@ -421,7 +420,9 @@ export function LogViewer({
                           to={log.linkTo.destination}
                           params={log.linkTo.params as Record<string, string>}
                           className="ml-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
                         >
                           <ExternalLink className="size-3" />
                         </Link>
