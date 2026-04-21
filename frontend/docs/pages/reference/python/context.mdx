@@ -313,6 +313,7 @@ Parameters:
 | ------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
 | `signal_key`  | `str`                                             | The key to use for the durable event. This is used to identify the event in the Hatchet API. | _required_ |
 | `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                   | `()`       |
+| `label`       | `str \| None`                                     | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for (e.g., "Waiting for payment confirmation"). | `None`     |
 
 Returns:
 
@@ -336,9 +337,10 @@ For more complicated conditions, use `ctx.aio_wait_for` directly.
 
 Parameters:
 
-| Name       | Type       | Description                                                                                       | Default    |
-| ---------- | ---------- | ------------------------------------------------------------------------------------------------- | ---------- |
-| `duration` | `Duration` | The duration to sleep for. Can be a `timedelta` or a string (e.g. `"5m"`, `"1h"`). | _required_ |
+| Name       | Type            | Description                                                                                       | Default    |
+| ---------- | --------------- | ------------------------------------------------------------------------------------------------- | ---------- |
+| `duration` | `Duration`      | The duration to sleep for. Can be a `timedelta` or a string (e.g. `"5m"`, `"1h"`). | _required_ |
+| `label`    | `str \| None`   | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for. | `None`     |
 
 Returns:
 
@@ -365,6 +367,9 @@ Parameters:
 | `key`               | `str`             | The event key to wait for.                                                                                                                                                          | _required_ |
 | `expression`        | `str \| None`     | An optional CEL expression to filter events.                                                                                                                                        | `None`     |
 | `payload_validator` | `type[T] \| None` | An optional type (e.g. a Pydantic model, dataclass, or TypedDict) to validate the event payload against. If provided, the payload will be validated and returned as this type. | `None`     |
+| `scope`             | `str \| None`     | An optional scope to narrow down event matching. Required when using `lookback_window`.                                                                                             | `None`     |
+| `lookback_window`   | `timedelta \| None` | An optional lookback window to check for events that arrived before the wait was established. Requires `scope` to be set.                                                        | `None`     |
+| `label`             | `str \| None`     | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for.                                                   | `None`     |
 
 Returns:
 

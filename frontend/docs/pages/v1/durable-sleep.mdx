@@ -36,3 +36,11 @@ The `DurableContext` exposes helper methods to allow you to sleep for either a s
     <Snippet src={snippets.ruby.durable_sleep.worker.durable_sleep} />
   </Tabs.Tab>
 </UniversalTabs>
+
+### Adding labels for dashboard visibility
+
+You can add an optional `label` parameter to durable sleep calls. Labels appear in the dashboard run details, making it easier to understand what a task is waiting for when debugging or monitoring workflow execution.
+
+Labels are particularly useful when you have multiple sleep operations in a single task, or when you want to provide business context about the wait (e.g., "Waiting for rate limit reset" or "Delayed processing for batch window").
+
+See the [Python SDK reference](/reference/python/context#aio_sleep_for) and [TypeScript SDK reference](/reference/typescript/Context#sleepfor) for the full API details.

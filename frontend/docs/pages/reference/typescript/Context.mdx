@@ -517,13 +517,24 @@ Parameters
 | Parameter          | Type       | Description                |
 | ------------------ | ---------- | -------------------------- |
 | `duration`         | `Duration` | The duration to sleep for. |
-| `readableDataKey?` | `string`   | -                          |
+| `options?` | [`SleepForOptions`](#sleepforoptions) | Optional configuration for the sleep. |
 
 Returns
 
 `Promise`\<[`SleepResult`](#sleepresult)\>
 
 A promise that resolves with a SleepResult when the sleep duration has elapsed.
+
+<a id="sleepforoptions"></a>
+
+#### SleepForOptions
+
+Options for the `sleepFor()` method.
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `readableDataKey?` | `string` | Optional key used for condition result indexing. |
+| `label?` | `string` | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for (e.g., "Waiting for payment confirmation"). |
 
 <a id="sleepuntil"></a>
 
@@ -595,6 +606,9 @@ Parameters
 | `key` | `string` | The event key to wait for. |
 | `expression?` | `string` | An optional CEL expression to filter events. |
 | `payloadSchema?` | `z.ZodTypeAny` | An optional Zod schema to validate and parse the event payload. |
+| `scope?` | `string` | An optional scope to narrow down event matching. Required when using `lookbackWindow`. |
+| `lookbackWindow?` | `Duration` | An optional lookback window to check for events that arrived before the wait was established. Requires `scope` to be set. |
+| `label?` | `string` | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for. |
 
 Returns
 
@@ -614,6 +628,7 @@ Parameters
 | Parameter    | Type                           | Description                 |
 | ------------ | ------------------------------ | --------------------------- |
 | `conditions` | `Conditions` \| `Conditions`[] | The conditions to wait for. |
+| `label?` | `string` | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for. |
 
 Returns
 
