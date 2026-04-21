@@ -126,7 +126,6 @@ Every worker has a fixed number of **slots** that control how many tasks it can 
 
 The default slot count for workers in Hatchet is 100. In many cases, leaving the default as-is will be perfectly fine, especially when first getting set up with Hatchet.
 
-<<<<<<< HEAD
 ### Choosing a slot count
 
 Start with a slot count that matches the degree of parallelism your worker can sustain. For CPU-heavy tasks, that is typically the number of available cores. For I/O-heavy tasks (HTTP calls, database queries), you can safely go higher because most of the time is spent waiting.
@@ -190,53 +189,5 @@ In development, the fastest way to run a worker is `hatchet worker dev`, which h
 Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means you can organize your workers by resource requirements, deployment boundary, or any other criterion - and Hatchet handles routing tasks to the right place.
 
 If you haven't already, read about [tasks](/v1/tasks) to understand how work is defined and configured.
-||||||| 9ae11e65
-### Choosing a slot count
 
-Start with a slot count that matches the degree of parallelism your worker can sustain. For CPU-heavy tasks, that is typically the number of available cores. For I/O-heavy tasks (HTTP calls, database queries), you can safely go higher because most of the time is spent waiting.
-
-<Callout type="info">
-  Adding slots is only helpful up to the point where the worker is not
-  bottlenecked by another resource. If your worker is CPU-bound, memory-bound,
-  or waiting on network I/O, more slots will just increase contention. Monitor
-  memory usage and event loop lag after changing slot counts - if either climbs,
-  you have gone too far.
-</Callout>
-
-## Scaling workers
-
-You can increase throughput in two ways: add more slots to a single worker, or run more worker processes. In most workloads, horizontal scaling (more workers) is the simplest path because each worker brings its own pool of slots and its own resources.
-
-When running in Kubernetes or a similar orchestrator, you can autoscale workers based on queue depth using the [Task Stats API](/v1/autoscaling-workers). Hatchet also supports [KEDA integration](/v1/autoscaling-workers#autoscaling-with-keda) for event-driven autoscaling.
-
-## Task assignment
-
-By default, Hatchet distributes tasks to any available worker that has registered the task. You can influence this behavior in several ways:
-
-| Concept                                                            | What it does                                                    |
-| ------------------------------------------------------------------ | --------------------------------------------------------------- |
-| [Worker Affinity](/v1/advanced-assignment/worker-affinity)         | Prefer or require specific workers based on labels and weights. |
-| [Sticky Assignment](/v1/advanced-assignment/sticky-assignment)     | Pin related tasks in a workflow to the same worker.             |
-| [Manual Slot Release](/v1/advanced-assignment/manual-slot-release) | Free a worker slot before the task function returns.            |
-
-These are useful when a worker has specialized hardware (a GPU, a loaded ML model), or when co-locating related tasks on the same worker avoids redundant setup.
-
-## Running in production
-
-In development, the fastest way to run a worker is `hatchet worker dev`, which handles authentication and hot-reloads your code on changes. In production, you'll run workers as standalone processes or containers.
-
-| Concept                                         | What it does                                                            |
-| ----------------------------------------------- | ----------------------------------------------------------------------- |
-| [Running with Docker](/v1/docker)               | Containerize workers for deployment.                                    |
-| [Autoscaling Workers](/v1/autoscaling-workers)  | Scale workers dynamically based on queue depth.                         |
-| [Worker Health Checks](/v1/worker-healthchecks) | Expose `/health` and `/metrics` endpoints for monitoring.               |
-| [Preparing for Production](/v1/production)      | Operational best practices for monitoring, error handling, and scaling. |
-
-## Workers and tasks
-
-Workers and tasks have a many-to-many relationship. A single worker can register many tasks, and a single task can be registered on many workers. This means you can organize your workers by resource requirements, deployment boundary, or any other criterion - and Hatchet handles routing tasks to the right place.
-
-If you haven't already, read about [tasks](/v1/tasks) to understand how work is defined and configured.
-=======
 <Keywords keywords="worker, slots, registration, concurrency, horizontal scaling, autoscaling" />
->>>>>>> main

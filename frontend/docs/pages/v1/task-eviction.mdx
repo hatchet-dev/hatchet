@@ -3,7 +3,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Task Eviction
 
-<<<<<<< HEAD
 When a task needs to wait (for time, an event, or child results), how does Hatchet handle the worker slot? The answer depends on which pattern you're using.
 
 <UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
@@ -131,90 +130,6 @@ Because DAG tasks are only scheduled when ready, there is no wasted capacity:
 - **Parent dependencies** — Tasks waiting on upstream results are not queued until those results are available.
 
 This is one of the advantages of DAGs: the scheduling model is simpler. You declare the conditions upfront, and Hatchet handles the timing. There is no eviction, no checkpointing, and no replay, because the task never starts until it's ready to run straight through.
-||||||| 9ae11e65
-When a task needs to wait (for time, an event, or child results), how does Hatchet handle the worker slot? The answer depends on which pattern you're using.
-
-<UniversalTabs items={["Durable Tasks", "DAGs"]} optionKey="pattern">
-<Tabs.Tab title="Durable Tasks">
-
-## Task Eviction
-
-When a durable task enters a wait, whether from `SleepFor`, `WaitForEvent`, or `WaitFor`, Hatchet **evicts** the task from the worker. The worker slot is released, the task's progress is persisted in the durable event log, and the task does not consume slots or hold resources while it is idle.
-
-This is what makes durable tasks fundamentally different from regular tasks: a regular task consumes a slot for the entire duration of execution, even if it's just sleeping. A durable task gives the slot back the moment it starts waiting.
-
-### How eviction works
-
-```mermaid
-graph LR
-    QUEUED -->|Assigned to worker| RUNNING
-    RUNNING -->|Hits SleepFor / WaitForEvent| EVICTED
-    EVICTED -->|Wait completes or event arrives| QUEUED
-```
-
-1. **Task reaches a wait.** The durable task calls `SleepFor`, `WaitForEvent`, or `WaitFor`.
-2. **Checkpoint is written.** Hatchet records the current progress in the durable event log.
-3. **Worker slot is freed.** The task is evicted from the worker. The slot is immediately available for other tasks.
-4. **Wait completes.** When the sleep expires or the expected event arrives, Hatchet re-queues the task.
-5. **Task resumes on any available worker.** A worker picks up the task, replays the event log to the last checkpoint, and continues execution from where it left off.
-
-The resumed task does not need to run on the same worker that originally started it. Any worker that has registered the task can pick it up.
-
-### Why eviction matters
-
-Without eviction, a task that sleeps for 24 hours would consume a slot for the entire duration, wasting capacity that could be running other work. With eviction, the slot is freed immediately.
-
-This is especially important for:
-
-- **Long waits** — Tasks that sleep for hours or days should not hold slots.
-- **Human-in-the-loop** — Waiting for a human to approve or respond could take minutes or weeks. Eviction ensures no resources are held in the meantime.
-- **Large fan-outs** — A parent task that spawns thousands of children and waits for results can release its slot while the children run, preventing deadlocks where the parent holds resources that the children need.
-
-### Separate slot pools
-
-Durable tasks consume slots from a **separate slot pool** than regular tasks. This prevents a common deadlock: if durable and regular tasks shared the same pool, a durable task waiting on child tasks could hold the very slot those children need to execute.
-
-By isolating slot pools, Hatchet ensures that durable tasks waiting on children never starve the workers that need to run those children.
-
-### Eviction and determinism
-
-Because a task may be evicted and resumed on a different worker at any time, the code between checkpoints must be [deterministic](/v1/patterns/mixing-patterns#determinism-in-durable-tasks). On resume, Hatchet replays the event log; it does not re-execute completed operations. If the code has changed between the original run and the replay, the checkpoint sequence may not match, leading to unexpected behavior.
-
-</Tabs.Tab>
-<Tabs.Tab title="DAGs">
-
-## No Eviction Needed
-
-DAG tasks do not require eviction because they are **never assigned to a worker until they can actually run**. A worker slot is only allocated when all of the task's conditions are met: parent tasks have completed, sleep durations have elapsed, and expected events have arrived.
-
-This means resources are only consumed during active execution, never during waits.
-
-### How DAG scheduling works
-
-```mermaid
-graph LR
-    PENDING -->|"All conditions met (parents, sleep, events)"| QUEUED
-    QUEUED -->|Assigned to worker| RUNNING
-    RUNNING -->|Completes| COMPLETED
-```
-
-1. **Task is pending.** The task exists in the workflow but is not queued. No worker slot is allocated. No resources are consumed.
-2. **Conditions are met.** All parent tasks have completed, any sleep duration has elapsed, and any required events have arrived.
-3. **Task is queued.** Only now does Hatchet place the task in the queue for worker assignment.
-4. **Task runs to completion.** A worker picks up the task, executes it, and the slot is freed.
-
-### Why this matters
-
-Because DAG tasks are only scheduled when ready, there is no wasted capacity:
-
-- **Sleep conditions** — A task that waits 24 hours after its parent completes does not hold a slot. It sits in a pending state until the timer expires, then gets queued.
-- **Event conditions** — A task waiting for an external event consumes no resources. When the event arrives, the task is queued and assigned a slot.
-- **Parent dependencies** — Tasks waiting on upstream results are not queued until those results are available.
-
-This is one of the advantages of DAGs: the scheduling model is simpler. You declare the conditions upfront, and Hatchet handles the timing. There is no eviction, no checkpointing, and no replay, because the task never starts until it's ready to run straight through.
-=======
-Since durable tasks are often waiting for sleeps, events, or child runs, they spend much of their time inactive. When this happens, the durable task no longer needs to hold a slot on the worker until the thing it's waiting for completes. Hatchet has the option to **evict** durable tasks from workers when they're in one of these waiting states, in order to free up slots on the worker. This allows the worker to pick up additional durable tasks, and then resume the original one from where it left off when the wait is satisfied, without keeping the idle task around.
->>>>>>> main
 
 <Callout type="info">
   It's important to note that eviction is a fundamental difference between

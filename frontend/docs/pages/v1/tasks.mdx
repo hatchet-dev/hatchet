@@ -83,40 +83,6 @@ Tasks can be configured to handle common problems in distributed systems. For ex
 | [Priority](/v1/priority)                                   | Influence scheduling order relative to other queued tasks. |
 | [Worker affinity](/v1/advanced-assignment/worker-affinity) | Prefer or require specific workers for this task.          |
 
-<<<<<<< HEAD
-## Input and output
-
-Every task receives an **input** - a JSON-serializable object passed when the task is triggered. The value you return from the task function becomes the task's **output**, which callers receive when they await the result.
-
-When a task is part of a [workflow](/v1/durable-workflows-overview), its output is also available to downstream tasks through the context object, so data flows naturally from one step to the next. See [Accessing Parent Task Outputs](/v1/patterns/directed-acyclic-graphs#accessing-parent-task-outputs) for details.
-
-## The context object
-
-Every task function receives a **context** alongside its input. The context is your handle to the Hatchet runtime while the task is executing. Through it you can perform various operations:
-
-- **Runtime information** like the task's run ID, workflow ID, and more.
-- **Check for cancellation** and respond to it gracefully ([Cancellation](/v1/cancellation)).
-- **Refresh timeouts** if a long-running operation needs more time ([Timeouts](/v1/timeouts)).
-- **Release a worker slot** early to free capacity for other tasks ([Manual Slot Release](/v1/advanced-assignment/manual-slot-release)).
-
-||||||| 9ae11e65
-## Input and output
-
-Every task receives an **input** - a JSON-serializable object passed when the task is triggered. The value you return from the task function becomes the task's **output**, which callers receive when they await the result.
-
-When a task is part of a [workflow](/v1/durable-workflows), its output is also available to downstream tasks through the context object, so data flows naturally from one step to the next. See [Accessing Parent Task Outputs](/v1/patterns/directed-acyclic-graphs#accessing-parent-task-outputs) for details.
-
-## The context object
-
-Every task function receives a **context** alongside its input. The context is your handle to the Hatchet runtime while the task is executing. Through it you can perform various operations:
-
-- **Runtime information** like the task's run ID, workflow ID, and more.
-- **Check for cancellation** and respond to it gracefully ([Cancellation](/v1/cancellation)).
-- **Refresh timeouts** if a long-running operation needs more time ([Timeouts](/v1/timeouts)).
-- **Release a worker slot** early to free capacity for other tasks ([Manual Slot Release](/v1/advanced-assignment/manual-slot-release)).
-
-=======
->>>>>>> main
 ## How tasks execute on workers
 
 Tasks don't run on their own. [Workers](/v1/workers) execute them. A worker is a long-running process that registers one or more tasks with Hatchet. When you trigger a task, Hatchet places it in a queue and assigns it to an available worker that has registered that task. When a task completes, the Hatchet SDK running on the worker sends the result back to Hatchet, which marks the task as a success or failure, displays the results, and so on.

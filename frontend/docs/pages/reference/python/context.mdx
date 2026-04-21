@@ -322,21 +322,11 @@ Returns:
 
 Raises:
 
-<<<<<<< HEAD
 | Type                   | Description                                                                                                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ValueError`           | If the durable event listener is not available.                                                                                                                |
+| `ValueError`           | If the durable task client is not available.                                                                                                                   |
+| `TypeError`            | If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.                                                          |
 | `NonDeterminismError`  | If the task is being replayed and the wait conditions don't match the original execution. See [Determinism Requirements](/v1/patterns/durable-task-execution#determinism-requirements). |
-||||||| 9ae11e65
-| Type         | Description                                     |
-| ------------ | ----------------------------------------------- |
-| `ValueError` | If the durable event listener is not available. |
-=======
-| Type         | Description                                                                                           |
-| ------------ | ----------------------------------------------------------------------------------------------------- |
-| `ValueError` | If the durable task client is not available.                                                          |
-| `TypeError`  | If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener. |
->>>>>>> main
 
 #### `aio_sleep_for`
 
