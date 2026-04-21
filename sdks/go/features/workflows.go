@@ -184,7 +184,7 @@ func (w *WorkflowsClient) Unpause(ctx context.Context, workflowName string) (*re
 // IsPaused reports whether a workflow is currently paused.
 func (w *WorkflowsClient) IsPaused(ctx context.Context, workflowName string) (bool, error) {
 	// Bypass the in-memory cache so we always read the live server state.
-	w.cache.Set(workflowName, nil)
+	w.cache.Remove(workflowName)
 
 	workflow, err := w.Get(ctx, workflowName)
 	if err != nil {
