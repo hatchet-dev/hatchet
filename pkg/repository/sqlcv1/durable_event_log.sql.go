@@ -663,7 +663,9 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 
 const markDurableEventLogEntrySatisfied = `-- name: MarkDurableEventLogEntrySatisfied :one
 UPDATE v1_durable_event_log_entry
-SET is_satisfied = true
+SET
+    is_satisfied = true,
+    satisfied_at = NOW()
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
   AND branch_id = $3::BIGINT
