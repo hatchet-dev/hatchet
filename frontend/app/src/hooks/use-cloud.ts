@@ -73,8 +73,7 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
     queryKey: ['feature-flags:list', tenantId],
     retry: false,
     enabled:
-      !isControlPlaneEnabled &&
-      cloudMetaQuery.data?.isCloudEnabled &&
+      (isControlPlaneEnabled || cloudMetaQuery.data?.isCloudEnabled) &&
       !!tenantId,
     queryFn: async () => {
       try {
@@ -103,7 +102,7 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
       isCloudEnabled: true,
       isCloudLoaded: true,
       isCloudLoading: false,
-      featureFlags: null,
+      featureFlags: featureFlagsQuery.data?.data || null,
     };
   }
 
