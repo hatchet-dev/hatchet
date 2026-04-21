@@ -83,10 +83,10 @@ func (t *WorkflowService) WorkflowUpdate(ctx echo.Context, request gen.WorkflowU
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:       event.TaskId,
-				RetryCount:   event.RetryCount,
-				EventType:    event.EventType,
-				EventMessage: event.EventMessage,
+				TaskId:         event.TaskId,
+				RetryCount:     event.RetryCount,
+				EventType:      event.EventType,
+				EventMessage:   event.EventMessage,
 				EventTimestamp: time.Now(),
 			},
 		)
