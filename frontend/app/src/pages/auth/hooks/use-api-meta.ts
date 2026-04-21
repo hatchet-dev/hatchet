@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 export default function useApiMeta() {
   const { isControlPlaneEnabled } = useControlPlane();
   const metaQuery = useQuery({
-    queryKey: ['metadata:get'],
+    queryKey: ['metadata:get', isControlPlaneEnabled],
     queryFn: async () => {
       try {
         return await (isControlPlaneEnabled
