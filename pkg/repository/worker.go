@@ -726,21 +726,12 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
 	const timeout = 1000 * 60 * 3 // 3 minutes
 	const batchSize int32 = 10000
-	lockName := fmt.Sprintf("cleanup-old-workers:%s", tenantId.String())
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, w.pool, w.l, timeout)
 	if err != nil {
-		return false, fmt.Errorf("error beginning transaction for %s: %w", lockName, err)
+		return false, fmt.Errorf("error beginning transaction: %w", err)
 	}
 	defer rollback()
-
-	acquired, err := w.queries.TryAdvisoryLock(ctx, tx, hash(lockName))
-	if err != nil {
-		return false, fmt.Errorf("error acquiring advisory lock for %s: %w", lockName, err)
-	}
-	if !acquired {
-		return false, nil
-	}
 
 	result, err := w.queries.CleanupOldWorkers(ctx, tx, sqlcv1.CleanupOldWorkersParams{
 		Tenantid:            tenantId,
@@ -752,7 +743,7 @@ func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.
 	}
 
 	if err := commit(ctx); err != nil {
-		return false, fmt.Errorf("error committing transaction for %s: %w", lockName, err)
+		return false, fmt.Errorf("error committing transaction: %w", err)
 	}
 
 	return result.RowsAffected() == int64(batchSize), nil
