@@ -393,8 +393,7 @@ export function LogViewer({
               )}
               <div
                 className={cn(
-                  'px-3 py-1.5 font-mono text-xs text-foreground truncate flex flex-row items-baseline gap-x-1',
-                  selectedLogIndex === ix && 'whitespace-normal break-words',
+                  'px-3 py-1.5 font-mono text-xs text-foreground flex flex-row items-baseline gap-x-1 min-w-0',
                 )}
                 onClick={() => {
                   setSelectedLogIndex((prev) => (prev === ix ? undefined : ix));
@@ -408,7 +407,17 @@ export function LogViewer({
                   }
                 }}
               >
-                <span className={cn(!log.linkTo && 'truncate')}>
+                <span
+                  className={cn(
+                    'min-w-0',
+                    selectedLogIndex === ix
+                      ? 'whitespace-normal break-words'
+                      : 'truncate',
+                    log.linkTo &&
+                      selectedLogIndex !== ix &&
+                      'max-w-[calc(100%-1rem)]',
+                  )}
+                >
                   {/* fixme: figure out how to use the type guard properly here */}
                   <AnsiLine text={log.line as string} />
                 </span>
