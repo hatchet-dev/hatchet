@@ -164,6 +164,8 @@ export interface DurableTaskWaitForRequest {
   durableTaskExternalId: string;
   /** Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR */
   waitForConditions?: DurableEventListenerConditions | undefined;
+  /** An optional human-readable label for this wait, displayed in the dashboard. */
+  label?: string | undefined;
 }
 
 export interface DurableTaskRequest {
@@ -1817,7 +1819,7 @@ export const DurableTaskTriggerRunsRequest: MessageFns<DurableTaskTriggerRunsReq
 };
 
 function createBaseDurableTaskWaitForRequest(): DurableTaskWaitForRequest {
-  return { invocationCount: 0, durableTaskExternalId: '', waitForConditions: undefined };
+  return { invocationCount: 0, durableTaskExternalId: '', waitForConditions: undefined, label: undefined };
 }
 
 export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = {
@@ -1836,6 +1838,9 @@ export const DurableTaskWaitForRequest: MessageFns<DurableTaskWaitForRequest> = 
         message.waitForConditions,
         writer.uint32(26).fork()
       ).join();
+    }
+    if (message.label !== undefined) {
+      writer.uint32(34).string(message.label);
     }
     return writer;
   },

@@ -158,6 +158,7 @@ function eventLogEntryResultFromProto(
 export interface WaitForEvent {
   kind: 'waitFor';
   waitForConditions: DurableEventListenerConditions;
+  label?: string;
 }
 
 export interface RunChildrenEvent {
@@ -592,6 +593,7 @@ export class DurableListenerClient {
           invocationCount,
           durableTaskExternalId,
           waitForConditions: event.waitForConditions,
+          label: event.label,
         };
         request = { waitFor: waitForReq };
         break;
