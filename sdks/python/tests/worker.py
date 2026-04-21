@@ -2,6 +2,7 @@ import argparse
 from typing import cast
 
 from hatchet_sdk import Hatchet
+from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 from tests.child_spawn_cache_on_retry.worker import (
     spawn_cache_on_retry_child,
     spawn_cache_on_retry_parent,
@@ -9,8 +10,10 @@ from tests.child_spawn_cache_on_retry.worker import (
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     multiple_concurrent_cancellations_test_workflow,
 )
+from tests.concurrency_strategies.workflow import concurrency_strategy_workflow
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
+HatchetInstrumentor().instrument()
 
 
 def main(slots: int) -> None:
@@ -18,6 +21,7 @@ def main(slots: int) -> None:
         "e2e-test-worker-2",
         slots=slots,
         workflows=[
+            concurrency_strategy_workflow,
             multiple_concurrent_cancellations_test_workflow,
             spawn_cache_on_retry_parent,
             spawn_cache_on_retry_child,

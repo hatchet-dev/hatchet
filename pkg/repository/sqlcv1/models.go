@@ -3116,6 +3116,7 @@ type V1Dag struct {
 	WorkflowID           uuid.UUID          `json:"workflow_id"`
 	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
+	DesiredWorkerLabels  []byte             `json:"desired_worker_labels"`
 }
 
 type V1DagData struct {
@@ -3177,6 +3178,9 @@ type V1DurableEventLogEntry struct {
 	BranchID              int64                 `json:"branch_id"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
+	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
+	UserMessage           pgtype.Text           `json:"user_message"`
+	WaitData              []byte                `json:"wait_data"`
 }
 
 type V1DurableEventLogFile struct {
@@ -3309,6 +3313,8 @@ type V1LogLine struct {
 	Level          V1LogLineLevel     `json:"level"`
 	Metadata       []byte             `json:"metadata"`
 	RetryCount     int32              `json:"retry_count"`
+	WorkflowID     *uuid.UUID         `json:"workflow_id"`
+	StepID         *uuid.UUID         `json:"step_id"`
 }
 
 type V1LookupTable struct {
@@ -3716,6 +3722,7 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	IsDurable            bool                 `json:"is_durable"`
 }
 
 type V1WorkerSlotConfig struct {

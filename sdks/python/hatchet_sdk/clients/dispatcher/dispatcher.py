@@ -7,16 +7,12 @@ import grpc.aio
 import tenacity
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from hatchet_sdk.clients.dispatcher.action_listener import (
-    ActionListener,
-    GetActionListenerRequest,
-)
+from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.rest.tenacity_utils import (
-    tenacity_alert_retry,
     tenacity_retry,
     tenacity_should_retry,
 )
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, TenacityConfig, tenacity_before_sleep
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
@@ -37,8 +33,10 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.types.labels import WorkerLabel
+from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_REGISTER_TIMEOUT = 30
 
@@ -61,28 +59,33 @@ class DispatcherClient:
         return self.client
 
     async def get_action_listener(
-        self, req: GetActionListenerRequest
+        self,
+        worker_name: str,
+        services: list[str],
+        actions: list[str],
+        slot_config: dict[str, int],
+        labels: list[WorkerLabel],
     ) -> ActionListener:
         if not self.aio_client:
             aio_conn = new_conn(self.config, True)
             self.aio_client = DispatcherStub(aio_conn)
 
-        # Override labels with the preset labels
-        preset_labels = self.config.worker_preset_labels
-
-        for key, value in preset_labels.items():
-            req.labels[key] = WorkerLabels(str_value=str(value))
+        proto_labels: dict[str, WorkerLabels] = {
+            label.key: label.to_proto() for label in labels if label.key is not None
+        }
+        for key, value in self.config.worker_preset_labels.items():
+            proto_labels[key] = WorkerLabels(str_value=str(value))
 
         response = cast(
             WorkerRegisterResponse,
             # fixme: figure out how to get typing right here
             await self.aio_client.Register(  # type: ignore[misc]
                 WorkerRegisterRequest(
-                    worker_name=req.worker_name,
-                    actions=req.actions,
-                    services=req.services,
-                    labels=req.labels,
-                    slot_config=req.slot_config,
+                    worker_name=worker_name,
+                    actions=actions,
+                    services=services,
+                    labels=proto_labels,
+                    slot_config=slot_config,
                     runtime_info=RuntimeInfo(
                         sdk_version=version("hatchet_sdk"),
                         language=SDKS.PYTHON,
@@ -91,7 +94,7 @@ class DispatcherClient:
                     ),
                 ),
                 timeout=DEFAULT_REGISTER_TIMEOUT,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -101,7 +104,7 @@ class DispatcherClient:
         reraise=True,
         wait=tenacity.wait_exponential_jitter(initial=0.5, max=5),
         stop=tenacity.stop_after_attempt(3),
-        before_sleep=tenacity_alert_retry,
+        before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
     )
     async def get_version(self) -> str | None:
@@ -120,7 +123,7 @@ class DispatcherClient:
                 await self.aio_client.GetVersion(  # type: ignore[misc]
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except grpc.RpcError as e:
@@ -141,16 +144,22 @@ class DispatcherClient:
             return await self._try_send_step_action_event(
                 action, event_type, payload, should_not_retry
             )
-        except Exception as e:
-            # for step action events, send a failure event when we cannot send the completed event
-            if event_type in (STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_FAILED):
-                await self._try_send_step_action_event(
-                    action,
-                    STEP_EVENT_TYPE_FAILED,
-                    "Failed to send finished event: " + str(e),
-                    should_not_retry=True,
-                )
+        except Exception:
+            was_completed = event_type == STEP_EVENT_TYPE_COMPLETED
+            was_failed = event_type == STEP_EVENT_TYPE_FAILED
 
+            message = f"failed to send step action event {event_type} for action {action.action_id}."
+
+            if was_completed:
+                message += "**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
+
+            if was_failed:
+                message += "**IMPORTANT**: the task failed, but the engine failed to receive the failed event."
+
+            if was_completed or was_failed:
+                message += "the engine will eventually consider the task timed out, and invoke any retries configured on the task."
+
+            logger.exception(message)
             return None
 
     async def _try_send_step_action_event(
@@ -181,16 +190,19 @@ class DispatcherClient:
             should_not_retry=should_not_retry,
         )
 
-        send_step_action_event = tenacity_retry(
-            self.aio_client.SendStepActionEvent, self.config.tenacity
+        send = tenacity_retry(
+            self.aio_client.SendStepActionEvent,
+            TenacityConfig(
+                max_attempts=10,
+            ),
         )
 
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
             # fixme: figure out how to get typing right here
-            await send_step_action_event(  # type: ignore[misc]
+            await send(  # type: ignore[misc]
                 event,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -201,7 +213,7 @@ class DispatcherClient:
             ActionEventResponse,
             client.PutOverridesData(
                 data,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -211,7 +223,7 @@ class DispatcherClient:
         client.ReleaseSlot(
             ReleaseSlotRequest(task_run_external_id=step_run_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     def refresh_timeout(self, step_run_id: str, increment_by: str) -> None:
@@ -223,26 +235,25 @@ class DispatcherClient:
                 increment_timeout_by=increment_by,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     def upsert_worker_labels(
-        self, worker_id: str | None, labels: dict[str, str | int]
+        self, worker_id: str | None, labels: list[WorkerLabel]
     ) -> None:
-        worker_labels = {}
-
-        for key, value in labels.items():
-            if isinstance(value, int):
-                worker_labels[key] = WorkerLabels(int_value=value)
-            else:
-                worker_labels[key] = WorkerLabels(str_value=str(value))
-
         client = self._get_or_create_client()
 
         client.UpsertWorkerLabels(
-            UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
+            UpsertWorkerLabelsRequest(
+                worker_id=worker_id,
+                labels={
+                    label.key: label.to_proto()
+                    for label in labels
+                    if label.key is not None
+                },
+            ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     async def async_upsert_worker_labels(
@@ -266,5 +277,5 @@ class DispatcherClient:
         await self.aio_client.UpsertWorkerLabels(  # type: ignore[misc]
             UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )

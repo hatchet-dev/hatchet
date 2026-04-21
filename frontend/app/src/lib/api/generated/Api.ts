@@ -37,6 +37,8 @@ import {
   EventOrderByField,
   EventSearch,
   Events,
+  FeatureFlagEvaluationResult,
+  FeatureFlagId,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
   ListSNSIntegrations,
@@ -97,6 +99,7 @@ import {
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
+  V1DurableEventLogList,
   V1Event,
   V1EventList,
   V1Filter,
@@ -164,7 +167,7 @@ export class Api<
    * @request GET:/api/v1/stable/tasks/{task}
    * @secure
    */
-  v1TaskGet = (
+  v1TaskGet = Object.assign((
     task: string,
     query?: {
       /** The attempt number */
@@ -179,7 +182,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "task"],
+    }), { resources: new Set<string>(["tenant", "task"]) });
   /**
    * @description List events for a task
    *
@@ -189,7 +193,7 @@ export class Api<
    * @request GET:/api/v1/stable/tasks/{task}/task-events
    * @secure
    */
-  v1TaskEventList = (
+  v1TaskEventList = Object.assign((
     task: string,
     query?: {
       /**
@@ -212,7 +216,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "task"],
+    }), { resources: new Set<string>(["tenant", "task"]) });
   /**
    * @description Lists log lines for a task
    *
@@ -222,7 +227,7 @@ export class Api<
    * @request GET:/api/v1/stable/tasks/{task}/logs
    * @secure
    */
-  v1LogLineList = (
+  v1LogLineList = Object.assign((
     task: string,
     query?: {
       /**
@@ -258,7 +263,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "task"],
+    }), { resources: new Set<string>(["tenant", "task"]) });
   /**
    * @description Cancel tasks
    *
@@ -268,7 +274,7 @@ export class Api<
    * @request POST:/api/v1/stable/tenants/{tenant}/tasks/cancel
    * @secure
    */
-  v1TaskCancel = (
+  v1TaskCancel = Object.assign((
     tenant: string,
     data: V1CancelTaskRequest,
     params: RequestParams = {},
@@ -281,7 +287,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists log lines for a tenant
    *
@@ -291,7 +298,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/logs
    * @secure
    */
-  v1TenantLogLineList = (
+  v1TenantLogLineList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -319,6 +326,10 @@ export class Api<
       attempt?: number;
       /** The task external ID(s) to filter by */
       taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -329,7 +340,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a minute by minute breakdown of log metrics for a tenant
    *
@@ -339,7 +351,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/log-point-metrics
    * @secure
    */
-  v1TenantLogLineGetPointMetrics = (
+  v1TenantLogLineGetPointMetrics = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -358,6 +370,10 @@ export class Api<
       levels?: V1LogLineLevel[];
       /** The task external ID(s) to filter by */
       taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -368,7 +384,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Replay tasks
    *
@@ -378,7 +395,7 @@ export class Api<
    * @request POST:/api/v1/stable/tenants/{tenant}/tasks/replay
    * @secure
    */
-  v1TaskReplay = (
+  v1TaskReplay = Object.assign((
     tenant: string,
     data: V1ReplayTaskRequest,
     params: RequestParams = {},
@@ -391,7 +408,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Restore an evicted durable task
    *
@@ -401,14 +419,15 @@ export class Api<
    * @request POST:/api/v1/stable/tasks/{task}/restore
    * @secure
    */
-  v1TaskRestore = (task: string, params: RequestParams = {}) =>
+  v1TaskRestore = Object.assign((task: string, params: RequestParams = {}) =>
     this.request<V1RestoreTaskResponse, APIErrors>({
       path: `/api/v1/stable/tasks/${task}/restore`,
       method: "POST",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "task"],
+    }), { resources: new Set<string>(["tenant", "task"]) });
   /**
    * @description Lists all tasks that belong a specific list of dags
    *
@@ -418,7 +437,7 @@ export class Api<
    * @request GET:/api/v1/stable/dags/tasks
    * @secure
    */
-  v1DagListTasks = (
+  v1DagListTasks = Object.assign((
     query: {
       /** The external id of the DAG */
       dag_ids: string[];
@@ -439,7 +458,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Lists workflow runs for a tenant.
    *
@@ -449,7 +469,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs
    * @secure
    */
-  v1WorkflowRunList = (
+  v1WorkflowRunList = Object.assign((
     tenant: string,
     query: {
       /**
@@ -515,7 +535,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists displayable names of workflow runs for a tenant
    *
@@ -525,7 +546,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/display-names
    * @secure
    */
-  v1WorkflowRunDisplayNamesList = (
+  v1WorkflowRunDisplayNamesList = Object.assign((
     tenant: string,
     query: {
       /** The external ids of the workflow runs to get display names for */
@@ -540,7 +561,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists external ids for workflow runs matching filters
    *
@@ -550,7 +572,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/external-ids
    * @secure
    */
-  v1WorkflowRunExternalIdsList = (
+  v1WorkflowRunExternalIdsList = Object.assign((
     tenant: string,
     query: {
       /** A list of statuses to filter by */
@@ -581,7 +603,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Trigger a new workflow run
    *
@@ -591,7 +614,7 @@ export class Api<
    * @request POST:/api/v1/stable/tenants/{tenant}/workflow-runs/trigger
    * @secure
    */
-  v1WorkflowRunCreate = (
+  v1WorkflowRunCreate = Object.assign((
     tenant: string,
     data: V1TriggerWorkflowRunRequest,
     params: RequestParams = {},
@@ -604,7 +627,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Branch a durable task from a specific node, creating a new branch and re-processing its matches.
    *
@@ -614,7 +638,7 @@ export class Api<
    * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/branch
    * @secure
    */
-  v1DurableTaskBranch = (
+  v1DurableTaskBranch = Object.assign((
     tenant: string,
     data: V1BranchDurableTaskRequest,
     params: RequestParams = {},
@@ -627,7 +651,42 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Lists all event log entries for a durable task.
+   *
+   * @tags Durable Tasks
+   * @name V1DurableTaskEventLogList
+   * @summary List durable event log
+   * @request GET:/api/v1/stable/durable-tasks/{durable-task}
+   * @secure
+   */
+  v1DurableTaskEventLogList = Object.assign((
+    durableTask: string,
+    query?: {
+      /**
+       * The number of event log entries to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number of event log entries to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1DurableEventLogList, APIErrors>({
+      path: `/api/v1/stable/durable-tasks/${durableTask}`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["durable-task"],
+    }), { resources: new Set<string>(["durable-task"]) });
   /**
    * @description Get a workflow run and its metadata to display on the "detail" page
    *
@@ -637,14 +696,15 @@ export class Api<
    * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}
    * @secure
    */
-  v1WorkflowRunGet = (v1WorkflowRun: string, params: RequestParams = {}) =>
+  v1WorkflowRunGet = Object.assign((v1WorkflowRun: string, params: RequestParams = {}) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "v1-workflow-run"]) });
   /**
    * @description Get the status of a workflow run.
    *
@@ -654,7 +714,7 @@ export class Api<
    * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/status
    * @secure
    */
-  v1WorkflowRunGetStatus = (
+  v1WorkflowRunGetStatus = Object.assign((
     v1WorkflowRun: string,
     params: RequestParams = {},
   ) =>
@@ -664,7 +724,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "v1-workflow-run"]) });
   /**
    * @description List all tasks for a workflow run
    *
@@ -674,7 +735,7 @@ export class Api<
    * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/task-events
    * @secure
    */
-  v1WorkflowRunTaskEventsList = (
+  v1WorkflowRunTaskEventsList = Object.assign((
     v1WorkflowRun: string,
     query?: {
       /**
@@ -697,7 +758,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "v1-workflow-run"]) });
   /**
    * @description Get OTel trace for a workflow run
    *
@@ -707,7 +769,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/traces
    * @secure
    */
-  v1ObservabilityGetTrace = (
+  v1ObservabilityGetTrace = Object.assign((
     tenant: string,
     query: {
       /**
@@ -737,7 +799,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the timings for a workflow run
    *
@@ -747,7 +810,7 @@ export class Api<
    * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings
    * @secure
    */
-  v1WorkflowRunGetTimings = (
+  v1WorkflowRunGetTimings = Object.assign((
     v1WorkflowRun: string,
     query?: {
       /**
@@ -765,7 +828,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "v1-workflow-run"]) });
   /**
    * @description Get a summary of task run metrics for a tenant
    *
@@ -775,7 +839,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/task-metrics
    * @secure
    */
-  v1TaskListStatusMetrics = (
+  v1TaskListStatusMetrics = Object.assign((
     tenant: string,
     query: {
       /**
@@ -816,7 +880,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a minute by minute breakdown of task metrics for a tenant
    *
@@ -826,7 +891,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/task-point-metrics
    * @secure
    */
-  v1TaskGetPointMetrics = (
+  v1TaskGetPointMetrics = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -851,7 +916,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists all events for a tenant.
    *
@@ -861,7 +927,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/events
    * @secure
    */
-  v1EventList = (
+  v1EventList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -906,7 +972,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get an event by its id
    *
@@ -916,14 +983,15 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/events/{v1-event}
    * @secure
    */
-  v1EventGet = (tenant: string, v1Event: string, params: RequestParams = {}) =>
+  v1EventGet = Object.assign((tenant: string, v1Event: string, params: RequestParams = {}) =>
     this.request<V1Event, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/events/${v1Event}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-event"],
+    }), { resources: new Set<string>(["tenant", "v1-event"]) });
   /**
    * @description Lists all event keys for a tenant.
    *
@@ -933,14 +1001,15 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/events/keys
    * @secure
    */
-  v1EventKeyList = (tenant: string, params: RequestParams = {}) =>
+  v1EventKeyList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/events/keys`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists all filters for a tenant.
    *
@@ -950,7 +1019,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/filters
    * @secure
    */
-  v1FilterList = (
+  v1FilterList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -977,7 +1046,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Create a new filter
    *
@@ -987,7 +1057,7 @@ export class Api<
    * @request POST:/api/v1/stable/tenants/{tenant}/filters
    * @secure
    */
-  v1FilterCreate = (
+  v1FilterCreate = Object.assign((
     tenant: string,
     data: V1CreateFilterRequest,
     params: RequestParams = {},
@@ -1000,7 +1070,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a filter by its id
    *
@@ -1010,7 +1081,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
    * @secure
    */
-  v1FilterGet = (
+  v1FilterGet = Object.assign((
     tenant: string,
     v1Filter: string,
     params: RequestParams = {},
@@ -1021,7 +1092,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-filter"],
+    }), { resources: new Set<string>(["tenant", "v1-filter"]) });
   /**
    * @description Delete a filter
    *
@@ -1030,7 +1102,7 @@ export class Api<
    * @request DELETE:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
    * @secure
    */
-  v1FilterDelete = (
+  v1FilterDelete = Object.assign((
     tenant: string,
     v1Filter: string,
     params: RequestParams = {},
@@ -1041,7 +1113,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-filter"],
+    }), { resources: new Set<string>(["tenant", "v1-filter"]) });
   /**
    * @description Update a filter
    *
@@ -1050,7 +1123,7 @@ export class Api<
    * @request PATCH:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
    * @secure
    */
-  v1FilterUpdate = (
+  v1FilterUpdate = Object.assign((
     tenant: string,
     v1Filter: string,
     data: V1UpdateFilterRequest,
@@ -1064,7 +1137,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-filter"],
+    }), { resources: new Set<string>(["tenant", "v1-filter"]) });
   /**
    * @description Lists all webhook for a tenant.
    *
@@ -1074,7 +1148,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/webhooks
    * @secure
    */
-  v1WebhookList = (
+  v1WebhookList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -1101,7 +1175,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Create a new webhook
    *
@@ -1111,7 +1186,7 @@ export class Api<
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks
    * @secure
    */
-  v1WebhookCreate = (
+  v1WebhookCreate = Object.assign((
     tenant: string,
     data: V1CreateWebhookRequest,
     params: RequestParams = {},
@@ -1124,7 +1199,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a webhook by its name
    *
@@ -1134,7 +1210,7 @@ export class Api<
    * @request GET:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    * @secure
    */
-  v1WebhookGet = (
+  v1WebhookGet = Object.assign((
     tenant: string,
     v1Webhook: string,
     params: RequestParams = {},
@@ -1145,7 +1221,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-webhook"],
+    }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
   /**
    * @description Delete a webhook
    *
@@ -1154,7 +1231,7 @@ export class Api<
    * @request DELETE:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    * @secure
    */
-  v1WebhookDelete = (
+  v1WebhookDelete = Object.assign((
     tenant: string,
     v1Webhook: string,
     params: RequestParams = {},
@@ -1165,7 +1242,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-webhook"],
+    }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
   /**
    * @description Post an incoming webhook message
    *
@@ -1174,7 +1252,7 @@ export class Api<
    * @summary Post a webhook message
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    */
-  v1WebhookReceive = (
+  v1WebhookReceive = Object.assign((
     tenant: string,
     v1Webhook: string,
     data?: any,
@@ -1186,7 +1264,8 @@ export class Api<
       body: data,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-webhook"],
+    }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
   /**
    * @description Update a webhook
    *
@@ -1196,7 +1275,7 @@ export class Api<
    * @request PATCH:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    * @secure
    */
-  v1WebhookUpdate = (
+  v1WebhookUpdate = Object.assign((
     tenant: string,
     v1Webhook: string,
     data: V1UpdateWebhookRequest,
@@ -1210,7 +1289,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "v1-webhook"],
+    }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
   /**
    * @description Evaluate a CEL expression against provided input data.
    *
@@ -1220,7 +1300,7 @@ export class Api<
    * @request POST:/api/v1/stable/tenants/{tenant}/cel/debug
    * @secure
    */
-  v1CelDebug = (
+  v1CelDebug = Object.assign((
     tenant: string,
     data: V1CELDebugRequest,
     params: RequestParams = {},
@@ -1233,7 +1313,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Gets the readiness status
    *
@@ -1242,12 +1323,13 @@ export class Api<
    * @summary Get readiness
    * @request GET:/api/ready
    */
-  readinessGet = (params: RequestParams = {}) =>
+  readinessGet = Object.assign((params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/ready`,
       method: "GET",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Gets the liveness status
    *
@@ -1256,12 +1338,13 @@ export class Api<
    * @summary Get liveness
    * @request GET:/api/live
    */
-  livenessGet = (params: RequestParams = {}) =>
+  livenessGet = Object.assign((params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/live`,
       method: "GET",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Gets metadata for the Hatchet instance
    *
@@ -1270,13 +1353,14 @@ export class Api<
    * @summary Get metadata
    * @request GET:/api/v1/meta
    */
-  metadataGet = (params: RequestParams = {}) =>
+  metadataGet = Object.assign((params: RequestParams = {}) =>
     this.request<APIMeta, APIErrors>({
       path: `/api/v1/meta`,
       method: "GET",
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Gets metadata for the Hatchet cloud instance
    *
@@ -1285,13 +1369,14 @@ export class Api<
    * @summary Get cloud metadata
    * @request GET:/api/v1/cloud/metadata
    */
-  cloudMetadataGet = (params: RequestParams = {}) =>
+  cloudMetadataGet = Object.assign((params: RequestParams = {}) =>
     this.request<APIErrors, APIErrors>({
       path: `/api/v1/cloud/metadata`,
       method: "GET",
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description List all integrations
    *
@@ -1301,14 +1386,15 @@ export class Api<
    * @request GET:/api/v1/meta/integrations
    * @secure
    */
-  metadataListIntegrations = (params: RequestParams = {}) =>
+  metadataListIntegrations = Object.assign((params: RequestParams = {}) =>
     this.request<ListAPIMetaIntegration, APIErrors>({
       path: `/api/v1/meta/integrations`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Logs in a user.
    *
@@ -1317,7 +1403,7 @@ export class Api<
    * @summary Login user
    * @request POST:/api/v1/users/login
    */
-  userUpdateLogin = (data: UserLoginRequest, params: RequestParams = {}) =>
+  userUpdateLogin = Object.assign((data: UserLoginRequest, params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/login`,
       method: "POST",
@@ -1325,7 +1411,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Starts the OAuth flow
    *
@@ -1334,12 +1421,13 @@ export class Api<
    * @summary Start OAuth flow
    * @request GET:/api/v1/users/google/start
    */
-  userUpdateGoogleOauthStart = (params: RequestParams = {}) =>
+  userUpdateGoogleOauthStart = Object.assign((params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/google/start`,
       method: "GET",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Completes the OAuth flow
    *
@@ -1348,12 +1436,13 @@ export class Api<
    * @summary Complete OAuth flow
    * @request GET:/api/v1/users/google/callback
    */
-  userUpdateGoogleOauthCallback = (params: RequestParams = {}) =>
+  userUpdateGoogleOauthCallback = Object.assign((params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/google/callback`,
       method: "GET",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Starts the OAuth flow
    *
@@ -1362,12 +1451,13 @@ export class Api<
    * @summary Start OAuth flow
    * @request GET:/api/v1/users/github/start
    */
-  userUpdateGithubOauthStart = (params: RequestParams = {}) =>
+  userUpdateGithubOauthStart = Object.assign((params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/github/start`,
       method: "GET",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Completes the OAuth flow
    *
@@ -1376,12 +1466,13 @@ export class Api<
    * @summary Complete OAuth flow
    * @request GET:/api/v1/users/github/callback
    */
-  userUpdateGithubOauthCallback = (params: RequestParams = {}) =>
+  userUpdateGithubOauthCallback = Object.assign((params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/github/callback`,
       method: "GET",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Starts the OAuth flow
    *
@@ -1391,13 +1482,14 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/slack/start
    * @secure
    */
-  userUpdateSlackOauthStart = (tenant: string, params: RequestParams = {}) =>
+  userUpdateSlackOauthStart = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/tenants/${tenant}/slack/start`,
       method: "GET",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Completes the OAuth flow
    *
@@ -1407,13 +1499,14 @@ export class Api<
    * @request GET:/api/v1/users/slack/callback
    * @secure
    */
-  userUpdateSlackOauthCallback = (params: RequestParams = {}) =>
+  userUpdateSlackOauthCallback = Object.assign((params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/slack/callback`,
       method: "GET",
       secure: true,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description SNS event
    *
@@ -1422,12 +1515,13 @@ export class Api<
    * @summary Github app tenant webhook
    * @request POST:/api/v1/sns/{tenant}/{event}
    */
-  snsUpdate = (tenant: string, event: string, params: RequestParams = {}) =>
+  snsUpdate = Object.assign((tenant: string, event: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/sns/${tenant}/${event}`,
       method: "POST",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description List SNS integrations
    *
@@ -1437,14 +1531,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/sns
    * @secure
    */
-  snsList = (tenant: string, params: RequestParams = {}) =>
+  snsList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<ListSNSIntegrations, APIErrors>({
       path: `/api/v1/tenants/${tenant}/sns`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Create SNS integration
    *
@@ -1454,7 +1549,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/sns
    * @secure
    */
-  snsCreate = (
+  snsCreate = Object.assign((
     tenant: string,
     data: CreateSNSIntegrationRequest,
     params: RequestParams = {},
@@ -1467,7 +1562,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Creates a new tenant alert email group
    *
@@ -1477,7 +1573,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/alerting-email-groups
    * @secure
    */
-  alertEmailGroupCreate = (
+  alertEmailGroupCreate = Object.assign((
     tenant: string,
     data: CreateTenantAlertEmailGroupRequest,
     params: RequestParams = {},
@@ -1490,7 +1586,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Gets a list of tenant alert email groups
    *
@@ -1500,14 +1597,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/alerting-email-groups
    * @secure
    */
-  alertEmailGroupList = (tenant: string, params: RequestParams = {}) =>
+  alertEmailGroupList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantAlertEmailGroupList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/alerting-email-groups`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Gets the resource policy for a tenant
    *
@@ -1517,14 +1615,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/resource-policy
    * @secure
    */
-  tenantResourcePolicyGet = (tenant: string, params: RequestParams = {}) =>
+  tenantResourcePolicyGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantResourcePolicy, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/resource-policy`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Updates a tenant alert email group
    *
@@ -1534,7 +1633,7 @@ export class Api<
    * @request PATCH:/api/v1/alerting-email-groups/{alert-email-group}
    * @secure
    */
-  alertEmailGroupUpdate = (
+  alertEmailGroupUpdate = Object.assign((
     alertEmailGroup: string,
     data: UpdateTenantAlertEmailGroupRequest,
     params: RequestParams = {},
@@ -1547,7 +1646,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "alert-email-group"],
+    }), { resources: new Set<string>(["tenant", "alert-email-group"]) });
   /**
    * @description Deletes a tenant alert email group
    *
@@ -1557,7 +1657,7 @@ export class Api<
    * @request DELETE:/api/v1/alerting-email-groups/{alert-email-group}
    * @secure
    */
-  alertEmailGroupDelete = (
+  alertEmailGroupDelete = Object.assign((
     alertEmailGroup: string,
     params: RequestParams = {},
   ) =>
@@ -1566,7 +1666,8 @@ export class Api<
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "alert-email-group"],
+    }), { resources: new Set<string>(["tenant", "alert-email-group"]) });
   /**
    * @description Delete SNS integration
    *
@@ -1576,13 +1677,14 @@ export class Api<
    * @request DELETE:/api/v1/sns/{sns}
    * @secure
    */
-  snsDelete = (sns: string, params: RequestParams = {}) =>
+  snsDelete = Object.assign((sns: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/sns/${sns}`,
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "sns"],
+    }), { resources: new Set<string>(["tenant", "sns"]) });
   /**
    * @description List Slack webhooks
    *
@@ -1592,14 +1694,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/slack
    * @secure
    */
-  slackWebhookList = (tenant: string, params: RequestParams = {}) =>
+  slackWebhookList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<ListSlackWebhooks, APIErrors>({
       path: `/api/v1/tenants/${tenant}/slack`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Delete Slack webhook
    *
@@ -1609,13 +1712,14 @@ export class Api<
    * @request DELETE:/api/v1/slack/{slack}
    * @secure
    */
-  slackWebhookDelete = (slack: string, params: RequestParams = {}) =>
+  slackWebhookDelete = Object.assign((slack: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/slack/${slack}`,
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "slack"],
+    }), { resources: new Set<string>(["tenant", "slack"]) });
   /**
    * @description Gets the current user
    *
@@ -1625,14 +1729,15 @@ export class Api<
    * @request GET:/api/v1/users/current
    * @secure
    */
-  userGetCurrent = (params: RequestParams = {}) =>
+  userGetCurrent = Object.assign((params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/current`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Update a user password.
    *
@@ -1642,7 +1747,7 @@ export class Api<
    * @request POST:/api/v1/users/password
    * @secure
    */
-  userUpdatePassword = (
+  userUpdatePassword = Object.assign((
     data: UserChangePasswordRequest,
     params: RequestParams = {},
   ) =>
@@ -1654,7 +1759,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Registers a user.
    *
@@ -1663,7 +1769,7 @@ export class Api<
    * @summary Register user
    * @request POST:/api/v1/users/register
    */
-  userCreate = (data: UserRegisterRequest, params: RequestParams = {}) =>
+  userCreate = Object.assign((data: UserRegisterRequest, params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/register`,
       method: "POST",
@@ -1671,7 +1777,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Logs out a user.
    *
@@ -1681,14 +1788,15 @@ export class Api<
    * @request POST:/api/v1/users/logout
    * @secure
    */
-  userUpdateLogout = (params: RequestParams = {}) =>
+  userUpdateLogout = Object.assign((params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/logout`,
       method: "POST",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Lists all tenant memberships for the current user
    *
@@ -1698,14 +1806,15 @@ export class Api<
    * @request GET:/api/v1/users/memberships
    * @secure
    */
-  tenantMembershipsList = (params: RequestParams = {}) =>
+  tenantMembershipsList = Object.assign((params: RequestParams = {}) =>
     this.request<UserTenantMembershipsList, APIErrors>({
       path: `/api/v1/users/memberships`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Lists all tenant invites for the current user
    *
@@ -1715,14 +1824,15 @@ export class Api<
    * @request GET:/api/v1/users/invites
    * @secure
    */
-  userListTenantInvites = (params: RequestParams = {}) =>
+  userListTenantInvites = Object.assign((params: RequestParams = {}) =>
     this.request<TenantInviteList, APIErrors>({
       path: `/api/v1/users/invites`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Accepts a tenant invite
    *
@@ -1732,7 +1842,7 @@ export class Api<
    * @request POST:/api/v1/users/invites/accept
    * @secure
    */
-  tenantInviteAccept = (
+  tenantInviteAccept = Object.assign((
     data: AcceptInviteRequest,
     params: RequestParams = {},
   ) =>
@@ -1743,7 +1853,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Rejects a tenant invite
    *
@@ -1753,7 +1864,7 @@ export class Api<
    * @request POST:/api/v1/users/invites/reject
    * @secure
    */
-  tenantInviteReject = (
+  tenantInviteReject = Object.assign((
     data: RejectInviteRequest,
     params: RequestParams = {},
   ) =>
@@ -1764,7 +1875,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Creates a new tenant
    *
@@ -1774,7 +1886,7 @@ export class Api<
    * @request POST:/api/v1/tenants
    * @secure
    */
-  tenantCreate = (data: CreateTenantRequest, params: RequestParams = {}) =>
+  tenantCreate = Object.assign((data: CreateTenantRequest, params: RequestParams = {}) =>
     this.request<Tenant, APIErrors | APIError>({
       path: `/api/v1/tenants`,
       method: "POST",
@@ -1783,7 +1895,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Update an existing tenant
    *
@@ -1793,7 +1906,7 @@ export class Api<
    * @request PATCH:/api/v1/tenants/{tenant}
    * @secure
    */
-  tenantUpdate = (
+  tenantUpdate = Object.assign((
     tenant: string,
     data: UpdateTenantRequest,
     params: RequestParams = {},
@@ -1806,7 +1919,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the details of a tenant
    *
@@ -1816,14 +1930,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}
    * @secure
    */
-  tenantGet = (tenant: string, params: RequestParams = {}) =>
+  tenantGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<Tenant, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Gets the alerting settings for a tenant
    *
@@ -1833,14 +1948,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/alerting/settings
    * @secure
    */
-  tenantAlertingSettingsGet = (tenant: string, params: RequestParams = {}) =>
+  tenantAlertingSettingsGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantAlertingSettings, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/alerting/settings`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Creates a new tenant invite
    *
@@ -1850,7 +1966,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/invites
    * @secure
    */
-  tenantInviteCreate = (
+  tenantInviteCreate = Object.assign((
     tenant: string,
     data: CreateTenantInviteRequest,
     params: RequestParams = {},
@@ -1863,7 +1979,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Gets a list of tenant invites
    *
@@ -1873,14 +1990,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/invites
    * @secure
    */
-  tenantInviteList = (tenant: string, params: RequestParams = {}) =>
+  tenantInviteList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantInviteList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/invites`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Updates a tenant invite
    *
@@ -1889,7 +2007,7 @@ export class Api<
    * @request PATCH:/api/v1/tenants/{tenant}/invites/{tenant-invite}
    * @secure
    */
-  tenantInviteUpdate = (
+  tenantInviteUpdate = Object.assign((
     tenant: string,
     tenantInvite: string,
     data: UpdateTenantInviteRequest,
@@ -1903,7 +2021,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "tenant-invite"],
+    }), { resources: new Set<string>(["tenant", "tenant-invite"]) });
   /**
    * @description Deletes a tenant invite
    *
@@ -1912,7 +2031,7 @@ export class Api<
    * @request DELETE:/api/v1/tenants/{tenant}/invites/{tenant-invite}
    * @secure
    */
-  tenantInviteDelete = (
+  tenantInviteDelete = Object.assign((
     tenant: string,
     tenantInvite: string,
     params: RequestParams = {},
@@ -1923,7 +2042,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "tenant-invite"],
+    }), { resources: new Set<string>(["tenant", "tenant-invite"]) });
   /**
    * @description Create an API token for a tenant
    *
@@ -1933,7 +2053,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/api-tokens
    * @secure
    */
-  apiTokenCreate = (
+  apiTokenCreate = Object.assign((
     tenant: string,
     data: CreateAPITokenRequest,
     params: RequestParams = {},
@@ -1946,7 +2066,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description List API tokens for a tenant
    *
@@ -1956,14 +2077,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/api-tokens
    * @secure
    */
-  apiTokenList = (tenant: string, params: RequestParams = {}) =>
+  apiTokenList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<ListAPITokensResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/api-tokens`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Revoke an API token for a tenant
    *
@@ -1973,13 +2095,14 @@ export class Api<
    * @request POST:/api/v1/api-tokens/{api-token}
    * @secure
    */
-  apiTokenUpdateRevoke = (apiToken: string, params: RequestParams = {}) =>
+  apiTokenUpdateRevoke = Object.assign((apiToken: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/api-tokens/${apiToken}`,
       method: "POST",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "api-token"],
+    }), { resources: new Set<string>(["tenant", "api-token"]) });
   /**
    * @description Get the queue metrics for the tenant
    *
@@ -1989,7 +2112,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/queue-metrics
    * @secure
    */
-  tenantGetQueueMetrics = (
+  tenantGetQueueMetrics = Object.assign((
     tenant: string,
     query?: {
       /** A list of workflow IDs to filter by */
@@ -2009,7 +2132,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the queue metrics for the tenant
    *
@@ -2019,14 +2143,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/step-run-queue-metrics
    * @secure
    */
-  tenantGetStepRunQueueMetrics = (tenant: string, params: RequestParams = {}) =>
+  tenantGetStepRunQueueMetrics = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantStepRunQueueMetrics, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-run-queue-metrics`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists all events for a tenant.
    *
@@ -2036,7 +2161,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/events
    * @secure
    */
-  eventList = (
+  eventList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -2078,7 +2203,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Creates a new event.
    *
@@ -2088,7 +2214,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/events
    * @secure
    */
-  eventCreate = (
+  eventCreate = Object.assign((
     tenant: string,
     data: CreateEventRequest,
     params: RequestParams = {},
@@ -2101,7 +2227,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Bulk creates new events.
    *
@@ -2111,7 +2238,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/events/bulk
    * @secure
    */
-  eventCreateBulk = (
+  eventCreateBulk = Object.assign((
     tenant: string,
     data: BulkCreateEventRequest,
     params: RequestParams = {},
@@ -2124,7 +2251,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Replays a list of events.
    *
@@ -2134,7 +2262,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/events/replay
    * @secure
    */
-  eventUpdateReplay = (
+  eventUpdateReplay = Object.assign((
     tenant: string,
     data: ReplayEventRequest,
     params: RequestParams = {},
@@ -2147,7 +2275,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Cancels all runs for a list of events.
    *
@@ -2157,7 +2286,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/events/cancel
    * @secure
    */
-  eventUpdateCancel = (
+  eventUpdateCancel = Object.assign((
     tenant: string,
     data: CancelEventRequest,
     params: RequestParams = {},
@@ -2175,7 +2304,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists all rate limits for a tenant.
    *
@@ -2185,7 +2315,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/rate-limits
    * @secure
    */
-  rateLimitList = (
+  rateLimitList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -2214,7 +2344,33 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Delete a rate limit for a tenant.
+   *
+   * @tags Rate Limits
+   * @name RateLimitDelete
+   * @summary Delete rate limit
+   * @request DELETE:/api/v1/tenants/{tenant}/rate-limits
+   * @secure
+   */
+  rateLimitDelete = Object.assign((
+    tenant: string,
+    query: {
+      /** The limit key */
+      key: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/rate-limits`,
+      method: "DELETE",
+      query: query,
+      secure: true,
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Gets a list of tenant members
    *
@@ -2224,14 +2380,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/members
    * @secure
    */
-  tenantMemberList = (tenant: string, params: RequestParams = {}) =>
+  tenantMemberList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantMemberList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/members`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Update a tenant member
    *
@@ -2241,7 +2398,7 @@ export class Api<
    * @request PATCH:/api/v1/tenants/{tenant}/members/{member}
    * @secure
    */
-  tenantMemberUpdate = (
+  tenantMemberUpdate = Object.assign((
     tenant: string,
     member: string,
     data: UpdateTenantMemberRequest,
@@ -2255,7 +2412,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "member"],
+    }), { resources: new Set<string>(["tenant", "member"]) });
   /**
    * @description Delete a member from a tenant
    *
@@ -2265,7 +2423,7 @@ export class Api<
    * @request DELETE:/api/v1/tenants/{tenant}/members/{member}
    * @secure
    */
-  tenantMemberDelete = (
+  tenantMemberDelete = Object.assign((
     tenant: string,
     member: string,
     params: RequestParams = {},
@@ -2276,7 +2434,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "member"],
+    }), { resources: new Set<string>(["tenant", "member"]) });
   /**
    * @description Get an event.
    *
@@ -2286,14 +2445,15 @@ export class Api<
    * @request GET:/api/v1/events/{event}
    * @secure
    */
-  eventGet = (event: string, params: RequestParams = {}) =>
+  eventGet = Object.assign((event: string, params: RequestParams = {}) =>
     this.request<Event, APIErrors>({
       path: `/api/v1/events/${event}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "event"],
+    }), { resources: new Set<string>(["tenant", "event"]) });
   /**
    * @description Get the data for an event.
    *
@@ -2303,14 +2463,15 @@ export class Api<
    * @request GET:/api/v1/events/{event}/data
    * @secure
    */
-  eventDataGet = (event: string, params: RequestParams = {}) =>
+  eventDataGet = Object.assign((event: string, params: RequestParams = {}) =>
     this.request<EventData, APIErrors>({
       path: `/api/v1/events/${event}/data`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "event"],
+    }), { resources: new Set<string>(["tenant", "event"]) });
   /**
    * @description Get the data for an event.
    *
@@ -2320,7 +2481,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/events/{event-with-tenant}/data
    * @secure
    */
-  eventDataGetWithTenant = (
+  eventDataGetWithTenant = Object.assign((
     eventWithTenant: string,
     tenant: string,
     params: RequestParams = {},
@@ -2331,7 +2492,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "event-with-tenant"],
+    }), { resources: new Set<string>(["tenant", "event-with-tenant"]) });
   /**
    * @description Lists all event keys for a tenant.
    *
@@ -2341,14 +2503,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/events/keys
    * @secure
    */
-  eventKeyList = (tenant: string, params: RequestParams = {}) =>
+  eventKeyList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/keys`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get all workflows for a tenant
    *
@@ -2358,7 +2521,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows
    * @secure
    */
-  workflowList = (
+  workflowList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -2385,7 +2548,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Schedule a new workflow run for a tenant
    *
@@ -2395,7 +2559,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/workflows/{workflow}/scheduled
    * @secure
    */
-  scheduledWorkflowRunCreate = (
+  scheduledWorkflowRunCreate = Object.assign((
     tenant: string,
     workflow: string,
     data: ScheduleWorkflowRunRequest,
@@ -2409,7 +2573,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get all scheduled workflow runs for a tenant
    *
@@ -2419,7 +2584,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled
    * @secure
    */
-  workflowScheduledList = (
+  workflowScheduledList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -2474,7 +2639,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a scheduled workflow run for a tenant
    *
@@ -2484,7 +2650,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
    * @secure
    */
-  workflowScheduledGet = (
+  workflowScheduledGet = Object.assign((
     tenant: string,
     scheduledWorkflowRun: string,
     params: RequestParams = {},
@@ -2495,7 +2661,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "scheduled-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
   /**
    * @description Delete a scheduled workflow run for a tenant
    *
@@ -2505,7 +2672,7 @@ export class Api<
    * @request DELETE:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
    * @secure
    */
-  workflowScheduledDelete = (
+  workflowScheduledDelete = Object.assign((
     tenant: string,
     scheduledWorkflowRun: string,
     params: RequestParams = {},
@@ -2515,7 +2682,8 @@ export class Api<
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "scheduled-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
   /**
    * @description Update (reschedule) a scheduled workflow run for a tenant
    *
@@ -2525,7 +2693,7 @@ export class Api<
    * @request PATCH:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
    * @secure
    */
-  workflowScheduledUpdate = (
+  workflowScheduledUpdate = Object.assign((
     tenant: string,
     scheduledWorkflowRun: string,
     data: UpdateScheduledWorkflowRunRequest,
@@ -2539,7 +2707,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "scheduled-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
   /**
    * @description Bulk delete scheduled workflow runs for a tenant
    *
@@ -2549,7 +2718,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/bulk-delete
    * @secure
    */
-  workflowScheduledBulkDelete = (
+  workflowScheduledBulkDelete = Object.assign((
     tenant: string,
     data: ScheduledWorkflowsBulkDeleteRequest,
     params: RequestParams = {},
@@ -2562,7 +2731,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Bulk update (reschedule) scheduled workflow runs for a tenant
    *
@@ -2572,7 +2742,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/bulk-update
    * @secure
    */
-  workflowScheduledBulkUpdate = (
+  workflowScheduledBulkUpdate = Object.assign((
     tenant: string,
     data: ScheduledWorkflowsBulkUpdateRequest,
     params: RequestParams = {},
@@ -2585,7 +2755,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Create a new cron job workflow trigger for a tenant
    *
@@ -2595,7 +2766,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/workflows/{workflow}/crons
    * @secure
    */
-  cronWorkflowTriggerCreate = (
+  cronWorkflowTriggerCreate = Object.assign((
     tenant: string,
     workflow: string,
     data: CreateCronWorkflowTriggerRequest,
@@ -2609,7 +2780,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get all cron job workflow triggers for a tenant
    *
@@ -2619,7 +2791,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows/crons
    * @secure
    */
-  cronWorkflowList = (
+  cronWorkflowList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -2662,7 +2834,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a cron job workflow run for a tenant
    *
@@ -2672,7 +2845,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
    * @secure
    */
-  workflowCronGet = (
+  workflowCronGet = Object.assign((
     tenant: string,
     cronWorkflow: string,
     params: RequestParams = {},
@@ -2683,7 +2856,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "cron-workflow"],
+    }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
   /**
    * @description Delete a cron job workflow run for a tenant
    *
@@ -2693,7 +2867,7 @@ export class Api<
    * @request DELETE:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
    * @secure
    */
-  workflowCronDelete = (
+  workflowCronDelete = Object.assign((
     tenant: string,
     cronWorkflow: string,
     params: RequestParams = {},
@@ -2703,7 +2877,8 @@ export class Api<
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "cron-workflow"],
+    }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
   /**
    * @description Update a cron workflow for a tenant
    *
@@ -2713,7 +2888,7 @@ export class Api<
    * @request PATCH:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
    * @secure
    */
-  workflowCronUpdate = (
+  workflowCronUpdate = Object.assign((
     tenant: string,
     cronWorkflow: string,
     data: UpdateCronWorkflowTriggerRequest,
@@ -2726,7 +2901,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: ["tenant", "cron-workflow"],
+    }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
   /**
    * @description Cancel a batch of workflow runs
    *
@@ -2736,7 +2912,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/workflows/cancel
    * @secure
    */
-  workflowRunCancel = (
+  workflowRunCancel = Object.assign((
     tenant: string,
     data: WorkflowRunsCancelRequest,
     params: RequestParams = {},
@@ -2754,7 +2930,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a workflow for a tenant
    *
@@ -2764,14 +2941,15 @@ export class Api<
    * @request GET:/api/v1/workflows/{workflow}
    * @secure
    */
-  workflowGet = (workflow: string, params: RequestParams = {}) =>
+  workflowGet = Object.assign((workflow: string, params: RequestParams = {}) =>
     this.request<Workflow, APIErrors>({
       path: `/api/v1/workflows/${workflow}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
    * @description Delete a workflow for a tenant
    *
@@ -2781,13 +2959,14 @@ export class Api<
    * @request DELETE:/api/v1/workflows/{workflow}
    * @secure
    */
-  workflowDelete = (workflow: string, params: RequestParams = {}) =>
+  workflowDelete = Object.assign((workflow: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/workflows/${workflow}`,
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
    * @description Update a workflow for a tenant
    *
@@ -2797,7 +2976,7 @@ export class Api<
    * @request PATCH:/api/v1/workflows/{workflow}
    * @secure
    */
-  workflowUpdate = (
+  workflowUpdate = Object.assign((
     workflow: string,
     data: WorkflowUpdateRequest,
     params: RequestParams = {},
@@ -2810,7 +2989,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
    * @description Get a workflow version for a tenant
    *
@@ -2820,7 +3000,7 @@ export class Api<
    * @request GET:/api/v1/workflows/{workflow}/versions
    * @secure
    */
-  workflowVersionGet = (
+  workflowVersionGet = Object.assign((
     workflow: string,
     query?: {
       /**
@@ -2840,7 +3020,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
    * @description Trigger a new workflow run for a tenant
    *
@@ -2850,7 +3031,7 @@ export class Api<
    * @request POST:/api/v1/workflows/{workflow}/trigger
    * @secure
    */
-  workflowRunCreate = (
+  workflowRunCreate = Object.assign((
     workflow: string,
     data: TriggerWorkflowRunRequest,
     query?: {
@@ -2873,7 +3054,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
    * @description Get the metrics for a workflow version
    *
@@ -2883,7 +3065,7 @@ export class Api<
    * @request GET:/api/v1/workflows/{workflow}/metrics
    * @secure
    */
-  workflowGetMetrics = (
+  workflowGetMetrics = Object.assign((
     workflow: string,
     query?: {
       /** A status of workflow run statuses to filter by */
@@ -2900,7 +3082,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
    * @description List events for a step run
    *
@@ -2910,7 +3093,7 @@ export class Api<
    * @request GET:/api/v1/step-runs/{step-run}/events
    * @secure
    */
-  stepRunListEvents = (
+  stepRunListEvents = Object.assign((
     stepRun: string,
     query?: {
       /**
@@ -2933,7 +3116,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "step-run"],
+    }), { resources: new Set<string>(["tenant", "step-run"]) });
   /**
    * @description List events for all step runs for a workflow run
    *
@@ -2943,7 +3127,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events
    * @secure
    */
-  workflowRunListStepRunEvents = (
+  workflowRunListStepRunEvents = Object.assign((
     tenant: string,
     workflowRun: string,
     query?: {
@@ -2962,7 +3146,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description List archives for a step run
    *
@@ -2972,7 +3157,7 @@ export class Api<
    * @request GET:/api/v1/step-runs/{step-run}/archives
    * @secure
    */
-  stepRunListArchives = (
+  stepRunListArchives = Object.assign((
     stepRun: string,
     query?: {
       /**
@@ -2995,7 +3180,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "step-run"],
+    }), { resources: new Set<string>(["tenant", "step-run"]) });
   /**
    * @description Get a count of the workers available for workflow
    *
@@ -3005,7 +3191,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows/{workflow}/worker-count
    * @secure
    */
-  workflowGetWorkersCount = (
+  workflowGetWorkersCount = Object.assign((
     tenant: string,
     workflow: string,
     params: RequestParams = {},
@@ -3016,7 +3202,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
    * @description Get all workflow runs for a tenant
    *
@@ -3026,7 +3213,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows/runs
    * @secure
    */
-  workflowRunList = (
+  workflowRunList = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -3114,7 +3301,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Replays a list of workflow runs.
    *
@@ -3124,7 +3312,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/workflow-runs/replay
    * @secure
    */
-  workflowRunUpdateReplay = (
+  workflowRunUpdateReplay = Object.assign((
     tenant: string,
     data: ReplayWorkflowRunsRequest,
     params: RequestParams = {},
@@ -3137,7 +3325,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a summary of  workflow run metrics for a tenant
    *
@@ -3147,7 +3336,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflows/runs/metrics
    * @secure
    */
-  workflowRunGetMetrics = (
+  workflowRunGetMetrics = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -3205,7 +3394,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a workflow run for a tenant
    *
@@ -3215,7 +3405,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}
    * @secure
    */
-  workflowRunGet = (
+  workflowRunGet = Object.assign((
     tenant: string,
     workflowRun: string,
     params: RequestParams = {},
@@ -3226,7 +3416,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow-run"],
+    }), { resources: new Set<string>(["tenant", "workflow-run"]) });
   /**
    * @description Get a workflow run for a tenant
    *
@@ -3236,7 +3427,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape
    * @secure
    */
-  workflowRunGetShape = (
+  workflowRunGetShape = Object.assign((
     tenant: string,
     workflowRun: string,
     params: RequestParams = {},
@@ -3247,7 +3438,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow-run"],
+    }), { resources: new Set<string>(["tenant", "workflow-run"]) });
   /**
    * @description Get a step run by id
    *
@@ -3257,14 +3449,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/step-runs/{step-run}
    * @secure
    */
-  stepRunGet = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+  stepRunGet = Object.assign((tenant: string, stepRun: string, params: RequestParams = {}) =>
     this.request<StepRun, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "step-run"],
+    }), { resources: new Set<string>(["tenant", "step-run"]) });
   /**
    * @description Reruns a step run
    *
@@ -3274,7 +3467,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/step-runs/{step-run}/rerun
    * @secure
    */
-  stepRunUpdateRerun = (
+  stepRunUpdateRerun = Object.assign((
     tenant: string,
     stepRun: string,
     data: RerunStepRunRequest,
@@ -3288,7 +3481,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "step-run"],
+    }), { resources: new Set<string>(["tenant", "step-run"]) });
   /**
    * @description Attempts to cancel a step run
    *
@@ -3298,7 +3492,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/step-runs/{step-run}/cancel
    * @secure
    */
-  stepRunUpdateCancel = (
+  stepRunUpdateCancel = Object.assign((
     tenant: string,
     stepRun: string,
     params: RequestParams = {},
@@ -3309,7 +3503,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "step-run"],
+    }), { resources: new Set<string>(["tenant", "step-run"]) });
   /**
    * @description Get the schema for a step run
    *
@@ -3319,7 +3514,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/step-runs/{step-run}/schema
    * @secure
    */
-  stepRunGetSchema = (
+  stepRunGetSchema = Object.assign((
     tenant: string,
     stepRun: string,
     params: RequestParams = {},
@@ -3330,7 +3525,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "step-run"],
+    }), { resources: new Set<string>(["tenant", "step-run"]) });
   /**
    * @description Get all workers for a tenant
    *
@@ -3340,14 +3536,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/worker
    * @secure
    */
-  workerList = (tenant: string, params: RequestParams = {}) =>
+  workerList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<WorkerList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/worker`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Update a worker
    *
@@ -3357,7 +3554,7 @@ export class Api<
    * @request PATCH:/api/v1/workers/{worker}
    * @secure
    */
-  workerUpdate = (
+  workerUpdate = Object.assign((
     worker: string,
     data: UpdateWorkerRequest,
     params: RequestParams = {},
@@ -3370,7 +3567,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "worker"],
+    }), { resources: new Set<string>(["tenant", "worker"]) });
   /**
    * @description Get a worker
    *
@@ -3380,14 +3578,15 @@ export class Api<
    * @request GET:/api/v1/workers/{worker}
    * @secure
    */
-  workerGet = (worker: string, params: RequestParams = {}) =>
+  workerGet = Object.assign((worker: string, params: RequestParams = {}) =>
     this.request<Worker, APIErrors>({
       path: `/api/v1/workers/${worker}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "worker"],
+    }), { resources: new Set<string>(["tenant", "worker"]) });
   /**
    * @description Lists all webhooks
    *
@@ -3396,14 +3595,15 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/webhook-workers
    * @secure
    */
-  webhookList = (tenant: string, params: RequestParams = {}) =>
+  webhookList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<WebhookWorkerListResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/webhook-workers`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Creates a webhook
    *
@@ -3412,7 +3612,7 @@ export class Api<
    * @request POST:/api/v1/tenants/{tenant}/webhook-workers
    * @secure
    */
-  webhookCreate = (
+  webhookCreate = Object.assign((
     tenant: string,
     data: WebhookWorkerCreateRequest,
     params: RequestParams = {},
@@ -3425,7 +3625,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Deletes a webhook
    *
@@ -3434,13 +3635,14 @@ export class Api<
    * @request DELETE:/api/v1/webhook-workers/{webhook}
    * @secure
    */
-  webhookDelete = (webhook: string, params: RequestParams = {}) =>
+  webhookDelete = Object.assign((webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/webhook-workers/${webhook}`,
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant", "webhook"],
+    }), { resources: new Set<string>(["tenant", "webhook"]) });
   /**
    * @description Lists all requests for a webhook
    *
@@ -3449,14 +3651,15 @@ export class Api<
    * @request GET:/api/v1/webhook-workers/{webhook}/requests
    * @secure
    */
-  webhookRequestsList = (webhook: string, params: RequestParams = {}) =>
+  webhookRequestsList = Object.assign((webhook: string, params: RequestParams = {}) =>
     this.request<WebhookWorkerRequestListResponse, APIErrors>({
       path: `/api/v1/webhook-workers/${webhook}/requests`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "webhook"],
+    }), { resources: new Set<string>(["tenant", "webhook"]) });
   /**
    * @description Get the input for a workflow run.
    *
@@ -3466,7 +3669,7 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input
    * @secure
    */
-  workflowRunGetInput = (
+  workflowRunGetInput = Object.assign((
     tenant: string,
     workflowRun: string,
     params: RequestParams = {},
@@ -3477,7 +3680,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "workflow-run"],
+    }), { resources: new Set<string>(["tenant", "workflow-run"]) });
   /**
    * @description Triggers a workflow to check the status of the instance
    *
@@ -3486,13 +3690,14 @@ export class Api<
    * @request POST:/api/v1/monitoring/{tenant}/probe
    * @secure
    */
-  monitoringPostRunProbe = (tenant: string, params: RequestParams = {}) =>
+  monitoringPostRunProbe = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/monitoring/${tenant}/probe`,
       method: "POST",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the version of the server
    *
@@ -3500,7 +3705,7 @@ export class Api<
    * @summary We return the version for the currently running server
    * @request GET:/api/v1/version
    */
-  infoGetVersion = (params: RequestParams = {}) =>
+  infoGetVersion = Object.assign((params: RequestParams = {}) =>
     this.request<
       {
         /** @example "1.0.0" */
@@ -3512,7 +3717,8 @@ export class Api<
       method: "GET",
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Get the prometheus metrics for the tenant
    *
@@ -3522,13 +3728,14 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/prometheus-metrics
    * @secure
    */
-  tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
+  tenantGetPrometheusMetrics = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<EventKey, APIErrors>({
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: "GET",
       secure: true,
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get task stats for tenant
    *
@@ -3538,12 +3745,41 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/task-stats
    * @secure
    */
-  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
+  tenantGetTaskStats = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Evaluate a feature flag for a tenant
+   *
+   * @tags Feature Flags
+   * @name TenantFeatureFlagEvaluate
+   * @summary Evaluate a feature flag for a tenant
+   * @request GET:/api/v1/tenants/{tenant}/feature-flags
+   * @secure
+   */
+  tenantFeatureFlagEvaluate = Object.assign((
+    tenant: string,
+    query: {
+      /** The feature flag id to evaluate */
+      featureFlagId: FeatureFlagId;
+      /** A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable */
+      isEnabledIfNoPosthog: boolean;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<FeatureFlagEvaluationResult, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/feature-flags`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
 }

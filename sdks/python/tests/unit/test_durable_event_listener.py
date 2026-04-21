@@ -69,7 +69,7 @@ class _Harness:
         self._patches: list[Any] = [
             patch(f"{_MODULE}.new_conn", return_value=self._mock_conn),
             patch(f"{_MODULE}.V1DispatcherStub", side_effect=self._make_stub),
-            patch(f"{_MODULE}.get_metadata", return_value=[]),
+            patch(f"{_MODULE}.create_authorization_header", return_value=[]),
             patch(f"{_MODULE}.DEFAULT_RECONNECT_INTERVAL", 0.01),
         ]
         for p in self._patches:

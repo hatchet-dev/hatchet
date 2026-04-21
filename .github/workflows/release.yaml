@@ -27,7 +27,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "1.25"
 
@@ -49,7 +49,7 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   push-hatchet-server:
     name: Push latest
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-latest
     steps:
       - name: Get tag name
         id: tag_name

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -121,7 +122,13 @@ func startEngine() func() {
 		cleanupPgBouncer = func() error { return nil }
 	}
 
-	grpcPort, err := findAvailablePort(7077)
+	grpcPort, err := getFreePort()
+
+	if err != nil {
+		log.Fatalf("failed to find available port: %v", err)
+	}
+
+	healthPort, err := getFreePort()
 
 	if err != nil {
 		log.Fatalf("failed to find available port: %v", err)
@@ -132,13 +139,15 @@ func startEngine() func() {
 	os.Setenv("SERVER_GRPC_INSECURE", "true")
 	os.Setenv("SERVER_GRPC_PORT", strconv.Itoa(grpcPort))
 	os.Setenv("SERVER_GRPC_BROADCAST_ADDRESS", fmt.Sprintf("localhost:%d", grpcPort))
-	os.Setenv("SERVER_HEALTHCHECK", "false")
+	os.Setenv("SERVER_HEALTHCHECK", "true")
+	os.Setenv("SERVER_HEALTHCHECK_PORT", strconv.Itoa(healthPort))
 	os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
 	os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	os.Setenv("SERVER_LOGGER_LEVEL", "error")
 	os.Setenv("SERVER_LOGGER_FORMAT", "console")
 	os.Setenv("DATABASE_LOGGER_LEVEL", "error")
 	os.Setenv("DATABASE_LOGGER_FORMAT", "console")
+	os.Setenv("SERVER_SECURITY_CHECK_ENABLED", "false")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT", "console")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
@@ -197,11 +206,8 @@ func startEngine() func() {
 
 	// Switch to PgBouncer for the engine if enabled
 	if pgBouncerEnabled {
-		log.Printf("Switching DATABASE_URL to PgBouncer: %s", pgBouncerConnStr)
-		// Keep a direct connection to postgres for DDL operations that cannot go through pgbouncer
-		os.Setenv("DATABASE_PGBOUNCER_ENABLED", "true")
-		os.Setenv("DATABASE_DIRECT_URL", postgresConnStr)
-		os.Setenv("DATABASE_URL", pgBouncerConnStr)
+		log.Printf("Switching main pool to PgBouncer: %s", pgBouncerConnStr)
+		os.Setenv("DATABASE_PGBOUNCER_URL", pgBouncerConnStr)
 	}
 
 	engineCh := make(chan error)
@@ -525,7 +531,7 @@ func setTestingKeysInEnv() {
 
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", fmt.Sprintf("%s %s", cookieHashKey, cookieBlockKey))
 
-	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+	masterKeyBytes, privateEc256, publicEc256, _, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		log.Fatalf("could not generate local keys: %v", err)
@@ -559,4 +565,46 @@ func findAvailablePort(startPort int) (int, error) {
 	}
 
 	return 0, fmt.Errorf("no available port found in range %d-%d", startPort, maxPort)
+}
+
+func WaitEngineReady(ctx context.Context, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	healthPort := os.Getenv("SERVER_HEALTHCHECK_PORT")
+	if healthPort == "" {
+		return fmt.Errorf("SERVER_HEALTHCHECK_PORT not set")
+	}
+
+	addr := fmt.Sprintf("http://localhost:%s/ready", healthPort)
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, addr, nil)
+			resp, err := http.DefaultClient.Do(req) //nolint:gosec
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+	}
+}
+
+func getFreePort() (int, error) {
+	listener, err := net.Listen("tcp", ":0") //nolint:gosec
+	if err != nil {
+		return 0, err
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+	return port, nil
 }

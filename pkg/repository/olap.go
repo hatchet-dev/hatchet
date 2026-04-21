@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -316,12 +317,11 @@ func NewOLAPRepositoryFromPool(
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
-	enableDurableUserEventLog bool,
 	shouldPartitionOtelTables bool,
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, nil, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }
@@ -349,7 +349,10 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.olapRetentionPeriod)
 
-	err := r.queries.CreateOLAPPartitions(ctx, r.pool, sqlcv1.CreateOLAPPartitionsParams{
+	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
+	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
+	// so they cannot go through pgbouncer when it's configured.
+	err := r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  today,
 			Valid: true,
@@ -362,7 +365,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.pool, pgtype.Date{
+		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
 			Time:  today,
 			Valid: true,
 		})
@@ -396,7 +399,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.pool, pgtype.Date{
+		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
 			Time:  tomorrow,
 			Valid: true,
 		})
@@ -426,7 +429,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		},
 	}
 
-	partitions, err := r.queries.ListOLAPPartitionsBeforeDate(ctx, r.pool, params)
+	partitions, err := r.queries.ListOLAPPartitionsBeforeDate(ctx, r.ddlPool, params)
 
 	if err != nil {
 		return err
@@ -436,19 +439,16 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		r.l.Warn().Ctx(ctx).Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.olapRetentionPeriod)
 	}
 
-	// Use the direct pool (bypasses pgbouncer) for DDL operations because
-	// DETACH PARTITION CONCURRENTLY cannot run inside a transaction block.
-	ddlPool := r.DDLPool()
-
 	for _, partition := range partitions {
 		r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, ddlPool, r.l, 30*60*1000) // 30 minutes
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // 30 minutes
 
 		if err != nil {
 			return err
 		}
 
+		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
 		_, err = conn.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
@@ -685,6 +685,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 			RetryCount:            taskRun.RetryCount,
 			OutputEventExternalID: taskRun.OutputEventExternalID,
 			IsStandalone:          taskRun.IsStandalone,
+			IsDurable:             taskRun.IsDurable,
 		},
 		input,
 		output,
@@ -1883,6 +1884,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
 			Input:                payloadToWriteToTask,
+			IsDurable:            task.IsDurable.Bool,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
@@ -3412,7 +3414,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * (*inlineStoreTTL + 12*time.Hour)),
+		Time:  time.Now().Add(-1 * *inlineStoreTTL),
 		Valid: true,
 	}
 
@@ -3434,6 +3436,22 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	return nil
+}
+
+func DeriveIDBytes(size int, parts ...[]byte) []byte {
+	h := sha256.New()
+	for _, p := range parts {
+		h.Write(p)
+	}
+	return h.Sum(nil)[:size]
+}
+
+func DeriveWorkflowRunTraceID(workflowRunExternalID uuid.UUID) []byte {
+	return DeriveIDBytes(16, []byte("hatchet-engine-wf-trace:"), workflowRunExternalID[:])
+}
+
+func DeriveWorkflowRunSpanID(workflowRunExternalID uuid.UUID) []byte {
+	return DeriveIDBytes(8, []byte("hatchet-engine-wf-span:"), workflowRunExternalID[:])
 }
 
 type SpanData struct {
@@ -3618,14 +3636,6 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
 	lookupTenantIds := make([]uuid.UUID, 0)
 	lookupExternalIds := make([]uuid.UUID, 0)
 	lookupRetryCounts := make([]int32, 0)
@@ -3667,6 +3677,14 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 			}
 		}
 	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
 
 	err = o.queries.InsertOTelTraceLookup(ctx, tx, sqlcv1.InsertOTelTraceLookupParams{
 		Tenantids:   lookupTenantIds,

@@ -5,6 +5,89 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.1] - 2026-04-21
+
+### Changed
+
+- Adds an optional `label` on durable event waits, which will propagate through to the dashboard
+
+## [1.33.0] - 2026-04-16
+
+### Changed
+
+- Adds `wait` and `before_sleep` parameters to `TenacityConfig` to allow custom retry strategies and retry callbacks.
+
+## [1.32.3] - 2026-04-16
+
+### Changed
+
+- Fixes a couple of internal uses of deprecated methods
+
+## [1.32.2] - 2026-04-15
+
+### Changed
+
+- Fixes a bug where failures sending a completed or failed event from the worker to the engine would fail the task and bypass any retries, even if some were configured on the task
+
+## [1.32.1] - 2026-04-09
+
+### Changed
+
+- Fixes a bug in the shutdown handlers that wouldn't correctly trigger graceful shutdown if only the parent process received a shutdown signal like `SIGTERM`, which might often be the case on e.g. Kubernetes.
+- Fixes an issue where we generated protobufs using a more recent grpcio version than the minimum allowed, causing breakages on older versions.
+
+## [1.32.0] - 2026-04-07
+
+### Added
+
+- Adds `scope` and `lookback_window` arguments for the `DurableContext.aio_wait_for_event`, which allows durable tasks to look back in time for events that may have been emitted before the task started.
+
+## [1.31.0] - 2026-04-03
+
+### Added
+
+- Adds `wait_for_result` parameter to `run()`, `aio_run()`, `run_many()`, and `aio_run_many()` on both `Workflow` and `Standalone`. Passing `wait_for_result=False` replaces the `run_no_wait` / `aio_run_no_wait` / `run_many_no_wait` / `aio_run_many_no_wait` methods.
+- Exports `WorkerLabel` from the top-level `hatchet_sdk` package, alongside the existing `DesiredWorkerLabel` and `WorkerLabelComparator`.
+- Exports `Priority`, `ConcurrencyExpression`, `ConcurrencyLimitStrategy`, `RateLimit`, `RateLimitDuration`, `StickyStrategy`, `SlotType`, `BulkPushEventOptions`, `BulkPushEventWithMetadata`, `PushEventOptions`, and `WorkflowRunTriggerConfig` from the top-level `hatchet_sdk` package.
+- Adds a `current_context` property to `Hatchet` as a replacement for the deprecated `get_current_context()` method.
+
+### Changed
+
+- `worker_labels` and `desired_worker_labels` are now stored internally as `list[WorkerLabel]` / `list[DesiredWorkerLabel]` and converted to the protobuf representation at the last moment, rather than eagerly at construction time.
+- Adds top-level parameters to all of the `run`, `schedule`, etc. methods to pass options directly, instead of needing to import e.g. `TriggerWorkflowOptions` which wasn't very Pythonic.
+
+### Deprecated
+
+- `run_no_wait()`, `aio_run_no_wait()`, `run_many_no_wait()`, and `aio_run_many_no_wait()` are deprecated in favor of `run(wait_for_result=False)`, `aio_run(wait_for_result=False)`, `run_many(wait_for_result=False)`, and `aio_run_many(wait_for_result=False)` respectively.
+- Passing duration parameters (e.g. `schedule_timeout`, `execution_timeout`) as strings is deprecated. Use `timedelta` objects instead.
+- Non-async durable tasks are deprecated. Please convert durable task functions to async.
+- Passing `desired_worker_labels` as a `dict` to task decorators (`@workflow.task`, `@hatchet.task`, etc.) is deprecated. Use a `list[DesiredWorkerLabel]` with the `key` field set instead.
+- Passing `desired_worker_label` as a `dict` to `TriggerWorkflowOptions` is deprecated. Use a `list[DesiredWorkerLabel]` with the `key` field set instead.
+- Passing `priority` as an `int` to task and workflow decorators is deprecated. Use `Priority.LOW`, `Priority.MEDIUM`, or `Priority.HIGH` instead.
+- Passing `comparator` as an `int` to `DesiredWorkerLabel` is deprecated. Use `WorkerLabelComparator` enum values instead.
+- The `debug` parameter on `Hatchet()` is deprecated. Set debug mode via the `HATCHET_CLIENT_DEBUG` environment variable instead.
+- The `client` parameter on `Hatchet()` is deprecated and will be removed in v2.0.0.
+- `Hatchet.get_current_context()` is deprecated. Use the `Hatchet.current_context` property instead.
+- `Context.step_run_id` is deprecated. Use `Context.task_run_id` instead.
+- `Context.workflow_input` and `Context.input` are deprecated. Use the input argument passed directly to the task function instead.
+- `Context.aio_task_output()` is deprecated. Use `Context.task_output()` instead.
+- `Context.done` is deprecated. Use `Context.is_cancelled` instead.
+- `Context.fetch_task_run_error()` is deprecated. Use `Context.get_task_run_error()` instead.
+- Deprecates a number of internal properties and methods on the `Worker` and `Context` that are not intended for public use. These will be removed in v2.0.0.
+- Accessing `ctx.worker` is now deprecated. Use the various properties on the context directly, such as `ctx.worker_id` instead of `ctx.worker.id()`.
+
+## [1.30.0] - 2026-03-30
+
+### Changed
+
+- Adds `mcp_tool` methods to Workflows and Standalone tasks providing compatibility with Claude and OpenAI MCP server tools.
+
+## [1.29.5] - 2026-03-25
+
+### Changed
+
+- Event source info (`hatchet__source_workflow_run_id`, `hatchet__source_step_run_id`) is now injected into event metadata at the `EventClient` level, so cross-workflow trace linking works even without the OTel instrumentor enabled.
+
 ## [1.29.3] - 2026-03-23
 
 ### Changed

@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/api/v1/server/rbac"
+	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -20,7 +20,7 @@ type AuthZ struct {
 }
 
 func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
-	rbacAuthorizer, err := rbac.NewAuthorizer()
+	rbacAuthorizer, err := newHatchetAuthorizer()
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +65,93 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 }
 
 func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
-	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
-
-	ctx := c.Request().Context()
-
 	if err := a.ensureVerifiedEmail(c, r); err != nil {
-		a.l.Debug().Ctx(ctx).Err(err).Msgf("error ensuring verified email")
+		a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email")
 		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
 	}
+
+	if err := a.validateUserTenantPermissions(c, r); err != nil {
+		return err
+	}
+
+	if a.config.Auth.CustomAuthenticator != nil {
+		return a.config.Auth.CustomAuthenticator.CookieAuthorizerHook(c, r)
+	}
+
+	return nil
+}
+
+var restrictedWithBearerToken = []string{
+	// bearer tokens cannot read, list, or write other bearer tokens
+	"ApiTokenList",
+	"ApiTokenCreate",
+	"ApiTokenUpdateRevoke",
+}
+
+// At the moment, there's no further bearer auth because bearer tokens are admin-scoped
+// and we check that the bearer token has access to the tenant in the authn step.
+func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
+	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
+	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
+	// regular bearer tokens should be subject to the additional restrictions in restrictedWithBearerToken
+	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
+		if a.config.Auth.ExchangeTokenClient == nil {
+			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
+			return echo.NewHTTPError(http.StatusInternalServerError, "Exchange token client is not configured")
+		}
+
+		if err := a.ensureVerifiedEmail(c, r); err != nil {
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email for exchange token user")
+			return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
+		}
+
+		if err := a.validateUserTenantPermissions(c, r); err != nil {
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error validating user tenant permissions for exchange token user")
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+		}
+	} else if !isExchangeToken {
+		if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+		}
+	}
+
+	return nil
+}
+
+func (a *AuthZ) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error {
+	if a.config.Auth.CustomAuthenticator == nil {
+		return fmt.Errorf("custom auth handler is not set")
+	}
+
+	return a.config.Auth.CustomAuthenticator.Authorize(c, r)
+}
+
+var permittedWithUnverifiedEmail = []string{
+	"UserGetCurrent",
+	"UserUpdateLogout",
+}
+
+func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
+	user, ok := c.Get("user").(*sqlcv1.User)
+
+	if !ok {
+		return nil
+	}
+
+	if rbac.OperationIn(r.OperationID, permittedWithUnverifiedEmail) {
+		return nil
+	}
+
+	if !user.EmailVerified {
+		return echo.NewHTTPError(http.StatusForbidden, "Please verify your email before continuing")
+	}
+
+	return nil
+}
+
+func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.RouteInfo) error {
+	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+	ctx := c.Request().Context()
 
 	// if tenant is set in the context, verify that the user is a member of the tenant
 	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok {
@@ -110,58 +189,6 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		}
 	}
 
-	if a.config.Auth.CustomAuthenticator != nil {
-		return a.config.Auth.CustomAuthenticator.CookieAuthorizerHook(c, r)
-	}
-
-	return nil
-}
-
-var restrictedWithBearerToken = []string{
-	// bearer tokens cannot read, list, or write other bearer tokens
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-}
-
-// At the moment, there's no further bearer auth because bearer tokens are admin-scoped
-// and we check that the bearer token has access to the tenant in the authn step.
-func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
-	}
-
-	return nil
-}
-
-func (a *AuthZ) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if a.config.Auth.CustomAuthenticator == nil {
-		return fmt.Errorf("custom auth handler is not set")
-	}
-
-	return a.config.Auth.CustomAuthenticator.Authorize(c, r)
-}
-
-var permittedWithUnverifiedEmail = []string{
-	"UserGetCurrent",
-	"UserUpdateLogout",
-}
-
-func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
-	user, ok := c.Get("user").(*sqlcv1.User)
-
-	if !ok {
-		return nil
-	}
-
-	if rbac.OperationIn(r.OperationID, permittedWithUnverifiedEmail) {
-		return nil
-	}
-
-	if !user.EmailVerified {
-		return echo.NewHTTPError(http.StatusForbidden, "Please verify your email before continuing")
-	}
-
 	return nil
 }
 
@@ -172,7 +199,7 @@ func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRo
 	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {
+	if !a.rbac.IsAuthorized(string(tenantMemberRole), r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 

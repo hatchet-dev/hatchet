@@ -86,6 +86,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		Attempt:               &attempt,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
 		IsEvicted:             &isEvicted,
+		IsDurable:             &task.IsDurable,
 	}
 
 	return summary
@@ -161,15 +162,16 @@ func ToTaskRunEventMany(
 		attempt := retryCount + 1
 
 		toReturn[i] = gen.V1TaskEvent{
-			Id:           int(event.ID),
-			ErrorMessage: &event.ErrorMessage.String,
-			EventType:    gen.V1TaskEventType(event.EventType),
-			Message:      event.AdditionalEventMessage.String,
-			Timestamp:    event.EventTimestamp.Time,
-			WorkerId:     event.WorkerID,
-			TaskId:       taskExternalId,
-			RetryCount:   &retryCount,
-			Attempt:      &attempt,
+			Id:              int(event.ID),
+			ErrorMessage:    &event.ErrorMessage.String,
+			EventType:       gen.V1TaskEventType(event.EventType),
+			Message:         event.AdditionalEventMessage.String,
+			Timestamp:       event.EventTimestamp.Time,
+			WorkerId:        event.WorkerID,
+			TaskId:          taskExternalId,
+			RetryCount:      &retryCount,
+			Attempt:         &attempt,
+			TaskDisplayName: &event.TaskDisplayName,
 		}
 	}
 
@@ -248,7 +250,6 @@ func StatusToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 }
 
 func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionByIdRow) gen.V1TaskSummary {
-	workflowVersionID := taskWithData.WorkflowVersionID
 	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -295,7 +296,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	workflowConfig := make(map[string]interface{})
 
-	if workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts != nil {
+	if workflowVersion != nil && workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts != nil {
 		workflowConfig = jsonToMap(workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts)
 	}
 
@@ -336,15 +337,18 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		NumSpawnedChildren:    int(taskWithData.NumSpawnedChildren),
 		StepId:                &stepId,
 		ActionId:              &taskWithData.ActionID,
-		WorkflowVersionId:     &workflowVersionID,
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		WorkflowConfig:        &workflowConfig,
 		ParentTaskExternalId:  parentTaskExternalId,
+		IsDurable:             &taskWithData.IsDurable,
+		IsEvicted:             &isEvicted,
 	}
 
-	if isEvicted {
-		summary.IsEvicted = &isEvicted
+	if workflowVersion != nil {
+		summary.WorkflowVersionId = &workflowVersion.WorkflowVersion.ID
+	} else if taskWithData.WorkflowVersionID != uuid.Nil {
+		summary.WorkflowVersionId = &taskWithData.WorkflowVersionID
 	}
 
 	return summary
@@ -358,7 +362,6 @@ func ToWorkflowRunDetails(
 	stepIdToTaskExternalId map[uuid.UUID]uuid.UUID,
 	workflowVersion *sqlcv1.GetWorkflowVersionByIdRow,
 ) (gen.V1WorkflowRunDetails, error) {
-	workflowVersionId := workflowRun.WorkflowVersionId
 	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
 	input := jsonToMap(workflowRun.Input)
 
@@ -385,13 +388,18 @@ func ToWorkflowRunDetails(
 			CreatedAt: workflowRun.InsertedAt.Time,
 			UpdatedAt: workflowRun.InsertedAt.Time,
 		},
-		StartedAt:         &workflowRun.StartedAt.Time,
-		Status:            wrStatus,
-		TenantId:          workflowRun.TenantID,
-		WorkflowId:        workflowRun.WorkflowID,
-		WorkflowVersionId: &workflowVersionId,
-		Input:             input,
-		Output:            output,
+		StartedAt:  &workflowRun.StartedAt.Time,
+		Status:     wrStatus,
+		TenantId:   workflowRun.TenantID,
+		WorkflowId: workflowRun.WorkflowID,
+		Input:      input,
+		Output:     output,
+	}
+
+	if workflowVersion != nil {
+		parsedWorkflowRun.WorkflowVersionId = &workflowVersion.WorkflowVersion.ID
+	} else if workflowRun.WorkflowVersionId != uuid.Nil {
+		parsedWorkflowRun.WorkflowVersionId = &workflowRun.WorkflowVersionId
 	}
 
 	shapeRows := make([]gen.WorkflowRunShapeItemForWorkflowRunDetails, len(shape))
@@ -435,7 +443,7 @@ func ToWorkflowRunDetails(
 
 	workflowConfig := make(map[string]interface{})
 
-	if workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts != nil {
+	if workflowVersion != nil && workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts != nil {
 		workflowConfig = jsonToMap(workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts)
 	}
 

@@ -2,6 +2,7 @@ import { V1RunIndicator } from '../../../components/run-statuses';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
+import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
@@ -34,7 +35,7 @@ export enum TabOption {
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
   Logs = 'logs',
-  Observability = 'observability',
+  Traces = 'traces',
   AdditionalMetadata = 'additional-metadata',
   Activity = 'activity',
 }
@@ -101,19 +102,17 @@ const TaskRunPermalinkOrBacklink = ({
 
 export const TaskRunDetail = ({
   taskRunId,
-  defaultOpenTab = TabOption.Output,
+  defaultOpenTab = TabOption.Activity,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const [logsResetKey, setLogsResetKey] = useState(0);
-  const [outerTab, setOuterTab] = useState('overview');
-  const [focusedTaskRunId, setFocusedTaskRunId] = useState<
-    string | undefined
-  >();
+  const search = useRunDetailSearch();
+  const { set: setSearch } = search;
+  const outerTab = search.tab ?? 'overview';
 
   const handleMiniMapClick = useCallback(() => {
-    setFocusedTaskRunId(taskRunId);
-    setOuterTab('observability');
-  }, [taskRunId]);
+    setSearch({ focusedTaskRunId: taskRunId, tab: 'traces' });
+  }, [taskRunId, setSearch]);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -139,7 +138,7 @@ export const TaskRunDetail = ({
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-4 h-full">
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
@@ -194,18 +193,27 @@ export const TaskRunDetail = ({
       </div>
       <Tabs
         value={outerTab}
-        onValueChange={setOuterTab}
-        className="flex h-full flex-col"
+        onValueChange={(value) => {
+          search.setTab(value);
+          if (value === 'logs') {
+            // Increment counter to force remount when Logs tab is opened
+            setLogsResetKey((prev: number) => prev + 1);
+          }
+        }}
+        className="flex flex-1 min-h-0 flex-col"
       >
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
             Overview
           </TabsTrigger>
-          <TabsTrigger variant="underlined" value="observability">
-            Observability
+          <TabsTrigger variant="underlined" value="traces">
+            Traces
+          </TabsTrigger>
+          <TabsTrigger variant="underlined" value="logs">
+            Logs
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="min-h-0 flex-1">
+        <TabsContent value="overview" className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap
               onClick={handleMiniMapClick}
@@ -215,12 +223,7 @@ export const TaskRunDetail = ({
           <div className="h-4" />
           <Tabs
             defaultValue={defaultOpenTab}
-            onValueChange={(value) => {
-              if (value === TabOption.Logs) {
-                // Increment counter to force remount when Logs tab is opened
-                setLogsResetKey((prev: number) => prev + 1);
-              }
-            }}
+            className="flex min-h-0 flex-1 flex-col"
           >
             <TabsList layout="underlined">
               <TabsTrigger variant="underlined" value={TabOption.Activity}>
@@ -240,9 +243,6 @@ export const TaskRunDetail = ({
               <TabsTrigger variant="underlined" value={TabOption.Input}>
                 Input
               </TabsTrigger>
-              <TabsTrigger variant="underlined" value={TabOption.Logs}>
-                Logs
-              </TabsTrigger>
               <TabsTrigger
                 variant="underlined"
                 value={TabOption.AdditionalMetadata}
@@ -256,16 +256,20 @@ export const TaskRunDetail = ({
                 </span>
               </TabsTrigger>
             </TabsList>
-            <TabsContent value={TabOption.Output}>
+            <TabsContent
+              value={TabOption.Output}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
-            <TabsContent value={TabOption.Activity}>
-              <div className="py-4">
-                <StepRunEvents
-                  taskRunId={taskRunId}
-                  fallbackTaskDisplayName={taskRun.displayName}
-                />
-              </div>
+            <TabsContent
+              value={TabOption.Activity}
+              className="mt-4 flex-1 min-h-0 flex flex-col"
+            >
+              <StepRunEvents
+                taskRunId={taskRunId}
+                isDurable={taskRun.isDurable}
+              />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
               <div className="flex flex-col h-96">
@@ -285,32 +289,31 @@ export const TaskRunDetail = ({
                 </RunsProvider>
               </div>
             </TabsContent>
-            <TabsContent value={TabOption.Input}>
+            <TabsContent
+              value={TabOption.Input}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               {taskRun.input && (
                 <CodeHighlighter
-                  className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-                  maxHeight="400px"
-                  minHeight="400px"
+                  className="my-4"
                   language="json"
                   code={JSON.stringify(taskRun.input, null, 2)}
                 />
               )}
             </TabsContent>
-            <TabsContent value={TabOption.Logs}>
-              <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
-            </TabsContent>
-            <TabsContent value={TabOption.AdditionalMetadata}>
+            <TabsContent
+              value={TabOption.AdditionalMetadata}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               <CodeHighlighter
-                className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-                maxHeight="400px"
-                minHeight="400px"
+                className="my-4"
                 language="json"
                 code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
               />
             </TabsContent>
           </Tabs>
         </TabsContent>
-        <TabsContent value="observability" className="min-h-0 flex-1">
+        <TabsContent value="traces" className="min-h-0 flex-1 overflow-auto">
           <Observability
             taskRunId={taskRunId}
             isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
@@ -323,8 +326,10 @@ export const TaskRunDetail = ({
                 startedAt: taskRun.startedAt,
               },
             ]}
-            focusedTaskRunId={focusedTaskRunId}
           />
+        </TabsContent>
+        <TabsContent value="logs" className="min-h-0 flex-1 flex flex-col">
+          <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,11 +1,11 @@
 import { generateTenantSlug } from './generate-tenant-slug';
 import { NewOrganizationInputForm } from './new-organization-input-form';
 import { useAnalytics } from '@/hooks/use-analytics';
-import { cloudApi } from '@/lib/api/api';
 import {
   Organization,
   OrganizationTenant,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation } from '@tanstack/react-query';
@@ -20,28 +20,6 @@ interface NewOrganizationSaverFormProps {
   }) => void;
 }
 
-const saveOrganizationAndTenant = async ({
-  organizationName,
-  tenantName,
-}: {
-  organizationName: string;
-  tenantName: string;
-}) => {
-  const { data: organization } = await cloudApi.organizationCreate({
-    name: organizationName,
-  });
-
-  const { data: tenant } = await cloudApi.organizationCreateTenant(
-    organization.metadata.id,
-    {
-      name: tenantName,
-      slug: generateTenantSlug(tenantName),
-    },
-  );
-
-  return { organization, tenant };
-};
-
 const useSaveOrganization = ({
   afterSave,
 }: {
@@ -50,6 +28,7 @@ const useSaveOrganization = ({
   const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const { capture } = useAnalytics();
   const { handleApiError } = useApiError();
+  const orgApi = useOrganizationApi();
 
   return useMutation({
     mutationFn: async ({
@@ -58,13 +37,20 @@ const useSaveOrganization = ({
     }: {
       organizationName: string;
       tenantName: string;
-    }) =>
-      saveOrganizationAndTenant({
-        organizationName,
-        tenantName,
-      }),
-    onSuccess: (data) => {
-      invalidateUserUniverse();
+    }) => {
+      const organization = await orgApi
+        .organizationCreateMutation()
+        .mutationFn({ name: organizationName });
+      const tenant = await orgApi
+        .organizationCreateTenantMutation(organization.metadata.id)
+        .mutationFn({ name: tenantName, slug: generateTenantSlug(tenantName) });
+      return { organization, tenant };
+    },
+    onSuccess: async (data) => {
+      await invalidateUserUniverse();
+      // Yield a tick so React can flush the universe context update
+      // before afterSave navigates away.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       localStorage.setItem('hatchet:show-welcome', '1');
       capture('onboarding_tenant_created', {
         tenant_type: 'cloud',

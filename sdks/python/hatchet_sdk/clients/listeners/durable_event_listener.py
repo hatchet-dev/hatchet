@@ -12,7 +12,6 @@ from typing_extensions import Never, Self
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
-    TriggerWorkflowOptions,
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -35,7 +34,8 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.types.trigger import TriggerWorkflowOptions
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.cache import TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -45,13 +45,14 @@ DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 @dataclass(frozen=True)
 class WaitForEvent:
     wait_for_conditions: DurableEventListenerConditions
+    label: str | None
 
 
 @dataclass(frozen=True)
 class RunChildEvent:
     workflow_name: str
     input: str | None
-    trigger_workflow_opts: TriggerWorkflowOptions
+    run_workflow_opts: TriggerWorkflowOptions
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,12 @@ class DurableTaskEventLogEntryResult(BaseModel):
         )
 
 
+@dataclass
+class ParsedKey:
+    task_id: str
+    signal_key: str
+
+
 TaskExternalId = str
 NodeId = int
 BranchId = int
@@ -200,7 +207,7 @@ class DurableEventListener:
             grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
             self._stub.DurableTask(
                 self._request_iterator(),  # type: ignore[arg-type]
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -532,7 +539,7 @@ class DurableEventListener:
                 self.admin_client._create_workflow_run_request(
                     workflow_name=child.workflow_name,
                     input=child.input,
-                    options=child.trigger_workflow_opts,
+                    options=child.run_workflow_opts,
                 )
                 for child in event.children
             ]
@@ -550,6 +557,7 @@ class DurableEventListener:
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
                 wait_for_conditions=event.wait_for_conditions,
+                label=event.label,
             )
 
             request = DurableTaskRequest(wait_for=wait_req)

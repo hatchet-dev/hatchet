@@ -1,8 +1,9 @@
-import api, { cloudApi } from '@/lib/api/api';
+import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
+import api, { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantMember } from '@/lib/api/generated/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { appRoutes } from '@/router';
 import {
   useMutation,
@@ -22,7 +23,7 @@ type UserUniverse = {
   isLoaded: boolean;
   organizations: OrganizationForUserList['rows'] | null;
   tenantMemberships: TenantMember[] | null;
-  invalidate: () => void;
+  invalidate: () => Promise<void>;
   logoutMutation: UseMutationResult<
     void,
     AxiosError<unknown, any>,
@@ -84,15 +85,23 @@ type PossibleQueryResponses =
 export const userUniverseQuery = ({
   isCloudEnabled,
   isCloudLoaded,
+  isControlPlaneEnabled,
 }: {
   isCloudEnabled: boolean;
   isCloudLoaded: boolean;
+  isControlPlaneEnabled: boolean;
 }) => ({
-  queryKey: ['user-universe', isCloudEnabled],
+  queryKey: ['user-universe', isCloudEnabled, isControlPlaneEnabled],
   queryFn: async (): Promise<PossibleQueryResponses> => {
     const [organizationsResult, tenantMemberships] = await Promise.all([
-      isCloudEnabled ? cloudApi.organizationList() : null,
-      api.tenantMembershipsList(),
+      isCloudEnabled
+        ? isControlPlaneEnabled
+          ? controlPlaneApi.organizationList()
+          : cloudApi.organizationList()
+        : null,
+      isControlPlaneEnabled
+        ? controlPlaneApi.tenantMembershipsList()
+        : api.tenantMembershipsList(),
     ]);
 
     const organizations = (organizationsResult?.data.rows || []).map((org) => ({
@@ -123,17 +132,20 @@ export function UserUniverseProvider({
   const { isCloudEnabled, isCloudLoaded } = useCloud();
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
+  const { isControlPlaneEnabled } = useControlPlane();
   const tenantMembershipAndOrganizationsQuery = useQuery(
-    userUniverseQuery({ isCloudEnabled, isCloudLoaded }),
+    userUniverseQuery({ isCloudEnabled, isCloudLoaded, isControlPlaneEnabled }),
   );
 
   const queryClient = useQueryClient();
 
-  const invalidate = useCallback(() => {
-    queryClient.resetQueries({
-      queryKey: ['user-universe'],
-    });
-  }, [queryClient]);
+  const invalidate = useCallback(
+    () =>
+      queryClient.resetQueries({
+        queryKey: ['user-universe'],
+      }),
+    [queryClient],
+  );
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],

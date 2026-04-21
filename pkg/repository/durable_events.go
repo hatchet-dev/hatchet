@@ -11,12 +11,14 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type TaskExternalIdNodeIdBranchId struct {
@@ -51,6 +53,8 @@ type IngestTriggerRunsOpts struct {
 
 type IngestWaitForOpts struct {
 	WaitForConditions []CreateExternalSignalConditionOpt
+	// Label is an optional human-readable message to display for this wait (e.g. "Waiting for payment confirmation").
+	Label *string
 }
 
 type IngestDurableTaskEventOpts struct {
@@ -135,6 +139,7 @@ type DurableEventsRepository interface {
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
+	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
 }
 
 type durableEventsRepository struct {
@@ -186,59 +191,171 @@ func (e *StaleInvocationError) Error() string {
 	return fmt.Sprintf("invocation count mismatch for task %s: server has %d, worker sent %d", e.TaskExternalId.String(), e.ExpectedInvocationCount, e.ActualInvocationCount)
 }
 
-func formatConditionLabel(c CreateExternalSignalConditionOpt) string {
+type DurableWaitConditionKind string
+
+const (
+	DurableWaitConditionKindSleep         DurableWaitConditionKind = "SLEEP"
+	DurableWaitConditionKindUserEvent     DurableWaitConditionKind = "USER_EVENT"
+	DurableWaitConditionKindChildWorkflow DurableWaitConditionKind = "CHILD_WORKFLOW"
+)
+
+type DurableWaitCondition struct {
+	Kind            DurableWaitConditionKind `json:"kind"`
+	SleepDurationMs *int64                   `json:"sleepDurationMs,omitempty"`
+	EventKey        *string                  `json:"eventKey,omitempty"`
+	WorkflowName    *string                  `json:"workflowName,omitempty"`
+}
+
+type DurableWaitOrGroup struct {
+	Conditions []DurableWaitCondition `json:"conditions"`
+}
+
+type WaitData struct {
+	Conditions []DurableWaitCondition `json:"conditions,omitempty"`
+	OrGroups   []DurableWaitOrGroup   `json:"orGroups,omitempty"`
+}
+
+func parseDurationMs(s *string) *int64 {
+	if s == nil {
+		return nil
+	}
+
+	d, err := time.ParseDuration(*s)
+	if err != nil {
+		return nil
+	}
+
+	ms := d.Milliseconds()
+	return &ms
+}
+
+func describeCondition(c DurableWaitCondition) string {
 	switch c.Kind {
-	case CreateExternalSignalConditionKindSLEEP:
-		if c.SleepFor != nil {
-			return "sleep(" + *c.SleepFor + ")"
+	case DurableWaitConditionKindSleep:
+		if c.SleepDurationMs != nil {
+			sleepDurationMs := time.Duration(*c.SleepDurationMs) * time.Millisecond
+			return "sleep(" + sleepDurationMs.String() + ")"
 		}
 		return "sleep"
-	case CreateExternalSignalConditionKindUSEREVENT:
-		if c.UserEventKey != nil {
-			return "waitForEvent(" + *c.UserEventKey + ")"
+	case DurableWaitConditionKindUserEvent:
+		if c.EventKey != nil {
+			return "event(" + *c.EventKey + ")"
 		}
-		return "waitForEvent"
+		return "event"
+	case DurableWaitConditionKindChildWorkflow:
+		if c.WorkflowName != nil {
+			return "run(" + *c.WorkflowName + ")"
+		}
+		return "run"
 	default:
 		return string(c.Kind)
 	}
 }
 
-const maxDisplayLabels = 5
-
-func summarizeLabels(labels []string) string {
-	if len(labels) <= maxDisplayLabels {
-		return strings.Join(labels, ", ")
+func describeOrGroup(group DurableWaitOrGroup) string {
+	if len(group.Conditions) == 0 {
+		return "waiting"
 	}
 
-	counts := make(map[string]int, len(labels))
-	order := make([]string, 0)
+	parts := make([]string, 0, len(group.Conditions))
+	for _, c := range group.Conditions {
+		parts = append(parts, describeCondition(c))
+	}
 
-	for _, l := range labels {
-		if counts[l] == 0 {
-			order = append(order, l)
+	if len(parts) == 1 {
+		return parts[0]
+	}
+
+	return "any of: " + strings.Join(parts, ", ")
+}
+
+func (w *WaitData) ToReadableMessage() string {
+	if w == nil || (len(w.Conditions) == 0 && len(w.OrGroups) == 0) {
+		return "waiting"
+	}
+
+	parts := make([]string, 0, len(w.Conditions)+len(w.OrGroups))
+
+	for _, c := range w.Conditions {
+		parts = append(parts, describeCondition(c))
+	}
+
+	for _, group := range w.OrGroups {
+		parts = append(parts, describeOrGroup(group))
+	}
+
+	if len(parts) == 1 {
+		return parts[0]
+	}
+
+	return strings.Join(parts, " and ")
+}
+
+func waitDataFromWaitForConditions(conditions []CreateExternalSignalConditionOpt) *WaitData {
+	if len(conditions) == 0 {
+		return nil
+	}
+
+	groupOrder := make([]uuid.UUID, 0, len(conditions))
+	seen := make(map[uuid.UUID]struct{}, len(conditions))
+	groups := make(map[uuid.UUID][]DurableWaitCondition, len(conditions))
+
+	for _, c := range conditions {
+		if _, exists := seen[c.OrGroupId]; !exists {
+			groupOrder = append(groupOrder, c.OrGroupId)
+			seen[c.OrGroupId] = struct{}{}
 		}
-		counts[l]++
-	}
 
-	parts := make([]string, 0, min(len(order), maxDisplayLabels))
-
-	for i, name := range order {
-		if i >= maxDisplayLabels {
-			break
+		var cond DurableWaitCondition
+		switch c.Kind {
+		case CreateExternalSignalConditionKindSLEEP:
+			cond = DurableWaitCondition{Kind: DurableWaitConditionKindSleep, SleepDurationMs: parseDurationMs(c.SleepFor)}
+		case CreateExternalSignalConditionKindUSEREVENT:
+			cond = DurableWaitCondition{Kind: DurableWaitConditionKindUserEvent, EventKey: c.UserEventKey}
+		default:
+			continue
 		}
 
-		if counts[name] > 1 {
-			parts = append(parts, fmt.Sprintf("%dx %s", counts[name], name))
-		} else {
-			parts = append(parts, name)
+		groups[c.OrGroupId] = append(groups[c.OrGroupId], cond)
+	}
+
+	var standalone []DurableWaitCondition
+	var orGroups []DurableWaitOrGroup
+
+	for _, id := range groupOrder {
+		g := groups[id]
+		if len(g) == 1 {
+			standalone = append(standalone, g[0])
+		} else if len(g) > 1 {
+			orGroups = append(orGroups, DurableWaitOrGroup{Conditions: g})
 		}
 	}
 
-	if remaining := len(order) - maxDisplayLabels; remaining > 0 {
-		parts = append(parts, fmt.Sprintf("... +%d more unique", remaining))
+	return &WaitData{Conditions: standalone, OrGroups: orGroups}
+}
+
+func waitDataFromTriggerOpt(triggerOpt *WorkflowNameTriggerOpts) *WaitData {
+	if triggerOpt == nil {
+		return nil
 	}
 
-	return strings.Join(parts, ", ")
+	name := triggerOpt.WorkflowName
+	return &WaitData{
+		Conditions: []DurableWaitCondition{{Kind: DurableWaitConditionKindChildWorkflow, WorkflowName: &name}},
+	}
+}
+
+func marshalWaitData(wd *WaitData) string {
+	if wd == nil {
+		return ""
+	}
+
+	b, err := json.Marshal(wd)
+	if err != nil {
+		return ""
+	}
+
+	return string(b)
 }
 
 func (opts IngestDurableTaskEventOpts) formatCall() string {
@@ -249,15 +366,14 @@ func (opts IngestDurableTaskEventOpts) formatCall() string {
 			for _, t := range opts.TriggerRuns.TriggerOpts {
 				names = append(names, t.WorkflowName)
 			}
-			return "run(" + summarizeLabels(names) + ")"
+			return "run(" + strings.Join(names, ", ") + ")"
 		}
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
 		if opts.WaitFor != nil {
-			parts := make([]string, 0, len(opts.WaitFor.WaitForConditions))
-			for _, c := range opts.WaitFor.WaitForConditions {
-				parts = append(parts, formatConditionLabel(c))
+			wd := waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)
+			if wd != nil {
+				return wd.ToReadableMessage()
 			}
-			return "waitFor(" + summarizeLabels(parts) + ")"
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		return "memo"
@@ -290,11 +406,10 @@ func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) stri
 		}
 
 		if len(conditions) > 0 {
-			parts := make([]string, 0, len(conditions))
-			for _, c := range conditions {
-				parts = append(parts, formatConditionLabel(c))
+			wd := waitDataFromWaitForConditions(conditions)
+			if wd != nil {
+				return wd.ToReadableMessage()
 			}
-			return "waitFor(" + summarizeLabels(parts) + ")"
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		return "memo"
@@ -319,6 +434,9 @@ type GetOrCreateLogEntryOpt struct {
 	BranchId        int64
 	InvocationCount int32
 	IsSatisfied     bool
+	UserMessage     *string
+	WaitData        string // JSON-encoded WaitData, empty string means no wait data
+	SatisfiedAt     *time.Time
 }
 
 type GetOrCreateLogEntryOpts struct {
@@ -650,6 +768,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			Branchids:              make([]int64, 0),
 			Idempotencykeys:        make([][]byte, 0),
 			Issatisfieds:           make([]bool, 0),
+			Usermessages:           make([]string, 0),
+			Waitdatas:              make([]string, 0),
 		}
 
 		for _, entry := range nodeIdBranchIdToNewEntry {
@@ -662,6 +782,14 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			createParams.Branchids = append(createParams.Branchids, entry.BranchId)
 			createParams.Idempotencykeys = append(createParams.Idempotencykeys, entry.IdempotencyKey)
 			createParams.Issatisfieds = append(createParams.Issatisfieds, entry.IsSatisfied)
+
+			if entry.UserMessage != nil {
+				createParams.Usermessages = append(createParams.Usermessages, *entry.UserMessage)
+			} else {
+				createParams.Usermessages = append(createParams.Usermessages, "")
+			}
+
+			createParams.Waitdatas = append(createParams.Waitdatas, entry.WaitData)
 		}
 
 		createdRows, createErr := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
@@ -852,6 +980,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				InvocationCount: opts.InvocationCount,
 				IdempotencyKey:  idempotencyKey,
 				InputPayload:    inputPayload,
+				WaitData:        marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
 			}
 
 			nodeBranchKey := NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}
@@ -891,6 +1020,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				InvocationCount: opts.InvocationCount,
 				IdempotencyKey:  idempotencyKey,
 				InputPayload:    inputPayload,
+				UserMessage:     opts.WaitFor.Label,
+				WaitData:        marshalWaitData(waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)),
 			}},
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
@@ -1201,12 +1332,125 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, err
 	}
 
+	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
+		waitForResult, err = r.handleEventLookback(ctx, tenantId, waitForResult, opts.WaitFor.WaitForConditions)
+	}
+
 	return &IngestDurableTaskEventResult{
 		Kind:              opts.Kind,
 		MemoResult:        memoResult,
 		WaitForResult:     waitForResult,
 		TriggerRunsResult: triggerRunsResult,
 	}, nil
+}
+
+func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenantId uuid.UUID, initialWaitForResult *IngestWaitForResult, waitForConditions []CreateExternalSignalConditionOpt) (*IngestWaitForResult, error) {
+	lookbackOptTx, err := r.PrepareOptimisticTx(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare tx for retroactive matching: %w", err)
+	}
+
+	defer lookbackOptTx.Rollback()
+
+	lookbackTx := lookbackOptTx.tx
+
+	lookbackParams := sqlcv1.GetPreviousMatchingEventsByKeysWithScopeHintParams{
+		Tenantid: tenantId,
+	}
+
+	for _, c := range waitForConditions {
+		if c.UserEventScope != nil && c.UserEventConsiderEventsSince != nil && c.UserEventKey != nil {
+			lookbackParams.Keys = append(lookbackParams.Keys, *c.UserEventKey)
+			lookbackParams.Seensinces = append(lookbackParams.Seensinces, sqlchelpers.TimestamptzFromTime(*c.UserEventConsiderEventsSince))
+			lookbackParams.Scopes = append(lookbackParams.Scopes, *c.UserEventScope)
+		}
+	}
+
+	previousEventsFound, err := r.queries.GetPreviousMatchingEventsByKeysWithScopeHint(ctx, lookbackTx, lookbackParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up recent user events for retroactive matching: %w", err)
+	}
+
+	if len(previousEventsFound) == 0 {
+		return initialWaitForResult, nil
+	}
+
+	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
+
+	for _, row := range previousEventsFound {
+		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
+			Id:         row.ID,
+			InsertedAt: row.SeenAt,
+			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+			TenantId:   tenantId,
+		})
+	}
+
+	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrievePayloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
+	}
+
+	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
+
+	for _, row := range previousEventsFound {
+		retrieveOpts := RetrievePayloadOpts{
+			Id:         row.ID,
+			InsertedAt: row.SeenAt,
+			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+			TenantId:   tenantId,
+		}
+
+		payload, ok := retrieveOptsToPayload[retrieveOpts]
+
+		if !ok {
+			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
+			payload = nil
+		}
+
+		retroCandidates = append(retroCandidates, CandidateEventMatch{
+			ID:             row.ExternalID,
+			EventTimestamp: row.SeenAt.Time,
+			Key:            row.Key,
+			Data:           payload,
+		})
+	}
+
+	if len(retroCandidates) > 0 {
+		retroMatchResults, err := r.processEventMatches(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
+		}
+
+		if retroMatchResults != nil && len(retroMatchResults.SatisfiedDurableEventLogEntries) > 0 {
+			// note: this might be buggy but I _think_ it's okay to grab the first match here
+			// the main assumption is that we only ever get one entry back
+			entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
+
+			if err := lookbackOptTx.Commit(ctx); err != nil {
+				return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
+			}
+
+			return &IngestWaitForResult{
+				IsSatisfied:     true,
+				ResultPayload:   entry.Data,
+				InvocationCount: entry.InvocationCount,
+				NodeId:          initialWaitForResult.NodeId,
+				BranchId:        initialWaitForResult.BranchId,
+				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+			}, nil
+		}
+	}
+
+	if err := lookbackOptTx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
+	}
+
+	return initialWaitForResult, nil
 }
 
 func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, branchId, nodeId int64, waitForConditions []CreateExternalSignalConditionOpt, task *sqlcv1.FlattenExternalIdsRow) error {
@@ -1374,4 +1618,17 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 	}
 
 	return result, nil
+}
+
+func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-durable-event-log-olap")
+	defer span.End()
+
+	return r.queries.ListDurableEventLogForTask(ctx, r.pool, sqlcv1.ListDurableEventLogForTaskParams{
+		Durabletaskid:         taskId,
+		Durabletaskinsertedat: taskInsertedAt,
+		Tenantid:              tenantId,
+		Eventlogoffset:        offset,
+		Eventloglimit:         limit,
+	})
 }

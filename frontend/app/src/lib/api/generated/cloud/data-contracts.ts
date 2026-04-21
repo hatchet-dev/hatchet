@@ -10,6 +10,24 @@
  * ---------------------------------------------------------------
  */
 
+export enum UserOfferType {
+  YCAlumni = "YC Alumni",
+  YCCurrentBatch = "YC Current Batch",
+  Startup = "Startup",
+  Custom = "Custom",
+}
+
+export enum UserOfferStage {
+  Requested = "Requested",
+  Approved = "Approved",
+  Redeemed = "Redeemed",
+}
+
+export enum AuditLogActorType {
+  User = "user",
+  ApiKey = "api_key",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -362,7 +380,10 @@ export interface TenantPaymentMethod {
   brand: string;
   /** The last 4 digits of the card. */
   last4?: string;
-  /** The expiration date of the card. */
+  /**
+   * The expiration date of the card.
+   * @format date-time
+   */
   expiration?: string;
   /** The description of the payment method. */
   description?: string;
@@ -911,6 +932,86 @@ export interface RejectOrganizationInviteRequest {
    * @format uuid
    */
   id: string;
+}
+
+export interface AuditLog {
+  /**
+   * The ID of the audit log
+   * @format uuid
+   */
+  id: string;
+  /**
+   * The timestamp at which the audit log was inserted
+   * @format date-time
+   */
+  insertedAt: string;
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The type of the actor */
+  actorType: AuditLogActorType;
+  /**
+   * The ID of the actor
+   * @format uuid
+   */
+  actorId: string;
+  /** The action that was performed */
+  action: string;
+  /** The correlation ID */
+  correlationId?: string;
+  /** The ID of the resource */
+  resourceId: string;
+  /** The type of the resource */
+  resourceType: string;
+  /** The IP address of the actor */
+  ipAddress?: string;
+  /** The user agent of the actor */
+  userAgent?: string;
+}
+
+export interface AuditLogList {
+  rows: AuditLog[];
+}
+
+export interface RedeemOfferRequest {
+  /**
+   * The organization to apply the offer credit to.
+   * @format uuid
+   */
+  organizationId: string;
+  /** The Attio record ID of the offer to redeem. */
+  offerRecordId: string;
+  /** Shipping address for welcome kit delivery. */
+  address?: string;
+}
+
+export interface RedeemOfferResponse {
+  /** The amount of credit applied in cents. */
+  appliedCents: number;
+  /** The Attio record ID of the redeemed offer. */
+  offerRecordId: string;
+}
+
+export interface UserOffer {
+  /** The Attio record ID of the offer. */
+  recordId: string;
+  /** The current stage of the offer. */
+  stage?: UserOfferStage;
+  /** The type of the offer. */
+  type?: UserOfferType;
+  /** The credit amount in cents. */
+  creditAmountCents?: number;
+  /**
+   * The expiration date of the offer.
+   * @format date-time
+   */
+  expiresAt?: string;
+  /** Number of months until the offer credit expires after redemption. */
+  expiresInMonths?: number;
+  /** Whether the offer includes a welcome kit. */
+  includesWelcomeKit?: boolean;
 }
 
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;

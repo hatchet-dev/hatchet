@@ -1,12 +1,15 @@
 import json
+from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
 from logging import Logger, getLogger
 from typing import overload
 
+import tenacity
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hatchet_sdk.logger import logger
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
@@ -49,7 +52,6 @@ class HealthcheckConfig(BaseSettings):
     def validate_event_loop_block_threshold_seconds(
         cls, value: timedelta | int | float | str
     ) -> timedelta:
-        # Settings env vars are strings; interpret as seconds.
         if isinstance(value, timedelta):
             return value
 
@@ -57,7 +59,6 @@ class HealthcheckConfig(BaseSettings):
             return timedelta(seconds=float(value))
 
         v = value.strip()
-        # Allow a small convenience suffix, but keep "seconds" as the contract.
         if v.endswith("s"):
             v = v[:-1].strip()
 
@@ -98,6 +99,14 @@ class HTTPMethod(str, Enum):
     OPTIONS = "OPTIONS"
 
 
+def tenacity_before_sleep(retry_state: tenacity.RetryCallState) -> None:
+    """Called between tenacity retries."""
+    logger.debug(
+        f"retrying {retry_state.fn}: attempt "
+        f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
+    )
+
+
 class TenacityConfig(BaseSettings):
     model_config = create_settings_config(
         env_prefix="HATCHET_CLIENT_TENACITY_",
@@ -117,6 +126,8 @@ class TenacityConfig(BaseSettings):
         default_factory=lambda: [HTTPMethod.GET, HTTPMethod.DELETE],
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
+    wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter
+    before_sleep: Callable[[tenacity.RetryCallState], None] = tenacity_before_sleep
 
 
 DEFAULT_HOST_PORT = "localhost:7070"
@@ -129,6 +140,8 @@ class ClientConfig(BaseSettings):
 
     token: str = ""
     logger: Logger = getLogger()
+
+    debug: bool = False
 
     tenant_id: str = ""
     host_port: str = DEFAULT_HOST_PORT
@@ -195,17 +208,6 @@ class ClientConfig(BaseSettings):
             self.tls_config.server_name = "localhost"
 
         return self
-
-    @field_validator("listener_v2_timeout")
-    @classmethod
-    def validate_listener_timeout(cls, value: int | None | str) -> int | None:
-        if value is None:
-            return None
-
-        if isinstance(value, int):
-            return value
-
-        return int(value)
 
     @field_validator("namespace")
     @classmethod

@@ -32,7 +32,7 @@ import { docsPages } from '@/lib/generated/docs';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { Command } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -131,6 +131,31 @@ export default function ScheduledRunsTable({
     filter?: ScheduledWorkflowsBulkDeleteFilter;
   } | null>(null);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
+
+  const tableColumns = useMemo(
+    () =>
+      columns({
+        tenantId,
+        onDeleteClick: (row) => {
+          setShowScheduledRunRevoke(row);
+        },
+        onRescheduleClick: (row) => {
+          setRescheduleParams({ scheduledRunIds: [row.metadata.id] });
+        },
+        selectedAdditionalMetaJobId,
+        handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
+        onRowClick: (row) => {
+          open({
+            type: 'scheduled-run-details',
+            content: {
+              scheduledRun: row,
+            },
+          });
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenantId, selectedAdditionalMetaJobId],
+  );
 
   const effectiveWorkflowId = workflowId || selectedWorkflowIds[0];
   const hasActiveFilters =
@@ -275,25 +300,7 @@ export default function ScheduledRunsTable({
         }
         error={error}
         isLoading={isLoading}
-        columns={columns({
-          tenantId,
-          onDeleteClick: (row) => {
-            setShowScheduledRunRevoke(row);
-          },
-          onRescheduleClick: (row) => {
-            setRescheduleParams({ scheduledRunIds: [row.metadata.id] });
-          },
-          selectedAdditionalMetaJobId,
-          handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
-          onRowClick: (row) => {
-            open({
-              type: 'scheduled-run-details',
-              content: {
-                scheduledRun: row,
-              },
-            });
-          },
-        })}
+        columns={tableColumns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={scheduledRuns}

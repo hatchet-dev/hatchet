@@ -122,6 +122,14 @@ describe('Tenant Invite: accept', () => {
 
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
 
+    // Wait for the accepted invite card to be removed from the DOM before
+    // looking for remaining Decline buttons. The app awaits a user-universe
+    // refetch before removing the card, so there's a window where the stale
+    // Decline button is still visible.
+    cy.contains(`invited to join the ${tenant2Name} tenant`).should(
+      'not.exist',
+    );
+
     // Decline all remaining invites so the page redirects
     const declineAll = (remaining = 20) => {
       cy.get('body').then(($body) => {

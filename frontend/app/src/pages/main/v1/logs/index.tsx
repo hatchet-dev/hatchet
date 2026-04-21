@@ -6,6 +6,7 @@ import {
   getAutocomplete,
   applySuggestion,
 } from '@/components/v1/cloud/logging/log-search/autocomplete';
+import type { LogAutocompleteContext } from '@/components/v1/cloud/logging/log-search/autocomplete';
 import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-search/types';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
@@ -20,7 +21,7 @@ import {
 } from '@/components/v1/ui/select';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { XCircleIcon } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
   const {
@@ -43,9 +44,15 @@ export default function TenantLogsPage() {
     clearTimeRange,
     setCustomSince,
     setCustomUntil,
+    workflowNames,
   } = useTenantLogs();
 
   const sidePanel = useSidePanel();
+
+  const autocompleteContext = useMemo<LogAutocompleteContext>(
+    () => ({ workflowNames }),
+    [workflowNames],
+  );
 
   const handleViewRun = useCallback(
     (taskRunId: string) => {
@@ -69,12 +76,12 @@ export default function TenantLogsPage() {
         onZoom={setCustomTimeRange}
       />
       <div className="flex items-center gap-2 shrink-0">
-        <SearchBarWithFilters<AutocompleteSuggestion, number[]>
+        <SearchBarWithFilters<AutocompleteSuggestion, LogAutocompleteContext>
           value={queryString}
           onChange={setQueryString}
           onSubmit={setQueryString}
-          getAutocomplete={(q) => {
-            const result = getAutocomplete(q, []);
+          getAutocomplete={(q, ctx) => {
+            const result = getAutocomplete(q, ctx);
             return {
               ...result,
               suggestions: result.suggestions.filter(
@@ -83,13 +90,18 @@ export default function TenantLogsPage() {
             };
           }}
           applySuggestion={applySuggestion}
-          autocompleteContext={[]}
+          autocompleteContext={autocompleteContext}
           placeholder="Search logs..."
           filterChips={[
             {
               key: 'level:',
               label: 'Level',
               description: 'Filter by log level',
+            },
+            {
+              key: 'workflow:',
+              label: 'Workflow',
+              description: 'Filter by workflow name',
             },
           ]}
           className="flex-1"

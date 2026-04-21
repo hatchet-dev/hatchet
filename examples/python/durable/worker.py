@@ -17,7 +17,7 @@ from hatchet_sdk import (
 )
 from hatchet_sdk.exceptions import NonDeterminismError
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
@@ -248,6 +248,91 @@ async def durable_sleep_event_spawn(
     }
 
 
+class EventLookbackInput(BaseModel):
+    scope: str | None = None
+    user_id: int | None = None
+
+
+class LookbackEventPayload(BaseModel):
+    order: str
+
+
+class EventLookbackResult(BaseModel):
+    elapsed: float
+
+
+class EventLookbackResultWithEvent(EventLookbackResult):
+    event: LookbackEventPayload
+
+
+class TwoEventsResult(BaseModel):
+    event1: LookbackEventPayload
+    event2: LookbackEventPayload
+    elapsed: float
+
+
+@hatchet.durable_task(input_validator=EventLookbackInput)
+async def wait_for_event_lookback(
+    input: EventLookbackInput, ctx: DurableContext
+) -> EventLookbackResultWithEvent:
+    start = time.time()
+
+    # > Wait for event with lookback
+    event = await ctx.aio_wait_for_event(
+        key="user:create",
+        expression=f"input.user_id == {input.user_id}",
+        scope=f"user_id:{input.user_id}",
+        lookback_window=timedelta(minutes=1),
+        payload_validator=LookbackEventPayload,
+    )
+    return EventLookbackResultWithEvent(event=event, elapsed=time.time() - start)
+
+
+@hatchet.durable_task(input_validator=EventLookbackInput)
+async def wait_for_or_event_lookback(
+    input: EventLookbackInput, ctx: DurableContext
+) -> EventLookbackResult:
+    start = time.time()
+    now = await ctx.aio_now()
+    consider_events_since = now - timedelta(minutes=1)
+
+    await ctx.aio_wait_for(
+        "or-event-lookback",
+        or_(
+            SleepCondition(timedelta(seconds=SLEEP_TIME)),
+            UserEventCondition(
+                event_key=EVENT_KEY,
+                scope=input.scope,
+                consider_events_since=consider_events_since,
+            ),
+        ),
+    )
+
+    return EventLookbackResult(elapsed=time.time() - start)
+
+
+@hatchet.durable_task(input_validator=EventLookbackInput)
+async def wait_for_two_events_second_pushed_first(
+    input: EventLookbackInput, ctx: DurableContext
+) -> TwoEventsResult:
+    start = time.time()
+    event1 = await ctx.aio_wait_for_event(
+        "key1",
+        scope=input.scope,
+        lookback_window=timedelta(minutes=1),
+        payload_validator=LookbackEventPayload,
+        label="waiting for event 1",
+    )
+    event2 = await ctx.aio_wait_for_event(
+        "key2",
+        scope=input.scope,
+        lookback_window=timedelta(minutes=1),
+        payload_validator=LookbackEventPayload,
+        label="waiting for event 2",
+    )
+    return TwoEventsResult(event1=event1, event2=event2, elapsed=time.time() - start)
+
+
 class NonDeterminismOutput(BaseModel):
     attempt_number: int
     sleep_time: int
@@ -347,6 +432,9 @@ def main() -> None:
             durable_sleep_event_spawn,
             durable_non_determinism,
             durable_replay_reset,
+            wait_for_event_lookback,
+            wait_for_or_event_lookback,
+            wait_for_two_events_second_pushed_first,
         ],
     )
     worker.start()

@@ -3,6 +3,7 @@ import { sideNavItems } from './side-nav-items';
 import { useTheme } from '@/components/hooks/use-theme';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
+import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   MembershipsContextType,
@@ -10,7 +11,6 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMemo } from 'react';
 

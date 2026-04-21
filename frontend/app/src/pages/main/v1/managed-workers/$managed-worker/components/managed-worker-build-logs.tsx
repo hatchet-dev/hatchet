@@ -1,7 +1,7 @@
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { queries } from '@/lib/api';
+import { queries, V1LogLineLevel } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
@@ -28,7 +28,8 @@ export function ManagedWorkerBuildLogs({ buildId }: { buildId: string }) {
       timestamp: log.timestamp,
       line: log.line,
       instance: log.instance,
-      level: log.level,
+      // fixme: this should use the v1 log type, not the v0 one
+      level: log.level as V1LogLineLevel | undefined,
       metadata: log.metadata as Record<string, unknown> | undefined,
     }));
   }, [getBuildLogsQuery.data?.rows]);
