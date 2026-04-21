@@ -124,7 +124,7 @@ type WorkerRepository interface {
 
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
-	CleanupOldWorkers(ctx context.Context) (bool, error)
+	CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
 	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error)
 
@@ -723,10 +723,10 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 	return affinities, nil
 }
 
-func (w *workerRepository) CleanupOldWorkers(ctx context.Context) (bool, error) {
-	const timeout = 1000 * 60 // 1 minute
+func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
+	const timeout = 1000 * 60 * 3 // 3 minutes
 	const batchSize int32 = 10000
-	const lockName = "cleanup-old-workers"
+	lockName := fmt.Sprintf("cleanup-old-workers:%s", tenantId.String())
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, w.pool, w.l, timeout)
 	if err != nil {
@@ -742,7 +742,11 @@ func (w *workerRepository) CleanupOldWorkers(ctx context.Context) (bool, error) 
 		return false, nil
 	}
 
-	result, err := w.queries.CleanupOldWorkers(ctx, tx, batchSize)
+	result, err := w.queries.CleanupOldWorkers(ctx, tx, sqlcv1.CleanupOldWorkersParams{
+		Tenantid:            tenantId,
+		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
+		Batchsize:           batchSize,
+	})
 	if err != nil {
 		return false, fmt.Errorf("error cleaning up old workers: %w", err)
 	}

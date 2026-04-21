@@ -176,7 +176,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	}
 
 	if rc.workerRetention {
-		workerInterval := time.Hour
+		workerInterval := 24 * time.Hour
 
 		_, err := rc.s.NewJob(
 			gocron.DurationJob(workerInterval),

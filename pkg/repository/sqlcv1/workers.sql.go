@@ -14,18 +14,25 @@ import (
 )
 
 const cleanupOldWorkers = `-- name: CleanupOldWorkers :execresult
-WITH zombie_workers AS (
+WITH old_workers AS (
     SELECT "id"
     FROM "Worker"
-    WHERE "lastHeartbeatAt" < NOW() - INTERVAL '30 days'
-    LIMIT $1::int
+    WHERE "tenantId" = $1::uuid
+      AND "lastHeartbeatAt" < $2::timestamp
+    LIMIT $3::int
 )
 DELETE FROM "Worker"
-WHERE "id" IN (SELECT "id" FROM zombie_workers)
+WHERE "id" IN (SELECT "id" FROM old_workers)
 `
 
-func (q *Queries) CleanupOldWorkers(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
-	return db.Exec(ctx, cleanupOldWorkers, batchsize)
+type CleanupOldWorkersParams struct {
+	Tenantid            uuid.UUID        `json:"tenantid"`
+	Lastheartbeatbefore pgtype.Timestamp `json:"lastheartbeatbefore"`
+	Batchsize           int32            `json:"batchsize"`
+}
+
+func (q *Queries) CleanupOldWorkers(ctx context.Context, db DBTX, arg CleanupOldWorkersParams) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupOldWorkers, arg.Tenantid, arg.Lastheartbeatbefore, arg.Batchsize)
 }
 
 const createWorker = `-- name: CreateWorker :one

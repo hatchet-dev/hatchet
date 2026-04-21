@@ -380,14 +380,15 @@ SET
 RETURNING *;
 
 -- name: CleanupOldWorkers :execresult
-WITH zombie_workers AS (
+WITH old_workers AS (
     SELECT "id"
     FROM "Worker"
-    WHERE "lastHeartbeatAt" < NOW() - INTERVAL '30 days'
+    WHERE "tenantId" = @tenantId::uuid
+      AND "lastHeartbeatAt" < @lastHeartbeatBefore::timestamp
     LIMIT @batchSize::int
 )
 DELETE FROM "Worker"
-WHERE "id" IN (SELECT "id" FROM zombie_workers);
+WHERE "id" IN (SELECT "id" FROM old_workers);
 
 -- name: ListDispatcherIdsForWorkers :many
 SELECT
