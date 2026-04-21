@@ -82,8 +82,9 @@ async def generate_reply(input: SupportTicketInput, ctx: Context) -> ReplyOutput
             "We are looking into this and will get back to you shortly."
         )
 
-    import anthropic
+    import importlib
 
+    anthropic = importlib.import_module("anthropic")
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
     response = await client.messages.create(
