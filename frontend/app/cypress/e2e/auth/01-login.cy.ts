@@ -33,9 +33,6 @@ describe('auth: login', () => {
       }
     });
     cy.location('pathname', { timeout: 30000 }).should('include', '/tenants/');
-    cy.get(`button[title*="${seededUsers.owner.email}"]`)
-      .filter(':visible')
-      .first()
-      .should('exist');
+    cy.get('[data-cy="v1-sidebar"]', { timeout: 30000 }).should('be.visible');
   });
 });

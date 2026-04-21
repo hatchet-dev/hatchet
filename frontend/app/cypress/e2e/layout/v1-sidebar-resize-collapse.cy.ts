@@ -1,7 +1,10 @@
 describe('v1 sidebar: resize + collapse', () => {
   const DEFAULT_EXPANDED_WIDTH = 200;
 
-  const visitAuthed = (viewport: { width: number; height: number }) => {
+  const visitAuthed = (
+    viewport: { width: number; height: number },
+    opts?: { requireVisibleSidebar?: boolean },
+  ) => {
     cy.viewport(viewport.width, viewport.height);
     cy.login('owner');
 
@@ -14,7 +17,16 @@ describe('v1 sidebar: resize + collapse', () => {
       },
     });
 
-    cy.get('[data-cy="v1-sidebar"]', { timeout: 30000 }).should('be.visible');
+    if (opts?.requireVisibleSidebar !== false) {
+      if (viewport.width < 768) {
+        cy.get('button[aria-label="Toggle sidebar"]', { timeout: 30000 })
+          .should('be.visible')
+          .click();
+      }
+
+      cy.get('[data-cy="v1-sidebar"]', { timeout: 30000 }).should('be.visible');
+    }
+
     cy.location('pathname', { timeout: 30000 }).should(
       'match',
       /\/tenants\/.+/,
@@ -35,7 +47,7 @@ describe('v1 sidebar: resize + collapse', () => {
     visitAuthed({ width: 1280, height: 800 });
     cy.get('button[aria-label="Toggle sidebar"]').should('not.be.visible');
 
-    visitAuthed({ width: 375, height: 667 });
+    visitAuthed({ width: 375, height: 667 }, { requireVisibleSidebar: false });
     cy.get('button[aria-label="Toggle sidebar"]').should('be.visible');
   });
 
