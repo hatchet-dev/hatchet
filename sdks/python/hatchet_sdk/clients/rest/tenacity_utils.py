@@ -12,7 +12,6 @@ from hatchet_sdk.clients.rest.exceptions import (
     ServiceException,
     TooManyRequestsException,
 )
-from hatchet_sdk.logger import logger
 
 if TYPE_CHECKING:
     from hatchet_sdk.config import TenacityConfig
@@ -30,19 +29,11 @@ def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, 
 
     return tenacity.retry(
         reraise=True,
-        wait=tenacity.wait_exponential_jitter(),
+        wait=config.wait(),
         stop=tenacity.stop_after_attempt(config.max_attempts),
-        before_sleep=tenacity_alert_retry,
+        before_sleep=config.before_sleep,
         retry=tenacity.retry_if_exception(should_retry),
     )(func)
-
-
-def tenacity_alert_retry(retry_state: tenacity.RetryCallState) -> None:
-    """Called between tenacity retries."""
-    logger.debug(
-        f"retrying {retry_state.fn}: attempt "
-        f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
-    )
 
 
 def tenacity_should_retry(
