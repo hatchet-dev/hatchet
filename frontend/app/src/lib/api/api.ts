@@ -42,6 +42,7 @@ export const controlPlaneApi = new ControlPlaneApi({
 });
 
 api.instance.interceptors.request.use(exchangeTokenInterceptor);
+cloudApi.instance.interceptors.request.use(exchangeTokenInterceptor);
 
 export const LAST_TENANT_STORAGE_KEY = 'lastTenant';
 
