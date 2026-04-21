@@ -66,10 +66,12 @@ export function StepRunEvents({
 
   // fixme: this is an n+1 query, would be better to have a bulk getter
   const durableLogsQueries = useQueries({
-    queries: (durableTaskIds ?? []).map((id) => ({
-      ...queries.v1DurableTasks.eventLog(id),
-      refetchInterval: 5000,
-    })),
+    queries: [...(durableTaskIds ?? []), ...(taskRunId ? [taskRunId] : [])].map(
+      (id) => ({
+        ...queries.v1DurableTasks.eventLog(id),
+        refetchInterval: 5000,
+      }),
+    ),
   });
 
   const logs = useMemo(() => {
@@ -82,7 +84,7 @@ export function StepRunEvents({
       toDurableEventLogLines(q.data ?? []),
     );
     return mergeByTimestamp(taskLines, durableEventLogLines);
-  }, [eventsQuery.data, isDurable, isDag, tenantId, durableLogsQueries]);
+  }, [eventsQuery.data, isDag, tenantId, durableLogsQueries]);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
