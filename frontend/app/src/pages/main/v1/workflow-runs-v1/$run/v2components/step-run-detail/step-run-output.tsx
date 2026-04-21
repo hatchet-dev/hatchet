@@ -16,11 +16,5 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
       ? data.errorMessage
       : JSON.stringify(data.output, null, 2)) || '';
 
-  return (
-    <CodeHighlighter
-      className="my-4"
-      language="json"
-      code={outputData}
-    />
-  );
+  return <CodeHighlighter className="my-4" language="json" code={outputData} />;
 };
