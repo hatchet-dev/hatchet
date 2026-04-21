@@ -5,6 +5,7 @@ import { WorkflowTags } from '../components/workflow-tags';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -18,10 +19,13 @@ import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
+import { useApiError } from '@/lib/hooks';
 import { relativeDate } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
@@ -34,6 +38,7 @@ export default function ExpandedWorkflow() {
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
+  const [confirmPause, setConfirmPause] = useState(false);
   const { refetchInterval } = useRefetchInterval();
 
   const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
@@ -68,6 +73,25 @@ export default function ExpandedWorkflow() {
         params: { tenant: tenantId },
       });
     },
+  });
+
+  const { handleApiError } = useApiError({});
+
+  const updateWorkflow = useMutation({
+    mutationKey: ['workflow:update', workflowQuery?.data?.metadata.id],
+    mutationFn: async (data: { isPaused: boolean }) => {
+      if (!workflowQuery?.data) {
+        return;
+      }
+      return (await api.workflowUpdate(workflowQuery.data.metadata.id, data))
+        .data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queries.workflows.get(params.workflow).queryKey,
+      });
+    },
+    onError: handleApiError,
   });
 
   const workflow = workflowQuery.data;
@@ -118,9 +142,15 @@ export default function ExpandedWorkflow() {
                 {currVersion}
               </Badge>
             )}
-            <Badge variant="successful" className="px-2">
-              Active
-            </Badge>
+            {workflow.isPaused ? (
+              <Badge variant="inProgress" className="px-2">
+                Paused
+              </Badge>
+            ) : (
+              <Badge variant="successful" className="px-2">
+                Active
+              </Badge>
+            )}
           </div>
           <WorkflowTags tags={workflow.tags || []} />
           <div className="flex flex-row gap-2">
@@ -129,6 +159,21 @@ export default function ExpandedWorkflow() {
               onClick={() => setTriggerWorkflow(true)}
             >
               Trigger Workflow
+            </Button>
+            <Button
+              className="text-sm"
+              variant="outline"
+              onClick={() => {
+                if (workflow.isPaused) {
+                  updateWorkflow.mutate({
+                    isPaused: false,
+                  });
+                } else {
+                  setConfirmPause(true);
+                }
+              }}
+            >
+              {workflow.isPaused ? 'Resume Workflow' : 'Pause Workflow'}
             </Button>
           </div>
           <TriggerWorkflowForm
@@ -149,6 +194,17 @@ export default function ExpandedWorkflow() {
           <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
             {workflow.description}
           </div>
+        )}
+        {workflow.isPaused && (
+          <Alert variant="warn" className="mt-4">
+            <ExclamationTriangleIcon className="h-4 w-4" />
+            <AlertTitle>Workflow Paused</AlertTitle>
+            <AlertDescription>
+              This workflow is paused. New runs are being queued and will be
+              processed when the workflow is resumed. Cron and schedule triggers
+              are disabled.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
       <div className="min-h-0 flex-1 px-4 sm:px-6 lg:px-8">
@@ -219,6 +275,28 @@ export default function ExpandedWorkflow() {
           </TabsContent>
         </Tabs>
       </div>
+      <ConfirmDialog
+        title="Pause workflow"
+        description={
+          <span>
+            Are you sure you want to pause <strong>{workflow.name}</strong>? All
+            currently running tasks will be cancelled, and any queued tasks will
+            be held until the workflow is resumed.
+          </span>
+        }
+        submitLabel="Pause Workflow"
+        onSubmit={() => {
+          updateWorkflow.mutate(
+            { isPaused: true },
+            { onSuccess: () => setConfirmPause(false) },
+          );
+        }}
+        onCancel={() => {
+          setConfirmPause(false);
+        }}
+        isLoading={updateWorkflow.isPending}
+        isOpen={confirmPause}
+      />
     </div>
   );
 }

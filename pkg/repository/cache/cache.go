@@ -34,6 +34,10 @@ func (c *Cache) Stop() {
 	c.cache.Stop()
 }
 
+func (c *Cache) Remove(key string) {
+	c.cache.Remove(key)
+}
+
 func New(duration time.Duration) *Cache {
 	if duration == 0 {
 		// consider a duration of 0 a very short expiry instead of no expiry
