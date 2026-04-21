@@ -82,35 +82,29 @@ export function Notifications() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80" align="end">
-        {count === 0 ? (
-          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            No notifications
-          </div>
-        ) : (
-          notifications.map((notification, i) => (
-            <DropdownMenuItem
-              key={`${notification.url}-${i}`}
-              variant="interactive"
-              className="flex cursor-pointer items-start gap-2 px-3 py-2"
-              onClick={() => navigate({ to: notification.url })}
-            >
-              <span
-                className={cn(
-                  'mt-1.5 size-2 shrink-0 rounded-full',
-                  colorToTailwind[notification.color],
-                )}
-              />
-              <div className="min-w-0 flex-1" title={notification.message}>
-                <p className="truncate text-sm font-medium">
-                  {notification.title}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {notification.message}
-                </p>
-              </div>
-            </DropdownMenuItem>
-          ))
-        )}
+        {notifications.map((notification, i) => (
+          <DropdownMenuItem
+            key={`${notification.url}-${i}`}
+            variant="interactive"
+            className="flex cursor-pointer items-start gap-2 px-3 py-2"
+            onClick={() => navigate({ to: notification.url })}
+          >
+            <span
+              className={cn(
+                'mt-1.5 size-2 shrink-0 rounded-full',
+                colorToTailwind[notification.color],
+              )}
+            />
+            <div className="min-w-0 flex-1" title={notification.message}>
+              <p className="truncate text-sm font-medium">
+                {notification.title}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {notification.message}
+              </p>
+            </div>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
