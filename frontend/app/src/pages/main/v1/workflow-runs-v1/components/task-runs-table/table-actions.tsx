@@ -18,13 +18,13 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
       !hideCancelAndReplayButtons && (
         <div className="flex flex-row gap-x-1">
           <TaskRunActionButton
-            actionType="cancel"
+            actionType="replay"
             disabled={false}
             showModal
             showLabel={false}
           />
           <TaskRunActionButton
-            actionType="replay"
+            actionType="cancel"
             disabled={false}
             showModal
             showLabel={false}
