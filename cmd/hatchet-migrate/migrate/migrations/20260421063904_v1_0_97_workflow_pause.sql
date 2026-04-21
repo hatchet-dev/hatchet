@@ -38,13 +38,17 @@ ALTER TABLE v1_paused_workflow_queue_items SET (
 
 ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'WORKFLOW_PAUSED';
 ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'WORKFLOW_UNPAUSED';
+
+ALTER TABLE "Workflow" ADD COLUMN IF NOT EXISTS "queueCronOnPause" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Workflow" ADD COLUMN IF NOT EXISTS "queueScheduledOnPause" BOOLEAN NOT NULL DEFAULT false;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+ALTER TABLE "Workflow" DROP COLUMN IF EXISTS "queueScheduledOnPause";
+ALTER TABLE "Workflow" DROP COLUMN IF EXISTS "queueCronOnPause";
+
 DROP INDEX IF EXISTS v1_paused_workflow_queue_items_workflow_idx;
 DROP TABLE IF EXISTS v1_paused_workflow_queue_items;
 
-ALTER TYPE v1_event_type_olap DROP VALUE IF EXISTS 'WORKFLOW_PAUSED';
-ALTER TYPE v1_event_type_olap DROP VALUE IF EXISTS 'WORKFLOW_UNPAUSED';
 -- +goose StatementEnd

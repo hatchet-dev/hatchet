@@ -11,6 +11,12 @@ Workflow:
     isPaused:
       type: boolean
       description: Whether the workflow is paused.
+    queueCronOnPause:
+      type: boolean
+      description: Whether the cron tasks should be queued or dropped when the workflow is paused.
+    queueScheduledOnPause:
+      type: boolean
+      description: Whether the scheduled tasks should be queued or dropped when the workflow is paused.
     versions:
       type: array
       items:
@@ -40,6 +46,12 @@ WorkflowUpdateRequest:
     isPaused:
       type: boolean
       description: Whether the workflow is paused.
+    queueCronOnPause:
+      type: boolean
+      description: Whether the cron tasks should be queued or dropped when the workflow is paused.
+    queueScheduledOnPause:
+      type: boolean
+      description: Whether the scheduled tasks should be queued or dropped when the workflow is paused.
 
 WorkflowTag:
   type: object

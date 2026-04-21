@@ -3855,14 +3855,16 @@ type WorkerLabel struct {
 }
 
 type Workflow struct {
-	ID          uuid.UUID        `json:"id"`
-	CreatedAt   pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt   pgtype.Timestamp `json:"deletedAt"`
-	TenantId    uuid.UUID        `json:"tenantId"`
-	Name        string           `json:"name"`
-	Description pgtype.Text      `json:"description"`
-	IsPaused    pgtype.Bool      `json:"isPaused"`
+	ID                    uuid.UUID        `json:"id"`
+	CreatedAt             pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt             pgtype.Timestamp `json:"deletedAt"`
+	TenantId              uuid.UUID        `json:"tenantId"`
+	Name                  string           `json:"name"`
+	Description           pgtype.Text      `json:"description"`
+	IsPaused              pgtype.Bool      `json:"isPaused"`
+	QueueCronOnPause      bool             `json:"queueCronOnPause"`
+	QueueScheduledOnPause bool             `json:"queueScheduledOnPause"`
 }
 
 type WorkflowConcurrency struct {

@@ -2408,6 +2408,12 @@ type Workflow struct {
 	// Name The name of the workflow.
 	Name string `json:"name"`
 
+	// QueueCronOnPause Whether the cron tasks should be queued or dropped when the workflow is paused.
+	QueueCronOnPause *bool `json:"queueCronOnPause,omitempty"`
+
+	// QueueScheduledOnPause Whether the scheduled tasks should be queued or dropped when the workflow is paused.
+	QueueScheduledOnPause *bool `json:"queueScheduledOnPause,omitempty"`
+
 	// Tags The tags of the workflow.
 	Tags *[]WorkflowTag `json:"tags,omitempty"`
 
@@ -2584,6 +2590,12 @@ type WorkflowTriggers struct {
 type WorkflowUpdateRequest struct {
 	// IsPaused Whether the workflow is paused.
 	IsPaused *bool `json:"isPaused,omitempty"`
+
+	// QueueCronOnPause Whether the cron tasks should be queued or dropped when the workflow is paused.
+	QueueCronOnPause *bool `json:"queueCronOnPause,omitempty"`
+
+	// QueueScheduledOnPause Whether the scheduled tasks should be queued or dropped when the workflow is paused.
+	QueueScheduledOnPause *bool `json:"queueScheduledOnPause,omitempty"`
 }
 
 // WorkflowVersion defines model for WorkflowVersion.

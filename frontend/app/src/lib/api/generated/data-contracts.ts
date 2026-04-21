@@ -1758,6 +1758,10 @@ export interface Workflow {
   description?: string;
   /** Whether the workflow is paused. */
   isPaused?: boolean;
+  /** Whether the cron tasks should be queued or dropped when the workflow is paused. */
+  queueCronOnPause?: boolean;
+  /** Whether the scheduled tasks should be queued or dropped when the workflow is paused. */
+  queueScheduledOnPause?: boolean;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
@@ -1995,6 +1999,10 @@ export interface WorkflowRunsCancelRequest {
 export interface WorkflowUpdateRequest {
   /** Whether the workflow is paused. */
   isPaused?: boolean;
+  /** Whether the cron tasks should be queued or dropped when the workflow is paused. */
+  queueCronOnPause?: boolean;
+  /** Whether the scheduled tasks should be queued or dropped when the workflow is paused. */
+  queueScheduledOnPause?: boolean;
 }
 
 export interface WorkflowConcurrency {
