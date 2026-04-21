@@ -74,7 +74,7 @@ export function Notifications() {
           {mostSevere && (
             <span
               className={cn(
-                'absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background',
+                'absolute -top-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background',
                 colorToTailwind[mostSevere],
               )}
             />
