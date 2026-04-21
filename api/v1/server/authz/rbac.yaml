@@ -66,6 +66,7 @@ roles:
       - SnsDelete
       - StepRunListEvents
       - RateLimitList
+      - RateLimitDelete
       - WorkflowVersionGet
       - TenantGetPrometheusMetrics
       - EventUpdateCancel

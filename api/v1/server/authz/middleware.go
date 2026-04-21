@@ -92,6 +92,8 @@ var restrictedWithBearerToken = []string{
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
+	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
+	// regular bearer tokens should be subject to the additional restrictions in restrictedWithBearerToken
 	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
 		if a.config.Auth.ExchangeTokenClient == nil {
 			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
@@ -107,10 +109,10 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error validating user tenant permissions for exchange token user")
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 		}
-	}
-
-	if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+	} else if !isExchangeToken {
+		if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+		}
 	}
 
 	return nil
