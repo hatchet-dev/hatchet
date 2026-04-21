@@ -20,6 +20,7 @@ sql:
       - olap.sql
       - rate_limits.sql
       - log_line.sql
+      - otel.sql
       - security_check.sql
       - slack.sql
       - sleep.sql
@@ -35,6 +36,7 @@ sql:
       - interval_settings.sql
       - pg_health.sql
       - users.sql
+      - sync.sql
       - workflow_schedules.sql
       - durable_event_log.sql
     schema:

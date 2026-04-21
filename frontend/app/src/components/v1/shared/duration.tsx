@@ -76,7 +76,8 @@ const durationVariants = cva('text-sm', {
 });
 
 interface DurationProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof durationVariants> {
   start?: string | Date | null;
   end?: string | Date | null;

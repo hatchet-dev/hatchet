@@ -77,6 +77,9 @@ export class ScheduleClient {
    * @param scheduledRun - The input data for creating the Scheduled Run.
    * @returns A promise that resolves to the created ScheduledWorkflows object.
    * @throws Will throw an error if the input is invalid or the API call fails.
+   *
+   * @important This method is instrumented by HatchetInstrumentor._patchScheduleCreate.
+   * Keep the signature in sync with the instrumentor wrapper.
    */
   async create(
     workflow: string | Workflow,

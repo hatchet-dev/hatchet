@@ -1,18 +1,19 @@
 import { LOG_LEVELS, LogLevel, ParsedLogQuery } from './types';
+import {
+  tokenizeFilterQuery,
+  isFilterToken,
+} from '@/components/v1/molecules/search-bar-with-filters/filter-query-utils';
 
 export function parseLogQuery(query: string): ParsedLogQuery {
   const errors: string[] = [];
   const textParts: string[] = [];
   let level: LogLevel | undefined;
   let attempt: number | undefined;
+  let workflow: string | undefined;
 
-  const tokenRegex = /(\S+?):(\S+)|(\S+)/g;
-  let match;
-
-  while ((match = tokenRegex.exec(query)) !== null) {
-    const [, key, value, text] = match;
-
-    if (key && value !== undefined) {
+  for (const token of tokenizeFilterQuery(query)) {
+    if (isFilterToken(token)) {
+      const { key, value } = token;
       if (key.toLowerCase() === 'level') {
         const normalizedLevel = value.toLowerCase();
         if (LOG_LEVELS.includes(normalizedLevel as LogLevel)) {
@@ -27,11 +28,13 @@ export function parseLogQuery(query: string): ParsedLogQuery {
         } else {
           errors.push(`Invalid attempt number: "${value}"`);
         }
+      } else if (key.toLowerCase() === 'workflow') {
+        workflow = value;
       } else {
         textParts.push(`${key}:${value}`);
       }
-    } else if (text) {
-      textParts.push(text);
+    } else {
+      textParts.push(token.text);
     }
   }
 
@@ -39,6 +42,7 @@ export function parseLogQuery(query: string): ParsedLogQuery {
     search: textParts.length > 0 ? textParts.join(' ') : undefined,
     level,
     attempt,
+    workflow,
     raw: query,
     isValid: errors.length === 0,
     errors,

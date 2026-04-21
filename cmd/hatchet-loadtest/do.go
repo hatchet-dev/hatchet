@@ -4,12 +4,74 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
+
+	"github.com/vicanso/go-charts/v2"
 )
 
+type LatencySnapshot struct {
+	t       time.Time
+	latency time.Duration
+}
+
+type LatencyResult struct {
+	snapshots []LatencySnapshot
+}
+
+func (lr *LatencyResult) GeneratePlot(plotPath string, plotName string) error {
+	bytes, err := lr.PlotBytes(plotName)
+	if err != nil {
+		return err
+	}
+
+	// save to file
+	f, err := os.Create(filepath.Join(plotPath, fmt.Sprintf("%s_plot.png", plotName)))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(bytes)
+	return err
+}
+
+func (lr *LatencyResult) PlotBytes(plotName string) ([]byte, error) {
+	if len(lr.snapshots) == 0 {
+		return nil, fmt.Errorf("no snapshots available")
+	}
+
+	xvals := make([]string, 0, len(lr.snapshots))
+	yvals := make([]float64, 0, len(lr.snapshots))
+
+	start := lr.snapshots[0].t
+
+	for _, s := range lr.snapshots {
+		elapsed := s.t.Sub(start).Seconds()
+		xvals = append(xvals, fmt.Sprintf("%.2f", elapsed))
+
+		latencyMs := float64(s.latency.Microseconds()) / 1000.0
+		yvals = append(yvals, latencyMs)
+	}
+
+	p, err := charts.LineRender(
+		[][]float64{yvals},
+		charts.TitleTextOptionFunc(fmt.Sprintf("Task %s (ms)", plotName)),
+		charts.XAxisDataOptionFunc(xvals),
+		charts.LegendLabelsOptionFunc([]string{"Latency"}),
+		charts.HeightOptionFunc(500),
+		charts.WidthOptionFunc(1000),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return p.Bytes()
+}
+
 type avgResult struct {
-	count int64
-	avg   time.Duration
+	count         int64
+	avg           time.Duration
+	latencyResult LatencyResult
 }
 
 func do(config LoadTestConfig) error {
@@ -25,22 +87,28 @@ func do(config LoadTestConfig) error {
 	defer cancel()
 
 	ch := make(chan int64, 2)
-	durations := make(chan time.Duration, config.Events)
+	durations := make(chan executionEvent, config.Events)
 
 	// Compute running average for executed durations using a rolling average.
 	durationsResult := make(chan avgResult)
 	go func() {
 		var count int64
 		var avg time.Duration
+		var snapshots []LatencySnapshot
+
 		for d := range durations {
 			count++
 			if count == 1 {
-				avg = d
+				avg = d.duration
 			} else {
-				avg += (d - avg) / time.Duration(count)
+				avg += (d.duration - avg) / time.Duration(count)
 			}
+			snapshots = append(snapshots, LatencySnapshot{
+				t:       d.startedAt,
+				latency: d.duration,
+			})
 		}
-		durationsResult <- avgResult{count: count, avg: avg}
+		durationsResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
 	// Start worker and ensure it has time to register
@@ -77,6 +145,7 @@ func do(config LoadTestConfig) error {
 	go func() {
 		var count int64
 		var avg time.Duration
+		var snapshots []LatencySnapshot
 		for d := range scheduled {
 			count++
 			if count == 1 {
@@ -84,8 +153,12 @@ func do(config LoadTestConfig) error {
 			} else {
 				avg += (d - avg) / time.Duration(count)
 			}
+			snapshots = append(snapshots, LatencySnapshot{
+				t:       time.Now(),
+				latency: d,
+			})
 		}
-		scheduledResult <- avgResult{count: count, avg: avg}
+		scheduledResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
 	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize)
@@ -118,7 +191,37 @@ func do(config LoadTestConfig) error {
 
 	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
-
+	if ShouldSendSlack() {
+		log.Printf("ℹ️ sending scheduling/duration plots to Slack")
+		slackSender := NewSlackSender("hatchet-staging-loadtest-us-west-2")
+		durationBytes, err := finalDurationResult.latencyResult.PlotBytes("duration")
+		if err != nil {
+			log.Printf("❌ failed to generate duration plot: %v ", err)
+		}
+		schedulingBytes, err := finalScheduledResult.latencyResult.PlotBytes("scheduling")
+		if err != nil {
+			log.Printf("❌ failed to generate scheduling plot: %v ", err)
+		}
+		err = slackSender.Send(durationBytes, schedulingBytes, finalDurationResult.avg, finalScheduledResult.avg)
+		if err != nil {
+			log.Printf("❌ failed to send duration plots to slack: %v ", err)
+		}
+		log.Printf("ℹ️ scheduling/duration successfully plots to Slack")
+	} else {
+		log.Printf("ℹ️ not all environment vars for sending plots to Slack enabled...skipping")
+	}
+	if config.PlotDir != "" {
+		log.Printf("ℹ️ exporting scheduling/duration snapshot data")
+		err := finalScheduledResult.latencyResult.GeneratePlot(config.PlotDir, "scheduling")
+		if err != nil {
+			return err
+		}
+		err = finalDurationResult.latencyResult.GeneratePlot(config.PlotDir, "duration")
+		if err != nil {
+			return err
+		}
+		log.Printf("ℹ️ exported scheduling/duration snapshot data")
+	}
 	if expected != executed {
 		log.Printf("⚠️ warning: pushed and executed counts do not match: expected=%d got=%d", expected, executed)
 	}

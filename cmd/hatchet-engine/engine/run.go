@@ -102,8 +102,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 		return fmt.Errorf("could not run with config: %w", err)
 	}
 
-	time.Sleep(server.Runtime.ShutdownWait)
-
 	l.Debug().Msgf("interrupt received, shutting down")
 
 	err = cleanup.Run()
@@ -128,7 +126,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
-	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
 		CollectorURL:  sc.OpenTelemetry.CollectorURL,
 		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
@@ -418,15 +416,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
-		oc, err := otelcol.NewOTelCollector(
-			otelcol.WithRepository(sc.V1),
-			otelcol.WithLogger(sc.Logger),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create otel collector: %w", err)
-		}
-
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -434,12 +423,26 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
-			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
+		}
+
+		if sc.Observability.Enabled {
+			oc, err := otelcol.NewOTelCollector(
+				otelcol.WithRepository(sc.V1),
+				otelcol.WithLogger(sc.Logger),
+				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
+				otelcol.WithAnalytics(sc.Analytics),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create otel collector: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOTelCollector(oc))
 		}
 
 		if sc.Runtime.GRPCInsecure {
@@ -507,9 +510,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	cleanup.Add(
-		func() error {
-			return shutdown(ctx)
-		},
+		telemetryShutdown,
 		"telemetry",
 	)
 
@@ -527,7 +528,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
-	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
 		CollectorURL:  sc.OpenTelemetry.CollectorURL,
 		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
@@ -847,15 +848,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
-		oc, err := otelcol.NewOTelCollector(
-			otelcol.WithRepository(sc.V1),
-			otelcol.WithLogger(sc.Logger),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create otel collector: %w", err)
-		}
-
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -863,12 +855,26 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
-			grpc.WithOTelCollector(oc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
+		}
+
+		if sc.Observability.Enabled {
+			oc, err := otelcol.NewOTelCollector(
+				otelcol.WithRepository(sc.V1),
+				otelcol.WithLogger(sc.Logger),
+				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
+				otelcol.WithAnalytics(sc.Analytics),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create otel collector: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOTelCollector(oc))
 		}
 
 		if sc.Runtime.GRPCInsecure {
@@ -935,9 +941,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	cleanup.Add(
-		func() error {
-			return shutdown(ctx)
-		},
+		telemetryShutdown,
 		"telemetry",
 	)
 

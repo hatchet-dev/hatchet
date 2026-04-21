@@ -1,5 +1,5 @@
-import asyncio
 import logging
+import warnings
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, overload
@@ -24,26 +24,27 @@ from hatchet_sdk.features.stubs import StubsClient
 from hatchet_sdk.features.webhooks import WebhooksClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
-from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
-from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.contextvars import ctx_hatchet_context
 from hatchet_sdk.runnables.eviction import (
     DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     EvictionPolicy,
 )
 from hatchet_sdk.runnables.types import (
-    ConcurrencyExpression,
     DefaultFilter,
     EmptyModel,
     R,
-    StickyStrategy,
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
     normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
+from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.rate_limit import RateLimit
+from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
@@ -62,16 +63,31 @@ class Hatchet:
 
     def __init__(
         self,
-        debug: bool = False,
+        debug: bool | None = None,
         client: Client | None = None,
         config: ClientConfig | None = None,
     ):
-        if debug:
+        if debug is not None:
+            warnings.warn(
+                "The `debug` parameter is deprecated and will be removed in v2.0.0. Please set the debug mode using the HATCHET_CLIENT_DEBUG environment variable instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        _config = config or ClientConfig()
+        _debug = _config.debug if debug is None else debug
+
+        if _debug:
             logger.setLevel(logging.DEBUG)
 
-        self._client = (
-            client if client else Client(config=config or ClientConfig(), debug=debug)
-        )
+        if client is not None:
+            warnings.warn(
+                "The `client` parameter is deprecated and will be removed in v2.0.0. The client internal to the broader Hatchet client is not meant to be provided or interacted with directly.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        self._client = client if client else Client(config=_config, debug=_debug)
 
     @property
     def cel(self) -> CELClient:
@@ -210,24 +226,22 @@ class Hatchet:
         Create a Hatchet worker on which to run workflows.
 
         :param name: The name of the worker.
-
         :param slots: slot count for standard tasks.
-
         :param durable_slots: slot count for durable tasks.
-
         :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
-
         :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.
-
         :param lifespan: A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks.
 
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
+
+        :raises TypeError: If any of the items in `workflows` is not an instance of `Workflow` or `Standalone`, which are the two types of workflow objects that can be passed to a worker. This is to catch a common mistake where users pass the result of a task declaration method like `Workflow.task` instead of the workflow object itself.
         """
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
+        for workflow in workflows or []:
+            if not isinstance(workflow, BaseWorkflow):
+                raise TypeError(
+                    f"workflows passed to a Hatchet worker need to be either a `Workflow` or a `Standalone`, created via `hatchet.workflow`, `hatchet.task`, or `hatchet.durable_task`. Got {type(workflow)}. hint: you likely passed the result of `Workflow.task`, `Workflow.durable_task`, etc. instead of the workflow itself."
+                )
 
         resolved_config = resolve_worker_slot_config(
             None,
@@ -242,7 +256,6 @@ class Hatchet:
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,
-            owned_loop=loop is None,
             workflows=workflows,
             lifespan=lifespan,
         )
@@ -258,7 +271,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -278,7 +291,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -297,7 +310,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -335,6 +348,8 @@ class Hatchet:
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
+        _warn_if_int_priority(default_priority)
+
         return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
@@ -364,7 +379,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -372,7 +387,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -393,7 +410,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -401,7 +418,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -421,7 +440,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -429,7 +448,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -486,6 +507,8 @@ class Hatchet:
         :returns: A decorator which creates a `Standalone` task object.
         """
 
+        _warn_if_int_priority(default_priority)
+
         def inner(
             func: Callable[
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
@@ -525,7 +548,7 @@ class Hatchet:
                 parents=[],
                 retries=retries,
                 rate_limits=rate_limits or [],
-                desired_worker_labels=desired_worker_labels or {},
+                desired_worker_labels=desired_worker_labels or None,
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
@@ -551,7 +574,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -559,7 +582,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -581,7 +606,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -589,7 +614,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -614,7 +641,7 @@ class Hatchet:
         on_crons: list[str] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: int | Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -622,7 +649,9 @@ class Hatchet:
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -728,7 +757,7 @@ class Hatchet:
                 parents=[],
                 retries=retries,
                 rate_limits=rate_limits or [],
-                desired_worker_labels=desired_worker_labels or {},
+                desired_worker_labels=desired_worker_labels or None,
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
@@ -743,6 +772,21 @@ class Hatchet:
         return inner
 
     def get_current_context(self) -> Context | None:
+        """
+        Get the current Hatchet context, if it exists. This is only available within the execution of a task or workflow.
+
+        :returns: The current `Context` object, or `None` if there is no current context (i.e. if this is called outside of the execution of a task or workflow).
+        """
+        warnings.warn(
+            "The `get_current_context` method is deprecated and will be removed in v2.0.0. Please use the `current_context` property instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return ctx_hatchet_context.get()
+
+    @property
+    def current_context(self) -> Context | None:
         """
         Get the current Hatchet context, if it exists. This is only available within the execution of a task or workflow.
 

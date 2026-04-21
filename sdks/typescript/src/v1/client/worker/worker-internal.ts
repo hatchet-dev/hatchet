@@ -110,11 +110,11 @@ export class InternalWorker {
     this.enableHealthServer = client.config.healthcheck?.enabled ?? false;
     this.healthPort = client.config.healthcheck?.port ?? 8001;
 
-    process.on('SIGTERM', () => this.exitGracefully(true));
-    process.on('SIGINT', () => this.exitGracefully(true));
-
     this.killing = false;
     this.handle_kill = options.handleKill === undefined ? true : options.handleKill;
+
+    process.on('SIGTERM', () => this.exitGracefully(this.handle_kill));
+    process.on('SIGINT', () => this.exitGracefully(this.handle_kill));
 
     this.logger = client.config.logger(`Worker/${this.name}`, this.client.config.log_level);
 
@@ -491,7 +491,11 @@ export class InternalWorker {
     delete this.contexts[key];
   }
 
-  async handleStartStepRun(action: Action) {
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchHandleStartStepRun.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
+  async handleStartStepRun(action: Action): Promise<Error | undefined> {
     const { actionId, taskRunExternalId, taskName } = action;
     const actionKey = action.key;
 
@@ -660,14 +664,15 @@ export class InternalWorker {
         }
       };
 
-      const future = new HatchetPromise(
+      const future = new HatchetPromise<Error | undefined>(
         (async () => {
           let result: any;
           try {
             result = await run();
           } catch (e: any) {
             await failure(e);
-            return;
+            // Return error for OTel instrumentor to capture
+            return e;
           }
 
           // Postcheck: user code may swallow AbortError; don't report completion after cancellation.
@@ -683,6 +688,7 @@ export class InternalWorker {
           throwIfAborted(context.abortController.signal);
 
           await success(result);
+          return undefined;
         })()
       );
       this.futures[actionKey] = future;
@@ -700,7 +706,7 @@ export class InternalWorker {
       });
 
       try {
-        await future.promise;
+        return await future.promise;
       } catch (e: any) {
         if (!isTaskRunTerminatedError(e)) {
           this.logger.error(
@@ -715,6 +721,7 @@ export class InternalWorker {
     } catch (e: any) {
       this.cleanupRun(actionKey);
       this.logger.error('Could not send action event (outer): ', e);
+      return e instanceof Error ? e : new Error(String(e));
     }
   }
 
@@ -759,6 +766,10 @@ export class InternalWorker {
     };
   }
 
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchHandleCancelStepRun.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
   async handleCancelStepRun(action: Action) {
     const { taskRunExternalId, taskName } = action;
     const actionKey = action.key;

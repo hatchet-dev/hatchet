@@ -1,3 +1,4 @@
+import useCloud from '@/hooks/use-cloud';
 import api, {
   UpdateTenantRequest,
   Tenant,
@@ -6,7 +7,6 @@ import api, {
 } from '@/lib/api';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import { Evaluate } from '@/lib/can/shared/permission.base';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -98,7 +98,7 @@ export function useTenantDetails() {
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['user:*'] });
-      invalidateUserUniverse();
+      await invalidateUserUniverse();
       if (data.metadata.id) {
         setTenant(data);
       }

@@ -2,10 +2,11 @@ import { V1RunIndicator } from '../../../components/run-statuses';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
+import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { Waterfall } from '../waterfall';
+import { Observability } from './observability/observability';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -19,7 +20,6 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
@@ -35,7 +35,7 @@ export enum TabOption {
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
   Logs = 'logs',
-  Waterfall = 'waterfall',
+  Traces = 'traces',
   AdditionalMetadata = 'additional-metadata',
   Activity = 'activity',
 }
@@ -105,21 +105,14 @@ export const TaskRunDetail = ({
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
-  const { open } = useSidePanel();
   const [logsResetKey, setLogsResetKey] = useState(0);
-  const handleTaskRunExpand = useCallback(
-    (taskRunId: string) => {
-      open({
-        type: 'task-run-details',
-        content: {
-          taskRunId,
-          defaultOpenTab: TabOption.Output,
-          showViewTaskRunButton: true,
-        },
-      });
-    },
-    [open],
-  );
+  const search = useRunDetailSearch();
+  const { set: setSearch } = search;
+  const outerTab = search.tab ?? 'overview';
+
+  const handleMiniMapClick = useCallback(() => {
+    setSearch({ focusedTaskRunId: taskRunId, tab: 'traces' });
+  }, [taskRunId, setSearch]);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -129,7 +122,7 @@ export const TaskRunDetail = ({
         return 5000;
       }
 
-      return 1000;
+      return 300;
     },
   });
 
@@ -143,10 +136,6 @@ export const TaskRunDetail = ({
   if (!taskRun) {
     return <div>No events found</div>;
   }
-
-  const isStandaloneTaskRun =
-    taskRun.workflowRunExternalId === emptyGolangUUID ||
-    taskRun.workflowRunExternalId === taskRun.metadata.id;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -202,31 +191,37 @@ export const TaskRunDetail = ({
       <div className="flex flex-row items-center gap-2">
         <V1StepRunSummary taskRunId={taskRunId} />
       </div>
-      <Tabs defaultValue="overview" className="flex h-full flex-col">
+      <Tabs
+        value={outerTab}
+        onValueChange={(value) => {
+          search.setTab(value);
+          if (value === 'logs') {
+            // Increment counter to force remount when Logs tab is opened
+            setLogsResetKey((prev: number) => prev + 1);
+          }
+        }}
+        className="flex h-full flex-col"
+      >
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
             Overview
           </TabsTrigger>
-          {isStandaloneTaskRun && (
-            <TabsTrigger variant="underlined" value="waterfall">
-              Waterfall
-            </TabsTrigger>
-          )}
+          <TabsTrigger variant="underlined" value="traces">
+            Traces
+          </TabsTrigger>
+          <TabsTrigger variant="underlined" value="logs">
+            Logs
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="min-h-0 flex-1">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
-            <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
+            <TaskRunMiniMap
+              onClick={handleMiniMapClick}
+              taskRunId={taskRunId}
+            />
           </div>
           <div className="h-4" />
-          <Tabs
-            defaultValue={defaultOpenTab}
-            onValueChange={(value) => {
-              if (value === TabOption.Logs) {
-                // Increment counter to force remount when Logs tab is opened
-                setLogsResetKey((prev: number) => prev + 1);
-              }
-            }}
-          >
+          <Tabs defaultValue={defaultOpenTab}>
             <TabsList layout="underlined">
               <TabsTrigger variant="underlined" value={TabOption.Activity}>
                 Activity
@@ -244,9 +239,6 @@ export const TaskRunDetail = ({
               )}
               <TabsTrigger variant="underlined" value={TabOption.Input}>
                 Input
-              </TabsTrigger>
-              <TabsTrigger variant="underlined" value={TabOption.Logs}>
-                Logs
               </TabsTrigger>
               <TabsTrigger
                 variant="underlined"
@@ -301,9 +293,6 @@ export const TaskRunDetail = ({
                 />
               )}
             </TabsContent>
-            <TabsContent value={TabOption.Logs}>
-              <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
-            </TabsContent>
             <TabsContent value={TabOption.AdditionalMetadata}>
               <CodeHighlighter
                 className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
@@ -315,15 +304,24 @@ export const TaskRunDetail = ({
             </TabsContent>
           </Tabs>
         </TabsContent>
-        {isStandaloneTaskRun && (
-          <TabsContent value="waterfall" className="min-h-0 flex-1">
-            <Waterfall
-              workflowRunId={taskRunId}
-              selectedTaskId={undefined}
-              handleTaskSelect={handleTaskRunExpand}
-            />
-          </TabsContent>
-        )}
+        <TabsContent value="traces" className="min-h-0 flex-1">
+          <Observability
+            taskRunId={taskRunId}
+            isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+            tasks={[
+              {
+                externalId: taskRun.metadata.id,
+                displayName: taskRun.displayName,
+                status: taskRun.status,
+                createdAt: taskRun.metadata.createdAt,
+                startedAt: taskRun.startedAt,
+              },
+            ]}
+          />
+        </TabsContent>
+        <TabsContent value="logs" className="min-h-0 flex-1">
+          <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
+        </TabsContent>
       </Tabs>
     </div>
   );

@@ -11,10 +11,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
-        (
-            ["poetry", "run", "python", "examples/streaming/worker.py", "--slots", "1"],
-            8008,
-        )
+        ["poetry", "run", "python", "examples/streaming/worker.py", "--slots", "1"],
     ],
     indirect=True,
 )
@@ -25,7 +22,7 @@ async def test_streaming_ordering_and_completeness(
     hatchet: Hatchet,
     on_demand_worker: Popen[Any],
 ) -> None:
-    ref = await stream_task.aio_run_no_wait()
+    ref = await stream_task.aio_run(wait_for_result=False)
 
     ix = 0
     anna_karenina = ""

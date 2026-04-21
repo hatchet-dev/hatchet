@@ -30,8 +30,10 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
+	featureflagsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/feature-flags"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -41,6 +43,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflows"
 	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/cors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
@@ -72,32 +75,36 @@ type apiService struct {
 	*filtersv1.V1FiltersService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
+	*observability.V1ObservabilityService
+	*featureflagsv1.V1FeatureFlagsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
 	return &apiService{
-		UserService:           users.NewUserService(config),
-		TenantService:         tenants.NewTenantService(config),
-		EventService:          events.NewEventService(config),
-		RateLimitService:      rate_limits.NewRateLimitService(config),
-		LogsService:           logs.NewLogsService(config),
-		WorkflowService:       workflows.NewWorkflowService(config),
-		WorkflowRunsService:   workflowruns.NewWorkflowRunsService(config),
-		WorkerService:         workers.NewWorkerService(config),
-		MetadataService:       metadata.NewMetadataService(config),
-		APITokenService:       apitokens.NewAPITokenService(config),
-		StepRunService:        stepruns.NewStepRunService(config),
-		IngestorsService:      ingestors.NewIngestorsService(config),
-		SlackAppService:       slackapp.NewSlackAppService(config),
-		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
-		MonitoringService:     monitoring.NewMonitoringService(config),
-		InfoService:           info.NewInfoService(config),
-		TasksService:          tasks.NewTasksService(config),
-		V1WorkflowRunsService: workflowrunsv1.NewV1WorkflowRunsService(config),
-		V1EventsService:       eventsv1.NewV1EventsService(config),
-		V1FiltersService:      filtersv1.NewV1FiltersService(config),
-		V1WebhooksService:     webhooksv1.NewV1WebhooksService(config),
-		V1CELService:          celv1.NewV1CELService(config),
+		UserService:            users.NewUserService(config),
+		TenantService:          tenants.NewTenantService(config),
+		EventService:           events.NewEventService(config),
+		RateLimitService:       rate_limits.NewRateLimitService(config),
+		LogsService:            logs.NewLogsService(config),
+		WorkflowService:        workflows.NewWorkflowService(config),
+		WorkflowRunsService:    workflowruns.NewWorkflowRunsService(config),
+		WorkerService:          workers.NewWorkerService(config),
+		MetadataService:        metadata.NewMetadataService(config),
+		APITokenService:        apitokens.NewAPITokenService(config),
+		StepRunService:         stepruns.NewStepRunService(config),
+		IngestorsService:       ingestors.NewIngestorsService(config),
+		SlackAppService:        slackapp.NewSlackAppService(config),
+		WebhookWorkersService:  webhookworker.NewWebhookWorkersService(config),
+		MonitoringService:      monitoring.NewMonitoringService(config),
+		InfoService:            info.NewInfoService(config),
+		TasksService:           tasks.NewTasksService(config),
+		V1WorkflowRunsService:  workflowrunsv1.NewV1WorkflowRunsService(config),
+		V1EventsService:        eventsv1.NewV1EventsService(config),
+		V1FiltersService:       filtersv1.NewV1FiltersService(config),
+		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
+		V1CELService:           celv1.NewV1CELService(config),
+		V1ObservabilityService: observability.NewV1ObservabilityService(config),
+		V1FeatureFlagsService:  featureflagsv1.NewV1FeatureFlagsService(config),
 	}
 }
 
@@ -181,6 +188,9 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+
+	e.Use(cors.Middleware(t.config))
+
 	e.HideBanner = true
 	e.HidePort = true
 	e.IPExtractor = func(r *http.Request) string {

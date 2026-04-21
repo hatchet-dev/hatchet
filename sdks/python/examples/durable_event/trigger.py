@@ -7,8 +7,8 @@ from examples.durable_event.worker import (
     hatchet,
 )
 
-durable_event_task.run_no_wait()
-durable_event_task_with_filter.run_no_wait()
+durable_event_task.run(wait_for_result=False)
+durable_event_task_with_filter.run(wait_for_result=False)
 
 print("Sleeping")
 time.sleep(2)

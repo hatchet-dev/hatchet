@@ -126,6 +126,21 @@ func (q *Queries) CountRateLimits(ctx context.Context, db DBTX, arg CountRateLim
 	return total, err
 }
 
+const deleteRateLimitForTenant = `-- name: DeleteRateLimitForTenant :exec
+DELETE FROM "RateLimit" rl WHERE
+    rl."tenantId" = $1::uuid AND rl."key" = $2
+`
+
+type DeleteRateLimitForTenantParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Key      string    `json:"key"`
+}
+
+func (q *Queries) DeleteRateLimitForTenant(ctx context.Context, db DBTX, arg DeleteRateLimitForTenantParams) error {
+	_, err := db.Exec(ctx, deleteRateLimitForTenant, arg.Tenantid, arg.Key)
+	return err
+}
+
 const listRateLimitsForSteps = `-- name: ListRateLimitsForSteps :many
 SELECT
     units, "stepId", "rateLimitKey", "tenantId", kind

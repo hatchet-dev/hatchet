@@ -6,7 +6,6 @@ from typing import cast
 
 import grpc
 import grpc.aio
-from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hatchet_sdk.clients.event_ts import (
     ThreadSafeEvent,
@@ -23,44 +22,19 @@ from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     AssignedAction,
     HeartbeatRequest,
-    WorkerLabels,
     WorkerListenRequest,
     WorkerUnsubscribeRequest,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
-
-
-class GetActionListenerRequest(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    worker_name: str
-    services: list[str]
-    actions: list[str]
-    slot_config: dict[str, int]
-    raw_labels: dict[str, str | int] = Field(default_factory=dict)
-
-    labels: dict[str, WorkerLabels] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def validate_labels(self) -> "GetActionListenerRequest":
-        self.labels = {}
-
-        for key, value in self.raw_labels.items():
-            if isinstance(value, int):
-                self.labels[key] = WorkerLabels(int_value=value)
-            else:
-                self.labels[key] = WorkerLabels(str_value=str(value))
-
-        return self
 
 
 def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:
@@ -87,7 +61,6 @@ class ActionListener:
         self.last_connection_attempt = 0.0
         self.heartbeat_task: asyncio.Task[None] | None = None
         self.run_heartbeat = True
-        self.listen_strategy = "v2"
         self.stop_signal = False
         self.missed_heartbeats = 0
 
@@ -111,7 +84,7 @@ class ActionListener:
                         heartbeat_at=proto_timestamp_now(),
                     ),
                     timeout=5,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 )
 
                 if self.last_heartbeat_succeeded is False:
@@ -235,6 +208,7 @@ class ActionListener:
                         step_id=assigned_action.task_id,
                         step_run_id=assigned_action.task_run_external_id,
                         action_id=assigned_action.action_id,
+                        step_name=assigned_action.task_name,
                         action_payload=action_payload,
                         action_type=convert_proto_enum_to_python(
                             assigned_action.action_type,
@@ -265,15 +239,8 @@ class ActionListener:
                     logger.debug("context cancelled, closing listener")
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     logger.info("deadline exceeded, retrying subscription")
-                elif (
-                    self.listen_strategy == "v2"
-                    and e.code() == grpc.StatusCode.UNIMPLEMENTED
-                ):
-                    # ListenV2 is not available, fallback to Listen
-                    self.listen_strategy = "v1"
-                    self.run_heartbeat = False
-                    logger.info("ListenV2 not available, falling back to Listen")
                 else:
+                    # TODO retry
                     logger.error("action listener error - reconnecting")
 
                     self.retries = self.retries + 1
@@ -310,22 +277,13 @@ class ActionListener:
 
         self.aio_client = DispatcherStub(new_conn(self.config, True))
 
-        if self.listen_strategy == "v2":
-            # we should await for the listener to be established before
-            # starting the heartbeater
-            listener = self.aio_client.ListenV2(
-                WorkerListenRequest(worker_id=self.worker_id),
-                timeout=self.config.listener_v2_timeout,
-                metadata=get_metadata(self.token),
-            )
-            await self.start_heartbeater()
-        else:
-            # if ListenV2 is not available, fallback to Listen
-            listener = self.aio_client.Listen(
-                WorkerListenRequest(worker_id=self.worker_id),
-                timeout=DEFAULT_ACTION_TIMEOUT,
-                metadata=get_metadata(self.token),
-            )
+        listener = self.aio_client.ListenV2(
+            WorkerListenRequest(worker_id=self.worker_id),
+            timeout=self.config.listener_v2_timeout,
+            metadata=create_authorization_header(self.token),
+        )
+
+        await self.start_heartbeater()
 
         self.last_connection_attempt = current_time
 
@@ -356,7 +314,7 @@ class ActionListener:
             req = self.aio_client.Unsubscribe(
                 WorkerUnsubscribeRequest(worker_id=self.worker_id),
                 timeout=5,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             )
 
             if self.interrupt is not None:

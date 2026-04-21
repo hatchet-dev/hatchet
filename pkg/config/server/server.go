@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
+	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
@@ -65,6 +66,8 @@ type ServerConfigFile struct {
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
 	Prometheus shared.PrometheusConfigFile `mapstructure:"prometheus" json:"prometheus,omitempty"`
+
+	Observability shared.ObservabilityConfigFile `mapstructure:"observability" json:"observability,omitempty"`
 
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
 
@@ -196,9 +199,6 @@ type ConfigFileRuntime struct {
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
 
-	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
-	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
-
 	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 
@@ -277,6 +277,17 @@ type ConfigFileRuntime struct {
 	// ReplayEnabled controls whether the server enables replay for tasks
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
 
+	// AllowedOrigins is a list of origin patterns permitted for CORS requests.
+	// Patterns may include wildcards, e.g. "https://*.hatchet.run".
+	// If empty, all origins are allowed ("*").
+	// Populated from AllowedOriginsString at startup; do not set directly via env.
+	AllowedOrigins []string `mapstructure:"allowedOrigins" json:"allowedOrigins,omitempty"`
+
+	// AllowedOriginsString is the raw space-separated value used for env binding
+	// (SERVER_ALLOWED_ORIGINS). Example: "https://app.example.com https://*.hatchet.run".
+	// The loader splits this into AllowedOrigins at startup.
+	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
+
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
@@ -286,15 +297,19 @@ type ConfigFileRuntime struct {
 	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
 	SchedulerConcurrencyPollingMaxInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
 
+	// SchedulerCheckActiveMinInterval is the minimum interval for the check-active polling loop
+	SchedulerCheckActiveMinInterval time.Duration `mapstructure:"schedulerCheckActiveMinInterval" json:"schedulerCheckActiveMinInterval,omitempty" default:"30s"`
+
+	// SchedulerCheckActiveMaxInterval is the maximum interval for the check-active polling loop
+	SchedulerCheckActiveMaxInterval time.Duration `mapstructure:"schedulerCheckActiveMaxInterval" json:"schedulerCheckActiveMaxInterval,omitempty" default:"60s"`
+
+	SchedulerAdvisoryLockTimeout time.Duration `mapstructure:"schedulerAdvisoryLockTimeout" json:"schedulerAdvisoryLockTimeout,omitempty" default:"5s"`
+
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
 	// TaskOperationLimits controls the limits for various task operations
 	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
-
-	// EnableDurableUserEventLog controls whether we enable the durable event log for user events. By default, we don't persist user events
-	// to the core database, we only use them to trigger workflows. Enabling this will persist them to the core database.
-	EnableDurableUserEventLog bool `mapstructure:"enableDurableUserEventLog" json:"enableDurableUserEventLog,omitempty" default:"false"`
 
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
@@ -431,6 +446,30 @@ type ConfigFileAuth struct {
 	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
 
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
+
+	ControlPlaneExchangeTokenConfig ConfigFileAuthControlPlaneExchangeToken `mapstructure:"controlPlaneExchangeToken" json:"controlPlaneExchangeToken,omitempty"`
+}
+
+type ConfigFileAuthControlPlaneExchangeToken struct {
+	// JWTPublicKeyset and JWTPublicKeysetFile must contain a base64 raw-encoded (no padding)
+	// JSON keyset as produced by the Tink library. These are passed to
+	// encryption.InsecureHandleFromBytes, which expects base64-raw-encoded JSON — not a
+	// raw JSON file. Only the public keyset is needed here; Hatchet does not generate the
+	// private keyset.
+	//
+	// JWTPublicKeyset: inline base64-raw-encoded JSON keyset (single line, no whitespace).
+	// JWTPublicKeysetFile: path to a file whose entire contents are the same encoded value.
+	JWTPublicKeyset     string `mapstructure:"jwtPublicKeyset" json:"jwtPublicKeyset,omitempty"`
+	JWTPublicKeysetFile string `mapstructure:"jwtPublicKeysetFile" json:"jwtPublicKeysetFile,omitempty"`
+
+	// Issuer is the expected issuer for the exchange token. This should be set to the URL of the control plane instance.
+	Issuer string `mapstructure:"issuer" json:"issuer,omitempty"`
+
+	// Audience is the expected audience for the exchange token. This should be set to the identifier of the API server in the control plane instance.
+	Audience string `mapstructure:"audience" json:"audience,omitempty"`
+
+	// Enabled controls whether the control plane exchange token authentication method is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
 type ConfigFileTenantAlerting struct {
@@ -560,6 +599,8 @@ type AuthConfig struct {
 
 	JWTManager token.JWTManager
 
+	ExchangeTokenClient exchangetoken.ExchangeTokenClient
+
 	CustomAuthenticator CustomAuthenticator
 
 	// Operations listed here bypass the tenant RBAC check. Use this for
@@ -626,6 +667,8 @@ type ServerConfig struct {
 
 	Prometheus shared.PrometheusConfigFile
 
+	Observability shared.ObservabilityConfigFile
+
 	Email email.EmailService
 
 	TenantAlerter *alerting.TenantAlertManager
@@ -690,7 +733,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
-	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
+	_ = v.BindEnv("runtime.schedulerCheckActiveMinInterval", "SCHEDULER_CHECK_ACTIVE_MIN_INTERVAL")
+	_ = v.BindEnv("runtime.schedulerCheckActiveMaxInterval", "SCHEDULER_CHECK_ACTIVE_MAX_INTERVAL")
+	_ = v.BindEnv("runtime.schedulerAdvisoryLockTimeout", "SCHEDULER_ADVISORY_LOCK_TIMEOUT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
@@ -708,6 +753,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
+	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -822,9 +868,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.updateHashFactor", "SERVER_UPDATE_HASH_FACTOR")
 	_ = v.BindEnv("runtime.updateConcurrentFactor", "SERVER_UPDATE_CONCURRENT_FACTOR")
 
-	// enable durable user event log
-	_ = v.BindEnv("runtime.enableDurableUserEventLog", "SERVER_ENABLE_DURABLE_USER_EVENT_LOG")
-
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")
 	_ = v.BindEnv("internalClient.inheritBase", "SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE")
@@ -857,13 +900,17 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("additionalLoggers.pgxStats.level", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL")
 	_ = v.BindEnv("additionalLoggers.pgxStats.format", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT")
 
-	// otel options
+	// engine OTel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 	_ = v.BindEnv("otel.collectorAuth", "SERVER_OTEL_COLLECTOR_AUTH")
 	_ = v.BindEnv("otel.metricsEnabled", "SERVER_OTEL_METRICS_ENABLED")
+
+	// Hatchet O11y options
+	_ = v.BindEnv("observability.enabled", "SERVER_OBSERVABILITY_ENABLED")
+	_ = v.BindEnv("observability.maxBatchSize", "SERVER_OBSERVABILITY_MAX_BATCH_SIZE")
 
 	// prometheus options
 	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")
@@ -942,4 +989,11 @@ func BindAllEnv(v *viper.Viper) {
 	// OLAP status update options
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
+
+	// exchange token options
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeyset", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
+	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
 }

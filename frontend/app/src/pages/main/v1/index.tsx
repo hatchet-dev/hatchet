@@ -2,6 +2,7 @@ import { SideNav } from '../../../components/v1/nav/side-nav';
 import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
+import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   MembershipsContextType,
@@ -9,7 +10,6 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useMemo } from 'react';
 
 function Main() {
@@ -18,8 +18,6 @@ function Main() {
   const { tenantId } = useCurrentTenantId();
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
-  const logsEnabled =
-    !isCloudEnabled || featureFlags?.['preview-tenant-logs'] === 'true';
 
   const navSections = useMemo(
     () =>
@@ -27,9 +25,8 @@ function Main() {
         canBill: cloud?.canBill,
         managedWorkerEnabled,
         isCloudEnabled,
-        logsEnabled,
       }),
-    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled, logsEnabled],
+    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled],
   );
 
   const childCtx = useContextFromParent({

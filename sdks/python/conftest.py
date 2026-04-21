@@ -9,14 +9,12 @@ from pytest import FixtureRequest
 from hatchet_sdk import Hatchet
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
-from tests.worker_fixture import hatchet_worker
+from tests.worker_fixture import get_free_port, hatchet_worker
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def hatchet() -> AsyncGenerator[Hatchet, None]:
-    yield Hatchet(
-        debug=True,
-    )
+    yield Hatchet()
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -39,6 +37,21 @@ def _skip_unless_durable_eviction(supports_durable_eviction: bool) -> None:
         )
 
 
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_observability(engine_version: str | None) -> bool:
+    if not engine_version:
+        return False
+    return not semver_less_than(engine_version, MinEngineVersion.OBSERVABILITY)
+
+
+@pytest.fixture()
+def _skip_unless_observability(supports_observability: bool) -> None:
+    if not supports_observability:
+        pytest.skip(
+            f"Engine does not support observability (requires >= {MinEngineVersion.OBSERVABILITY})"
+        )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def worker() -> Generator[Popen[bytes], None, None]:
     command = ["poetry", "run", "python", "examples/worker.py"]
@@ -50,12 +63,12 @@ def worker() -> Generator[Popen[bytes], None, None]:
 def _on_demand_worker_fixture(
     request: FixtureRequest,
 ) -> Generator[Popen[bytes], None, None]:
-    command, port = cast(tuple[list[str], int], request.param)
+    command = cast(list[str], request.param)
 
-    with hatchet_worker(command, port) as proc:
+    with hatchet_worker(command, get_free_port()) as proc:
         yield proc
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
     yield from _on_demand_worker_fixture(request)

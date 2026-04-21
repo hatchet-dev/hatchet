@@ -1,8 +1,9 @@
-import { getCloudMetadataQuery } from './auth/hooks/use-cloud.ts';
+import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
+import { WelcomeModal } from '@/components/modals/welcome-modal';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
 import {
@@ -12,16 +13,20 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import {
   pendingInvitesQuery,
   usePendingInvites,
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { User } from '@/lib/api';
+import api, { User, queries } from '@/lib/api';
+import { fetchControlPlaneStatus } from '@/lib/api/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
+import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
@@ -44,11 +49,15 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const { isCloudEnabled, ...meta } = await queryClient.fetchQuery(
-    getCloudMetadataQuery,
-  );
+  const [{ isCloudEnabled, ...meta }, { isControlPlaneEnabled }] =
+    await Promise.all([
+      queryClient.fetchQuery(getCloudMetadataQuery),
+      fetchControlPlaneStatus(),
+    ]);
 
-  await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
+  await queryClient.fetchQuery(
+    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+  );
   return {
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
@@ -56,7 +65,8 @@ export async function loader(_args: { request: Request }) {
 }
 
 function AuthenticatedInner() {
-  const { tenant } = useTenantDetails();
+  const { tenant, limit } = useTenantDetails();
+  const { capture } = useAnalytics();
   const {
     currentUser,
     error: userError,
@@ -73,6 +83,7 @@ function AuthenticatedInner() {
   const [orgInviteModal, setOrgInviteModal] = useState<
     { organizationId: string; organizationName: string } | undefined
   >();
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -107,12 +118,11 @@ function AuthenticatedInner() {
     isOnboardingCreateTenantPage ||
     isOnboardingCreateOrganizationPage;
 
+  const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
+    ...userUpdateLogoutMutation(),
     onSuccess: () => {
+      queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
   });
@@ -141,6 +151,16 @@ function AuthenticatedInner() {
   useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
 
+    const storeRedirectPath = () => {
+      if (
+        pathname !== '/' &&
+        !pathname.startsWith('/onboarding/') &&
+        !pathname.startsWith('/auth/')
+      ) {
+        sessionStorage.setItem(REDIRECT_TARGET_KEY, pathname);
+      }
+    };
+
     // Skip all redirects for organization pages
     if (isOrganizationsPage) {
       return;
@@ -148,11 +168,13 @@ function AuthenticatedInner() {
 
     // If we definitively have no user, always go to login.
     if (!isUserLoading && !currentUser && !isAuthPage) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
@@ -189,6 +211,7 @@ function AuthenticatedInner() {
         isCloudEnabled && organizations.length === 0;
 
       if (shouldHaveAnOrganizationButDoesnt) {
+        storeRedirectPath();
         navigate({
           to: appRoutes.onboardingCreateOrganizationRoute.to,
           replace: true,
@@ -197,6 +220,7 @@ function AuthenticatedInner() {
       }
 
       if (tenantMemberships.length === 0) {
+        storeRedirectPath();
         navigate({
           to: appRoutes.onboardingCreateTenantRoute.to,
           replace: true,
@@ -207,6 +231,13 @@ function AuthenticatedInner() {
 
     // If user has memberships and we're at the bare root, go to their first tenant
     if (pathname === '/' && tenantMemberships && tenantMemberships.length > 0) {
+      const savedRedirect = sessionStorage.getItem(REDIRECT_TARGET_KEY);
+      if (savedRedirect) {
+        sessionStorage.removeItem(REDIRECT_TARGET_KEY);
+        navigate({ to: savedRedirect, replace: true } as never);
+        return;
+      }
+
       const lastTenantId = lastTenant?.metadata.id;
 
       const lastTenantInMemberships = lastTenantId
@@ -269,13 +300,9 @@ function AuthenticatedInner() {
     isCloudEnabled,
     isUserUniverseLoaded,
     organizations,
+    isOnboardingCreateOrganizationPage,
+    isOnboardingCreateTenantPage,
   ]);
-
-  useEffect(() => {
-    if (userError && !isAuthPage) {
-      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-    }
-  }, [isAuthPage, navigate, userError]);
 
   useEffect(
     () =>
@@ -304,6 +331,34 @@ function AuthenticatedInner() {
       ),
     [],
   );
+
+  useEffect(() => {
+    const key = 'hatchet:show-welcome';
+    if (!localStorage.getItem(key)) {
+      return;
+    }
+
+    if (limit.isLoading || !limit.isFetched) {
+      return;
+    }
+
+    if (!limit.data?.length) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    localStorage.removeItem(key);
+    setShowWelcome(true);
+    capture('welcome_modal_shown', {
+      tenant_id: tenant?.metadata.id,
+    });
+  }, [
+    tenant?.metadata.id,
+    capture,
+    limit.isLoading,
+    limit.isFetched,
+    limit.data,
+  ]);
 
   if (!currentUser) {
     return <Loading />;
@@ -347,6 +402,13 @@ function AuthenticatedInner() {
                     result.type === 'cloud'
                       ? result.tenant.id
                       : result.tenant.metadata.id;
+
+                  if (result.type === 'cloud') {
+                    void queryClient.prefetchQuery(
+                      queries.cloud.subscriptionPlans(),
+                    );
+                  }
+
                   navigate({
                     to: appRoutes.tenantOverviewRoute.to,
                     params: { tenant: tenantId },
@@ -381,6 +443,11 @@ function AuthenticatedInner() {
             }}
           />
         )}
+        <WelcomeModal
+          tenantId={tenant?.metadata.id}
+          open={showWelcome}
+          onClose={() => setShowWelcome(false)}
+        />
       </SupportChat>
     </PostHogProvider>
   );

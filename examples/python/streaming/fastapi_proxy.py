@@ -13,7 +13,7 @@ app = FastAPI()
 
 @app.get("/stream")
 async def stream() -> StreamingResponse:
-    ref = await stream_task.aio_run_no_wait()
+    ref = await stream_task.aio_run(wait_for_result=False)
 
     return StreamingResponse(
         hatchet.runs.subscribe_to_stream(ref.workflow_run_id), media_type="text/plain"

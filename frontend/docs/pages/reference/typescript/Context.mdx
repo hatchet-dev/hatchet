@@ -463,8 +463,23 @@ Extends
 
 - [`Context`](#context)\<`T`, `K`\>
 
+Accessors
+
+<a id="invocationcount"></a>
+
+##### `invocationCount`
+
+Get Signature
+
+The invocation count for the current durable task. Used for deduplication across replays.
+
+Returns
+
+`number`
+
 #### Methods
 
+<<<<<<< HEAD
 <a id="sleepresult"></a>
 
 #### SleepResult
@@ -475,6 +490,21 @@ The result returned by `sleepFor()` and `sleepUntil()`.
 | -------- | ---- | ----------- |
 | `durationMs` | `number` | The sleep duration in milliseconds. |
 
+||||||| 9ae11e65
+=======
+<a id="now"></a>
+
+##### `now()`
+
+Get the current timestamp, memoized across replays. Returns the same Date on every replay of the same task run.
+
+Returns
+
+`Promise`\<`Date`\>
+
+The memoized current timestamp.
+
+>>>>>>> main
 <a id="sleepfor"></a>
 
 ##### `sleepFor()`
@@ -491,8 +521,15 @@ Parameters
 
 Returns
 
+<<<<<<< HEAD
 `Promise`\<[`SleepResult`](#sleepresult)\>
+||||||| 9ae11e65
+`Promise`\<`Record`\<`string`, `any`\>\>
+=======
+`Promise`\<`SleepResult`\>
+>>>>>>> main
 
+<<<<<<< HEAD
 A promise that resolves with a SleepResult when the sleep duration has elapsed.
 
 <a id="sleepuntil"></a>
@@ -548,6 +585,68 @@ The memoized current timestamp.
 Throws
 
 [`NonDeterminismError`](#nondeterminismerror) if the checkpoint sequence differs from the original execution during replay.
+||||||| 9ae11e65
+A promise that resolves when the sleep duration has elapsed.
+=======
+A promise that resolves with a SleepResult when the sleep duration has elapsed.
+
+<a id="sleepuntil"></a>
+
+##### `sleepUntil()`
+
+Durably sleep until a specific timestamp.
+Uses the memoized `now()` to compute the remaining duration, then delegates to `sleepFor`.
+
+Parameters
+
+| Parameter | Type   | Description                   |
+| --------- | ------ | ----------------------------- |
+| `wakeAt`  | `Date` | The timestamp to sleep until. |
+
+Returns
+
+`Promise`\<`SleepResult`\>
+
+A SleepResult containing the actual duration slept.
+
+<a id="spawnchild"></a>
+
+##### `spawnChild()`
+
+Spawns a child workflow through the durable event log, waits for the child to complete.
+
+Parameters
+
+| Parameter  | Type                                                                                                                                                               | Description                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to spawn.                   |
+| `input?`   | `Q`                                                                                                                                                                | The input data for the child workflow.   |
+| `options?` | `ChildRunOpts`                                                                                                                                                     | Options for spawning the child workflow. |
+
+Returns
+
+`Promise`\<`P`\>
+
+The result of the child workflow.
+
+<a id="spawnchildren"></a>
+
+##### `spawnChildren()`
+
+Spawns multiple child workflows through the durable event log, waits for all to complete.
+
+Parameters
+
+| Parameter  | Type       | Description                                                                     |
+| ---------- | ---------- | ------------------------------------------------------------------------------- |
+| `children` | `object`[] | An array of objects containing the workflow, input, and options for each child. |
+
+Returns
+
+`Promise`\<`P`[]\>
+
+A list of results from the child workflows.
+>>>>>>> main
 
 <a id="waitfor"></a>
 
@@ -567,6 +666,7 @@ Returns
 `Promise`\<`Record`\<`string`, `any`\>\>
 
 A promise that resolves with the event that satisfied the conditions.
+<<<<<<< HEAD
 
 Throws
 
@@ -595,3 +695,47 @@ This error occurs when Hatchet detects that checkpoint operations (like `sleepFo
 You can catch this error in a try/catch block to implement custom recovery logic. Import `NonDeterminismError` from `@hatchet-dev/typescript-sdk/v1` and use `instanceof` to detect it.
 
 See [Determinism Requirements](/v1/durable-task-execution#determinism-requirements) for best practices on writing deterministic durable tasks.
+||||||| 9ae11e65
+=======
+
+<a id="waitforevent"></a>
+
+##### `waitForEvent()`
+
+Lightweight wrapper for waiting for a user event. Allows for shorthand usage of
+`ctx.waitFor` when specifying a user event condition.
+
+For more complicated conditions, use `ctx.waitFor` directly.
+
+Parameters
+
+| Parameter        | Type     | Description                                                     |
+| ---------------- | -------- | --------------------------------------------------------------- |
+| `key`            | `string` | The event key to wait for.                                      |
+| `expression?`    | `string` | An optional CEL expression to filter events.                    |
+| `payloadSchema?` | `T`      | An optional Zod schema to validate and parse the event payload. |
+
+Returns
+
+`Promise`\<`TypeOf`\<`T`\>\>
+
+The event payload, validated against the schema if provided.
+
+Lightweight wrapper for waiting for a user event. Allows for shorthand usage of
+`ctx.waitFor` when specifying a user event condition.
+
+For more complicated conditions, use `ctx.waitFor` directly.
+
+Parameters
+
+| Parameter     | Type     | Description                                  |
+| ------------- | -------- | -------------------------------------------- |
+| `key`         | `string` | The event key to wait for.                   |
+| `expression?` | `string` | An optional CEL expression to filter events. |
+
+Returns
+
+`Promise`\<`Record`\<`string`, `any`\>\>
+
+The event payload, validated against the schema if provided.
+>>>>>>> main

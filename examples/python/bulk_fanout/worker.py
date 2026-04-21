@@ -4,9 +4,8 @@ from typing import Any
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 class ParentInput(BaseModel):
@@ -29,7 +28,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, An
         bulk_child_wf.create_bulk_run_item(
             input=ChildInput(a=str(i)),
             key=f"child{i}",
-            options=TriggerWorkflowOptions(additional_metadata={"hello": "earth"}),
+            additional_metadata={"hello": "earth"},
         )
         for i in range(input.n)
     ]

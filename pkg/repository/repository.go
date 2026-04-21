@@ -53,8 +53,7 @@ type Repository interface {
 	User() UserRepository
 	UserSession() UserSessionRepository
 	WorkflowSchedules() WorkflowScheduleRepository
-	OTelCollector() OTelCollectorRepository
-	OverwriteOTelCollectorRepository(o OTelCollectorRepository)
+	Sync() SyncRepository
 }
 
 type repositoryImpl struct {
@@ -89,12 +88,11 @@ type repositoryImpl struct {
 	user              UserRepository
 	userSession       UserSessionRepository
 	workflowSchedules WorkflowScheduleRepository
-	otelcol           OTelCollectorRepository
+	sync              SyncRepository
 }
 
 func NewRepository(
-	pool *pgxpool.Pool,
-	directPool *pgxpool.Pool,
+	pool, ddlPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
@@ -104,11 +102,10 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
-	enableDurableUserEventLog bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, directPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -119,11 +116,11 @@ func NewRepository(
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),
-		triggers:          newTriggerRepository(shared, enableDurableUserEventLog),
+		triggers:          newTriggerRepository(shared),
 		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:         newSchedulerRepository(shared),
 		matches:           newMatchRepository(shared),
-		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, statusUpdateBatchSizeLimits),
+		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),
 		logs:              newLogLineRepository(shared),
 		workers:           newWorkerRepository(shared),
 		workflows:         newWorkflowRepository(shared),
@@ -144,7 +141,7 @@ func NewRepository(
 		user:              newUserRepository(shared),
 		userSession:       newUserSessionRepository(shared),
 		workflowSchedules: newWorkflowScheduleRepository(shared),
-		otelcol:           newOTelCollectorRepository(shared),
+		sync:              NewSyncRepository(pool, l),
 	}
 
 	return impl, func() error {
@@ -298,10 +295,6 @@ func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
 	return r.workflowSchedules
 }
 
-func (r *repositoryImpl) OTelCollector() OTelCollectorRepository {
-	return r.otelcol
-}
-
-func (r *repositoryImpl) OverwriteOTelCollectorRepository(o OTelCollectorRepository) {
-	r.otelcol = o
+func (r *repositoryImpl) Sync() SyncRepository {
+	return r.sync
 }

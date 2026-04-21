@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Configuration Options
 
 The Hatchet server and engine can be configured via environment variables using several prefixes. This document contains a comprehensive list of all 197+ available options organized by component.
@@ -6,7 +8,7 @@ The Hatchet server and engine can be configured via environment variables using 
 
 Hatchet uses the following environment variable prefixes:
 
-- **`SERVER_`** (173 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
+- **`SERVER_`** (172 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
 - **`DATABASE_`** (19 variables) - PostgreSQL database connection and configuration
 - **`READ_REPLICA_`** (4 variables) - Read replica database configuration
 - **`ADMIN_`** (3 variables) - Administrator user setup for initial seeding
@@ -70,6 +72,13 @@ DATABASE_POSTGRES_PASSWORD=your-secure-password
 
 ## Minimal Configuration Example
 
+<Callout type="warning">
+  This example is for local development when Hatchet connects to PostgreSQL
+  running on the same host. For Docker Compose deployments, use your database
+  service name, such as `postgres`, instead of `127.0.0.1`. See the [Docker
+  Compose deployment guide](/self-hosting/docker-compose).
+</Callout>
+
 ```bash
 # Database
 DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
@@ -114,7 +123,6 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_GRPC_BIND_ADDRESS`                   | GRPC server bind address                | `127.0.0.1`             |
 | `SERVER_GRPC_BROADCAST_ADDRESS`              | GRPC server broadcast address           | `127.0.0.1:7070`        |
 | `SERVER_GRPC_INSECURE`                       | Controls if the GRPC server is insecure | `false`                 |
-| `SERVER_SHUTDOWN_WAIT`                       | Shutdown wait duration                  | `20s`                   |
 | `SERVER_ENFORCE_LIMITS`                      | Enforce tenant limits                   | `false`                 |
 | `SERVER_ALLOW_SIGNUP`                        | Allow new tenant signups                | `true`                  |
 | `SERVER_ALLOW_INVITES`                       | Allow new invites                       | `true`                  |
@@ -127,6 +135,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SCHEDULER_CONCURRENCY_RATE_LIMIT`           | Scheduler concurrency rate limit        | `20`                    |
 | `SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL` | Minimum concurrency polling interval    | `500ms`                 |
 | `SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL` | Maximum concurrency polling interval    | `5s`                    |
+| `SCHEDULER_ADVISORY_LOCK_TIMEOUT`            | Timeout for in-memory advisory lock     | `5s`                    |
 | `SERVER_SERVICES`                            | Services to run                         | `["all"]`               |
 | `SERVER_PAUSED_CONTROLLERS`                  | Paused controllers                      |                         |
 | `SERVER_ENABLE_DATA_RETENTION`               | Enable data retention                   | `true`                  |
@@ -140,9 +149,16 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Database Configuration
 
+<Callout type="info">
+  In Docker Compose deployments, use the database service name in `DATABASE_URL`
+  rather than `127.0.0.1`. Inside a container, `127.0.0.1` refers to the
+  container itself. The localhost defaults shown in this section are intended
+  for local development on the same host.
+</Callout>
+
 | Variable                      | Description                                                                | Default Value       |
 | ----------------------------- | -------------------------------------------------------------------------- | ------------------- |
-| `DATABASE_URL`                | PostgreSQL connection string                                               | `127.0.0.1`         |
+| `DATABASE_URL`                | PostgreSQL connection string constructed from database settings if unset   |                     |
 | `DATABASE_POSTGRES_HOST`      | PostgreSQL host                                                            | `127.0.0.1`         |
 | `DATABASE_POSTGRES_PORT`      | PostgreSQL port                                                            | `5431`              |
 | `DATABASE_POSTGRES_USERNAME`  | PostgreSQL username                                                        | `hatchet`           |

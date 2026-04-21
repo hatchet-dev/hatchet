@@ -2,8 +2,8 @@ import { generateTenantSlug } from './generate-tenant-slug';
 import { NewTenantInputForm } from './new-tenant-input-form';
 import { useAnalytics } from '@/hooks/use-analytics';
 import api, { Tenant } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation } from '@tanstack/react-query';
@@ -19,49 +19,6 @@ type NewTenantSaverFormProps = {
   ) => void;
 };
 
-type FirstArgument<SomeFunction> = SomeFunction extends (
-  arg: infer U,
-  ...args: any[]
-) => any
-  ? U
-  : never;
-
-const saveTenant = async ({
-  tenantName,
-  organizationId,
-  isCloudEnabled,
-}: {
-  tenantName: string;
-  organizationId?: string;
-  isCloudEnabled: boolean;
-}): Promise<FirstArgument<NewTenantSaverFormProps['afterSave']>> => {
-  const slug = generateTenantSlug(tenantName);
-
-  if (isCloudEnabled) {
-    invariant(
-      organizationId,
-      'Organization ID is required when isCloudEnabled',
-    );
-
-    const { data: tenant } = await cloudApi.organizationCreateTenant(
-      organizationId,
-      {
-        name: tenantName,
-        slug,
-      },
-    );
-
-    return { type: 'cloud', tenant, organizationId };
-  } else {
-    const { data: tenant } = await api.tenantCreate({
-      name: tenantName,
-      slug,
-    });
-
-    return { type: 'regular', tenant };
-  }
-};
-
 const useSaveTenant = ({
   afterSave,
 }: {
@@ -71,6 +28,7 @@ const useSaveTenant = ({
     useUserUniverse();
   const { capture } = useAnalytics();
   const { handleApiError } = useApiError();
+  const orgApi = useOrganizationApi();
 
   return useMutation({
     mutationFn: async ({
@@ -79,14 +37,33 @@ const useSaveTenant = ({
     }: {
       tenantName: string;
       organizationId?: string;
-    }) =>
-      saveTenant({
-        tenantName,
-        organizationId,
-        isCloudEnabled,
-      }),
-    onSuccess: (data) => {
-      invalidateUserUniverse();
+    }) => {
+      const slug = generateTenantSlug(tenantName);
+      if (isCloudEnabled) {
+        invariant(
+          organizationId,
+          'Organization ID is required when isCloudEnabled',
+        );
+        const tenant = await orgApi
+          .organizationCreateTenantMutation(organizationId)
+          .mutationFn({ name: tenantName, slug });
+        return { type: 'cloud' as const, tenant, organizationId };
+      } else {
+        const { data: tenant } = await api.tenantCreate({
+          name: tenantName,
+          slug,
+        });
+        return { type: 'regular' as const, tenant };
+      }
+    },
+    onSuccess: async (data) => {
+      await invalidateUserUniverse();
+      // Yield a tick so React can flush the universe context update
+      // before afterSave navigates away.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (data.type === 'cloud') {
+        localStorage.setItem('hatchet:show-welcome', '1');
+      }
       capture('onboarding_tenant_created', {
         tenant_type: data.type,
         is_cloud: data.type === 'cloud',

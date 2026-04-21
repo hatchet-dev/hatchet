@@ -1,0 +1,43 @@
+import { Callout } from "nextra/components";
+
+# Using PgBouncer
+
+<Callout type="info">Only available in Hatchet v0.83.5 and above.</Callout>
+
+If you're self-hosting Hatchet, you can put PgBouncer (version 1.21 or newer) in front of your database to share and reuse connections more efficiently.
+
+To set this up, point the `DATABASE_PGBOUNCER_URL` environment variable at your PgBouncer instance, while keeping the `DATABASE_URL` still pointed to your PostgreSQL server address. Make sure PgBouncer is running with `pool_mode` set to `transaction`. See the [PgBouncer docs](https://www.pgbouncer.org/config.html) for all available settings.
+
+## Example usage with `docker-compose`
+
+```
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15.6
+    command: postgres -c 'max_connections=500' -c 'shared_preload_libraries=auto_explain' -c 'auto_explain.log_min_duration=1000' -c 'auto_explain.log_analyze=on' -c 'auto_explain.log_verbose=on' -c 'auto_explain.log_timing=on' -c 'auto_explain.log_buffers=on' -c 'auto_explain.log_wal=on' -c 'auto_explain.log_triggers=on' -c 'auto_explain.log_format=text'
+    restart: always
+    environment:
+      - POSTGRES_USER=hatchet
+      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_DB=hatchet
+    ports:
+      - "5431:5432"
+    volumes:
+      - hatchet_postgres_data:/var/lib/postgresql/data
+    shm_size: 4g
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.1-p0
+    restart: always
+    environment:
+      - DATABASE_URL=postgres://hatchet:hatchet@postgres:5432/hatchet
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=1000
+      - DEFAULT_POOL_SIZE=50
+      - AUTH_TYPE=plain
+      - LISTEN_PORT=6432
+    ports:
+      - "6431:6432"
+    depends_on:
+      - postgres
+```

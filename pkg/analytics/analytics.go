@@ -24,6 +24,7 @@ const (
 	Webhook     Resource = "webhook"
 	Log         Resource = "log"
 	StreamEvent Resource = "stream-event"
+	OtelSpan    Resource = "otel-span"
 )
 
 type Action string
@@ -82,6 +83,7 @@ type Analytics interface {
 	Identify(userId uuid.UUID, properties Properties)
 	Tenant(tenantId uuid.UUID, data Properties)
 	Group(groupType string, groupKey string, data Properties)
+	IsFeatureEnabled(ctx context.Context, flagKey string, tenantID uuid.UUID, isEnabledIfNoPosthog bool) (bool, error)
 	Close() error
 }
 
@@ -172,5 +174,9 @@ func (a NoOpAnalytics) Identify(userId uuid.UUID, properties Properties) {}
 func (a NoOpAnalytics) Tenant(tenantId uuid.UUID, data Properties) {}
 
 func (a NoOpAnalytics) Group(groupType string, groupKey string, data Properties) {}
+
+func (a NoOpAnalytics) IsFeatureEnabled(_ context.Context, _ string, _ uuid.UUID, isEnabledIfNoPosthog bool) (bool, error) {
+	return isEnabledIfNoPosthog, nil
+}
 
 func (a NoOpAnalytics) Close() error { return nil }

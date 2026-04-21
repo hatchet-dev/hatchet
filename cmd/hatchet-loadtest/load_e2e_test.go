@@ -169,8 +169,9 @@ func TestLoadCLI(t *testing.T) {
 		},
 	}
 
-	// TODO instead of waiting, figure out when the engine setup is complete
-	time.Sleep(startupSleep)
+	if err := harness.WaitEngineReady(t.Context(), startupSleep); err != nil {
+		t.Fatalf("failed to bring up engine in time: %s", err)
+	}
 
 	for _, tt := range tests {
 		tt := tt // pin the loop variable

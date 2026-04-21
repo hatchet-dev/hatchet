@@ -13,19 +13,16 @@ export default {
   tasks: "Tasks",
   workers: "Workers",
   "running-your-task": "Running Tasks",
-  "durable-workflows-overview": "Intro to Durable Workflows",
+  "durable-execution": "Durable Execution",
   "--triggers": {
     title: "Triggers",
     type: "separator",
   },
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
-  "bulk-run": "Bulk Runs",
+  "bulk-run": "Bulk Triggering",
+  events: "Events",
   webhooks: "Webhooks",
-  "external-events": {
-    title: "Event Triggers",
-    theme: { collapsed: true },
-  },
   "inter-service-triggering": "Inter-Service Triggering",
   "--reliability": {
     title: "Reliability",
@@ -43,19 +40,15 @@ export default {
   "rate-limits": "Rate Limits",
   priority: "Priority",
   "--durable-workflows-section": {
-    title: "Durable Workflows",
+    title: "Durable Execution",
     type: "separator",
   },
-  patterns: {
-    title: "Patterns",
-    theme: { collapsed: true },
-  },
+  "durable-tasks": "Durable Tasks",
   "child-spawning": "Child Spawning",
-  sleep: "Sleep & Delays",
-  events: "Wait For Events",
-  conditions: "Conditions & Branching",
-  "on-failure": "Error Handling",
-  "task-eviction": "Resource Management",
+  "durable-sleep": "Sleeps",
+  "durable-event-waits": "Event Waits",
+  "task-eviction": "Task Eviction",
+  "directed-acyclic-graphs": "DAGs as Durable Workflows",
   "--workers-section": {
     title: "Workers",
     type: "separator",
@@ -92,10 +85,18 @@ export default {
   },
   "architecture-and-guarantees": "Architecture & Guarantees",
   "cloud-vs-oss": "Cloud vs OSS",
-  security: "Security",
+  security: {
+    title: "Security",
+    theme: { collapsed: true },
+  },
   "region-availability": "Region Availability",
   uptime: "Uptime",
   "developer-experience": "Developer Experience",
+  "--troubleshooting": {
+    title: "Troubleshooting",
+    type: "separator",
+  },
+  faq: "Frequently Asked Questions",
   _setup: {
     display: "hidden",
   },
@@ -112,12 +113,6 @@ export default {
     display: "hidden",
   },
   "error-handling": {
-    display: "hidden",
-  },
-  "flow-control": {
-    display: "hidden",
-  },
-  observability: {
     display: "hidden",
   },
 };

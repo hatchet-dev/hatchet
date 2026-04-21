@@ -9,9 +9,7 @@ from hatchet_sdk.logger import logger
 
 
 class ThreadSafeEvent(asyncio.Event):
-    """
-    ThreadSafeEvent is a subclass of asyncio.Event that allows for thread-safe setting and clearing of the event.
-    """
+    # subclass of asyncio.Event that allows for thread-safe setting and clearing of the event.
 
     def __init__(self) -> None:
         super().__init__()
