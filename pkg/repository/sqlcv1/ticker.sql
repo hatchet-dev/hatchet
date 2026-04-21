@@ -116,7 +116,7 @@ WITH eligible_cron_with_versions AS MATERIALIZED (
     WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
         AND tenant."deletedAt" IS NULL
-        AND (workflow."isPaused" IS NULL OR workflow."isPaused" = FALSE)
+        AND (workflow."isPaused" IS NULL OR workflow."isPaused" = FALSE OR (workflow."isPaused" = TRUE AND workflow."queueCronOnPause" = TRUE))
         AND (
             cronSchedule."tickerId" IS NULL
             OR NOT EXISTS (
@@ -196,7 +196,7 @@ WITH latest_workflow_versions AS (
         AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
         AND tenant."deletedAt" IS NULL
-        AND (workflow."isPaused" IS NULL OR workflow."isPaused" = FALSE)
+        AND (workflow."isPaused" IS NULL OR workflow."isPaused" = FALSE OR (workflow."isPaused" = TRUE AND workflow."queueScheduledOnPause" = TRUE))
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
