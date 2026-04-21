@@ -35,6 +35,10 @@ func (m *mockRateLimitRepo) ListRateLimits(ctx context.Context, tenantId uuid.UU
 	panic("not implemented")
 }
 
+func (m *mockRateLimitRepo) DeleteRateLimits(ctx context.Context, tenantId uuid.UUID, key string) error {
+	panic("not implemented")
+}
+
 func TestRateLimiter_Use(t *testing.T) {
 	l := zerolog.Nop()
 

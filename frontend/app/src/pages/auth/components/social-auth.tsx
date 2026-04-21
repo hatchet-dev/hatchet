@@ -2,6 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
 import { ArrowLeft, LockOpen } from 'lucide-react';
 import React, { useState } from 'react';
+import useControlPlane from '@/hooks/use-control-plane.ts';
 
 export type SocialAuthProvider = 'google' | 'github' | 'sso';
 
@@ -10,17 +11,17 @@ const PROVIDER_CONFIG: Record<
   { href: string; label: string; icon: React.ReactNode }
 > = {
   google: {
-    href: '/api/v1/users/google/start',
+    href: 'users/google/start',
     label: 'Google',
     icon: <Icons.google className="size-4" />,
   },
   github: {
-    href: '/api/v1/users/github/start',
+    href: 'users/github/start',
     label: 'GitHub',
     icon: <Icons.gitHub className="size-4" />,
   },
   sso: {
-    href: '/api/v1/control-plane/users/sso/start',
+    href: 'users/sso/start',
     label: 'SSO',
     icon: <LockOpen className="size-4" />,
   },
@@ -51,6 +52,7 @@ export function SocialAuthButton({
   setSsoExpanded: any;
 }) {
   const cfg = PROVIDER_CONFIG[provider];
+  const { isControlPlaneEnabled } = useControlPlane();
   const [email, setEmail] = useState('');
 
   if (provider === 'sso') {
@@ -118,9 +120,12 @@ export function SocialAuthButton({
     );
   }
 
+  const basePath = isControlPlaneEnabled
+    ? '/api/v1/control-plane/'
+    : '/api/v1/';
   return (
     !ssoExpanded && (
-      <a href={cfg.href} className="w-full">
+      <a href={basePath + cfg.href} className="w-full">
         <Button
           variant="outline"
           type="button"

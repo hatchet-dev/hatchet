@@ -23,7 +23,6 @@ import {
 } from '@/components/v1/ui/tooltip';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
-import api from '@/lib/api';
 import {
   OrganizationMember,
   ManagementToken,
@@ -53,7 +52,7 @@ import {
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -98,9 +97,10 @@ export default function OrganizationPage() {
   const [activeSection, setActiveSection] = useState<Section>('tenants');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
-  const { ssoEnabled } = useApiMeta();
+  const { meta } = useApiMeta();
+  const schemes = meta?.auth?.schemes || [];
   // conditionally enable the SSO button
-  if (ssoEnabled) {
+  if (schemes.includes('sso')) {
     NAV_ITEMS.sso = { key: 'sso', label: 'SSO', icon: KeyIcon };
   }
   const [newSsoDomain, setNewSsoDomain] = useState('');
@@ -162,25 +162,6 @@ export default function OrganizationPage() {
     ...orgApi.organizationGetQuery(orgId),
     enabled: !!orgId,
   });
-
-  const tenantQueries = useQueries({
-    queries: (organizationQuery.data?.tenants || [])
-      .filter((tenant) => tenant.status !== TenantStatusType.ARCHIVED)
-      .map((tenant) => ({
-        queryKey: ['tenant:get', tenant.id],
-        queryFn: async () => {
-          const result = await api.tenantGet(tenant.id);
-          return result.data;
-        },
-        enabled: !!tenant.id && !!organizationQuery.data,
-      })),
-  });
-
-  const tenantsLoading = tenantQueries.some((query) => query.isLoading);
-
-  const detailedTenants = tenantQueries
-    .filter((query) => query.data)
-    .map((query) => query.data);
 
   const managementTokensQuery = useQuery({
     ...orgApi.managementTokenListQuery(orgId),
@@ -288,10 +269,7 @@ export default function OrganizationPage() {
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => {
-        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
-        return (
-          <span className="font-medium">{detailed?.name || 'Loading...'}</span>
-        );
+        return <span className="font-medium">{row.name || row.id}</span>;
       },
     },
     {
@@ -310,10 +288,7 @@ export default function OrganizationPage() {
       cellRenderer: (
         row: OrganizationTenant & { metadata: { id: string } },
       ) => {
-        const detailed = detailedTenants.find((t) => t?.metadata.id === row.id);
-        return (
-          <span className="text-muted-foreground">{detailed?.slug || '-'}</span>
-        );
+        return <span className="text-muted-foreground">{row.slug || '-'}</span>;
       },
     },
     {
@@ -661,11 +636,7 @@ export default function OrganizationPage() {
           <div className="flex-1 overflow-y-auto px-8">
             {activeSection === 'tenants' && (
               <>
-                {tenantsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loading />
-                  </div>
-                ) : organization.tenants && organization.tenants.length > 0 ? (
+                {organization.tenants && organization.tenants.length > 0 ? (
                   <SimpleTable
                     data={organization.tenants
                       .filter(
@@ -768,7 +739,7 @@ export default function OrganizationPage() {
               </>
             )}
 
-            {activeSection === 'sso' && ssoEnabled && (
+            {activeSection === 'sso' && schemes.includes('sso') && (
               <div className="space-y-8">
                 {/* SSO Domains Table */}
                 {organizationSsoDomainGetQuery.isLoading ? (
@@ -881,8 +852,13 @@ export default function OrganizationPage() {
 
       {(() => {
         const foundTenant = tenantToArchive
-          ? detailedTenants.find((t) => t?.metadata.id === tenantToArchive.id)
+          ? organization.tenants?.find((t) => t?.id === tenantToArchive.id)
           : undefined;
+
+        if (!foundTenant) {
+          return null;
+        }
+
         return (
           tenantToArchive &&
           organization &&
@@ -891,7 +867,7 @@ export default function OrganizationPage() {
               open={!!tenantToArchive}
               onOpenChange={(open) => !open && setTenantToArchive(null)}
               tenant={tenantToArchive}
-              tenantName={foundTenant.name}
+              tenantName={foundTenant.name || foundTenant.id}
               organizationName={organization.name}
               onSuccess={() => {
                 queryClient.invalidateQueries({

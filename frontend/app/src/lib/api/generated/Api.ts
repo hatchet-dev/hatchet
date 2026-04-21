@@ -2312,6 +2312,31 @@ export class Api<
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
   /**
+   * @description Delete a rate limit for a tenant.
+   *
+   * @tags Rate Limits
+   * @name RateLimitDelete
+   * @summary Delete rate limit
+   * @request DELETE:/api/v1/tenants/{tenant}/rate-limits
+   * @secure
+   */
+  rateLimitDelete = Object.assign((
+    tenant: string,
+    query: {
+      /** The limit key */
+      key: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/rate-limits`,
+      method: "DELETE",
+      query: query,
+      secure: true,
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
    * @description Gets a list of tenant members
    *
    * @tags Tenant

@@ -17,7 +17,7 @@ export function AuthPage({
   altAction: React.ReactNode;
 }) {
   useErrorParam();
-  const { meta, isLoading, ssoEnabled } = useApiMeta();
+  const { meta, isLoading } = useApiMeta();
   const [ssoExpanded, setSsoExpanded] = useState(false);
 
   if (isLoading) {
@@ -28,6 +28,7 @@ export function AuthPage({
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
+  const ssoEnabled = schemes.includes('sso');
 
   const providers = [
     googleEnabled && 'google',

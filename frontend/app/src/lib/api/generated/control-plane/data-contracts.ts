@@ -38,12 +38,43 @@ export interface APIControlPlaneMetadata {
    * @example 3600000
    */
   inactivityLogoutMs?: number;
+  auth?: APIMetaAuth;
   /**
-   * whether SSO is enabled
+   * the Pylon app ID for usepylon.com chat support
+   * @example "12345678-1234-1234-1234-123456789012"
+   */
+  pylonAppId?: string;
+  posthog?: APIMetaPosthog;
+  /**
+   * whether or not users can sign up for this instance
+   * @example true
+   */
+  allowSignup?: boolean;
+  /**
+   * whether or not users can invite other users to this instance
+   * @example true
+   */
+  allowInvites?: boolean;
+  /**
+   * whether or not users can create new tenants
+   * @example true
+   */
+  allowCreateTenant?: boolean;
+  /**
+   * whether or not users can change their password
+   * @example true
+   */
+  allowChangePassword?: boolean;
+  /**
+   * whether or not observability (trace collection) is enabled on this instance
    * @example false
    */
-  ssoEnabled?: boolean;
+  observabilityEnabled?: boolean;
 }
+
+export type { APIMetaAuth } from '@/lib/api/generated/cloud/data-contracts';
+
+export type { APIMetaPosthog } from '@/lib/api/generated/cloud/data-contracts';
 
 export type { APIErrors } from '@/lib/api/generated/cloud/data-contracts';
 
@@ -52,6 +83,10 @@ export type { APIError } from '@/lib/api/generated/cloud/data-contracts';
 export type { PaginationResponse } from '@/lib/api/generated/cloud/data-contracts';
 
 export type { APIResourceMeta } from '@/lib/api/generated/cloud/data-contracts';
+
+export type ListAPIMetaIntegration = APIMetaIntegration[];
+
+export type { APIMetaIntegration } from '@/lib/api/generated/cloud/data-contracts';
 
 export type { User } from '@/lib/api/generated/cloud/data-contracts';
 
@@ -131,6 +166,10 @@ export interface OrganizationTenant {
    * @format uuid
    */
   id: string;
+  /** Name of the tenant */
+  name?: string;
+  /** Slug of the tenant */
+  slug?: string;
   /** Status of the tenant */
   status: TenantStatusType;
   /**
@@ -278,4 +317,32 @@ export interface TenantExchangeToken {
    * @format date-time
    */
   expiresAt: string;
+}
+
+export interface APIToken {
+  metadata: APIResourceMeta;
+  /** The name of the API token */
+  name: string;
+  /**
+   * The timestamp at which the token expires
+   * @format date-time
+   */
+  expiresAt: string;
+}
+
+export interface APITokenList {
+  rows: APIToken[];
+  pagination?: PaginationResponse;
+}
+
+export interface CreateTenantAPITokenRequest {
+  /** The name of the API token */
+  name: string;
+  /** The duration for which the token should be valid (e.g., "30d", "90d") */
+  expiresIn?: string;
+}
+
+export interface CreateTenantAPITokenResponse {
+  /** The generated API token */
+  token: string;
 }
