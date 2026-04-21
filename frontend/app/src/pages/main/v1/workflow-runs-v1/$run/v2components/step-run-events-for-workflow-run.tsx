@@ -18,6 +18,8 @@ import {
   V1WaitItem,
   queries,
 } from '@/lib/api';
+import { emptyGolangUUID } from '@/lib/utils';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 
@@ -67,12 +69,16 @@ export function StepRunEvents({
   });
 
   const logs = useMemo(() => {
-    const taskLines = toTaskEventLogLines(eventsQuery.data?.rows ?? [], isDag);
+    const taskLines = toTaskEventLogLines(
+      eventsQuery.data?.rows ?? [],
+      isDag,
+      tenantId,
+    );
     const durableLines = isDurable
       ? toDurableEventLogLines(durableLogQuery.data ?? [])
       : [];
     return mergeByTimestamp(taskLines, durableLines);
-  }, [eventsQuery.data, durableLogQuery.data, isDurable, isDag]);
+  }, [eventsQuery.data, durableLogQuery.data, isDurable, isDag, tenantId]);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -134,7 +140,11 @@ function mergeByTimestamp(a: LogLine[], b: LogLine[]): LogLine[] {
   return merged;
 }
 
-function toTaskEventLogLines(events: V1TaskEvent[], isDag: boolean): LogLine[] {
+function toTaskEventLogLines(
+  events: V1TaskEvent[],
+  isDag: boolean,
+  tenantId: string,
+): LogLine[] {
   return events.map((event) => {
     const severity = eventTypeToSeverity(event.eventType);
     let level: V1LogLineLevelIncludingEvictionNotice;
@@ -165,12 +175,22 @@ function toTaskEventLogLines(events: V1TaskEvent[], isDag: boolean): LogLine[] {
       line += `: ${event.message}`;
     }
 
+    const linkTo =
+      event.workerId && event.workerId !== emptyGolangUUID
+        ? {
+            destination: appRoutes.tenantWorkerRoute.to,
+            params: { tenant: tenantId, worker: event.workerId },
+            hoverText: 'View worker',
+          }
+        : undefined;
+
     return {
       timestamp: event.timestamp,
       level,
       line,
       taskDisplayName: event.taskDisplayName,
       taskExternalId: event.taskId,
+      linkTo,
     };
   });
 }

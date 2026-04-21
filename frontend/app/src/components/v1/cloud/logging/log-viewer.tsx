@@ -4,8 +4,16 @@ import {
   V1LogLineLevelIncludingEvictionNotice,
 } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import {
+  PortalTooltip,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+  PortalTooltipTrigger,
+} from '@/components/v1/ui/portal-tooltip';
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { Link } from '@tanstack/react-router';
+import { ExternalLink } from 'lucide-react';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -385,7 +393,8 @@ export function LogViewer({
               )}
               <div
                 className={cn(
-                  'px-3 py-1.5 font-mono text-xs text-foreground truncate',
+                  'px-3 py-1.5 font-mono text-xs text-foreground flex items-baseline gap-2',
+                  !log.linkTo && 'truncate',
                   selectedLogIndex === ix && 'whitespace-normal break-words',
                 )}
                 onClick={() => {
@@ -400,8 +409,29 @@ export function LogViewer({
                   }
                 }}
               >
-                {/* fixme: figure out how to use the type guard properly here */}
-                <AnsiLine text={log.line as string} />
+                <span className={cn(!log.linkTo && 'truncate')}>
+                  {/* fixme: figure out how to use the type guard properly here */}
+                  <AnsiLine text={log.line as string} />
+                </span>
+                {log.linkTo && (
+                  <PortalTooltipProvider>
+                    <PortalTooltip>
+                      <PortalTooltipTrigger asChild>
+                        <Link
+                          to={log.linkTo.destination}
+                          params={log.linkTo.params as Record<string, string>}
+                          className="ml-1 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="size-3" />
+                        </Link>
+                      </PortalTooltipTrigger>
+                      <PortalTooltipContent>
+                        {log.linkTo.hoverText}
+                      </PortalTooltipContent>
+                    </PortalTooltip>
+                  </PortalTooltipProvider>
+                )}
               </div>
             </div>
           ))}

@@ -8,6 +8,7 @@ import {
   V1LogLineLevel,
   V1LogLineOrderByDirection,
 } from '@/lib/api';
+import type { RegisteredRouter, ToPathOption } from '@tanstack/react-router';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
 import {
@@ -46,6 +47,11 @@ export interface LogLine {
   attempt?: number;
   taskExternalId?: string;
   taskDisplayName?: string;
+  linkTo?: {
+    destination: ToPathOption<RegisteredRouter>;
+    params?: Record<string, string>;
+    hoverText: string;
+  };
 }
 
 export interface UseLogsOptions {
