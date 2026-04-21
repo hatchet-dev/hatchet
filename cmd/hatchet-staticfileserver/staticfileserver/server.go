@@ -29,6 +29,7 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 		// Dynamcally build and serve the index.html and config.js when we have a custom basePath
 		r.Get(basePath, handleIndex(staticFilePath, basePath))
 		r.Get(basePath+"/config.js", handleJsConfig(basePath))
+		r.Get("/", http.RedirectHandler(basePath, http.StatusSeeOther).ServeHTTP)
 	}
 
 	r.Get(basePath+"/*", func(w http.ResponseWriter, r *http.Request) {
