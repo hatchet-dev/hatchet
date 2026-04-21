@@ -586,7 +586,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
-	isPaused  			 bool
+	isPaused             bool
 }
 
 type createCoreUserEventOpts struct {
@@ -1207,7 +1207,7 @@ func (r *sharedRepository) triggerWorkflows(
 			pausedWorkflowIds[tuple.workflowId] = struct{}{}
 		}
 	}
-	
+
 	for workflowId := range pausedWorkflowIds {
 		_, err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
 			Workflowid: workflowId,
