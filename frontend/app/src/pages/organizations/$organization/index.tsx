@@ -479,13 +479,53 @@ export default function OrganizationPage() {
   const ssoDomainColumns = [
     {
       columnLabel: 'Domain',
-      cellRenderer: (row: { metadata: { id: string }; domain: string }) => (
-        <span className="font-mono text-sm">{row.domain}</span>
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => <span className="font-mono text-sm">{row.domain}</span>,
+    },
+    {
+      columnLabel: 'Verified',
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => (
+        <Badge variant={row.verified ? 'successful' : 'secondary'}>
+          {row.verified ? 'Verified' : 'Unverified'}
+        </Badge>
       ),
     },
     {
+      columnLabel: 'Verification Token',
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) =>
+        row.verification_token ? (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-muted-foreground">
+              {row.verification_token}
+            </span>
+            <CopyToClipboard text={row.verification_token} />
+          </div>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
+    },
+    {
       columnLabel: 'Actions',
-      cellRenderer: (row: { metadata: { id: string }; domain: string }) => (
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -753,6 +793,8 @@ export default function OrganizationPage() {
                       return {
                         metadata: { id: v.sso_domain },
                         domain: v.sso_domain,
+                        verified: v.verified,
+                        verification_token: v.verification_token,
                       };
                     })}
                     columns={ssoDomainColumns}
@@ -766,6 +808,23 @@ export default function OrganizationPage() {
                     </p>
                   </div>
                 )}
+
+                {organizationSsoDomainGetQuery.data &&
+                  organizationSsoDomainGetQuery.data.length > 0 && (
+                    <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                      <p>
+                        To verify your domain, add a DNS TXT record with the
+                        value:
+                      </p>
+                      <p className="mt-1 font-mono">
+                        hatchet-sso-verify=&#123;verification_token&#125;
+                      </p>
+                      <p className="mt-2">
+                        It may take a few minutes for DNS changes to propagate
+                        and for the verified status to update.
+                      </p>
+                    </div>
+                  )}
 
                 {/* Add New SSO Domain */}
                 <div className="space-y-2">

@@ -105,11 +105,7 @@ export function useOrganizationApi() {
       organizationSsoDomainDeleteMutation: (organization: string) => ({
         mutationKey: ['organization:sso_domain:create', organization] as const,
         mutationFn: async (ssoDomain: string) => {
-          return (
-            await controlPlaneApi.ssoDomainDelete(organization, {
-              ssoDomain: ssoDomain,
-            })
-          ).data;
+          return (await controlPlaneApi.ssoDomainDelete(ssoDomain)).data;
         },
       }),
 

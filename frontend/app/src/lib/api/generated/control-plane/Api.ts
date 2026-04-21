@@ -16,6 +16,7 @@ import {
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
+  APIMetaAuth,
   APITokenList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
@@ -677,7 +678,7 @@ export class Api<
    * @secure
    */
   ssoList = (organization: string, params: RequestParams = {}) =>
-    this.request<object, APIError>({
+    this.request<APIMetaAuth, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/sso`,
       method: "GET",
       secure: true,
@@ -695,7 +696,7 @@ export class Api<
   ssoUpdate = (
     organization: string,
     data: {
-      idpInfoFromCustomer: Record<string, any>;
+      idpInfoFromCustomer: any;
     },
     params: RequestParams = {},
   ) =>
@@ -762,22 +763,14 @@ export class Api<
    * @description Delete SSO Domain for organization
    *
    * @name SsoDomainDelete
-   * @request DELETE:/api/v1/control-plane/organizations/{organization}/sso_domain
+   * @request DELETE:/api/v1/control-plane/organizations/sso_domain/{sso-domain}
    * @secure
    */
-  ssoDomainDelete = (
-    organization: string,
-    data: {
-      ssoDomain: string;
-    },
-    params: RequestParams = {},
-  ) =>
+  ssoDomainDelete = (ssoDomain: string, params: RequestParams = {}) =>
     this.request<void, APIError>({
-      path: `/api/v1/control-plane/organizations/${organization}/sso_domain`,
+      path: `/api/v1/control-plane/organizations/sso_domain/${ssoDomain}`,
       method: "DELETE",
-      body: data,
       secure: true,
-      type: ContentType.Json,
       ...params,
     });
   /**

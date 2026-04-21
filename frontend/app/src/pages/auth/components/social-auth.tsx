@@ -1,8 +1,8 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
+import useControlPlane from '@/hooks/use-control-plane.ts';
 import { ArrowLeft, LockOpen } from 'lucide-react';
 import React, { useState } from 'react';
-import useControlPlane from '@/hooks/use-control-plane.ts';
 
 export type SocialAuthProvider = 'google' | 'github' | 'sso';
 
@@ -54,6 +54,9 @@ export function SocialAuthButton({
   const cfg = PROVIDER_CONFIG[provider];
   const { isControlPlaneEnabled } = useControlPlane();
   const [email, setEmail] = useState('');
+  const basePath = isControlPlaneEnabled
+    ? '/api/v1/control-plane/'
+    : '/api/v1/';
 
   if (provider === 'sso') {
     return (
@@ -84,7 +87,9 @@ export function SocialAuthButton({
         {ssoExpanded && (
           <a
             href={
-              email ? `${cfg.href}?email=${encodeURIComponent(email)}` : '#'
+              email
+                ? `${basePath + cfg.href}?email=${encodeURIComponent(email)}`
+                : '#'
             }
             onClick={(e) => {
               if (!email) {
@@ -120,9 +125,6 @@ export function SocialAuthButton({
     );
   }
 
-  const basePath = isControlPlaneEnabled
-    ? '/api/v1/control-plane/'
-    : '/api/v1/';
   return (
     !ssoExpanded && (
       <a href={basePath + cfg.href} className="w-full">
