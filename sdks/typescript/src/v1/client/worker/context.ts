@@ -1039,12 +1039,15 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       ? new Date(now.getTime() - durationToMs(lookbackWindow)).toISOString()
       : undefined;
 
-    const res = await this.waitFor({
-      eventKey: key,
-      expression,
-      scope,
-      considerEventsSince,
-    }, label);
+    const res = await this.waitFor(
+      {
+        eventKey: key,
+        expression,
+        scope,
+        considerEventsSince,
+      },
+      label
+    );
 
     // The engine returns an object like:
     // {"CREATE": {"signal_key_1": [{"id": ..., "data": {...}}]}}
