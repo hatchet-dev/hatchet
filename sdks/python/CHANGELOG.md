@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.4] - 2026-04-21
+
+### Changed
+
+- Adds an optional `label` on durable event waits, which will propagate through to the dashboard
+
 ## [1.32.3] - 2026-04-16
 
 ### Changed
