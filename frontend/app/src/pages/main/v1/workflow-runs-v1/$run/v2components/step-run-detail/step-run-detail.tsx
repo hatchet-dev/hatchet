@@ -200,7 +200,7 @@ export const TaskRunDetail = ({
             setLogsResetKey((prev: number) => prev + 1);
           }
         }}
-        className="flex h-full flex-col"
+        className="flex flex-1 min-h-0 flex-col"
       >
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
@@ -261,7 +261,7 @@ export const TaskRunDetail = ({
             </TabsContent>
             <TabsContent
               value={TabOption.Activity}
-              className="mt-4 min-h-[25rem] flex-1"
+              className="mt-4 flex-1 min-h-0 flex flex-col"
             >
               <StepRunEvents
                 taskRunId={taskRunId}
@@ -308,7 +308,7 @@ export const TaskRunDetail = ({
             </TabsContent>
           </Tabs>
         </TabsContent>
-        <TabsContent value="traces" className="min-h-0 flex-1">
+        <TabsContent value="traces" className="min-h-0 flex-1 overflow-auto">
           <Observability
             taskRunId={taskRunId}
             isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
@@ -323,7 +323,7 @@ export const TaskRunDetail = ({
             ]}
           />
         </TabsContent>
-        <TabsContent value="logs" className="min-h-0 flex-1">
+        <TabsContent value="logs" className="min-h-0 flex-1 flex flex-col">
           <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
         </TabsContent>
       </Tabs>
