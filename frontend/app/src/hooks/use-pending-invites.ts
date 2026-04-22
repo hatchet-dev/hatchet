@@ -1,8 +1,7 @@
 import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
-import api, { TenantInvite } from '@/lib/api';
+import api from '@/lib/api';
 import { cloudApi, controlPlaneApi } from '@/lib/api/api';
-import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
@@ -23,11 +22,11 @@ export const pendingInvitesQuery = (
         : Promise.resolve({ data: { rows: [] } }),
     ]);
 
-    const tenantInvites: TenantInvite[] =
+    const tenantInvites =
       tenantInvitesRes.status === 'fulfilled'
         ? tenantInvitesRes.value.data.rows || []
         : [];
-    const organizationInvites: OrganizationInvite[] =
+    const organizationInvites =
       orgInvitesRes.status === 'fulfilled'
         ? orgInvitesRes.value.data.rows || []
         : [];
@@ -41,7 +40,7 @@ export const pendingInvitesQuery = (
       organizationInvites,
     };
   },
-  refetchInterval: 60_000,
+  refetchInterval: 30000,
 });
 
 export const usePendingInvites = () => {

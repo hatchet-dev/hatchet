@@ -10,7 +10,6 @@ import {
 import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import {
   SidebarButtonPrimary,
-  SidebarButtonPrimaryAction,
   SidebarButtonSecondary,
 } from '@/components/v1/nav/sidebar-buttons';
 import { Button } from '@/components/v1/ui/button';
@@ -31,11 +30,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { BiLogOut } from 'react-icons/bi';
 
 export interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
   navItems: SideNavSection[];
-  onLogout: () => void;
 }
 
 export type SideNavChild = {
@@ -47,19 +44,13 @@ export type SideNavChild = {
 export type SideNavItem = {
   key: string;
   name: string;
+  to: string;
   icon: (opts: { collapsed: boolean; active?: boolean }) => React.ReactNode;
   prefix?: string;
-  displayAsActiveWhenThisRouteIsMatched?: string;
+  activeTo?: string;
   activeFuzzy?: boolean;
   children?: SideNavChild[];
-} & (
-  | {
-      to: string;
-    }
-  | {
-      onClick: () => void;
-    }
-);
+};
 
 export type SideNavSection = {
   key: string;
@@ -68,11 +59,7 @@ export type SideNavSection = {
   items: SideNavItem[];
 };
 
-export function SideNav({
-  className,
-  navItems: navSections,
-  onLogout,
-}: SideNavProps) {
+export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -356,17 +343,9 @@ export function SideNav({
                     )}
 
                     {section.items.map((item) => {
-                      const displayAsActiveWhenThisRouteIsMatched =
-                        item.displayAsActiveWhenThisRouteIsMatched ??
-                        ('to' in item ? item.to : null);
-
+                      const activeTo = item.activeTo ?? item.to;
                       const activeFuzzy = item.activeFuzzy ?? false;
-                      const active = displayAsActiveWhenThisRouteIsMatched
-                        ? isActive(
-                            displayAsActiveWhenThisRouteIsMatched,
-                            activeFuzzy,
-                          )
-                        : false;
+                      const active = isActive(activeTo, activeFuzzy);
 
                       if (item.children && item.children.length > 0) {
                         return (
@@ -424,15 +403,10 @@ export function SideNav({
                             active && 'bg-slate-200 dark:bg-slate-800',
                           )}
                           onClick={() => {
-                            if ('onClick' in item) {
-                              item.onClick();
-                              return;
-                            } else {
-                              navigate({
-                                to: item.to,
-                                params: commonParams,
-                              });
-                            }
+                            navigate({
+                              to: item.to,
+                              params: commonParams,
+                            });
                             onNavLinkClick();
                           }}
                         >
@@ -446,19 +420,8 @@ export function SideNav({
             </div>
 
             {/* Fixed footer */}
-            <div className="w-full shrink-0 py-2">
-              <div className="flex w-full flex-col items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  hoverText="Logout"
-                  hoverTextSide="right"
-                  aria-label="Logout"
-                  className="w-10"
-                  onClick={onLogout}
-                >
-                  <BiLogOut className="size-5" />
-                </Button>
+            <div className="w-full shrink-0 py-4">
+              <div className="flex w-full justify-center">
                 <HelpDropdown
                   variant="sidebar"
                   triggerVariant="icon"
@@ -484,41 +447,31 @@ export function SideNav({
                     </h2>
 
                     <div className={section.itemsClassName}>
-                      {section.items.map((item) =>
-                        'onClick' in item ? (
-                          <SidebarButtonPrimaryAction
-                            key={item.key}
-                            name={item.name}
-                            icon={item.icon({ collapsed: false })}
-                            onClick={item.onClick}
-                            muted
-                          />
-                        ) : (
-                          <SidebarButtonPrimary
-                            key={item.key}
-                            onNavLinkClick={onNavLinkClick}
-                            to={item.to!}
-                            params={commonParams}
-                            prefix={item.prefix}
-                            name={item.name}
-                            icon={item.icon({
-                              collapsed: false,
-                              active: isActive(item.to!, item.activeFuzzy),
-                            })}
-                            collapsibleChildren={
-                              item.children?.map((child) => (
-                                <SidebarButtonSecondary
-                                  key={child.key}
-                                  onNavLinkClick={onNavLinkClick}
-                                  to={child.to}
-                                  params={commonParams}
-                                  name={child.name}
-                                />
-                              )) ?? []
-                            }
-                          />
-                        ),
-                      )}
+                      {section.items.map((item) => (
+                        <SidebarButtonPrimary
+                          key={item.key}
+                          onNavLinkClick={onNavLinkClick}
+                          to={item.to}
+                          params={commonParams}
+                          prefix={item.prefix}
+                          name={item.name}
+                          icon={item.icon({
+                            collapsed: false,
+                            active: isActive(item.to, item.activeFuzzy),
+                          })}
+                          collapsibleChildren={
+                            item.children?.map((child) => (
+                              <SidebarButtonSecondary
+                                key={child.key}
+                                onNavLinkClick={onNavLinkClick}
+                                to={child.to}
+                                params={commonParams}
+                                name={child.name}
+                              />
+                            )) ?? []
+                          }
+                        />
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -528,13 +481,8 @@ export function SideNav({
             {/* Fixed footer: tenant/org picker is always visible and takes up space */}
             <div
               data-cy="v1-sidebar-footer"
-              className="flex w-full shrink-0 flex-col gap-1 border-t border-slate-200 px-4 py-2 dark:border-slate-800"
+              className="w-full shrink-0 border-t border-slate-200 px-4 py-4 dark:border-slate-800"
             >
-              <SidebarButtonPrimaryAction
-                name="Logout"
-                icon={<BiLogOut className="mr-2 size-4" />}
-                onClick={onLogout}
-              />
               <HelpDropdown
                 variant="sidebar"
                 triggerVariant="split"
