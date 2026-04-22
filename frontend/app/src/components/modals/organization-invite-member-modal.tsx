@@ -25,7 +25,7 @@ const schema = z.object({
   email: z.string().email('Invalid email address'),
 });
 
-export type OrganizationInviteMemberModalProps = {
+type OrganizationInviteMemberModalProps = {
   organizationId: string;
   organizationName: string;
   onClose: () => void;

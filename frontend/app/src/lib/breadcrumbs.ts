@@ -1,4 +1,4 @@
-export type TenantedPath =
+type TenantedPath =
   | '/tenants/:tenant/events'
   | '/tenants/:tenant/filters'
   | '/tenants/:tenant/webhooks'

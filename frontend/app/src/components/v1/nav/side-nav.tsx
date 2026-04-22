@@ -33,7 +33,7 @@ import React, {
 } from 'react';
 import { BiLogOut } from 'react-icons/bi';
 
-export interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
+interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
   navItems: SideNavSection[];
   onLogout: () => void;
 }
