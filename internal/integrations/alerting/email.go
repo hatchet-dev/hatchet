@@ -35,7 +35,7 @@ func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *sqlcv1.Tenant, em
 			Items:        failedRuns,
 			Subject:      subject,
 			Summary:      subject,
-			SettingsLink: fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, tenantId),
+			SettingsLink: fmt.Sprintf("%s/tenants/%s/settings/alerting", t.serverURL, tenantId),
 		},
 	)
 }
@@ -58,7 +58,7 @@ func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *sqlcv1.Tenant, 
 			ExpiresAtRelativeDate: payload.ExpiresAtRelativeDate,
 			Subject:               subject,
 			TokenSettings:         payload.Link,
-			SettingsLink:          fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, tenantId),
+			SettingsLink:          fmt.Sprintf("%s/tenants/%s/settings/alerting", t.serverURL, tenantId),
 		},
 	)
 }
@@ -100,7 +100,7 @@ func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *sqlcv1.Te
 			LimitValue:   payload.LimitValue,
 			Percentage:   payload.Percentage,
 			Link:         payload.Link,
-			SettingsLink: fmt.Sprintf("%s/tenants/%s/tenant-settings/alerting", t.serverURL, tenant.ID.String()),
+			SettingsLink: fmt.Sprintf("%s/tenants/%s/settings/alerting", t.serverURL, tenant.ID.String()),
 		},
 	)
 }

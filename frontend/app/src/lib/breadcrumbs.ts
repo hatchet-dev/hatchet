@@ -17,21 +17,21 @@ type TenantedPath =
   | '/tenants/:tenant/managed-workers/create'
   | '/tenants/:tenant/managed-workers/demo-template'
   | '/tenants/:tenant/managed-workers/:managed-worker'
-  | '/tenants/:tenant/tenant-settings/overview'
-  | '/tenants/:tenant/tenant-settings/api-tokens'
-  | '/tenants/:tenant/tenant-settings/github'
-  | '/tenants/:tenant/tenant-settings/members'
-  | '/tenants/:tenant/tenant-settings/alerting'
-  | '/tenants/:tenant/tenant-settings/billing-and-limits'
-  | '/tenants/:tenant/tenant-settings/ingestors'
-  | '/tenants/:tenant/tenant-settings/integrations'
-  | '/tenants/:tenant/tenant-settings/organization'
+  | '/tenants/:tenant/settings/overview'
+  | '/tenants/:tenant/settings/api-tokens'
+  | '/tenants/:tenant/settings/github'
+  | '/tenants/:tenant/settings/members'
+  | '/tenants/:tenant/settings/alerting'
+  | '/tenants/:tenant/settings/billing-and-limits'
+  | '/tenants/:tenant/settings/ingestors'
+  | '/tenants/:tenant/settings/integrations'
+  | '/tenants/:tenant/settings/organization'
   | '/tenants/:tenant/workflow-runs'
   | '/tenants/:tenant/workflow-runs/:run'
   | '/tenants/:tenant/'
   | '/tenants/:tenant/workflows'
   | '/tenants/:tenant/workflows/:workflow'
-  | '/tenants/:tenant/tenant-settings';
+  | '/tenants/:tenant/settings';
 
 export interface BreadcrumbItem {
   label: string;
@@ -80,30 +80,30 @@ const createRouteLabel = (
       return 'Demo Template';
     case '/tenants/:tenant/managed-workers/:managed-worker':
       return 'Managed Worker Detail';
-    case '/tenants/:tenant/tenant-settings/overview':
+    case '/tenants/:tenant/settings/overview':
       return 'General';
-    case '/tenants/:tenant/tenant-settings/api-tokens':
+    case '/tenants/:tenant/settings/api-tokens':
       return 'API Tokens';
-    case '/tenants/:tenant/tenant-settings/github':
+    case '/tenants/:tenant/settings/github':
       return 'GitHub';
-    case '/tenants/:tenant/tenant-settings/members':
+    case '/tenants/:tenant/settings/members':
       return 'Members';
-    case '/tenants/:tenant/tenant-settings/alerting':
+    case '/tenants/:tenant/settings/alerting':
       return 'Alerting';
-    case '/tenants/:tenant/tenant-settings/billing-and-limits':
+    case '/tenants/:tenant/settings/billing-and-limits':
       return 'Billing & Limits';
-    case '/tenants/:tenant/tenant-settings/ingestors':
+    case '/tenants/:tenant/settings/ingestors':
       return 'Ingestors';
-    case '/tenants/:tenant/tenant-settings/integrations':
+    case '/tenants/:tenant/settings/integrations':
       return 'Integrations';
-    case '/tenants/:tenant/tenant-settings/organization':
+    case '/tenants/:tenant/settings/organization':
       return isCloudEnabled ? 'Organization' : 'Tenants';
     case '/tenants/:tenant/workflow-runs':
     case '/tenants/:tenant/workflow-runs/:run':
     case '/tenants/:tenant/':
     case '/tenants/:tenant/workflows':
     case '/tenants/:tenant/workflows/:workflow':
-    case '/tenants/:tenant/tenant-settings':
+    case '/tenants/:tenant/settings':
       return '';
     default:
       // eslint-disable-next-line no-case-declarations

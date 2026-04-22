@@ -172,7 +172,7 @@ export function sideNavItems(opts: {
       itemsClassName: 'space-y-1',
       items: [
         {
-          key: 'tenant-settings-overview',
+          key: 'settings-overview',
           name: 'General',
           to: appRoutes.tenantSettingsOverviewRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
@@ -192,7 +192,7 @@ export function sideNavItems(opts: {
           ),
         },
         {
-          key: 'tenant-settings-api-tokens',
+          key: 'settings-api-tokens',
           name: 'API Tokens',
           to: appRoutes.tenantSettingsApiTokensRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
@@ -202,7 +202,7 @@ export function sideNavItems(opts: {
           ),
         },
         {
-          key: 'tenant-settings-billing-and-limits',
+          key: 'settings-billing-and-limits',
           name: billingLabel,
           to: appRoutes.tenantSettingsBillingRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
@@ -212,7 +212,7 @@ export function sideNavItems(opts: {
           ),
         },
         {
-          key: 'tenant-settings-integrations',
+          key: 'settings-integrations',
           name: 'Integrations',
           to: appRoutes.tenantSettingsIntegrationsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
