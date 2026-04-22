@@ -192,52 +192,41 @@ function AuthenticatedInner() {
       ? pendingInvitesQuery.data
       : null;
 
+    if (
+      pendingInvites &&
+      pendingInvites.inviteCount > 0 &&
+      !isOnboardingInvitesPage
+    ) {
+      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
+      return;
+    }
+
     const okayToMakeOnboardingRedirectDecisions =
       pendingInvitesQuery.isSuccess &&
       !isOnboardingPage &&
       isUserUniverseLoaded;
 
-    const shouldHaveAnOrganizationButDoesnt =
-      isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
+    if (okayToMakeOnboardingRedirectDecisions) {
+      const shouldHaveAnOrganizationButDoesnt =
+        isCloudEnabled && organizations.length === 0;
 
-    const mustAcceptOrganizationInviteNow =
-      okayToMakeOnboardingRedirectDecisions &&
-      shouldHaveAnOrganizationButDoesnt &&
-      pendingInvites &&
-      pendingInvites.organizationInvites.length > 0;
+      if (shouldHaveAnOrganizationButDoesnt) {
+        storeRedirectPath();
+        navigate({
+          to: appRoutes.onboardingCreateOrganizationRoute.to,
+          replace: true,
+        });
+        return;
+      }
 
-    const mustAcceptTenantInviteNow =
-      tenantMemberships &&
-      tenantMemberships.length === 0 &&
-      pendingInvites &&
-      pendingInvites.tenantInvites.length > 0;
-
-    if (
-      !isOnboardingInvitesPage &&
-      (mustAcceptOrganizationInviteNow || mustAcceptTenantInviteNow)
-    ) {
-      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
-      return;
-    } else if (
-      okayToMakeOnboardingRedirectDecisions &&
-      shouldHaveAnOrganizationButDoesnt
-    ) {
-      storeRedirectPath();
-      navigate({
-        to: appRoutes.onboardingCreateOrganizationRoute.to,
-        replace: true,
-      });
-      return;
-    } else if (
-      okayToMakeOnboardingRedirectDecisions &&
-      tenantMemberships.length === 0
-    ) {
-      storeRedirectPath();
-      navigate({
-        to: appRoutes.onboardingCreateTenantRoute.to,
-        replace: true,
-      });
-      return;
+      if (tenantMemberships.length === 0) {
+        storeRedirectPath();
+        navigate({
+          to: appRoutes.onboardingCreateTenantRoute.to,
+          replace: true,
+        });
+        return;
+      }
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant

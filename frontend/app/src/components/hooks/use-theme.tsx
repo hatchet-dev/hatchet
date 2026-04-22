@@ -1,38 +1,26 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
-type DisplayableTheme = 'dark' | 'light';
-type SelectableTheme = DisplayableTheme | 'system';
+type Theme = 'dark' | 'light' | 'system';
 
 type ThemeProviderProps = {
   children: React.ReactNode;
-  defaultTheme?: SelectableTheme;
+  defaultTheme?: Theme;
   storageKey?: string;
 };
 
 type ThemeProviderState = {
-  theme: SelectableTheme;
-  setTheme: (theme: SelectableTheme) => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
-  currentlyVisibleTheme: DisplayableTheme;
 };
 
 const initialState: ThemeProviderState = {
   theme: 'system',
   setTheme: () => null,
   toggleTheme: () => null,
-  currentlyVisibleTheme: 'light',
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
-
-const getThemeToDisplay = (theme: SelectableTheme): DisplayableTheme => {
-  if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  }
-  return theme;
-};
 
 export function ThemeProvider({
   children,
@@ -40,24 +28,29 @@ export function ThemeProvider({
   storageKey = 'vite-ui-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<SelectableTheme>(
-    () => (localStorage.getItem(storageKey) as SelectableTheme) || defaultTheme,
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
   );
-
-  const [currentlyVisibleTheme, setCurrentlyVisibleTheme] =
-    useState<DisplayableTheme>('light');
 
   useEffect(() => {
     const root = window.document.documentElement;
 
     root.classList.remove('light', 'dark');
 
-    const themeToDisplay = getThemeToDisplay(theme);
-    setCurrentlyVisibleTheme(themeToDisplay);
-    root.classList.add(themeToDisplay);
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+        .matches
+        ? 'dark'
+        : 'light';
+
+      root.classList.add(systemTheme);
+      return;
+    }
+
+    root.classList.add(theme);
   }, [theme]);
 
-  const setThemeAndLocal = (theme: SelectableTheme) => {
+  const setThemeAndLocal = (theme: Theme) => {
     localStorage.setItem(storageKey, theme);
     setTheme(theme);
   };
@@ -70,7 +63,6 @@ export function ThemeProvider({
     theme,
     setTheme: setThemeAndLocal,
     toggleTheme,
-    currentlyVisibleTheme,
   };
 
   return (

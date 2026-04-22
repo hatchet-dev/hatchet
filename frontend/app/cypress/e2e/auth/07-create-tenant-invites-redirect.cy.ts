@@ -1,10 +1,10 @@
 import { seededUsers } from '../../support/seeded-users.generated';
 
-describe('Tenant Invite: decline', () => {
-  it('should redirect away from invites page after declining invite', () => {
+describe('Create Tenant: redirect to invites', () => {
+  it('should redirect to invites page when user has pending invites', () => {
     const ts = Date.now();
-    const tenantName = `DeclineTenant${ts}`;
-    const tenantSlug = `decline-tenant-${ts}`;
+    const tenantName = `InviteRedirectTenant${ts}`;
+    const tenantSlug = `invite-redirect-tenant-${ts}`;
 
     // Step 1: Login as owner and create a tenant
     cy.visit('/auth/login');
@@ -95,8 +95,15 @@ describe('Tenant Invite: decline', () => {
           .click();
       });
 
-    // Should be redirected to invites page
-    cy.location('pathname', { timeout: 5000 }).should(
+    // Wait for the navigation after sign in to complete
+    cy.location('pathname', { timeout: 30000 }).should('not.eq', '/auth/login');
+
+    // Step 5: Try to navigate to create-tenant page
+    // The user should be redirected to invites page
+    cy.visit('/onboarding/create-tenant', { failOnStatusCode: false });
+
+    // Step 6: Verify redirect to invites page
+    cy.location('pathname', { timeout: 10000 }).should(
       'eq',
       '/onboarding/invites',
     );
@@ -106,22 +113,20 @@ describe('Tenant Invite: decline', () => {
       'be.visible',
     );
 
-    // Step 5: Decline the invite - register intercept before clicking
-    cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
+    // Step 7: Accept the invite to clean up (prevent affecting other tests)
+    cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
     cy.contains(`invited to join the ${tenantName} tenant`)
       .parent()
-      .contains('button', 'Decline')
+      .contains('button', 'Accept')
       .should('be.visible')
       .click();
 
-    // Wait for the reject API call to complete
-    cy.wait('@rejectInvite').its('response.statusCode').should('eq', 200);
+    cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
 
-    // Step 6: Verify redirect away from invites page
-    // User should be redirected to authenticated route (which may further redirect)
+    // Verify redirect to tenant page
     cy.location('pathname', { timeout: 10000 }).should(
-      'not.eq',
-      '/onboarding/invites',
+      'match',
+      /\/tenants\/[^/]+/,
     );
   });
 });
