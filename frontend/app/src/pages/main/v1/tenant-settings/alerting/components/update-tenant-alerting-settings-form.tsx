@@ -56,7 +56,8 @@ export function UpdateTenantAlertingSettings({
   });
 
   const freqError =
-    errors.maxAlertingFrequency?.message?.toString() || props.fieldErrors?.role;
+    errors.maxAlertingFrequency?.message?.toString() ||
+    props.fieldErrors?.maxAlertingFrequency;
 
   return (
     <form
