@@ -78,7 +78,8 @@ describe('Tenant Invite: accept', () => {
         });
       });
 
-    cy.contains('button', 'Logout').filter(':visible').first().click();
+    cy.get('button[aria-label="Open account menu"]').filter(':visible').first().click();
+    cy.contains('Log out').click();
 
     cy.location('pathname').should('include', '/auth/login');
     cy.get('input#email').type(seededUsers.member.email);

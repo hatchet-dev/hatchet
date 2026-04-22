@@ -74,8 +74,8 @@ describe('Tenant Invite: decline', () => {
         });
       });
 
-    // Step 3: Logout
-    cy.contains('button', 'Logout').filter(':visible').first().click();
+    cy.get('button[aria-label="Open account menu"]').filter(':visible').first().click();
+    cy.contains('Log out').click();
     cy.location('pathname').should('include', '/auth/login');
 
     // Step 4: Login as member (who has pending invite)

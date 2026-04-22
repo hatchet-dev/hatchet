@@ -127,7 +127,8 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .should('contain.text', tenant2Name);
-    cy.contains('button', 'Logout').filter(':visible').first().click();
+    cy.get('button[aria-label="Open account menu"]').filter(':visible').first().click();
+    cy.contains('Log out').click();
 
     cy.login('member');
     cy.visit('/');
