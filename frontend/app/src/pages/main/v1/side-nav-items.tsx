@@ -182,20 +182,16 @@ export function sideNavItems(opts: {
             />
           ),
         },
-        ...(opts.isCloudEnabled
-          ? [
-              {
-                key: 'organization',
-                name: 'Organization',
-                to: appRoutes.tenantSettingsOrganizationRoute.to,
-                icon: ({ collapsed }: { collapsed: boolean }) => (
-                  <RiOrganizationChart
-                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-                  />
-                ),
-              },
-            ]
-          : []),
+        {
+          key: 'organization',
+          name: opts.isCloudEnabled ? 'Organization' : 'Tenants',
+          to: appRoutes.tenantSettingsOrganizationRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiOrganizationChart
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
         {
           key: 'tenant-settings-api-tokens',
           name: 'API Tokens',
