@@ -26,7 +26,7 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	workflow := client.NewWorkflow("pause-example-3")
+	workflow := client.NewWorkflow("pause-example")
 
 	workflow.NewTask("process-order", func(ctx hatchet.Context, input OrderInput) (OrderOutput, error) {
 		log.Printf("processing order %d (%s)", input.OrderID, input.Item)

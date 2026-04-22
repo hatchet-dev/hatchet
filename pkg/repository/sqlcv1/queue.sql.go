@@ -919,23 +919,24 @@ INSERT INTO v1_queue_item (
     desired_worker_label
 )
 SELECT
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label
-FROM ready_items
+    ri.tenant_id,
+    ri.queue,
+    ri.task_id,
+    ri.task_inserted_at,
+    ri.external_id,
+    ri.action_id,
+    ri.step_id,
+    ri.workflow_id,
+    ri.workflow_run_id,
+    CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
+    ri.step_timeout,
+    ri.priority,
+    ri.sticky,
+    ri.desired_worker_id,
+    ri.retry_count,
+    ri.desired_worker_label
+FROM ready_items ri
+JOIN v1_task t ON t.id = ri.task_id AND t.inserted_at = ri.task_inserted_at
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
 `
 
