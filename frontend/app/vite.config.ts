@@ -11,6 +11,35 @@ export default defineConfig({
       org: 'hatchet',
       project: 'frontend-react',
     }),
+    {
+      name: 'inject-go-template',
+      apply: 'build',
+      transformIndexHtml: {
+        // When building for production, inject Go template directives that the
+        // hatchet-staticfileserver renders at request time to support deployment
+        // under any URL subpath (e.g. /hatchet/).
+        //
+        // See cmd/hatchet-staticfileserver/staticfileserver/server.go for details.
+        order: 'post',
+        handler(html) {
+          return {
+            html: html,
+            tags: [
+              {
+                tag: 'base',
+                attrs: { href: '{{ .BasePath }}' },
+                injectTo: 'head',
+              },
+              {
+                tag: 'script',
+                children: 'window.__CONFIG__ = { BASE_PATH: "{{ .BasePath }}" };',
+                injectTo: 'head',
+              },
+            ],
+          };
+        },
+      },
+    },
   ],
   resolve: {
     alias: {
@@ -42,3 +71,7 @@ export default defineConfig({
     },
   },
 });
+
+function injectGoTemplate(html: string) {
+
+}
