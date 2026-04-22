@@ -63,20 +63,28 @@ import { formatDistanceToNow } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 
 export default function OrganizationSettings() {
+  const { isCloudEnabled } = useOrganizations();
+  return isCloudEnabled ? (
+    <CloudOrganizationSettings />
+  ) : (
+    <OssOrganizationSettings />
+  );
+}
+
+function CloudOrganizationSettings() {
   const { tenantId } = useCurrentTenantId();
   const {
     getOrganizationForTenant,
     handleUpdateOrganization,
-    isCloudEnabled,
     updateOrganizationLoading,
   } = useOrganizations();
-  const { tenantMemberships } = useUserUniverse();
 
   const org = getOrganizationForTenant(tenantId);
   const orgId = org?.metadata.id;
 
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
+  const { currentUser } = useCurrentUser();
 
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
@@ -93,50 +101,28 @@ export default function OrganizationSettings() {
 
   const organizationQuery = useQuery({
     ...orgApi.organizationGetQuery(orgId!),
-    enabled: isCloudEnabled && !!orgId,
+    enabled: !!orgId,
   });
 
   const managementTokensQuery = useQuery({
     ...orgApi.managementTokenListQuery(orgId!),
-    enabled: isCloudEnabled && !!orgId,
+    enabled: !!orgId,
   });
 
   const organizationInvitesQuery = useQuery({
     ...orgApi.organizationInviteListQuery(orgId!),
-    enabled: isCloudEnabled && !!orgId,
+    enabled: !!orgId,
   });
-
-  const { currentUser } = useCurrentUser();
 
   const organization = organizationQuery.data;
 
-  const visibleTenants = useMemo(() => {
-    if (isCloudEnabled) {
-      return (
-        organization?.tenants?.filter(
-          (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
-        ) || []
-      );
-    }
-
-    const ossTenants: OrganizationTenant[] =
-      tenantMemberships
-        ?.map((m): OrganizationTenant | null => {
-          if (!m.tenant) {
-            return null;
-          }
-
-          return {
-            id: m.tenant.metadata.id,
-            name: m.tenant.name,
-            status: TenantStatusType.ACTIVE,
-            slug: m.tenant.slug,
-          };
-        })
-        .filter((t): t is OrganizationTenant => t !== null) || [];
-
-    return ossTenants || [];
-  }, [isCloudEnabled, organization?.tenants, tenantMemberships]);
+  const visibleTenants = useMemo(
+    () =>
+      organization?.tenants?.filter(
+        (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
+      ) || [],
+    [organization?.tenants],
+  );
 
   useEffect(() => {
     if (organization?.name && !editedName) {
@@ -151,20 +137,6 @@ export default function OrganizationSettings() {
     handleUpdateOrganization(orgId, editedName.trim(), () => {
       queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
     });
-  };
-
-  const formatExpiry = (expiresAt?: string) => {
-    if (!expiresAt) {
-      return 'never';
-    }
-    try {
-      const expires = new Date(expiresAt);
-      return expires < new Date()
-        ? 'expired'
-        : `in ${formatDistanceToNow(expires)}`;
-    } catch {
-      return new Date(expiresAt).toLocaleDateString();
-    }
   };
 
   const pendingInvites = organizationInvitesQuery.data?.rows?.filter(
@@ -293,7 +265,7 @@ export default function OrganizationSettings() {
     },
   ];
 
-  if (isCloudEnabled && (!orgId || !organization)) {
+  if (!orgId || !organization) {
     return (
       <div className="h-full w-full flex-grow">
         <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -307,292 +279,246 @@ export default function OrganizationSettings() {
     );
   }
 
-  let settingsContent: React.ReactNode;
-
-  if (isCloudEnabled) {
-    settingsContent = (
-      <CloudOrganizationContent
-        editedName={editedName}
-        setEditedName={setEditedName}
-        handleSaveName={handleSaveName}
-        updateOrganizationLoading={updateOrganizationLoading}
-        visibleTenants={visibleTenants}
-        expandedTenantIds={expandedTenantIds}
-        setExpandedTenantIds={setExpandedTenantIds}
-        onArchive={setTenantToArchive}
-        orgId={orgId!}
-        organizationName={organization?.name || ''}
-        organizationMembers={organization?.members || []}
-        memberColumns={memberColumns}
-        pendingInvites={pendingInvites || []}
-        inviteColumns={inviteColumns}
-        managementTokenRows={managementTokensQuery.data?.rows || []}
-        tokenColumns={tokenColumns}
-        onCreateToken={() => setShowCreateTokenModal(true)}
-      />
-    );
-  } else {
-    settingsContent = (
-      <OssOrganizationContent
-        visibleTenants={visibleTenants}
-        expandedTenantIds={expandedTenantIds}
-        setExpandedTenantIds={setExpandedTenantIds}
-        onArchive={setTenantToArchive}
-      />
-    );
-  }
-
   return (
     <div className="h-full w-full flex-grow">
-      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">{settingsContent}</div>
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-end pb-4">
+          <div className="flex items-center gap-2">
+            <Input
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSaveName();
+                }
+              }}
+              className="w-[220px]"
+              disabled={updateOrganizationLoading}
+            />
+            <Button
+              size="sm"
+              onClick={handleSaveName}
+              disabled={updateOrganizationLoading || !editedName.trim()}
+            >
+              {updateOrganizationLoading && <Spinner />}
+              Save
+            </Button>
+          </div>
+        </div>
 
-      {isCloudEnabled && memberToDelete && (
+        <Tabs defaultValue="tenants" className="mt-2">
+          <TabsList layout="underlined" className="mb-6">
+            <TabsTrigger value="tenants" variant="underlined">
+              Tenants
+            </TabsTrigger>
+            <TabsTrigger value="members" variant="underlined">
+              Members
+            </TabsTrigger>
+            <TabsTrigger value="tokens" variant="underlined">
+              Management Tokens
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="tenants">
+            <TenantsSection
+              tenants={visibleTenants}
+              expandedTenantIds={expandedTenantIds}
+              setExpandedTenantIds={setExpandedTenantIds}
+              onArchive={setTenantToArchive}
+              defaultOrganizationId={orgId}
+            />
+          </TabsContent>
+
+          <TabsContent value="members">
+            <div className="space-y-6">
+              <div>
+                <div className="mb-4 flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      globalEmitter.emit('create-organization-invite', {
+                        organizationId: orgId,
+                        organizationName: organization.name,
+                      })
+                    }
+                  >
+                    Invite Member
+                  </Button>
+                </div>
+                {organization.members && organization.members.length > 0 ? (
+                  <SimpleTable
+                    data={organization.members}
+                    columns={memberColumns}
+                  />
+                ) : (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    No members found.
+                  </div>
+                )}
+              </div>
+
+              {pendingInvites && pendingInvites.length > 0 && (
+                <div>
+                  <SimpleTable data={pendingInvites} columns={inviteColumns} />
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="tokens">
+            <div className="mb-4 flex justify-end">
+              <Button size="sm" onClick={() => setShowCreateTokenModal(true)}>
+                Create Token
+              </Button>
+            </div>
+            {managementTokensQuery.data?.rows &&
+            managementTokensQuery.data.rows.length > 0 ? (
+              <SimpleTable
+                data={managementTokensQuery.data.rows.map((t) => ({
+                  ...t,
+                  metadata: { id: t.id },
+                }))}
+                columns={tokenColumns}
+              />
+            ) : (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No management tokens found.
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {memberToDelete && (
         <DeleteMemberModal
           open={!!memberToDelete}
           onOpenChange={(open) => !open && setMemberToDelete(null)}
           member={memberToDelete}
-          organizationName={organization?.name || ''}
+          organizationName={organization.name || ''}
           onSuccess={() => organizationQuery.refetch()}
         />
       )}
 
-      {isCloudEnabled && orgId && (
-        <CreateTokenModal
-          open={showCreateTokenModal}
-          onOpenChange={setShowCreateTokenModal}
-          organizationId={orgId}
-          organizationName={organization?.name || ''}
-          onSuccess={() => managementTokensQuery.refetch()}
-        />
-      )}
+      <CreateTokenModal
+        open={showCreateTokenModal}
+        onOpenChange={setShowCreateTokenModal}
+        organizationId={orgId}
+        organizationName={organization.name || ''}
+        onSuccess={() => managementTokensQuery.refetch()}
+      />
 
-      {isCloudEnabled && tokenToDelete && (
+      {tokenToDelete && (
         <DeleteTokenModal
           open={!!tokenToDelete}
           onOpenChange={(open) => !open && setTokenToDelete(null)}
           token={tokenToDelete}
-          organizationName={organization?.name || ''}
+          organizationName={organization.name || ''}
           onSuccess={() => managementTokensQuery.refetch()}
         />
       )}
 
-      {isCloudEnabled && inviteToCancel && (
+      {inviteToCancel && (
         <CancelInviteModal
           open={!!inviteToCancel}
           onOpenChange={(open) => !open && setInviteToCancel(null)}
           invite={inviteToCancel}
-          organizationName={organization?.name || ''}
+          organizationName={organization.name || ''}
           onSuccess={() => organizationInvitesQuery.refetch()}
         />
       )}
 
       {tenantToArchive &&
-        (() => {
-          const foundTenant = visibleTenants.find(
-            (t) => t?.id === tenantToArchive.id,
-          );
-          if (!foundTenant) {
-            return null;
-          }
-          return (
-            <DeleteTenantModal
-              open={!!tenantToArchive}
-              onOpenChange={(open) => !open && setTenantToArchive(null)}
-              tenant={tenantToArchive}
-              tenantName={foundTenant.name || foundTenant.id}
-              organizationName={organization?.name || ''}
-              onSuccess={() => {
-                if (isCloudEnabled && orgId) {
-                  queryClient.invalidateQueries({
-                    queryKey: ['organization:get', orgId],
-                  });
-                }
-                queryClient.invalidateQueries({ queryKey: ['tenant:get'] });
-              }}
-            />
-          );
-        })()}
+        visibleTenants.find((t) => t?.id === tenantToArchive.id) && (
+          <DeleteTenantModal
+            open={!!tenantToArchive}
+            onOpenChange={(open) => !open && setTenantToArchive(null)}
+            tenant={tenantToArchive}
+            tenantName={
+              visibleTenants.find((t) => t?.id === tenantToArchive.id)?.name ||
+              tenantToArchive.id
+            }
+            organizationName={organization.name || ''}
+            onSuccess={() => {
+              queryClient.invalidateQueries({
+                queryKey: ['organization:get', orgId],
+              });
+              queryClient.invalidateQueries({ queryKey: ['tenant:get'] });
+            }}
+          />
+        )}
     </div>
   );
 }
 
-function CloudOrganizationContent({
-  editedName,
-  setEditedName,
-  handleSaveName,
-  updateOrganizationLoading,
-  visibleTenants,
-  expandedTenantIds,
-  setExpandedTenantIds,
-  onArchive,
-  orgId,
-  organizationName,
-  organizationMembers,
-  memberColumns,
-  pendingInvites,
-  inviteColumns,
-  managementTokenRows,
-  tokenColumns,
-  onCreateToken,
-}: {
-  editedName: string;
-  setEditedName: (name: string) => void;
-  handleSaveName: () => void;
-  updateOrganizationLoading: boolean;
-  visibleTenants: OrganizationTenant[];
-  expandedTenantIds: string[];
-  setExpandedTenantIds: (tenantIds: string[]) => void;
-  onArchive: (tenant: OrganizationTenant) => void;
-  orgId: string;
-  organizationName: string;
-  organizationMembers: OrganizationMember[];
-  memberColumns: {
-    columnLabel: string;
-    cellRenderer: (row: OrganizationMember) => React.ReactNode;
-  }[];
-  pendingInvites: OrganizationInvite[];
-  inviteColumns: {
-    columnLabel: string;
-    cellRenderer: (row: OrganizationInvite) => React.ReactNode;
-  }[];
-  managementTokenRows: ManagementToken[];
-  tokenColumns: {
-    columnLabel: string;
-    cellRenderer: (
-      row: ManagementToken & { metadata: { id: string } },
-    ) => React.ReactNode;
-  }[];
-  onCreateToken: () => void;
-}) {
+function OssOrganizationSettings() {
+  const { tenantMemberships } = useUserUniverse();
+  const queryClient = useQueryClient();
+
+  const [tenantToArchive, setTenantToArchive] =
+    useState<OrganizationTenant | null>(null);
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
+
+  const visibleTenants = useMemo(
+    () =>
+      tenantMemberships
+        ?.map((m): OrganizationTenant | null => {
+          if (!m.tenant) {
+            return null;
+          }
+          return {
+            id: m.tenant.metadata.id,
+            name: m.tenant.name,
+            status: TenantStatusType.ACTIVE,
+            slug: m.tenant.slug,
+          };
+        })
+        .filter((t): t is OrganizationTenant => t !== null) || [],
+    [tenantMemberships],
+  );
+
   return (
-    <>
-      <div className="flex items-center justify-end pb-4">
-        <div className="flex items-center gap-2">
-          <Input
-            value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSaveName();
-              }
-            }}
-            className="w-[220px]"
-            disabled={updateOrganizationLoading}
-          />
-          <Button
-            size="sm"
-            onClick={handleSaveName}
-            disabled={updateOrganizationLoading || !editedName.trim()}
-          >
-            {updateOrganizationLoading && <Spinner />}
-            Save
-          </Button>
-        </div>
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <TenantsSection
+          tenants={visibleTenants}
+          expandedTenantIds={expandedTenantIds}
+          setExpandedTenantIds={setExpandedTenantIds}
+          onArchive={setTenantToArchive}
+        />
       </div>
 
-      <Tabs defaultValue="tenants" className="mt-2">
-        <TabsList layout="underlined" className="mb-6">
-          <TabsTrigger value="tenants" variant="underlined">
-            Tenants
-          </TabsTrigger>
-          <TabsTrigger value="members" variant="underlined">
-            Members
-          </TabsTrigger>
-          <TabsTrigger value="tokens" variant="underlined">
-            Management Tokens
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="tenants">
-          <TenantsSection
-            tenants={visibleTenants}
-            expandedTenantIds={expandedTenantIds}
-            setExpandedTenantIds={setExpandedTenantIds}
-            onArchive={onArchive}
-            defaultOrganizationId={orgId}
+      {tenantToArchive &&
+        visibleTenants.find((t) => t?.id === tenantToArchive.id) && (
+          <DeleteTenantModal
+            open={!!tenantToArchive}
+            onOpenChange={(open) => !open && setTenantToArchive(null)}
+            tenant={tenantToArchive}
+            tenantName={
+              visibleTenants.find((t) => t?.id === tenantToArchive.id)?.name ||
+              tenantToArchive.id
+            }
+            organizationName=""
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['tenant:get'] });
+            }}
           />
-        </TabsContent>
-
-        <TabsContent value="members">
-          <div className="space-y-6">
-            <div>
-              <div className="mb-4 flex justify-end">
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    globalEmitter.emit('create-organization-invite', {
-                      organizationId: orgId,
-                      organizationName,
-                    })
-                  }
-                >
-                  Invite Member
-                </Button>
-              </div>
-              {organizationMembers.length > 0 ? (
-                <SimpleTable
-                  data={organizationMembers}
-                  columns={memberColumns}
-                />
-              ) : (
-                <div className="py-8 text-center text-sm text-muted-foreground">
-                  No members found.
-                </div>
-              )}
-            </div>
-
-            {pendingInvites.length > 0 && (
-              <div>
-                <SimpleTable data={pendingInvites} columns={inviteColumns} />
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="tokens">
-          <div className="mb-4 flex justify-end">
-            <Button size="sm" onClick={onCreateToken}>
-              Create Token
-            </Button>
-          </div>
-          {managementTokenRows.length > 0 ? (
-            <SimpleTable
-              data={managementTokenRows.map((t) => ({
-                ...t,
-                metadata: { id: t.id },
-              }))}
-              columns={tokenColumns}
-            />
-          ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No management tokens found.
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </>
+        )}
+    </div>
   );
 }
 
-function OssOrganizationContent({
-  visibleTenants,
-  expandedTenantIds,
-  setExpandedTenantIds,
-  onArchive,
-}: {
-  visibleTenants: OrganizationTenant[];
-  expandedTenantIds: string[];
-  setExpandedTenantIds: (tenantIds: string[]) => void;
-  onArchive: (tenant: OrganizationTenant) => void;
-}) {
-  return (
-    <TenantsSection
-      tenants={visibleTenants}
-      expandedTenantIds={expandedTenantIds}
-      setExpandedTenantIds={setExpandedTenantIds}
-      onArchive={onArchive}
-    />
-  );
+function formatExpiry(expiresAt?: string) {
+  if (!expiresAt) {
+    return 'never';
+  }
+  try {
+    const expires = new Date(expiresAt);
+    return expires < new Date()
+      ? 'expired'
+      : `in ${formatDistanceToNow(expires)}`;
+  } catch {
+    return new Date(expiresAt).toLocaleDateString();
+  }
 }
 
 function TenantsSection({
