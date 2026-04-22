@@ -1,79 +1,35 @@
-import { Steps } from "nextra/components";
-
 # When to Use Durable Tasks vs. DAG Workflows
 
-Hatchet supports two ways to orchestrate durable multi-step workflows: [directed acyclic graphs (DAGs)](/v1/directed-acyclic-graphs) and [durable tasks](/v1/durable-tasks). Hatchet persists task state and results so workflows can recover without re-running completed work. The important difference is how you author the workflow, which means making an architectural decision early: should this workflow be modeled as a DAG, or composed at runtime from tasks? Both are forms of [durable execution](/v1/durable-execution) in Hatchet, but they fit different kinds of workflows. The choice comes down to whether the workflow’s control flow and dependencies are known at implementation time. If they are, a DAG is usually the natural choice. If they are not, task composition is usually the better fit. In that model, your code runs, makes decisions, waits for things, and spawns children while Hatchet persists progress along the way.
+Hatchet supports two ways to orchestrate durable multi-step workflows: [directed acyclic graphs (DAGs)](/v1/directed-acyclic-graphs) and [durable tasks](/v1/durable-tasks). Hatchet persists task state and results so workflows can recover without re-running completed work. The important difference is how you author the workflow, which means making an architectural decision early: should this workflow be modeled as a DAG, or should it be composed at runtime from tasks? Both are forms of [durable execution](/v1/durable-execution) in Hatchet, but they fit different kinds of workflows. The choice comes down to whether the workflow's control flow and dependencies are known at implementation time. If they are, a DAG is usually the natural choice. If they are not, durable tasks are usually the better fit. In that model, your code runs, makes decisions, waits for things, and spawns children while Hatchet persists progress along the way.
 
 ## When the structure is known up front
 
-DAGs work best when the workflow already looks like a graph before execution starts. The steps are known in advance, the dependencies between them are explicit, and parallelizable stages are easy to identify. Document processing, ETL pipelines, and CI/CD pipelines are good examples. Their major stages are known ahead of time. The interesting part is how those stages depend on one another and which ones can run concurrently. DAGs are also a good choice when fan-out and fan-in are central to the workflow. If one stage produces a variable number of items and the next stage processes them in parallel before joining, that maps directly onto a declared graph. Hatchet schedules the parallel work, passes outputs from parents to children, and gives you a clear visual representation of the whole pipeline in the dashboard.
-
-Use a DAG when you want the structure of the workflow to be the thing you express directly. If you find yourself drawing boxes and arrows on a whiteboard to explain the workflow, a DAG is probably the right fit.
+DAGs work best when the workflow can easily be represented as an acyclic graph at implementation time. That means all of the steps must be known in advance and child steps cannot feed back into their ancestors. Document processing, ETL pipelines, and CI/CD pipelines are good examples. The major stages are known ahead of time, can be easily sequenced in dependency order with no loops, and independent work can run concurrently. Hatchet schedules the work, passes outputs from parents to children, and gives you a clear visual representation of the pipeline in the dashboard.
 
 ## When declarative structure stops being practical
 
-DAGs can handle waits, conditional branches, and [or groups](/v1/directed-acyclic-graphs#waiting-on-conditions-with-or-groups), so the mere presence of a wait or a branch does not mean you need a durable task. The question is whether the branching logic remains something a human can comfortably map out and maintain in a declarative graph. A DAG becomes the wrong tool when the branching rules are so numerous or so intertwined that expressing them declaratively becomes error-prone and hard to follow. It also becomes the wrong tool when the branching logic changes frequently. Imagine a workflow where the rules shift every few weeks based on changing external conditions. Maintaining a sprawling declarative graph becomes more effort than expressing the same logic imperatively in code. And it is clearly the wrong tool when the workflow contains loops, dynamic iteration counts, or cases where the set of steps cannot be known until the workflow is already running.
+DAGs can handle waits, conditional branches, and [or groups](/v1/directed-acyclic-graphs#waiting-on-conditions-with-or-groups), so the mere presence of a wait or a branch does not mean you need a durable task. Maintainability is often the deciding factor. A DAG becomes the wrong tool when the branching rules are so numerous or intertwined that expressing them declaratively becomes error-prone. This is also the case when the branching logic changes frequently enough that maintaining the graph is more effort than writing the same logic imperatively. However, when the workflow contains loops or steps that cannot be known until runtime, a DAG simply cannot be used at all.
 
-Support workflows, approval flows, and agentic loops are good examples. A support agent triages a ticket, sends an initial response, waits for a customer reply or a timeout, and then either resolves or escalates depending on which one fires first. You could technically express a simple version of that as a DAG with or groups and [parent conditions](/v1/directed-acyclic-graphs#branching-with-parent-conditions). But in practice, the branching logic tends to grow beyond what is reasonable to maintain declaratively due to multiple escalation paths, multi-turn conversations, retries with different strategies depending on context. At some point, declaring all of that as a static graph becomes harder to read, harder to change, and more error-prone than writing it as imperative code with checkpointing. An agentic loop is an even clearer case. The number of iterations is not known ahead of time, the next action depends on what the previous one returned, and the stopping condition is evaluated at runtime. That cannot be expressed as a DAG at all because it requires a cycle that cannot be unrolled.
+Support workflows, approval flows, and agentic loops are good examples. Consider a support agent: it triages a ticket, sends an initial response, waits for a customer reply or a timeout, then either resolves or escalates. You could express a simple version of that as a DAG with or groups and [parent conditions](/v1/directed-acyclic-graphs#branching-with-parent-conditions). But in practice the branching logic tends to grow beyond maintainability, with multiple escalation paths, multi-turn conversations, and context-dependent retries. At that point, writing it as imperative code with checkpointing is less work. Agentic loops are an even clearer case: the number of iterations is unknown, each action depends on the previous result, and the stopping condition is evaluated at runtime. That requires a cycle, which a DAG cannot express.
 
-Durable tasks handle these cases by letting you write the control flow directly in code. Hatchet checkpoints durable task progress around waits and [child spawning](/v1/child-spawning), evicts the task from the worker slot while it waits, and resumes from the checkpoint when the wait resolves. The workflow can pause for arbitrary durations, pick up exactly where it left off, and make its next decision based on what actually happened rather than what was predicted at design time. Use a durable task when the branching logic is complex enough that maintaining it declaratively would be fragile, when the logic changes often enough that a static graph would be a maintenance burden, or when the workflow requires loops or runtime-determined iteration.
+Durable tasks handle these cases by letting you write control flow directly in code. Hatchet checkpoints progress around waits and [child spawning](/v1/child-spawning), evicts the task from the worker slot while it waits, and resumes from the checkpoint when the wait resolves. The workflow can pause for an arbitrary duration, pick up exactly where it left off, and make its next decision based on what actually happened.
 
-## Evaluating your own workflow
+## Mixing both models
 
-When you are staring at a new workflow problem and are not sure which model fits, try this exercise. It works on paper, a whiteboard, or a text file, the point is to make the structure visible before you start coding.
+Some workflows are not purely one model or the other. A durable task can handle the outer interaction, wait for events, make branching decisions, loop until done, and spawn a DAG workflow when it reaches a point where structured multi-step work needs to happen. The DAG runs as a child, completes, returns its result, and the durable task continues.
 
-<Steps>
-
-### List every step the workflow might perform
-
-Write a flat list of every operation the workflow needs to do. Do not worry about order or dependencies yet. Just get the steps down. For example, a document-processing workflow might produce: receive upload, extract text, detect language, translate, summarize, store result, notify user.
-
-### For each step, write down what it depends on
-
-Next to each step, note what must happen before that step can start. Try to name specific prior steps. If a step depends on another step completing, write that down as an edge. If a step depends on something external, such as a human replying, an event arriving, a timeout firing, then note that too, but separately. External dependencies are not the same as step-to-step dependencies.
-
-### Try to draw the full graph
-
-Take your steps and edges and try to draw the complete graph. Ask yourself:
-
-- Can you draw every node, or are there steps that only exist conditionally based on what a previous step produces?
-- Can you draw every edge, or do some depend on runtime data (for example, a fan-out whose width is determined by an earlier step's output)?
-- Are there any loops? Look for any step that feeds back into an earlier step or repeats an unknown number of times.
-
-If the graph contains loops or steps that cannot be enumerated before execution, you need a durable task, because a DAG cannot express those. If you can draw the graph, move on to step 4.
-
-### Evaluate whether the graph is maintainable
-
-A drawable graph does not automatically mean a DAG is the right choice. DAGs in Hatchet support conditional branches (via parent conditions and `skip_if`) and waits (via or groups), so branching and waiting alone do not disqualify a DAG. The question is whether the branching logic is something you can comfortably maintain as a declaration. Consider whether a new team member could read the graph and understand it quickly, whether the rules are stable or change frequently enough that updates become a source of bugs, and whether the number of interacting conditions is small enough to reason about. If the graph remains readable and stable, it belongs as a DAG. If expressing the logic declaratively would be fragile or a maintenance burden, a durable task lets you write the same control flow as code, which is easier to evolve when the logic is dense or volatile.
-
-### Check for mixed patterns
-
-Some workflows are not purely one model or the other. Look at your graph and ask: is there a clear outer structure that is dynamic with complex decisions or loops, but contains inner sub-problems that are static, having well defined steps and known dependencies? A common pattern this reveals is a durable task that handles the outer interaction, waiting for events, making branching decisions, looping until done, but spawns a DAG workflow when it reaches a point where structured multi-step work needs to happen. The DAG runs as a child, completes, returns its result to the durable task, and the durable task continues making decisions. This is not a workaround, it is a deliberate composition that lets each part of the workflow use the model that fits it best.
-
-The reverse is also possible: Hatchet's SDK allows a DAG to contain one or more durable task nodes. If even a single step in an otherwise-fixed pipeline requires looping, dynamic child spawning, or complex imperative branching, that node can be imperative while the rest of the DAG remains declarative. The DAG waits for that node to complete and then continues through the rest of the graph.
-
-</Steps>
-
-### What this exercise tells you
-
-If you drew a complete graph and the branching logic is straightforward and stable, start with a DAG. If you could not draw the full graph because the workflow contains loops or steps that only exist at runtime, start with a durable task. If you drew a graph but the branching logic is too complex or too volatile to maintain declaratively, a durable task will likely serve you better even though a DAG is technically possible. And if you found that the outer flow is dynamic but contains pockets of structured work (or vice versa), design it as a composition of both.
+The reverse is also possible. Hatchet's SDK allows a DAG to contain one or more durable task nodes. If a single step in an otherwise-fixed pipeline requires looping, dynamic child spawning, or complex imperative branching, that node can be a durable task while the rest of the DAG remains declarative. The DAG waits for that node to complete, then continues through the rest of the graph.
 
 ## Concrete examples
 
 | Workflow                                                                                                                                                                | Model        | Why                                                                                                                                                                             |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ETL pipeline (ingest -> parse -> transform -> validate -> store)                                                                                                        | DAG          | Steps and dependencies known up front. Parallel stages are the main value.                                                                                                      |
-| CI/CD pipeline (build -> test -> package -> deploy -> smoke test)                                                                                                       | DAG          | Same reasoning. Fixed stages, explicit dependencies, parallel execution.                                                                                                        |
+| CI/CD pipeline (build -> test -> package -> deploy -> smoke test)                                                                                                       | DAG          | Fixed stages, explicit dependencies, parallel execution.                                                                                                                        |
 | Order pipeline with payment wait (prepare -> wait for payment -> fulfill -> notify)                                                                                     | DAG          | Fixed stages with a single wait expressed as an or group. The structure is still fully declarative.                                                                             |
 | Support workflow that grows over time (triage -> reply -> wait -> resolve/escalate, plus per-category escalation paths, multi-turn handling, context-dependent retries) | Durable task | A simple version could be a DAG, but as branching rules multiply and change frequently, maintaining the declarative graph becomes fragile. Imperative code is easier to evolve. |
 | Agentic loop / iterative tool-calling                                                                                                                                   | Durable task | Contains a cycle. The number of iterations is unknown and the stopping condition is evaluated at runtime. A DAG cannot express this.                                            |
 | Dynamic runtime fan-out                                                                                                                                                 | Both         | A durable task decides at runtime what work needs to happen, then spawns a DAG for each structured sub-pipeline.                                                                |
-
-The last row is worth highlighting. Some of the strongest Hatchet designs use both models together: a durable task handles the outer runtime logic with complex branching, looping, deciding, and then spawns DAG workflows when it needs a structured multi-step pipeline to run as a child. That combination is often more natural than trying to force the whole system into a single model.
-
-## Boundary cases
-
-The line between the two is not always sharp, and the presence of waits or branches alone does not determine which model to use. DAGs in Hatchet handle waits natively through or groups, a DAG node can wait for a sleep timer, a user event, or a combination of both before proceeding. DAGs also handle branching through parent conditions and conditional skipping. A workflow with fixed stages, a wait for human approval in the middle, and a two-way branch afterward is still a perfectly valid DAG. The point where a DAG starts to strain is not when you add your first wait or your first branch. It is when the branching logic becomes dense enough that the declarative graph is harder to understand than equivalent imperative code, when the rules change often enough that updating the graph is a recurring source of mistakes, or when the workflow needs to loop or spawn a number of children that is only known at runtime. Those are the structural signals that the workflow has moved past what a static graph can comfortably express.
 
 ## Decision checklist
 
@@ -81,19 +37,12 @@ The line between the two is not always sharp, and the presence of waits or branc
 | -------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
 | Is the workflow structure mostly known before it starts?                   | Yes                                | No, or only partly                                                |
 | Are dependencies easy to declare up front?                                 | Yes                                | Not always                                                        |
-| Is fan-out / fan-in central?                                               | Strong fit                         | Possible, but less natural                                        |
 | Does the workflow involve waits (events, timers, human input)?             | Supported natively via or groups   | Also supported natively                                           |
 | Is the branching logic simple, stable, and easy to maintain declaratively? | Strong fit                         | Also works, but imperative code is not needed here                |
 | Is the branching logic complex, numerous, or frequently changing?          | Can become fragile and error-prone | Strong fit: logic lives in code, easier to read, test, and update |
 | Does the workflow contain loops or unknown iteration counts?               | Not possible in a DAG              | Required: only durable tasks can express cycles                   |
 
-If most of your answers land in the left column, start with a DAG. If the workflow contains loops, or most answers land in the right column, start with a durable task. If the answers are split, consider whether the outer workflow is really a dynamic orchestrator (durable task) that contains some structured sub-pipelines (DAGs), because that split often points toward a composition of both.
-
-## Mistakes to avoid
-
-The most common mistake is treating durable tasks as the default advanced choice and DAGs as the simple beginner option. A DAG is often the better design when the workflow can genuinely be represented as an acyclic graph with stable, understandable branching. Choosing imperative orchestration when declarative orchestration already fits makes the workflow harder to read, test, and visualize in the dashboard.
-
-The second most common mistake is treating DAGs as if they can only express rigid linear pipelines. DAGs in Hatchet support branching via parent conditions, event and sleep waits via or groups, and conditional skipping. A workflow that waits for human input or branches based on a previous step's output is not automatically a durable task problem as DAGs handle those patterns natively. Strong evidence that a DAG is the wrong choice includes loops, branching logic that is too complex or volatile to maintain declaratively, and cases where the set of steps cannot be known until runtime.
+If most of your answers land in the left column, start with a DAG. If the workflow contains loops, or most answers land in the right column, start with a durable task. If the answers are split, consider whether the outer workflow is really a dynamic orchestrator that contains some structured sub-pipelines, because that split often points toward a composition of both.
 
 ## Further reading
 
