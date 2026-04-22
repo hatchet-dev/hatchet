@@ -586,7 +586,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
-	isPaused             bool
+	isPaused                  bool
 }
 
 type createCoreUserEventOpts struct {
@@ -2265,7 +2265,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					filterPayload:             decision.FilterPayload,
 					triggeringEventExternalId: &opt.ExternalId,
 					triggeringEventKey:        &opt.Key,
-					isPaused:           workflow.IsPaused.Bool,
+					isPaused:                  workflow.IsPaused.Bool,
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{

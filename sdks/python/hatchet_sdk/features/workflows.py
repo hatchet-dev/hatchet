@@ -155,7 +155,7 @@ class WorkflowsClient(BaseRestClient):
             workflow_update = tenacity_retry(
                 self._wa(client).workflow_update, self.client_config.tenacity
             )
-            return workflow_update(workflow_id, WorkflowUpdateRequest(is_paused=True))
+            return workflow_update(workflow_id, WorkflowUpdateRequest(isPaused=True))
 
     async def aio_pause(self, workflow_id: str) -> Workflow:
         """
@@ -177,7 +177,7 @@ class WorkflowsClient(BaseRestClient):
             workflow_update = tenacity_retry(
                 self._wa(client).workflow_update, self.client_config.tenacity
             )
-            return workflow_update(workflow_id, WorkflowUpdateRequest(is_paused=False))
+            return workflow_update(workflow_id, WorkflowUpdateRequest(isPaused=False))
 
     async def aio_unpause(self, workflow_id: str) -> Workflow:
         """
