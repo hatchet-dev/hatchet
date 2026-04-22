@@ -78,12 +78,7 @@ describe('Tenant Invite: accept', () => {
         });
       });
 
-    cy.get('button[aria-label="User Menu"]')
-      .filter(':visible')
-      .should('be.visible')
-      .first()
-      .click();
-    cy.contains('[role="menuitem"]', 'Log out').filter(':visible').click();
+    cy.contains('button', 'Logout').filter(':visible').first().click();
 
     cy.location('pathname').should('include', '/auth/login');
     cy.get('input#email').type(seededUsers.member.email);
@@ -96,6 +91,19 @@ describe('Tenant Invite: accept', () => {
           .should('be.enabled')
           .click();
       });
+    cy.location('pathname', { timeout: 30000 }).should(
+      'match',
+      /\/tenants\/.+/,
+    );
+
+    // Open the notification dropdown and click the tenant invite notification
+    cy.get('[data-cy="notifications-button"]', { timeout: 10000 })
+      .filter(':visible')
+      .first()
+      .click();
+    cy.contains(`Tenant invite: ${tenant2Name}`).first().click();
+
+    // Should be on the invites page now
     cy.location('pathname', { timeout: 5000 }).should(
       'eq',
       '/onboarding/invites',
@@ -104,7 +112,7 @@ describe('Tenant Invite: accept', () => {
     // Find the specific invite and accept it
     cy.contains(`invited to join the ${tenant2Name} tenant`).should('exist');
 
-    // Step 4: Accept the invite - register intercept before clicking
+    // Accept the invite
     cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
     cy.contains(`invited to join the ${tenant2Name} tenant`)
       .parent()
@@ -112,7 +120,6 @@ describe('Tenant Invite: accept', () => {
       .should('exist')
       .click();
 
-    // Wait for the accept API call to complete
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
 
     // Wait for the accepted invite card to be removed from the DOM before
@@ -141,7 +148,7 @@ describe('Tenant Invite: accept', () => {
     };
     declineAll();
 
-    // Step 5: Verify redirect to the tenant page (no infinite loop)
+    // Verify redirect to the tenant page
     cy.location('pathname', { timeout: 5000 }).should(
       'match',
       /\/tenants\/[^/]+/,
