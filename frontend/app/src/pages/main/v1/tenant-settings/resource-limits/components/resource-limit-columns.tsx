@@ -1,5 +1,4 @@
 import { TenantResource } from '@/lib/api';
-import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { cn } from '@/lib/utils';
 
 export const limitedResources: Record<TenantResource, string> = {
@@ -14,7 +13,7 @@ export const limitedResources: Record<TenantResource, string> = {
 
 const indicatorVariants = {
   ok: 'border-transparent rounded-full bg-green-500',
-  warn: 'border-transparent rounded-full bg-yellow-500',
+  alarm: 'border-transparent rounded-full bg-yellow-500',
   exhausted: 'border-transparent rounded-full bg-red-500',
 };
 
@@ -27,13 +26,17 @@ export function LimitIndicator({
   alarmValue?: number;
   limitValue: number;
 }) {
-  const status = getResourceLimitStatus({ value, alarmValue, limitValue });
+  let variant = indicatorVariants.ok;
 
-  return (
-    <div
-      className={cn(indicatorVariants[status], 'h-[6px] w-[6px] rounded-full')}
-    />
-  );
+  if (alarmValue && value >= alarmValue) {
+    variant = indicatorVariants.alarm;
+  }
+
+  if (value >= limitValue) {
+    variant = indicatorVariants.exhausted;
+  }
+
+  return <div className={cn(variant, 'h-[6px] w-[6px] rounded-full')} />;
 }
 
 export const limitDurationMap: Record<string, string> = {

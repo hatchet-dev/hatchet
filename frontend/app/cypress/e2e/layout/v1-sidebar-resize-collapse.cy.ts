@@ -1,10 +1,7 @@
 describe('v1 sidebar: resize + collapse', () => {
   const DEFAULT_EXPANDED_WIDTH = 200;
 
-  const visitAuthed = (
-    viewport: { width: number; height: number },
-    opts?: { requireVisibleSidebar?: boolean },
-  ) => {
+  const visitAuthed = (viewport: { width: number; height: number }) => {
     cy.viewport(viewport.width, viewport.height);
     cy.login('owner');
 
@@ -17,16 +14,9 @@ describe('v1 sidebar: resize + collapse', () => {
       },
     });
 
-    if (opts?.requireVisibleSidebar !== false) {
-      if (viewport.width < 768) {
-        cy.get('button[aria-label="Toggle sidebar"]', { timeout: 30000 })
-          .should('be.visible')
-          .click();
-      }
-
-      cy.get('[data-cy="v1-sidebar"]', { timeout: 30000 }).should('be.visible');
-    }
-
+    cy.get('button[aria-label="User Menu"]', { timeout: 30000 }).should(
+      'be.visible',
+    );
     cy.location('pathname', { timeout: 30000 }).should(
       'match',
       /\/tenants\/.+/,
@@ -40,14 +30,17 @@ describe('v1 sidebar: resize + collapse', () => {
   };
 
   const waitForShell = () => {
-    cy.get('[data-cy="v1-sidebar"]', { timeout: 30000 }).should('be.visible');
+    cy.get('button[aria-label="User Menu"]', { timeout: 30000 }).should(
+      'be.visible',
+    );
+    cy.get('[data-cy="v1-sidebar"]').should('be.visible');
   };
 
   it('navbar: sidebar toggle button is only visible on mobile', () => {
     visitAuthed({ width: 1280, height: 800 });
     cy.get('button[aria-label="Toggle sidebar"]').should('not.be.visible');
 
-    visitAuthed({ width: 375, height: 667 }, { requireVisibleSidebar: false });
+    visitAuthed({ width: 375, height: 667 });
     cy.get('button[aria-label="Toggle sidebar"]').should('be.visible');
   });
 
@@ -196,19 +189,21 @@ describe('v1 sidebar: resize + collapse', () => {
     expectSidebarWidthStyle(56);
   });
 
-  it('collapsed: settings items are always visible without a flyout', () => {
+  it('collapsed: settings flyout renders and has a visible panel background', () => {
     visitAuthed({ width: 1280, height: 800 });
 
     // Collapse.
     cy.get('[data-cy="v1-sidebar-resize-handle"]').click({ force: true });
-    expectSidebarWidthStyle(56);
 
-    // Settings items exist directly — no flyout needed.
-    cy.get('button[aria-label="API Tokens"]')
-      .scrollIntoView()
-      .should('be.visible');
-    cy.get('button[aria-label="Members"]')
-      .scrollIntoView()
-      .should('be.visible');
+    // Open settings flyout.
+    cy.get('button[aria-label="General"]').click({ force: true });
+    cy.get('[role="menu"]').filter(':visible').first().as('settingsMenu');
+    cy.get('@settingsMenu').contains('Overview').should('be.visible');
+
+    // Content should have the bg-secondary class (explicit panel surface).
+    cy.get('@settingsMenu')
+      .invoke('attr', 'class')
+      // UI uses popover surfaces; accept either explicit secondary surface or popover surface.
+      .should('match', /\bbg-(secondary|popover)\b/);
   });
 });

@@ -336,7 +336,7 @@ const BaseActionButton = ({
   return (
     <PortalTooltipProvider>
       <PortalTooltip>
-        <PortalTooltipTrigger asChild>
+        <PortalTooltipTrigger>
           <Button
             size={'sm'}
             className={cn('text-sm gap-2', className)}
