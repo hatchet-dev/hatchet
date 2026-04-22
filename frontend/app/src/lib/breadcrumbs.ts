@@ -77,7 +77,7 @@ const createRouteLabel = (path: TenantedPath): string => {
     case '/tenants/:tenant/managed-workers/:managed-worker':
       return 'Managed Worker Detail';
     case '/tenants/:tenant/tenant-settings/overview':
-      return 'Overview';
+      return 'General';
     case '/tenants/:tenant/tenant-settings/api-tokens':
       return 'API Tokens';
     case '/tenants/:tenant/tenant-settings/github':

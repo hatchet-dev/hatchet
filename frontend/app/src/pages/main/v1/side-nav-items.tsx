@@ -168,33 +168,26 @@ export function sideNavItems(opts: {
       ],
     },
     {
-      key: 'admin',
-      title: 'Admin',
-      itemsClassName: 'space-y-1',
-      items: [
-        {
-          key: 'organizations',
-          name: opts.isCloudEnabled ? 'Organizations' : 'Tenants',
-          to: appRoutes.tenantOrganizationsAndTenantsRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiOrganizationChart
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-      ],
-    },
-    {
       key: 'settings',
       title: 'Settings',
       itemsClassName: 'space-y-1',
       items: [
         {
           key: 'tenant-settings-overview',
-          name: 'Overview',
+          name: 'General',
           to: appRoutes.tenantSettingsOverviewRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiSettings3Line
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'organizations',
+          name: opts.isCloudEnabled ? 'Organizations' : 'Tenants',
+          to: appRoutes.tenantOrganizationsAndTenantsRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiOrganizationChart
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
