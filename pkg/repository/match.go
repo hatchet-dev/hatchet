@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"time"
 
@@ -915,7 +916,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			expr = "true"
 		}
 
-		program, ok := m.celProgramCache.Get(expr)
+		hasher := fnv.New64a()
+		hasher.Write([]byte(expr))
+		exprHash := hasher.Sum64()
+
+		program, ok := m.celProgramCache.Get(exprHash)
 
 		if !ok {
 			ast, issues := m.env.Compile(expr)
@@ -932,7 +937,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				continue
 			}
 
-			m.celProgramCache.Add(expr, compiled)
+			m.celProgramCache.Add(exprHash, compiled)
 			program = compiled
 		}
 

@@ -43,7 +43,7 @@ type sharedRepository struct {
 
 	celParser       *cel.CELParser
 	env             *celgo.Env
-	celProgramCache *lru.Cache[string, celgo.Program]
+	celProgramCache *lru.Cache[uint64, celgo.Program]
 	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore    PayloadStoreRepository
 	m               TenantLimitRepository
@@ -87,7 +87,7 @@ func newSharedRepository(
 		log.Fatalf("failed to create LRU cache: %v", err)
 	}
 
-	celProgramCache, err := lru.New[string, celgo.Program](10000)
+	celProgramCache, err := lru.New[uint64, celgo.Program](50000)
 
 	if err != nil {
 		log.Fatalf("failed to create CEL program cache: %v", err)
