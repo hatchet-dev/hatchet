@@ -74,7 +74,10 @@ describe('Tenant Invite: decline', () => {
         });
       });
 
-    cy.get('button[aria-label="Open account menu"]').filter(':visible').first().click();
+    cy.get('button[aria-label="Open account menu"]')
+      .filter(':visible')
+      .first()
+      .click();
     cy.contains('Log out').click();
     cy.location('pathname').should('include', '/auth/login');
 
