@@ -296,7 +296,6 @@ function CloudOrganizationSettings() {
               disabled={updateOrganizationLoading}
             />
             <Button
-              size="sm"
               onClick={handleSaveName}
               disabled={updateOrganizationLoading || !editedName.trim()}
             >
@@ -334,7 +333,6 @@ function CloudOrganizationSettings() {
               <div>
                 <div className="mb-4 flex justify-end">
                   <Button
-                    size="sm"
                     onClick={() =>
                       globalEmitter.emit('create-organization-invite', {
                         organizationId: orgId,
@@ -367,7 +365,7 @@ function CloudOrganizationSettings() {
 
           <TabsContent value="tokens">
             <div className="mb-4 flex justify-end">
-              <Button size="sm" onClick={() => setShowCreateTokenModal(true)}>
+              <Button onClick={() => setShowCreateTokenModal(true)}>
                 Create Token
               </Button>
             </div>
@@ -538,7 +536,6 @@ function TenantsSection({
     <>
       <div className="mb-4 flex justify-end">
         <Button
-          size="sm"
           onClick={() =>
             globalEmitter.emit('create-new-tenant', {
               defaultOrganizationId,
@@ -630,7 +627,6 @@ function TenantAccordionItem({
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Members</h4>
             <Button
-              size="sm"
               onClick={() =>
                 globalEmitter.emit('create-tenant-invite', {
                   tenantId: tenant.id,

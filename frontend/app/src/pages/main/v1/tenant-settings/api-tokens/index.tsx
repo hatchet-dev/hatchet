@@ -5,7 +5,6 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@/components/v1/ui/dialog';
-import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -57,7 +56,7 @@ export default function APITokens() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-row items-baseline justify-end">
+        <div className="mb-4 flex flex-row items-baseline justify-end">
           <Button
             key="create-api-token"
             onClick={() => setShowTokenDialog(true)}
@@ -65,7 +64,6 @@ export default function APITokens() {
             Create API Token
           </Button>
         </div>
-        <Separator className="my-4" />
         {(listTokensQuery.data?.rows || []).length > 0 ? (
           <SimpleTable
             columns={tokenColumns}
