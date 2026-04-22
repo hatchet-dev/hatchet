@@ -15,6 +15,20 @@ export type SupportTicketInput = {
   subject: string;
   body: string;
 };
+
+export type TriageOutput = {
+  category: string;
+  priority: string;
+};
+
+export type ReplyOutput = {
+  message: string;
+};
+
+export type EscalationOutput = {
+  reason: string;
+  assignedTo: string;
+};
 // !!
 
 // > Triage task
@@ -48,13 +62,42 @@ export const triageTicket = hatchet.task({
 // !!
 
 // > Generate reply task
-// Generate an initial support reply (fallback-only in TypeScript v1).
+// Generate an initial support reply using Claude.
 export const generateReply = hatchet.task({
   name: 'generate-reply',
   fn: async (input: SupportTicketInput) => {
-    return {
-      message: `Thank you for contacting support about: ${input.subject}. We are looking into this and will get back to you shortly.`,
-    };
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      return {
+        message: `Thank you for contacting support about: ${input.subject}. We are looking into this and will get back to you shortly.`,
+      };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const anthropic = require('@anthropic-ai/sdk');
+    const Anthropic = anthropic.default || anthropic;
+    const client = new Anthropic({ apiKey });
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'user' as const,
+          content:
+            `You are a friendly support agent. Write a brief, helpful initial ` +
+            `reply to this support ticket.\n\n` +
+            `Subject: ${input.subject}\n` +
+            `Message: ${input.body}\n\n` +
+            `Keep the reply under 3 sentences.`,
+        },
+      ],
+    });
+
+    const [block] = response.content;
+    const text = block?.type === 'text' ? block.text : '';
+    return { message: text };
   },
 });
 // !!
