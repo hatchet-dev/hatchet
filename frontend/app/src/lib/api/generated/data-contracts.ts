@@ -329,6 +329,8 @@ export enum V1TaskEventType {
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
   DURABLE_EVICTED = "DURABLE_EVICTED",
   DURABLE_RESTORING = "DURABLE_RESTORING",
+  WORKFLOW_PAUSED = "WORKFLOW_PAUSED",
+  WORKFLOW_UNPAUSED = "WORKFLOW_UNPAUSED",
 }
 
 export enum V1WorkflowType {
@@ -1758,6 +1760,10 @@ export interface Workflow {
   description?: string;
   /** Whether the workflow is paused. */
   isPaused?: boolean;
+  /** Whether the cron tasks should be queued or dropped when the workflow is paused. */
+  queueCronOnPause?: boolean;
+  /** Whether the scheduled tasks should be queued or dropped when the workflow is paused. */
+  queueScheduledOnPause?: boolean;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
@@ -1995,6 +2001,10 @@ export interface WorkflowRunsCancelRequest {
 export interface WorkflowUpdateRequest {
   /** Whether the workflow is paused. */
   isPaused?: boolean;
+  /** Whether the cron tasks should be queued or dropped when the workflow is paused. */
+  queueCronOnPause?: boolean;
+  /** Whether the scheduled tasks should be queued or dropped when the workflow is paused. */
+  queueScheduledOnPause?: boolean;
 }
 
 export interface WorkflowConcurrency {

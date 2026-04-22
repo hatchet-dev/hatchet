@@ -48,6 +48,8 @@ class V1TaskEventType(str, Enum):
     COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER"
     DURABLE_EVICTED = "DURABLE_EVICTED"
     DURABLE_RESTORING = "DURABLE_RESTORING"
+    WORKFLOW_PAUSED = "WORKFLOW_PAUSED"
+    WORKFLOW_UNPAUSED = "WORKFLOW_UNPAUSED"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

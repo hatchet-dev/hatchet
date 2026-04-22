@@ -228,6 +228,15 @@ type WorkflowRepository interface {
 	GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error)
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+
+	// PauseWorkflow pauses a workflow, sweeping any pending queue items into the paused queue
+	// and cancelling any in-flight tasks.
+	PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.MovePausedWorkflowQueueItemsRow, error)
+
+	// UnpauseWorkflow unpauses a workflow, moving all paused queue items back to the main queue.
+	UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error)
+
+	UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error)
 }
 
 type workflowRepository struct {
@@ -1255,6 +1264,88 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	}
 
 	return versions[0], nil
+}
+
+func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.MovePausedWorkflowQueueItemsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "pause-workflow")
+	defer span.End()
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, sqlcv1.UpdateWorkflowParams{
+		ID:       workflowId,
+		IsPaused: sqlchelpers.BoolFromBoolean(true),
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to update workflow isPaused: %w", err)
+	}
+
+	movedItems, err := r.queries.MovePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.MovePausedWorkflowQueueItemsParams{
+		Workflowid: workflowId,
+		Tenantid:   tenantId,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to move queue items to paused DLQ: %w", err)
+	}
+
+	// evict cache so trigger paths immediately see the updated isPaused state
+	cacheKey := fmt.Sprintf("%s:%s", tenantId, workflow.Name)
+	r.tenantIdWorkflowNameCache.Remove(cacheKey)
+
+	return workflow, movedItems, nil
+}
+
+func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "unpause-workflow")
+	defer span.End()
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, sqlcv1.UpdateWorkflowParams{
+		ID:       workflowId,
+		IsPaused: sqlchelpers.BoolFromBoolean(false),
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to update workflow isPaused: %w", err)
+	}
+
+	requeuedItems, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+		Workflowid: workflowId,
+		Tenantid:   tenantId,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to requeue items from paused DLQ: %w", err)
+	}
+
+	// evict cache so trigger paths immediately see the updated isPaused state
+	cacheKey := fmt.Sprintf("%s:%s", tenantId, workflow.Name)
+	r.tenantIdWorkflowNameCache.Remove(cacheKey)
+
+	return workflow, requeuedItems, nil
+}
+
+func (r *workflowRepository) UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-workflow-pause-settings")
+	defer span.End()
+
+	params := sqlcv1.UpdateWorkflowParams{
+		ID: workflowId,
+	}
+
+	if queueCronOnPause != nil {
+		params.QueueCronOnPause = sqlchelpers.BoolFromBoolean(*queueCronOnPause)
+	}
+
+	if queueScheduledOnPause != nil {
+		params.QueueScheduledOnPause = sqlchelpers.BoolFromBoolean(*queueScheduledOnPause)
+	}
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update workflow pause settings: %w", err)
+	}
+
+	return workflow, nil
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

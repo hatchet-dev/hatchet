@@ -583,3 +583,175 @@ SET last_active = NOW()
 FROM inactive_queues_with_items i
 WHERE q.tenant_id = i.tenant_id
   AND q.name = i.name;
+
+
+-- name: MovePausedWorkflowQueueItems :many
+WITH moved_items AS (
+    DELETE FROM v1_queue_item
+    WHERE workflow_id = @workflowId::uuid
+        AND tenant_id = @tenantId::uuid
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label
+)
+INSERT INTO v1_paused_workflow_queue_items (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label
+FROM moved_items
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count;
+
+
+-- name: RequeuePausedWorkflowQueueItems :many
+WITH ready_items AS (
+    SELECT
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label
+    FROM
+        v1_paused_workflow_queue_items
+    WHERE
+        workflow_id = @workflowId::uuid
+        AND tenant_id = @tenantId::uuid
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE SKIP LOCKED
+), deleted_items AS (
+    DELETE FROM v1_paused_workflow_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM ready_items)
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+)
+INSERT INTO v1_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label
+)
+SELECT
+    ri.tenant_id,
+    ri.queue,
+    ri.task_id,
+    ri.task_inserted_at,
+    ri.external_id,
+    ri.action_id,
+    ri.step_id,
+    ri.workflow_id,
+    ri.workflow_run_id,
+    CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout),
+    ri.step_timeout,
+    ri.priority,
+    ri.sticky,
+    ri.desired_worker_id,
+    ri.retry_count,
+    ri.desired_worker_label
+FROM ready_items ri
+JOIN v1_task t ON t.id = ri.task_id AND t.inserted_at = ri.task_inserted_at
+RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
+
+
+-- name: CleanupV1PausedWorkflowQueueItem :execresult
+WITH locked_qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_paused_workflow_queue_items qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+        AND qi.task_inserted_at = vt.inserted_at
+    )
+    ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_paused_workflow_queue_items
+WHERE (task_id, task_inserted_at) IN (
+    SELECT task_id, task_inserted_at
+    FROM locked_qis
+);

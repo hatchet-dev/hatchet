@@ -900,6 +900,8 @@ CREATE TABLE "Workflow" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "isPaused" BOOLEAN DEFAULT false,
+    "queueCronOnPause" BOOLEAN NOT NULL DEFAULT true,
+    "queueScheduledOnPause" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
 );
