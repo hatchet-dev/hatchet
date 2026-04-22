@@ -349,11 +349,11 @@ export interface CreateTenantAPITokenResponse {
 
 export interface SsoDomain {
   /** @example "acme.com" */
-  sso_domain: string;
+  ssoDomain: string;
   /** @example false */
-  verified?: boolean;
+  verified: boolean;
   /** @format uuid */
-  verification_token?: string;
+  verificationToken: string;
 }
 
 export type SsoDomainArray = SsoDomain[];

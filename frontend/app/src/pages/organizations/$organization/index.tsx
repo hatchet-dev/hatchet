@@ -791,10 +791,10 @@ export default function OrganizationPage() {
                   <SimpleTable
                     data={organizationSsoDomainGetQuery.data.map((v) => {
                       return {
-                        metadata: { id: v.sso_domain },
-                        domain: v.sso_domain,
+                        metadata: { id: v.ssoDomain },
+                        domain: v.ssoDomain,
                         verified: v.verified,
-                        verification_token: v.verification_token,
+                        verification_token: v.verificationToken,
                       };
                     })}
                     columns={ssoDomainColumns}

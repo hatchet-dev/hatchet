@@ -727,12 +727,12 @@ export class Api<
    *
    * @name SsoDomainList
    * @summary List Organization's SSO Domains
-   * @request GET:/api/v1/control-plane/organizations/{organization}/sso_domain
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso-domain
    * @secure
    */
   ssoDomainList = (organization: string, params: RequestParams = {}) =>
     this.request<SsoDomainArray, APIError>({
-      path: `/api/v1/control-plane/organizations/${organization}/sso_domain`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso-domain`,
       method: "GET",
       secure: true,
       format: "json",
@@ -743,7 +743,7 @@ export class Api<
    *
    * @name SsoDomainCreate
    * @summary Create Organization SSO Domain
-   * @request POST:/api/v1/control-plane/organizations/{organization}/sso_domain
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso-domain
    * @secure
    */
   ssoDomainCreate = (
@@ -752,7 +752,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<void, APIError>({
-      path: `/api/v1/control-plane/organizations/${organization}/sso_domain`,
+      path: `/api/v1/control-plane/organizations/${organization}/sso-domain`,
       method: "POST",
       body: data,
       secure: true,
@@ -763,12 +763,12 @@ export class Api<
    * @description Delete SSO Domain for organization
    *
    * @name SsoDomainDelete
-   * @request DELETE:/api/v1/control-plane/organizations/sso_domain/{sso-domain}
+   * @request DELETE:/api/v1/control-plane/organizations/sso-domain/{sso-domain}
    * @secure
    */
   ssoDomainDelete = (ssoDomain: string, params: RequestParams = {}) =>
     this.request<void, APIError>({
-      path: `/api/v1/control-plane/organizations/sso_domain/${ssoDomain}`,
+      path: `/api/v1/control-plane/organizations/sso-domain/${ssoDomain}`,
       method: "DELETE",
       secure: true,
       ...params,
