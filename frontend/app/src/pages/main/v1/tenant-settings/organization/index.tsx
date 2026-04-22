@@ -136,7 +136,7 @@ export default function OrganizationSettings() {
         .filter((t): t is OrganizationTenant => t !== null) || [];
 
     return ossTenants || [];
-  }, [isCloudEnabled, organization?.tenants, tenantId, tenantMemberships]);
+  }, [isCloudEnabled, organization?.tenants, tenantMemberships]);
 
   useEffect(() => {
     if (organization?.name && !editedName) {
