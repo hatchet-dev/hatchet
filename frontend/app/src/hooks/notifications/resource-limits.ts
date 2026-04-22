@@ -68,7 +68,11 @@ export const useResourceLimitNotifications = () => {
     () =>
       (resourcePolicyQuery.data?.limits ?? [])
         .map((limit) =>
-          limitToNotification(limit, tenantId ?? '', tenant?.name ?? tenantId ?? ''),
+          limitToNotification(
+            limit,
+            tenantId ?? '',
+            tenant?.name ?? tenantId ?? '',
+          ),
         )
         .filter((n): n is Notification => n !== null),
     [tenantId, tenant?.name, resourcePolicyQuery.data],
