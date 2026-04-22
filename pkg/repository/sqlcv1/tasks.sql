@@ -1190,7 +1190,7 @@ WITH queued_tasks AS (
         pqi.tenant_id = @tenantId::uuid
     GROUP BY
         t.step_readable_id,
-        t.queue 
+        t.queue
 ),
 concurrency_queued_tasks AS (
     SELECT

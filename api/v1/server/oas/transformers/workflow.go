@@ -241,10 +241,10 @@ func ToStep(step *sqlcv1.Step, parents []uuid.UUID) *gen.Step {
 
 func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 	res := &gen.Workflow{
-		Metadata:    *toAPIMetadata(row.ID, row.CreatedAt.Time, row.UpdatedAt.Time),
-		Name:        row.Name,
-		Description: &row.Description.String,
-		IsPaused:    &row.IsPaused.Bool,
+		Metadata:              *toAPIMetadata(row.ID, row.CreatedAt.Time, row.UpdatedAt.Time),
+		Name:                  row.Name,
+		Description:           &row.Description.String,
+		IsPaused:              &row.IsPaused.Bool,
 		QueueCronOnPause:      &row.QueueCronOnPause,
 		QueueScheduledOnPause: &row.QueueScheduledOnPause,
 	}
