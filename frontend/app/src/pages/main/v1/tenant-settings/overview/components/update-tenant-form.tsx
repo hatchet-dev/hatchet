@@ -43,7 +43,7 @@ export function UpdateTenantForm({
     }
   }, [tenant?.name, reset]);
 
-  const nameError = errors.name?.message?.toString() || props.fieldErrors?.role;
+  const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
 
   return (
     <form
