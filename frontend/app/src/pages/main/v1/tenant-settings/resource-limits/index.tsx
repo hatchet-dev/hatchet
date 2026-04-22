@@ -124,24 +124,18 @@ export default function ResourceLimits() {
           </>
         )}
 
-        <p className="text-sm text-muted-foreground mb-4">
-          Resource limits control usage within your tenant. When a limit is
-          reached, the system will take action based on the limit type. Upgrade
-          your plan or{' '}
-          <a
-            href="https://hatchet.run/office-hours"
-            className="text-primary/70 hover:text-primary hover:underline"
-          >
-            contact us
-          </a>{' '}
-          to adjust your limits.
-        </p>
-
         {resourceLimits.length > 0 ? (
           <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No resource limits configured.
+            No resource limits configured. Upgrade your plan or{' '}
+            <a
+              href="https://hatchet.run/office-hours"
+              className="text-primary/70 hover:text-primary hover:underline"
+            >
+              contact us
+            </a>{' '}
+            to adjust your limits.
           </div>
         )}
       </div>
