@@ -28,6 +28,9 @@ func ToWorkflow(
 
 	res.Description = &workflow.Description.String
 
+	res.QueueCronOnPause = &workflow.QueueCronOnPause
+	res.QueueScheduledOnPause = &workflow.QueueScheduledOnPause
+
 	if version != nil {
 		apiVersions := make([]gen.WorkflowVersionMeta, 1)
 		apiVersions[0] = *ToWorkflowVersionMeta(version, workflow)
@@ -242,6 +245,8 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 		Name:        row.Name,
 		Description: &row.Description.String,
 		IsPaused:    &row.IsPaused.Bool,
+		QueueCronOnPause:      &row.QueueCronOnPause,
+		QueueScheduledOnPause: &row.QueueScheduledOnPause,
 	}
 
 	return res

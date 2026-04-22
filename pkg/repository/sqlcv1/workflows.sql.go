@@ -2084,18 +2084,27 @@ const updateWorkflow = `-- name: UpdateWorkflow :one
 UPDATE "Workflow"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce($1::boolean, "isPaused")
-WHERE "id" = $2::uuid
+    "isPaused" = coalesce($1::boolean, "isPaused"),
+    "queueCronOnPause" = coalesce($2::boolean, "queueCronOnPause"),
+    "queueScheduledOnPause" = coalesce($3::boolean, "queueScheduledOnPause")
+WHERE "id" = $4::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "queueCronOnPause", "queueScheduledOnPause"
 `
 
 type UpdateWorkflowParams struct {
-	IsPaused pgtype.Bool `json:"isPaused"`
-	ID       uuid.UUID   `json:"id"`
+	IsPaused              pgtype.Bool `json:"isPaused"`
+	QueueCronOnPause      pgtype.Bool `json:"queueCronOnPause"`
+	QueueScheduledOnPause pgtype.Bool `json:"queueScheduledOnPause"`
+	ID                    uuid.UUID   `json:"id"`
 }
 
 func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflowParams) (*Workflow, error) {
-	row := db.QueryRow(ctx, updateWorkflow, arg.IsPaused, arg.ID)
+	row := db.QueryRow(ctx, updateWorkflow,
+		arg.IsPaused,
+		arg.QueueCronOnPause,
+		arg.QueueScheduledOnPause,
+		arg.ID,
+	)
 	var i Workflow
 	err := row.Scan(
 		&i.ID,

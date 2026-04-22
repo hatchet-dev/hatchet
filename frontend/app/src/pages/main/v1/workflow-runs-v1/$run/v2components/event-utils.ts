@@ -76,6 +76,10 @@ export function mapEventTypeToTitle(
       return 'Durable task evicted';
     case V1TaskEventType.DURABLE_RESTORING:
       return 'Durable task restoring';
+    case V1TaskEventType.WORKFLOW_PAUSED:
+      return 'Workflow paused';
+    case V1TaskEventType.WORKFLOW_UNPAUSED:
+      return 'Workflow unpaused';
     case undefined:
       return 'Unknown';
     default:

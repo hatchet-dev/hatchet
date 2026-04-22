@@ -780,7 +780,9 @@ WHERE
 UPDATE "Workflow"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
+    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused"),
+    "queueCronOnPause" = coalesce(sqlc.narg('queueCronOnPause')::boolean, "queueCronOnPause"),
+    "queueScheduledOnPause" = coalesce(sqlc.narg('queueScheduledOnPause')::boolean, "queueScheduledOnPause")
 WHERE "id" = @id::uuid
 RETURNING *;
 

@@ -282,6 +282,8 @@ const (
 	V1TaskEventTypeSTARTED              V1TaskEventType = "STARTED"
 	V1TaskEventTypeTIMEDOUT             V1TaskEventType = "TIMED_OUT"
 	V1TaskEventTypeTIMEOUTREFRESHED     V1TaskEventType = "TIMEOUT_REFRESHED"
+	V1TaskEventTypeWORKFLOWPAUSED       V1TaskEventType = "WORKFLOW_PAUSED"
+	V1TaskEventTypeWORKFLOWUNPAUSED     V1TaskEventType = "WORKFLOW_UNPAUSED"
 )
 
 // Defines values for V1TaskStatus.
