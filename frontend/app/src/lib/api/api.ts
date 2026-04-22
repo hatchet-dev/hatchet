@@ -48,7 +48,7 @@ export const controlPlaneApi = new ControlPlaneApi({
 api.instance.interceptors.request.use(exchangeTokenInterceptor);
 cloudApi.instance.interceptors.request.use(exchangeTokenInterceptor);
 
-export const LAST_TENANT_STORAGE_KEY = 'lastTenant';
+export const CONTROL_PLANE_TENANT_STORAGE_KEY = 'controlPlaneLastTenant';
 
 type StoredTenantLike = {
   metadata?: {
@@ -58,7 +58,7 @@ type StoredTenantLike = {
 
 function readStoredTenantId(): string | null {
   try {
-    const raw = localStorage.getItem(LAST_TENANT_STORAGE_KEY);
+    const raw = localStorage.getItem(CONTROL_PLANE_TENANT_STORAGE_KEY);
     if (!raw) {
       return null;
     }

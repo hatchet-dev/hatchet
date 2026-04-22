@@ -7,7 +7,7 @@ import api, { TenantMember } from '@/lib/api';
 import {
   controlPlaneApi,
   fetchControlPlaneStatus,
-  LAST_TENANT_STORAGE_KEY,
+  CONTROL_PLANE_TENANT_STORAGE_KEY,
 } from '@/lib/api/api';
 import { exchangeTokenQueryOptions } from '@/lib/api/exchange-token';
 import queryClient from '@/query-client';
@@ -221,7 +221,7 @@ const tenantRoute = createRoute({
         await api.tenantGet(params.tenant, { xTenantId: params.tenant })
       ).data;
 
-      localStorage.setItem(LAST_TENANT_STORAGE_KEY, JSON.stringify(fullTenant));
+      localStorage.setItem(CONTROL_PLANE_TENANT_STORAGE_KEY, JSON.stringify(fullTenant));
 
       // Populate the React Query cache so pages don't re-fetch immediately.
       queryClient.setQueryData(['tenant:get', params.tenant], fullTenant);
