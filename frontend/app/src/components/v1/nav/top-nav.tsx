@@ -70,7 +70,7 @@ function AccountDropdown({ user }: { user?: User }) {
           size="sm"
           aria-label="Open account menu"
           className={cn(
-            'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+            'justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
             open && 'bg-muted/30',
           )}
         >
