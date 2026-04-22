@@ -4,7 +4,7 @@ Hatchet supports two ways to orchestrate durable multi-step workflows: [directed
 
 ## When the structure is known up front
 
-DAGs work best when the workflow can easily be represented as an acyclic graph at implementation time. That means all of the steps must be known in advance and child steps cannot feed back into their ancestors. Document processing, ETL pipelines, and CI/CD pipelines are good examples. The major stages are known ahead of time, can be easily sequenced in dependency order with no loops, and independent work can run concurrently. Hatchet schedules the work, passes outputs from parents to children, and gives you a clear visual representation of the pipeline in the dashboard.
+DAGs work best when the workflow can easily be represented as an acyclic graph at implementation time. That means all of the steps must be known in advance and child steps cannot feed back into their ancestors. Document processing, ETL pipelines, and CI/CD pipelines are good examples. The major stages are known ahead of time and can be easily sequenced in dependency order with no loops. Hatchet schedules the work, passes outputs from parents to children, and gives you a clear visual representation of the pipeline in the dashboard.
 
 ## When declarative structure stops being practical
 
