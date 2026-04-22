@@ -1,4 +1,11 @@
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/v1/ui/accordion';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
@@ -25,6 +32,7 @@ import {
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TenantInvite, TenantMember } from '@/lib/api';
 import {
   ManagementToken,
   OrganizationInvite,
@@ -34,6 +42,7 @@ import {
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -75,6 +84,7 @@ export default function OrganizationSettings() {
     useState<OrganizationInvite | null>(null);
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenant | null>(null);
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
 
   const organizationQuery = useQuery({
@@ -130,38 +140,6 @@ export default function OrganizationSettings() {
       i.status === OrganizationInviteStatus.PENDING ||
       i.status === OrganizationInviteStatus.EXPIRED,
   );
-
-  const tenantColumns = [
-    {
-      columnLabel: 'Name',
-      cellRenderer: (
-        row: OrganizationTenant & { metadata: { id: string } },
-      ) => <span className="font-medium">{row.name || row.id}</span>,
-    },
-    {
-      columnLabel: 'ID',
-      cellRenderer: (
-        row: OrganizationTenant & { metadata: { id: string } },
-      ) => (
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm">{row.id}</span>
-          <CopyToClipboard text={row.id} />
-        </div>
-      ),
-    },
-    {
-      columnLabel: 'Slug',
-      cellRenderer: (
-        row: OrganizationTenant & { metadata: { id: string } },
-      ) => <span className="text-muted-foreground">{row.slug || '-'}</span>,
-    },
-    {
-      columnLabel: 'Actions',
-      cellRenderer: (
-        row: OrganizationTenant & { metadata: { id: string } },
-      ) => <TenantActions row={row} onArchive={setTenantToArchive} />,
-    },
-  ];
 
   const memberColumns = [
     {
@@ -338,7 +316,7 @@ export default function OrganizationSettings() {
           </TabsList>
 
           <TabsContent value="tenants">
-            <div className="flex justify-end mb-4">
+            <div className="mb-4 flex justify-end">
               <Button
                 size="sm"
                 onClick={() =>
@@ -350,16 +328,26 @@ export default function OrganizationSettings() {
                 Add Tenant
               </Button>
             </div>
-            {organization.tenants &&
-            organization.tenants.filter(
+            {organization.tenants?.filter(
               (t) => t.status !== TenantStatusType.ARCHIVED,
-            ).length > 0 ? (
-              <SimpleTable
-                data={organization.tenants
+            ).length ? (
+              <Accordion
+                type="multiple"
+                value={expandedTenantIds}
+                onValueChange={setExpandedTenantIds}
+                className="space-y-3 rounded-md border bg-background p-3"
+              >
+                {organization.tenants
                   .filter((t) => t.status !== TenantStatusType.ARCHIVED)
-                  .map((t) => ({ ...t, metadata: { id: t.id } }))}
-                columns={tenantColumns}
-              />
+                  .map((tenant) => (
+                    <TenantAccordionItem
+                      key={tenant.id}
+                      tenant={tenant}
+                      isExpanded={expandedTenantIds.includes(tenant.id)}
+                      onArchive={setTenantToArchive}
+                    />
+                  ))}
+              </Accordion>
             ) : (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 No tenants found.
@@ -370,7 +358,7 @@ export default function OrganizationSettings() {
           <TabsContent value="members">
             <div className="space-y-6">
               <div>
-                <div className="flex justify-end mb-4">
+                <div className="mb-4 flex justify-end">
                   <Button
                     size="sm"
                     onClick={() =>
@@ -404,7 +392,7 @@ export default function OrganizationSettings() {
           </TabsContent>
 
           <TabsContent value="tokens">
-            <div className="flex justify-end mb-4">
+            <div className="mb-4 flex justify-end">
               <Button size="sm" onClick={() => setShowCreateTokenModal(true)}>
                 Create Token
               </Button>
@@ -491,6 +479,179 @@ export default function OrganizationSettings() {
             />
           );
         })()}
+    </div>
+  );
+}
+
+function TenantAccordionItem({
+  tenant,
+  isExpanded,
+  onArchive,
+}: {
+  tenant: OrganizationTenant;
+  isExpanded: boolean;
+  onArchive: (tenant: OrganizationTenant) => void;
+}) {
+  const { tenantMemberListQuery, tenantInviteListQuery } = useTenantApi();
+
+  const membersQuery = useQuery({
+    ...tenantMemberListQuery(tenant.id),
+    enabled: isExpanded,
+  });
+
+  const invitesQuery = useQuery({
+    ...tenantInviteListQuery(tenant.id),
+    enabled: isExpanded,
+  });
+
+  const tenantMembers = membersQuery.data?.rows || [];
+  const tenantInvites = invitesQuery.data?.rows || [];
+
+  return (
+    <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <AccordionTrigger className="flex-1 py-1 hover:no-underline [&>svg]:text-muted-foreground">
+          <div className="min-w-0 text-left">
+            <p className="truncate font-medium leading-5">
+              {tenant.name || tenant.id}
+            </p>
+          </div>
+        </AccordionTrigger>
+
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 lg:flex">
+            <span className="font-mono text-xs text-muted-foreground">
+              {tenant.id}
+            </span>
+            <CopyToClipboard text={tenant.id} />
+          </div>
+          <TenantActions
+            row={{ ...tenant, metadata: { id: tenant.id } }}
+            onArchive={onArchive}
+          />
+        </div>
+      </div>
+
+      <AccordionContent className="border-border/70 px-4 pb-4 pt-4">
+        <div className="space-y-5">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium">Members</h4>
+            <Button
+              size="sm"
+              onClick={() =>
+                globalEmitter.emit('create-tenant-invite', {
+                  tenantId: tenant.id,
+                })
+              }
+            >
+              Invite Member
+            </Button>
+          </div>
+
+          {membersQuery.isLoading ? (
+            <div className="py-4 text-sm text-muted-foreground">
+              Loading members...
+            </div>
+          ) : tenantMembers.length > 0 ? (
+            <TenantMemberList members={tenantMembers} />
+          ) : (
+            <div className="py-4 text-sm text-muted-foreground">
+              No members found.
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Pending Invites</h4>
+            {invitesQuery.isLoading ? (
+              <div className="py-2 text-sm text-muted-foreground">
+                Loading invites...
+              </div>
+            ) : tenantInvites.length > 0 ? (
+              <TenantInviteList invites={tenantInvites} />
+            ) : (
+              <div className="py-2 text-sm text-muted-foreground">
+                No pending invites.
+              </div>
+            )}
+          </div>
+        </div>
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
+function TenantMemberList({ members }: { members: TenantMember[] }) {
+  return (
+    <div className="rounded-md border border-border/70">
+      <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px] gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
+        <span>Name</span>
+        <span>Email</span>
+        <span>Role</span>
+        <span>Joined</span>
+      </div>
+      <div>
+        {members.map((member) => (
+          <div
+            key={member.metadata.id}
+            className="grid gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px] md:items-center"
+          >
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Name</p>
+              <p className="font-medium">{member.user.name}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Email</p>
+              <p className="font-mono text-sm">{member.user.email}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Role</p>
+              <Badge variant="outline">{member.role}</Badge>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Joined</p>
+              <RelativeDate date={member.metadata.createdAt} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TenantInviteList({ invites }: { invites: TenantInvite[] }) {
+  return (
+    <div className="rounded-md border border-border/70">
+      <div className="hidden grid-cols-[minmax(0,1.6fr)_120px_140px_140px] gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
+        <span>Email</span>
+        <span>Role</span>
+        <span>Created</span>
+        <span>Expires</span>
+      </div>
+      <div>
+        {invites.map((invite) => (
+          <div
+            key={invite.metadata.id}
+            className="grid gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.6fr)_120px_140px_140px] md:items-center"
+          >
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Email</p>
+              <p className="font-mono text-sm">{invite.email}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Role</p>
+              <Badge variant="outline">{invite.role}</Badge>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Created</p>
+              <RelativeDate date={invite.metadata.createdAt} />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground md:hidden">Expires</p>
+              <RelativeDate date={invite.expires} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
