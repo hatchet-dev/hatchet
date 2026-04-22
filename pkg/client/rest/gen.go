@@ -1523,6 +1523,9 @@ type V1CreateWebhookRequestAPIKey struct {
 	// Name The name of the webhook
 	Name string `json:"name"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
 	SourceName      V1WebhookSourceName `json:"sourceName"`
@@ -1541,6 +1544,9 @@ type V1CreateWebhookRequestBase struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -1562,6 +1568,9 @@ type V1CreateWebhookRequestBasicAuth struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -1586,6 +1595,9 @@ type V1CreateWebhookRequestHMAC struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -2056,6 +2068,9 @@ type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression *string `json:"eventKeyExpression,omitempty"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string `json:"scopeExpression,omitempty"`
 
@@ -2085,6 +2100,9 @@ type V1Webhook struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`

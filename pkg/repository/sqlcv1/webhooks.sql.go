@@ -39,6 +39,7 @@ INSERT INTO v1_incoming_webhook (
     event_key_expression,
     scope_expression,
     static_payload,
+    return_event_as_response_payload,
     auth_method,
     auth__basic__username,
     auth__basic__password,
@@ -56,17 +57,18 @@ INSERT INTO v1_incoming_webhook (
     $4::TEXT,
     $5::TEXT,
     $6::JSONB,
-    $7::v1_incoming_webhook_auth_type,
-    $8::TEXT,
-    $9::BYTEA,
-    $10::TEXT,
-    $11::BYTEA,
-    $12::v1_incoming_webhook_hmac_algorithm,
-    $13::v1_incoming_webhook_hmac_encoding,
-    $14::TEXT,
-    $15::BYTEA
+    $7::BOOLEAN,
+    $8::v1_incoming_webhook_auth_type,
+    $9::TEXT,
+    $10::BYTEA,
+    $11::TEXT,
+    $12::BYTEA,
+    $13::v1_incoming_webhook_hmac_algorithm,
+    $14::v1_incoming_webhook_hmac_encoding,
+    $15::TEXT,
+    $16::BYTEA
 )
-RETURNING tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
+RETURNING tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, return_event_as_response_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
 `
 
 type CreateWebhookParams struct {
@@ -76,6 +78,7 @@ type CreateWebhookParams struct {
 	Eventkeyexpression           string                             `json:"eventkeyexpression"`
 	ScopeExpression              pgtype.Text                        `json:"scopeExpression"`
 	StaticPayload                []byte                             `json:"staticPayload"`
+	Returneventasresponsepayload bool                               `json:"returneventasresponsepayload"`
 	Authmethod                   V1IncomingWebhookAuthType          `json:"authmethod"`
 	AuthBasicUsername            pgtype.Text                        `json:"authBasicUsername"`
 	Authbasicpassword            []byte                             `json:"authbasicpassword"`
@@ -95,6 +98,7 @@ func (q *Queries) CreateWebhook(ctx context.Context, db DBTX, arg CreateWebhookP
 		arg.Eventkeyexpression,
 		arg.ScopeExpression,
 		arg.StaticPayload,
+		arg.Returneventasresponsepayload,
 		arg.Authmethod,
 		arg.AuthBasicUsername,
 		arg.Authbasicpassword,
@@ -113,6 +117,7 @@ func (q *Queries) CreateWebhook(ctx context.Context, db DBTX, arg CreateWebhookP
 		&i.EventKeyExpression,
 		&i.ScopeExpression,
 		&i.StaticPayload,
+		&i.ReturnEventAsResponsePayload,
 		&i.AuthMethod,
 		&i.AuthBasicUsername,
 		&i.AuthBasicPassword,
@@ -133,7 +138,7 @@ DELETE FROM v1_incoming_webhook
 WHERE
     tenant_id = $1::UUID
     AND name = $2::TEXT
-RETURNING tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
+RETURNING tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, return_event_as_response_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
 `
 
 type DeleteWebhookParams struct {
@@ -151,6 +156,7 @@ func (q *Queries) DeleteWebhook(ctx context.Context, db DBTX, arg DeleteWebhookP
 		&i.EventKeyExpression,
 		&i.ScopeExpression,
 		&i.StaticPayload,
+		&i.ReturnEventAsResponsePayload,
 		&i.AuthMethod,
 		&i.AuthBasicUsername,
 		&i.AuthBasicPassword,
@@ -167,7 +173,7 @@ func (q *Queries) DeleteWebhook(ctx context.Context, db DBTX, arg DeleteWebhookP
 }
 
 const getWebhook = `-- name: GetWebhook :one
-SELECT tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
+SELECT tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, return_event_as_response_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
 FROM v1_incoming_webhook
 WHERE
     name = $1::TEXT
@@ -189,6 +195,7 @@ func (q *Queries) GetWebhook(ctx context.Context, db DBTX, arg GetWebhookParams)
 		&i.EventKeyExpression,
 		&i.ScopeExpression,
 		&i.StaticPayload,
+		&i.ReturnEventAsResponsePayload,
 		&i.AuthMethod,
 		&i.AuthBasicUsername,
 		&i.AuthBasicPassword,
@@ -205,7 +212,7 @@ func (q *Queries) GetWebhook(ctx context.Context, db DBTX, arg GetWebhookParams)
 }
 
 const listWebhooks = `-- name: ListWebhooks :many
-SELECT tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
+SELECT tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, return_event_as_response_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
 FROM v1_incoming_webhook
 WHERE
     tenant_id = $1::UUID
@@ -252,6 +259,7 @@ func (q *Queries) ListWebhooks(ctx context.Context, db DBTX, arg ListWebhooksPar
 			&i.EventKeyExpression,
 			&i.ScopeExpression,
 			&i.StaticPayload,
+			&i.ReturnEventAsResponsePayload,
 			&i.AuthMethod,
 			&i.AuthBasicUsername,
 			&i.AuthBasicPassword,
@@ -280,19 +288,21 @@ SET
     event_key_expression = COALESCE($1::TEXT, event_key_expression),
     scope_expression = NULLIF(COALESCE($2::TEXT, scope_expression), ''),
     static_payload = COALESCE($3::JSONB, static_payload),
+    return_event_as_response_payload = COALESCE($4::BOOLEAN, return_event_as_response_payload),
     updated_at = CURRENT_TIMESTAMP
 WHERE
-    tenant_id = $4::UUID
-    AND name = $5::TEXT
-RETURNING tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
+    tenant_id = $5::UUID
+    AND name = $6::TEXT
+RETURNING tenant_id, name, source_name, event_key_expression, scope_expression, static_payload, return_event_as_response_payload, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
 `
 
 type UpdateWebhookExpressionParams struct {
-	EventKeyExpression pgtype.Text `json:"eventKeyExpression"`
-	ScopeExpression    pgtype.Text `json:"scopeExpression"`
-	StaticPayload      []byte      `json:"staticPayload"`
-	Tenantid           uuid.UUID   `json:"tenantid"`
-	Webhookname        string      `json:"webhookname"`
+	EventKeyExpression           pgtype.Text `json:"eventKeyExpression"`
+	ScopeExpression              pgtype.Text `json:"scopeExpression"`
+	StaticPayload                []byte      `json:"staticPayload"`
+	ReturnEventAsResponsePayload pgtype.Bool `json:"returnEventAsResponsePayload"`
+	Tenantid                     uuid.UUID   `json:"tenantid"`
+	Webhookname                  string      `json:"webhookname"`
 }
 
 func (q *Queries) UpdateWebhookExpression(ctx context.Context, db DBTX, arg UpdateWebhookExpressionParams) (*V1IncomingWebhook, error) {
@@ -300,6 +310,7 @@ func (q *Queries) UpdateWebhookExpression(ctx context.Context, db DBTX, arg Upda
 		arg.EventKeyExpression,
 		arg.ScopeExpression,
 		arg.StaticPayload,
+		arg.ReturnEventAsResponsePayload,
 		arg.Tenantid,
 		arg.Webhookname,
 	)
@@ -311,6 +322,7 @@ func (q *Queries) UpdateWebhookExpression(ctx context.Context, db DBTX, arg Upda
 		&i.EventKeyExpression,
 		&i.ScopeExpression,
 		&i.StaticPayload,
+		&i.ReturnEventAsResponsePayload,
 		&i.AuthMethod,
 		&i.AuthBasicUsername,
 		&i.AuthBasicPassword,

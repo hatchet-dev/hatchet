@@ -227,6 +227,8 @@ class ActionListener:
                         workflow_id=assigned_action.workflow_id,
                         durable_task_invocation_count=assigned_action.durable_task_invocation_count
                         or None,
+                        triggering_event_external_id=assigned_action.triggering_event_external_id,
+                        triggering_event_key=assigned_action.triggering_event_key,
                     )
 
                     yield action

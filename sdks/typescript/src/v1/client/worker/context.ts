@@ -660,6 +660,22 @@ export class Context<T, K = {}> {
         return undefined;
     }
   }
+
+  /**
+   * Gets the external ID of the event that triggered this workflow run, if any.
+   * @returns The triggering event external ID, or undefined if the workflow was not triggered by an event.
+   */
+  triggeringEventId(): string | undefined {
+    return this.action.triggeringEventExternalId;
+  }
+
+  /**
+   * Gets the key of the event that triggered this workflow run, if any.
+   * @returns The triggering event key, or undefined if the workflow was not triggered by an event.
+   */
+  triggeringEventKey(): string | undefined {
+    return this.action.triggeringEventKey;
+  }
   // FIXME: drop these at some point soon
 
   /**
