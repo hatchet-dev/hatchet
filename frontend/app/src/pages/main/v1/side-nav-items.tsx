@@ -17,7 +17,6 @@ import {
   RiMoonLine,
   RiSettings3Line,
   RiKey2Line,
-  RiTeamLine,
   RiBillLine,
   RiPlugLine,
 } from 'react-icons/ri';
@@ -198,16 +197,6 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantSettingsApiTokensRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiKey2Line
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
-          key: 'tenant-settings-members',
-          name: 'Members',
-          to: appRoutes.tenantSettingsMembersRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiTeamLine
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),

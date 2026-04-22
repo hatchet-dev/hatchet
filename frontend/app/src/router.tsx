@@ -487,10 +487,12 @@ const tenantSettingsGithubRoute = createRoute({
 const tenantSettingsMembersRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/members',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/members'),
-    'default',
-  ),
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      params,
+    });
+  },
 });
 
 const tenantSettingsAlertingRoute = createRoute({
