@@ -2032,6 +2032,7 @@ WITH tasks_on_inactive_workers AS (
         v1_task_runtime runtime ON w."id" = runtime.worker_id
     WHERE
         w."tenantId" = $1::uuid
+        AND w."tenantId" = runtime.tenant_id
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
