@@ -235,6 +235,8 @@ type WorkflowRepository interface {
 
 	// UnpauseWorkflow unpauses a workflow, moving all paused queue items back to the main queue.
 	UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error)
+
+	UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error)
 }
 
 type workflowRepository struct {
@@ -1320,6 +1322,30 @@ func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, tenantId uuid.
 	r.tenantIdWorkflowNameCache.Remove(cacheKey)
 
 	return workflow, requeuedItems, nil
+}
+
+func (r *workflowRepository) UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-workflow-pause-settings")
+	defer span.End()
+
+	params := sqlcv1.UpdateWorkflowParams{
+		ID: workflowId,
+	}
+
+	if queueCronOnPause != nil {
+		params.QueueCronOnPause = sqlchelpers.BoolFromBoolean(*queueCronOnPause)
+	}
+
+	if queueScheduledOnPause != nil {
+		params.QueueScheduledOnPause = sqlchelpers.BoolFromBoolean(*queueScheduledOnPause)
+	}
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update workflow pause settings: %w", err)
+	}
+
+	return workflow, nil
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

@@ -18,12 +18,6 @@ func (t *WorkflowService) WorkflowUpdate(ctx echo.Context, request gen.WorkflowU
 	tenantId := tenant.ID
 	workflow := ctx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 
-	if request.Body.IsPaused == nil {
-		return gen.WorkflowUpdate400JSONResponse(gen.APIErrors{
-			Errors: []gen.APIError{{Description: "isPaused is required"}},
-		}), nil
-	}
-
 	type olapEvent struct {
 		EventType    sqlcv1.V1EventTypeOlap
 		EventMessage string
@@ -35,7 +29,19 @@ func (t *WorkflowService) WorkflowUpdate(ctx echo.Context, request gen.WorkflowU
 	var err error
 	var events []olapEvent
 
-	if *request.Body.IsPaused {
+	if request.Body.QueueCronOnPause != nil || request.Body.QueueScheduledOnPause != nil {
+		updated, err = t.config.V1.Workflows().UpdateWorkflowPauseSettings(
+			ctx.Request().Context(),
+			workflow.Workflow.ID,
+			request.Body.QueueCronOnPause,
+			request.Body.QueueScheduledOnPause,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if request.Body.IsPaused != nil && *request.Body.IsPaused {
 		var movedItems []*sqlcv1.MovePausedWorkflowQueueItemsRow
 		updated, movedItems, err = t.config.V1.Workflows().PauseWorkflow(ctx.Request().Context(), tenantId, workflow.Workflow.ID)
 		if err != nil {
@@ -62,7 +68,7 @@ func (t *WorkflowService) WorkflowUpdate(ctx echo.Context, request gen.WorkflowU
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	} else if request.Body.IsPaused != nil && !*request.Body.IsPaused {
 		var requeuedItems []*sqlcv1.RequeuePausedWorkflowQueueItemsRow
 		updated, requeuedItems, err = t.config.V1.Workflows().UnpauseWorkflow(ctx.Request().Context(), tenantId, workflow.Workflow.ID)
 		if err != nil {
@@ -77,6 +83,12 @@ func (t *WorkflowService) WorkflowUpdate(ctx echo.Context, request gen.WorkflowU
 				EventMessage: "workflow unpaused",
 			})
 		}
+	}
+
+	if updated == nil {
+		return gen.WorkflowUpdate400JSONResponse(gen.APIErrors{
+			Errors: []gen.APIError{{Description: "at least one of isPaused, queueCronOnPause, or queueScheduledOnPause is required"}},
+		}), nil
 	}
 
 	for _, event := range events {

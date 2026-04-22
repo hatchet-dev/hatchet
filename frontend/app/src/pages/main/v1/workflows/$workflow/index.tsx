@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Switch } from '@/components/v1/ui/switch';
 import {
   Tabs,
   TabsContent,
@@ -79,7 +80,11 @@ export default function ExpandedWorkflow() {
 
   const updateWorkflow = useMutation({
     mutationKey: ['workflow:update', workflowQuery?.data?.metadata.id],
-    mutationFn: async (data: { isPaused: boolean }) => {
+    mutationFn: async (data: {
+      isPaused?: boolean;
+      queueCronOnPause?: boolean;
+      queueScheduledOnPause?: boolean;
+    }) => {
       if (!workflowQuery?.data) {
         return;
       }
@@ -200,9 +205,33 @@ export default function ExpandedWorkflow() {
             <ExclamationTriangleIcon className="h-4 w-4" />
             <AlertTitle>Workflow Paused</AlertTitle>
             <AlertDescription>
-              This workflow is paused. New runs are being queued and will be
-              processed when the workflow is resumed. Cron and schedule triggers
-              are disabled.
+              <p>
+                This workflow is paused. New runs are being queued and will be
+                processed when the workflow is resumed. Cron and Scheduled tasks
+                behave based on workflow settings.
+              </p>
+              <ul className="mt-2 list-disc pl-5 text-sm">
+                <li>
+                  Cron triggers:{' '}
+                  {workflow.queueCronOnPause ? (
+                    <strong>queued</strong>
+                  ) : (
+                    <strong>disabled</strong>
+                  )}
+                  {workflow.queueCronOnPause ? ' (will replay on resume)' : ''}
+                </li>
+                <li>
+                  Scheduled triggers:{' '}
+                  {workflow.queueScheduledOnPause ? (
+                    <strong>queued</strong>
+                  ) : (
+                    <strong>disabled</strong>
+                  )}
+                  {workflow.queueScheduledOnPause
+                    ? ' (will replay on resume)'
+                    : ''}
+                </li>
+              </ul>
             </AlertDescription>
           </Alert>
         )}
@@ -220,12 +249,68 @@ export default function ExpandedWorkflow() {
           <TabsContent value="runs" className="min-h-0 flex-1">
             <RecentRunsList />
           </TabsContent>
-          <TabsContent value="settings" className="min-h-0 flex-1 pt-4 pb-8">
+          <TabsContent
+            value="settings"
+            className="min-h-0 flex-1 overflow-y-auto pt-4 pb-8"
+          >
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (
               <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
             )}
+            <div className="mt-8">
+              <div className="space-y-3">
+                <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+                  Pause Behavior
+                </h3>
+                <div className="pl-1 space-y-4">
+                  <label className="flex items-center justify-between max-w-xl rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Queue cron runs while paused
+                      </h4>
+                      <p className="mt-1 mr-2 text-sm text-gray-600 dark:text-gray-400">
+                        Cron task triggers that fire while the workflow is
+                        paused will be{' '}
+                        {workflow.queueCronOnPause
+                          ? 'held and replayed when the workflow resumes'
+                          : 'dropped'}
+                        .
+                      </p>
+                    </div>
+                    <Switch
+                      checked={workflow.queueCronOnPause ?? false}
+                      onCheckedChange={(checked) =>
+                        updateWorkflow.mutate({ queueCronOnPause: checked })
+                      }
+                    />
+                  </label>
+                  <label className="flex items-center justify-between max-w-xl rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Queue scheduled runs while paused
+                      </h4>
+                      <p className="mt-1 mr-2 text-sm text-gray-600 dark:text-gray-400">
+                        Scheduled task triggers that fire while the workflow is
+                        paused will be{' '}
+                        {workflow.queueScheduledOnPause
+                          ? 'held and replayed when the workflow resumes'
+                          : 'dropped'}
+                        .
+                      </p>
+                    </div>
+                    <Switch
+                      checked={workflow.queueScheduledOnPause ?? false}
+                      onCheckedChange={(checked) =>
+                        updateWorkflow.mutate({
+                          queueScheduledOnPause: checked,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
 
             <div className="mt-8">
               <div className="space-y-3">
