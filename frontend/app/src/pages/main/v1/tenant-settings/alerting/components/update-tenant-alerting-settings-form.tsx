@@ -99,7 +99,9 @@ export function UpdateTenantAlertingSettings({
 
       {enabledWorkflowAlerting && (
         <div className="flex items-center justify-between py-4">
-          <span className="text-sm font-medium">Max Failure Alert Frequency</span>
+          <span className="text-sm font-medium">
+            Max Failure Alert Frequency
+          </span>
           <div className="flex flex-col items-end gap-1">
             <Controller
               control={control}

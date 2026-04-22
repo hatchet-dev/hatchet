@@ -21,7 +21,7 @@ import { capitalize } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useState, useEffect, useMemo } from 'react';
 
@@ -163,12 +163,15 @@ function MembersList() {
               Owners
             </span>
             {organizationId && isCurrentUserOwner && (
-              <a
-                href={`/organizations/${organizationId}`}
+              <Link
+                to={appRoutes.tenantSettingsOrganizationRoute.to}
+                params={{
+                  tenant: tenantId,
+                }}
                 className="text-sm text-primary hover:underline"
               >
                 Manage in Organization →
-              </a>
+              </Link>
             )}
           </div>
           <Separator className="my-4" />
@@ -183,9 +186,7 @@ function MembersList() {
         </>
       )}
 
-      <span className="text-sm font-medium text-muted-foreground">
-        Members
-      </span>
+      <span className="text-sm font-medium text-muted-foreground">Members</span>
       <Separator className="my-4" />
       {nonOwners.length > 0 ? (
         <SimpleTable columns={membersColumns} data={nonOwners} />
@@ -355,7 +356,6 @@ function InvitesList() {
           Create Invite
         </Button>
       </div>
-      <Separator className="my-4" />
       {(listInvitesQuery.data?.rows || []).length > 0 ? (
         <SimpleTable
           columns={invitesColumns}

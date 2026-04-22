@@ -97,10 +97,9 @@ const redeemOffersRoute = createRoute({
 const organizationsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
-  component: lazyRouteComponent(
-    () => import('./pages/organizations/$organization'),
-    'default',
-  ),
+  loader: () => {
+    throw redirect({ to: appRoutes.authenticatedRoute.to });
+  },
 });
 
 const organizationsNewRoute = createRoute({
@@ -428,12 +427,19 @@ const tenantManagedWorkerRoute = createRoute({
 const tenantOrganizationsAndTenantsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'organizations-and-tenants',
-  loader: async () => {
-    const mod = await import('./pages/main/v1/organizations-and-tenants');
-    return mod.loader();
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      params,
+    });
   },
+});
+
+const tenantSettingsOrganizationRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/organization',
   component: lazyRouteComponent(
-    () => import('./pages/main/v1/organizations-and-tenants'),
+    () => import('./pages/main/v1/tenant-settings/organization'),
     'default',
   ),
 });
@@ -619,6 +625,7 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsIngestorsRoute.path,
       tenantSettingsIntegrationsRoute.path,
       tenantSettingsMembersRoute.path,
+      tenantSettingsOrganizationRoute.path,
       tenantSettingsOverviewRoute.path,
     ].map((p) => p.split('/').pop());
 
@@ -663,6 +670,7 @@ const tenantRoutes = [
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
+  tenantSettingsOrganizationRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
@@ -742,6 +750,7 @@ export const appRoutes = {
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
+  tenantSettingsOrganizationRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,

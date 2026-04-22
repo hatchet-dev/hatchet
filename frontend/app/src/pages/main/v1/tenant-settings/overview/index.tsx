@@ -110,7 +110,12 @@ const AnalyticsOptOut: React.FC = () => {
         (isLoading ? (
           <Spinner />
         ) : (
-          <Button size="sm" onClick={() => updateMutation.mutate({ analyticsOptOut: checkedState })}>
+          <Button
+            size="sm"
+            onClick={() =>
+              updateMutation.mutate({ analyticsOptOut: checkedState })
+            }
+          >
             Save
           </Button>
         ))}

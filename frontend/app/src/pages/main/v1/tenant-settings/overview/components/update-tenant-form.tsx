@@ -66,9 +66,7 @@ export function UpdateTenantForm({
           Save
         </Button>
       </div>
-      {nameError && (
-        <div className="text-sm text-red-500">{nameError}</div>
-      )}
+      {nameError && <div className="text-sm text-red-500">{nameError}</div>}
     </form>
   );
 }

@@ -8,24 +8,29 @@ import {
 } from '../alerting/components/email-groups-columns';
 import { SlackActions } from '../alerting/components/slack-webhooks-columns';
 import { UpdateTenantAlertingSettings } from '../alerting/components/update-tenant-alerting-settings-form';
+import {
+  GithubAccountCell,
+  GithubLinkCell,
+  GithubSettingsCell,
+} from '../github/components/github-installations-columns';
 import { CreateSNSDialog } from '../ingestors/components/create-sns-dialog';
 import { DeleteSNSForm } from '../ingestors/components/delete-sns-form';
 import {
   CopyIngestURL,
   SNSActions,
 } from '../ingestors/components/sns-integrations-columns';
-import {
-  GithubAccountCell,
-  GithubLinkCell,
-  GithubSettingsCell,
-} from '../github/components/github-installations-columns';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/v1/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
