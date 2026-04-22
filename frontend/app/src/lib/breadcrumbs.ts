@@ -24,6 +24,7 @@ export type TenantedPath =
   | '/tenants/:tenant/tenant-settings/alerting'
   | '/tenants/:tenant/tenant-settings/billing-and-limits'
   | '/tenants/:tenant/tenant-settings/ingestors'
+  | '/tenants/:tenant/tenant-settings/integrations'
   | '/tenants/:tenant/workflow-runs'
   | '/tenants/:tenant/workflow-runs/:run'
   | '/tenants/:tenant/'
@@ -89,6 +90,8 @@ const createRouteLabel = (path: TenantedPath): string => {
       return 'Billing & Limits';
     case '/tenants/:tenant/tenant-settings/ingestors':
       return 'Ingestors';
+    case '/tenants/:tenant/tenant-settings/integrations':
+      return 'Integrations';
     case '/tenants/:tenant/workflow-runs':
     case '/tenants/:tenant/workflow-runs/:run':
     case '/tenants/:tenant/':

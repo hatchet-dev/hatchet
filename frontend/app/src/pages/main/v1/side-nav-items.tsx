@@ -17,11 +17,9 @@ import {
   RiMoonLine,
   RiSettings3Line,
   RiKey2Line,
-  RiGithubLine,
   RiTeamLine,
   RiBillLine,
-  RiAlertLine,
-  RiServerLine,
+  RiPlugLine,
 } from 'react-icons/ri';
 
 export function sideNavItems(opts: {
@@ -212,16 +210,6 @@ export function sideNavItems(opts: {
           ),
         },
         {
-          key: 'tenant-settings-github',
-          name: 'GitHub',
-          to: appRoutes.tenantSettingsGithubRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiGithubLine
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
           key: 'tenant-settings-members',
           name: 'Members',
           to: appRoutes.tenantSettingsMembersRoute.to,
@@ -242,21 +230,11 @@ export function sideNavItems(opts: {
           ),
         },
         {
-          key: 'tenant-settings-alerting',
-          name: 'Alerting',
-          to: appRoutes.tenantSettingsAlertingRoute.to,
+          key: 'tenant-settings-integrations',
+          name: 'Integrations',
+          to: appRoutes.tenantSettingsIntegrationsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiAlertLine
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
-          key: 'tenant-settings-ingestors',
-          name: 'Ingestors',
-          to: appRoutes.tenantSettingsIngestorsRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiServerLine
+            <RiPlugLine
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),

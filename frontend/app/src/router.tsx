@@ -470,10 +470,12 @@ const tenantSettingsApiTokensRoute = createRoute({
 const tenantSettingsGithubRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/github',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/github'),
-    'default',
-  ),
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
 });
 
 const tenantSettingsMembersRoute = createRoute({
@@ -488,10 +490,12 @@ const tenantSettingsMembersRoute = createRoute({
 const tenantSettingsAlertingRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/alerting',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/alerting'),
-    'default',
-  ),
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
 });
 
 const tenantSettingsBillingRoute = createRoute({
@@ -506,8 +510,19 @@ const tenantSettingsBillingRoute = createRoute({
 const tenantSettingsIngestorsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/ingestors',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantSettingsIntegrationsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/integrations',
   component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/ingestors'),
+    () => import('./pages/main/v1/tenant-settings/integrations'),
     'default',
   ),
 });
@@ -602,6 +617,7 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsBillingRoute.path,
       tenantSettingsGithubRoute.path,
       tenantSettingsIngestorsRoute.path,
+      tenantSettingsIntegrationsRoute.path,
       tenantSettingsMembersRoute.path,
       tenantSettingsOverviewRoute.path,
     ].map((p) => p.split('/').pop());
@@ -646,6 +662,7 @@ const tenantRoutes = [
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
+  tenantSettingsIntegrationsRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
@@ -724,6 +741,7 @@ export const appRoutes = {
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
+  tenantSettingsIntegrationsRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,

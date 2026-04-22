@@ -101,11 +101,6 @@ export default function ResourceLimits() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Billing & Limits
-        </h2>
-        <Separator className="my-4" />
-
         {billingEnabled && (
           <>
             {isOwner ? (
@@ -129,10 +124,6 @@ export default function ResourceLimits() {
           </>
         )}
 
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
-          Resource Limits
-        </h3>
-        <Separator className="my-4" />
         <p className="text-sm text-muted-foreground mb-4">
           Resource limits control usage within your tenant. When a limit is
           reached, the system will take action based on the limit type. Upgrade

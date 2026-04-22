@@ -57,11 +57,7 @@ export default function APITokens() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-row items-center justify-between">
-          <h2 className="text-2xl font-semibold leading-tight text-foreground">
-            API Tokens
-          </h2>
-
+        <div className="flex flex-row items-baseline justify-end">
           <Button
             key="create-api-token"
             onClick={() => setShowTokenDialog(true)}
@@ -69,10 +65,6 @@ export default function APITokens() {
             Create API Token
           </Button>
         </div>
-        <p className="my-4 text-gray-700 dark:text-gray-300">
-          API tokens are used by workers to connect with the Hatchet API and
-          engine.
-        </p>
         <Separator className="my-4" />
         {(listTokensQuery.data?.rows || []).length > 0 ? (
           <SimpleTable
@@ -81,7 +73,8 @@ export default function APITokens() {
           />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No API tokens found. Create a token to allow workers to connect.
+            No API tokens found. Create a token to allow workers to connect to
+            and communicate with the Hatchet Engine.
           </div>
         )}
 

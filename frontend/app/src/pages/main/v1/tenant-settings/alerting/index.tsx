@@ -36,13 +36,6 @@ export default function Alerting() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-semibold leading-tight text-foreground">
-          Alerting
-        </h2>
-        <p className="my-4 text-gray-700 dark:text-gray-300">
-          Manage alerts to get notified on task failure.
-        </p>
-        <Separator className="my-4" />
         <AlertingSettings />
         {hasEmailIntegration && <Separator className="my-4" />}
         {hasEmailIntegration && <EmailGroupsList />}
@@ -84,10 +77,6 @@ const AlertingSettings: React.FC = () => {
 
   return (
     <div>
-      <h3 className="text-xl font-semibold leading-tight text-foreground">
-        Settings
-      </h3>
-      <Separator className="my-4" />
       <div className="flex items-center space-x-2">
         <UpdateTenantAlertingSettings
           alertingSettings={alertingSettings.data}
@@ -195,9 +184,9 @@ function EmailGroupsList() {
   return (
     <div>
       <div className="flex flex-row items-center justify-between">
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
+        <span className="text-sm font-medium text-muted-foreground">
           Email Groups
-        </h3>
+        </span>
         <Button
           key="create-slack-webhook"
           onClick={() => {
@@ -355,9 +344,9 @@ function SlackWebhooksList() {
   return (
     <div>
       <div className="flex flex-row items-center justify-between">
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
+        <span className="text-sm font-medium text-muted-foreground">
           Slack Webhooks
-        </h3>
+        </span>
         <a
           href={
             isControlPlaneEnabled

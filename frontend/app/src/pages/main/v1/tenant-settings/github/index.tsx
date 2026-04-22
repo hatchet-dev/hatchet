@@ -35,15 +35,6 @@ export default function Github() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-semibold leading-tight text-foreground">
-          Github Integration
-        </h2>
-        <p className="my-4 text-gray-700 dark:text-gray-300">
-          Link your Github account to Hatchet to integrate with CI/CD and
-          workflow versioning.
-        </p>
-        <Separator className="my-4" />
-        {hasGithubIntegration && <Separator className="my-4" />}
         {hasGithubIntegration && <GithubInstallationsList />}
       </div>
     </div>
@@ -121,9 +112,9 @@ function GithubInstallationsList() {
   return (
     <div>
       <div className="flex flex-row items-center justify-between">
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
+        <span className="text-sm font-medium text-muted-foreground">
           Github Accounts
-        </h3>
+        </span>
         <a
           href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
         >

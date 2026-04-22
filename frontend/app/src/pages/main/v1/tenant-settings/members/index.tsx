@@ -31,10 +31,6 @@ export default function Members() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Members and Invites
-        </h2>
-        <Separator className="my-4" />
         <MembersList />
         {meta?.allowInvites && (
           <>
@@ -163,9 +159,9 @@ function MembersList() {
       {isCloudEnabled && (
         <>
           <div className="flex flex-row items-center justify-between">
-            <h3 className="text-xl font-semibold leading-tight text-foreground">
+            <span className="text-sm font-medium text-muted-foreground">
               Owners
-            </h3>
+            </span>
             {organizationId && isCurrentUserOwner && (
               <a
                 href={`/organizations/${organizationId}`}
@@ -187,10 +183,9 @@ function MembersList() {
         </>
       )}
 
-      {/* Members Section */}
-      <h3 className="text-xl font-semibold leading-tight text-foreground">
+      <span className="text-sm font-medium text-muted-foreground">
         Members
-      </h3>
+      </span>
       <Separator className="my-4" />
       {nonOwners.length > 0 ? (
         <SimpleTable columns={membersColumns} data={nonOwners} />
@@ -348,9 +343,9 @@ function InvitesList() {
   return (
     <div>
       <div className="flex flex-row items-center justify-between">
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
+        <span className="text-sm font-medium text-muted-foreground">
           Invites
-        </h3>
+        </span>
         <Button
           key="create-tenant-invite"
           onClick={() =>

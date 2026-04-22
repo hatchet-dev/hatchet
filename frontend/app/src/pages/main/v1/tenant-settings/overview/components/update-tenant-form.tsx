@@ -47,25 +47,27 @@ export function UpdateTenantForm({
       >
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="email">Name</Label>
-            <Input
-              {...register('name')}
-              id="name"
-              placeholder="My Tenant"
-              type="name"
-              autoCapitalize="none"
-              autoCorrect="off"
-              className="min-w-[300px]"
-              disabled={props.isLoading}
-            />
+            <Label htmlFor="name">Tenant Name</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                {...register('name')}
+                id="name"
+                placeholder="My Tenant"
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                className="min-w-[300px]"
+                disabled={props.isLoading}
+              />
+              <Button disabled={props.isLoading} className="w-fit">
+                {props.isLoading && <Spinner />}
+                Save
+              </Button>
+            </div>
             {nameError && (
               <div className="text-sm text-red-500">{nameError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading} className="w-fit">
-            {props.isLoading && <Spinner />}
-            Change Name
-          </Button>
         </div>
       </form>
     </div>

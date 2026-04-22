@@ -8,21 +8,14 @@ import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
-import { capitalize } from '@/lib/utils';
 import { Label } from '@radix-ui/react-label';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 export default function TenantSettings() {
-  const { tenant } = useTenantDetails();
-
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          {capitalize(tenant?.name || '')} Overview
-        </h2>
-        <Separator className="my-4" />
         <UpdateTenant />
         <Separator className="my-4" />
         <AnalyticsOptOut />
@@ -103,13 +96,6 @@ const AnalyticsOptOut: React.FC = () => {
 
   return (
     <>
-      <h2 className="text-xl font-semibold leading-tight text-foreground">
-        Analytics Opt-Out
-      </h2>
-      <Separator className="my-4" />
-      <p className="my-4 text-gray-700 dark:text-gray-300">
-        Choose whether to opt out of all analytics tracking.
-      </p>
       <div className="flex items-center space-x-2">
         <Switch
           id="aoo"
@@ -167,10 +153,9 @@ const InactivityTimeout: React.FC = () => {
 
   return (
     <>
-      <h2 className="text-xl font-semibold leading-tight text-foreground">
+      <p className="text-sm font-medium text-muted-foreground mb-4">
         Inactivity Timeout
-      </h2>
-      <Separator className="my-4" />
+      </p>
       {isDisabled ? (
         <>
           <p className="my-4 text-gray-700 dark:text-gray-300">
