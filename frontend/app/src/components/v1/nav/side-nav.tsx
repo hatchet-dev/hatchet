@@ -31,11 +31,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { BiLogOut } from 'react-icons/bi';
 
 interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
   navItems: SideNavSection[];
-  onLogout: () => void;
 }
 
 export type SideNavChild = {
@@ -68,11 +66,7 @@ export type SideNavSection = {
   items: SideNavItem[];
 };
 
-export function SideNav({
-  className,
-  navItems: navSections,
-  onLogout,
-}: SideNavProps) {
+export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -447,17 +441,6 @@ export function SideNav({
             {/* Fixed footer */}
             <div className="w-full shrink-0 py-2">
               <div className="flex w-full flex-col items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  hoverText="Logout"
-                  hoverTextSide="right"
-                  aria-label="Logout"
-                  className="w-10"
-                  onClick={onLogout}
-                >
-                  <BiLogOut className="size-5" />
-                </Button>
                 <HelpDropdown
                   variant="sidebar"
                   triggerVariant="icon"
@@ -529,11 +512,6 @@ export function SideNav({
               data-cy="v1-sidebar-footer"
               className="flex w-full shrink-0 flex-col gap-1 border-t border-slate-200 px-4 py-2 dark:border-slate-800"
             >
-              <SidebarButtonPrimaryAction
-                name="Logout"
-                icon={<BiLogOut className="mr-2 size-4" />}
-                onClick={onLogout}
-              />
               <HelpDropdown
                 variant="sidebar"
                 triggerVariant="split"

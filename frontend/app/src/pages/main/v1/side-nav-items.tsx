@@ -13,8 +13,6 @@ import {
   RiPlayLargeLine,
   RiFileTextLine,
   RiOrganizationChart,
-  RiSunLine,
-  RiMoonLine,
   RiSettings3Line,
   RiKey2Line,
   RiBillLine,
@@ -25,8 +23,6 @@ export function sideNavItems(opts: {
   canBill?: boolean;
   managedWorkerEnabled?: boolean;
   isCloudEnabled?: boolean;
-  onToggleTheme: () => void;
-  currentlyVisibleTheme: 'light' | 'dark';
 }): SideNavSection[] {
   const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
 
@@ -220,21 +216,6 @@ export function sideNavItems(opts: {
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
-        },
-        {
-          key: 'theme',
-          name: `Theme: ${opts.currentlyVisibleTheme === 'dark' ? 'Dark' : 'Light'}`,
-          onClick: opts.onToggleTheme,
-          icon: ({ collapsed }: { collapsed: boolean }) =>
-            opts.currentlyVisibleTheme === 'light' ? (
-              <RiSunLine
-                className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-              />
-            ) : (
-              <RiMoonLine
-                className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-              />
-            ),
         },
       ],
     },

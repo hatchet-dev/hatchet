@@ -1,4 +1,5 @@
 import { useSidebar } from '@/components/hooks/use-sidebar';
+import { useTheme } from '@/components/hooks/use-theme';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import { Notifications } from '@/components/v1/nav/notifications';
@@ -11,6 +12,14 @@ import {
   BreadcrumbSeparator,
 } from '@/components/v1/ui/breadcrumb';
 import { Button } from '@/components/v1/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import useCloud from '@/hooks/use-cloud';
@@ -18,6 +27,7 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { TenantMember, User } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
   Link,
@@ -25,12 +35,86 @@ import {
   useNavigate,
   useParams,
 } from '@tanstack/react-router';
-import { Menu } from 'lucide-react';
+import {
+  ChevronDown,
+  LogOut,
+  Menu,
+  Moon,
+  Sun,
+  UserCircle2,
+} from 'lucide-react';
 import React from 'react';
 
 interface TopNavProps {
   user?: User;
   tenantMemberships: TenantMember[];
+}
+
+function AccountDropdown({ user }: { user?: User }) {
+  const [open, setOpen] = React.useState(false);
+  const { logoutMutation } = useUserUniverse();
+  const { currentlyVisibleTheme, toggleTheme } = useTheme();
+
+  if (!user) {
+    return null;
+  }
+
+  const displayName = user.name || user.email;
+  const nextThemeLabel = currentlyVisibleTheme === 'dark' ? 'Dark' : 'Light';
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="Open account menu"
+          className={cn(
+            'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+            open && 'bg-muted/30',
+          )}
+        >
+          <UserCircle2 className="size-4" />
+          <span className="max-w-32 truncate text-sm font-medium">
+            {displayName}
+          </span>
+          <ChevronDown className="size-3.5 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <div className="px-2 py-1.5">
+          <p className="truncate text-sm font-semibold">
+            {user.name || user.email}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="interactive"
+          onClick={toggleTheme}
+          className="cursor-pointer"
+        >
+          {currentlyVisibleTheme === 'dark' ? (
+            <Moon className="mr-2 size-4" />
+          ) : (
+            <Sun className="mr-2 size-4" />
+          )}
+          Theme: {nextThemeLabel}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="interactive"
+          className="cursor-pointer"
+          onClick={() => logoutMutation.mutate()}
+          disabled={logoutMutation.isPending}
+        >
+          <LogOut className="mr-2 size-4" />
+          {logoutMutation.isPending ? 'Logging out...' : 'Log out'}
+          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export default function TopNav({ user, tenantMemberships }: TopNavProps) {
@@ -115,6 +199,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
             ))}
+          <AccountDropdown user={user} />
         </div>
       </div>
 
@@ -190,6 +275,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
             ))}
+          <AccountDropdown user={user} />
         </div>
       </div>
     </header>
