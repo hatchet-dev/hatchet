@@ -18,6 +18,15 @@ Durable tasks handle these cases by letting you write control flow directly in c
 
 Some workflows are not purely one model or the other. A durable task can handle the outer interaction, wait for events, make branching decisions, loop until done, and spawn a DAG workflow when it reaches a point where structured multi-step work needs to happen. The DAG runs as a child, completes, returns its result, and the durable task continues.
 
+```mermaid
+flowchart TD
+    A[Durable task] --> B[Wait / decide / loop]
+    B --> C[Spawn DAG workflow]
+    C --> D[Structured multi-step pipeline]
+    D --> E[Return result]
+    E --> B
+```
+
 The reverse is also possible. Hatchet's SDK allows a DAG to contain one or more durable task nodes. If a single step in an otherwise-fixed pipeline requires looping, dynamic child spawning, or complex imperative branching, that node can be a durable task while the rest of the DAG remains declarative. The DAG waits for that node to complete, then continues through the rest of the graph.
 
 ## Concrete examples
