@@ -1,5 +1,6 @@
 import { SideNav } from '../../../components/v1/nav/side-nav';
 import { sideNavItems } from './side-nav-items';
+import { useTheme } from '@/components/hooks/use-theme';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import useCloud from '@/hooks/use-cloud';
@@ -10,6 +11,7 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
+import { useUserUniverse } from '@/providers/user-universe';
 import { useMemo } from 'react';
 
 function Main() {
@@ -19,14 +21,25 @@ function Main() {
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
 
+  const { toggleTheme, currentlyVisibleTheme } = useTheme();
+  const { logoutMutation } = useUserUniverse();
+
   const navSections = useMemo(
     () =>
       sideNavItems({
         canBill: cloud?.canBill,
         managedWorkerEnabled,
         isCloudEnabled,
+        onToggleTheme: toggleTheme,
+        currentlyVisibleTheme,
       }),
-    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled],
+    [
+      cloud?.canBill,
+      managedWorkerEnabled,
+      isCloudEnabled,
+      toggleTheme,
+      currentlyVisibleTheme,
+    ],
   );
 
   const childCtx = useContextFromParent({
@@ -36,7 +49,9 @@ function Main() {
 
   return (
     <ThreeColumnLayout
-      sidebar={<SideNav navItems={navSections} />}
+      sidebar={
+        <SideNav navItems={navSections} onLogout={logoutMutation.mutate} />
+      }
       sidePanel={<SidePanel />}
       // mainClassName="overflow-auto"
       mainContainerType="inline-size"
