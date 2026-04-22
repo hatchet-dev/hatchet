@@ -77,6 +77,9 @@ class Action(BaseModel):
     priority: int | Priority | None = None
     durable_task_invocation_count: int | None = None
 
+    triggering_event_external_id: str | None = None
+    triggering_event_key: str | None = None
+
     def get_otel_attributes(self, config: "ClientConfig") -> dict[str, str | int]:
         try:
             payload_str = json.dumps(self.action_payload.model_dump(), default=str)
@@ -99,6 +102,8 @@ class Action(BaseModel):
             OTelAttribute.STEP_NAME: self.step_name,
             OTelAttribute.WORKFLOW_ID: self.workflow_id,
             OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
+            OTelAttribute.TRIGGERING_EVENT_EXTERNAL_ID: self.triggering_event_external_id,
+            OTelAttribute.TRIGGERING_EVENT_KEY: self.triggering_event_key,
         }
 
         result = {

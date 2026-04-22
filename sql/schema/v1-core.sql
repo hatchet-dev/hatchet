@@ -307,6 +307,8 @@ CREATE TABLE v1_task (
     retry_max_backoff INTEGER,
     is_durable BOOLEAN,
     desired_worker_label JSONB,
+    triggering_event_external_id UUID,
+    triggering_event_key TEXT,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -558,6 +560,10 @@ CREATE TABLE v1_match (
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
+    trigger_event_external_id UUID,
+    trigger_event_key TEXT,
+    trigger_desired_worker_labels JSONB,
+
     durable_event_log_entry_node_id bigint,
     durable_event_log_entry_branch_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
@@ -634,6 +640,7 @@ CREATE TABLE v1_incoming_webhook (
     event_key_expression TEXT NOT NULL,
     scope_expression TEXT,
     static_payload JSONB,
+    return_event_as_response_payload BOOLEAN NOT NULL DEFAULT TRUE,
 
     auth_method v1_incoming_webhook_auth_type NOT NULL,
 

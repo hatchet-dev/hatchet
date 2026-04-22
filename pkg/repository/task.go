@@ -78,6 +78,12 @@ type CreateTaskOpts struct {
 
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
+
+	// (optional) the external id of the event that triggered the workflow run, if there was one
+	TriggeringEventExternalId *uuid.UUID
+
+	// (optional) the key of the event that triggered the workflow run, if there was one
+	TriggeringEventKey *string
 }
 
 type ReplayTasksResult struct {
@@ -109,6 +115,15 @@ type ReplayTaskOpts struct {
 
 	// (optional) the additional metadata for the task
 	AdditionalMetadata []byte
+
+	// (optional) the desired worker label for the task
+	DesiredWorkerLabel []byte
+
+	// (optional) the external id of the event that triggered this workflow run
+	TriggeringEventExternalId *uuid.UUID
+
+	// (optional) the key of the event that triggered this workflow run
+	TriggeringEventKey *string
 }
 
 type TaskIdInsertedAtRetryCount struct {
@@ -2154,6 +2169,8 @@ func (r *sharedRepository) insertTasks(
 				Inputs:                       make([][]byte, 0),
 				IsDurables:                   make([]bool, 0),
 				DesiredWorkerLabels:          make([][]byte, 0),
+				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
+				TriggeringEventKeys:          make([]pgtype.Text, 0),
 			}
 		}
 
@@ -2191,6 +2208,18 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
+		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
+
+		triggeringEventKey := pgtype.Text{}
+
+		if task.TriggeringEventKey != nil {
+			triggeringEventKey = pgtype.Text{
+				String: *task.TriggeringEventKey,
+				Valid:  true,
+			}
+		}
+
+		params.TriggeringEventKeys = append(params.TriggeringEventKeys, triggeringEventKey)
 
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
@@ -2478,12 +2507,15 @@ func (r *sharedRepository) replayTasks(
 
 		if !ok {
 			params = sqlcv1.ReplayTasksParams{
-				Taskids:             make([]int64, 0),
-				Taskinsertedats:     make([]pgtype.Timestamptz, 0),
-				Inputs:              make([][]byte, 0),
-				InitialStates:       make([]string, 0),
-				InitialStateReasons: make([]pgtype.Text, 0),
-				Concurrencykeys:     make([][]string, 0),
+				Taskids:                    make([]int64, 0),
+				Taskinsertedats:            make([]pgtype.Timestamptz, 0),
+				Inputs:                     make([][]byte, 0),
+				InitialStates:              make([]string, 0),
+				InitialStateReasons:        make([]pgtype.Text, 0),
+				Concurrencykeys:            make([][]string, 0),
+				DesiredWorkerLabels:        make([][]byte, 0),
+				TriggeringEventExternalIds: make([]*uuid.UUID, 0),
+				TriggeringEventKeys:        make([]pgtype.Text, 0),
 			}
 		}
 
@@ -2495,6 +2527,13 @@ func (r *sharedRepository) replayTasks(
 		params.InitialStates = append(params.InitialStates, initialStates[i])
 		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
 		params.Concurrencykeys = append(params.Concurrencykeys, concurrencyKeys[i])
+		params.DesiredWorkerLabels = append(params.DesiredWorkerLabels, task.DesiredWorkerLabel)
+		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
+		if task.TriggeringEventKey != nil {
+			params.TriggeringEventKeys = append(params.TriggeringEventKeys, pgtype.Text{String: *task.TriggeringEventKey, Valid: true})
+		} else {
+			params.TriggeringEventKeys = append(params.TriggeringEventKeys, pgtype.Text{})
+		}
 
 		stepIdsToParams[task.StepId] = params
 
@@ -3153,13 +3192,21 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			input = task.Input
 		}
 
+		var triggeringEventKey *string
+		if task.TriggeringEventKey.Valid {
+			triggeringEventKey = &task.TriggeringEventKey.String
+		}
+
 		replayOpts = append(replayOpts, ReplayTaskOpts{
-			TaskId:             task.ID,
-			InsertedAt:         task.InsertedAt,
-			StepId:             task.StepID,
-			ExternalId:         task.ExternalID,
-			InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
-			AdditionalMetadata: task.AdditionalMetadata,
+			TaskId:                    task.ID,
+			InsertedAt:                task.InsertedAt,
+			StepId:                    task.StepID,
+			ExternalId:                task.ExternalID,
+			InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+			AdditionalMetadata:        task.AdditionalMetadata,
+			DesiredWorkerLabel:        task.DesiredWorkerLabel,
+			TriggeringEventExternalId: task.TriggeringEventExternalID,
+			TriggeringEventKey:        triggeringEventKey,
 			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
 			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
 			// keys because they may change between retries.
@@ -3326,8 +3373,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 						Int64: task.StepIndex,
 						Valid: true,
 					},
-					TriggerDAGId:         &task.DagID.Int64,
-					TriggerDAGInsertedAt: task.DagInsertedAt,
+					TriggerDAGId:               &task.DagID.Int64,
+					TriggerDAGInsertedAt:       task.DagInsertedAt,
+					TriggerDesiredWorkerLabels: task.DesiredWorkerLabel,
+					TriggerEventExternalId:     task.TriggeringEventExternalID,
+					TriggerEventKey:            task.TriggeringEventKey,
 					// NOTE: we don't need to set parent task id/child index/child key because
 					// the task already exists
 					TriggerExistingTaskId:         &task.ID,
@@ -3385,8 +3435,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 						Int64: task.StepIndex,
 						Valid: true,
 					},
-					TriggerDAGId:         &task.DagID.Int64,
-					TriggerDAGInsertedAt: task.DagInsertedAt,
+					TriggerDAGId:               &task.DagID.Int64,
+					TriggerDAGInsertedAt:       task.DagInsertedAt,
+					TriggerDesiredWorkerLabels: task.DesiredWorkerLabel,
+					TriggerEventExternalId:     task.TriggeringEventExternalID,
+					TriggerEventKey:            task.TriggeringEventKey,
 					// NOTE: we don't need to set parent task id/child index/child key because
 					// the task already exists
 					TriggerExistingTaskId:         &task.ID,
