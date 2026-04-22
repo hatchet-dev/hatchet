@@ -915,18 +915,25 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			expr = "true"
 		}
 
-		ast, issues := m.env.Compile(expr)
+		program, ok := m.celProgramCache.Get(expr)
 
-		if issues != nil {
-			m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
-			continue
-		}
+		if !ok {
+			ast, issues := m.env.Compile(expr)
 
-		program, err := m.env.Program(ast)
+			if issues != nil {
+				m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
+				continue
+			}
 
-		if err != nil {
-			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
-			continue
+			compiled, err := m.env.Program(ast)
+
+			if err != nil {
+				m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
+				continue
+			}
+
+			m.celProgramCache.Add(expr, compiled)
+			program = compiled
 		}
 
 		programs[condition.ID] = program
