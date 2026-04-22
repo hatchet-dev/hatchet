@@ -42,7 +42,10 @@ export function Notifications() {
   const navigate = useNavigate();
   const count = notifications.length;
   const mostSevere = count > 0 ? getMostSevereColor(notifications) : null;
-  const ariaLabel = `${count} notification${count !== 1 ? 's' : ''} for ${currentUser?.email ?? ''}`;
+  const notificationLabel = `${count} notification${count !== 1 ? 's' : ''}`;
+  const ariaLabel = currentUser?.email
+    ? `${notificationLabel} for ${currentUser.email}`
+    : notificationLabel;
   const displayTitle =
     count > 0 ? notifications[0].shortTitle : 'Notifications';
   const hasNotifications = count > 0;

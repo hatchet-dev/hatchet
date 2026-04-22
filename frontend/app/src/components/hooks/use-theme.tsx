@@ -45,7 +45,7 @@ export function ThemeProvider({
   );
 
   const [currentlyVisibleTheme, setCurrentlyVisibleTheme] =
-    useState<DisplayableTheme>('light');
+    useState<DisplayableTheme>(() => getThemeToDisplay(theme));
 
   useEffect(() => {
     const root = window.document.documentElement;

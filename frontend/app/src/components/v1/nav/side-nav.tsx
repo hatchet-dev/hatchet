@@ -426,7 +426,6 @@ export function SideNav({
                           onClick={() => {
                             if ('onClick' in item) {
                               item.onClick();
-                              return;
                             } else {
                               navigate({
                                 to: item.to,

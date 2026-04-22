@@ -150,6 +150,10 @@ export function UserUniverseProvider({
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async () => {
+      if (isControlPlaneEnabled) {
+        await controlPlaneApi.cloudUserUpdateLogout();
+        return;
+      }
       await api.userUpdateLogout();
     },
     onSuccess: () => {
