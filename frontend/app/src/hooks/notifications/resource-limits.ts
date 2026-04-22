@@ -4,9 +4,9 @@ import {
   getResourceLimitStatus,
   ResourceLimitStatus,
 } from '@/lib/resource-limit-status';
-import { useUserUniverse } from '@/providers/user-universe';
+import { useAppContext } from '@/providers/app-context';
 import { appRoutes } from '@/router';
-import { useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 const TWO_MINUTES_MS = 2 * 60_000;
@@ -56,38 +56,26 @@ const limitToNotification = (
 };
 
 export const useResourceLimitNotifications = () => {
-  const { tenantMemberships } = useUserUniverse();
+  const { tenantId, tenant } = useAppContext();
 
-  const tenants = useMemo(
-    () =>
-      (tenantMemberships ?? [])
-        .map((m) => m.tenant)
-        .filter((t): t is NonNullable<typeof t> => t != null),
-    [tenantMemberships],
-  );
-
-  // TODO: we really need a single resource policy endpoint
-  const resourcePolicyQueries = useQueries({
-    queries: tenants.map((tenant) => ({
-      ...queries.tenantResourcePolicy.get(tenant.metadata.id),
-      refetchInterval: TWO_MINUTES_MS,
-    })),
+  const resourcePolicyQuery = useQuery({
+    ...queries.tenantResourcePolicy.get(tenantId ?? ''),
+    refetchInterval: TWO_MINUTES_MS,
+    enabled: !!tenantId,
   });
 
   const notifications = useMemo(
     () =>
-      tenants.flatMap((tenant, i) =>
-        (resourcePolicyQueries[i]?.data?.limits ?? [])
-          .map((limit) =>
-            limitToNotification(limit, tenant.metadata.id, tenant.name),
-          )
-          .filter((n): n is Notification => n !== null),
-      ),
-    [tenants, resourcePolicyQueries],
+      (resourcePolicyQuery.data?.limits ?? [])
+        .map((limit) =>
+          limitToNotification(limit, tenantId ?? '', tenant?.name ?? tenantId ?? ''),
+        )
+        .filter((n): n is Notification => n !== null),
+    [tenantId, tenant?.name, resourcePolicyQuery.data],
   );
 
   return {
     notifications,
-    isLoading: resourcePolicyQueries.some((q) => q.isLoading),
+    isLoading: resourcePolicyQuery.isLoading,
   };
 };
