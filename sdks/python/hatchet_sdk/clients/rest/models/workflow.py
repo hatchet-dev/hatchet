@@ -38,6 +38,16 @@ class Workflow(BaseModel):
     is_paused: Optional[StrictBool] = Field(
         default=None, description="Whether the workflow is paused.", alias="isPaused"
     )
+    queue_cron_on_pause: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the cron tasks should be queued or dropped when the workflow is paused.",
+        alias="queueCronOnPause",
+    )
+    queue_scheduled_on_pause: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the scheduled tasks should be queued or dropped when the workflow is paused.",
+        alias="queueScheduledOnPause",
+    )
     versions: Optional[List[WorkflowVersionMeta]] = None
     tags: Optional[List[WorkflowTag]] = Field(
         default=None, description="The tags of the workflow."
@@ -53,6 +63,8 @@ class Workflow(BaseModel):
         "name",
         "description",
         "isPaused",
+        "queueCronOnPause",
+        "queueScheduledOnPause",
         "versions",
         "tags",
         "jobs",
@@ -141,6 +153,8 @@ class Workflow(BaseModel):
                 "name": obj.get("name"),
                 "description": obj.get("description"),
                 "isPaused": obj.get("isPaused"),
+                "queueCronOnPause": obj.get("queueCronOnPause"),
+                "queueScheduledOnPause": obj.get("queueScheduledOnPause"),
                 "versions": (
                     [WorkflowVersionMeta.from_dict(_item) for _item in obj["versions"]]
                     if obj.get("versions") is not None

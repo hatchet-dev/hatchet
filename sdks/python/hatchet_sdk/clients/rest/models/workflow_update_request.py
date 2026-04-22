@@ -30,7 +30,21 @@ class WorkflowUpdateRequest(BaseModel):
     is_paused: Optional[StrictBool] = Field(
         default=None, description="Whether the workflow is paused.", alias="isPaused"
     )
-    __properties: ClassVar[List[str]] = ["isPaused"]
+    queue_cron_on_pause: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the cron tasks should be queued or dropped when the workflow is paused.",
+        alias="queueCronOnPause",
+    )
+    queue_scheduled_on_pause: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the scheduled tasks should be queued or dropped when the workflow is paused.",
+        alias="queueScheduledOnPause",
+    )
+    __properties: ClassVar[List[str]] = [
+        "isPaused",
+        "queueCronOnPause",
+        "queueScheduledOnPause",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -80,5 +94,11 @@ class WorkflowUpdateRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"isPaused": obj.get("isPaused")})
+        _obj = cls.model_validate(
+            {
+                "isPaused": obj.get("isPaused"),
+                "queueCronOnPause": obj.get("queueCronOnPause"),
+                "queueScheduledOnPause": obj.get("queueScheduledOnPause"),
+            }
+        )
         return _obj
