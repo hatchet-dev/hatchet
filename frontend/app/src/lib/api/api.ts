@@ -18,12 +18,16 @@ declare module 'axios' {
     // Explicitly identifies which tenant's exchange token should be used.
     // When set, the interceptor skips the localStorage fallback.
     xTenantId?: string;
+    // Forces the exchange token interceptor to run even for non-tenant-scoped
+    // endpoints (e.g. /api/v1/billing/plans).
+    useExchangeToken?: boolean;
   }
   // InternalAxiosRequestConfig is what the interceptor receives after Axios
   // merges defaults, so the fields must be declared here too.
   interface InternalAxiosRequestConfig {
     xResources?: string[];
     xTenantId?: string;
+    useExchangeToken?: boolean;
   }
 }
 
@@ -110,7 +114,7 @@ export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
 ) {
   const resources = config.xResources ?? [];
-  if (!resources.includes('tenant')) {
+  if (!resources.includes('tenant') && !config.useExchangeToken) {
     return config;
   }
 

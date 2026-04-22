@@ -42,7 +42,12 @@ export const queries = createQueryKeyStore({
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
       queryFn: async () =>
-        (await cloudApi.subscriptionPlansList({ secure: true })).data,
+        (
+          await cloudApi.subscriptionPlansList({
+            secure: true,
+            useExchangeToken: true,
+          })
+        ).data,
     }),
 
     paymentMethods: (tenant: string) => ({
