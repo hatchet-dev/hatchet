@@ -71,7 +71,3 @@ export default defineConfig({
     },
   },
 });
-
-function injectGoTemplate(html: string) {
-
-}
