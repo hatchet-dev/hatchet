@@ -20,6 +20,9 @@ WITH old_workers AS (
     WHERE "tenantId" = $1::uuid
       AND "lastHeartbeatAt" < $2::timestamp
     LIMIT $3::int
+), deleted_worker_slot_configs AS (
+    DELETE FROM v1_worker_slot_config
+    WHERE worker_id IN (SELECT "id" FROM old_workers)
 )
 DELETE FROM "Worker"
 WHERE "id" IN (SELECT "id" FROM old_workers)
