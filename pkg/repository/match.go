@@ -920,8 +920,8 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		if !ok {
 			ast, issues := m.env.Compile(expr)
 
-			if issues != nil {
-				m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
+			if issues != nil && issues.Err() != nil {
+				m.l.Error().Ctx(ctx).Err(issues.Err()).Msgf("failed to compile CEL expression: %s", expr)
 				continue
 			}
 
