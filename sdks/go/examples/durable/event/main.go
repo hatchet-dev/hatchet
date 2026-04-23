@@ -11,7 +11,6 @@ import (
 
 type DurableInput struct {
 	Message string `json:"message"`
-	Delay   int    `json:"delay"` // seconds
 }
 
 type DurableOutput struct {
@@ -26,14 +25,14 @@ func main() {
 	}
 
 	// > Durable Event
-	task := client.NewStandaloneDurableTask("long-running-task", func(ctx hatchet.DurableContext, input DurableInput) (DurableOutput, error) {
-		log.Printf("Starting task, will sleep for %d seconds", input.Delay)
+	task := client.NewStandaloneDurableTask("durable-event-task", func(ctx hatchet.DurableContext, input DurableInput) (DurableOutput, error) {
+		log.Printf("Waiting for user:update event, message: %s", input.Message)
 
-		if _, err := ctx.WaitForEvent("user:updated", ""); err != nil {
+		if _, err := ctx.WaitForEvent("user:update", ""); err != nil {
 			return DurableOutput{}, err
 		}
 
-		log.Printf("Finished waiting for event, processing message: %s", input.Message)
+		log.Printf("Got event, processing message: %s", input.Message)
 
 		return DurableOutput{
 			ProcessedAt: time.Now().Format(time.RFC3339),
@@ -44,7 +43,7 @@ func main() {
 
 	_ = func(ctx hatchet.DurableContext) (DurableOutput, error) {
 		// > Durable Event With Filter
-		if _, err := ctx.WaitForEvent("user:updated", "input.status_code == 200"); err != nil {
+		if _, err := ctx.WaitForEvent("user:update", "input.user_id == '1234'"); err != nil {
 			return DurableOutput{}, err
 		}
 		// !!
@@ -52,7 +51,7 @@ func main() {
 		return DurableOutput{}, nil
 	}
 
-	worker, err := client.NewWorker("durable-worker",
+	worker, err := client.NewWorker("durable-event-worker",
 		hatchet.WithWorkflows(task),
 		hatchet.WithDurableSlots(10),
 	)
@@ -69,10 +68,8 @@ func main() {
 		}
 	}()
 
-	// Run the workflow with a 30-second delay
-	_, err = client.Run(context.Background(), "durable-workflow", DurableInput{
+	_, err = client.Run(context.Background(), "durable-event-task", DurableInput{
 		Message: "Hello from durable task!",
-		Delay:   30,
 	})
 	if err != nil {
 		log.Fatalf("failed to run workflow: %v", err)

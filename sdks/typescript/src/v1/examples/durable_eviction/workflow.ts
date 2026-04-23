@@ -6,11 +6,13 @@ export const EVICTION_TTL_SECONDS = 5;
 export const LONG_SLEEP_SECONDS = 15;
 export const EVENT_KEY = 'durable-eviction:event';
 
+// > Eviction Policy
 const EVICTION_POLICY: EvictionPolicy = {
   ttl: `${EVICTION_TTL_SECONDS}s`,
   allowCapacityEviction: true,
   priority: 0,
 };
+// !!
 
 export const childTask = hatchet.task({
   name: 'eviction-child-task',
@@ -20,6 +22,7 @@ export const childTask = hatchet.task({
   },
 });
 
+// > Evictable Sleep
 export const evictableSleep = hatchet.durableTask({
   name: 'evictable-sleep',
   executionTimeout: '5m',
@@ -29,6 +32,7 @@ export const evictableSleep = hatchet.durableTask({
     return { status: 'completed' };
   },
 });
+// !!
 
 // NOTE: DO NOT REGISTER ON E2E TEST WORKER
 export const evictableSleepForGracefulTermination = hatchet.durableTask({
@@ -113,6 +117,7 @@ export const capacityEvictableSleep = hatchet.durableTask({
   },
 });
 
+// > Non Evictable Sleep
 export const nonEvictableSleep = hatchet.durableTask({
   name: 'non-evictable-sleep',
   executionTimeout: '5m',
@@ -126,3 +131,4 @@ export const nonEvictableSleep = hatchet.durableTask({
     return { status: 'completed' };
   },
 });
+// !!

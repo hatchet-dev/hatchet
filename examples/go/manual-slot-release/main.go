@@ -38,6 +38,7 @@ func main() {
 		return &StepOutput{Status: "success"}, nil
 	})
 
+
 	worker, err := client.NewWorker("slot-release-worker", hatchet.WithWorkflows(workflow))
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
