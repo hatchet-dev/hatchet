@@ -1107,12 +1107,19 @@ WHERE (task_id, task_inserted_at, retry_count) IN (
 WITH locked_cs AS (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE cs.task_id = vt.id
-            AND cs.task_inserted_at = vt.inserted_at
-    )
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task vt
+            WHERE cs.task_id = vt.id
+                AND cs.task_inserted_at = vt.inserted_at
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM "Tenant" t
+            WHERE t."id" = cs.tenant_id
+                AND t."deletedAt" IS NOT NULL
+        )
     ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED

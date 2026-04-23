@@ -249,8 +249,11 @@ eligible_cron_with_versions AS (
         "WorkflowTriggers" as triggers ON triggers."id" = cronSchedule."parentId"
     JOIN
         "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
+    JOIN
+        "Tenant" as tenant ON tenant."id" = triggers."tenantId"
     WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
+        AND tenant."deletedAt" IS NULL
         AND (
             cronSchedule."tickerId" IS NULL
             OR NOT EXISTS (
@@ -429,11 +432,14 @@ WITH latest_workflow_versions AS (
     JOIN
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
+        "Tenant" AS tenant ON tenant."id" = workflow."tenantId"
+    JOIN
         latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id"
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
+        AND tenant."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
