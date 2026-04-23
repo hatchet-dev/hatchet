@@ -1775,7 +1775,7 @@ WHERE
         EXISTS (
             SELECT 1
             FROM v1_event_lookup_table_olap elt
-            WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(NULL::UUID[])
+            WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
         )
     )
     AND (
@@ -1837,7 +1837,7 @@ WITH included_events AS (
             EXISTS (
                 SELECT 1
                 FROM v1_event_lookup_table_olap elt
-                WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(NULL::UUID[])
+                WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
             )
         )
         AND (
