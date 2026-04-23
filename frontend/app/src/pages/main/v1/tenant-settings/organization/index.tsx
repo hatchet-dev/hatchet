@@ -861,7 +861,7 @@ function TenantMemberList({
           {members.map((member) => (
             <div
               key={member.metadata.id}
-              className={`grid gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:${gridCols} md:items-center`}
+              className={`grid ${gridCols} gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:items-center`}
             >
               <div>
                 <p className="text-xs text-muted-foreground md:hidden">Name</p>
