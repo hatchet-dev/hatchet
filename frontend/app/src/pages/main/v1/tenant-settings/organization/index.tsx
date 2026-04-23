@@ -797,6 +797,12 @@ function TenantAccordionItem({
             <div className="py-4 text-sm text-muted-foreground">
               Loading members...
             </div>
+          ) : membersQuery.isError &&
+            membersQuery.error instanceof AxiosError &&
+            [401, 403].includes(membersQuery.error.response?.status ?? 0) ? (
+            <div className="py-4 text-sm text-muted-foreground">
+              You must be a tenant admin or owner to view members.
+            </div>
           ) : tenantMembers.length > 0 ? (
             <TenantMemberList
               tenantId={tenant.id}
@@ -810,20 +816,12 @@ function TenantAccordionItem({
             </div>
           )}
 
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Pending Invites</h4>
-            {invitesQuery.isLoading ? (
-              <div className="py-2 text-sm text-muted-foreground">
-                Loading invites...
-              </div>
-            ) : tenantInvites.length > 0 ? (
+          {(invitesQuery.isLoading || tenantInvites.length > 0) && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Pending Invites</h4>
               <TenantInviteList invites={tenantInvites} />
-            ) : (
-              <div className="py-2 text-sm text-muted-foreground">
-                No pending invites.
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </AccordionContent>
     </AccordionItem>
