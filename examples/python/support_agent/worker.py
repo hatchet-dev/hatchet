@@ -17,6 +17,7 @@ hatchet = Hatchet()
 
 REPLY_EVENT_KEY = "support:customer-reply"
 TIMEOUT_SECONDS = 5
+LOOKBACK_MINUTES = 5
 
 
 # > Models
@@ -135,7 +136,7 @@ async def support_agent(
 
     # Step 3: Wait for a customer reply or timeout
     now = await ctx.aio_now()
-    consider_events_since = now - timedelta(minutes=5)
+    consider_events_since = now - timedelta(minutes=LOOKBACK_MINUTES)
 
     wait_result = await ctx.aio_wait_for(
         "await-customer-reply",
