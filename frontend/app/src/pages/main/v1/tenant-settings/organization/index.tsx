@@ -473,10 +473,7 @@ function CloudOrganizationSettings() {
 
               {pendingInvites && pendingInvites.length > 0 && (
                 <div>
-                  <SimpleTable
-                    data={pendingInvites}
-                    columns={inviteColumns}
-                  />
+                  <SimpleTable data={pendingInvites} columns={inviteColumns} />
                 </div>
               )}
             </div>
