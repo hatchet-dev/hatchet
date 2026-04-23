@@ -17,10 +17,14 @@ To deploy `hatchet-stack`, run the following commands:
 
 ```sh
 helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
-helm install hatchet-stack hatchet/hatchet-stack --set caddy.enabled=true
+helm install hatchet-stack hatchet/hatchet-stack --set caddy.enabled=true --set quickstartJob.enabled=true
 ```
 
-This default installation will run the Hatchet server as an internal service in the cluster and spins up a reverse proxy via `Caddy` to get local access. To view the Hatchet server, run the following command:
+This default installation will run the Hatchet server as an internal service in the cluster and spins up a reverse proxy via `Caddy` to get local access.
+
+Encryption keys and secrets are generated automatically on first install when `quickstartJob.enabled=true`. See [Credentials & Key Generation](/self-hosting/kubernetes-helm-configuration) for details.
+
+To view the Hatchet server, run the following command:
 
 ```sh
 export NAMESPACE=default # TODO: replace with your namespace
