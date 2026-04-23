@@ -1,4 +1,5 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
@@ -10,6 +11,7 @@ import {
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import { Dialog } from '@/components/v1/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +36,7 @@ import {
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { TenantInvite, TenantMember } from '@/lib/api';
+import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
   OrganizationInvite,
@@ -46,6 +48,8 @@ import {
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
+import { useApiError } from '@/lib/hooks';
+import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
@@ -61,7 +65,7 @@ import {
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useMemo, useState } from 'react';
@@ -728,7 +732,11 @@ function TenantAccordionItem({
               Loading members...
             </div>
           ) : tenantMembers.length > 0 ? (
-            <TenantMemberList members={tenantMembers} />
+            <TenantMemberList
+              tenantId={tenant.id}
+              members={tenantMembers}
+              onMembersChanged={() => membersQuery.refetch()}
+            />
           ) : (
             <div className="py-4 text-sm text-muted-foreground">
               No members found.
@@ -755,41 +763,249 @@ function TenantAccordionItem({
   );
 }
 
-function TenantMemberList({ members }: { members: TenantMember[] }) {
+function TenantMemberList({
+  tenantId,
+  members,
+  onMembersChanged,
+}: {
+  tenantId: string;
+  members: TenantMember[];
+  onMembersChanged: () => void;
+}) {
+  const { currentUser } = useCurrentUser();
+  const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<TenantMember | null>(
+    null,
+  );
+
   return (
-    <div className="rounded-md border border-border/70">
-      <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px] gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
-        <span>Name</span>
-        <span>Email</span>
-        <span>Role</span>
-        <span>Joined</span>
+    <>
+      <div className="rounded-md border border-border/70">
+        <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px_72px] gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
+          <span>Name</span>
+          <span>Email</span>
+          <span>Role</span>
+          <span>Joined</span>
+          <span className="text-right">Actions</span>
+        </div>
+        <div>
+          {members.map((member) => (
+            <div
+              key={member.metadata.id}
+              className="grid gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px_72px] md:items-center"
+            >
+              <div>
+                <p className="text-xs text-muted-foreground md:hidden">Name</p>
+                <p className="font-medium">{member.user.name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground md:hidden">Email</p>
+                <p className="font-mono text-sm">{member.user.email}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground md:hidden">Role</p>
+                <Badge variant="outline">{member.role}</Badge>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground md:hidden">
+                  Joined
+                </p>
+                <RelativeDate date={member.metadata.createdAt} />
+              </div>
+              <div className="flex justify-end">
+                <TenantMemberActions
+                  member={member}
+                  currentUserEmail={currentUser?.email}
+                  onEdit={setMemberToEdit}
+                  onDelete={setMemberToDelete}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div>
-        {members.map((member) => (
-          <div
-            key={member.metadata.id}
-            className="grid gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px] md:items-center"
-          >
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Name</p>
-              <p className="font-medium">{member.user.name}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Email</p>
-              <p className="font-mono text-sm">{member.user.email}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Role</p>
-              <Badge variant="outline">{member.role}</Badge>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Joined</p>
-              <RelativeDate date={member.metadata.createdAt} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+
+      {memberToEdit && (
+        <TenantMemberUpdateDialog
+          tenantId={tenantId}
+          member={memberToEdit}
+          onClose={() => setMemberToEdit(null)}
+          onSuccess={() => {
+            setMemberToEdit(null);
+            onMembersChanged();
+          }}
+        />
+      )}
+
+      {memberToDelete && (
+        <TenantMemberDeleteDialog
+          tenantId={tenantId}
+          member={memberToDelete}
+          onClose={() => setMemberToDelete(null)}
+          onSuccess={() => {
+            setMemberToDelete(null);
+            onMembersChanged();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function TenantMemberActions({
+  member,
+  currentUserEmail,
+  onEdit,
+  onDelete,
+}: {
+  member: TenantMember;
+  currentUserEmail?: string;
+  onEdit: (member: TenantMember) => void;
+  onDelete: (member: TenantMember) => void;
+}) {
+  const isSelf = member.user.email === currentUserEmail;
+  const isOwner = member.role === TenantMemberRole.OWNER;
+  const canManageMembership = !isSelf && !isOwner;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <EllipsisVerticalIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {canManageMembership ? (
+          <>
+            <DropdownMenuItem onClick={() => onEdit(member)}>
+              <PencilSquareIcon className="mr-2 size-4" />
+              Edit role
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDelete(member)}>
+              <TrashIcon className="mr-2 size-4" />
+              Remove from tenant
+            </DropdownMenuItem>
+          </>
+        ) : isSelf ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuItem
+                  disabled
+                  className="cursor-not-allowed text-gray-400"
+                >
+                  <PencilSquareIcon className="mr-2 size-4" />
+                  Edit role
+                </DropdownMenuItem>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Cannot edit your own membership here</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuItem
+                  disabled
+                  className="cursor-not-allowed text-gray-400"
+                >
+                  <PencilSquareIcon className="mr-2 size-4" />
+                  Edit role
+                </DropdownMenuItem>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Organization owners are managed above</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function TenantMemberUpdateDialog({
+  tenantId,
+  member,
+  onClose,
+  onSuccess,
+}: {
+  tenantId: string;
+  member: TenantMember;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors,
+  });
+  const { tenantMemberUpdateMutation } = useTenantApi();
+  const memberUpdate = tenantMemberUpdateMutation(tenantId, member.metadata.id);
+  const updateMutation = useMutation({
+    ...memberUpdate,
+    mutationFn: async (data: { role: TenantMemberRole }) => {
+      if (data.role === TenantMemberRole.OWNER) {
+        throw new Error(
+          'OWNER role management must be done through organization membership',
+        );
+      }
+
+      await memberUpdate.mutationFn(data);
+    },
+    onSuccess,
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <UpdateMemberForm
+        isLoading={updateMutation.isPending}
+        onSubmit={(data) => updateMutation.mutate(data)}
+        fieldErrors={fieldErrors}
+        member={member}
+        isCloudEnabled={true}
+      />
+    </Dialog>
+  );
+}
+
+function TenantMemberDeleteDialog({
+  tenantId,
+  member,
+  onClose,
+  onSuccess,
+}: {
+  tenantId: string;
+  member: TenantMember;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const { handleApiError } = useApiError({});
+  const { tenantMemberDeleteMutation } = useTenantApi();
+  const deleteMemberMutation = useMutation({
+    mutationKey: ['tenant-member:delete', tenantId, member.metadata.id],
+    mutationFn: async () => {
+      await tenantMemberDeleteMutation(
+        tenantId,
+        member.metadata.id,
+      ).mutationFn();
+    },
+    onSuccess,
+    onError: handleApiError,
+  });
+
+  return (
+    <ConfirmDialog
+      isOpen={true}
+      title="Remove member"
+      description={`Are you sure you want to remove ${member.user.name} from this tenant?`}
+      submitLabel="Remove"
+      onSubmit={() => deleteMemberMutation.mutate()}
+      onCancel={onClose}
+      isLoading={deleteMemberMutation.isPending}
+    />
   );
 }
 
