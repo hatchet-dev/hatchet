@@ -71,38 +71,44 @@ export function UpdateTenantAlertingSettings({
       })}
       className={cn('divide-y divide-border', className)}
     >
-      <div className="flex items-center justify-between py-4">
-        <span className="text-sm font-medium">Expiring Token Alerts</span>
+      <AlertSettingRow
+        label="Expiring Token Alerts"
+        description="Send alerts when API tokens are approaching their expiration date"
+      >
         <Switch
           id="eta"
           checked={enabledExpiringTokenAlerting}
           onClick={() => setEnabledExpiringTokenAlerting((s) => !s)}
         />
-      </div>
+      </AlertSettingRow>
 
-      <div className="flex items-center justify-between py-4">
-        <span className="text-sm font-medium">Resource Limit Alerts</span>
+      <AlertSettingRow
+        label="Resource Limit Alerts"
+        description="Send alerts when this tenant is approaching (or exceeds) resource limits"
+      >
         <Switch
           id="atrl"
           checked={enableTenantResourceLimitAlerts}
           onClick={() => setEnableTenantResourceLimitAlerts((s) => !s)}
         />
-      </div>
+      </AlertSettingRow>
 
-      <div className="flex items-center justify-between py-4">
-        <span className="text-sm font-medium">Run Failure Alerts</span>
+      <AlertSettingRow
+        label="Run Failure Alerts"
+        description="Send alerts when workflow runs fail"
+      >
         <Switch
           id="awrf"
           checked={enabledWorkflowAlerting}
           onClick={() => setEnabledWorkflowAlerting((s) => !s)}
         />
-      </div>
+      </AlertSettingRow>
 
       {enabledWorkflowAlerting && (
-        <div className="flex items-center justify-between py-4">
-          <span className="text-sm font-medium">
-            Max Failure Alert Frequency
-          </span>
+        <AlertSettingRow
+          label="Max Failure Alert Frequency"
+          description="Limit how often repeated run-failure alerts are sent for the same ongoing issue."
+        >
           <div className="flex flex-col items-end gap-1">
             <Controller
               control={control}
@@ -124,7 +130,7 @@ export function UpdateTenantAlertingSettings({
               <div className="text-sm text-red-500">{freqError}</div>
             )}
           </div>
-        </div>
+        </AlertSettingRow>
       )}
 
       <div className="flex justify-end pt-4">
@@ -134,5 +140,25 @@ export function UpdateTenantAlertingSettings({
         </Button>
       </div>
     </form>
+  );
+}
+
+function AlertSettingRow({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-6 py-4">
+      <div className="max-w-2xl">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </div>
   );
 }

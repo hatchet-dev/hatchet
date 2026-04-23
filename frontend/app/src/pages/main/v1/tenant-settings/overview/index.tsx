@@ -23,12 +23,15 @@ export default function TenantSettings() {
           <SettingRow label="Tenant Name">
             <UpdateTenant />
           </SettingRow>
-          <SettingRow label="Analytics Opt-Out">
+          <SettingRow
+            label="Analytics Opt-Out"
+            description="Disable usage analytics collection for this tenant."
+          >
             <AnalyticsOptOut />
           </SettingRow>
           <SettingRow
             label="Inactivity Timeout"
-            description="Contact support to change"
+            description="Controls how long inactive sessions stay signed in. Contact support to change this value."
           >
             <InactivityTimeout />
           </SettingRow>

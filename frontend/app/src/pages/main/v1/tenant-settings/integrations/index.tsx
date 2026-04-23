@@ -49,7 +49,7 @@ import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts'
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { Dialog } from '@radix-ui/react-dialog';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export default function Integrations() {
@@ -97,11 +97,36 @@ export default function Integrations() {
 
           {hasGithubIntegration && (
             <TabsContent value="github">
+              <SettingsSectionHeader
+                title="GitHub"
+                description="Link GitHub accounts and installations so this tenant can work with connected repositories."
+              />
               <GithubInstallationsList />
             </TabsContent>
           )}
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+function SettingsSectionHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+      <div className="space-y-1">
+        <h2 className="text-sm font-medium text-foreground">{title}</h2>
+        <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
+      </div>
+
+      {action}
     </div>
   );
 }
@@ -238,19 +263,20 @@ function EmailGroupsList() {
 
   return (
     <div>
-      <div className="flex flex-row items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">
-          Email Groups
-        </span>
-        <Button
-          key="create-email-group"
-          onClick={() => {
-            setShowGroupsDialog(true);
-          }}
-        >
-          Create new group
-        </Button>
-      </div>
+      <SettingsSectionHeader
+        title="Email Groups"
+        description="Create reusable email recipient groups for alert delivery, including a default group for tenant members."
+        action={
+          <Button
+            key="create-email-group"
+            onClick={() => {
+              setShowGroupsDialog(true);
+            }}
+          >
+            Create new group
+          </Button>
+        }
+      />
       <Separator className="my-4" />
       {groups.length > 0 ? (
         <SimpleTable columns={emailGroupColumns} data={groups} />
@@ -398,20 +424,21 @@ function SlackWebhooksList() {
 
   return (
     <div>
-      <div className="flex flex-row items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">
-          Slack Webhooks
-        </span>
-        <a
-          href={
-            isControlPlaneEnabled
-              ? '/api/v1/control-plane/tenants/' + tenantId + '/slack/start'
-              : '/api/v1/tenants/' + tenantId + '/slack/start'
-          }
-        >
-          <Button key="add-slack-webhook">Add Slack Webhook</Button>
-        </a>
-      </div>
+      <SettingsSectionHeader
+        title="Slack Webhooks"
+        description="Connect Slack channels so Hatchet can send tenant alerts directly into your team workflows."
+        action={
+          <a
+            href={
+              isControlPlaneEnabled
+                ? '/api/v1/control-plane/tenants/' + tenantId + '/slack/start'
+                : '/api/v1/tenants/' + tenantId + '/slack/start'
+            }
+          >
+            <Button key="add-slack-webhook">Add Slack Webhook</Button>
+          </a>
+        }
+      />
       <Separator className="my-4" />
       {(listWebhooksQuery.data?.rows || []).length > 0 ? (
         <SimpleTable
@@ -516,14 +543,15 @@ function SNSIntegrationsList() {
 
   return (
     <div>
-      <div className="flex flex-row items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">
-          SNS Integrations
-        </span>
-        <Button onClick={() => setShowSNSDialog(true)}>
-          Create SNS Endpoint
-        </Button>
-      </div>
+      <SettingsSectionHeader
+        title="SNS Integrations"
+        description="Create SNS ingestion endpoints to receive events from AWS services and forward them into this tenant."
+        action={
+          <Button onClick={() => setShowSNSDialog(true)}>
+            Create SNS Endpoint
+          </Button>
+        }
+      />
       <Separator className="my-4" />
       {(listIntegrationsQuery.data?.rows || []).length > 0 ? (
         <SimpleTable
@@ -705,16 +733,17 @@ function GithubInstallationsList() {
 
   return (
     <div>
-      <div className="flex flex-row items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">
-          GitHub Accounts
-        </span>
-        <a
-          href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
-        >
-          <Button>Link new account</Button>
-        </a>
-      </div>
+      <SettingsSectionHeader
+        title="GitHub Accounts"
+        description="Link GitHub accounts and installations that this tenant can use for connected repository workflows."
+        action={
+          <a
+            href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
+          >
+            <Button>Link new account</Button>
+          </a>
+        }
+      />
       <Separator className="my-4" />
       {(listInstallationsQuery.data?.rows || []).length > 0 ? (
         <SimpleTable
