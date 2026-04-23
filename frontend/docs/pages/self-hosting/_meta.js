@@ -11,7 +11,6 @@ export default {
     title: "Kubernetes",
   },
   "kubernetes-quickstart": "Quickstart",
-  "kubernetes-glasskube": "Installing with Glasskube",
   networking: "Networking",
   "kubernetes-helm-configuration": "Configuring the Helm Chart",
   "kubernetes-external-database": "Setting up an External Database",

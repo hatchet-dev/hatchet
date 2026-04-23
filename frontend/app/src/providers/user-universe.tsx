@@ -157,7 +157,7 @@ export function UserUniverseProvider({
       await api.userUpdateLogout();
     },
     onSuccess: () => {
-      invalidate();
+      queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
     onError: handleApiError,
