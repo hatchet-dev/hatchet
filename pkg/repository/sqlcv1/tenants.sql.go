@@ -299,16 +299,37 @@ func (q *Queries) DeleteSchedulerPartition(ctx context.Context, db DBTX, id stri
 	return &i, err
 }
 
-const deleteTenant = `-- name: DeleteTenant :exec
+const deleteTenant = `-- name: DeleteTenant :one
 UPDATE "Tenant"
 SET "deletedAt" = NOW(),
     slug = slug || '_deleted_' || gen_random_uuid()
 WHERE "id" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
 
-func (q *Queries) DeleteTenant(ctx context.Context, db DBTX, id uuid.UUID) error {
-	_, err := db.Exec(ctx, deleteTenant, id)
-	return err
+func (q *Queries) DeleteTenant(ctx context.Context, db DBTX, id uuid.UUID) (*Tenant, error) {
+	row := db.QueryRow(ctx, deleteTenant, id)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.UiVersion,
+		&i.Name,
+		&i.Slug,
+		&i.AnalyticsOptOut,
+		&i.AlertMemberEmails,
+		&i.ControllerPartitionId,
+		&i.WorkerPartitionId,
+		&i.DataRetentionPeriod,
+		&i.SchedulerPartitionId,
+		&i.CanUpgradeV1,
+		&i.OnboardingData,
+		&i.Environment,
+	)
+	return &i, err
 }
 
 const deleteTenantAlertGroup = `-- name: DeleteTenantAlertGroup :exec

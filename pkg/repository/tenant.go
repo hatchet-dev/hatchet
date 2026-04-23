@@ -886,18 +886,9 @@ func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Cont
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
-	var tenant *sqlcv1.Tenant
+	tenant, err := r.queries.DeleteTenant(ctx, r.pool, id)
 
-	if len(r.deleteCallbacks) > 0 {
-		var err error
-		tenant, err = r.queries.GetTenantByID(ctx, r.pool, id)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := r.queries.DeleteTenant(ctx, r.pool, id); err != nil {
+	if err != nil {
 		return err
 	}
 
