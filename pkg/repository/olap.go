@@ -584,6 +584,10 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 
 	outputPayloads, err := r.ReadPayloads(ctx, row.TenantID, outputEventExternalIds...)
 
+	if err != nil {
+		return nil, err
+	}
+
 	output := make(map[string]interface{})
 
 	for externalId, payload := range outputPayloads {
