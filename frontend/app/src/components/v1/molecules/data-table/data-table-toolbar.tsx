@@ -38,12 +38,17 @@ export interface TimeRangeConfig {
   finishedBefore?: string;
 }
 
+export interface FilterSearchConfig {
+  onSearch: (term: string) => void;
+}
+
 export type ToolbarFilters = {
   columnId: string;
   title: string;
   type: ToolbarType;
   options?: FilterOption[];
   timeRangeConfig?: TimeRangeConfig;
+  searchConfig?: FilterSearchConfig;
 }[];
 
 type RefetchProps = {
