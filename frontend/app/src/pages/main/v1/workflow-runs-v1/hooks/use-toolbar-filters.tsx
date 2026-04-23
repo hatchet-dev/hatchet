@@ -15,7 +15,7 @@ import {
   TimeRangeConfig,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 export const workflowRunStatusFilters: FilterOption[] = [
   {
@@ -52,7 +52,8 @@ export const useToolbarFilters = ({
   filterVisibility: { [key: string]: boolean };
   filterActions: FilterActions;
 }): ToolbarFilters => {
-  const workflows = useWorkflows();
+  const [workflowSearch, setWorkflowSearch] = useState('');
+  const workflows = useWorkflows(workflowSearch);
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
@@ -112,6 +113,9 @@ export const useToolbarFilters = ({
       title: 'Workflow',
       options: workflowKeyFilters,
       type: ToolbarType.Checkbox,
+      searchConfig: {
+        onSearch: setWorkflowSearch,
+      },
     },
     {
       columnId: statusKey,
