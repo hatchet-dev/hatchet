@@ -3266,9 +3266,16 @@ WITH runs AS (
         MIN(e.inserted_at)::timestamptz AS created_at,
         MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
-        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
-    FROM
-        relevant_events e
+        JSON_AGG(
+            JSON_BUILD_OBJECT(
+                'task_id', e.task_id,
+                'task_inserted_at', e.task_inserted_at,
+                'output_event_external_id', CASE WHEN e.event_type = 'FINISHED' THEN e.external_id END,
+                'action_id', t.action_id
+            )
+        ) AS task_metadata
+    FROM relevant_events e
+    JOIN v1_tasks_olap t ON (e.task_id, e.task_inserted_at) = (t.id, t.inserted_at)
     JOIN max_retry_counts mrc ON (e.task_id, e.retry_count) = (mrc.task_id, mrc.max_retry_count)
 ), error_message AS (
     SELECT

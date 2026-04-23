@@ -11,6 +11,7 @@ import (
 	"maps"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -533,8 +534,10 @@ func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uui
 }
 
 type TaskMetadata struct {
-	TaskID         int64     `json:"task_id"`
-	TaskInsertedAt time.Time `json:"task_inserted_at"`
+	TaskID                int64      `json:"task_id"`
+	TaskInsertedAt        time.Time  `json:"task_inserted_at"`
+	OutputEventExternalId *uuid.UUID `json:"output_event_external_id,omitempty"`
+	ActionId              string     `json:"action_id"`
 }
 
 func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
@@ -549,6 +552,14 @@ func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 		return nil, err
 	}
 	return tasks, nil
+}
+
+func splitLast(s, sep string) (string, string) {
+	i := strings.LastIndex(s, sep)
+	if i == -1 {
+		return s, ""
+	}
+	return s[:i], s[i+len(sep):]
 }
 
 func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExternalId uuid.UUID) (*V1WorkflowRunPopulator, error) {
@@ -570,10 +581,44 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		return nil, err
 	}
 
+	outputEventExternalIdToActionId := make(map[uuid.UUID]string)
+	outputEventExternalIds := make([]uuid.UUID, 0)
+
+	for _, taskMeta := range taskMetadata {
+		if taskMeta.OutputEventExternalId != nil {
+			outputEventExternalIds = append(outputEventExternalIds, *taskMeta.OutputEventExternalId)
+			outputEventExternalIdToActionId[*taskMeta.OutputEventExternalId] = taskMeta.ActionId
+		}
+	}
+
+	outputPayloads, err := r.ReadPayloads(ctx, row.TenantID, outputEventExternalIds...)
+
+	output := make(map[string]interface{})
+
+	for externalId, payload := range outputPayloads {
+		actionId, ok := outputEventExternalIdToActionId[externalId]
+
+		if !ok {
+			continue
+		}
+
+		_, stepName := splitLast(actionId, ":")
+		payloadMap := make(map[string]interface{})
+
+		err = json.Unmarshal(payload, &payloadMap)
+
+		if err != nil {
+			r.l.Error().Err(err).Msgf("failed to unmarshal payload for actionId %s, externalId %s", actionId, externalId)
+			continue
+		}
+
+		output[stepName] = payloadMap
+	}
+
 	var outputPayload []byte
 
-	if row.OutputEventExternalID != nil {
-		outputPayload, err = r.ReadPayload(ctx, row.TenantID, *row.OutputEventExternalID)
+	if len(output) > 0 {
+		outputPayload, err = json.Marshal(output)
 
 		if err != nil {
 			return nil, err
