@@ -570,6 +570,16 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		return nil, err
 	}
 
+	var outputPayload []byte
+
+	if row.OutputEventExternalID != nil {
+		outputPayload, err = r.ReadPayload(ctx, row.TenantID, *row.OutputEventExternalID)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &V1WorkflowRunPopulator{
 		WorkflowRun: &WorkflowRunData{
 			TenantID:             row.TenantID,
@@ -587,6 +597,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 			WorkflowVersionId:    row.WorkflowVersionID,
 			Input:                inputPayload,
 			ParentTaskExternalId: row.ParentTaskExternalID,
+			Output:               outputPayload,
 		},
 		TaskMetadata: taskMetadata,
 	}, nil
