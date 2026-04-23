@@ -816,7 +816,7 @@ function TenantAccordionItem({
             </div>
           )}
 
-          {(invitesQuery.isLoading || tenantInvites.length > 0) && (
+          {tenantInvites.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Pending Invites</h4>
               <TenantInviteList invites={tenantInvites} />
