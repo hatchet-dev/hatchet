@@ -618,8 +618,8 @@ function OssOrganizationSettings() {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="Organization settings"
-          description="Review the tenants associated with this workspace organization."
+          title="Tenants"
+          description="Review the tenants associated with your account."
         />
 
         <TenantsSection
