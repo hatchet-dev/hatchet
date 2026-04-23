@@ -48,6 +48,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
+import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
@@ -69,7 +70,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useMemo, useState } from 'react';
-import CreateSSOPage from "@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx";
 
 export default function OrganizationSettings() {
   const { isCloudEnabled } = useOrganizations();
@@ -587,9 +587,7 @@ function CloudOrganizationSettings() {
           </TabsContent>
           {schemes.includes('sso') && (
             <TabsContent value="sso">
-              <CreateSSOPage
-                orgId={orgId}
-              />
+              <CreateSSOPage orgId={orgId} />
               <div className="space-y-8">
                 {/* SSO Domains Table */}
                 {organizationSsoDomainGetQuery.isLoading ? (

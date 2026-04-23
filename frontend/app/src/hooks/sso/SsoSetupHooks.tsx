@@ -1,5 +1,3 @@
-'use client';
-
 import { PROVIDER_CONFIG } from '@/lib/sso/sso-constants';
 import {
   createFormSchema,

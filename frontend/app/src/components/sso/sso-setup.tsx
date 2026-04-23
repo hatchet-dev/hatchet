@@ -1,5 +1,3 @@
-'use client';
-
 import { SsoDeleteConfirmationDialog } from './SsoDeleteConfirmationDialog';
 import { SsoErrorAlert } from './SsoErrorAlert';
 import { SsoIdpPicker } from './SsoIdpPicker';
