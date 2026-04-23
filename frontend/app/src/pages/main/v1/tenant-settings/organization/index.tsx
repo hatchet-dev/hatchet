@@ -392,7 +392,7 @@ function CloudOrganizationSettings() {
               Tenants
             </TabsTrigger>
             <TabsTrigger value="members" variant="underlined">
-              Members
+              Organization Members
             </TabsTrigger>
             <TabsTrigger value="tokens" variant="underlined">
               Management Tokens
