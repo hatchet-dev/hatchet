@@ -13,31 +13,19 @@ DAGs can handle waits, conditional branches, and [or groups](/v1/directed-acycli
 Support workflows, approval flows, and agentic loops are good examples. Consider a support agent: it triages a ticket, sends an initial response, waits for a customer reply or a timeout, then either resolves or escalates. You could express a simple version of that as a DAG with or groups and [parent conditions](/v1/directed-acyclic-graphs#branching-with-parent-conditions). But in practice the branching logic tends to grow beyond maintainability, with multiple escalation paths, multi-turn conversations, and context-dependent retries. At that point, writing it as imperative code with checkpointing is less work. Agentic loops are an even clearer case: the number of iterations is unknown, each action depends on the previous result, and the stopping condition is evaluated at runtime. That requires a cycle, which a DAG cannot express.
 
 ```mermaid
-flowchart TD
-    A[Triages ticket] --> B[Sends initial response]
-    B --> C[Wait for reply or timeout]
-    C --> D{Reply received?}
+flowchart LR
+    A[Receive billing dispute] --> B[Agent evaluates case]
+    B --> C{Choose next action}
+    C -->|Ask| D[Send customer question]
+    C -->|Investigate| E[Check invoice history]
+    C -->|Escalate| F[Hand off to specialist]
+    D --> G[Wait for reply]
+    E --> H[Report evidence]
+    G -->|Reply received| B
+    H -->|Loop until resolved| B
 
-    D -->|Customer replied| E{Issue resolved?}
-    E -->|Yes| F[Complete resolution flow...]
-    E -->|No| G{Which case applies?}
-
-    G -->|Billing dispute| H[Open billing escalation...]
-    G -->|Technical issue persists| I[Request more details...]
-    G -->|Customer adds new issue| L[Re-triage updated ticket...]
-    G -->|Refund exception| M[Start manual review...]
-    G -->|Enterprise customer| N[Route to priority support...]
-    G -->|More scenarios...| O[Additional branches...]
-
-    I --> C
-    L --> C
-    M --> C
-    N --> C
-
-    D -->|Timeout| J[Send reminder or escalate...]
-    J --> K{Retry or escalate?}
-    K -->|Retry| I
-    K -->|Escalate| H
+    linkStyle 7 stroke:#d73a49,stroke-width:3px
+    linkStyle 8 stroke:#d73a49,stroke-width:3px
 ```
 
 Durable tasks handle these cases by letting you write control flow directly in code. Hatchet checkpoints progress around waits and [child spawning](/v1/child-spawning), evicts the task from the worker slot while it waits, and resumes from the checkpoint when the wait resolves. The workflow can pause for an arbitrary duration, pick up exactly where it left off, and make its next decision based on what actually happened.
