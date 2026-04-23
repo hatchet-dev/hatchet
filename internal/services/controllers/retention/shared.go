@@ -2,7 +2,9 @@ package retention
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -20,9 +22,7 @@ func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 	return time.Now().UTC().Add(-d), nil
 }
 
-func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx context.Context, tenant sqlcv1.Tenant) error) error {
-
-	// list all tenants
+func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, perTenantTimeout time.Duration, f func(ctx context.Context, tenant sqlcv1.Tenant) error) error {
 	tenants, err := rc.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV0)
 
 	if err != nil {
@@ -30,19 +30,28 @@ func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx co
 	}
 
 	g := new(errgroup.Group)
+	g.SetLimit(50)
 
-	for i := range tenants {
-		index := i
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
+
+	for _, tenant := range tenants {
 		g.Go(func() error {
-			return f(ctx, *tenants[index])
+			tenantCtx, cancel := context.WithTimeout(ctx, perTenantTimeout)
+			defer cancel()
+
+			if err := f(tenantCtx, *tenant); err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("tenant %s: %w", tenant.ID.String(), err))
+				mu.Unlock()
+			}
+			return nil
 		})
 	}
 
-	err = g.Wait()
+	_ = g.Wait()
 
-	if err != nil {
-		return fmt.Errorf("could not run for tenants: %w", err)
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
