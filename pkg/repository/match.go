@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"time"
 
@@ -932,18 +933,29 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			expr = "true"
 		}
 
-		ast, issues := m.env.Compile(expr)
+		hasher := fnv.New64a()
+		hasher.Write([]byte(expr))
+		exprHash := hasher.Sum64()
 
-		if issues != nil {
-			m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
-			continue
-		}
+		program, ok := m.celProgramCache.Get(exprHash)
 
-		program, err := m.env.Program(ast)
+		if !ok {
+			ast, issues := m.env.Compile(expr)
 
-		if err != nil {
-			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
-			continue
+			if issues != nil && issues.Err() != nil {
+				m.l.Error().Ctx(ctx).Err(issues.Err()).Msgf("failed to compile CEL expression: %s", expr)
+				continue
+			}
+
+			compiled, err := m.env.Program(ast)
+
+			if err != nil {
+				m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
+				continue
+			}
+
+			m.celProgramCache.Add(exprHash, compiled)
+			program = compiled
 		}
 
 		programs[condition.ID] = program
