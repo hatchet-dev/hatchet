@@ -1526,7 +1526,7 @@ WITH runs AS (
                 'task_id', e.task_id,
                 'task_inserted_at', e.task_inserted_at,
                 'output_event_external_id', CASE WHEN e.event_type = 'FINISHED' THEN e.external_id END,
-                'action_id', t.action_id
+                'step_name', t.step_name
             )
         ) AS task_metadata
     FROM relevant_events e
