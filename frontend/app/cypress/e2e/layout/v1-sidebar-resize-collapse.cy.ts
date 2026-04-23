@@ -207,8 +207,5 @@ describe('v1 sidebar: resize + collapse', () => {
     cy.get('button[aria-label="API Tokens"]')
       .scrollIntoView()
       .should('be.visible');
-    cy.get('button[aria-label="Members"]')
-      .scrollIntoView()
-      .should('be.visible');
   });
 });

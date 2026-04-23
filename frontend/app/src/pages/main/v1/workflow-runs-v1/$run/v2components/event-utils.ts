@@ -1,6 +1,6 @@
 import { V1TaskEventType, StepRunEventSeverity } from '@/lib/api';
 
-export type EventSeverity = StepRunEventSeverity | 'EVICTION';
+type EventSeverity = StepRunEventSeverity | 'EVICTION';
 
 export function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,

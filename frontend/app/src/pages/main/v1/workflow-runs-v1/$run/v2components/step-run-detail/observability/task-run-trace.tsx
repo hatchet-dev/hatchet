@@ -13,7 +13,6 @@ import {
   type SpanGroupInfo,
 } from './timeline/trace-timeline-utils';
 import { getStableKey } from './utils/span-tree-utils';
-import { findTimeRange } from '@/components/v1/agent-prism/agent-prism-data';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import type {
   FilteredSpanTree,
@@ -24,6 +23,31 @@ import { ChevronsDownUp, ChevronsUpDown, XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
+
+const findTimeRange = (
+  spanTrees: OtelSpanTree[],
+): { minStart: number; maxEnd: number } => {
+  let minStart = Infinity;
+  let maxEnd = -Infinity;
+
+  const traverse = (node: OtelSpanTree) => {
+    const start = new Date(node.createdAt).getTime();
+    const end = start + node.durationNs / 1_000_000;
+    minStart = Math.min(minStart, start);
+    maxEnd = Math.max(maxEnd, end);
+    if (node.queuedPhase) {
+      const qStart = new Date(node.queuedPhase.createdAt).getTime();
+      const qEnd = qStart + node.queuedPhase.durationNs / 1_000_000;
+      minStart = Math.min(minStart, qStart);
+      maxEnd = Math.max(maxEnd, qEnd);
+    }
+    node.children?.forEach(traverse);
+  };
+
+  spanTrees.forEach(traverse);
+
+  return { minStart, maxEnd };
+};
 
 type Selection =
   | { kind: 'span'; span: OtelSpanTree }
