@@ -249,8 +249,7 @@ func (q *Queries) ComputeOLAPPayloadBatchSize(ctx context.Context, db DBTX, arg 
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
-    FROM v1_event_lookup_table_olap elt
-    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    FROM v1_events_olap e
     WHERE
         e.tenant_id = $1
         AND (
@@ -271,11 +270,16 @@ WITH included_events AS (
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                     AND r.workflow_id = ANY($5::UUID[]::UUID[])
+                    AND r.inserted_at >= $3::TIMESTAMPTZ
             )
         )
         AND (
             $6::UUID[] IS NULL OR
-            elt.external_id = ANY($6::UUID[])
+            EXISTS (
+                SELECT 1
+                FROM v1_event_lookup_table_olap elt
+                WHERE elt.tenant_id = $1::UUID AND elt.external_id = ANY(NULL::UUID[])
+            )
         )
         AND (
             $7::JSONB IS NULL OR
@@ -290,6 +294,7 @@ WITH included_events AS (
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                     AND r.readable_status = ANY(CAST($8::text[]::TEXT[] AS v1_readable_status_olap[]))
+                    AND r.inserted_at >= $3::TIMESTAMPTZ
             )
         )
         AND (
@@ -1366,8 +1371,7 @@ func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid uuid.UUID
 
 const listEvents = `-- name: ListEvents :many
 SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
-FROM v1_event_lookup_table_olap elt
-JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+FROM v1_events_olap e
 WHERE
     e.tenant_id = $1
     AND (
@@ -1388,11 +1392,16 @@ WHERE
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                 AND r.workflow_id = ANY($5::UUID[]::UUID[])
+                AND r.inserted_at >= $3::TIMESTAMPTZ
         )
     )
     AND (
         $6::UUID[] IS NULL OR
-        elt.external_id = ANY($6::UUID[])
+        EXISTS (
+            SELECT 1
+            FROM v1_event_lookup_table_olap elt
+            WHERE elt.tenant_id = $1::UUID AND elt.external_id = ANY(NULL::UUID[])
+        )
     )
     AND (
         $7::JSONB IS NULL OR
@@ -1407,6 +1416,7 @@ WHERE
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                 AND r.readable_status = ANY(CAST($8::text[]::TEXT[] AS v1_readable_status_olap[]))
+                AND r.inserted_at >= $3::TIMESTAMPTZ
         )
     )
     AND (
