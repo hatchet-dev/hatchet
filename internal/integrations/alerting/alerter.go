@@ -119,7 +119,7 @@ func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId uuid.UUID, token *s
 		TokenName:             token.Name.String,
 		ExpiresAtRelativeDate: timediff.TimeDiff(token.ExpiresAt.Time),
 		ExpiresAtAbsoluteDate: token.ExpiresAt.Time.Format("2006-01-02 15:04:05"),
-		Link:                  fmt.Sprintf("%s/tenants/%s/tenant-settings/api-tokens", t.serverURL, tenantId),
+		Link:                  fmt.Sprintf("%s/tenants/%s/settings/api-tokens", t.serverURL, tenantId),
 	}
 
 	return t.sendExpiringTokenAlert(ctx, tenantAlerting, payload)
@@ -183,7 +183,7 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId uuid.UUID, al
 	}
 
 	payload := &alerttypes.ResourceLimitAlert{
-		Link:          fmt.Sprintf("%s/tenants/%s/tenant-settings/billing-and-limits", t.serverURL, tenantId),
+		Link:          fmt.Sprintf("%s/tenants/%s/settings/billing-and-limits", t.serverURL, tenantId),
 		Resource:      string(alert.Resource),
 		AlertType:     string(alert.AlertType),
 		CurrentValue:  int(alert.Value),
