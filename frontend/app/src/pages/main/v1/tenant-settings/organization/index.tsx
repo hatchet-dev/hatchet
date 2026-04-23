@@ -67,6 +67,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useMemo, useState } from 'react';
 
@@ -443,63 +444,82 @@ function CloudOrganizationSettings() {
           </TabsContent>
 
           <TabsContent value="members">
-            <div className="space-y-6">
-              <div>
-                {isOrganizationOwner && (
-                  <div className="mb-4 flex justify-end">
-                    <Button
-                      onClick={() =>
-                        globalEmitter.emit('create-organization-invite', {
-                          organizationId: orgId,
-                          organizationName,
-                        })
-                      }
-                    >
-                      Invite Member
-                    </Button>
-                  </div>
-                )}
-                {organization?.members && organization.members.length > 0 ? (
-                  <SimpleTable
-                    data={organization.members}
-                    columns={memberColumns}
-                  />
-                ) : (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    No members found.
+            {organizationQuery.error instanceof AxiosError &&
+            organizationQuery.error.response?.status === 403 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                You must be an organization owner to view members.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  {isOrganizationOwner && (
+                    <div className="mb-4 flex justify-end">
+                      <Button
+                        onClick={() =>
+                          globalEmitter.emit('create-organization-invite', {
+                            organizationId: orgId,
+                            organizationName,
+                          })
+                        }
+                      >
+                        Invite Member
+                      </Button>
+                    </div>
+                  )}
+                  {organization?.members && organization.members.length > 0 ? (
+                    <SimpleTable
+                      data={organization.members}
+                      columns={memberColumns}
+                    />
+                  ) : (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      No members found.
+                    </div>
+                  )}
+                </div>
+
+                {pendingInvites && pendingInvites.length > 0 && (
+                  <div>
+                    <SimpleTable
+                      data={pendingInvites}
+                      columns={inviteColumns}
+                    />
                   </div>
                 )}
               </div>
-
-              {pendingInvites && pendingInvites.length > 0 && (
-                <div>
-                  <SimpleTable data={pendingInvites} columns={inviteColumns} />
-                </div>
-              )}
-            </div>
+            )}
           </TabsContent>
 
           <TabsContent value="tokens">
-            {isOrganizationOwner && (
-              <div className="mb-4 flex justify-end">
-                <Button onClick={() => setShowCreateTokenModal(true)}>
-                  Create Token
-                </Button>
-              </div>
-            )}
-            {managementTokensQuery.data?.rows &&
-            managementTokensQuery.data.rows.length > 0 ? (
-              <SimpleTable
-                data={managementTokensQuery.data.rows.map((t) => ({
-                  ...t,
-                  metadata: { id: t.id },
-                }))}
-                columns={tokenColumns}
-              />
-            ) : (
+            {managementTokensQuery.error instanceof AxiosError &&
+            managementTokensQuery.error.response?.status === 403 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                No management tokens found.
+                You must be an organization owner to view management tokens.
               </div>
+            ) : (
+              <>
+                {isOrganizationOwner && (
+                  <div className="mb-4 flex justify-end">
+                    <Button onClick={() => setShowCreateTokenModal(true)}>
+                      Create Token
+                    </Button>
+                  </div>
+                )}
+                {managementTokensQuery.data?.rows &&
+                managementTokensQuery.data.rows.length > 0 ? (
+                  <SimpleTable
+                    data={managementTokensQuery.data.rows.map((t) => ({
+                      ...t,
+                      metadata: { id: t.id },
+                    }))}
+                    columns={tokenColumns}
+                  />
+                ) : (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    No management tokens found.
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>
