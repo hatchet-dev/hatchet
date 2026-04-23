@@ -349,8 +349,11 @@ WITH expiring_tokens AS (
         t0."id", t0."name", t0."expiresAt"
     FROM
         "APIToken" as t0
+    JOIN
+        "Tenant" as tenant ON tenant."id" = t0."tenantId"
     WHERE
-        t0."revoked" = false
+        tenant."deletedAt" IS NULL
+        AND t0."revoked" = false
         AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
         AND t0."expiresAt" >= NOW()
         AND (
@@ -543,9 +546,14 @@ WITH active_tenant_alerts AS (
         alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", alerts."enableExpiringTokenAlerts", alerts."enableWorkflowRunFailureAlerts", alerts."enableTenantResourceLimitAlerts"
     FROM
         "TenantAlertingSettings" as alerts
+    JOIN
+        "Tenant" as tenant ON tenant."id" = alerts."tenantId"
     WHERE
-        "lastAlertedAt" IS NULL OR
-        "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
+        tenant."deletedAt" IS NULL
+        AND (
+            "lastAlertedAt" IS NULL OR
+            "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
+        )
     FOR UPDATE SKIP LOCKED
 ),
 failed_run_count_by_tenant AS (
@@ -651,8 +659,11 @@ WITH alerting_resource_limits AS (
         "TenantAlertingSettings" AS ta
     ON
         ta."tenantId" = rl."tenantId"::uuid
+    JOIN
+        "Tenant" AS tenant ON tenant."id" = rl."tenantId"
     WHERE
-        ta."enableTenantResourceLimitAlerts" = true
+        tenant."deletedAt" IS NULL
+        AND ta."enableTenantResourceLimitAlerts" = true
         AND (
             (rl."alarmValue" IS NOT NULL AND rl."value" >= rl."alarmValue")
             OR rl."value" >= rl."limitValue"
