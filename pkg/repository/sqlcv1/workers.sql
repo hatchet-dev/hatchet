@@ -386,6 +386,9 @@ WITH old_workers AS (
     WHERE "tenantId" = @tenantId::uuid
       AND "lastHeartbeatAt" < @lastHeartbeatBefore::timestamp
     LIMIT @batchSize::int
+), deleted_worker_slot_configs AS (
+    DELETE FROM v1_worker_slot_config
+    WHERE worker_id IN (SELECT "id" FROM old_workers)
 )
 DELETE FROM "Worker"
 WHERE "id" IN (SELECT "id" FROM old_workers);
