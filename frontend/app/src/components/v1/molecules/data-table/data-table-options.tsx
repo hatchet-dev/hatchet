@@ -1,9 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
-import { ToolbarFilters } from './data-table-toolbar';
 import {
-  ToolbarType,
+  FilterSearchConfig,
   FilterOption,
   TimeRangeConfig,
+  ToolbarFilters,
+  ToolbarType,
 } from './data-table-toolbar';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Badge } from '@/components/v1/ui/badge';
@@ -39,6 +40,7 @@ import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { ColumnFiltersState, Table } from '@tanstack/react-table';
 import { Column } from '@tanstack/react-table';
 import * as React from 'react';
+import { startTransition } from 'react';
 
 interface FilterControlProps<TData> {
   table: Table<TData>;
@@ -49,6 +51,7 @@ interface FilterControlProps<TData> {
     type?: ToolbarType;
     options?: FilterOption[];
     timeRangeConfig?: TimeRangeConfig;
+    searchConfig?: FilterSearchConfig;
   };
 }
 
@@ -355,17 +358,27 @@ function FilterControl<TData>({
         : value
           ? [value]
           : [];
-      const filteredOptions = filter.options.filter((option) =>
-        option.label.toLowerCase().includes(searchTerm.toLowerCase()),
-      );
+
+      const filteredOptions = filter.searchConfig
+        ? filter.options
+        : filter.options.filter((option) =>
+            option.label.toLowerCase().includes(searchTerm.toLowerCase()),
+          );
+
+      const handleSearchChange = (term: string) => {
+        setSearchTerm(term);
+        startTransition(() => {
+          filter.searchConfig?.onSearch(term);
+        });
+      };
 
       return (
         <div className="space-y-2">
-          {filter.options.length > 5 && (
+          {(filter.searchConfig || filter.options.length > 5) && (
             <Input
               placeholder={`Search ${filter.title.toLowerCase()}...`}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="h-8 text-xs"
             />
           )}
