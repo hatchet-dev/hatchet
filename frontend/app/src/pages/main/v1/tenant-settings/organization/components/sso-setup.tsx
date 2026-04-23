@@ -1,8 +1,6 @@
 import SsoSetup from '@/components/sso/sso-setup.tsx';
-import { controlPlaneApi } from '@/lib/api/api';
+import { controlPlaneApi } from '@/lib/api/api.ts';
 import type { SsoApi } from '@/lib/sso/sso-types.ts';
-import { appRoutes } from '@/router.tsx';
-import { useParams } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useMemo } from 'react';
 
@@ -53,11 +51,7 @@ function makeApi(orgId: string): SsoApi {
   };
 }
 
-export default function SSOPage() {
-  const { organization: orgId } = useParams({
-    from: appRoutes.organizationsRoute.to,
-  });
-
+export default function CreateSSOPage({ orgId }: { orgId: string }) {
   const api = useMemo(() => makeApi(orgId), [orgId]);
 
   return (

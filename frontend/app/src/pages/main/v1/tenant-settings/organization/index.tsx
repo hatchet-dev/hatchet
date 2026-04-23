@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
+import { Loading } from '@/components/v1/ui/loading';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import {
@@ -46,6 +47,7 @@ import {
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
@@ -54,6 +56,8 @@ import { DeleteTokenModal } from '@/pages/organizations/$organization/components
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
+  PlusIcon,
+  KeyIcon,
   ArrowRightIcon,
   CheckIcon,
   EllipsisVerticalIcon,
@@ -65,6 +69,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useMemo, useState } from 'react';
+import CreateSSOPage from "@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx";
 
 export default function OrganizationSettings() {
   const { isCloudEnabled } = useOrganizations();
@@ -81,6 +86,8 @@ function CloudOrganizationSettings() {
     getOrganizationForTenant,
     handleUpdateOrganization,
     updateOrganizationLoading,
+    handleCreateOrganizationSsoDomain,
+    handleDeleteOrganizationSsoDomain,
   } = useOrganizations();
 
   const org = getOrganizationForTenant(tenantId);
@@ -89,7 +96,8 @@ function CloudOrganizationSettings() {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
   const { currentUser } = useCurrentUser();
-
+  const { meta } = useApiMeta();
+  const schemes = meta?.auth?.schemes || [];
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
@@ -103,6 +111,45 @@ function CloudOrganizationSettings() {
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [newSsoDomain, setNewSsoDomain] = useState('');
+  const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
+
+  const organizationSsoDomainGetQuery = useQuery({
+    ...orgApi.organizationSsoDomainGetQuery(orgId),
+    enabled: !!orgId,
+  });
+
+  const handleAddSsoDomain = async () => {
+    if (!orgId || !newSsoDomain.trim()) {
+      return;
+    }
+    setIsAddingSsoDomain(true);
+    handleCreateOrganizationSsoDomain(
+      orgId,
+      newSsoDomain.trim(),
+      () => {
+        setIsAddingSsoDomain(false);
+        setNewSsoDomain('');
+        queryClient.invalidateQueries({
+          queryKey: ['organization:sso_domain:get', orgId],
+        });
+      },
+      () => {
+        setIsAddingSsoDomain(false);
+      },
+    );
+  };
+
+  const handleDeleteSsoDomain = async (domain: string) => {
+    if (!orgId) {
+      return;
+    }
+    handleDeleteOrganizationSsoDomain(orgId, domain, () => {
+      queryClient.invalidateQueries({
+        queryKey: ['organization:sso_domain:get', orgId],
+      });
+    });
+  };
 
   const organizationQuery = useQuery({
     ...orgApi.organizationGetQuery(orgId!),
@@ -241,6 +288,74 @@ function CloudOrganizationSettings() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null,
+    },
+  ];
+
+  // SSO domains table columns
+  const ssoDomainColumns = [
+    {
+      columnLabel: 'Domain',
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => <span className="font-mono text-sm">{row.domain}</span>,
+    },
+    {
+      columnLabel: 'Verified',
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => (
+        <Badge variant={row.verified ? 'successful' : 'secondary'}>
+          {row.verified ? 'Verified' : 'Unverified'}
+        </Badge>
+      ),
+    },
+    {
+      columnLabel: 'Verification Token',
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) =>
+        row.verification_token ? (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-muted-foreground">
+              {row.verification_token}
+            </span>
+            <CopyToClipboard text={row.verification_token} />
+          </div>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (row: {
+        metadata: { id: string };
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleDeleteSsoDomain(row.domain)}>
+              <TrashIcon className="mr-2 size-4" />
+              Remove Domain
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     },
   ];
 
@@ -397,6 +512,11 @@ function CloudOrganizationSettings() {
             <TabsTrigger value="tokens" variant="underlined">
               Management Tokens
             </TabsTrigger>
+            {schemes.includes('sso') && (
+              <TabsTrigger value="sso" variant="underlined">
+                SSO
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="tenants">
@@ -465,6 +585,89 @@ function CloudOrganizationSettings() {
               </div>
             )}
           </TabsContent>
+          {schemes.includes('sso') && (
+            <TabsContent value="sso">
+              <CreateSSOPage
+                orgId={orgId}
+              />
+              <div className="space-y-8">
+                {/* SSO Domains Table */}
+                {organizationSsoDomainGetQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loading />
+                  </div>
+                ) : organizationSsoDomainGetQuery.data &&
+                  organizationSsoDomainGetQuery.data.length > 0 ? (
+                  <SimpleTable
+                    data={organizationSsoDomainGetQuery.data.map((v) => {
+                      return {
+                        metadata: { id: v.ssoDomain },
+                        domain: v.ssoDomain,
+                        verified: v.verified,
+                        verification_token: v.verificationToken,
+                      };
+                    })}
+                    columns={ssoDomainColumns}
+                  />
+                ) : (
+                  <div className="py-16 text-center">
+                    <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <h3 className="mb-2 text-lg font-medium">No SSO Domains</h3>
+                    <p className="mb-4 text-muted-foreground">
+                      Add a domain below to enable SSO for your organization.
+                    </p>
+                  </div>
+                )}
+
+                {organizationSsoDomainGetQuery.data &&
+                  organizationSsoDomainGetQuery.data.length > 0 && (
+                    <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                      <p>
+                        To verify your domain, add a DNS TXT record with the
+                        value:
+                      </p>
+                      <p className="mt-1 font-mono">
+                        hatchet-sso-verify=&#123;verification_token&#125;
+                      </p>
+                      <p className="mt-2">
+                        It may take a few minutes for DNS changes to propagate
+                        and for the verified status to update.
+                      </p>
+                    </div>
+                  )}
+
+                {/* Add New SSO Domain */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Add Domain
+                  </h3>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="example.com"
+                      value={newSsoDomain}
+                      onChange={(e) => setNewSsoDomain(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleAddSsoDomain();
+                        }
+                      }}
+                      className="max-w-sm"
+                      disabled={isAddingSsoDomain}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddSsoDomain}
+                      disabled={isAddingSsoDomain || !newSsoDomain.trim()}
+                      leftIcon={<PlusIcon className="size-4" />}
+                    >
+                      Add Domain
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 

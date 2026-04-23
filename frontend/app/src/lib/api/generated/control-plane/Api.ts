@@ -695,9 +695,7 @@ export class Api<
    */
   ssoUpdate = (
     organization: string,
-    data: {
-      idpInfoFromCustomer: any;
-    },
+    data: object,
     params: RequestParams = {},
   ) =>
     this.request<void, APIError>({

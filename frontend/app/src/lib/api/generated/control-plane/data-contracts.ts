@@ -218,6 +218,7 @@ export interface ManagementToken {
 }
 
 export interface CreateOrganizationSsoDomainRequest {
+  /** @format uri */
   ssoDomain: string;
 }
 
@@ -348,7 +349,10 @@ export interface CreateTenantAPITokenResponse {
 }
 
 export interface SsoDomain {
-  /** @example "acme.com" */
+  /**
+   * @format uri
+   * @example "acme.com"
+   */
   ssoDomain: string;
   /** @example false */
   verified: boolean;
