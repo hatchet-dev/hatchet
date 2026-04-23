@@ -702,7 +702,7 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 			DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
 		})
 	} else {
-		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)
+		v0Workflow, err = w.v0Client.Admin().RunWorkflow(ctx, w.declaration.Name(), input, v0Opts...)
 	}
 
 	if err != nil {

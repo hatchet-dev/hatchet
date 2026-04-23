@@ -698,7 +698,7 @@ func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Contex
 			AdditionalMetadata: additionalMetadata,
 		})
 	} else {
-		v0Workflow, err = c.legacyClient.Admin().RunWorkflow(workflowName, input, v0Opts...)
+		v0Workflow, err = c.legacyClient.Admin().RunWorkflow(ctx, workflowName, input, v0Opts...)
 	}
 
 	if err != nil {
