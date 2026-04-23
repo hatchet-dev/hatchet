@@ -96,6 +96,9 @@ asyncio_default_fixture_loop_scope = "session"
 [tool.black]
 extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"
 
+[tool.poetry]
+package-mode = false
+
 [tool.mypy]
 files = ["."]
 exclude = [
