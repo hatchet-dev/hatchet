@@ -59,7 +59,7 @@
     "class-variance-authority": "^0.7.1",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
-    "cmdk": "^0.2.1",
+    "cmdk": "^1.1.1",
     "cronstrue": "^2.57.0",
     "dagre": "^0.8.5",
     "date-fns": "^3.6.0",
