@@ -314,7 +314,7 @@ function CloudOrganizationSettings() {
             </div>
 
             {isEditingName ? (
-              <div className="space-y-3 flex flex-row items-center">
+              <div className="flex items-center gap-2">
                 <Input
                   value={editedName}
                   onChange={(e) => setEditedName(e.target.value)}
@@ -327,49 +327,47 @@ function CloudOrganizationSettings() {
                       handleCancelEditingName();
                     }
                   }}
-                  className="h-10 bg-background/60"
+                  className="h-10 flex-1 bg-background/60"
                   disabled={updateOrganizationLoading}
                   aria-label="Organization name"
                   autoFocus
                 />
 
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleCancelEditingName}
-                      disabled={updateOrganizationLoading}
-                      hoverText="Cancel editing"
-                      className="hover:bg-muted/50"
-                    >
-                      <XMarkIcon className="size-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleSaveName}
-                      disabled={
-                        updateOrganizationLoading ||
-                        !editedName.trim() ||
-                        editedName.trim() === organizationName
-                      }
-                      hoverText="Save organization name"
-                      className="bg-background/60 hover:bg-muted/50"
-                    >
-                      {updateOrganizationLoading ? (
-                        <Spinner />
-                      ) : (
-                        <CheckIcon className="size-4" />
-                      )}
-                    </Button>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleCancelEditingName}
+                    disabled={updateOrganizationLoading}
+                    hoverText="Cancel editing"
+                    className="shrink-0 hover:bg-muted/50"
+                  >
+                    <XMarkIcon className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleSaveName}
+                    disabled={
+                      updateOrganizationLoading ||
+                      !editedName.trim() ||
+                      editedName.trim() === organizationName
+                    }
+                    hoverText="Save organization name"
+                    className="shrink-0 bg-background/60 hover:bg-muted/50"
+                  >
+                    {updateOrganizationLoading ? (
+                      <Spinner />
+                    ) : (
+                      <CheckIcon className="size-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/40 px-3 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-base font-semibold">
+              <div className="flex items-center gap-2">
+                <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
+                  <p className="truncate text-sm font-medium text-foreground">
                     {organizationName}
                   </p>
                 </div>
