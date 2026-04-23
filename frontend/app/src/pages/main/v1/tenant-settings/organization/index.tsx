@@ -49,9 +49,9 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -545,7 +545,7 @@ function CloudOrganizationSettings() {
             <TabsTrigger value="tokens" variant="underlined">
               Management Tokens
             </TabsTrigger>
-            {schemes.includes('sso') && (
+            {isOrganizationOwner && schemes.includes('sso') && (
               <TabsTrigger value="sso" variant="underlined">
                 SSO
               </TabsTrigger>
@@ -642,7 +642,7 @@ function CloudOrganizationSettings() {
               </>
             )}
           </TabsContent>
-          {schemes.includes('sso') && (
+          {isOrganizationOwner && schemes.includes('sso') && (
             <TabsContent value="sso">
               <CreateSSOPage orgId={orgId} />
               <div className="space-y-8">
