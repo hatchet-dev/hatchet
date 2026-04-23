@@ -1533,17 +1533,30 @@ WITH runs AS (
     ORDER BY
         e.retry_count DESC
     LIMIT 1
+), output_event_external_id AS (
+    SELECT
+        external_id
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
+    ORDER BY
+        inserted_at DESC
+    LIMIT 1
 )
+
 SELECT
     r.*,
     m.created_at,
     m.started_at,
     m.finished_at,
     e.error_message,
-    m.task_metadata
+    m.task_metadata,
+    o.external_id AS output_event_external_id
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
+LEFT JOIN output_event_external_id o ON true
 ORDER BY r.inserted_at DESC;
 
 -- name: GetWorkflowRunIdFromDagIdInsertedAt :one
