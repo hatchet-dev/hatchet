@@ -16,7 +16,7 @@ func (rc *RetentionControllerImpl) runCleanupOldWorkers(ctx context.Context) fun
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 		defer cancel()
 
-		if err := rc.ForTenants(ctx, rc.cleanupOldWorkersForTenant); err != nil {
+		if err := rc.ForTenants(ctx, 5*time.Minute, rc.cleanupOldWorkersForTenant); err != nil {
 			rc.l.Err(err).Ctx(ctx).Msg("could not cleanup old workers")
 		}
 	}

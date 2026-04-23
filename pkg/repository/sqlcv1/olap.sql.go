@@ -249,8 +249,7 @@ func (q *Queries) ComputeOLAPPayloadBatchSize(ctx context.Context, db DBTX, arg 
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
-    FROM v1_event_lookup_table_olap elt
-    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    FROM v1_events_olap e
     WHERE
         e.tenant_id = $1
         AND (
@@ -271,11 +270,16 @@ WITH included_events AS (
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                     AND r.workflow_id = ANY($5::UUID[]::UUID[])
+                    AND r.inserted_at >= $3::TIMESTAMPTZ
             )
         )
         AND (
             $6::UUID[] IS NULL OR
-            elt.external_id = ANY($6::UUID[])
+            EXISTS (
+                SELECT 1
+                FROM v1_event_lookup_table_olap elt
+                WHERE elt.tenant_id = $1::UUID AND elt.external_id = ANY($6::UUID[])
+            )
         )
         AND (
             $7::JSONB IS NULL OR
@@ -290,6 +294,7 @@ WITH included_events AS (
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                     AND r.readable_status = ANY(CAST($8::text[]::TEXT[] AS v1_readable_status_olap[]))
+                    AND r.inserted_at >= $3::TIMESTAMPTZ
             )
         )
         AND (
@@ -1366,8 +1371,7 @@ func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid uuid.UUID
 
 const listEvents = `-- name: ListEvents :many
 SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
-FROM v1_event_lookup_table_olap elt
-JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+FROM v1_events_olap e
 WHERE
     e.tenant_id = $1
     AND (
@@ -1388,11 +1392,16 @@ WHERE
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                 AND r.workflow_id = ANY($5::UUID[]::UUID[])
+                AND r.inserted_at >= $3::TIMESTAMPTZ
         )
     )
     AND (
         $6::UUID[] IS NULL OR
-        elt.external_id = ANY($6::UUID[])
+        EXISTS (
+            SELECT 1
+            FROM v1_event_lookup_table_olap elt
+            WHERE elt.tenant_id = $1::UUID AND elt.external_id = ANY($6::UUID[])
+        )
     )
     AND (
         $7::JSONB IS NULL OR
@@ -1407,6 +1416,7 @@ WHERE
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
                 AND r.readable_status = ANY(CAST($8::text[]::TEXT[] AS v1_readable_status_olap[]))
+                AND r.inserted_at >= $3::TIMESTAMPTZ
         )
     )
     AND (
@@ -3270,40 +3280,54 @@ WITH runs AS (
     ORDER BY
         e.retry_count DESC
     LIMIT 1
+), output_event_external_id AS (
+    SELECT
+        external_id
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
+    ORDER BY
+        inserted_at DESC
+    LIMIT 1
 )
+
 SELECT
     r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
     m.created_at,
     m.started_at,
     m.finished_at,
     e.error_message,
-    m.task_metadata
+    m.task_metadata,
+    o.external_id AS output_event_external_id
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
+LEFT JOIN output_event_external_id o ON true
 ORDER BY r.inserted_at DESC
 `
 
 type ReadWorkflowRunByExternalIdRow struct {
-	DagID                pgtype.Int8          `json:"dag_id"`
-	TaskID               pgtype.Int8          `json:"task_id"`
-	ID                   int64                `json:"id"`
-	TenantID             uuid.UUID            `json:"tenant_id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           uuid.UUID            `json:"external_id"`
-	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
-	Kind                 V1RunKind            `json:"kind"`
-	WorkflowID           uuid.UUID            `json:"workflow_id"`
-	DisplayName          string               `json:"display_name"`
-	Input                []byte               `json:"input"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
-	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
-	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
-	StartedAt            pgtype.Timestamptz   `json:"started_at"`
-	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
-	ErrorMessage         pgtype.Text          `json:"error_message"`
-	TaskMetadata         []byte               `json:"task_metadata"`
+	DagID                 pgtype.Int8          `json:"dag_id"`
+	TaskID                pgtype.Int8          `json:"task_id"`
+	ID                    int64                `json:"id"`
+	TenantID              uuid.UUID            `json:"tenant_id"`
+	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID            uuid.UUID            `json:"external_id"`
+	ReadableStatus        V1ReadableStatusOlap `json:"readable_status"`
+	Kind                  V1RunKind            `json:"kind"`
+	WorkflowID            uuid.UUID            `json:"workflow_id"`
+	DisplayName           string               `json:"display_name"`
+	Input                 []byte               `json:"input"`
+	AdditionalMetadata    []byte               `json:"additional_metadata"`
+	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
+	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
+	CreatedAt             pgtype.Timestamptz   `json:"created_at"`
+	StartedAt             pgtype.Timestamptz   `json:"started_at"`
+	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
+	ErrorMessage          pgtype.Text          `json:"error_message"`
+	TaskMetadata          []byte               `json:"task_metadata"`
+	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
 }
 
 func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, workflowrunexternalid uuid.UUID) (*ReadWorkflowRunByExternalIdRow, error) {
@@ -3329,6 +3353,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.FinishedAt,
 		&i.ErrorMessage,
 		&i.TaskMetadata,
+		&i.OutputEventExternalID,
 	)
 	return &i, err
 }

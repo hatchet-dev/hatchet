@@ -1,5 +1,6 @@
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { generateBreadcrumbs, BreadcrumbItem } from '@/lib/breadcrumbs';
+import { useUserUniverse } from '@/providers/user-universe';
 import { useLocation, useParams, useRouterState } from '@tanstack/react-router';
 
 export function useBreadcrumbs(): BreadcrumbItem[] {
@@ -19,6 +20,7 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     },
     {} as Record<string, string>,
   );
+  const { isCloudEnabled } = useUserUniverse();
 
   // Get tenant ID and home route at the top level (before any conditional returns)
   const tenantId = cleanParams.tenant;
@@ -44,7 +46,11 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     return [];
   }
 
-  const breadcrumbs = generateBreadcrumbs(location.pathname, cleanParams);
+  const breadcrumbs = generateBreadcrumbs(
+    location.pathname,
+    cleanParams,
+    isCloudEnabled,
+  );
 
   // Update the Home breadcrumb href with the conditional route
   if (breadcrumbs.length > 0 && breadcrumbs[0].label === 'Home' && tenantId) {

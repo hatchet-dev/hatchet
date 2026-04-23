@@ -54,12 +54,12 @@ export interface LogLine {
   };
 }
 
-export interface UseLogsOptions {
+interface UseLogsOptions {
   taskRun: V1TaskSummary | undefined;
   resetTrigger?: number;
 }
 
-export interface UseLogsReturn {
+interface UseLogsReturn {
   logs: LogLine[];
   isLoading: boolean;
   isFetchingMore: boolean;

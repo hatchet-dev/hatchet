@@ -86,7 +86,7 @@ const formatTimestamp = (timestamp: string): string => {
     .replace(',', '.');
 };
 
-export interface LogViewerProps {
+interface LogViewerProps {
   logs: LogLine[];
   onScrollToBottom?: () => void;
   onScrollToTop?: () => void;

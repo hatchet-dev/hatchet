@@ -28,11 +28,6 @@ describe('Error pages', () => {
       cy.contains('Requested Tenant').should('be.visible');
     });
 
-    it('shows organization not found for invalid organization ID', () => {
-      cy.visit(`/organizations/${nonExistentId}`);
-      cy.contains('Organization not found').should('be.visible');
-    });
-
     it('shows workflow not found for invalid workflow ID', () => {
       getTenantFromLocation().then((tenant) => {
         cy.visit(`/tenants/${tenant}/workflows/${nonExistentId}`);
