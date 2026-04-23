@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import { UpdateTenantForm } from './components/update-tenant-form';
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -13,6 +14,11 @@ export default function TenantSettings() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <SettingsPageHeader
+          title="General settings"
+          description="Update the tenant name, analytics preferences, and inactivity timeout details for this tenant."
+        />
+
         <div className="divide-y divide-border">
           <SettingRow label="Tenant Name">
             <UpdateTenant />

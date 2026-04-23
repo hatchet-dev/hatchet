@@ -8,6 +8,7 @@ import {
 } from '../alerting/components/email-groups-columns';
 import { SlackActions } from '../alerting/components/slack-webhooks-columns';
 import { UpdateTenantAlertingSettings } from '../alerting/components/update-tenant-alerting-settings-form';
+import { SettingsPageHeader } from '../components/settings-page-header';
 import {
   GithubAccountCell,
   GithubLinkCell,
@@ -62,6 +63,11 @@ export default function Integrations() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <SettingsPageHeader
+          title="Integration settings"
+          description="Configure alerting, ingestors, and connected services available for this tenant."
+        />
+
         <Tabs defaultValue="alerting">
           <TabsList layout="underlined" className="mb-6">
             <TabsTrigger value="alerting" variant="underlined">

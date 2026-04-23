@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import {
   limitDurationMap,
   limitedResources,
@@ -101,6 +102,11 @@ export default function ResourceLimits() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <SettingsPageHeader
+          title="Resource limit settings"
+          description="Review billing details and the resource limits currently applied to this tenant."
+        />
+
         {billingEnabled && (
           <>
             {isOwner ? (

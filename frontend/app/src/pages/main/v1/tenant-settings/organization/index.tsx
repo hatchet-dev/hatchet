@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
@@ -54,13 +55,16 @@ import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
   ArrowRightIcon,
+  CheckIcon,
   EllipsisVerticalIcon,
+  PencilSquareIcon,
   TrashIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 export default function OrganizationSettings() {
   const { isCloudEnabled } = useOrganizations();
@@ -98,6 +102,7 @@ function CloudOrganizationSettings() {
     useState<OrganizationTenant | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
 
   const organizationQuery = useQuery({
     ...orgApi.organizationGetQuery(orgId!),
@@ -115,6 +120,7 @@ function CloudOrganizationSettings() {
   });
 
   const organization = organizationQuery.data;
+  const currentOrganizationName = organization?.name ?? '';
 
   const visibleTenants = useMemo(
     () =>
@@ -124,19 +130,33 @@ function CloudOrganizationSettings() {
     [organization?.tenants],
   );
 
-  useEffect(() => {
-    if (organization?.name && !editedName) {
-      setEditedName(organization.name);
-    }
-  }, [organization?.name, editedName]);
-
   const handleSaveName = () => {
-    if (!orgId || !editedName.trim()) {
+    const trimmedName = editedName.trim();
+
+    if (!orgId || !trimmedName) {
       return;
     }
-    handleUpdateOrganization(orgId, editedName.trim(), () => {
+
+    if (trimmedName === currentOrganizationName) {
+      setIsEditingName(false);
+      return;
+    }
+
+    handleUpdateOrganization(orgId, trimmedName, () => {
+      setEditedName(trimmedName);
+      setIsEditingName(false);
       queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
     });
+  };
+
+  const handleStartEditingName = () => {
+    setEditedName(currentOrganizationName);
+    setIsEditingName(true);
+  };
+
+  const handleCancelEditingName = () => {
+    setEditedName(currentOrganizationName);
+    setIsEditingName(false);
   };
 
   const pendingInvites = organizationInvitesQuery.data?.rows?.filter(
@@ -279,31 +299,94 @@ function CloudOrganizationSettings() {
     );
   }
 
+  const organizationName = organization.name;
+
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-end pb-4">
-          <div className="flex items-center gap-2">
-            <Input
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSaveName();
-                }
-              }}
-              className="w-[220px]"
-              disabled={updateOrganizationLoading}
-            />
-            <Button
-              onClick={handleSaveName}
-              disabled={updateOrganizationLoading || !editedName.trim()}
-            >
-              {updateOrganizationLoading && <Spinner />}
-              Save
-            </Button>
+        <SettingsPageHeader
+          title="Organization settings"
+          description="Update the organization name and manage tenants, members, and management tokens."
+        >
+          <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
+            <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Organization name
+            </div>
+
+            {isEditingName ? (
+              <div className="space-y-3 flex flex-row items-center">
+                <Input
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveName();
+                    }
+
+                    if (e.key === 'Escape') {
+                      handleCancelEditingName();
+                    }
+                  }}
+                  className="h-10 bg-background/60"
+                  disabled={updateOrganizationLoading}
+                  aria-label="Organization name"
+                  autoFocus
+                />
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleCancelEditingName}
+                      disabled={updateOrganizationLoading}
+                      hoverText="Cancel editing"
+                      className="hover:bg-muted/50"
+                    >
+                      <XMarkIcon className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSaveName}
+                      disabled={
+                        updateOrganizationLoading ||
+                        !editedName.trim() ||
+                        editedName.trim() === organizationName
+                      }
+                      hoverText="Save organization name"
+                      className="bg-background/60 hover:bg-muted/50"
+                    >
+                      {updateOrganizationLoading ? (
+                        <Spinner />
+                      ) : (
+                        <CheckIcon className="size-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/40 px-3 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-base font-semibold">
+                    {organizationName}
+                  </p>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleStartEditingName}
+                  hoverText="Edit organization name"
+                  className="shrink-0 bg-background/60 hover:bg-muted/50"
+                >
+                  <PencilSquareIcon className="size-4" />
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
+        </SettingsPageHeader>
 
         <Tabs defaultValue="tenants" className="mt-2">
           <TabsList layout="underlined" className="mb-6">
@@ -477,6 +560,11 @@ function OssOrganizationSettings() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <SettingsPageHeader
+          title="Organization settings"
+          description="Review the tenants associated with this workspace organization."
+        />
+
         <TenantsSection
           tenants={visibleTenants}
           expandedTenantIds={expandedTenantIds}

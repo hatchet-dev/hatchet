@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import { ChangePasswordDialog } from './components/change-password-dialog';
 import { DeleteInviteForm } from './components/delete-invite-form';
 import { InviteActions } from './components/invites-columns';
@@ -31,6 +32,11 @@ export default function Members() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <SettingsPageHeader
+          title="Member settings"
+          description="Manage tenant members, review organization owners, and control pending invitations for this tenant."
+        />
+
         <MembersList />
         {meta?.allowInvites && (
           <>

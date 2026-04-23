@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import { TokenActions } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
@@ -56,6 +57,11 @@ export default function APITokens() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <SettingsPageHeader
+          title="API token settings"
+          description="Create and revoke API tokens used by workers and external systems to authenticate with this tenant."
+        />
+
         <div className="mb-4 flex flex-row items-baseline justify-end">
           <Button
             key="create-api-token"
