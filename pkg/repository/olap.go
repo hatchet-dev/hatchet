@@ -1941,6 +1941,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			WorkflowRunID:        task.WorkflowRunID,
 			Input:                payloadToWriteToTask,
 			IsDurable:            task.IsDurable.Bool,
+			StepName:             task.StepName,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{

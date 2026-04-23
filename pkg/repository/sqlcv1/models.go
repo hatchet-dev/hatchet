@@ -3614,6 +3614,7 @@ type V1Task struct {
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
+	StepName                     pgtype.Text        `json:"step_name"`
 }
 
 type V1TaskEvent struct {

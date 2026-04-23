@@ -177,7 +177,8 @@ INSERT INTO v1_tasks_olap (
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable
+    is_durable,
+    step_name
 ) VALUES (
     $1,
     $2,
@@ -200,7 +201,8 @@ INSERT INTO v1_tasks_olap (
     $19,
     $20,
     $21,
-    $22
+    $22,
+    $23
 );
 
 -- name: CreateDAGsOLAP :copyfrom
