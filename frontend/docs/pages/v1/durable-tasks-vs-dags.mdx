@@ -14,13 +14,13 @@ Support workflows, approval flows, and agentic loops are good examples. Consider
 
 ```mermaid
 flowchart LR
-    A[Receive billing dispute] --> B[Agent evaluates case]
+    A[Receive billing dispute] --> B[AI agent evaluates case]
     B --> C{Choose next action}
     C -->|Ask| D[Send customer question]
     C -->|Investigate| E[Check invoice history]
     C -->|Escalate| F[Hand off to specialist]
     D --> G[Wait for reply]
-    E --> H[Report evidence]
+    E --> H[Prepare response]
     G -->|Reply received| B
     H -->|Loop until resolved| B
 
