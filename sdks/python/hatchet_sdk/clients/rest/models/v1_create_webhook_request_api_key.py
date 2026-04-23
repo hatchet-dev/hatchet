@@ -16,7 +16,14 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictStr,
+    field_validator,
+)
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
@@ -47,6 +54,11 @@ class V1CreateWebhookRequestAPIKey(BaseModel):
         description="The static payload to use for the webhook. This is used to send a static payload with the webhook.",
         alias="staticPayload",
     )
+    return_event_as_response_payload: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether to return the triggered event as the response payload when this webhook is triggered",
+        alias="returnEventAsResponsePayload",
+    )
     auth_type: StrictStr = Field(
         description="The type of authentication to use for the webhook",
         alias="authType",
@@ -58,6 +70,7 @@ class V1CreateWebhookRequestAPIKey(BaseModel):
         "eventKeyExpression",
         "scopeExpression",
         "staticPayload",
+        "returnEventAsResponsePayload",
         "authType",
         "auth",
     ]
@@ -127,6 +140,7 @@ class V1CreateWebhookRequestAPIKey(BaseModel):
                 "eventKeyExpression": obj.get("eventKeyExpression"),
                 "scopeExpression": obj.get("scopeExpression"),
                 "staticPayload": obj.get("staticPayload"),
+                "returnEventAsResponsePayload": obj.get("returnEventAsResponsePayload"),
                 "authType": obj.get("authType"),
                 "auth": (
                     V1WebhookAPIKeyAuth.from_dict(obj["auth"])

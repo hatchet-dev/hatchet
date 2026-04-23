@@ -96,7 +96,6 @@ export function HelpDropdown({
         <SidebarButtonPrimaryAction
           name="Help"
           icon={<BiHelpCircle className="size-4 mr-2" />}
-          selected={open}
           className={cn(className)}
         />
       );
@@ -118,7 +117,6 @@ export function HelpDropdown({
               setOpen(true);
             }}
             aria-label="Open Support Chat"
-            selected={open}
           />
 
           <DropdownMenuTrigger asChild>
@@ -141,7 +139,6 @@ export function HelpDropdown({
         <SidebarButtonPrimaryAction
           name="Help & Support"
           icon={<BiHelpCircle className="size-4 mr-2" />}
-          selected={open}
           className={cn(className)}
         />
       );

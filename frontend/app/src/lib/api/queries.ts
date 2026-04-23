@@ -42,7 +42,12 @@ export const queries = createQueryKeyStore({
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
       queryFn: async () =>
-        (await cloudApi.subscriptionPlansList({ secure: true })).data,
+        (
+          await cloudApi.subscriptionPlansList({
+            secure: true,
+            useExchangeToken: true,
+          })
+        ).data,
     }),
 
     paymentMethods: (tenant: string) => ({
@@ -316,6 +321,12 @@ export const queries = createQueryKeyStore({
     getLogs: (task: string, query?: V1LogLineListQuery) => ({
       queryKey: ['v1-log-line:list', task, query],
       queryFn: async () => (await api.v1LogLineList(task, query)).data,
+    }),
+  },
+  v1DurableTasks: {
+    eventLog: (task: string) => ({
+      queryKey: ['v1-durable-task:event-log', task],
+      queryFn: async () => (await api.v1DurableTaskEventLogList(task)).data,
     }),
   },
   v1TaskEvents: {

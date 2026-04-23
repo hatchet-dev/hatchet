@@ -45,6 +45,7 @@ DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 @dataclass(frozen=True)
 class WaitForEvent:
     wait_for_conditions: DurableEventListenerConditions
+    label: str | None
 
 
 @dataclass(frozen=True)
@@ -556,6 +557,7 @@ class DurableEventListener:
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
                 wait_for_conditions=event.wait_for_conditions,
+                label=event.label,
             )
 
             request = DurableTaskRequest(wait_for=wait_req)

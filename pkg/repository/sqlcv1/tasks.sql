@@ -425,6 +425,7 @@ WITH tasks_on_inactive_workers AS (
         v1_task_runtime runtime ON w."id" = runtime.worker_id
     WHERE
         w."tenantId" = @tenantId::uuid
+        AND w."tenantId" = runtime.tenant_id
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
@@ -646,7 +647,10 @@ WITH RECURSIVE augmented_tasks AS (
         t.parent_task_inserted_at,
         t.step_index,
         t.child_index,
-        t.child_key
+        t.child_key,
+        t.desired_worker_label,
+        t.triggering_event_external_id,
+        t.triggering_event_key
     FROM
         v1_task t
     WHERE
@@ -692,6 +696,9 @@ SELECT
     t.step_index,
     t.child_index,
     t.child_key,
+    t.desired_worker_label,
+    t.triggering_event_external_id,
+    t.triggering_event_key,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM

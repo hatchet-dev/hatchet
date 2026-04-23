@@ -9,8 +9,31 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const cleanupOldWorkers = `-- name: CleanupOldWorkers :execresult
+WITH old_workers AS (
+    SELECT "id"
+    FROM "Worker"
+    WHERE "tenantId" = $1::uuid
+      AND "lastHeartbeatAt" < $2::timestamp
+    LIMIT $3::int
+)
+DELETE FROM "Worker"
+WHERE "id" IN (SELECT "id" FROM old_workers)
+`
+
+type CleanupOldWorkersParams struct {
+	Tenantid            uuid.UUID        `json:"tenantid"`
+	Lastheartbeatbefore pgtype.Timestamp `json:"lastheartbeatbefore"`
+	Batchsize           int32            `json:"batchsize"`
+}
+
+func (q *Queries) CleanupOldWorkers(ctx context.Context, db DBTX, arg CleanupOldWorkersParams) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupOldWorkers, arg.Tenantid, arg.Lastheartbeatbefore, arg.Batchsize)
+}
 
 const createWorker = `-- name: CreateWorker :one
 INSERT INTO "Worker" (
@@ -129,51 +152,6 @@ func (q *Queries) CreateWorkerSlotConfigs(ctx context.Context, db DBTX, arg Crea
 		arg.Maxunits,
 	)
 	return err
-}
-
-const deleteOldWorkers = `-- name: DeleteOldWorkers :one
-WITH for_delete AS (
-    SELECT
-        "id"
-    FROM "Worker" w
-    WHERE
-        w."tenantId" = $1::uuid AND
-        w."lastHeartbeatAt" < $2::timestamp
-    LIMIT $3 + 1
-), expired_with_limit AS (
-    SELECT
-        for_delete."id" as "id"
-    FROM for_delete
-    LIMIT $3
-), has_more AS (
-    SELECT
-        CASE
-            WHEN COUNT(*) > $3 THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM for_delete
-), delete_events AS (
-    DELETE FROM "WorkerAssignEvent" wae
-    WHERE wae."workerId" IN (SELECT "id" FROM expired_with_limit)
-    RETURNING wae."id"
-)
-DELETE FROM "Worker" w
-WHERE w."id" IN (SELECT "id" FROM expired_with_limit)
-RETURNING
-    (SELECT has_more FROM has_more) as has_more
-`
-
-type DeleteOldWorkersParams struct {
-	Tenantid            uuid.UUID        `json:"tenantid"`
-	Lastheartbeatbefore pgtype.Timestamp `json:"lastheartbeatbefore"`
-	Limit               interface{}      `json:"limit"`
-}
-
-func (q *Queries) DeleteOldWorkers(ctx context.Context, db DBTX, arg DeleteOldWorkersParams) (bool, error) {
-	row := db.QueryRow(ctx, deleteOldWorkers, arg.Tenantid, arg.Lastheartbeatbefore, arg.Limit)
-	var has_more bool
-	err := row.Scan(&has_more)
-	return has_more, err
 }
 
 const deleteWorker = `-- name: DeleteWorker :one
@@ -925,7 +903,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label
+    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key
 FROM
     v1_task_runtime runtime
 JOIN
@@ -990,6 +968,8 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 	IsDurable                    pgtype.Bool        `json:"is_durable"`
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
+	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
@@ -1048,6 +1028,8 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.RetryMaxBackoff,
 			&i.IsDurable,
 			&i.DesiredWorkerLabel,
+			&i.TriggeringEventExternalID,
+			&i.TriggeringEventKey,
 		); err != nil {
 			return nil, err
 		}

@@ -275,6 +275,18 @@ export enum OtelSpanKind {
   CONSUMER = "CONSUMER",
 }
 
+export enum V1DurableWaitConditionKind {
+  SLEEP = "SLEEP",
+  USER_EVENT = "USER_EVENT",
+  CHILD_WORKFLOW = "CHILD_WORKFLOW",
+}
+
+export enum V1DurableEventLogKind {
+  RUN = "RUN",
+  WAIT_FOR = "WAIT_FOR",
+  MEMO = "MEMO",
+}
+
 export enum V1RunningFilter {
   ALL = "ALL",
   EVICTED = "EVICTED",
@@ -375,6 +387,8 @@ export interface V1TaskSummary {
   displayName: string;
   /** The duration of the task run, in milliseconds. */
   duration?: number;
+  /** Whether this task was created as a durable task. */
+  isDurable?: boolean;
   /** The error message of the task run (for the latest run) */
   errorMessage?: string;
   /**
@@ -760,6 +774,65 @@ export interface V1BranchDurableTaskResponse {
   branchId: number;
 }
 
+export interface V1DurableWaitCondition {
+  kind: V1DurableWaitConditionKind;
+  /** @format int64 */
+  sleepDurationMs?: number;
+  eventKey?: string;
+  workflowName?: string;
+}
+
+export interface V1WaitItem {
+  kind?: V1DurableWaitConditionKind;
+  /** @format int64 */
+  sleepDurationMs?: number;
+  eventKey?: string;
+  workflowName?: string;
+  or?: V1DurableWaitCondition[];
+}
+
+export type V1WaitData = V1WaitItem[];
+
+export interface V1DurableEventLogEntry {
+  /**
+   * The monotonically increasing node id in the event log.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id when this entry was first seen.
+   * @format int64
+   */
+  branchId: number;
+  kind: V1DurableEventLogKind;
+  waitData?: V1WaitData;
+  /** Whether this entry has been satisfied. */
+  isSatisfied: boolean;
+  /**
+   * When this entry was satisfied, if it has been satisfied.
+   * @format date-time
+   */
+  satisfiedAt?: string;
+  /**
+   * When this entry was inserted.
+   * @format date-time
+   */
+  insertedAt: string;
+  /** A user-provided message or label, sent when establishing a durable wait. */
+  userMessage?: string;
+  /**
+   * The external id of the durable task this event log entry is associated with.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The display name of the durable task this event log entry is associated with. */
+  taskDisplayName: string;
+}
+
+export type V1DurableEventLogList = V1DurableEventLogEntry[];
+
 export interface OtelSpan {
   traceId: string;
   spanId: string;
@@ -1049,6 +1122,8 @@ export interface V1Webhook {
   staticPayload?: object;
   /** The type of authentication to use for the webhook */
   authType: V1WebhookAuthType;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1WebhookList {
@@ -1067,6 +1142,8 @@ export interface V1CreateWebhookRequestBase {
   scopeExpression?: string;
   /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
   staticPayload?: object;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1WebhookBasicAuth {
@@ -1131,6 +1208,8 @@ export interface V1UpdateWebhookRequest {
   scopeExpression?: string;
   /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
   staticPayload?: object;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1CELDebugRequest {

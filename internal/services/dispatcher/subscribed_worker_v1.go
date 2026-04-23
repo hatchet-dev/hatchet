@@ -249,5 +249,15 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 		action.ChildWorkflowKey = &key
 	}
 
+	if task.TriggeringEventExternalID != nil {
+		triggeringEventExternalId := task.TriggeringEventExternalID.String()
+		action.TriggeringEventExternalId = &triggeringEventExternalId
+	}
+
+	if task.TriggeringEventKey.Valid {
+		triggeringEventKey := task.TriggeringEventKey.String
+		action.TriggeringEventKey = &triggeringEventKey
+	}
+
 	return action
 }

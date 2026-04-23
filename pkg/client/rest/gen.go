@@ -222,6 +222,20 @@ const (
 	HMAC V1CreateWebhookRequestHMACAuthType = "HMAC"
 )
 
+// Defines values for V1DurableEventLogKind.
+const (
+	MEMO    V1DurableEventLogKind = "MEMO"
+	RUN     V1DurableEventLogKind = "RUN"
+	WAITFOR V1DurableEventLogKind = "WAIT_FOR"
+)
+
+// Defines values for V1DurableWaitConditionKind.
+const (
+	CHILDWORKFLOW V1DurableWaitConditionKind = "CHILD_WORKFLOW"
+	SLEEP         V1DurableWaitConditionKind = "SLEEP"
+	USEREVENT     V1DurableWaitConditionKind = "USER_EVENT"
+)
+
 // Defines values for V1LogLineLevel.
 const (
 	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
@@ -1509,6 +1523,9 @@ type V1CreateWebhookRequestAPIKey struct {
 	// Name The name of the webhook
 	Name string `json:"name"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
 	SourceName      V1WebhookSourceName `json:"sourceName"`
@@ -1527,6 +1544,9 @@ type V1CreateWebhookRequestBase struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -1548,6 +1568,9 @@ type V1CreateWebhookRequestBasicAuth struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -1573,6 +1596,9 @@ type V1CreateWebhookRequestHMAC struct {
 	// Name The name of the webhook
 	Name string `json:"name"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
 	SourceName      V1WebhookSourceName `json:"sourceName"`
@@ -1589,6 +1615,52 @@ type V1DagChildren struct {
 	Children *[]V1TaskSummary    `json:"children,omitempty"`
 	DagId    *openapi_types.UUID `json:"dagId,omitempty"`
 }
+
+// V1DurableEventLogEntry defines model for V1DurableEventLogEntry.
+type V1DurableEventLogEntry struct {
+	// BranchId The branch id when this entry was first seen.
+	BranchId int64 `json:"branchId"`
+
+	// InsertedAt When this entry was inserted.
+	InsertedAt time.Time `json:"insertedAt"`
+
+	// IsSatisfied Whether this entry has been satisfied.
+	IsSatisfied bool                  `json:"isSatisfied"`
+	Kind        V1DurableEventLogKind `json:"kind"`
+
+	// NodeId The monotonically increasing node id in the event log.
+	NodeId int64 `json:"nodeId"`
+
+	// SatisfiedAt When this entry was satisfied, if it has been satisfied.
+	SatisfiedAt *time.Time `json:"satisfiedAt,omitempty"`
+
+	// TaskDisplayName The display name of the durable task this event log entry is associated with.
+	TaskDisplayName string `json:"taskDisplayName"`
+
+	// TaskExternalId The external id of the durable task this event log entry is associated with.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+
+	// UserMessage A user-provided message or label, sent when establishing a durable wait.
+	UserMessage *string     `json:"userMessage,omitempty"`
+	WaitData    *V1WaitData `json:"waitData,omitempty"`
+}
+
+// V1DurableEventLogKind defines model for V1DurableEventLogKind.
+type V1DurableEventLogKind string
+
+// V1DurableEventLogList defines model for V1DurableEventLogList.
+type V1DurableEventLogList = []V1DurableEventLogEntry
+
+// V1DurableWaitCondition defines model for V1DurableWaitCondition.
+type V1DurableWaitCondition struct {
+	EventKey        *string                    `json:"eventKey,omitempty"`
+	Kind            V1DurableWaitConditionKind `json:"kind"`
+	SleepDurationMs *int64                     `json:"sleepDurationMs,omitempty"`
+	WorkflowName    *string                    `json:"workflowName,omitempty"`
+}
+
+// V1DurableWaitConditionKind defines model for V1DurableWaitConditionKind.
+type V1DurableWaitConditionKind string
 
 // V1Event defines model for V1Event.
 type V1Event struct {
@@ -1855,6 +1927,9 @@ type V1TaskSummary struct {
 	// Input The input of the task run.
 	Input openapi.NonNullableJSON `json:"input"`
 
+	// IsDurable Whether this task was created as a durable task.
+	IsDurable *bool `json:"isDurable,omitempty"`
+
 	// IsEvicted Whether the task has been evicted from a worker (still counts as RUNNING).
 	IsEvicted *bool           `json:"isEvicted,omitempty"`
 	Metadata  APIResourceMeta `json:"metadata"`
@@ -1993,11 +2068,26 @@ type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression *string `json:"eventKeyExpression,omitempty"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string `json:"scopeExpression,omitempty"`
 
 	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
 	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
+}
+
+// V1WaitData defines model for V1WaitData.
+type V1WaitData = []V1WaitItem
+
+// V1WaitItem defines model for V1WaitItem.
+type V1WaitItem struct {
+	EventKey        *string                     `json:"eventKey,omitempty"`
+	Kind            *V1DurableWaitConditionKind `json:"kind,omitempty"`
+	Or              *[]V1DurableWaitCondition   `json:"or,omitempty"`
+	SleepDurationMs *int64                      `json:"sleepDurationMs,omitempty"`
+	WorkflowName    *string                     `json:"workflowName,omitempty"`
 }
 
 // V1Webhook defines model for V1Webhook.
@@ -2010,6 +2100,9 @@ type V1Webhook struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -2544,6 +2637,15 @@ type V1DagListTasksParams struct {
 
 	// Tenant The tenant id
 	Tenant openapi_types.UUID `form:"tenant" json:"tenant"`
+}
+
+// V1DurableTaskEventLogListParams defines parameters for V1DurableTaskEventLogList.
+type V1DurableTaskEventLogListParams struct {
+	// Offset The number of event log entries to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number of event log entries to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // V1TaskGetParams defines parameters for V1TaskGet.
@@ -3420,6 +3522,9 @@ type ClientInterface interface {
 	// V1DagListTasks request
 	V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1DurableTaskEventLogList request
+	V1DurableTaskEventLogList(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskGet request
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4056,6 +4161,18 @@ func (c *Client) SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event
 
 func (c *Client) V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1DagListTasksRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1DurableTaskEventLogList(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1DurableTaskEventLogListRequest(c.Server, durableTask, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6539,6 +6656,78 @@ func NewV1DagListTasksRequest(server string, params *V1DagListTasksParams) (*htt
 					queryValues.Add(k, v2)
 				}
 			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1DurableTaskEventLogListRequest generates requests for V1DurableTaskEventLogList
+func NewV1DurableTaskEventLogListRequest(server string, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "durable-task", runtime.ParamLocationPath, durableTask)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/durable-tasks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -14055,6 +14244,9 @@ type ClientWithResponsesInterface interface {
 	// V1DagListTasksWithResponse request
 	V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error)
 
+	// V1DurableTaskEventLogListWithResponse request
+	V1DurableTaskEventLogListWithResponse(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error)
+
 	// V1TaskGetWithResponse request
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
 
@@ -14853,6 +15045,31 @@ func (r V1DagListTasksResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1DagListTasksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1DurableTaskEventLogListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1DurableEventLogList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1DurableTaskEventLogListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1DurableTaskEventLogListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -18052,6 +18269,15 @@ func (c *ClientWithResponses) V1DagListTasksWithResponse(ctx context.Context, pa
 	return ParseV1DagListTasksResponse(rsp)
 }
 
+// V1DurableTaskEventLogListWithResponse request returning *V1DurableTaskEventLogListResponse
+func (c *ClientWithResponses) V1DurableTaskEventLogListWithResponse(ctx context.Context, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error) {
+	rsp, err := c.V1DurableTaskEventLogList(ctx, durableTask, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1DurableTaskEventLogListResponse(rsp)
+}
+
 // V1TaskGetWithResponse request returning *V1TaskGetResponse
 func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error) {
 	rsp, err := c.V1TaskGet(ctx, task, params, reqEditors...)
@@ -20013,6 +20239,53 @@ func ParseV1DagListTasksResponse(rsp *http.Response) (*V1DagListTasksResponse, e
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1DurableTaskEventLogListResponse parses an HTTP response from a V1DurableTaskEventLogListWithResponse call
+func ParseV1DurableTaskEventLogListResponse(rsp *http.Response) (*V1DurableTaskEventLogListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1DurableTaskEventLogListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1DurableEventLogList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
