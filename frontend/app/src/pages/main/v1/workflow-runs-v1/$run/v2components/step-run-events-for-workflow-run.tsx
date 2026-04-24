@@ -196,6 +196,7 @@ function toTaskEventLogLines(
       line,
       taskDisplayName: event.taskDisplayName,
       taskExternalId: event.taskId,
+      error: event.errorMessage,
       linkTo,
     };
   });

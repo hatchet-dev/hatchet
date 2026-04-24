@@ -108,6 +108,6 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	)
 
 	return gen.TenantCreate200JSONResponse(
-		*transformers.ToTenant(tenant),
+		*transformers.ToTenant(tenant, t.config.Runtime.ServerURL),
 	), nil
 }
