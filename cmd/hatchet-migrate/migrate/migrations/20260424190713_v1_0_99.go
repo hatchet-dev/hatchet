@@ -536,8 +536,8 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("backfill %s_new: %w", v1RunsOlapTable, err)
 		}
 
-		newCount := db.QueryRow("SELECT count(*) FROM v1_runs_olap_new")
-		existingCount := db.QueryRow("SELECT count(*) FROM v1_runs_olap")
+		newCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_runs_olap_new")
+		existingCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_runs_olap")
 		var newCountVal, existingCountVal int64
 
 		if err := newCount.Scan(&newCountVal); err != nil {
@@ -576,8 +576,8 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("backfill %s_new: %w", v1TasksOlapTable, err)
 		}
 
-		newCount := db.QueryRow("SELECT count(*) FROM v1_tasks_olap_new")
-		existingCount := db.QueryRow("SELECT count(*) FROM v1_tasks_olap")
+		newCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_tasks_olap_new")
+		existingCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_tasks_olap")
 		var newCountVal, existingCountVal int64
 
 		if err := newCount.Scan(&newCountVal); err != nil {
@@ -612,8 +612,8 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("backfill %s_new: %w", v1DagsOlapTable, err)
 		}
 
-		newCount := db.QueryRow("SELECT count(*) FROM v1_dags_olap_new")
-		existingCount := db.QueryRow("SELECT count(*) FROM v1_dags_olap")
+		newCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_dags_olap_new")
+		existingCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_dags_olap")
 		var newCountVal, existingCountVal int64
 
 		if err := newCount.Scan(&newCountVal); err != nil {
