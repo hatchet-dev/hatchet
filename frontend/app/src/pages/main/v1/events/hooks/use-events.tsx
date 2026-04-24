@@ -141,7 +141,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
   return {
     events,
     numEvents,
-    isLoading: isLoading || eventKeysIsLoading || workflowKeysIsLoading,
+    isLoading: isLoading || workflowKeysIsLoading,
     refetch,
     error: error || eventKeysError || workflowKeysError,
     pagination,
