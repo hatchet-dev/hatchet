@@ -40,7 +40,7 @@ module Hatchet
 
     def workflow: (name: String, **untyped opts) -> Workflow
     def task: (name: String, **untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
-    def durable_task: (name: String, **untyped opts) { (Hash[String, untyped], DurableContext) -> untyped } -> Task
+    def durable_task: (name: String, ?eviction_policy: EvictionPolicy?, **untyped opts) { (Hash[String, untyped], DurableContext) -> untyped } -> Task
     def worker: (String name, **untyped opts) -> Worker
 
     def logger: () -> Logger

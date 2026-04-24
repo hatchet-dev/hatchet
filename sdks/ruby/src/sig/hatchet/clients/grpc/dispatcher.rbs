@@ -10,6 +10,7 @@ module Hatchet
           name: String,
           actions: Array[String],
           slots: Integer,
+          ?slot_config: Hash[String, Integer]?,
           ?labels: Hash[String, String | Integer]
         ) -> untyped
 
@@ -28,6 +29,7 @@ module Hatchet
         def release_slot: (step_run_id: String) -> untyped
         def upsert_worker_labels: (worker_id: String, labels: Hash[String, String | Integer]) -> untyped
         def subscribe_to_workflow_runs: (untyped request_enum) -> untyped
+        def get_version: () -> String?
         def close: () -> void
       end
     end

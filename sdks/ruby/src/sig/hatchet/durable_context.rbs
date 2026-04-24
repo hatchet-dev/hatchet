@@ -1,7 +1,13 @@
 module Hatchet
   class DurableContext < Context
-    def sleep_for: (duration: Integer | String) -> Hash[String, untyped]?
-    def wait_for: (String key, untyped condition) -> Hash[String, untyped]
+    attr_accessor eviction_manager: WorkerRuntime::DurableEviction::DurableEvictionManager?
+    attr_accessor action_key: String?
+    attr_accessor durable_event_listener: WorkerRuntime::DurableEventListener?
+    attr_accessor invocation_count: Integer?
+    attr_accessor engine_version: String?
+
+    def sleep_for: (duration: Integer | String, ?label: String?) -> Hash[String, untyped]?
+    def wait_for: (String key, untyped condition, ?label: String?) -> Hash[String, untyped]
 
     private
 

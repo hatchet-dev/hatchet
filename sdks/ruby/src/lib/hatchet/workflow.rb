@@ -110,14 +110,18 @@ module Hatchet
       t
     end
 
-    # Define a durable task within this workflow
+    # Define a durable task within this workflow.
     #
     # @param name [Symbol, String] Task name
-    # @param opts [Hash] Task options
+    # @param eviction_policy [Hatchet::EvictionPolicy, nil] Eviction policy for this
+    #   durable task. Defaults to {Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY}
+    #   (15-minute TTL, capacity-eviction enabled). Pass ``nil`` to disable
+    #   eviction entirely for this task.
+    # @param opts [Hash] Other Task options forwarded to {#task}.
     # @yield [input, ctx] The task execution block
     # @return [Task] The created durable task
-    def durable_task(name, **opts, &)
-      task(name, durable: true, **opts, &)
+    def durable_task(name, eviction_policy: Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY, **opts, &)
+      task(name, durable: true, eviction_policy: eviction_policy, **opts, &)
     end
 
     # Define an on_failure task for this workflow
