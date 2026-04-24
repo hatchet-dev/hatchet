@@ -85,6 +85,12 @@ When filtering **runs** with `additional_metadata`, Hatchet returns runs that ma
 
 Event filtering behaves differently: filtering **events** with multiple `additional_metadata` pairs requires all pairs to match (logical `AND`), since events use `JSONB` containment under the hood.
 
+<Callout type="info">
+  For example, filtering events with `{ first_name: "john", last_name: "doe" }`
+  returns only events whose metadata matches *both* `first_name: "john"` *and*
+  `last_name: "doe"`.
+</Callout>
+
 ## Use Cases
 
 Some common use cases for additional metadata include:
