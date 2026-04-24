@@ -90,14 +90,14 @@ type UseSidePanelProps =
         onAddFilter?: (key: string, value: string) => void;
         onRemoveFilter?: (key: string, value: string) => void;
         onSpanSelect?: (span: OtelSpanTree) => void;
-        onClose: () => void;
+        onClose?: () => void;
       };
     }
   | {
       type: 'group-details';
       content: {
         group: SpanGroupInfo;
-        onClose: () => void;
+        onClose?: () => void;
       };
     };
 
@@ -110,6 +110,23 @@ function SidePanelTaskRunDetail(props: {
     <RunDetailSearchLocalProvider>
       <TaskRunDetail {...props} />
     </RunDetailSearchLocalProvider>
+  );
+}
+
+function SidePanelSpanDetail(
+  props: Omit<React.ComponentProps<typeof SpanDetail>, 'onOpenTaskRun'>,
+) {
+  const { open } = useSidePanel();
+  return (
+    <SpanDetail
+      {...props}
+      onOpenTaskRun={(taskRunId) =>
+        open({
+          type: 'task-run-details',
+          content: { taskRunId, showViewTaskRunButton: true },
+        })
+      }
+    />
   );
 }
 
@@ -169,7 +186,7 @@ function useSidePanelData(): SidePanelData {
       case 'span-details':
         return {
           isDocs: false,
-          component: <SpanDetail {...props.content} />,
+          component: <SidePanelSpanDetail {...props.content} />,
         };
       case 'group-details':
         return {

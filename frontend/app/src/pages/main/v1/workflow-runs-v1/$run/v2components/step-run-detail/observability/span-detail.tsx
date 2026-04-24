@@ -15,7 +15,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
 import { Download, Filter, Minus, PanelRight, Plus } from 'lucide-react';
@@ -242,6 +241,7 @@ export function SpanDetail({
   onAddFilter,
   onRemoveFilter,
   onSpanSelect,
+  onOpenTaskRun,
 }: {
   span: OtelSpanTree;
   onClose?: () => void;
@@ -249,6 +249,7 @@ export function SpanDetail({
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
   onSpanSelect?: (span: OtelSpanTree) => void;
+  onOpenTaskRun?: (taskRunId: string) => void;
 }) {
   const isLive = !!span.inProgress || isQueuedOnly(span);
   const now = useLiveClock(isLive);
@@ -277,20 +278,13 @@ export function SpanDetail({
         };
   const { hatchet, user } = partitionAttributes(span.spanAttributes);
   const taskRunId = span.spanAttributes?.['hatchet.step_run_id'];
-  const { open } = useSidePanel();
 
   const handleOpenTaskRun = useCallback(() => {
     if (!taskRunId) {
       return;
     }
-    open({
-      type: 'task-run-details',
-      content: {
-        taskRunId,
-        showViewTaskRunButton: true,
-      },
-    });
-  }, [taskRunId, open]);
+    onOpenTaskRun?.(taskRunId);
+  }, [taskRunId, onOpenTaskRun]);
 
   const childErrors = useMemo(() => {
     if (

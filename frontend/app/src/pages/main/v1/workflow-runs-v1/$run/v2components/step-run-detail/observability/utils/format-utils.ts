@@ -12,7 +12,8 @@ export function formatDuration(
 
   if (precise) {
     if (unit === 'ns' && ms < 1) {
-      return `${Math.round(value / 1_000)}µs`;
+      const us = value / 1_000;
+      return us < 1 ? '<1µs' : `${Math.round(us)}µs`;
     }
     if (ms < 1) {
       return '<1ms';

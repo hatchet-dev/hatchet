@@ -248,7 +248,7 @@ export function TaskRunTrace({
     }
   }
 
-  const { open, close } = useSidePanel();
+  const { open, close, isOpen } = useSidePanel();
 
   const resolvedSpan = useMemo(
     () =>
@@ -286,6 +286,16 @@ export function TaskRunTrace({
     setSelectedGroupId(undefined);
     close();
   }, [setSelectedSpanId, setSelectedGroupId, close]);
+
+  const prevIsOpenRef = useRef(isOpen);
+  useEffect(() => {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+    if (wasOpen && !isOpen) {
+      setSelectedSpanId(undefined);
+      setSelectedGroupId(undefined);
+    }
+  }, [isOpen, setSelectedSpanId, setSelectedGroupId]);
 
   const handleSpanSelect = useCallback(
     (span: OtelSpanTree) => {
@@ -385,7 +395,7 @@ export function TaskRunTrace({
     return () => window.removeEventListener('keydown', handler);
   }, [handleEscapeReset]);
 
-  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const key = resolvedSpan
@@ -405,18 +415,14 @@ export function TaskRunTrace({
         if (cancelled) {
           return;
         }
-        const scrollContainer = timelineScrollRef.current;
-        if (!scrollContainer) {
+        const container = timelineRef.current;
+        if (!container) {
           return;
         }
-        const row = scrollContainer.querySelector(
+        const row = container.querySelector(
           `[data-row-key="${key}"]`,
         ) as HTMLElement | null;
-        if (row) {
-          const rowTop = row.offsetTop;
-          const target = Math.max(0, rowTop - scrollContainer.clientHeight / 3);
-          scrollContainer.scrollTo({ top: target, behavior: 'smooth' });
-        }
+        row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
     });
     return () => {
@@ -441,7 +447,7 @@ export function TaskRunTrace({
           {isAllExpanded ? 'Collapse All' : 'Expand All'}
         </Button>
       </div>
-      <div ref={timelineScrollRef}>
+      <div ref={timelineRef}>
         <TraceTimeline
           spanTrees={spanTrees}
           isRunning={isRunning}
