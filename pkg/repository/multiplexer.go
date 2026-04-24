@@ -17,6 +17,26 @@ import (
 // multiplexChannel is a single channel used for all multiplexed messages.
 const multiplexChannel = "hatchet_listener"
 
+// acquireListenerConn acquires a connection from the pool and transfers
+// ownership to the caller via Hijack, so the pool slot is released immediately.
+//
+// pgxlisten takes a raw *pgx.Conn from Connect and closes it via
+// `defer conn.Close(ctx)` when Listen exits (e.g. the server-side kills the
+// conn via idle_session_timeout). If we returned poolConn.Conn() without
+// Hijack, the *pgxpool.Conn wrapper would fall out of scope with no Release()
+// call, leaving pgxpool's bookkeeping permanently counting the slot as
+// "acquired." Each reconnect cycle would then leak one slot until the pool
+// is exhausted. Hijack transfers ownership out of the pool immediately; the
+// raw conn is closed cleanly by pgxlisten, and the next Connect call acquires
+// a fresh slot without any orphaned bookkeeping.
+func acquireListenerConn(ctx context.Context, pool *pgxpool.Pool) (*pgx.Conn, error) {
+	poolConn, err := pool.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return poolConn.Hijack(), nil
+}
+
 // multiplexedListener listens for messages on a single Postgres channel and
 // dispatches them to the appropriate handlers based on the queue name.
 type multiplexedListener struct {
@@ -57,12 +77,7 @@ func (m *multiplexedListener) startListening() {
 	// listen for multiplexed messages
 	listener := &pgxlisten.Listener{
 		Connect: func(ctx context.Context) (*pgx.Conn, error) {
-			// Acquire a new connection each time
-			poolConn, err := m.pool.Acquire(ctx)
-			if err != nil {
-				return nil, err
-			}
-			return poolConn.Conn(), nil
+			return acquireListenerConn(ctx, m.pool)
 		},
 		LogError: func(innerCtx context.Context, err error) {
 			m.l.Warn().Err(err).Msg("error in listener")
