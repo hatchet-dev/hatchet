@@ -97,10 +97,6 @@ export default function Integrations() {
 
           {hasGithubIntegration && (
             <TabsContent value="github">
-              <SettingsSectionHeader
-                title="GitHub"
-                description="Link GitHub accounts and installations so this tenant can work with connected repositories."
-              />
               <GithubInstallationsList />
             </TabsContent>
           )}

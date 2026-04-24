@@ -2276,10 +2276,11 @@ func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId uuid.UUID)
 	return r.queries.GetEventByExternalId(ctx, r.readPool, externalId)
 }
 
-func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uuid.UUID, eventExternalIds []uuid.UUID) (map[uuid.UUID]sqlcv1.PopulateEventDataRow, error) {
+func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uuid.UUID, eventExternalIds []uuid.UUID, minSeenAt pgtype.Timestamptz) (map[uuid.UUID]sqlcv1.PopulateEventDataRow, error) {
 	eventData, err := r.queries.PopulateEventData(ctx, r.readPool, sqlcv1.PopulateEventDataParams{
 		Eventexternalids: eventExternalIds,
 		Tenantid:         tenantId,
+		Minseenat:        minSeenAt,
 	})
 
 	if err != nil {
@@ -2311,9 +2312,7 @@ func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId
 		return nil, fmt.Errorf("error reading event payload: %v", err)
 	}
 
-	eventExternalIds := []uuid.UUID{event.ExternalID}
-
-	eventExternalIdToData, err := r.PopulateEventData(ctx, event.TenantID, eventExternalIds)
+	eventExternalIdToData, err := r.PopulateEventData(ctx, event.TenantID, []uuid.UUID{event.ExternalID}, event.SeenAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("error populating event data: %v", err)
@@ -2414,15 +2413,21 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 	}
 
 	eventExternalIds := make([]uuid.UUID, len(events))
+	minSeenAt := sqlchelpers.TimestamptzFromTime(time.Now())
 
 	for i, event := range events {
 		eventExternalIds[i] = event.ExternalID
+
+		if event.SeenAt.Time.Before(minSeenAt.Time) {
+			minSeenAt = event.SeenAt
+		}
 	}
 
 	eventExternalIdToData, err := r.PopulateEventData(
 		ctx,
 		opts.Tenantid,
 		eventExternalIds,
+		minSeenAt,
 	)
 
 	if err != nil {

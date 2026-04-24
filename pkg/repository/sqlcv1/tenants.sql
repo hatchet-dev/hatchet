@@ -643,11 +643,12 @@ RETURNING *;
 DELETE FROM "TenantMember"
 WHERE "id" = @id::uuid;
 
--- name: DeleteTenant :exec
+-- name: DeleteTenant :one
 UPDATE "Tenant"
 SET "deletedAt" = NOW(),
     slug = slug || '_deleted_' || gen_random_uuid()
-WHERE "id" = @id::uuid;
+WHERE "id" = @id::uuid
+RETURNING *;
 
 -- name: GetTenantUsageData :one
 WITH active_workers AS (

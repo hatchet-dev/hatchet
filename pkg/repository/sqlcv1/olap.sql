@@ -1741,12 +1741,13 @@ SELECT
     COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count,
     JSON_AGG(JSON_BUILD_OBJECT('run_external_id', r.external_id, 'filter_id', etr.filter_id)) FILTER (WHERE r.external_id IS NOT NULL)::JSONB AS triggered_runs
 FROM v1_event_lookup_table_olap elt
-JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+JOIN v1_events_olap e ON (elt.tenant_id, elt.event_seen_at, elt.event_id) = (e.tenant_id, e.seen_at, e.id)
+JOIN v1_event_to_run_olap etr ON (e.seen_at, e.id) = (etr.event_seen_at, etr.event_id)
+JOIN v1_runs_olap r ON (etr.run_inserted_at, etr.run_id) = (r.inserted_at, r.id)
 WHERE
     elt.external_id = ANY(@eventExternalIds::uuid[])
     AND elt.tenant_id = @tenantId::uuid
+    AND r.inserted_at >= @minSeenAt::timestamptz
 GROUP BY elt.external_id
 ;
 
@@ -1788,7 +1789,7 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+                AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
                 AND r.inserted_at >= @since::TIMESTAMPTZ
         )
     )
@@ -1812,7 +1813,7 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+                AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]))
                 AND r.inserted_at >= @since::TIMESTAMPTZ
         )
     )
@@ -1850,7 +1851,7 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+                    AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
                     AND r.inserted_at >= @since::TIMESTAMPTZ
             )
         )
@@ -1874,7 +1875,7 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+                    AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]))
                     AND r.inserted_at >= @since::TIMESTAMPTZ
             )
         )
