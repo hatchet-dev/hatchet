@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(up20260410190713, down20260410190713)
+	goose.AddMigrationNoTxContext(up20260424190713, down20260424190713)
 }
 
 const (
@@ -491,7 +491,7 @@ SET
 	END
 `
 
-func up20260410190713(ctx context.Context, db *sql.DB) error {
+func up20260424190713(ctx context.Context, db *sql.DB) error {
 	// runs first, then tasks, then dags
 
 	eg := &errgroup.Group{}
@@ -581,7 +581,7 @@ func up20260410190713(ctx context.Context, db *sql.DB) error {
 	return eg.Wait()
 }
 
-func down20260410190713(ctx context.Context, db *sql.DB) error {
+func down20260424190713(ctx context.Context, db *sql.DB) error {
 	for _, table := range []string{v1RunsOlapTable, v1TasksOlapTable, v1DagsOlapTable} {
 		if _, err := db.ExecContext(ctx, fmt.Sprintf(
 			`DROP TRIGGER IF EXISTS %s_mirror ON %s`,
