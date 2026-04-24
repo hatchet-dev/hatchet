@@ -4,7 +4,6 @@ import pytest
 
 from examples.cancellation.worker import cancellation_workflow
 from hatchet_sdk import Hatchet, RunStatus
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
