@@ -22,7 +22,7 @@ import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -144,12 +144,16 @@ export const CreateTenantInviteModal = ({
     setFieldErrors,
   });
 
+  const queryClient = useQueryClient();
   const organizationId = getOrganizationIdForTenant(tenantId);
 
   const { tenantInviteCreateMutation } = useTenantApi();
   const createMutation = useMutation({
     ...tenantInviteCreateMutation(tenantId),
     onSuccess: (invite) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenant-invite:list', tenantId],
+      });
       onCreated(invite);
       onClose();
     },
