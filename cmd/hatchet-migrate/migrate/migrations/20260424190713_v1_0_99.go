@@ -186,7 +186,8 @@ const v1TasksOlapNewColDefs = `
 		latest_worker_id        UUID,
 		dag_id                  BIGINT,
 		dag_inserted_at         TIMESTAMPTZ,
-		parent_task_external_id UUID`
+		parent_task_external_id UUID,
+		is_durable 			 	BOOLEAN NOT NULL DEFAULT FALSE`
 
 const v1TasksOlapMirrorFn = `CREATE OR REPLACE FUNCTION v1_tasks_olap_mirror_fn()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -216,7 +217,8 @@ BEGIN
 			latest_worker_id,
 			dag_id,
 			dag_inserted_at,
-			parent_task_external_id
+			parent_task_external_id,
+			is_durable
 		) VALUES (
 			NEW.tenant_id,
 			NEW.id,
@@ -241,7 +243,8 @@ BEGIN
 			NEW.latest_worker_id,
 			NEW.dag_id,
 			NEW.dag_inserted_at,
-			NEW.parent_task_external_id
+			NEW.parent_task_external_id,
+			NEW.is_durable
 		)
 		ON CONFLICT (inserted_at, id)
 		DO UPDATE SET
@@ -291,7 +294,8 @@ BEGIN
 			latest_worker_id        = NEW.latest_worker_id,
 			dag_id                  = NEW.dag_id,
 			dag_inserted_at         = NEW.dag_inserted_at,
-			parent_task_external_id = NEW.parent_task_external_id
+			parent_task_external_id = NEW.parent_task_external_id,
+			is_durable				= NEW.is_durable
 		WHERE inserted_at = NEW.inserted_at AND id = NEW.id;
 		RETURN NEW;
 	ELSIF TG_OP = 'DELETE' THEN
@@ -331,7 +335,8 @@ const v1TasksOlapBackfill = `INSERT INTO v1_tasks_olap_new (
 	latest_worker_id,
 	dag_id,
 	dag_inserted_at,
-	parent_task_external_id
+	parent_task_external_id,
+	is_durable
 )
 SELECT
 	tenant_id,
@@ -357,7 +362,8 @@ SELECT
 	latest_worker_id,
 	dag_id,
 	dag_inserted_at,
-	parent_task_external_id
+	parent_task_external_id,
+	is_durable
 FROM v1_tasks_olap
 ON CONFLICT (inserted_at, id) DO UPDATE
 	SET
