@@ -269,7 +269,8 @@ BEGIN
 			latest_worker_id        = EXCLUDED.latest_worker_id,
 			dag_id                  = EXCLUDED.dag_id,
 			dag_inserted_at         = EXCLUDED.dag_inserted_at,
-			parent_task_external_id = EXCLUDED.parent_task_external_id;
+			parent_task_external_id = EXCLUDED.parent_task_external_id,
+			is_durable				= EXCLUDED.is_durable;
 		RETURN NEW;
 	ELSIF TG_OP = 'UPDATE' THEN
 		UPDATE v1_tasks_olap_new SET
