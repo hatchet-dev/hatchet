@@ -412,7 +412,7 @@ export function TaskRunTrace({
             <Button
               variant="ghost"
               size="xs"
-              className="gap-1 text-xs"
+              className="gap-1 text-xs p-2"
               onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
             >
               {isAllExpanded ? (
@@ -420,7 +420,7 @@ export function TaskRunTrace({
               ) : (
                 <ChevronsUpDown className="size-3" />
               )}
-              {isAllExpanded ? 'collapse all' : 'expand all'}
+              {isAllExpanded ? 'Collapse All' : 'Expand All'}
             </Button>
           </div>
         </div>
