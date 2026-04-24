@@ -333,7 +333,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	}
 
 	if res == nil {
-		return gen.V1WebhookReceive200JSONResponse{}, nil
+		return gen.V1WebhookReceive204Response{}, nil
 	}
 
 	return gen.V1WebhookReceive200JSONResponse(*res), nil
