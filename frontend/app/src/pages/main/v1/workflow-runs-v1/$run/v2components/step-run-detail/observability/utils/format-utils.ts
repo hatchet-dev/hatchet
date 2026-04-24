@@ -12,13 +12,13 @@ export function formatDuration(
 
   if (precise) {
     if (unit === 'ns' && ms < 1) {
-      return `${(value / 1_000).toFixed(1)}µs`;
+      return `${Math.round(value / 1_000)}µs`;
     }
     if (ms < 1) {
       return '<1ms';
     }
     if (ms < 1000) {
-      return `${ms.toFixed(ms < 10 ? 2 : 1)}ms`;
+      return `${Math.round(ms)}ms`;
     }
     if (ms < 60_000) {
       return `${(ms / 1000).toFixed(2)}s`;
