@@ -923,9 +923,11 @@ BEGIN
                         AND cs2.task_retry_count = rt.retry_count
                 )
             )
-            AND CARDINALITY(wcs.child_strategy_ids) <= (
-                SELECT COUNT(*)
-                FROM relevant_tasks_for_dags rt
+            AND (
+                (SELECT COUNT(*) FROM relevant_tasks_for_dags) = 0
+                OR CARDINALITY(wcs.child_strategy_ids) <= (
+                    SELECT COUNT(*) FROM relevant_tasks_for_dags
+                )
             )
         GROUP BY
             wcs.strategy_id,
