@@ -46,7 +46,7 @@ const otelInstrumentation =
   require('@opentelemetry/instrumentation') as typeof import('@opentelemetry/instrumentation');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-const { context, propagation, SpanKind, SpanStatusCode, diag } = otelApi;
+const { context, propagation, SpanKind, SpanStatusCode, diag, trace, isSpanContextValid } = otelApi;
 
 const {
   InstrumentationBase,
@@ -80,6 +80,7 @@ type HatchetInstrumentationConfig = OpenTelemetryConfig &
   };
 type Carrier = Record<string, string>;
 
+const TRIGGER_SPAN_EXPORTED_KEY = 'hatchet__trigger_span_exported';
 const INSTRUMENTOR_NAME = '@hatchet-dev/typescript-sdk';
 // FIXME: refactor version check to use the new pattern introduced in #2954
 const SUPPORTED_VERSIONS = ['>=1.16.0'];
@@ -103,6 +104,22 @@ function injectSourceInfo(carrier: Carrier): void {
     carrier['hatchet__source_workflow_run_id'] = wfRunId;
     carrier['hatchet__source_step_run_id'] = stepRunId;
   }
+}
+
+function markTriggerSpanAsExported(carrier: Carrier): void {
+  carrier[TRIGGER_SPAN_EXPORTED_KEY] = 'true';
+}
+
+function shouldCreateWorkflowRunSpan(
+  carrier: Carrier | undefined,
+  parentContext: OtelContext
+): boolean {
+  if (!carrier || carrier[TRIGGER_SPAN_EXPORTED_KEY] === 'true') {
+    return false;
+  }
+
+  const parentSpanContext = trace.getSpanContext(parentContext);
+  return parentSpanContext ? isSpanContextValid(parentSpanContext) : false;
 }
 
 function getActionOtelAttributes(
@@ -351,6 +368,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           (span: Span) => {
             const enhancedMetadata: Carrier = { ...(options.additionalMetadata ?? {}) };
             injectContext(enhancedMetadata);
+            markTriggerSpanAsExported(enhancedMetadata);
             injectSourceInfo(enhancedMetadata);
 
             const enhancedOptions: PushEventOptions = {
@@ -406,6 +424,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
                 ...((input.additionalMetadata as Carrier) ?? {}),
               };
               injectContext(enhancedMetadata);
+              markTriggerSpanAsExported(enhancedMetadata);
               injectSourceInfo(enhancedMetadata);
               return {
                 ...input,
@@ -500,6 +519,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           (span: Span) => {
             const enhancedMetadata: Carrier = { ...(options?.additionalMetadata ?? {}) };
             injectContext(enhancedMetadata);
+            markTriggerSpanAsExported(enhancedMetadata);
 
             const enhancedOptions = {
               ...options,
@@ -564,6 +584,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             const enhancedWorkflowRuns = workflowRuns.map((run) => {
               const enhancedMetadata: Carrier = { ...(run.options?.additionalMetadata ?? {}) };
               injectContext(enhancedMetadata);
+              markTriggerSpanAsExported(enhancedMetadata);
               return {
                 ...run,
                 options: {
@@ -658,27 +679,61 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           }
           setHatchetSpanAttributes(hatchetAttrs);
 
+          const runStepSpan = (stepParentContext: OtelContext) =>
+            tracer.startActiveSpan(
+              spanName,
+              {
+                kind: SpanKind.CONSUMER,
+                attributes,
+              },
+              stepParentContext,
+              (span: Span) => {
+                return original
+                  .call(this, action)
+                  .then((taskError: Error | undefined) => {
+                    if (taskError instanceof Error) {
+                      span.recordException(taskError);
+                      span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
+                    } else {
+                      span.setStatus({ code: SpanStatusCode.OK });
+                    }
+                    return taskError;
+                  })
+                  .finally(() => {
+                    span.end();
+                  });
+              }
+            );
+
+          if (!shouldCreateWorkflowRunSpan(additionalMetadata, parentContext)) {
+            return runStepSpan(parentContext);
+          }
+
           return tracer.startActiveSpan(
-            spanName,
+            'hatchet.workflow_run',
             {
               kind: SpanKind.CONSUMER,
               attributes,
             },
             parentContext,
-            (span: Span) => {
-              return original
-                .call(this, action)
+            (workflowSpan: Span) => {
+              const workflowContext = trace.setSpan(context.active(), workflowSpan);
+
+              return runStepSpan(workflowContext)
                 .then((taskError: Error | undefined) => {
                   if (taskError instanceof Error) {
-                    span.recordException(taskError);
-                    span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
+                    workflowSpan.recordException(taskError);
+                    workflowSpan.setStatus({
+                      code: SpanStatusCode.ERROR,
+                      message: taskError.message,
+                    });
                   } else {
-                    span.setStatus({ code: SpanStatusCode.OK });
+                    workflowSpan.setStatus({ code: SpanStatusCode.OK });
                   }
                   return taskError;
                 })
                 .finally(() => {
-                  span.end();
+                  workflowSpan.end();
                 });
             }
           );
@@ -791,6 +846,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             // Inject traceparent into additionalMetadata for context propagation
             const enhancedMetadata: Carrier = { ...(input.additionalMetadata ?? {}) };
             injectContext(enhancedMetadata);
+            markTriggerSpanAsExported(enhancedMetadata);
 
             const enhancedInput = {
               ...input,
