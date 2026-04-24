@@ -7,7 +7,6 @@ import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
-import { Card } from '@/components/v1/ui/card';
 import {
   Table,
   TableBody,
@@ -19,7 +18,7 @@ import {
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { cn } from '@/lib/utils';
-import { Download, Filter, Minus, PanelRight, Plus, X } from 'lucide-react';
+import { Download, Filter, Minus, PanelRight, Plus } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 function FilterWithBadgeIcon({
@@ -239,14 +238,13 @@ function AttrTable({
 
 export function SpanDetail({
   span,
-  onClose,
   activeFilters,
   onAddFilter,
   onRemoveFilter,
   onSpanSelect,
 }: {
   span: OtelSpanTree;
-  onClose: () => void;
+  onClose?: () => void;
   activeFilters?: ParsedTraceQuery;
   onAddFilter?: (key: string, value: string) => void;
   onRemoveFilter?: (key: string, value: string) => void;
@@ -305,8 +303,8 @@ export function SpanDetail({
   }, [span]);
 
   return (
-    <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 space-y-4 border-b border-border p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h3 className="truncate font-mono text-sm font-semibold text-foreground">
@@ -316,29 +314,16 @@ export function SpanDetail({
               {span.spanId}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {taskRunId && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleOpenTaskRun}
-                leftIcon={<PanelRight className="size-4" />}
-              >
-                View Task Run
-              </Button>
-            )}
+          {taskRunId && (
             <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-8 shrink-0 text-muted-foreground"
-              onClick={onClose}
-              hoverText="Close"
-              aria-label="Close panel"
+              size="sm"
+              variant="outline"
+              onClick={handleOpenTaskRun}
+              leftIcon={<PanelRight className="size-4" />}
             >
-              <X className="size-4" />
+              View Task Run
             </Button>
-          </div>
+          )}
         </div>
 
         <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
@@ -373,8 +358,7 @@ export function SpanDetail({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
           {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
             <Alert variant="destructive">
               <AlertTitle>Error Message</AlertTitle>
@@ -430,17 +414,15 @@ export function SpanDetail({
             </div>
           )}
         </div>
-      </div>
-    </Card>
+    </div>
   );
 }
 
 export function GroupDetail({
   group,
-  onClose,
 }: {
   group: SpanGroupInfo;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const timeRangeMs = group.latestEndMs - group.earliestStartMs;
   const durations = group.spans.map((s) => s.durationNs / 1_000_000);
@@ -449,63 +431,48 @@ export function GroupDetail({
   const maxMs = Math.max(...durations);
 
   return (
-    <Card className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 space-y-4 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h3 className="truncate font-mono text-sm font-semibold text-foreground">
-              {group.groupName}
-            </h3>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {group.totalCount.toLocaleString()} spans
-              {group.errorCount > 0 && (
-                <span className="text-red-500">
-                  {' '}
-                  · {group.errorCount.toLocaleString()} errors
-                </span>
-              )}
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-8 shrink-0 text-muted-foreground"
-            onClick={onClose}
-            hoverText="Close"
-            aria-label="Close panel"
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
+    <div className="space-y-4">
+      <div className="min-w-0">
+        <h3 className="truncate font-mono text-sm font-semibold text-foreground">
+          {group.groupName}
+        </h3>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">
+          {group.totalCount.toLocaleString()} spans
+          {group.errorCount > 0 && (
+            <span className="text-red-500">
+              {' '}
+              · {group.errorCount.toLocaleString()} errors
+            </span>
+          )}
+        </p>
+      </div>
 
-        <div className="grid grid-cols-4 gap-4">
-          <div>
-            <span className="text-xs text-muted-foreground">Time Range</span>
-            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-              {formatDuration(timeRangeMs, { precise: true })}
-            </p>
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground">Avg Duration</span>
-            <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
-              {formatDuration(avgMs, { precise: true })}
-            </p>
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground">Min Duration</span>
-            <p className="mt-0.5 font-mono text-sm text-foreground">
-              {formatDuration(minMs, { precise: true })}
-            </p>
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground">Max Duration</span>
-            <p className="mt-0.5 font-mono text-sm text-foreground">
-              {formatDuration(maxMs, { precise: true })}
-            </p>
-          </div>
+      <div className="grid grid-cols-4 gap-4">
+        <div>
+          <span className="text-xs text-muted-foreground">Time Range</span>
+          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+            {formatDuration(timeRangeMs, { precise: true })}
+          </p>
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">Avg Duration</span>
+          <p className="mt-0.5 font-mono text-sm font-medium text-foreground">
+            {formatDuration(avgMs, { precise: true })}
+          </p>
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">Min Duration</span>
+          <p className="mt-0.5 font-mono text-sm text-foreground">
+            {formatDuration(minMs, { precise: true })}
+          </p>
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">Max Duration</span>
+          <p className="mt-0.5 font-mono text-sm text-foreground">
+            {formatDuration(maxMs, { precise: true })}
+          </p>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
