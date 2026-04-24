@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 const (
@@ -55,47 +55,47 @@ type EmptyInput struct{}
 
 // Durable test workflow definitions and worker tasks
 var (
-	testDurableWorkflow          *hatchet.Workflow
-	testDurableTask              *hatchet.Task
-	testWaitForOrGroup1          *hatchet.Task
-	testWaitForOrGroup2          *hatchet.Task
-	testWaitForSleepTwice        *hatchet.StandaloneTask
-	testSpawnChildTask           *hatchet.StandaloneTask
-	testDurableWithSpawn         *hatchet.StandaloneTask
-	testDurableWithBulkSpawn     *hatchet.StandaloneTask
-	testDurableSleepEventSpawn   *hatchet.StandaloneTask
-	testDurableNonDeterminism    *hatchet.StandaloneTask
-	testDurableReplayReset       *hatchet.StandaloneTask
-	testMemoTask                 *hatchet.StandaloneTask
-	testMemoNowCaching           *hatchet.StandaloneTask
-	testDurableSpawnDAG          *hatchet.StandaloneTask
-	testDagChildWorkflow         *hatchet.Workflow
-	testEvictableSleep           *hatchet.StandaloneTask
-	testEvictableWaitForEvent    *hatchet.StandaloneTask
-	testEvictableChildSpawn      *hatchet.StandaloneTask
-	testEvictableChildBulkSpawn  *hatchet.StandaloneTask
-	testMultipleEviction         *hatchet.StandaloneTask
-	testCapacityEvictableSleep   *hatchet.StandaloneTask
-	testNonEvictableSleep        *hatchet.StandaloneTask
-	testEvictionChildTask        *hatchet.StandaloneTask
-	testEvictionBulkChildTask    *hatchet.StandaloneTask
+	testDurableWorkflow         *hatchet.Workflow
+	testDurableTask             *hatchet.Task
+	testWaitForOrGroup1         *hatchet.Task
+	testWaitForOrGroup2         *hatchet.Task
+	testWaitForSleepTwice       *hatchet.StandaloneTask
+	testSpawnChildTask          *hatchet.StandaloneTask
+	testDurableWithSpawn        *hatchet.StandaloneTask
+	testDurableWithBulkSpawn    *hatchet.StandaloneTask
+	testDurableSleepEventSpawn  *hatchet.StandaloneTask
+	testDurableNonDeterminism   *hatchet.StandaloneTask
+	testDurableReplayReset      *hatchet.StandaloneTask
+	testMemoTask                *hatchet.StandaloneTask
+	testMemoNowCaching          *hatchet.StandaloneTask
+	testDurableSpawnDAG         *hatchet.StandaloneTask
+	testDagChildWorkflow        *hatchet.Workflow
+	testEvictableSleep          *hatchet.StandaloneTask
+	testEvictableWaitForEvent   *hatchet.StandaloneTask
+	testEvictableChildSpawn     *hatchet.StandaloneTask
+	testEvictableChildBulkSpawn *hatchet.StandaloneTask
+	testMultipleEviction        *hatchet.StandaloneTask
+	testCapacityEvictableSleep  *hatchet.StandaloneTask
+	testNonEvictableSleep       *hatchet.StandaloneTask
+	testEvictionChildTask       *hatchet.StandaloneTask
+	testEvictionBulkChildTask   *hatchet.StandaloneTask
 )
 
 func registerAllWorkflows(client *hatchet.Client) {
 	evictionPolicy := &hatchet.EvictionPolicy{
-		TTL:                    5 * time.Second,
+		TTL:                   5 * time.Second,
 		AllowCapacityEviction: true,
-		Priority:               0,
+		Priority:              0,
 	}
 
 	capacityEvictionPolicy := &hatchet.EvictionPolicy{
 		AllowCapacityEviction: true,
-		Priority:               0,
+		Priority:              0,
 	}
 
 	nonEvictablePolicy := &hatchet.EvictionPolicy{
 		AllowCapacityEviction: false,
-		Priority:               0,
+		Priority:              0,
 	}
 
 	// --- DAG child workflow for spawn DAG test ---
@@ -136,7 +136,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 
 		return map[string]any{
 			"status":                 "success",
-			"event_id":              evtData.ID,
+			"event_id":               evtData.ID,
 			"sleep_duration_seconds": sleepTime,
 		}, nil
 	})

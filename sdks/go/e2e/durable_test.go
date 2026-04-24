@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 func toUUIDs(ids ...string) *[]openapi_types.UUID {
