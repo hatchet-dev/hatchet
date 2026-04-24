@@ -81,7 +81,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	}
 
 	if isChallenge {
-		res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil, false)
+		res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to transform response: %w", err)
 		}
@@ -327,13 +327,14 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
-	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev, webhook.ReturnEventAsResponsePayload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to transform response: %w", err)
+	if !webhook.ReturnEventAsResponsePayload {
+		return gen.V1WebhookReceive204Response{}, nil
 	}
 
-	if res == nil {
-		return gen.V1WebhookReceive204Response{}, nil
+	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to transform response: %w", err)
 	}
 
 	return gen.V1WebhookReceive200JSONResponse(*res), nil
