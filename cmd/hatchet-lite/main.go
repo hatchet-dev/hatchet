@@ -70,11 +70,16 @@ func main() {
 func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version string) error {
 	// read static asset directory and frontend URL from the environment
 	staticAssetDir := os.Getenv("LITE_STATIC_ASSET_DIR")
+	frontendBasePath := os.Getenv("LITE_FRONTEND_BASE_PATH")
 	frontendPort := os.Getenv("LITE_FRONTEND_PORT")
 	runtimePort := os.Getenv("LITE_RUNTIME_PORT")
 
 	if staticAssetDir == "" {
 		return fmt.Errorf("LITE_STATIC_ASSET_DIR environment variable is required")
+	}
+
+	if frontendBasePath == "" {
+		frontendBasePath = "/"
 	}
 
 	if frontendPort == "" {
@@ -124,7 +129,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 
 	// static file server
 	go func() {
-		c := staticfileserver.NewStaticFileServer(staticAssetDir)
+		c := staticfileserver.NewStaticFileServer(staticAssetDir, frontendBasePath)
 
 		s := &http.Server{
 			Addr:              fmt.Sprintf(":%s", frontendPort),

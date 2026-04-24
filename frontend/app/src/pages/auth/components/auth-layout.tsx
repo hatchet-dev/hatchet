@@ -1,9 +1,11 @@
 import { HeroPanel } from './hero-panel';
+import { config } from '@/config';
 import { CSSProperties, PropsWithChildren } from 'react';
 
 export function AuthLayout({ children }: PropsWithChildren) {
   const bgContentStyle = {
-    '--noise-url': 'url("/noise.png")',
+    // HACK(gregfurman): Strip the trailing '/' from BASE_PATH, accounting for '//' and '/base/path/' cases.
+    '--noise-url': `url("${config.BASE_PATH.replace(/\/+$/, '')}/noise.png")`,
   } as CSSProperties;
 
   return (
