@@ -533,8 +533,10 @@ func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uui
 }
 
 type TaskMetadata struct {
-	TaskID         int64     `json:"task_id"`
-	TaskInsertedAt time.Time `json:"task_inserted_at"`
+	TaskID                int64      `json:"task_id"`
+	TaskInsertedAt        time.Time  `json:"task_inserted_at"`
+	OutputEventExternalId *uuid.UUID `json:"output_event_external_id,omitempty"`
+	StepName              *string    `json:"step_name"`
 }
 
 func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
@@ -570,10 +572,47 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		return nil, err
 	}
 
+	outputEventExternalIdToStepName := make(map[uuid.UUID]string)
+	outputEventExternalIds := make([]uuid.UUID, 0)
+
+	for _, taskMeta := range taskMetadata {
+		if taskMeta.OutputEventExternalId != nil && taskMeta.StepName != nil {
+			outputEventExternalIds = append(outputEventExternalIds, *taskMeta.OutputEventExternalId)
+			outputEventExternalIdToStepName[*taskMeta.OutputEventExternalId] = *taskMeta.StepName
+		}
+	}
+
+	outputPayloads, err := r.ReadPayloads(ctx, row.TenantID, outputEventExternalIds...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	output := make(map[string]interface{})
+
+	for externalId, payload := range outputPayloads {
+		stepName, ok := outputEventExternalIdToStepName[externalId]
+
+		if !ok {
+			continue
+		}
+
+		payloadMap := make(map[string]interface{})
+
+		err = json.Unmarshal(payload, &payloadMap)
+
+		if err != nil {
+			r.l.Error().Err(err).Msgf("failed to unmarshal payload for step %s, externalId %s", stepName, externalId)
+			continue
+		}
+
+		output[stepName] = payloadMap
+	}
+
 	var outputPayload []byte
 
-	if row.OutputEventExternalID != nil {
-		outputPayload, err = r.ReadPayload(ctx, row.TenantID, *row.OutputEventExternalID)
+	if len(output) > 0 {
+		outputPayload, err = json.Marshal(output)
 
 		if err != nil {
 			return nil, err
@@ -1896,6 +1935,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			WorkflowRunID:        task.WorkflowRunID,
 			Input:                payloadToWriteToTask,
 			IsDurable:            task.IsDurable.Bool,
+			StepName:             task.StepName,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{

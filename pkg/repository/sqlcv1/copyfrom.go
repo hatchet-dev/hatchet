@@ -325,6 +325,7 @@ func (r iteratorForCreateTasksOLAP) Values() ([]interface{}, error) {
 		r.rows[0].DagInsertedAt,
 		r.rows[0].ParentTaskExternalID,
 		r.rows[0].IsDurable,
+		r.rows[0].StepName,
 	}, nil
 }
 
@@ -333,7 +334,7 @@ func (r iteratorForCreateTasksOLAP) Err() error {
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "workflow_run_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id", "is_durable"}, &iteratorForCreateTasksOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "workflow_run_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id", "is_durable", "step_name"}, &iteratorForCreateTasksOLAP{rows: arg})
 }
 
 // iteratorForInsertLogLine implements pgx.CopyFromSource.
