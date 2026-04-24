@@ -94,3 +94,11 @@ As a simple example, if you're establishing an event wait with a CEL expression 
     {/* TODO-DOCS: Ruby example here */}
   </Tabs.Tab>
 </UniversalTabs>
+
+## Adding labels for dashboard visibility
+
+You can add an optional `label` parameter to event wait calls. Labels appear in the dashboard run details, making it easier to understand what a task is waiting for when debugging or monitoring workflow execution.
+
+Labels are particularly useful when you have multiple event waits in a single task, or when you want to provide business context about the wait (e.g., "Waiting for user approval" or "Waiting for payment confirmation").
+
+See the [Python SDK reference](/reference/python/context#aio_wait_for_event) and [TypeScript SDK reference](/reference/typescript/Context#waitforevent) for the full API details.

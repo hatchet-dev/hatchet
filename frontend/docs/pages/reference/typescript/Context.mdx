@@ -479,6 +479,16 @@ Returns
 
 #### Methods
 
+<a id="sleepresult"></a>
+
+#### SleepResult
+
+The result returned by `sleepFor()` and `sleepUntil()`.
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `durationMs` | `number` | The sleep duration in milliseconds. |
+
 <a id="now"></a>
 
 ##### `now()`
@@ -490,6 +500,10 @@ Returns
 `Promise`\<`Date`\>
 
 The memoized current timestamp.
+
+Throws
+
+[`NonDeterminismError`](#nondeterminismerror) if the checkpoint sequence differs from the original execution during replay.
 
 <a id="sleepfor"></a>
 
@@ -503,13 +517,24 @@ Parameters
 | Parameter          | Type       | Description                |
 | ------------------ | ---------- | -------------------------- |
 | `duration`         | `Duration` | The duration to sleep for. |
-| `readableDataKey?` | `string`   | -                          |
+| `options?` | [`SleepForOptions`](#sleepforoptions) | Optional configuration for the sleep. |
 
 Returns
 
-`Promise`\<`SleepResult`\>
+`Promise`\<[`SleepResult`](#sleepresult)\>
 
 A promise that resolves with a SleepResult when the sleep duration has elapsed.
+
+<a id="sleepforoptions"></a>
+
+#### SleepForOptions
+
+Options for the `sleepFor()` method.
+
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `readableDataKey?` | `string` | Optional key used for condition result indexing. |
+| `label?` | `string` | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for (e.g., "Waiting for payment confirmation"). |
 
 <a id="sleepuntil"></a>
 
@@ -526,7 +551,7 @@ Parameters
 
 Returns
 
-`Promise`\<`SleepResult`\>
+`Promise`\<[`SleepResult`](#sleepresult)\>
 
 A SleepResult containing the actual duration slept.
 
@@ -568,6 +593,29 @@ Returns
 
 A list of results from the child workflows.
 
+<a id="waitforevent"></a>
+
+##### `waitForEvent()`
+
+Waits for a user event with the specified key.
+
+Parameters
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | `string` | The event key to wait for. |
+| `expression?` | `string` | An optional CEL expression to filter events. |
+| `payloadSchema?` | `z.ZodTypeAny` | An optional Zod schema to validate and parse the event payload. |
+| `scope?` | `string` | An optional scope to narrow down event matching. Required when using `lookbackWindow`. |
+| `lookbackWindow?` | `Duration` | An optional lookback window to check for events that arrived before the wait was established. Requires `scope` to be set. |
+| `label?` | `string` | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for. |
+
+Returns
+
+`Promise`\<`Record`\<`string`, `any`\>\> or `Promise`\<`z.infer<T>`\> if a schema is provided.
+
+The event payload, validated against the schema if one was provided.
+
 <a id="waitfor"></a>
 
 ##### `waitFor()`
@@ -580,6 +628,7 @@ Parameters
 | Parameter    | Type                           | Description                 |
 | ------------ | ------------------------------ | --------------------------- |
 | `conditions` | `Conditions` \| `Conditions`[] | The conditions to wait for. |
+| `label?` | `string` | Optional human-readable label shown in the dashboard run details. Use this to provide context about what the task is waiting for. |
 
 Returns
 
@@ -587,43 +636,30 @@ Returns
 
 A promise that resolves with the event that satisfied the conditions.
 
-<a id="waitforevent"></a>
+Throws
 
-##### `waitForEvent()`
+[`NonDeterminismError`](#nondeterminismerror) if the wait conditions differ from the original execution during replay.
 
-Lightweight wrapper for waiting for a user event. Allows for shorthand usage of
-`ctx.waitFor` when specifying a user event condition.
+---
 
-For more complicated conditions, use `ctx.waitFor` directly.
+<a id="nondeterminismerror"></a>
 
-Parameters
+### NonDeterminismError
 
-| Parameter        | Type     | Description                                                     |
-| ---------------- | -------- | --------------------------------------------------------------- |
-| `key`            | `string` | The event key to wait for.                                      |
-| `expression?`    | `string` | An optional CEL expression to filter events.                    |
-| `payloadSchema?` | `T`      | An optional Zod schema to validate and parse the event payload. |
+Thrown when a durable task's execution path during replay differs from the original execution. Import from `@hatchet-dev/typescript-sdk/v1`.
 
-Returns
+This error occurs when Hatchet detects that checkpoint operations (like `sleepFor`, `waitFor`, or `spawnChild`) are being called with different arguments or in a different order than they were during the original task execution.
 
-`Promise`\<`TypeOf`\<`T`\>\>
+#### Properties
 
-The event payload, validated against the schema if provided.
+| Property          | Type     | Description                                            |
+| ----------------- | -------- | ------------------------------------------------------ |
+| `taskExternalId`  | `string` | The ID of the affected task run.                       |
+| `invocationCount` | `number` | Which invocation of the task detected the error.       |
+| `nodeId`          | `number` | The checkpoint position where the mismatch was found.  |
 
-Lightweight wrapper for waiting for a user event. Allows for shorthand usage of
-`ctx.waitFor` when specifying a user event condition.
+#### Handling NonDeterminismError
 
-For more complicated conditions, use `ctx.waitFor` directly.
+You can catch this error in a try/catch block to implement custom recovery logic. Import `NonDeterminismError` from `@hatchet-dev/typescript-sdk/v1` and use `instanceof` to detect it.
 
-Parameters
-
-| Parameter     | Type     | Description                                  |
-| ------------- | -------- | -------------------------------------------- |
-| `key`         | `string` | The event key to wait for.                   |
-| `expression?` | `string` | An optional CEL expression to filter events. |
-
-Returns
-
-`Promise`\<`Record`\<`string`, `any`\>\>
-
-The event payload, validated against the schema if provided.
+See [Determinism Requirements](/v1/durable-task-execution#determinism-requirements) for best practices on writing deterministic durable tasks.

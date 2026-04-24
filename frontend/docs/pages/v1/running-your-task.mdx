@@ -137,4 +137,27 @@ Finally, there are a number of pages in the dashboard that have a `Trigger Run` 
 
 ![Create Scheduled Run](../../public/schedule-dash.gif)
 
+## Where you can trigger from
+
+- **Same codebase or monorepo** - import your task and call `run`, `run_no_wait`, or other trigger methods directly. Your API server, CLI, or another service in the same repo can use the same task definition.
+- **External API or separate service (polyrepo)** - when the triggering code can't import the task definition (different repo, language, or microservice), use a **stub**: a Hatchet task with the same name and input/output types but no implementation. See [Inter-Service Triggering](/v1/inter-service-triggering) for details.
+- **From the CLI** - use the `hatchet run` command to trigger tasks from the command line.
+- **From the Dashboard** - use the Hatchet dashboard to trigger tasks from the web interface.
+
+## Other trigger styles
+
+Hatchet supports additional trigger patterns for more advanced use cases:
+
+| Style         | Use case                                             | Doc                                               |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| **Scheduled** | Run once at a specific time in the future            | [Scheduled Trigger](/v1/scheduled-runs)           |
+| **Cron**      | Run on a recurring schedule (daily, weekly, etc.)    | [Cron Trigger](/v1/cron-runs)                     |
+| **Events**    | Run when an event is emitted (e.g. webhooks, queues) | [Event Trigger](/v1/external-events/run-on-event) |
+| **Bulk**      | Run the same task many times with different inputs   | [Bulk Run Many](/v1/bulk-run)                     |
+| **Webhooks**  | Let external systems trigger workflows via HTTP      | [Webhooks](/v1/webhooks)                          |
+
+## Next steps
+
+Now that you can run tasks, explore [Durable Workflows](/v1/durable-workflows-overview) to compose multiple tasks into pipelines with dependencies and checkpointing.
+
 <Keywords keywords="trigger, enqueue, fire-and-forget, fire-and-wait, run, event, webhook, cron, schedule" />
