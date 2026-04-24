@@ -75,15 +75,15 @@ For example, you can filter events by the `source` metadata keys to quickly find
 
 ## Filtering Semantics
 
-When filtering **runs** (via `runs.list`, the dashboard runs view, or the REST endpoint `GET /api/v1/stable/tenants/{tenant}/workflow-runs`) with multiple `additional_metadata` key/value pairs, Hatchet returns runs that match **any** of the provided pairs (logical `OR`), not all of them.
+When filtering **runs** with `additional_metadata`, Hatchet returns runs that match **any** of the provided pairs (logical `OR`), not all of them.
 
-<Callout type="warning">
+<Callout type="info">
   For example, filtering runs with `{ first_name: "john", last_name: "doe" }`
   returns runs whose metadata matches *either* `first_name: "john"` *or*
   `last_name: "doe"`, not only runs that match both.
 </Callout>
 
-Event filtering behaves differently: filtering **events** with multiple `additional_metadata` pairs requires all pairs to match (logical `AND`), since events use JSONB containment under the hood.
+Event filtering behaves differently: filtering **events** with multiple `additional_metadata` pairs requires all pairs to match (logical `AND`), since events use `JSONB` containment under the hood.
 
 ## Use Cases
 
