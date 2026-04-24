@@ -332,6 +332,10 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to transform response: %w", err)
 	}
 
+	if res == nil {
+		return gen.V1WebhookReceive200JSONResponse{}, nil
+	}
+
 	return gen.V1WebhookReceive200JSONResponse(*res), nil
 }
 
