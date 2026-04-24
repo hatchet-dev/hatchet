@@ -1169,6 +1169,9 @@ type Tenant struct {
 	// Name The name of the tenant.
 	Name string `json:"name"`
 
+	// ServerUrl The server URL for the tenant (includes scheme)
+	ServerUrl *string `json:"serverUrl,omitempty"`
+
 	// Slug The slug of the tenant.
 	Slug    string        `json:"slug"`
 	Version TenantVersion `json:"version"`

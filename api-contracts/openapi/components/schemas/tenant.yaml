@@ -20,6 +20,9 @@ Tenant:
     environment:
       $ref: "#/TenantEnvironment"
       description: The environment type of the tenant.
+    serverUrl:
+      type: string
+      description: The server URL for the tenant (includes scheme)
   required:
     - metadata
     - name
