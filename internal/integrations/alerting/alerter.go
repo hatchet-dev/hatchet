@@ -18,14 +18,14 @@ import (
 )
 
 type TenantAlertManager struct {
-	repo      v1.Repository
-	enc       encryption.EncryptionService
-	serverURL string
-	email     email.EmailService
+	repo        v1.Repository
+	enc         encryption.EncryptionService
+	frontendURL string
+	email       email.EmailService
 }
 
-func New(repo v1.Repository, e encryption.EncryptionService, serverURL string, email email.EmailService) *TenantAlertManager {
-	return &TenantAlertManager{repo, e, serverURL, email}
+func New(repo v1.Repository, e encryption.EncryptionService, frontendURL string, email email.EmailService) *TenantAlertManager {
+	return &TenantAlertManager{repo, e, frontendURL, email}
 }
 
 func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId uuid.UUID, failedRuns []*v1.WorkflowRunData) error {
@@ -93,7 +93,7 @@ func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) 
 		readableId := workflowRun.DisplayName
 
 		res = append(res, alerttypes.WorkflowRunFailedItem{
-			Link:                  fmt.Sprintf("%s/tenants/%s/runs/%s", t.serverURL, tenantId, workflowRunId),
+			Link:                  fmt.Sprintf("%s/tenants/%s/runs/%s", t.frontendURL, tenantId, workflowRunId),
 			WorkflowName:          readableId,
 			WorkflowRunReadableId: readableId,
 			RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
@@ -119,7 +119,7 @@ func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId uuid.UUID, token *s
 		TokenName:             token.Name.String,
 		ExpiresAtRelativeDate: timediff.TimeDiff(token.ExpiresAt.Time),
 		ExpiresAtAbsoluteDate: token.ExpiresAt.Time.Format("2006-01-02 15:04:05"),
-		Link:                  fmt.Sprintf("%s/tenants/%s/settings/api-tokens", t.serverURL, tenantId),
+		Link:                  fmt.Sprintf("%s/tenants/%s/settings/api-tokens", t.frontendURL, tenantId),
 	}
 
 	return t.sendExpiringTokenAlert(ctx, tenantAlerting, payload)
@@ -183,7 +183,7 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId uuid.UUID, al
 	}
 
 	payload := &alerttypes.ResourceLimitAlert{
-		Link:          fmt.Sprintf("%s/tenants/%s/settings/billing-and-limits", t.serverURL, tenantId),
+		Link:          fmt.Sprintf("%s/tenants/%s/settings/billing-and-limits", t.frontendURL, tenantId),
 		Resource:      string(alert.Resource),
 		AlertType:     string(alert.AlertType),
 		CurrentValue:  int(alert.Value),
