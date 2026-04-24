@@ -10,6 +10,11 @@ import {
   PortalTooltipProvider,
   PortalTooltipTrigger,
 } from '@/components/v1/ui/portal-tooltip';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/v1/ui/popover';
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
@@ -421,6 +426,26 @@ export function LogViewer({
                   {/* fixme: figure out how to use the type guard properly here */}
                   <AnsiLine text={log.line as string} />
                 </span>
+                {log.error && (
+                  <Popover>
+                    <PopoverTrigger
+                      asChild
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button className="ml-1 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-colors">
+                        View Error
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-96 max-h-64 overflow-y-auto"
+                      align="start"
+                    >
+                      <pre className="font-mono text-xs whitespace-pre-wrap break-words text-foreground">
+                        {log.error}
+                      </pre>
+                    </PopoverContent>
+                  </Popover>
+                )}
                 {log.linkTo && (
                   <PortalTooltipProvider>
                     <PortalTooltip>

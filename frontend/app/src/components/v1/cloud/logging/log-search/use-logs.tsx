@@ -47,6 +47,7 @@ export interface LogLine {
   attempt?: number;
   taskExternalId?: string;
   taskDisplayName?: string;
+  error?: string;
   linkTo?: {
     destination: ToPathOption<RegisteredRouter>;
     params?: Record<string, string>;
