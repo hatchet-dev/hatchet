@@ -61,50 +61,22 @@ const ENGINE_SPAN_DISPLAY_NAMES: Record<string, string> = {
   'hatchet.engine.workflow_run': 'Workflow Run',
   'hatchet.engine.event': 'Event',
   'hatchet.engine.event_emitted': 'Event Emitted',
+  'hatchet.push_event': 'Push Event',
+  'hatchet.run_workflow': 'Run Workflow',
 };
 
-// O11Y-FIXME: there is a naming consistency issue on the SDKs
 export function getDisplayName(span: OtelSpanTree): string {
-  if (span.spanName === 'hatchet.engine.workflow_run') {
-    const name = span.spanAttributes?.['hatchet.workflow_name'];
-    return name ? `workflow: ${name}` : 'workflow run';
-  }
-  if (span.spanName === 'hatchet.engine.event') {
-    const key = span.spanAttributes?.['hatchet.event_key'];
-    return key ? `event: ${key}` : 'event';
-  }
-  if (span.spanName === 'hatchet.engine.event_emitted') {
-    const key = span.spanAttributes?.['hatchet.event_key'];
-    return key ? `event emitted: ${key}` : 'event emitted';
-  }
   if (ENGINE_SPAN_DISPLAY_NAMES[span.spanName]) {
     return ENGINE_SPAN_DISPLAY_NAMES[span.spanName];
   }
-  if (span.spanName === 'hatchet.push_event') {
-    const key = span.spanAttributes?.['hatchet.event_key'];
-    return key ? `push event: ${key}` : 'push event';
-  }
-  if (span.spanName === 'hatchet.run_workflow') {
-    const name = span.spanAttributes?.['hatchet.workflow_name'];
-    return name ? `run: ${name}` : 'run workflow';
-  }
-  if (!span.spanName.startsWith('hatchet.')) {
-    return span.spanName;
-  }
-  if (span.spanAttributes?.['hatchet.task_name']) {
-    return span.spanAttributes['hatchet.task_name'];
-  }
-  if (span.spanAttributes?.['hatchet.step_name']) {
-    return span.spanAttributes['hatchet.step_name'];
-  }
-  if (span.spanAttributes?.['hatchet.workflow_name']) {
-    return span.spanAttributes['hatchet.workflow_name'];
-  }
-  const actionId = span.spanAttributes?.['hatchet.action_id'];
-  if (actionId?.includes(':')) {
-    return actionId.split(':')[0];
-  }
   return span.spanName;
+}
+
+export function getSpanAttributeLabel(span: OtelSpanTree): string | undefined {
+  return (
+    span.spanAttributes?.['hatchet.task_name'] ??
+    span.spanAttributes?.['hatchet.step_name']
+  );
 }
 
 export function getStableKey(span: OtelSpanTree): string {
