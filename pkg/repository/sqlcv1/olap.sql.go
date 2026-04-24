@@ -269,7 +269,7 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.workflow_id = ANY($5::UUID[]::UUID[])
+                    AND r.workflow_id = ANY($5::UUID[])
                     AND r.inserted_at >= $3::TIMESTAMPTZ
             )
         )
@@ -293,7 +293,7 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.readable_status = ANY(CAST($8::text[]::TEXT[] AS v1_readable_status_olap[]))
+                    AND r.readable_status = ANY(CAST($8::TEXT[] AS v1_readable_status_olap[]))
                     AND r.inserted_at >= $3::TIMESTAMPTZ
             )
         )
@@ -1391,7 +1391,7 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.workflow_id = ANY($5::UUID[]::UUID[])
+                AND r.workflow_id = ANY($5::UUID[])
                 AND r.inserted_at >= $3::TIMESTAMPTZ
         )
     )
@@ -1415,7 +1415,7 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.readable_status = ANY(CAST($8::text[]::TEXT[] AS v1_readable_status_olap[]))
+                AND r.readable_status = ANY(CAST($8::TEXT[] AS v1_readable_status_olap[]))
                 AND r.inserted_at >= $3::TIMESTAMPTZ
         )
     )

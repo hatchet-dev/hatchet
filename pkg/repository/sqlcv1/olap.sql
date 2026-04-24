@@ -1779,7 +1779,7 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+                AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
                 AND r.inserted_at >= @since::TIMESTAMPTZ
         )
     )
@@ -1803,7 +1803,7 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+                AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]))
                 AND r.inserted_at >= @since::TIMESTAMPTZ
         )
     )
@@ -1841,7 +1841,7 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+                    AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
                     AND r.inserted_at >= @since::TIMESTAMPTZ
             )
         )
@@ -1865,7 +1865,7 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+                    AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]))
                     AND r.inserted_at >= @since::TIMESTAMPTZ
             )
         )
