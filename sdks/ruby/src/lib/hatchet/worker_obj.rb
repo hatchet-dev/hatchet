@@ -30,19 +30,28 @@ module Hatchet
     # @return [String, nil] Worker ID assigned by the server
     attr_accessor :worker_id
 
+    # @return [Integer] Number of durable-task slots (defaults to ``slots``)
+    attr_reader :durable_slots
+
+    # @return [String, nil] Engine semantic version detected on ``start``
+    attr_reader :engine_version
+
     # @param name [String] Worker name
     # @param client [Hatchet::Client] The Hatchet client
     # @param workflows [Array<Workflow, Task>] Workflows to register
     # @param slots [Integer] Number of concurrent task slots (default: 10)
+    # @param durable_slots [Integer, nil] Number of durable-task slots; defaults to ``slots``
     # @param labels [Hash] Worker labels (default: {})
-    def initialize(name:, client:, workflows: [], slots: 10, labels: {})
+    def initialize(name:, client:, workflows: [], slots: 10, durable_slots: nil, labels: {})
       @name = name
       @client = client
       @workflows = workflows
       @slots = slots
+      @durable_slots = durable_slots || slots
       @labels = client.config.worker_preset_labels.merge(labels)
       @worker_id = nil
       @shutdown = false
+      @engine_version = nil
     end
 
     # Start the worker. This blocks until shutdown is requested.
@@ -58,7 +67,8 @@ module Hatchet
       @client.config.logger.info("Starting worker '#{@name}' with #{@slots} slots")
       @client.config.logger.info("Registering #{@workflows.length} workflow(s)")
 
-      # Register workflows with the server
+      check_engine_version
+
       register_workflows
 
       # Start the health check server if enabled
@@ -87,6 +97,46 @@ module Hatchet
     end
 
     private
+
+    def check_engine_version
+      @engine_version = @client.dispatcher_grpc.get_version
+      if @engine_version
+        @client.config.logger.info("Connected to Hatchet engine #{@engine_version}")
+        check_eviction_support
+      else
+        @client.config.logger.debug(
+          "Engine did not report a version (GetVersion unimplemented); assuming pre-eviction compatibility mode.",
+        )
+      end
+    rescue StandardError => e
+      @client.config.logger.debug("Failed to fetch engine version: #{e.class}: #{e.message}")
+      @engine_version = nil
+    end
+
+    def check_eviction_support
+      return unless @workflows.any? { |wf| workflow_has_durable_task?(wf) }
+      return unless @engine_version
+
+      return unless Hatchet::EngineVersion.semver_less_than?(
+        @engine_version,
+        Hatchet::MinEngineVersion::DURABLE_EVICTION,
+      )
+
+      @client.config.logger.warn(
+        "Durable task eviction requires engine #{Hatchet::MinEngineVersion::DURABLE_EVICTION} or newer " \
+        "(engine reports #{@engine_version}). Falling back to legacy durable-event protocol; eviction policies will be ignored.",
+      )
+    end
+
+    def workflow_has_durable_task?(workflow)
+      if workflow.is_a?(Workflow)
+        workflow.tasks.values.any?(&:durable)
+      elsif workflow.is_a?(Task)
+        workflow.durable
+      else
+        false
+      end
+    end
 
     def setup_signal_handlers
       @main_thread = Thread.current
@@ -129,6 +179,10 @@ module Hatchet
         name: @client.config.apply_namespace(@name),
         actions: action_ids,
         slots: @slots,
+        slot_config: {
+          "default" => @slots,
+          "durable" => @durable_slots,
+        },
         labels: @labels,
       )
 
@@ -188,7 +242,6 @@ module Hatchet
     def run_action_listener
       @client.config.logger.info("Worker '#{@name}' is running. Press Ctrl+C to stop.")
 
-      # Create the runner for executing tasks
       runner = WorkerRuntime::Runner.new(
         workflows: @workflows,
         slots: @slots,
@@ -196,6 +249,9 @@ module Hatchet
         event_client: @client.event_grpc,
         logger: @client.config.logger,
         client: @client,
+        engine_version: @engine_version,
+        durable_slots: @durable_slots,
+        worker_id: @worker_id,
       )
 
       # Create the action listener with retry/reconnect logic

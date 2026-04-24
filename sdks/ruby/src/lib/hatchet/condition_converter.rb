@@ -62,16 +62,20 @@ module Hatchet
       end
     end
 
-    # @param duration [Integer, String] Sleep duration
+    # @param duration [Integer, String] Sleep duration (seconds as Integer, or Go duration string like "15s")
     def convert_sleep_condition(duration, action:, or_group_id:, sleep_conditions:)
-      base = ::V1::BaseMatchCondition.new(
-        readable_data_key: "sleep_#{duration}",
-        action: action,
+      sleep_for = duration.is_a?(String) ? duration : "#{duration}s"
+
+      base_args = {
+        readable_data_key: "sleep:#{sleep_for}",
         or_group_id: or_group_id,
-      )
+      }
+      base_args[:action] = action if action
+
+      base = ::V1::BaseMatchCondition.new(base_args)
       sleep_conditions << ::V1::SleepMatchCondition.new(
         base: base,
-        sleep_for: "#{duration}s",
+        sleep_for: sleep_for,
       )
     end
 
@@ -80,12 +84,14 @@ module Hatchet
     def convert_user_event_condition(event_key, action:, or_group_id:, expression:, user_event_conditions:, config: nil)
       namespaced_key = config ? config.apply_namespace(event_key) : event_key
 
-      base = ::V1::BaseMatchCondition.new(
+      base_args = {
         readable_data_key: namespaced_key,
-        action: action,
         or_group_id: or_group_id,
         expression: expression,
-      )
+      }
+      base_args[:action] = action if action
+
+      base = ::V1::BaseMatchCondition.new(base_args)
       user_event_conditions << ::V1::UserEventMatchCondition.new(
         base: base,
         user_event_key: namespaced_key,
@@ -98,12 +104,14 @@ module Hatchet
                                sleep_conditions:, user_event_conditions:, config: nil)
       base_key = readable_data_key || cond[:readable_data_key] || cond[:key] || ""
 
-      base = ::V1::BaseMatchCondition.new(
+      base_args = {
         readable_data_key: base_key,
-        action: action,
         or_group_id: cond[:or_group_id] || or_group_id,
         expression: cond[:expression] || "",
-      )
+      }
+      base_args[:action] = action if action
+
+      base = ::V1::BaseMatchCondition.new(base_args)
 
       if cond[:sleep_for]
         sleep_conditions << ::V1::SleepMatchCondition.new(

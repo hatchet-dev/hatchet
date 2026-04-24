@@ -25,6 +25,8 @@ require_relative "hatchet/features/scheduled"
 
 # Core classes
 require_relative "hatchet/exceptions"
+require_relative "hatchet/engine_version"
+require_relative "hatchet/eviction_policy"
 require_relative "hatchet/concurrency"
 require_relative "hatchet/conditions"
 require_relative "hatchet/condition_converter"
@@ -52,6 +54,7 @@ require_relative "hatchet/contracts/events/events_services_pb"
 require_relative "hatchet/contracts/workflows/workflows_pb"
 require_relative "hatchet/contracts/workflows/workflows_services_pb"
 require_relative "hatchet/contracts/v1/shared/condition_pb"
+require_relative "hatchet/contracts/v1/shared/trigger_pb"
 require_relative "hatchet/contracts/v1/dispatcher_pb"
 require_relative "hatchet/contracts/v1/dispatcher_services_pb"
 require_relative "hatchet/contracts/v1/workflows_pb"
@@ -65,6 +68,9 @@ require_relative "hatchet/clients/grpc/event_client"
 # Worker runtime
 require_relative "hatchet/worker/action_listener"
 require_relative "hatchet/worker/workflow_run_listener"
+require_relative "hatchet/worker/durable_eviction/cache"
+require_relative "hatchet/worker/durable_eviction/manager"
+require_relative "hatchet/worker/durable_event_listener"
 require_relative "hatchet/worker/runner"
 
 # Ruby SDK for Hatchet workflow engine
@@ -216,17 +222,21 @@ module Hatchet
       wf.task(name, **opts, &block)
     end
 
-    # Create a standalone durable task
+    # Create a standalone durable task.
     #
     # @param name [String] Task name
+    # @param eviction_policy [Hatchet::EvictionPolicy, nil] Eviction policy for this
+    #   durable task. Defaults to {Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY}
+    #   (15-minute TTL, capacity-eviction enabled). Pass ``nil`` to disable
+    #   eviction entirely for this task.
     # @param opts [Hash] Task options
     # @yield [input, ctx] The task execution block
     # @return [Hatchet::Task]
-    def durable_task(name:, **opts, &block)
+    def durable_task(name:, eviction_policy: Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY, **opts, &block)
       wf = Workflow.new(name: name, client: self,
                         on_events: opts.delete(:on_events) || [],
                         default_filters: opts.delete(:default_filters) || [],)
-      wf.durable_task(name, **opts, &block)
+      wf.durable_task(name, eviction_policy: eviction_policy, **opts, &block)
     end
 
     # Create a new worker
