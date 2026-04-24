@@ -201,6 +201,11 @@ export function TaskRunTrace({
     setSelectedGroupId,
   } = useRunDetailSearch();
 
+  const { minStart, maxEnd } = useMemo(
+    () => findTimeRange(spanTrees),
+    [spanTrees],
+  );
+
   const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(() => {
     const set = new Set(collectKeysUpToDepth(spanTrees, 2));
     if (selectedSpanId) {
@@ -244,6 +249,33 @@ export function TaskRunTrace({
     Record<string, number>
   >({});
 
+  const [visibleRange, setVisibleRange] = useState<VisibleRange>({
+    startPct: 0,
+    endPct: 1,
+  });
+
+  const isZoomed = visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999;
+
+  const zoomedTicks = useMemo(() => {
+    if (!isZoomed) {
+      return null;
+    }
+    const totalMs = maxEnd - minStart;
+    const visStartMs = totalMs * visibleRange.startPct;
+    const visDurationMs =
+      totalMs * (visibleRange.endPct - visibleRange.startPct);
+    const { ticks } = computeTimeTicks(visDurationMs);
+    return { ticks, visDurationMs, visOffsetMs: visStartMs };
+  }, [isZoomed, minStart, maxEnd, visibleRange]);
+
+  const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
+  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
+
+  const { isEnabled: minimapEnabled } = useIsFeatureEnabled(
+    FeatureFlagId.TraceMinimapEnabled,
+    false,
+  );
+
   const prevFocusedRef = useRef(focusedTaskRunId);
   if (focusedTaskRunId && focusedTaskRunId !== prevFocusedRef.current) {
     prevFocusedRef.current = focusedTaskRunId;
@@ -281,40 +313,6 @@ export function TaskRunTrace({
     }
   }
 
-  const { isEnabled: minimapEnabled } = useIsFeatureEnabled(
-    FeatureFlagId.TraceMinimapEnabled,
-    false,
-  );
-
-  const { minStart, maxEnd } = useMemo(
-    () => findTimeRange(spanTrees),
-    [spanTrees],
-  );
-
-  const [visibleRange, setVisibleRange] = useState<VisibleRange>({
-    startPct: 0,
-    endPct: 1,
-  });
-
-  const isZoomed = visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999;
-
-  const zoomedTicks = useMemo(() => {
-    if (!isZoomed) {
-      return null;
-    }
-    const totalMs = maxEnd - minStart;
-    const visStartMs = totalMs * visibleRange.startPct;
-    const visDurationMs =
-      totalMs * (visibleRange.endPct - visibleRange.startPct);
-    const { ticks } = computeTimeTicks(visDurationMs);
-    return { ticks, visDurationMs, visOffsetMs: visStartMs };
-  }, [isZoomed, minStart, maxEnd, visibleRange]);
-
-  const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
-  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
-
-  const { open, close, isOpen } = useSidePanel();
-
   const resolvedSpan = useMemo(
     () =>
       selectedSpanId ? findSpanInTrees(spanTrees, selectedSpanId) : undefined,
@@ -345,6 +343,8 @@ export function TaskRunTrace({
     },
     [spanTrees],
   );
+
+  const { open, close, isOpen } = useSidePanel();
 
   const handleDetailClose = useCallback(() => {
     setSelectedSpanId(undefined);
@@ -506,7 +506,7 @@ export function TaskRunTrace({
 
   return (
     <div className="my-4 flex min-w-0 select-none flex-col gap-y-2">
-      {minimapEnabled && (
+      <div className="shrink-0">
         <div className="flex min-w-0">
           <div
             className="flex shrink-0 flex-wrap items-end gap-1 pb-1 pr-2"
@@ -523,97 +523,82 @@ export function TaskRunTrace({
               ) : (
                 <ChevronsUpDown className="size-3" />
               )}
-              {isAllExpanded ? 'Collapse All' : 'Expand All'}
+              {isAllExpanded ? 'collapse all' : 'expand all'}
             </Button>
           </div>
-          <div className="min-w-0 flex-1 pr-10">
-            <div className="flex justify-end pb-1">
-              <Button
-                variant="ghost"
-                size="xs"
-                className={`gap-1 text-xs ${isZoomed ? '' : 'invisible'}`}
-                onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
-                tabIndex={isZoomed ? undefined : -1}
-              >
-                <XIcon className="size-3" />
-                clear zoom
-              </Button>
+          {minimapEnabled && (
+            <div className="min-w-0 flex-1 pr-10">
+              <div className="flex justify-end pb-1">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={`gap-1 text-xs ${isZoomed ? '' : 'invisible'}`}
+                  onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
+                  tabIndex={isZoomed ? undefined : -1}
+                >
+                  <XIcon className="size-3" />
+                  clear zoom
+                </Button>
+              </div>
+              <TraceMinimap
+                spanTrees={spanTrees}
+                minMs={minStart}
+                maxMs={maxEnd}
+                isRunning={isRunning}
+                visibleRange={visibleRange}
+                onRangeChange={setVisibleRange}
+                expandedSpanIds={expandedSpansIds}
+                onSpanSelect={handleMinimapSpanSelect}
+                externalHoverPct={timelineHoverPct}
+                onHoverPctChange={setMinimapHoverPct}
+              />
             </div>
-            <TraceMinimap
-              spanTrees={spanTrees}
-              minMs={minStart}
-              maxMs={maxEnd}
-              isRunning={isRunning}
-              visibleRange={visibleRange}
-              onRangeChange={setVisibleRange}
-              expandedSpanIds={expandedSpansIds}
-              onSpanSelect={handleMinimapSpanSelect}
-              externalHoverPct={timelineHoverPct}
-              onHoverPctChange={setMinimapHoverPct}
-            />
-          </div>
+          )}
         </div>
-      )}
-      {minimapEnabled && isZoomed && (
-        <div className="flex min-w-0">
-          <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-          <div className="min-w-0 flex-1 pr-10">
-            <svg
-              className="h-5 w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <line
-                x1={visibleRange.startPct * 100}
-                y1="0"
-                x2="0"
-                y2="100"
-                className="stroke-border"
-                strokeWidth="1"
-                vectorEffect="non-scaling-stroke"
+        {minimapEnabled && isZoomed && (
+          <div className="flex min-w-0">
+            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div className="min-w-0 flex-1 pr-10">
+              <svg
+                className="h-5 w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <line
+                  x1={visibleRange.startPct * 100}
+                  y1="0"
+                  x2="0"
+                  y2="100"
+                  className="stroke-border"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <line
+                  x1={visibleRange.endPct * 100}
+                  y1="0"
+                  x2="100"
+                  y2="100"
+                  className="stroke-border"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+            </div>
+          </div>
+        )}
+        {minimapEnabled && zoomedTicks && (
+          <div className="flex min-w-0">
+            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div className="min-w-0 flex-1 pr-10">
+              <TimeTickLabels
+                ticks={zoomedTicks.ticks}
+                totalMs={zoomedTicks.visDurationMs}
+                offsetMs={zoomedTicks.visOffsetMs}
               />
-              <line
-                x1={visibleRange.endPct * 100}
-                y1="0"
-                x2="100"
-                y2="100"
-                className="stroke-border"
-                strokeWidth="1"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
+            </div>
           </div>
-        </div>
-      )}
-      {minimapEnabled && zoomedTicks && (
-        <div className="flex min-w-0">
-          <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-          <div className="min-w-0 flex-1 pr-10">
-            <TimeTickLabels
-              ticks={zoomedTicks.ticks}
-              totalMs={zoomedTicks.visDurationMs}
-              offsetMs={zoomedTicks.visOffsetMs}
-            />
-          </div>
-        </div>
-      )}
-      {!minimapEnabled && (
-        <div style={{ width: LABEL_WIDTH }}>
-          <Button
-            variant="ghost"
-            size="xs"
-            className="gap-1 text-xs p-2"
-            onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
-          >
-            {isAllExpanded ? (
-              <ChevronsDownUp className="size-3" />
-            ) : (
-              <ChevronsUpDown className="size-3" />
-            )}
-            {isAllExpanded ? 'Collapse All' : 'Expand All'}
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
       <div ref={timelineRef}>
         <TraceTimeline
           spanTrees={spanTrees}
@@ -626,10 +611,10 @@ export function TaskRunTrace({
           selectedGroupId={resolvedGroup?.groupId}
           onSpanSelect={handleSpanSelect}
           onGroupSelect={handleGroupSelect}
-          visibleRange={minimapEnabled ? visibleRange : undefined}
-          onRangeChange={minimapEnabled ? setVisibleRange : undefined}
-          externalCursorPct={minimapEnabled ? minimapHoverPct : undefined}
-          onCursorPctChange={minimapEnabled ? setTimelineHoverPct : undefined}
+          visibleRange={visibleRange}
+          onRangeChange={setVisibleRange}
+          externalCursorPct={minimapHoverPct}
+          onCursorPctChange={setTimelineHoverPct}
         />
       </div>
     </div>
