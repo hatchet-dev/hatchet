@@ -13,7 +13,7 @@ RSpec.describe Hatchet::Clients::Grpc::Dispatcher do
   end
   let(:channel) { instance_double("GRPC::Core::Channel") }
   let(:grpc_stub) { instance_double(Dispatcher::Stub) }
-  let(:response) { instance_double(WorkerRegisterResponse, worker_id: "worker-123") }
+  let(:response) { double("WorkerRegisterResponse", worker_id: "worker-123") }
 
   subject(:dispatcher) { described_class.new(config: config, channel: channel) }
 
@@ -38,7 +38,13 @@ RSpec.describe Hatchet::Clients::Grpc::Dispatcher do
     end
 
     it "falls back to legacy registration without slot_config on gRPC errors" do
-      allow(grpc_stub).to receive(:register).and_raise(GRPC::InvalidArgument).once.and_return(response)
+      attempts = 0
+      allow(grpc_stub).to receive(:register) do
+        attempts += 1
+        raise GRPC::InvalidArgument, "invalid request" if attempts == 1
+
+        response
+      end
 
       dispatcher.register(
         name: "ruby-worker",

@@ -43,6 +43,8 @@ module Hatchet
       (parse_semver(left_version) <=> parse_semver(right_version)).negative?
     end
 
-    alias semver_less_than semver_less_than?
+    class << self
+      alias semver_less_than semver_less_than?
+    end
   end
 end

@@ -78,7 +78,7 @@ RSpec.describe Hatchet::WorkerRuntime::Runner do
     allow(client).to receive(:channel).and_return(channel)
 
     workflow = Hatchet::Workflow.new(name: "TestWorkflow", client: client)
-    workflow.durable_task(name: "durable_task", execution_timeout: 60) { |_input, _ctx| { "ok" => true } }
+    workflow.durable_task("durable_task", execution_timeout: 60) { |_input, _ctx| { "ok" => true } }
 
     durable_runner = described_class.new(
       workflows: [workflow],
