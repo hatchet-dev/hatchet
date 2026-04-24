@@ -56,7 +56,11 @@ func ToV1WebhookList(webhooks []*sqlcv1.V1IncomingWebhook) gen.V1WebhookList {
 	}
 }
 
-func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) (*gen.V1WebhookResponse, error) {
+func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event, returnResponsePayload bool) (*gen.V1WebhookResponse, error) {
+	if !returnResponsePayload {
+		return nil, nil
+	}
+
 	res := &gen.V1WebhookResponse{
 		Message:   message,
 		Challenge: challenge,
