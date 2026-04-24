@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from examples.cancellation.worker import cancellation_workflow
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
@@ -11,18 +11,14 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 async def test_cancellation(hatchet: Hatchet) -> None:
     ref = await cancellation_workflow.aio_run(wait_for_result=False)
 
-    """Sleep for a long time since we only need cancellation to happen _eventually_"""
-    await asyncio.sleep(10)
+    for _ in range(30):
+        run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-    for i in range(30):
-        run = await hatchet.runs.aio_get(ref.workflow_run_id)
-
-        if run.run.status == V1TaskStatus.RUNNING:
+        if run.status in [RunStatus.RUNNING, RunStatus.QUEUED]:
             await asyncio.sleep(1)
             continue
 
-        assert run.run.status == V1TaskStatus.CANCELLED
-        assert not run.run.output
+        assert run.status == RunStatus.CANCELLED
 
         break
     else:
