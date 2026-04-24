@@ -53,17 +53,17 @@ There are three levers:
 
 **TTL (Time-To-Live)**: How long a task waits before becoming eligible for eviction. When the TTL expires, Hatchet evicts the task, frees the slot, and automatically resumes when the wait condition is satisfied. Shorter TTLs free slots faster but cause more eviction overhead.
 
-**Capacity-based eviction**: Whether Hatchet can evict this task when worker slots are under pressure. Set `allow_capacity_eviction=False` (Python) or `allowCapacityEviction: false` (TypeScript) for critical tasks that should not be interrupted. These tasks keep their slot until their wait completes normally.
+**Capacity-based eviction**: Whether Hatchet can evict this task when worker slots are under pressure. Set `allow_capacity_eviction=False` (Python), `allowCapacityEviction: false` (TypeScript), or `AllowCapacityEviction: false` (Go) for critical tasks that should not be interrupted. These tasks keep their slot until their wait completes normally.
 
 **Priority**: When multiple tasks are candidates for capacity-based eviction, tasks with lower priority values are evicted first. Use this to protect important tasks relative to less critical ones.
 
 <Callout type="info">
-To prevent a task from ever being evicted, set `ttl` to `None` (Python) or `undefined` (TypeScript) and disable capacity eviction. This is useful for tasks holding critical state that cannot be checkpointed, but the task will consume a slot for the entire wait duration.
+To prevent a task from ever being evicted, set `ttl` to `None` (Python), `undefined` (TypeScript), or `0` (Go) and disable capacity eviction. This is useful for tasks holding critical state that cannot be checkpointed, but the task will consume a slot for the entire wait duration.
 </Callout>
 
 ### EvictionPolicy reference
 
-<UniversalTabs items={["Python", "TypeScript"]} optionKey="sdk">
+<UniversalTabs items={["Python", "TypeScript", "Go"]} optionKey="sdk">
 <Tabs.Tab title="Python">
 
 Pass an `eviction_policy` to the `durable_task` decorator:
@@ -84,6 +84,17 @@ Pass an `evictionPolicy` to `hatchet.durableTask()`:
 | `ttl` | `Duration \| undefined` | `'15m'` | Maximum wait duration before TTL-based eviction. Set to `undefined` to disable. |
 | `priority` | `number` | `0` | Lower values are evicted first under capacity pressure. |
 | `allowCapacityEviction` | `boolean` | `true` | Whether the task can be evicted under slot pressure. |
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+Pass an `EvictionPolicy` using `hatchet.WithEvictionPolicy()`:
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `TTL` | `time.Duration` | `15 * time.Minute` | Maximum wait duration before TTL-based eviction. Set to `0` to disable. |
+| `Priority` | `int` | `0` | Lower values are evicted first under capacity pressure. |
+| `AllowCapacityEviction` | `bool` | `true` | Whether the task can be evicted under slot pressure. |
 
 </Tabs.Tab>
 </UniversalTabs>
