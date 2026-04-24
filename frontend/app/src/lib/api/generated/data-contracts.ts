@@ -973,6 +973,8 @@ export interface Tenant {
   version: TenantVersion;
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
+  /** The server URL for the tenant (includes scheme) */
+  serverUrl?: string;
 }
 
 export interface V1EventWorkflowRunSummary {
