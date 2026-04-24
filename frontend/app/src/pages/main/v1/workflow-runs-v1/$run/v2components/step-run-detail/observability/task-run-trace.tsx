@@ -1,14 +1,7 @@
 import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
-import { TraceMinimap } from './minimap/trace-minimap';
 import { SpanDetail, GroupDetail } from './span-detail';
-import { TimeTickLabels } from './timeline/time-tick-labels';
+import { TraceTimeline, LABEL_WIDTH } from './timeline/trace-timeline';
 import {
-  TraceTimeline,
-  LABEL_WIDTH,
-  type VisibleRange,
-} from './timeline/trace-timeline';
-import {
-  computeTimeTicks,
   groupSiblings,
   type SpanGroupInfo,
 } from './timeline/trace-timeline-utils';
@@ -19,35 +12,10 @@ import type {
   ParsedTraceQuery,
 } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
-import { ChevronsDownUp, ChevronsUpDown, XIcon } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
-
-const findTimeRange = (
-  spanTrees: OtelSpanTree[],
-): { minStart: number; maxEnd: number } => {
-  let minStart = Infinity;
-  let maxEnd = -Infinity;
-
-  const traverse = (node: OtelSpanTree) => {
-    const start = new Date(node.createdAt).getTime();
-    const end = start + node.durationNs / 1_000_000;
-    minStart = Math.min(minStart, start);
-    maxEnd = Math.max(maxEnd, end);
-    if (node.queuedPhase) {
-      const qStart = new Date(node.queuedPhase.createdAt).getTime();
-      const qEnd = qStart + node.queuedPhase.durationNs / 1_000_000;
-      minStart = Math.min(minStart, qStart);
-      maxEnd = Math.max(maxEnd, qEnd);
-    }
-    node.children?.forEach(traverse);
-  };
-
-  spanTrees.forEach(traverse);
-
-  return { minStart, maxEnd };
-};
 
 type Selection =
   | { kind: 'span'; span: OtelSpanTree }
@@ -186,11 +154,6 @@ export function TaskRunTrace({
     setSelectedGroupId,
   } = useRunDetailSearch();
 
-  const { minStart, maxEnd } = useMemo(
-    () => findTimeRange(spanTrees),
-    [spanTrees],
-  );
-
   const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(() => {
     const set = new Set(spanTrees.map((s) => s.spanId));
     if (selectedSpanId) {
@@ -233,28 +196,6 @@ export function TaskRunTrace({
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Record<string, number>
   >({});
-
-  const [visibleRange, setVisibleRange] = useState<VisibleRange>({
-    startPct: 0,
-    endPct: 1,
-  });
-
-  const isZoomed = visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999;
-
-  const zoomedTicks = useMemo(() => {
-    if (!isZoomed) {
-      return null;
-    }
-    const totalMs = maxEnd - minStart;
-    const visStartMs = totalMs * visibleRange.startPct;
-    const visDurationMs =
-      totalMs * (visibleRange.endPct - visibleRange.startPct);
-    const { ticks } = computeTimeTicks(visDurationMs);
-    return { ticks, visDurationMs, visOffsetMs: visStartMs };
-  }, [isZoomed, minStart, maxEnd, visibleRange]);
-
-  const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
-  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
 
   const prevFocusedRef = useRef(focusedTaskRunId);
   if (focusedTaskRunId && focusedTaskRunId !== prevFocusedRef.current) {
@@ -333,14 +274,6 @@ export function TaskRunTrace({
     [expandAncestors, selectedSpanId, setSelectedSpanId],
   );
 
-  const handleMinimapSpanSelect = useCallback(
-    (span: OtelSpanTree, _ancestorSpanIds: string[]) => {
-      expandAncestors(span);
-      setSelectedSpanId(span.spanId);
-    },
-    [expandAncestors, setSelectedSpanId],
-  );
-
   const handleGroupSelect = useCallback(
     (group: SpanGroupInfo) => {
       setSelectedGroupId(
@@ -368,7 +301,6 @@ export function TaskRunTrace({
   const handleEscapeReset = useCallback(() => {
     setSelectedSpanId(undefined);
     setSelectedGroupId(undefined);
-    setVisibleRange({ startPct: 0, endPct: 1 });
     onClearFilters?.();
   }, [setSelectedSpanId, setSelectedGroupId, onClearFilters]);
 
@@ -458,95 +390,21 @@ export function TaskRunTrace({
         }
       >
         <div className="shrink-0">
-          <div className="flex min-w-0">
-            <div
-              className="flex shrink-0 flex-wrap items-end gap-1 pb-1 pr-2"
-              style={{ width: LABEL_WIDTH }}
+          <div style={{ width: LABEL_WIDTH }}>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="gap-1 text-xs"
+              onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
             >
-              <Button
-                variant="ghost"
-                size="xs"
-                className="gap-1 text-xs"
-                onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
-              >
-                {isAllExpanded ? (
-                  <ChevronsDownUp className="size-3" />
-                ) : (
-                  <ChevronsUpDown className="size-3" />
-                )}
-                {isAllExpanded ? 'collapse all' : 'expand all'}
-              </Button>
-            </div>
-            <div className="min-w-0 flex-1 pr-10">
-              <div className="flex justify-end pb-1">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={`gap-1 text-xs ${isZoomed ? '' : 'invisible'}`}
-                  onClick={() => setVisibleRange({ startPct: 0, endPct: 1 })}
-                  tabIndex={isZoomed ? undefined : -1}
-                >
-                  <XIcon className="size-3" />
-                  clear zoom
-                </Button>
-              </div>
-              <TraceMinimap
-                spanTrees={spanTrees}
-                minMs={minStart}
-                maxMs={maxEnd}
-                isRunning={isRunning}
-                visibleRange={visibleRange}
-                onRangeChange={setVisibleRange}
-                expandedSpanIds={expandedSpansIds}
-                onSpanSelect={handleMinimapSpanSelect}
-                externalHoverPct={timelineHoverPct}
-                onHoverPctChange={setMinimapHoverPct}
-              />
-            </div>
+              {isAllExpanded ? (
+                <ChevronsDownUp className="size-3" />
+              ) : (
+                <ChevronsUpDown className="size-3" />
+              )}
+              {isAllExpanded ? 'collapse all' : 'expand all'}
+            </Button>
           </div>
-          {isZoomed && (
-            <div className="flex min-w-0">
-              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-              <div className="min-w-0 flex-1 pr-10">
-                <svg
-                  className="h-5 w-full"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  <line
-                    x1={visibleRange.startPct * 100}
-                    y1="0"
-                    x2="0"
-                    y2="100"
-                    className="stroke-border"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <line
-                    x1={visibleRange.endPct * 100}
-                    y1="0"
-                    x2="100"
-                    y2="100"
-                    className="stroke-border"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
-              </div>
-            </div>
-          )}
-          {zoomedTicks && (
-            <div className="flex min-w-0">
-              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-              <div className="min-w-0 flex-1 pr-10">
-                <TimeTickLabels
-                  ticks={zoomedTicks.ticks}
-                  totalMs={zoomedTicks.visDurationMs}
-                  offsetMs={zoomedTicks.visOffsetMs}
-                />
-              </div>
-            </div>
-          )}
         </div>
         <div
           ref={timelineScrollRef}
@@ -571,10 +429,6 @@ export function TaskRunTrace({
             }
             onSpanSelect={handleSpanSelect}
             onGroupSelect={handleGroupSelect}
-            visibleRange={visibleRange}
-            onRangeChange={setVisibleRange}
-            externalCursorPct={minimapHoverPct}
-            onCursorPctChange={setTimelineHoverPct}
           />
         </div>
       </div>

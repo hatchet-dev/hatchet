@@ -1,7 +1,4 @@
-import {
-  getStableKey,
-  hasErrorInTree,
-} from '../utils/span-tree-utils';
+import { getStableKey, hasErrorInTree } from '../utils/span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 
 const GROUP_THRESHOLD = 5;
