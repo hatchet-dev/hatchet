@@ -326,7 +326,7 @@ export function SpanDetail({
           )}
         </div>
 
-        <div className={cn('grid gap-4', q ? 'grid-cols-4' : 'grid-cols-3')}>
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
           {q && (
             <div>
               <span className="text-xs text-muted-foreground">Queue Time</span>

@@ -47,18 +47,11 @@ export function formatDuration(
 
 export function formatTimestamp(iso: string, opts?: { ms?: boolean }): string {
   const d = new Date(iso);
-  const base = d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(opts?.ms ? {} : { year: 'numeric' }),
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  const time = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
   if (opts?.ms) {
-    const millis = String(d.getMilliseconds()).padStart(3, '0');
-    return `${base}.${millis}`;
+    return `${date} ${time}.${pad(d.getUTCMilliseconds(), 3)} UTC`;
   }
-  return base;
+  return `${date} ${time} UTC`;
 }
