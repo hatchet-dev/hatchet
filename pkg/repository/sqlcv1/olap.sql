@@ -176,7 +176,8 @@ INSERT INTO v1_tasks_olap (
     additional_metadata,
     dag_id,
     dag_inserted_at,
-    parent_task_external_id
+    parent_task_external_id,
+    is_durable
 ) VALUES (
     $1,
     $2,
@@ -198,7 +199,8 @@ INSERT INTO v1_tasks_olap (
     $18,
     $19,
     $20,
-    $21
+    $21,
+    $22
 );
 
 -- name: CreateDAGsOLAP :copyfrom
@@ -390,13 +392,15 @@ SELECT
   t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
-  t.additional__event_message
+  t.additional__event_message,
+  tsk.display_name AS task_display_name
 FROM aggregated_events a
 JOIN v1_task_events_olap t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
+JOIN v1_tasks_olap tsk ON (tsk.id, tsk.inserted_at) = (t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: ListTaskEventsForWorkflowRun :many
@@ -605,7 +609,8 @@ WITH input AS (
         t.parent_task_external_id,
         t.workflow_run_id,
         t.latest_retry_count,
-        t.dag_id
+        t.dag_id,
+        t.is_durable
     FROM
         v1_tasks_olap t
     JOIN
@@ -737,7 +742,8 @@ SELECT
         WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB as output,
-    o.output_event_external_id AS output_event_external_id
+    o.output_event_external_id AS output_event_external_id,
+    COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
 LEFT JOIN
@@ -1527,17 +1533,30 @@ WITH runs AS (
     ORDER BY
         e.retry_count DESC
     LIMIT 1
+), output_event_external_id AS (
+    SELECT
+        external_id
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
+    ORDER BY
+        inserted_at DESC
+    LIMIT 1
 )
+
 SELECT
     r.*,
     m.created_at,
     m.started_at,
     m.finished_at,
     e.error_message,
-    m.task_metadata
+    m.task_metadata,
+    o.external_id AS output_event_external_id
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
+LEFT JOIN output_event_external_id o ON true
 ORDER BY r.inserted_at DESC;
 
 -- name: GetWorkflowRunIdFromDagIdInsertedAt :one
@@ -1713,12 +1732,13 @@ SELECT
     COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count,
     JSON_AGG(JSON_BUILD_OBJECT('run_external_id', r.external_id, 'filter_id', etr.filter_id)) FILTER (WHERE r.external_id IS NOT NULL)::JSONB AS triggered_runs
 FROM v1_event_lookup_table_olap elt
-JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+JOIN v1_events_olap e ON (elt.tenant_id, elt.event_seen_at, elt.event_id) = (e.tenant_id, e.seen_at, e.id)
+JOIN v1_event_to_run_olap etr ON (e.seen_at, e.id) = (etr.event_seen_at, etr.event_id)
+JOIN v1_runs_olap r ON (etr.run_inserted_at, etr.run_id) = (r.inserted_at, r.id)
 WHERE
     elt.external_id = ANY(@eventExternalIds::uuid[])
     AND elt.tenant_id = @tenantId::uuid
+    AND r.inserted_at >= @minSeenAt::timestamptz
 GROUP BY elt.external_id
 ;
 
@@ -1740,8 +1760,7 @@ WHERE
 
 -- name: ListEvents :many
 SELECT e.*
-FROM v1_event_lookup_table_olap elt
-JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+FROM v1_events_olap e
 WHERE
     e.tenant_id = @tenantId
     AND (
@@ -1761,12 +1780,17 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+                AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+                AND r.inserted_at >= @since::TIMESTAMPTZ
         )
     )
     AND (
         sqlc.narg('eventIds')::UUID[] IS NULL OR
-        elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+        EXISTS (
+            SELECT 1
+            FROM v1_event_lookup_table_olap elt
+            WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+        )
     )
     AND (
         sqlc.narg('additionalMetadata')::JSONB IS NULL OR
@@ -1780,7 +1804,8 @@ WHERE
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
             WHERE
                 (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+                AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]))
+                AND r.inserted_at >= @since::TIMESTAMPTZ
         )
     )
     AND (
@@ -1797,8 +1822,7 @@ LIMIT
 -- name: CountEvents :one
 WITH included_events AS (
     SELECT e.*
-    FROM v1_event_lookup_table_olap elt
-    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    FROM v1_events_olap e
     WHERE
         e.tenant_id = @tenantId
         AND (
@@ -1818,12 +1842,17 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+                    AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+                    AND r.inserted_at >= @since::TIMESTAMPTZ
             )
         )
         AND (
             sqlc.narg('eventIds')::UUID[] IS NULL OR
-            elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+            EXISTS (
+                SELECT 1
+                FROM v1_event_lookup_table_olap elt
+                WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+            )
         )
         AND (
             sqlc.narg('additionalMetadata')::JSONB IS NULL OR
@@ -1837,7 +1866,8 @@ WITH included_events AS (
                 JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
                 WHERE
                     (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-                    AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+                    AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]))
+                    AND r.inserted_at >= @since::TIMESTAMPTZ
             )
         )
         AND (

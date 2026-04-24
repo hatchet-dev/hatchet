@@ -18,12 +18,16 @@ declare module 'axios' {
     // Explicitly identifies which tenant's exchange token should be used.
     // When set, the interceptor skips the localStorage fallback.
     xTenantId?: string;
+    // Forces the exchange token interceptor to run even for non-tenant-scoped
+    // endpoints (e.g. /api/v1/billing/plans).
+    useExchangeToken?: boolean;
   }
   // InternalAxiosRequestConfig is what the interceptor receives after Axios
   // merges defaults, so the fields must be declared here too.
   interface InternalAxiosRequestConfig {
     xResources?: string[];
     xTenantId?: string;
+    useExchangeToken?: boolean;
   }
 }
 
@@ -42,8 +46,9 @@ export const controlPlaneApi = new ControlPlaneApi({
 });
 
 api.instance.interceptors.request.use(exchangeTokenInterceptor);
+cloudApi.instance.interceptors.request.use(exchangeTokenInterceptor);
 
-export const LAST_TENANT_STORAGE_KEY = 'lastTenant';
+export const CONTROL_PLANE_TENANT_STORAGE_KEY = 'controlPlaneLastTenant';
 
 type StoredTenantLike = {
   metadata?: {
@@ -53,7 +58,7 @@ type StoredTenantLike = {
 
 function readStoredTenantId(): string | null {
   try {
-    const raw = localStorage.getItem(LAST_TENANT_STORAGE_KEY);
+    const raw = localStorage.getItem(CONTROL_PLANE_TENANT_STORAGE_KEY);
     if (!raw) {
       return null;
     }
@@ -109,7 +114,7 @@ export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
 ) {
   const resources = config.xResources ?? [];
-  if (!resources.includes('tenant')) {
+  if (!resources.includes('tenant') && !config.useExchangeToken) {
     return config;
   }
 

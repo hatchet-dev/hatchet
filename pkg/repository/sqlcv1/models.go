@@ -3178,6 +3178,9 @@ type V1DurableEventLogEntry struct {
 	BranchID              int64                 `json:"branch_id"`
 	IdempotencyKey        []byte                `json:"idempotency_key"`
 	IsSatisfied           bool                  `json:"is_satisfied"`
+	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
+	UserMessage           pgtype.Text           `json:"user_message"`
+	WaitData              []byte                `json:"wait_data"`
 }
 
 type V1DurableEventLogFile struct {
@@ -3278,6 +3281,7 @@ type V1IncomingWebhook struct {
 	EventKeyExpression           string                             `json:"event_key_expression"`
 	ScopeExpression              pgtype.Text                        `json:"scope_expression"`
 	StaticPayload                []byte                             `json:"static_payload"`
+	ReturnEventAsResponsePayload bool                               `json:"return_event_as_response_payload"`
 	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`
 	AuthBasicUsername            pgtype.Text                        `json:"auth__basic__username"`
 	AuthBasicPassword            []byte                             `json:"auth__basic__password"`
@@ -3355,6 +3359,9 @@ type V1Match struct {
 	TriggerExistingTaskID         pgtype.Int8        `json:"trigger_existing_task_id"`
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
 	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
+	TriggerEventExternalID        *uuid.UUID         `json:"trigger_event_external_id"`
+	TriggerEventKey               pgtype.Text        `json:"trigger_event_key"`
+	TriggerDesiredWorkerLabels    []byte             `json:"trigger_desired_worker_labels"`
 	DurableEventLogEntryNodeID    pgtype.Int8        `json:"durable_event_log_entry_node_id"`
 	DurableEventLogEntryBranchID  pgtype.Int8        `json:"durable_event_log_entry_branch_id"`
 }
@@ -3605,6 +3612,8 @@ type V1Task struct {
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 	IsDurable                    pgtype.Bool        `json:"is_durable"`
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
+	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 }
 
 type V1TaskEvent struct {
@@ -3719,6 +3728,7 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	IsDurable            bool                 `json:"is_durable"`
 }
 
 type V1WorkerSlotConfig struct {

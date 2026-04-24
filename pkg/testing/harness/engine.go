@@ -206,11 +206,8 @@ func startEngine() func() {
 
 	// Switch to PgBouncer for the engine if enabled
 	if pgBouncerEnabled {
-		log.Printf("Switching DATABASE_URL to PgBouncer: %s", pgBouncerConnStr)
-		// Keep a direct connection to postgres for DDL operations that cannot go through pgbouncer
-		os.Setenv("DATABASE_PGBOUNCER_ENABLED", "true")
-		os.Setenv("DATABASE_DIRECT_URL", postgresConnStr)
-		os.Setenv("DATABASE_URL", pgBouncerConnStr)
+		log.Printf("Switching main pool to PgBouncer: %s", pgBouncerConnStr)
+		os.Setenv("DATABASE_PGBOUNCER_URL", pgBouncerConnStr)
 	}
 
 	engineCh := make(chan error)
@@ -534,7 +531,7 @@ func setTestingKeysInEnv() {
 
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", fmt.Sprintf("%s %s", cookieHashKey, cookieBlockKey))
 
-	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+	masterKeyBytes, privateEc256, publicEc256, _, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		log.Fatalf("could not generate local keys: %v", err)

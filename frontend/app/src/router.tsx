@@ -7,7 +7,7 @@ import api, { TenantMember } from '@/lib/api';
 import {
   controlPlaneApi,
   fetchControlPlaneStatus,
-  LAST_TENANT_STORAGE_KEY,
+  CONTROL_PLANE_TENANT_STORAGE_KEY,
 } from '@/lib/api/api';
 import { exchangeTokenQueryOptions } from '@/lib/api/exchange-token';
 import queryClient from '@/query-client';
@@ -97,10 +97,9 @@ const redeemOffersRoute = createRoute({
 const organizationsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
-  component: lazyRouteComponent(
-    () => import('./pages/organizations/$organization'),
-    'default',
-  ),
+  loader: () => {
+    throw redirect({ to: appRoutes.authenticatedRoute.to });
+  },
 });
 
 const organizationsNewRoute = createRoute({
@@ -221,7 +220,10 @@ const tenantRoute = createRoute({
         await api.tenantGet(params.tenant, { xTenantId: params.tenant })
       ).data;
 
-      localStorage.setItem(LAST_TENANT_STORAGE_KEY, JSON.stringify(fullTenant));
+      localStorage.setItem(
+        CONTROL_PLANE_TENANT_STORAGE_KEY,
+        JSON.stringify(fullTenant),
+      );
 
       // Populate the React Query cache so pages don't re-fetch immediately.
       queryClient.setQueryData(['tenant:get', params.tenant], fullTenant);
@@ -428,19 +430,26 @@ const tenantManagedWorkerRoute = createRoute({
 const tenantOrganizationsAndTenantsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'organizations-and-tenants',
-  loader: async () => {
-    const mod = await import('./pages/main/v1/organizations-and-tenants');
-    return mod.loader();
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      params,
+    });
   },
+});
+
+const tenantSettingsOrganizationRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'settings/organization',
   component: lazyRouteComponent(
-    () => import('./pages/main/v1/organizations-and-tenants'),
+    () => import('./pages/main/v1/tenant-settings/organization'),
     'default',
   ),
 });
 
 const tenantSettingsIndexRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings',
+  path: 'settings',
   loader: ({ params }) => {
     throw redirect({
       to: appRoutes.tenantSettingsOverviewRoute.to,
@@ -451,7 +460,7 @@ const tenantSettingsIndexRoute = createRoute({
 
 const tenantSettingsOverviewRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings/overview',
+  path: 'settings/overview',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/tenant-settings/overview'),
     'default',
@@ -460,7 +469,7 @@ const tenantSettingsOverviewRoute = createRoute({
 
 const tenantSettingsApiTokensRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings/api-tokens',
+  path: 'settings/api-tokens',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/tenant-settings/api-tokens'),
     'default',
@@ -469,34 +478,40 @@ const tenantSettingsApiTokensRoute = createRoute({
 
 const tenantSettingsGithubRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings/github',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/github'),
-    'default',
-  ),
+  path: 'settings/github',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
 });
 
 const tenantSettingsMembersRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings/members',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/members'),
-    'default',
-  ),
+  path: 'settings/members',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      params,
+    });
+  },
 });
 
 const tenantSettingsAlertingRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings/alerting',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/alerting'),
-    'default',
-  ),
+  path: 'settings/alerting',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
 });
 
 const tenantSettingsBillingRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings/billing-and-limits',
+  path: 'settings/billing-and-limits',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/tenant-settings/resource-limits'),
     'default',
@@ -505,11 +520,120 @@ const tenantSettingsBillingRoute = createRoute({
 
 const tenantSettingsIngestorsRoute = createRoute({
   getParentRoute: () => tenantRoute,
-  path: 'tenant-settings/ingestors',
+  path: 'settings/ingestors',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantSettingsIntegrationsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'settings/integrations',
   component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/ingestors'),
+    () => import('./pages/main/v1/tenant-settings/integrations'),
     'default',
   ),
+});
+
+const tenantLegacySettingsIndexRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantSettingsOverviewRoute.to, params });
+  },
+});
+
+const tenantLegacySettingsOverviewRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/overview',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantSettingsOverviewRoute.to, params });
+  },
+});
+
+const tenantLegacySettingsApiTokensRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/api-tokens',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantSettingsApiTokensRoute.to, params });
+  },
+});
+
+const tenantLegacySettingsGithubRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/github',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantLegacySettingsMembersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/members',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantLegacySettingsAlertingRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/alerting',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantLegacySettingsBillingRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/billing-and-limits',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantSettingsBillingRoute.to, params });
+  },
+});
+
+const tenantLegacySettingsIngestorsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/ingestors',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantLegacySettingsIntegrationsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/integrations',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsIntegrationsRoute.to,
+      params,
+    });
+  },
+});
+
+const tenantLegacySettingsOrganizationRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'tenant-settings/organization',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      params,
+    });
+  },
 });
 
 const tenantWorkflowRunsRedirectRoute = createRoute({
@@ -602,7 +726,9 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsBillingRoute.path,
       tenantSettingsGithubRoute.path,
       tenantSettingsIngestorsRoute.path,
+      tenantSettingsIntegrationsRoute.path,
       tenantSettingsMembersRoute.path,
+      tenantSettingsOrganizationRoute.path,
       tenantSettingsOverviewRoute.path,
     ].map((p) => p.split('/').pop());
 
@@ -611,7 +737,7 @@ const tenantSettingsSubpathRedirect = createRoute({
     }
 
     throw redirect({
-      to: `/tenants/${tenantId}/tenant-settings/${subpath}`,
+      to: `/tenants/${tenantId}/settings/${subpath}`,
     } as any);
   },
 });
@@ -638,6 +764,16 @@ const tenantRoutes = [
   tenantManagedWorkersCreateRoute,
   tenantManagedWorkerRoute,
   tenantOrganizationsAndTenantsRoute,
+  tenantLegacySettingsIndexRoute,
+  tenantLegacySettingsOverviewRoute,
+  tenantLegacySettingsApiTokensRoute,
+  tenantLegacySettingsGithubRoute,
+  tenantLegacySettingsMembersRoute,
+  tenantLegacySettingsAlertingRoute,
+  tenantLegacySettingsBillingRoute,
+  tenantLegacySettingsIngestorsRoute,
+  tenantLegacySettingsIntegrationsRoute,
+  tenantLegacySettingsOrganizationRoute,
   tenantSettingsIndexRoute,
   tenantSettingsOverviewRoute,
   tenantSettingsApiTokensRoute,
@@ -646,6 +782,8 @@ const tenantRoutes = [
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
+  tenantSettingsIntegrationsRoute,
+  tenantSettingsOrganizationRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,
@@ -724,6 +862,8 @@ export const appRoutes = {
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsIngestorsRoute,
+  tenantSettingsIntegrationsRoute,
+  tenantSettingsOrganizationRoute,
   tenantWorkflowRunsRedirectRoute,
   tenantWorkflowRunRedirectRoute,
   tenantTasksRedirectRoute,

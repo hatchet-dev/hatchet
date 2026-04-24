@@ -167,6 +167,10 @@ type ConfigFileRuntime struct {
 	// ServerURL is the full server URL of the instance, including protocol.
 	ServerURL string `mapstructure:"url" json:"url,omitempty" default:"http://localhost:8080"`
 
+	// FrontendURL is the full URL of the frontend, used to render actionable links in emails and other notifications.
+	// Defaults to the ServerURL if not set.
+	FrontendURL string `mapstructure:"frontendUrl" json:"frontendUrl,omitempty"`
+
 	// Healthcheck controls whether the server has a healthcheck endpoint
 	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
 
@@ -297,7 +301,12 @@ type ConfigFileRuntime struct {
 	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
 	SchedulerConcurrencyPollingMaxInterval time.Duration `mapstructure:"schedulerConcurrencyPollingMaxInterval" json:"schedulerConcurrencyPollingMaxInterval,omitempty" default:"5s"`
 
-	// SchedulerConcurrencyPollingMaxInterval is the maximum interval for concurrency polling
+	// SchedulerCheckActiveMinInterval is the minimum interval for the check-active polling loop
+	SchedulerCheckActiveMinInterval time.Duration `mapstructure:"schedulerCheckActiveMinInterval" json:"schedulerCheckActiveMinInterval,omitempty" default:"30s"`
+
+	// SchedulerCheckActiveMaxInterval is the maximum interval for the check-active polling loop
+	SchedulerCheckActiveMaxInterval time.Duration `mapstructure:"schedulerCheckActiveMaxInterval" json:"schedulerCheckActiveMaxInterval,omitempty" default:"60s"`
+
 	SchedulerAdvisoryLockTimeout time.Duration `mapstructure:"schedulerAdvisoryLockTimeout" json:"schedulerAdvisoryLockTimeout,omitempty" default:"5s"`
 
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
@@ -715,6 +724,7 @@ func BindAllEnv(v *viper.Viper) {
 	// runtime options
 	_ = v.BindEnv("runtime.port", "SERVER_PORT")
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
+	_ = v.BindEnv("runtime.frontendUrl", "SERVER_FRONTEND_URL")
 	_ = v.BindEnv("runtime.healthcheck", "SERVER_HEALTHCHECK")
 	_ = v.BindEnv("runtime.healthcheckPort", "SERVER_HEALTHCHECK_PORT")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
@@ -728,6 +738,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
+	_ = v.BindEnv("runtime.schedulerCheckActiveMinInterval", "SCHEDULER_CHECK_ACTIVE_MIN_INTERVAL")
+	_ = v.BindEnv("runtime.schedulerCheckActiveMaxInterval", "SCHEDULER_CHECK_ACTIVE_MAX_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerAdvisoryLockTimeout", "SCHEDULER_ADVISORY_LOCK_TIMEOUT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")

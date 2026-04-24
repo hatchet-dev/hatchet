@@ -36,6 +36,7 @@ sql:
       - interval_settings.sql
       - pg_health.sql
       - users.sql
+      - sync.sql
       - workflow_schedules.sql
       - durable_event_log.sql
     schema:

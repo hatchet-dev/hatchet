@@ -775,15 +775,15 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: The MCP tool configuration object.
         """
-        if not self.config.description:
+        if not self._config.description:
             raise ValueError(
-                f"Runnable '{self.config.name}' has no description. "
+                f"Runnable '{self._config.name}' has no description. "
                 "Set description= when defining the workflow or task."
             )
-        description = self.config.description
+        description = self._config.description
         if self.input_validator_type is EmptyModel:
             raise ValueError(
-                f"Runnable '{self.config.name}' has no input validator. "
+                f"Runnable '{self._config.name}' has no input validator. "
                 "Set input_validator= when defining the workflow or task."
             )
         input_schema = self.input_validator.json_schema()
@@ -1100,7 +1100,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
             config = WorkflowRunTriggerConfig(
-                workflow_name=self.config.name,
+                workflow_name=self._config.name,
                 input=self._serialize_input(input, target="string"),
                 options=opts,
             )

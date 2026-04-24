@@ -325,12 +325,14 @@ async def wait_for_two_events_second_pushed_first(
         scope=input.scope,
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
+        label="waiting for event 1",
     )
     event2 = await ctx.aio_wait_for_event(
         "key2",
         scope=input.scope,
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
+        label="waiting for event 2",
     )
     return TwoEventsResult(event1=event1, event2=event2, elapsed=time.time() - start)
 

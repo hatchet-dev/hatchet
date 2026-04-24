@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"time"
 
@@ -112,6 +113,12 @@ type CreateMatchOpts struct {
 	TriggerChildKey pgtype.Text
 
 	TriggerPriority pgtype.Int4
+
+	TriggerEventExternalId *uuid.UUID
+
+	TriggerEventKey pgtype.Text
+
+	TriggerDesiredWorkerLabels []byte
 
 	SignalTaskId *int64
 
@@ -567,7 +574,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
-		dagIdsToDesiredWorkerLabels := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
+		dagIdsToDesiredWorkerLabels := make(map[int64][]byte)
 
 		for _, dagData := range dagInputDatas {
 			retrieveOpts := RetrievePayloadOpts{
@@ -585,15 +592,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
-
-			if len(dagData.DesiredWorkerLabels) > 0 {
-				var labels []*sqlcv1.GetDesiredLabelsRow
-				if err := json.Unmarshal(dagData.DesiredWorkerLabels, &labels); err == nil {
-					dagIdsToDesiredWorkerLabels[dagData.DagID] = labels
-				} else {
-					m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", dagData.DagID, dagData.DagInsertedAt.Time)
-				}
-			}
+			dagIdsToDesiredWorkerLabels[dagData.DagID] = dagData.DesiredWorkerLabels
 		}
 
 		// determine which tasks to create based on step ids
@@ -645,12 +644,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					replayTaskOpts = append(replayTaskOpts, opt)
 				} else {
 					opt := CreateTaskOpts{
-						ExternalId:         *match.TriggerExternalID,
-						WorkflowRunId:      *match.TriggerWorkflowRunID,
-						StepId:             *match.TriggerStepID,
-						StepIndex:          int(match.TriggerStepIndex.Int64),
-						AdditionalMetadata: additionalMetadata,
-						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
+						ExternalId:                *match.TriggerExternalID,
+						WorkflowRunId:             *match.TriggerWorkflowRunID,
+						StepId:                    *match.TriggerStepID,
+						StepIndex:                 int(match.TriggerStepIndex.Int64),
+						AdditionalMetadata:        additionalMetadata,
+						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+						TriggeringEventExternalId: match.TriggerEventExternalID,
 					}
 
 					switch matchData.Action() {
@@ -668,13 +668,27 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.DagId = &match.TriggerDagID.Int64
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
 
-						if dagLabels, ok := dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]; ok && len(dagLabels) > 0 {
-							labels := make([]*sqlcv1.GetDesiredLabelsRow, len(dagLabels))
-							for i, l := range dagLabels {
+						// Prefer labels stored on the match; fall back to the DAG for rows
+						// created before the migration added trigger_desired_worker_labels.
+						// fixme: remove this later when we've upgraded everyone and are sure there are no
+						// more dags with desired worker labels only on the dag row
+						rawLabels := match.TriggerDesiredWorkerLabels
+						if len(rawLabels) == 0 {
+							rawLabels = dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]
+						}
+
+						if len(rawLabels) > 0 {
+							var labels []*sqlcv1.GetDesiredLabelsRow
+							if err := json.Unmarshal(rawLabels, &labels); err != nil {
+								m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", *opt.DagId, opt.DagInsertedAt.Time)
+							}
+
+							for i, l := range labels {
 								lCopy := *l
 								lCopy.StepId = *match.TriggerStepID
 								labels[i] = &lCopy
 							}
+
 							opt.DesiredWorkerLabels = labels
 						}
 					}
@@ -701,6 +715,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					if match.TriggerPriority.Valid {
 						opt.Priority = &match.TriggerPriority.Int32
+					}
+
+					if match.TriggerEventKey.Valid {
+						opt.TriggeringEventKey = &match.TriggerEventKey.String
 					}
 
 					createTaskOpts = append(createTaskOpts, opt)
@@ -915,18 +933,29 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			expr = "true"
 		}
 
-		ast, issues := m.env.Compile(expr)
+		hasher := fnv.New64a()
+		hasher.Write([]byte(expr))
+		exprHash := hasher.Sum64()
 
-		if issues != nil {
-			m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
-			continue
-		}
+		program, ok := m.celProgramCache.Get(exprHash)
 
-		program, err := m.env.Program(ast)
+		if !ok {
+			ast, issues := m.env.Compile(expr)
 
-		if err != nil {
-			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
-			continue
+			if issues != nil && issues.Err() != nil {
+				m.l.Error().Ctx(ctx).Err(issues.Err()).Msgf("failed to compile CEL expression: %s", expr)
+				continue
+			}
+
+			compiled, err := m.env.Program(ast)
+
+			if err != nil {
+				m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
+				continue
+			}
+
+			m.celProgramCache.Add(exprHash, compiled)
+			program = compiled
 		}
 
 		programs[condition.ID] = program
@@ -1063,6 +1092,9 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
 		triggerChildKeys := make([]pgtype.Text, len(dagMatches))
 		triggerPriorities := make([]pgtype.Int4, len(dagMatches))
+		triggerEventExternalIds := make([]*uuid.UUID, len(dagMatches))
+		triggerEventKeys := make([]pgtype.Text, len(dagMatches))
+		triggerDesiredWorkerLabels := make([][]byte, len(dagMatches))
 
 		for i, match := range dagMatches {
 			dagTenantIds[i] = tenantId
@@ -1089,6 +1121,9 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerWorkflowRunIds[i] = match.TriggerWorkflowRunId
 
 			triggerExistingTaskInsertedAts[i] = match.TriggerExistingTaskInsertedAt
+			triggerEventExternalIds[i] = match.TriggerEventExternalId
+			triggerEventKeys[i] = match.TriggerEventKey
+			triggerDesiredWorkerLabels[i] = match.TriggerDesiredWorkerLabels
 		}
 
 		// Create matches in the database
@@ -1113,6 +1148,9 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerChildIndex:             triggerChildIndices,
 				TriggerChildKey:               triggerChildKeys,
 				TriggerPriorities:             triggerPriorities,
+				TriggerEventExternalIds:       triggerEventExternalIds,
+				TriggerEventKeys:              triggerEventKeys,
+				TriggerDesiredWorkerLabels:    triggerDesiredWorkerLabels,
 			},
 		)
 
@@ -1369,6 +1407,9 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerChildIndex:             match.TriggerChildIndex,
 				TriggerChildKey:               match.TriggerChildKey,
 				TriggerPriority:               match.TriggerPriority,
+				TriggerEventExternalId:        match.TriggerEventExternalID,
+				TriggerEventKey:               match.TriggerEventKey,
+				TriggerDesiredWorkerLabels:    match.TriggerDesiredWorkerLabels,
 			}
 
 			for _, condition := range conditions {

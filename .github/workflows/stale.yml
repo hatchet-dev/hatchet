@@ -17,3 +17,4 @@ jobs:
           days-before-stale: 90
           days-before-close: 5
           stale-issue-label: 'stale'
+          exempt-issue-labels: 'accepted'
