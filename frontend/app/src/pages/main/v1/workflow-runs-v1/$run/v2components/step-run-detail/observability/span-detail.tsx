@@ -359,61 +359,61 @@ export function SpanDetail({
       </div>
 
       <div className="flex flex-col gap-4">
-          {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
-            <Alert variant="destructive">
-              <AlertTitle>Error Message</AlertTitle>
-              <AlertDescription>
-                <pre className="whitespace-pre-wrap break-words font-mono text-xs">
-                  {span.statusMessage}
-                </pre>
-              </AlertDescription>
-            </Alert>
-          )}
+        {span.statusCode === OtelStatusCode.ERROR && span.statusMessage && (
+          <Alert variant="destructive">
+            <AlertTitle>Error Message</AlertTitle>
+            <AlertDescription>
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                {span.statusMessage}
+              </pre>
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {childErrors.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {childErrors.map((err, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="w-full text-left"
-                  onClick={() => onSpanSelect?.(err.span)}
+        {childErrors.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {childErrors.map((err, i) => (
+              <button
+                key={i}
+                type="button"
+                className="w-full text-left"
+                onClick={() => onSpanSelect?.(err.span)}
+              >
+                <Alert
+                  variant="destructive"
+                  className="transition-colors hover:bg-destructive/10"
                 >
-                  <Alert
-                    variant="destructive"
-                    className="transition-colors hover:bg-destructive/10"
-                  >
-                    <AlertTitle>{err.spanName}</AlertTitle>
-                    <AlertDescription>
-                      <pre className="whitespace-pre-wrap break-words font-mono text-xs">
-                        {err.message}
-                      </pre>
-                    </AlertDescription>
-                  </Alert>
-                </button>
-              ))}
-            </div>
-          )}
+                  <AlertTitle>{err.spanName}</AlertTitle>
+                  <AlertDescription>
+                    <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                      {err.message}
+                    </pre>
+                  </AlertDescription>
+                </Alert>
+              </button>
+            ))}
+          </div>
+        )}
 
-          {(user.length > 0 || hatchet.length > 0) && (
-            <div className="flex flex-col gap-3">
-              <AttrTable
-                entries={user}
-                title="Attributes"
-                activeFilters={activeFilters}
-                onAddFilter={onAddFilter}
-                onRemoveFilter={onRemoveFilter}
-              />
-              <AttrTable
-                entries={hatchet}
-                title="Hatchet Attributes"
-                activeFilters={activeFilters}
-                onAddFilter={onAddFilter}
-                onRemoveFilter={onRemoveFilter}
-              />
-            </div>
-          )}
-        </div>
+        {(user.length > 0 || hatchet.length > 0) && (
+          <div className="flex flex-col gap-3">
+            <AttrTable
+              entries={user}
+              title="Attributes"
+              activeFilters={activeFilters}
+              onAddFilter={onAddFilter}
+              onRemoveFilter={onRemoveFilter}
+            />
+            <AttrTable
+              entries={hatchet}
+              title="Hatchet Attributes"
+              activeFilters={activeFilters}
+              onAddFilter={onAddFilter}
+              onRemoveFilter={onRemoveFilter}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
