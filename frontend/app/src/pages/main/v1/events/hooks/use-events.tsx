@@ -110,6 +110,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
       const response = await api.v1EventKeyList(tenantId);
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const eventKeyFilters = useMemo((): FilterOption[] => {
