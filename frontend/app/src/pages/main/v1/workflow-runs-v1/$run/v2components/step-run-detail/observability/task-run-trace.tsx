@@ -15,7 +15,6 @@ import { useSidePanel } from '@/hooks/use-side-panel';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-
 const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
 
 function findSpanInTrees(
@@ -252,11 +251,15 @@ export function TaskRunTrace({
   const { open, close } = useSidePanel();
 
   const resolvedSpan = useMemo(
-    () => (selectedSpanId ? findSpanInTrees(spanTrees, selectedSpanId) : undefined),
+    () =>
+      selectedSpanId ? findSpanInTrees(spanTrees, selectedSpanId) : undefined,
     [selectedSpanId, spanTrees],
   );
   const resolvedGroup = useMemo(
-    () => (selectedGroupId ? findGroupInTrees(spanTrees, selectedGroupId) : undefined),
+    () =>
+      selectedGroupId
+        ? findGroupInTrees(spanTrees, selectedGroupId)
+        : undefined,
     [selectedGroupId, spanTrees],
   );
 
@@ -318,7 +321,17 @@ export function TaskRunTrace({
         });
       }
     },
-    [expandAncestors, selectedSpanId, setSelectedSpanId, open, close, activeFilters, onAddFilter, onRemoveFilter, handleDetailClose],
+    [
+      expandAncestors,
+      selectedSpanId,
+      setSelectedSpanId,
+      open,
+      close,
+      activeFilters,
+      onAddFilter,
+      onRemoveFilter,
+      handleDetailClose,
+    ],
   );
 
   const handleGroupSelect = useCallback(
@@ -412,7 +425,7 @@ export function TaskRunTrace({
   }, [resolvedSpan, resolvedGroup]);
 
   return (
-    <div className="my-4 flex min-w-0 select-none flex-col">
+    <div className="my-4 flex min-w-0 select-none flex-col gap-y-2">
       <div style={{ width: LABEL_WIDTH }}>
         <Button
           variant="ghost"
