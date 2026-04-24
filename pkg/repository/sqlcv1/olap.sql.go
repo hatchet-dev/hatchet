@@ -2424,7 +2424,7 @@ JOIN v1_runs_olap r ON (etr.run_inserted_at, etr.run_id) = (r.inserted_at, r.id)
 WHERE
     elt.external_id = ANY($1::uuid[])
     AND elt.tenant_id = $2::uuid
-    AND r.inserted_at > $3::timestamptz
+    AND r.inserted_at >= $3::timestamptz
 GROUP BY elt.external_id
 `
 

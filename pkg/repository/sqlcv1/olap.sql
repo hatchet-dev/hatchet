@@ -1738,7 +1738,7 @@ JOIN v1_runs_olap r ON (etr.run_inserted_at, etr.run_id) = (r.inserted_at, r.id)
 WHERE
     elt.external_id = ANY(@eventExternalIds::uuid[])
     AND elt.tenant_id = @tenantId::uuid
-    AND r.inserted_at > @minSeenAt::timestamptz
+    AND r.inserted_at >= @minSeenAt::timestamptz
 GROUP BY elt.external_id
 ;
 
