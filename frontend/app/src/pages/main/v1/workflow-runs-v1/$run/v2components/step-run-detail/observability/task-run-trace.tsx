@@ -508,14 +508,11 @@ export function TaskRunTrace({
     <div className="my-4 flex min-w-0 select-none flex-col gap-y-2">
       <div className="shrink-0">
         <div className="flex min-w-0">
-          <div
-            className="flex shrink-0 flex-wrap items-end gap-1 pb-1 pr-2"
-            style={{ width: LABEL_WIDTH }}
-          >
+          <div style={{ width: LABEL_WIDTH }}>
             <Button
               variant="ghost"
               size="xs"
-              className="gap-1 text-xs"
+              className="gap-1 text-xs p-2"
               onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
             >
               {isAllExpanded ? (
@@ -523,7 +520,7 @@ export function TaskRunTrace({
               ) : (
                 <ChevronsUpDown className="size-3" />
               )}
-              {isAllExpanded ? 'collapse all' : 'expand all'}
+              {isAllExpanded ? 'Collapse All' : 'Expand All'}
             </Button>
           </div>
           {minimapEnabled && (
