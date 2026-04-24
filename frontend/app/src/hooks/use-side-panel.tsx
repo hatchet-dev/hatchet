@@ -1,5 +1,7 @@
 import { useTheme } from '@/components/hooks/use-theme';
 import { DocPage } from '@/components/v1/docs/docs-button';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
 import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
 import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
@@ -8,6 +10,8 @@ import {
   TaskRunDetail,
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
+import { SpanDetail, GroupDetail } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/span-detail';
+import type { SpanGroupInfo } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/timeline/trace-timeline-utils';
 import { RunDetailSearchLocalProvider } from '@/pages/main/v1/workflow-runs-v1/hooks/use-run-detail-search';
 import { useLocation } from '@tanstack/react-router';
 import {
@@ -73,6 +77,24 @@ type UseSidePanelProps =
       type: 'scheduled-run-details';
       content: {
         scheduledRun: ScheduledWorkflows;
+      };
+    }
+  | {
+      type: 'span-details';
+      content: {
+        span: OtelSpanTree;
+        activeFilters?: ParsedTraceQuery;
+        onAddFilter?: (key: string, value: string) => void;
+        onRemoveFilter?: (key: string, value: string) => void;
+        onSpanSelect?: (span: OtelSpanTree) => void;
+        onClose: () => void;
+      };
+    }
+  | {
+      type: 'group-details';
+      content: {
+        group: SpanGroupInfo;
+        onClose: () => void;
       };
     };
 
@@ -140,6 +162,16 @@ function useSidePanelData(): SidePanelData {
               scheduledRun={props.content.scheduledRun}
             />
           ),
+        };
+      case 'span-details':
+        return {
+          isDocs: false,
+          component: <SpanDetail {...props.content} />,
+        };
+      case 'group-details':
+        return {
+          isDocs: false,
+          component: <GroupDetail {...props.content} />,
         };
       case 'docs':
         const query = props.queryParams ?? {};

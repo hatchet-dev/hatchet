@@ -1,5 +1,4 @@
 import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
-import { SpanDetail, GroupDetail } from './span-detail';
 import { TraceTimeline, LABEL_WIDTH } from './timeline/trace-timeline';
 import {
   groupSiblings,
@@ -12,14 +11,12 @@ import type {
   ParsedTraceQuery,
 } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
 
-type Selection =
-  | { kind: 'span'; span: OtelSpanTree }
-  | { kind: 'group'; group: SpanGroupInfo };
+const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
 
 function findSpanInTrees(
   nodes: OtelSpanTree[],
@@ -252,17 +249,16 @@ export function TaskRunTrace({
     }
   }
 
-  const resolvedSelection = useMemo((): Selection | undefined => {
-    if (selectedSpanId) {
-      const span = findSpanInTrees(spanTrees, selectedSpanId);
-      return span ? { kind: 'span', span } : undefined;
-    }
-    if (selectedGroupId) {
-      const group = findGroupInTrees(spanTrees, selectedGroupId);
-      return group ? { kind: 'group', group } : undefined;
-    }
-    return undefined;
-  }, [selectedSpanId, selectedGroupId, spanTrees]);
+  const { open, close } = useSidePanel();
+
+  const resolvedSpan = useMemo(
+    () => (selectedSpanId ? findSpanInTrees(spanTrees, selectedSpanId) : undefined),
+    [selectedSpanId, spanTrees],
+  );
+  const resolvedGroup = useMemo(
+    () => (selectedGroupId ? findGroupInTrees(spanTrees, selectedGroupId) : undefined),
+    [selectedGroupId, spanTrees],
+  );
 
   const expandAncestors = useCallback(
     (span: OtelSpanTree) => {
@@ -282,29 +278,67 @@ export function TaskRunTrace({
     [spanTrees],
   );
 
+  const handleDetailClose = useCallback(() => {
+    setSelectedSpanId(undefined);
+    setSelectedGroupId(undefined);
+    close();
+  }, [setSelectedSpanId, setSelectedGroupId, close]);
+
   const handleSpanSelect = useCallback(
     (span: OtelSpanTree) => {
       expandAncestors(span);
-      setSelectedSpanId(
-        selectedSpanId === span.spanId ? undefined : span.spanId,
-      );
+      const isDeselecting = selectedSpanId === span.spanId;
+      setSelectedSpanId(isDeselecting ? undefined : span.spanId);
+      if (isDeselecting) {
+        close();
+      } else {
+        open({
+          type: 'span-details',
+          content: {
+            span,
+            activeFilters,
+            onAddFilter,
+            onRemoveFilter,
+            onSpanSelect: (childSpan) => {
+              expandAncestors(childSpan);
+              setSelectedSpanId(childSpan.spanId);
+              open({
+                type: 'span-details',
+                content: {
+                  span: childSpan,
+                  activeFilters,
+                  onAddFilter,
+                  onRemoveFilter,
+                  onClose: handleDetailClose,
+                },
+              });
+            },
+            onClose: handleDetailClose,
+          },
+        });
+      }
     },
-    [expandAncestors, selectedSpanId, setSelectedSpanId],
+    [expandAncestors, selectedSpanId, setSelectedSpanId, open, close, activeFilters, onAddFilter, onRemoveFilter, handleDetailClose],
   );
 
   const handleGroupSelect = useCallback(
     (group: SpanGroupInfo) => {
-      setSelectedGroupId(
-        selectedGroupId === group.groupId ? undefined : group.groupId,
-      );
+      const isDeselecting = selectedGroupId === group.groupId;
+      setSelectedGroupId(isDeselecting ? undefined : group.groupId);
+      if (isDeselecting) {
+        close();
+      } else {
+        open({
+          type: 'group-details',
+          content: {
+            group,
+            onClose: handleDetailClose,
+          },
+        });
+      }
     },
-    [selectedGroupId, setSelectedGroupId],
+    [selectedGroupId, setSelectedGroupId, open, close, handleDetailClose],
   );
-
-  const handleDetailClose = useCallback(() => {
-    setSelectedSpanId(undefined);
-    setSelectedGroupId(undefined);
-  }, [setSelectedSpanId, setSelectedGroupId]);
 
   const handleShowMore = useCallback(
     (groupId: string, newVisibleCount: number) => {
@@ -319,8 +353,9 @@ export function TaskRunTrace({
   const handleEscapeReset = useCallback(() => {
     setSelectedSpanId(undefined);
     setSelectedGroupId(undefined);
+    close();
     onClearFilters?.();
-  }, [setSelectedSpanId, setSelectedGroupId, onClearFilters]);
+  }, [setSelectedSpanId, setSelectedGroupId, close, onClearFilters]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -337,36 +372,16 @@ export function TaskRunTrace({
     return () => window.removeEventListener('keydown', handler);
   }, [handleEscapeReset]);
 
-  const hasSelection = !!resolvedSelection;
-  const containerRef = useRef<HTMLDivElement>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
-  const [containerHeight, setContainerHeight] = useState<number | undefined>();
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!hasSelection || !el) {
-      setContainerHeight(undefined);
+    const key = resolvedSpan
+      ? getStableKey(resolvedSpan)
+      : resolvedGroup?.groupId;
+
+    if (!key) {
       return;
     }
-
-    function measure() {
-      const top = el!.getBoundingClientRect().top;
-      setContainerHeight(window.innerHeight - top - 16);
-    }
-
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [hasSelection]);
-
-  useEffect(() => {
-    if (!resolvedSelection) {
-      return;
-    }
-    const key =
-      resolvedSelection.kind === 'span'
-        ? getStableKey(resolvedSelection.span)
-        : resolvedSelection.group.groupId;
 
     let cancelled = false;
     requestAnimationFrame(() => {
@@ -394,83 +409,39 @@ export function TaskRunTrace({
     return () => {
       cancelled = true;
     };
-  }, [resolvedSelection]);
+  }, [resolvedSpan, resolvedGroup]);
 
   return (
-    <div
-      ref={containerRef}
-      className="my-4 flex min-w-0 select-none flex-col gap-4"
-      style={containerHeight ? { height: containerHeight } : undefined}
-    >
-      <div
-        className={
-          hasSelection ? 'flex min-h-0 flex-1 flex-col' : 'flex flex-col'
-        }
-      >
-        <div className="shrink-0">
-          <div style={{ width: LABEL_WIDTH }}>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="gap-1 text-xs p-2"
-              onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
-            >
-              {isAllExpanded ? (
-                <ChevronsDownUp className="size-3" />
-              ) : (
-                <ChevronsUpDown className="size-3" />
-              )}
-              {isAllExpanded ? 'Collapse All' : 'Expand All'}
-            </Button>
-          </div>
-        </div>
-        <div
-          ref={timelineScrollRef}
-          className={hasSelection ? 'min-h-0 flex-1 overflow-y-auto' : ''}
+    <div className="my-4 flex min-w-0 select-none flex-col">
+      <div style={{ width: LABEL_WIDTH }}>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="gap-1 text-xs p-2"
+          onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
         >
-          <TraceTimeline
-            spanTrees={spanTrees}
-            isRunning={isRunning}
-            expandedSpanIds={expandedSpansIds}
-            onExpandChange={setExpandedSpansIds}
-            groupVisibleCounts={groupVisibleCounts}
-            onShowMore={handleShowMore}
-            selectedSpan={
-              resolvedSelection?.kind === 'span'
-                ? resolvedSelection.span
-                : undefined
-            }
-            selectedGroupId={
-              resolvedSelection?.kind === 'group'
-                ? resolvedSelection.group.groupId
-                : undefined
-            }
-            onSpanSelect={handleSpanSelect}
-            onGroupSelect={handleGroupSelect}
-          />
-        </div>
+          {isAllExpanded ? (
+            <ChevronsDownUp className="size-3" />
+          ) : (
+            <ChevronsUpDown className="size-3" />
+          )}
+          {isAllExpanded ? 'Collapse All' : 'Expand All'}
+        </Button>
       </div>
-
-      {resolvedSelection?.kind === 'span' && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <SpanDetail
-            span={resolvedSelection.span}
-            onClose={handleDetailClose}
-            activeFilters={activeFilters}
-            onAddFilter={onAddFilter}
-            onRemoveFilter={onRemoveFilter}
-            onSpanSelect={handleSpanSelect}
-          />
-        </div>
-      )}
-      {resolvedSelection?.kind === 'group' && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <GroupDetail
-            group={resolvedSelection.group}
-            onClose={handleDetailClose}
-          />
-        </div>
-      )}
+      <div ref={timelineScrollRef}>
+        <TraceTimeline
+          spanTrees={spanTrees}
+          isRunning={isRunning}
+          expandedSpanIds={expandedSpansIds}
+          onExpandChange={setExpandedSpansIds}
+          groupVisibleCounts={groupVisibleCounts}
+          onShowMore={handleShowMore}
+          selectedSpan={resolvedSpan}
+          selectedGroupId={resolvedGroup?.groupId}
+          onSpanSelect={handleSpanSelect}
+          onGroupSelect={handleGroupSelect}
+        />
+      </div>
     </div>
   );
 }
