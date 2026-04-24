@@ -72,29 +72,29 @@ export interface APIControlPlaneMetadata {
   observabilityEnabled?: boolean;
 }
 
-export type { APIMetaAuth } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIMetaAuth } from '@/lib/api/generated/data-contracts';
 
-export type { APIMetaPosthog } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIMetaPosthog } from '@/lib/api/generated/data-contracts';
 
-export type { APIErrors } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIErrors } from '@/lib/api/generated/data-contracts';
 
-export type { APIError } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIError } from '@/lib/api/generated/data-contracts';
 
-export type { PaginationResponse } from '@/lib/api/generated/cloud/data-contracts';
+import type { PaginationResponse } from '@/lib/api/generated/data-contracts';
 
-export type { APIResourceMeta } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIResourceMeta } from '@/lib/api/generated/data-contracts';
 
 export type ListAPIMetaIntegration = APIMetaIntegration[];
 
-export type { APIMetaIntegration } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIMetaIntegration } from '@/lib/api/generated/data-contracts';
 
-export type { User } from '@/lib/api/generated/cloud/data-contracts';
+import type { User } from '@/lib/api/generated/data-contracts';
 
-export type { UserLoginRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { UserLoginRequest } from '@/lib/api/generated/data-contracts';
 
-export type { UserChangePasswordRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { UserChangePasswordRequest } from '@/lib/api/generated/data-contracts';
 
-export type { UserRegisterRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { UserRegisterRequest } from '@/lib/api/generated/data-contracts';
 
 export interface Organization {
   metadata: APIResourceMeta;
@@ -279,29 +279,29 @@ export interface RejectOrganizationInviteRequest {
   id: string;
 }
 
-export type { TenantMemberRole } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMemberRole } from '@/lib/api/generated/data-contracts';
 
-export type { UserTenantPublic } from '@/lib/api/generated/cloud/data-contracts';
+import type { UserTenantPublic } from '@/lib/api/generated/data-contracts';
 
-export type { TenantMember } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMember } from '@/lib/api/generated/data-contracts';
 
-export type { TenantMemberList } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMemberList } from '@/lib/api/generated/data-contracts';
 
-export type { UpdateTenantMemberRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { UpdateTenantMemberRequest } from '@/lib/api/generated/data-contracts';
 
-export type { TenantInvite } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantInvite } from '@/lib/api/generated/data-contracts';
 
-export type { TenantInviteList } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantInviteList } from '@/lib/api/generated/data-contracts';
 
-export type { CreateTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { CreateTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { UpdateTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { UpdateTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { AcceptInviteRequest as AcceptTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { AcceptInviteRequest as AcceptTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { RejectInviteRequest as RejectTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { RejectInviteRequest as RejectTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { UserTenantMembershipsList } from '@/lib/api/generated/cloud/data-contracts';
+import type { UserTenantMembershipsList } from '@/lib/api/generated/data-contracts';
 
 export interface TenantExchangeToken {
   /** The signed exchange token for the tenant */
