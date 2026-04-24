@@ -87,7 +87,7 @@ module Hatchet
             request_args[:desired_worker_labels] = build_trigger_worker_labels(options[:desired_worker_labels])
           end
 
-          request = ::TriggerWorkflowRequest.new(**request_args)
+          request = ::V1::TriggerWorkflowRequest.new(**request_args)
 
           begin
             response = @v0_stub.trigger_workflow(request, metadata: @config.auth_metadata)
@@ -139,7 +139,7 @@ module Hatchet
 
             request_args[:desired_worker_labels] = build_trigger_worker_labels(opts[:desired_worker_labels]) if opts[:desired_worker_labels]
 
-            ::TriggerWorkflowRequest.new(**request_args)
+            ::V1::TriggerWorkflowRequest.new(**request_args)
           end
 
           # Batch in groups of BULK_TRIGGER_BATCH_SIZE
@@ -266,7 +266,7 @@ module Hatchet
                     dwl_args[:required] = v.required
                     dwl_args[:weight] = v.weight if v.weight
                     dwl_args[:comparator] = COMPARATOR_MAP[v.comparator] || :EQUAL
-                    ::DesiredWorkerLabels.new(**dwl_args)
+                    ::V1::DesiredWorkerLabels.new(**dwl_args)
                   when Hash
                     dwl_args = {}
                     dwl_args[:str_value] = v[:str_value].to_s if v[:str_value]
@@ -274,11 +274,11 @@ module Hatchet
                     dwl_args[:required] = v[:required] if v.key?(:required)
                     dwl_args[:weight] = v[:weight] if v[:weight]
                     dwl_args[:comparator] = COMPARATOR_MAP[v[:comparator]] || :EQUAL if v[:comparator]
-                    ::DesiredWorkerLabels.new(**dwl_args)
+                    ::V1::DesiredWorkerLabels.new(**dwl_args)
                   when Integer
-                    ::DesiredWorkerLabels.new(int_value: v)
+                    ::V1::DesiredWorkerLabels.new(int_value: v)
                   else
-                    ::DesiredWorkerLabels.new(str_value: v.to_s)
+                    ::V1::DesiredWorkerLabels.new(str_value: v.to_s)
                   end
             map[k.to_s] = dwl
           end
