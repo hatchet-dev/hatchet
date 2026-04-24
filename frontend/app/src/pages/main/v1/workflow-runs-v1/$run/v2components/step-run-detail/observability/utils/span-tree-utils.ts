@@ -54,24 +54,6 @@ export function isQueuedOnly(span: OtelSpanTree): boolean {
   return !!span.queuedPhase && span.durationNs <= 0 && !span.inProgress;
 }
 
-const ENGINE_SPAN_DISPLAY_NAMES: Record<string, string> = {
-  'hatchet.engine.queued': 'Queued',
-  'hatchet.engine.scheduling': 'Scheduling',
-  'hatchet.engine.retry_backoff': 'Retry Backoff',
-  'hatchet.engine.workflow_run': 'Workflow Run',
-  'hatchet.engine.event': 'Event',
-  'hatchet.engine.event_emitted': 'Event Emitted',
-  'hatchet.push_event': 'Push Event',
-  'hatchet.run_workflow': 'Run Workflow',
-};
-
-export function getDisplayName(span: OtelSpanTree): string {
-  if (ENGINE_SPAN_DISPLAY_NAMES[span.spanName]) {
-    return ENGINE_SPAN_DISPLAY_NAMES[span.spanName];
-  }
-  return span.spanName;
-}
-
 export function getSpanAttributeLabel(span: OtelSpanTree): string | undefined {
   return (
     span.spanAttributes?.['hatchet.task_name'] ??

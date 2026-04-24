@@ -1,8 +1,4 @@
-import {
-  getDisplayName,
-  getSpanAttributeLabel,
-  isEngineSpan,
-} from '../utils/span-tree-utils';
+import { getSpanAttributeLabel, isEngineSpan } from '../utils/span-tree-utils';
 import {
   ROW_HEIGHT,
   CONNECTOR_WIDTH,
@@ -232,7 +228,7 @@ export const TimelineLabels = memo(function TimelineLabels({
         }
 
         const isSelected = selectedSpan?.spanId === row.span.spanId;
-        const displayName = getDisplayName(row.span);
+        const displayName = row.span.spanName;
         const attributeLabel = getSpanAttributeLabel(row.span);
 
         return (
@@ -272,7 +268,11 @@ export const TimelineLabels = memo(function TimelineLabels({
                     ? 'text-foreground'
                     : 'text-muted-foreground',
               )}
-              title={attributeLabel ? `${displayName} (${attributeLabel})` : displayName}
+              title={
+                attributeLabel
+                  ? `${displayName} (${attributeLabel})`
+                  : displayName
+              }
             >
               {displayName}
             </span>
