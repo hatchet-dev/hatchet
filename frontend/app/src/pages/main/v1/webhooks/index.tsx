@@ -665,7 +665,7 @@ const CreateWebhookModal = () => {
               </Label>
               <p className="text-xs text-muted-foreground">
                 When enabled, the triggered event will be returned as the HTTP
-                response body.
+                response body. Otherwise, the response will be an empty 200 OK.
               </p>
             </div>
             <Switch
