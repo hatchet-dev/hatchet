@@ -129,6 +129,24 @@ function collectAllKeys(nodes: OtelSpanTree[]): string[] {
   return keys;
 }
 
+function collectKeysUpToDepth(
+  nodes: OtelSpanTree[],
+  maxDepth: number,
+  depth = 0,
+): string[] {
+  if (depth >= maxDepth) {
+    return [];
+  }
+  const keys: string[] = [];
+  for (const node of nodes) {
+    if (node.children.length > 0) {
+      keys.push(getStableKey(node));
+      keys.push(...collectKeysUpToDepth(node.children, maxDepth, depth + 1));
+    }
+  }
+  return keys;
+}
+
 export function TaskRunTrace({
   spanTrees,
   isRunning,
@@ -155,7 +173,7 @@ export function TaskRunTrace({
   } = useRunDetailSearch();
 
   const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(() => {
-    const set = new Set(spanTrees.map((s) => s.spanId));
+    const set = new Set(collectKeysUpToDepth(spanTrees, 2));
     if (selectedSpanId) {
       const span = findSpanInTrees(spanTrees, selectedSpanId);
       if (span) {
