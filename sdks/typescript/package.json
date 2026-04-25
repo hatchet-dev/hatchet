@@ -3,6 +3,20 @@
   "version": "1.21.2",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./v1": {
+      "types": "./dist/v1/index.d.ts",
+      "import": "./dist/v1/index.js",
+      "require": "./dist/v1/index.js",
+      "default": "./dist/v1/index.js"
+    }
+  },
   "files": [
     "*",
     "!**/*.test.js",
