@@ -217,6 +217,11 @@ export interface ManagementToken {
   expiresAt?: string;
 }
 
+export interface CreateOrganizationSsoDomainRequest {
+  /** @format uri */
+  ssoDomain: string;
+}
+
 export interface ManagementTokenList {
   rows: ManagementToken[];
 }
@@ -342,3 +347,17 @@ export interface CreateTenantAPITokenResponse {
   /** The generated API token */
   token: string;
 }
+
+export interface SsoDomain {
+  /**
+   * @format uri
+   * @example "acme.com"
+   */
+  ssoDomain: string;
+  /** @example false */
+  verified: boolean;
+  /** @format uuid */
+  verificationToken: string;
+}
+
+export type SsoDomainArray = SsoDomain[];
