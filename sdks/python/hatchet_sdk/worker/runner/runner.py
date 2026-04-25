@@ -582,6 +582,7 @@ class Runner:
                 self.durable_eviction_manager.register_run(
                     action.key,
                     step_run_id=action.step_run_id,
+                    # FIXME: why is the engine returning nil for this?
                     invocation_count=action.durable_task_invocation_count or 1,
                     eviction_policy=action_func.eviction_policy,
                 )

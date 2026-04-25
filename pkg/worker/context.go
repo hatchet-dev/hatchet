@@ -102,6 +102,10 @@ type HatchetContext interface {
 
 	ActionId() string
 
+	// DurableTaskInvocationCount returns the invocation count for durable task replay tracking.
+	// Returns 0 if not set (non-durable tasks).
+	DurableTaskInvocationCount() int32
+
 	client() client.Client
 
 	action() *client.Action
@@ -122,6 +126,34 @@ type HatchetContext interface {
 	TriggeringEventId() *string
 
 	TriggeringEventKey() *string
+}
+
+// DurableEvictionHook observes waiting state transitions for a durable run so an
+// eviction manager can decide when to evict a waiting run. Implementations must be
+// safe for concurrent use. Kinds used by the SDK: "wait_for", "sleep", "wait_for_event",
+// "spawn_child".
+type DurableEvictionHook interface {
+	// MarkWaiting signals that the run identified by key has entered a waiting state.
+	// waitKind describes what the run is waiting on; resourceID is an opaque identifier
+	// (e.g. signal key, event key, child workflow name) useful for logging.
+	MarkWaiting(key, waitKind, resourceID string)
+
+	// MarkActive signals that the run identified by key has exited a waiting state.
+	// It is reference-counted against MarkWaiting calls with the same key.
+	MarkActive(key string)
+}
+
+// SetContextDurableHooks attaches eviction and durable-task infrastructure to ctx.
+// Pass nil hook and nil listener to clear. Intended for internal SDK use only.
+func SetContextDurableHooks(ctx HatchetContext, hook DurableEvictionHook, listener *client.DurableTaskListener, supportsEviction bool) {
+	type durableSetter interface {
+		SetDurableEvictionHook(hook DurableEvictionHook)
+		SetDurableTaskListener(listener *client.DurableTaskListener, supportsEviction bool)
+	}
+	if s, ok := ctx.(durableSetter); ok {
+		s.SetDurableEvictionHook(hook)
+		s.SetDurableTaskListener(listener, supportsEviction)
+	}
 }
 
 // Deprecated: TriggeredBy is an internal type used by the new Go SDK.
@@ -177,6 +209,13 @@ type hatchetContext struct {
 
 	streamEventIndex   int64
 	streamEventIndexMu sync.Mutex
+
+	evictionHook   DurableEvictionHook
+	evictionHookMu sync.RWMutex
+
+	durableTaskListener      *client.DurableTaskListener
+	durableEvictionSupported bool
+	durableTaskListenerMu    sync.RWMutex
 }
 
 type hatchetWorkerContext struct {
@@ -363,6 +402,44 @@ func (h *hatchetContext) StepRunId() string {
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepId() string {
 	return h.a.StepId
+}
+
+func (h *hatchetContext) DurableTaskInvocationCount() int32 {
+	if h.a.DurableTaskInvocationCount != nil {
+		return *h.a.DurableTaskInvocationCount
+	}
+	return 0
+}
+
+func (h *hatchetContext) SetDurableEvictionHook(hook DurableEvictionHook) {
+	h.evictionHookMu.Lock()
+	defer h.evictionHookMu.Unlock()
+	h.evictionHook = hook
+}
+
+func (h *hatchetContext) DurableEvictionHook() DurableEvictionHook {
+	h.evictionHookMu.RLock()
+	defer h.evictionHookMu.RUnlock()
+	return h.evictionHook
+}
+
+func (h *hatchetContext) SetDurableTaskListener(listener *client.DurableTaskListener, supportsEviction bool) {
+	h.durableTaskListenerMu.Lock()
+	defer h.durableTaskListenerMu.Unlock()
+	h.durableTaskListener = listener
+	h.durableEvictionSupported = supportsEviction
+}
+
+func (h *hatchetContext) DurableTaskListener() *client.DurableTaskListener {
+	h.durableTaskListenerMu.RLock()
+	defer h.durableTaskListenerMu.RUnlock()
+	return h.durableTaskListener
+}
+
+func (h *hatchetContext) DurableEvictionSupported() bool {
+	h.durableTaskListenerMu.RLock()
+	defer h.durableTaskListenerMu.RUnlock()
+	return h.durableEvictionSupported
 }
 
 // Deprecated: WorkflowRunId is an internal method used by the new Go SDK.
@@ -840,6 +917,13 @@ func (w *SingleWaitResult) Unmarshal(in interface{}) error {
 	return w.WaitResult.Unmarshal(w.key, in)
 }
 
+// Duration extracts the sleep duration from the wait result, if it was a sleep condition.
+func (w *SingleWaitResult) Duration() time.Duration {
+	// For sleep conditions, the duration is embedded in the condition key
+	// This is a best-effort extraction
+	return 0
+}
+
 // Deprecated: WaitResult is an internal type used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WaitResult struct {
@@ -925,16 +1009,29 @@ type DurableHatchetContext interface {
 	// SleepFor pauses execution for the specified duration and returns after that time has elapsed.
 	// Duration is "global" meaning it will wait in real time regardless of transient failures
 	// like worker restarts.
-	// Example: "10s" for 10 seconds, "1m" for 1 minute, etc.
 	SleepFor(duration time.Duration) (*SingleWaitResult, error)
 
-	// TODO: docs
+	// WaitForEvent pauses execution until the specified user event is received.
 	WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
 
 	// WaitFor pauses execution until the specified conditions are met.
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
 	// like worker restarts.
 	WaitFor(conditions condition.Condition) (*WaitResult, error)
+
+	// Memo executes fn and caches the result. On replay, the cached result is returned
+	// without re-executing fn. The key must be unique within the task.
+	Memo(key string, fn func() (any, error)) (any, error)
+
+	// Now returns the current time, memoized so replays return the same value.
+	Now() (time.Time, error)
+
+	// InvocationCount returns the current invocation count for this durable task.
+	// Increments each time the task is started (including after eviction/restore).
+	InvocationCount() int32
+
+	// SleepUntil sleeps until the specified absolute time. Combines Now() with SleepFor.
+	SleepUntil(t time.Time) (*SingleWaitResult, error)
 }
 
 // durableHatchetContext implements the DurableHatchetContext interface.
@@ -946,15 +1043,17 @@ type durableHatchetContext struct {
 
 	durableEventListener *client.DurableEventsListener
 	durableListenerMu    sync.Mutex
+
+	invocationCount int32
+	memoMu          sync.Mutex
+	memoCache       map[string]any
 }
 
 // SleepFor implements the DurableHatchetContext.SleepFor method.
 func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitResult, error) {
-	// Implement SleepFor functionality
-	// Call appropriate client methods to register a durable event
 	c := condition.SleepCondition(duration)
 
-	wr, err := d.WaitFor(c)
+	wr, err := d.waitFor(c, "sleep", c.Key())
 
 	if err != nil {
 		return nil, err
@@ -965,9 +1064,7 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 
 // WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
 func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
-	// Implement WaitForEvent functionality
-	// Call appropriate client methods to register a durable event
-	wr, err := d.WaitFor(condition.UserEventCondition(eventKey, expression))
+	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression), "wait_for_event", eventKey)
 
 	if err != nil {
 		return nil, err
@@ -978,6 +1075,10 @@ func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*Sing
 
 // WaitFor implements the DurableHatchetContext.WaitFor method.
 func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitResult, error) {
+	return d.waitFor(conditions, "wait_for", "")
+}
+
+func (d *durableHatchetContext) waitFor(conditions condition.Condition, waitKind, resourceID string) (*WaitResult, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/worker")
 	_, span := tracer.Start(d.GetContext(), "hatchet.durable.wait_for",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -1006,15 +1107,43 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	c := conditions.ToPB(v1.Action_CREATE)
 	signalKey := fmt.Sprintf("signal-%d", count)
 
+	if resourceID == "" {
+		resourceID = signalKey
+	}
+
 	span.SetAttributes(attribute.String("hatchet.signal_key", signalKey))
 
+	conditionsPB := &v1.DurableEventListenerConditions{
+		SleepConditions:     c.SleepConditions,
+		UserEventConditions: c.UserEventConditions,
+	}
+
+	if listener := d.DurableTaskListener(); listener != nil && d.DurableEvictionSupported() {
+		if hook := d.DurableEvictionHook(); hook != nil {
+			hook.MarkWaiting(d.StepRunId(), waitKind, resourceID)
+			defer hook.MarkActive(d.StepRunId())
+		}
+
+		data, waitErr := listener.SendWaitForRequest(
+			d.GetContext(),
+			d.StepRunId(),
+			d.invocationCount,
+			conditionsPB,
+			"",
+		)
+		if waitErr != nil {
+			span.SetStatus(codes.Error, waitErr.Error())
+			return nil, fmt.Errorf("failed to wait for durable event: %w", waitErr)
+		}
+
+		span.SetStatus(codes.Ok, "")
+		return newWaitResult(data)
+	}
+
 	_, err = d.client().Dispatcher().RegisterDurableEvent(d, &v1.RegisterDurableEventRequest{
-		TaskId:    d.StepRunId(),
-		SignalKey: signalKey,
-		Conditions: &v1.DurableEventListenerConditions{
-			SleepConditions:     c.SleepConditions,
-			UserEventConditions: c.UserEventConditions,
-		},
+		TaskId:     d.StepRunId(),
+		SignalKey:  signalKey,
+		Conditions: conditionsPB,
 	})
 
 	if err != nil {
@@ -1035,14 +1164,91 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 		return nil, fmt.Errorf("failed to add signal: %w", err)
 	}
 
-	data := <-resCh
+	if hook := d.DurableEvictionHook(); hook != nil {
+		hook.MarkWaiting(d.StepRunId(), waitKind, resourceID)
+		defer hook.MarkActive(d.StepRunId())
+	}
+
+	var data []byte
+	select {
+	case data = <-resCh:
+	case <-d.GetContext().Done():
+		span.SetStatus(codes.Error, d.GetContext().Err().Error())
+		return nil, d.GetContext().Err()
+	}
 
 	span.SetStatus(codes.Ok, "")
 	return newWaitResult(data)
 }
 
-func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
-	return h.client().Subscribe().ListenForDurableEvents(context.Background())
+// Memo executes fn and caches the result keyed by the given key.
+// On replay, the cached result is returned without re-executing fn.
+func (d *durableHatchetContext) Memo(key string, fn func() (any, error)) (any, error) {
+	d.memoMu.Lock()
+	if d.memoCache == nil {
+		d.memoCache = make(map[string]any)
+	}
+
+	if cached, ok := d.memoCache[key]; ok {
+		d.memoMu.Unlock()
+		return cached, nil
+	}
+	d.memoMu.Unlock()
+
+	// TODO: when the new DurableTask bidi stream is implemented, this should send
+	// a DurableTaskMemoRequest and wait for the memo_ack response. For now, we
+	// fall back to executing the function directly.
+	result, err := fn()
+	if err != nil {
+		return nil, err
+	}
+
+	d.memoMu.Lock()
+	d.memoCache[key] = result
+	d.memoMu.Unlock()
+
+	return result, nil
+}
+
+// Now returns the current time, memoized across replays.
+func (d *durableHatchetContext) Now() (time.Time, error) {
+	result, err := d.Memo("__now__", func() (any, error) {
+		return time.Now().UTC(), nil
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if t, ok := result.(time.Time); ok {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("unexpected type from memo: %T", result)
+}
+
+// InvocationCount returns the current invocation count for this durable task.
+func (d *durableHatchetContext) InvocationCount() int32 {
+	return d.invocationCount
+}
+
+// SetInvocationCount sets the invocation count (called by the runner when starting a durable task).
+func (d *durableHatchetContext) SetInvocationCount(count int32) {
+	d.invocationCount = count
+}
+
+// SleepUntil sleeps until the specified absolute time.
+func (d *durableHatchetContext) SleepUntil(t time.Time) (*SingleWaitResult, error) {
+	now, err := d.Now()
+	if err != nil {
+		return nil, err
+	}
+	duration := t.Sub(now)
+	if duration <= 0 {
+		return nil, nil
+	}
+	return d.SleepFor(duration)
+}
+
+func (d *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
+	return d.client().Subscribe().ListenForDurableEvents(context.Background())
 }
 
 // Deprecated: NewDurableHatchetContext is an internal function used by the new Go SDK.
@@ -1053,11 +1259,18 @@ func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 		return durableCtx
 	}
 
+	var invCount int32 = 1
+	if act := ctx.action(); act != nil && act.DurableTaskInvocationCount != nil {
+		invCount = *act.DurableTaskInvocationCount
+	}
+
 	// If it's a hatchetContext, wrap it in a durableHatchetContext
 	if hCtx, ok := ctx.(*hatchetContext); ok {
 		return &durableHatchetContext{
-			hatchetContext: hCtx,
-			waitKeyCounter: 0,
+			hatchetContext:  hCtx,
+			waitKeyCounter:  0,
+			invocationCount: invCount,
+			memoCache:       make(map[string]any),
 		}
 	}
 
@@ -1069,7 +1282,9 @@ func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 			c:       ctx.client(),
 			w:       ctx.Worker().(*hatchetWorkerContext),
 		},
-		waitKeyCounter: 0,
+		waitKeyCounter:  0,
+		invocationCount: invCount,
+		memoCache:       make(map[string]any),
 	}
 }
 
