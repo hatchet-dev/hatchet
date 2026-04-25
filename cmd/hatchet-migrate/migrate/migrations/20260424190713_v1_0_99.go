@@ -536,19 +536,32 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("backfill %s_new: %w", v1RunsOlapTable, err)
 		}
 
-		newCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_runs_olap_new")
-		existingCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_runs_olap")
+		newCount := db.QueryRowContext(
+			ctx,
+			`
+			WITH counts AS (
+				SELECT
+					(SELECT COUNT(*) FROM v1_runs_olap_new) AS new_count,
+					(SELECT COUNT(*) FROM v1_runs_olap) AS existing_count
+			)
+
+			SELECT
+				new_count = existing_count AS counts_match,
+				new_count,
+				existing_count
+			FROM counts
+			`,
+		)
+
+		var countsMatch bool
 		var newCountVal, existingCountVal int64
 
-		if err := newCount.Scan(&newCountVal); err != nil {
-			return fmt.Errorf("counting rows in v1_runs_olap_new: %w", err)
-		}
-		if err := existingCount.Scan(&existingCountVal); err != nil {
-			return fmt.Errorf("counting rows in v1_runs_olap: %w", err)
+		if err := newCount.Scan(&countsMatch, &newCountVal, &existingCountVal); err != nil {
+			return fmt.Errorf("counting rows in v1_runs_olap_new and v1_runs_olap: %w", err)
 		}
 
-		if newCountVal != existingCountVal {
-			return fmt.Errorf("row count mismatch after backfill for %s: new=%d, existing=%d", v1RunsOlapTable, newCountVal, existingCountVal)
+		if !countsMatch {
+			return fmt.Errorf("row count mismatch after backfill for v1_runs_olap: new=%d, existing=%d", newCountVal, existingCountVal)
 		}
 
 		return nil
@@ -576,18 +589,31 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("backfill %s_new: %w", v1TasksOlapTable, err)
 		}
 
-		newCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_tasks_olap_new")
-		existingCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_tasks_olap")
+		newCount := db.QueryRowContext(
+			ctx,
+			`
+			WITH counts AS (
+				SELECT
+					(SELECT COUNT(*) FROM v1_tasks_olap_new) AS new_count,
+					(SELECT COUNT(*) FROM v1_tasks_olap) AS existing_count
+			)
+
+			SELECT
+				new_count = existing_count AS counts_match,
+				new_count,
+				existing_count
+			FROM counts
+			`,
+		)
+
+		var countsMatch bool
 		var newCountVal, existingCountVal int64
 
-		if err := newCount.Scan(&newCountVal); err != nil {
-			return fmt.Errorf("counting rows in v1_tasks_olap_new: %w", err)
-		}
-		if err := existingCount.Scan(&existingCountVal); err != nil {
-			return fmt.Errorf("counting rows in v1_tasks_olap: %w", err)
+		if err := newCount.Scan(&countsMatch, &newCountVal, &existingCountVal); err != nil {
+			return fmt.Errorf("counting rows in %s_new and %s: %w", v1TasksOlapTable, v1TasksOlapTable, err)
 		}
 
-		if newCountVal != existingCountVal {
+		if !countsMatch {
 			return fmt.Errorf("row count mismatch after backfill for %s: new=%d, existing=%d", v1TasksOlapTable, newCountVal, existingCountVal)
 		}
 
@@ -612,18 +638,31 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("backfill %s_new: %w", v1DagsOlapTable, err)
 		}
 
-		newCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_dags_olap_new")
-		existingCount := db.QueryRowContext(ctx, "SELECT count(*) FROM v1_dags_olap")
+		newCount := db.QueryRowContext(
+			ctx,
+			`
+			WITH counts AS (
+				SELECT
+					(SELECT COUNT(*) FROM v1_dags_olap_new) AS new_count,
+					(SELECT COUNT(*) FROM v1_dags_olap) AS existing_count
+			)
+
+			SELECT
+				new_count = existing_count AS counts_match,
+				new_count,
+				existing_count
+			FROM counts
+			`,
+		)
+
+		var countsMatch bool
 		var newCountVal, existingCountVal int64
 
-		if err := newCount.Scan(&newCountVal); err != nil {
-			return fmt.Errorf("counting rows in v1_dags_olap_new: %w", err)
-		}
-		if err := existingCount.Scan(&existingCountVal); err != nil {
-			return fmt.Errorf("counting rows in v1_dags_olap: %w", err)
+		if err := newCount.Scan(&countsMatch, &newCountVal, &existingCountVal); err != nil {
+			return fmt.Errorf("counting rows in %s_new and %s: %w", v1DagsOlapTable, v1DagsOlapTable, err)
 		}
 
-		if newCountVal != existingCountVal {
+		if !countsMatch {
 			return fmt.Errorf("row count mismatch after backfill for %s: new=%d, existing=%d", v1DagsOlapTable, newCountVal, existingCountVal)
 		}
 
