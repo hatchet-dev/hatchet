@@ -13,3 +13,4 @@ FeatureFlagId:
   type: string
   enum:
     - "tenant-log-workflow-filter-enabled"
+    - "trace-minimap-enabled"

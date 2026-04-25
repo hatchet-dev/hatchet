@@ -1,7 +1,6 @@
 import { formatDuration, formatTimestamp } from '../utils/format-utils';
 import {
   getSpanColor,
-  getDisplayName,
   effectiveStatusLabel,
   isEngineSpan,
   isQueuedEngineSpan,
@@ -64,7 +63,7 @@ export function SpanTooltip({
     ? Math.max(0, now - startMs)
     : span.durationNs / 1_000_000;
 
-  const displayName = getDisplayName(span);
+  const displayName = span.spanName;
   const started = formatTimestamp(span.createdAt, { ms: true });
   const q = span.queuedPhase;
 

@@ -64,6 +64,7 @@ const (
 // Defines values for FeatureFlagId.
 const (
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
+	TraceMinimapEnabled            FeatureFlagId = "trace-minimap-enabled"
 )
 
 // Defines values for JobRunStatus.
