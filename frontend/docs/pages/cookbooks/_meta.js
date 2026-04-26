@@ -12,4 +12,5 @@ export default {
     type: "separator",
   },
   "workflow-support-agent": "Support Agent",
+  "welcome-email": "Welcome Email",
 };
