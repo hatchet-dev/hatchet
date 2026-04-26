@@ -78,7 +78,7 @@ In TypeScript, workflows are registered through the shared example worker rather
 
 ### Trigger the workflow
 
-The durable task is configured with `on_events=["user:signup"]` (Python) / `onEvents: ['user:signup']` (TypeScript), so pushing a `user:signup` event starts the workflow. The event payload is passed through as-is to the task input, so both languages receive the same field names:
+The durable task is configured with `on_events=["user:signup"]` (Python) / `onEvents: ['user:signup']` (TypeScript), so in production you can start it by pushing a `user:signup` event. The event payload is passed through as-is to the task input, so both languages receive the same field names:
 
 ```json
 {
@@ -87,30 +87,44 @@ The durable task is configured with `on_events=["user:signup"]` (Python) / `onEv
 }
 ```
 
-Once the workflow is running and waiting, you can resolve it by pushing the onboarding event **with a matching scope**:
+The example also includes a trigger script that starts the workflow directly, pushes a scoped onboarding event, and waits for the result.
 
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
-    ```python
-    hatchet.event.push(
-        "user:onboarding-completed",
-        {"status": "done"},
-        scope="user-123",
-    )
-    ```
+    <Snippet src={snippets.python.welcome_email.trigger.trigger_the_workflow} />
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
-    ```typescript
-    await hatchet.events.push(
-      'user:onboarding-completed',
-      { status: 'done' },
-      { scope: 'user-123' }
-    );
-    ```
+    <Snippet src={snippets.typescript.welcome_email.run.trigger_the_workflow} />
   </Tabs.Tab>
 </UniversalTabs>
 
-The scope value (`"user-123"`) must match the user ID that the workflow received in its signup input. The event payload itself is not used for correlation — only the scope matters.
+The onboarding event is pushed with a **scope** that matches the user ID from the signup input. The event payload itself is not used for correlation — only the scope matters. This is what prevents one user's onboarding event from resolving another user's wait.
+
+### Test it
+
+This example includes two end-to-end tests against a live Hatchet instance:
+
+- an onboarding path, where the scoped event arrives before the timeout and the follow-up is skipped
+- a timeout path, where no event arrives and the workflow sends the follow-up
+
+If you are running the SDK examples locally:
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+
+    ```bash
+    pytest examples/welcome_email/test_welcome_email.py
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    ```bash
+    pnpm run test:e2e -- --testPathPattern=welcome_email
+    ```
+
+  </Tabs.Tab>
+</UniversalTabs>
 
 </Steps>
 

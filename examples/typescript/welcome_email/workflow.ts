@@ -1,8 +1,8 @@
 import { Or } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { hatchet } from '../hatchet-client';
 
-const ONBOARDING_EVENT_KEY = 'user:onboarding-completed';
-const TIMEOUT_SECONDS = 30;
+export const ONBOARDING_EVENT_KEY = 'user:onboarding-completed';
+const TIMEOUT_SECONDS = 5;
 
 // > Models
 export type SignupInput = {

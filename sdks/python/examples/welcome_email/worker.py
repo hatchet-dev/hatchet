@@ -13,7 +13,7 @@ from hatchet_sdk import (
 hatchet = Hatchet()
 
 ONBOARDING_EVENT_KEY = "user:onboarding-completed"
-TIMEOUT_SECONDS = 30
+TIMEOUT_SECONDS = 5
 
 
 # > Models
