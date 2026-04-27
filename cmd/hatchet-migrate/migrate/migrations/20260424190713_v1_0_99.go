@@ -154,16 +154,7 @@ WHERE NOT EXISTS (
 	SELECT 1 FROM v1_runs_olap_new n
 	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
 )
-ON CONFLICT (inserted_at, id) DO UPDATE
-SET
-	readable_status = CASE
-		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.readable_status
-		ELSE EXCLUDED.readable_status
-	END,
-	kind = CASE
-		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.kind
-		ELSE EXCLUDED.kind
-	END
+ON CONFLICT DO NOTHING
 `
 
 const v1TasksOlapNewColDefs = `
@@ -374,15 +365,7 @@ WHERE NOT EXISTS (
 	SELECT 1 FROM v1_tasks_olap_new n
 	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
 )
-ON CONFLICT (inserted_at, id) DO UPDATE
-	SET
-		readable_status = CASE
-			WHEN
-				v1_status_to_priority(v1_tasks_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status)
-				OR v1_tasks_olap_new.latest_retry_count > EXCLUDED.latest_retry_count
-			THEN v1_tasks_olap_new.readable_status
-			ELSE EXCLUDED.readable_status
-		END
+ON CONFLICT DO NOTHING
 `
 
 const v1DagsOlapNewColDefs = `
@@ -502,12 +485,7 @@ WHERE NOT EXISTS (
 	SELECT 1 FROM v1_dags_olap_new n
 	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
 )
-ON CONFLICT (inserted_at, id) DO UPDATE
-SET
-	readable_status = CASE
-		WHEN v1_status_to_priority(v1_dags_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_dags_olap_new.readable_status
-		ELSE EXCLUDED.readable_status
-	END
+ON CONFLICT DO NOTHING
 `
 
 func up20260424190713(ctx context.Context, db *sql.DB) error {
