@@ -15,11 +15,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { snippets } from "../lib/generated/snippets/index.js";
+import { fileURLToPath } from "node:url";
 
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
-const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
+const __filename = fileURLToPath(import.meta.url);
+const SCRIPT_DIR = path.dirname(__filename);
 const DOCS_ROOT = path.resolve(SCRIPT_DIR, "..");
 const PAGES_DIR = path.join(DOCS_ROOT, "pages");
 const OUTPUT_DIR = path.join(DOCS_ROOT, "public");
@@ -75,6 +77,7 @@ interface DocPage {
   href: string;
   filepath: string;
   section: string;
+  hidden?: boolean;
 }
 
 /**
@@ -128,8 +131,7 @@ function isDocPage(key: string, value: any): boolean {
   if (key.trim().startsWith("_")) return false;
   if (typeof value === "string") return true;
   if (typeof value === "object" && value !== null) {
-    if (value.display === "hidden") return false;
-    if ("title" in value) return true;
+    return "title" in value;
   }
   return false;
 }
@@ -141,11 +143,21 @@ function extractTitle(value: any): string {
   return "";
 }
 
+function isHidden(value: any): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "display" in value &&
+    value.display === "hidden"
+  );
+}
+
 function collectPagesFromDir(
   dir: string,
   urlPrefix: string,
   sectionTitle: string,
   pages: DocPage[],
+  parentHidden: boolean = false
 ): void {
   const metaPath = path.join(dir, "_meta.js");
   if (!fs.existsSync(metaPath)) return;
@@ -153,11 +165,13 @@ function collectPagesFromDir(
   const meta = parseMetaJs(metaPath);
 
   for (const [key, value] of Object.entries(meta)) {
-    if (!isDocPage(key, value)) continue;
+  if (!isDocPage(key, value)) continue;
 
-    const title = extractTitle(value as any);
-    const subDir = path.join(dir, key);
-    const href = `${DOCS_BASE_URL}/${urlPrefix}/${key}`;
+  const title = extractTitle(value as any);
+  const subDir = path.join(dir, key);
+  const href = `${DOCS_BASE_URL}/${urlPrefix}/${key}`;
+
+  const currentHidden = parentHidden || isHidden(value);
 
     // Check if this key is a folder with its own _meta.js (sub-section)
     const subMetaPath = path.join(subDir, "_meta.js");
@@ -173,11 +187,12 @@ function collectPagesFromDir(
             href,
             filepath: indexMdx,
             section: sectionTitle,
+            hidden: currentHidden
           });
         }
       }
       // Recurse into sub-section
-      collectPagesFromDir(subDir, `${urlPrefix}/${key}`, sectionTitle, pages);
+      collectPagesFromDir(subDir, `${urlPrefix}/${key}`, sectionTitle, pages, currentHidden);
       continue;
     }
 
@@ -194,6 +209,7 @@ function collectPagesFromDir(
       href,
       filepath: mdxPath,
       section: sectionTitle,
+      hidden: currentHidden
     });
   }
 }
@@ -234,13 +250,14 @@ function collectPages(): DocPage[] {
           href: `${DOCS_BASE_URL}/${sectionKey}`,
           filepath: mdxPath,
           section: sectionTitle || sectionKey,
+          hidden: isHidden(sectionValue)
         });
       }
       continue;
     }
 
     // Recurse into section directory
-    collectPagesFromDir(sectionDir, sectionKey, sectionTitle, pages);
+    collectPagesFromDir(sectionDir, sectionKey, sectionTitle, pages, isHidden(sectionValue));
   }
 
   return pages;
@@ -671,6 +688,7 @@ interface SearchDoc {
   keywords: string;
   pageTitle: string;
   pageRoute: string;
+  hidden: boolean;
 }
 
 /**
@@ -842,6 +860,7 @@ function buildSearchIndex(
         keywords,
         pageTitle: page.title,
         pageRoute,
+        hidden: page.hidden || false
       });
     }
   }
