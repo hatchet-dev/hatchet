@@ -1,8 +1,10 @@
 import { Or } from '@hatchet/v1/conditions';
+import { durationToMs } from '@hatchet/v1/client/duration';
 import { hatchet } from '../hatchet-client';
 
 export const ONBOARDING_EVENT_KEY = 'user:onboarding-completed';
 const TIMEOUT_SECONDS = 5;
+const LOOKBACK_WINDOW = '5m' as const;
 
 // > Models
 export type SignupInput = {
@@ -28,12 +30,17 @@ export const welcomeEmail = hatchet.durableTask<SignupInput, WelcomeEmailResult>
 
     // Step 2: Wait for the user to complete onboarding, or time out
     // (use a longer duration like '24h' in production)
+    const now = await ctx.now();
+    const considerEventsSince = new Date(
+      now.getTime() - durationToMs(LOOKBACK_WINDOW)
+    ).toISOString();
+
     const waitResult = await ctx.waitFor(
       Or(
         { sleepFor: `${TIMEOUT_SECONDS}s` },
         // Scope the event condition to this user so that another user's
         // onboarding-completed event does not resolve this wait.
-        { eventKey: ONBOARDING_EVENT_KEY, scope: input.user_id }
+        { eventKey: ONBOARDING_EVENT_KEY, scope: input.user_id, considerEventsSince }
       )
     );
 

@@ -68,6 +68,8 @@ The core of this example is a single [durable task](/v1/durable-execution) that 
 
 The event condition uses a **scope** set to the current user's ID. When the `user:onboarding-completed` event is pushed later, it must be pushed with the same scope value. This ensures that one user's onboarding event does not accidentally satisfy another user's wait.
 
+The condition also includes a lookback window (`consider_events_since` in Python, `considerEventsSince` in TypeScript). This lets the workflow pick up an onboarding event that arrived slightly before the wait became active — for example, if the welcome email step and the onboarding event happen nearly at the same time.
+
 ### Register and start the worker
 
 Register the durable task on a Hatchet worker and start it.

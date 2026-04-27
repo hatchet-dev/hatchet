@@ -29,9 +29,9 @@ async def test_welcome_email_onboarding_before_timeout(hatchet: Hatchet) -> None
 
     result = await ref.aio_result()
 
-    assert result["user_id"] == user_id
-    assert result["welcome_sent"] is True
-    assert result["follow_up_sent"] is False
+    assert result.user_id == user_id
+    assert result.welcome_sent is True
+    assert result.follow_up_sent is False
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -45,6 +45,6 @@ async def test_welcome_email_timeout_follow_up(hatchet: Hatchet) -> None:
 
     result = await welcome_email.aio_run(signup)
 
-    assert result["user_id"] == user_id
-    assert result["welcome_sent"] is True
-    assert result["follow_up_sent"] is True
+    assert result.user_id == user_id
+    assert result.welcome_sent is True
+    assert result.follow_up_sent is True

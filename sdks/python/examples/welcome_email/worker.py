@@ -14,6 +14,7 @@ hatchet = Hatchet()
 
 ONBOARDING_EVENT_KEY = "user:onboarding-completed"
 TIMEOUT_SECONDS = 5
+LOOKBACK_MINUTES = 5
 
 
 # > Models
@@ -44,6 +45,9 @@ async def welcome_email(input: SignupInput, ctx: DurableContext) -> WelcomeEmail
 
     # Step 2: Wait for the user to complete onboarding, or time out
     # (use a longer duration like timedelta(hours=24) in production)
+    now = await ctx.aio_now()
+    consider_events_since = now - timedelta(minutes=LOOKBACK_MINUTES)
+
     wait_result = await ctx.aio_wait_for(
         "onboarding-or-timeout",
         or_(
@@ -53,6 +57,7 @@ async def welcome_email(input: SignupInput, ctx: DurableContext) -> WelcomeEmail
             UserEventCondition(
                 event_key=ONBOARDING_EVENT_KEY,
                 scope=input.user_id,
+                consider_events_since=consider_events_since,
             ),
         ),
     )
