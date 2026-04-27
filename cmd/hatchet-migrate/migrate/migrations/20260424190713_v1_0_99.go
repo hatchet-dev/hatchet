@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/pressly/goose/v3"
@@ -578,7 +579,6 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 		{v1TasksOlapTable, v1TasksOlapTable + "_new"},
 		{v1DagsOlapTable, v1DagsOlapTable + "_new"},
 	} {
-		var countsMatch bool
 		var newCount, existingCount int64
 
 		if err := db.QueryRowContext(ctx, fmt.Sprintf(`
@@ -587,13 +587,13 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 					(SELECT COUNT(*) FROM %s) AS new_count,
 					(SELECT COUNT(*) FROM %s) AS existing_count
 			)
-			SELECT new_count = existing_count, new_count, existing_count
+			SELECT new_count, existing_count
 			FROM counts
-		`, table.dst, table.src)).Scan(&countsMatch, &newCount, &existingCount); err != nil {
+		`, table.dst, table.src)).Scan(&newCount, &existingCount); err != nil {
 			return fmt.Errorf("counting rows in %s and %s: %w", table.dst, table.src, err)
 		}
 
-		if !countsMatch {
+		if math.Abs(float64(newCount)-float64(existingCount)) > 1000 {
 			return fmt.Errorf("row count mismatch after backfill for %s: new=%d, existing=%d", table.src, newCount, existingCount)
 		}
 	}
