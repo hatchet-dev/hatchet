@@ -139,27 +139,22 @@ const v1RunsOlapBackfill = `INSERT INTO v1_runs_olap_new (
 	parent_task_external_id
 )
 SELECT
-	tenant_id,
-	id,
-	inserted_at,
-	external_id,
-	readable_status,
-	kind,
-	workflow_id,
-	workflow_version_id,
-	additional_metadata,
-	parent_task_external_id
-FROM v1_runs_olap
-ON CONFLICT (inserted_at, id) DO UPDATE
-SET
-	readable_status = CASE
-		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.readable_status
-		ELSE EXCLUDED.readable_status
-	END,
-	kind = CASE
-		WHEN v1_status_to_priority(v1_runs_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_runs_olap_new.kind
-		ELSE EXCLUDED.kind
-	END
+	src.tenant_id,
+	src.id,
+	src.inserted_at,
+	src.external_id,
+	src.readable_status,
+	src.kind,
+	src.workflow_id,
+	src.workflow_version_id,
+	src.additional_metadata,
+	src.parent_task_external_id
+FROM v1_runs_olap src
+WHERE NOT EXISTS (
+	SELECT 1 FROM v1_runs_olap_new n
+	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
+)
+ON CONFLICT DO NOTHING
 `
 
 const v1TasksOlapNewColDefs = `
@@ -340,41 +335,37 @@ const v1TasksOlapBackfill = `INSERT INTO v1_tasks_olap_new (
 	is_durable
 )
 SELECT
-	tenant_id,
-	id,
-	inserted_at,
-	external_id,
-	queue,
-	action_id,
-	step_id,
-	workflow_id,
-	workflow_version_id,
-	workflow_run_id,
-	schedule_timeout,
-	step_timeout,
-	priority,
-	sticky,
-	desired_worker_id,
-	display_name,
-	input,
-	additional_metadata,
-	readable_status,
-	latest_retry_count,
-	latest_worker_id,
-	dag_id,
-	dag_inserted_at,
-	parent_task_external_id,
-	is_durable
-FROM v1_tasks_olap
-ON CONFLICT (inserted_at, id) DO UPDATE
-	SET
-		readable_status = CASE
-			WHEN
-				v1_status_to_priority(v1_tasks_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status)
-				OR v1_tasks_olap_new.latest_retry_count > EXCLUDED.latest_retry_count
-			THEN v1_tasks_olap_new.readable_status
-			ELSE EXCLUDED.readable_status
-		END
+	src.tenant_id,
+	src.id,
+	src.inserted_at,
+	src.external_id,
+	src.queue,
+	src.action_id,
+	src.step_id,
+	src.workflow_id,
+	src.workflow_version_id,
+	src.workflow_run_id,
+	src.schedule_timeout,
+	src.step_timeout,
+	src.priority,
+	src.sticky,
+	src.desired_worker_id,
+	src.display_name,
+	src.input,
+	src.additional_metadata,
+	src.readable_status,
+	src.latest_retry_count,
+	src.latest_worker_id,
+	src.dag_id,
+	src.dag_inserted_at,
+	src.parent_task_external_id,
+	src.is_durable
+FROM v1_tasks_olap src
+WHERE NOT EXISTS (
+	SELECT 1 FROM v1_tasks_olap_new n
+	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
+)
+ON CONFLICT DO NOTHING
 `
 
 const v1DagsOlapNewColDefs = `
@@ -477,25 +468,24 @@ const v1DagsOlapBackfill = `INSERT INTO v1_dags_olap_new (
 	total_tasks
 )
 SELECT
-	id,
-	inserted_at,
-	tenant_id,
-	external_id,
-	display_name,
-	workflow_id,
-	workflow_version_id,
-	readable_status,
-	input,
-	additional_metadata,
-	parent_task_external_id,
-	total_tasks
-FROM v1_dags_olap
-ON CONFLICT (inserted_at, id) DO UPDATE
-SET
-	readable_status = CASE
-		WHEN v1_status_to_priority(v1_dags_olap_new.readable_status) > v1_status_to_priority(EXCLUDED.readable_status) THEN v1_dags_olap_new.readable_status
-		ELSE EXCLUDED.readable_status
-	END
+	src.id,
+	src.inserted_at,
+	src.tenant_id,
+	src.external_id,
+	src.display_name,
+	src.workflow_id,
+	src.workflow_version_id,
+	src.readable_status,
+	src.input,
+	src.additional_metadata,
+	src.parent_task_external_id,
+	src.total_tasks
+FROM v1_dags_olap src
+WHERE NOT EXISTS (
+	SELECT 1 FROM v1_dags_olap_new n
+	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
+)
+ON CONFLICT DO NOTHING
 `
 
 func up20260424190713(ctx context.Context, db *sql.DB) error {
