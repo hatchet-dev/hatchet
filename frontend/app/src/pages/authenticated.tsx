@@ -139,6 +139,7 @@ function AuthenticatedInner() {
   const {
     isCloudEnabled,
     isLoaded: isUserUniverseLoaded,
+    isFetching: isUserUniverseFetching,
     organizations,
     tenantMemberships,
   } = useUserUniverse();
@@ -195,7 +196,8 @@ function AuthenticatedInner() {
     const okayToMakeOnboardingRedirectDecisions =
       pendingInvitesQuery.isSuccess &&
       !isOnboardingPage &&
-      isUserUniverseLoaded;
+      isUserUniverseLoaded &&
+      !isUserUniverseFetching;
 
     const shouldHaveAnOrganizationButDoesnt =
       isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
@@ -310,6 +312,7 @@ function AuthenticatedInner() {
     setLastTenant,
     isCloudEnabled,
     isUserUniverseLoaded,
+    isUserUniverseFetching,
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,

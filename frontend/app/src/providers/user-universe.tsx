@@ -21,6 +21,7 @@ import invariant from 'tiny-invariant';
 type UserUniverse = {
   isCloudEnabled: boolean;
   isLoaded: boolean;
+  isFetching: boolean;
   organizations: OrganizationForUserList['rows'] | null;
   tenantMemberships: TenantMember[] | null;
   invalidate: () => Promise<void>;
@@ -182,6 +183,7 @@ export function UserUniverseProvider({
   const value = useMemo<UserUniverse>(() => {
     const tenantMembershipAndOrganizationsAreLoaded =
       tenantMembershipAndOrganizationsQuery.isSuccess;
+    const isFetching = tenantMembershipAndOrganizationsQuery.isFetching;
     if (isCloudEnabled) {
       const getWithOrganizations = get as () => Promise<{
         organizations: OrganizationForUserList['rows'];
@@ -194,6 +196,7 @@ export function UserUniverseProvider({
         return {
           isCloudEnabled,
           isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+          isFetching,
           organizations:
             tenantMembershipAndOrganizationsQuery.data.organizations,
           tenantMemberships:
@@ -207,6 +210,7 @@ export function UserUniverseProvider({
       return {
         isCloudEnabled,
         isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+        isFetching,
         organizations: null,
         tenantMemberships: null,
         get: getWithOrganizations,
@@ -222,6 +226,7 @@ export function UserUniverseProvider({
         ? {
             isCloudEnabled,
             isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+            isFetching,
             organizations: null,
             tenantMemberships:
               tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
@@ -232,6 +237,7 @@ export function UserUniverseProvider({
         : {
             isCloudEnabled,
             isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+            isFetching,
             organizations: null,
             tenantMemberships: null,
             get: getWithoutOrganizations,
