@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/pressly/goose/v3"
 	"golang.org/x/sync/errgroup"
@@ -125,37 +126,6 @@ $$`
 const v1RunsOlapMirrorTrigger = `CREATE OR REPLACE TRIGGER v1_runs_olap_mirror
 AFTER INSERT OR UPDATE OR DELETE ON v1_runs_olap
 FOR EACH ROW EXECUTE FUNCTION v1_runs_olap_mirror_fn()`
-
-const v1RunsOlapBackfill = `INSERT INTO v1_runs_olap_new (
-	tenant_id,
-	id,
-	inserted_at,
-	external_id,
-	readable_status,
-	kind,
-	workflow_id,
-	workflow_version_id,
-	additional_metadata,
-	parent_task_external_id
-)
-SELECT
-	src.tenant_id,
-	src.id,
-	src.inserted_at,
-	src.external_id,
-	src.readable_status,
-	src.kind,
-	src.workflow_id,
-	src.workflow_version_id,
-	src.additional_metadata,
-	src.parent_task_external_id
-FROM v1_runs_olap src
-WHERE NOT EXISTS (
-	SELECT 1 FROM v1_runs_olap_new n
-	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
-)
-ON CONFLICT DO NOTHING
-`
 
 const v1TasksOlapNewColDefs = `
 		tenant_id               UUID NOT NULL,
@@ -307,67 +277,6 @@ const v1TasksOlapMirrorTrigger = `CREATE OR REPLACE TRIGGER v1_tasks_olap_mirror
 AFTER INSERT OR UPDATE OR DELETE ON v1_tasks_olap
 FOR EACH ROW EXECUTE FUNCTION v1_tasks_olap_mirror_fn()`
 
-const v1TasksOlapBackfill = `INSERT INTO v1_tasks_olap_new (
-	tenant_id,
-	id,
-	inserted_at,
-	external_id,
-	queue,
-	action_id,
-	step_id,
-	workflow_id,
-	workflow_version_id,
-	workflow_run_id,
-	schedule_timeout,
-	step_timeout,
-	priority,
-	sticky,
-	desired_worker_id,
-	display_name,
-	input,
-	additional_metadata,
-	readable_status,
-	latest_retry_count,
-	latest_worker_id,
-	dag_id,
-	dag_inserted_at,
-	parent_task_external_id,
-	is_durable
-)
-SELECT
-	src.tenant_id,
-	src.id,
-	src.inserted_at,
-	src.external_id,
-	src.queue,
-	src.action_id,
-	src.step_id,
-	src.workflow_id,
-	src.workflow_version_id,
-	src.workflow_run_id,
-	src.schedule_timeout,
-	src.step_timeout,
-	src.priority,
-	src.sticky,
-	src.desired_worker_id,
-	src.display_name,
-	src.input,
-	src.additional_metadata,
-	src.readable_status,
-	src.latest_retry_count,
-	src.latest_worker_id,
-	src.dag_id,
-	src.dag_inserted_at,
-	src.parent_task_external_id,
-	src.is_durable
-FROM v1_tasks_olap src
-WHERE NOT EXISTS (
-	SELECT 1 FROM v1_tasks_olap_new n
-	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
-)
-ON CONFLICT DO NOTHING
-`
-
 const v1DagsOlapNewColDefs = `
 		id                      BIGINT NOT NULL,
 		inserted_at             TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -453,52 +362,134 @@ const v1DagsOlapMirrorTrigger = `CREATE OR REPLACE TRIGGER v1_dags_olap_mirror
 AFTER INSERT OR UPDATE OR DELETE ON v1_dags_olap
 FOR EACH ROW EXECUTE FUNCTION v1_dags_olap_mirror_fn()`
 
-const v1DagsOlapBackfill = `INSERT INTO v1_dags_olap_new (
-	id,
-	inserted_at,
-	tenant_id,
-	external_id,
-	display_name,
-	workflow_id,
-	workflow_version_id,
-	readable_status,
-	input,
-	additional_metadata,
-	parent_task_external_id,
-	total_tasks
-)
-SELECT
-	src.id,
-	src.inserted_at,
-	src.tenant_id,
-	src.external_id,
-	src.display_name,
-	src.workflow_id,
-	src.workflow_version_id,
-	src.readable_status,
-	src.input,
-	src.additional_metadata,
-	src.parent_task_external_id,
-	src.total_tasks
-FROM v1_dags_olap src
-WHERE NOT EXISTS (
-	SELECT 1 FROM v1_dags_olap_new n
-	WHERE n.id = src.id AND n.inserted_at = src.inserted_at
-)
-ON CONFLICT DO NOTHING
-`
+var v1RunsOlapCols = []string{
+	"tenant_id",
+	"id",
+	"inserted_at",
+	"external_id",
+	"readable_status",
+	"kind",
+	"workflow_id",
+	"workflow_version_id",
+	"additional_metadata",
+	"parent_task_external_id",
+}
+
+var v1TasksOlapCols = []string{
+	"tenant_id",
+	"id",
+	"inserted_at",
+	"external_id",
+	"queue",
+	"action_id",
+	"step_id",
+	"workflow_id",
+	"workflow_version_id",
+	"workflow_run_id",
+	"schedule_timeout",
+	"step_timeout",
+	"priority",
+	"sticky",
+	"desired_worker_id",
+	"display_name",
+	"input",
+	"additional_metadata",
+	"readable_status",
+	"latest_retry_count",
+	"latest_worker_id",
+	"dag_id",
+	"dag_inserted_at",
+	"parent_task_external_id",
+	"is_durable",
+}
+
+var v1DagsOlapCols = []string{
+	"id",
+	"inserted_at",
+	"tenant_id",
+	"external_id",
+	"display_name",
+	"workflow_id",
+	"workflow_version_id",
+	"readable_status",
+	"input",
+	"additional_metadata",
+	"parent_task_external_id",
+	"total_tasks",
+}
+
+func backfillByPartition(ctx context.Context, db *sql.DB, srcTable, newTable string, cols []string) error {
+	partitions, err := listLeafPartitions(ctx, db, srcTable, 1)
+
+	if err != nil {
+		return fmt.Errorf("list partitions for %s: %w", srcTable, err)
+	}
+
+	colList := strings.Join(cols, ", ")
+
+	srcCols := make([]string, len(cols))
+	for i, c := range cols {
+		srcCols[i] = "src." + c
+	}
+
+	srcColList := strings.Join(srcCols, ", ")
+
+	for _, partition := range partitions {
+		var alreadyBackfilled bool
+		if err := db.QueryRowContext(
+			ctx,
+			`
+			SELECT EXISTS(
+				SELECT 1 FROM v1_olap_backfill_progress
+				WHERE table_name = $1 AND partition_name = $2
+			)
+			`,
+			srcTable,
+			partition,
+		).Scan(&alreadyBackfilled); err != nil {
+			return fmt.Errorf("check progress for partition %s: %w", partition, err)
+		}
+
+		if alreadyBackfilled {
+			continue
+		}
+
+		insertSQL := fmt.Sprintf(
+			"INSERT INTO %s (%s) SELECT %s FROM %s src ON CONFLICT DO NOTHING",
+			newTable, colList, srcColList, partition,
+		)
+
+		if _, err := db.ExecContext(ctx, insertSQL); err != nil {
+			return fmt.Errorf("backfill partition %s into %s: %w", partition, newTable, err)
+		}
+
+		if _, err := db.ExecContext(ctx, `
+			INSERT INTO v1_olap_backfill_progress (table_name, partition_name)
+			VALUES ($1, $2)
+			ON CONFLICT DO NOTHING
+		`, srcTable, partition); err != nil {
+			return fmt.Errorf("record progress for partition %s: %w", partition, err)
+		}
+	}
+
+	return nil
+}
 
 func up20260424190713(ctx context.Context, db *sql.DB) error {
-	// runs first, then tasks, then dags
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS v1_olap_backfill_progress (
+			table_name     TEXT NOT NULL,
+			partition_name TEXT NOT NULL,
+			completed_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (table_name, partition_name)
+		)
+	`); err != nil {
+		return fmt.Errorf("create backfill progress table: %w", err)
+	}
 
 	eg := &errgroup.Group{}
 
 	eg.Go(func() error {
-		// runs
-
-		// Drop the old outdated index.
-		// note: can't do this concurrently or in parts (i.e. dropping children first)
-		// see: https://stackoverflow.com/a/76167838
 		if _, err := db.ExecContext(ctx, `DROP INDEX IF EXISTS ix_v1_runs_olap_tenant_id`); err != nil {
 			return fmt.Errorf("drop old index on %s: %w", v1RunsOlapTable, err)
 		}
@@ -522,43 +513,14 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("create mirror trigger for %s: %w", v1RunsOlapTable, err)
 		}
 
-		if _, err := db.ExecContext(ctx, v1RunsOlapBackfill); err != nil {
+		if err := backfillByPartition(ctx, db, v1RunsOlapTable, v1RunsOlapTable+"_new", v1RunsOlapCols); err != nil {
 			return fmt.Errorf("backfill %s_new: %w", v1RunsOlapTable, err)
-		}
-
-		newCount := db.QueryRowContext(
-			ctx,
-			`
-			WITH counts AS (
-				SELECT
-					(SELECT COUNT(*) FROM v1_runs_olap_new) AS new_count,
-					(SELECT COUNT(*) FROM v1_runs_olap) AS existing_count
-			)
-
-			SELECT
-				new_count = existing_count AS counts_match,
-				new_count,
-				existing_count
-			FROM counts
-			`,
-		)
-
-		var countsMatch bool
-		var newCountVal, existingCountVal int64
-
-		if err := newCount.Scan(&countsMatch, &newCountVal, &existingCountVal); err != nil {
-			return fmt.Errorf("counting rows in v1_runs_olap_new and v1_runs_olap: %w", err)
-		}
-
-		if !countsMatch {
-			return fmt.Errorf("row count mismatch after backfill for v1_runs_olap: new=%d, existing=%d", newCountVal, existingCountVal)
 		}
 
 		return nil
 	})
 
 	eg.Go(func() error {
-		// tasks
 		if _, err := db.ExecContext(ctx, buildCreateMirrorTableSQL(v1TasksOlapTable, v1TasksOlapTable+"_new", v1TasksOlapNewColDefs)); err != nil {
 			return fmt.Errorf("create %s_new: %w", v1TasksOlapTable, err)
 		}
@@ -569,100 +531,85 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 		if _, err := db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS v1_tasks_olap_new_worker_id_idx ON v1_tasks_olap_new (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL"); err != nil {
 			return fmt.Errorf("failed to create index v1_tasks_olap_new_worker_id_idx: %w", err)
 		}
+
 		if _, err := db.ExecContext(ctx, v1TasksOlapMirrorFn); err != nil {
 			return fmt.Errorf("create mirror function for %s: %w", v1TasksOlapTable, err)
 		}
 		if _, err := db.ExecContext(ctx, v1TasksOlapMirrorTrigger); err != nil {
 			return fmt.Errorf("create mirror trigger for %s: %w", v1TasksOlapTable, err)
 		}
-		if _, err := db.ExecContext(ctx, v1TasksOlapBackfill); err != nil {
+
+		if err := backfillByPartition(ctx, db, v1TasksOlapTable, v1TasksOlapTable+"_new", v1TasksOlapCols); err != nil {
 			return fmt.Errorf("backfill %s_new: %w", v1TasksOlapTable, err)
-		}
-
-		newCount := db.QueryRowContext(
-			ctx,
-			`
-			WITH counts AS (
-				SELECT
-					(SELECT COUNT(*) FROM v1_tasks_olap_new) AS new_count,
-					(SELECT COUNT(*) FROM v1_tasks_olap) AS existing_count
-			)
-
-			SELECT
-				new_count = existing_count AS counts_match,
-				new_count,
-				existing_count
-			FROM counts
-			`,
-		)
-
-		var countsMatch bool
-		var newCountVal, existingCountVal int64
-
-		if err := newCount.Scan(&countsMatch, &newCountVal, &existingCountVal); err != nil {
-			return fmt.Errorf("counting rows in %s_new and %s: %w", v1TasksOlapTable, v1TasksOlapTable, err)
-		}
-
-		if !countsMatch {
-			return fmt.Errorf("row count mismatch after backfill for %s: new=%d, existing=%d", v1TasksOlapTable, newCountVal, existingCountVal)
 		}
 
 		return nil
 	})
 
 	eg.Go(func() error {
-		// dags
 		if _, err := db.ExecContext(ctx, buildCreateMirrorTableSQL(v1DagsOlapTable, v1DagsOlapTable+"_new", v1DagsOlapNewColDefs)); err != nil {
 			return fmt.Errorf("create %s_new: %w", v1DagsOlapTable, err)
 		}
+
 		if _, err := db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS v1_dags_olap_new_workflow_id_idx ON v1_dags_olap_new (tenant_id, workflow_id)"); err != nil {
 			return fmt.Errorf("failed to create index v1_dags_olap_new_workflow_id_idx: %w", err)
 		}
+
 		if _, err := db.ExecContext(ctx, v1DagsOlapMirrorFn); err != nil {
 			return fmt.Errorf("create mirror function for %s: %w", v1DagsOlapTable, err)
 		}
 		if _, err := db.ExecContext(ctx, v1DagsOlapMirrorTrigger); err != nil {
 			return fmt.Errorf("create mirror trigger for %s: %w", v1DagsOlapTable, err)
 		}
-		if _, err := db.ExecContext(ctx, v1DagsOlapBackfill); err != nil {
+
+		if err := backfillByPartition(ctx, db, v1DagsOlapTable, v1DagsOlapTable+"_new", v1DagsOlapCols); err != nil {
 			return fmt.Errorf("backfill %s_new: %w", v1DagsOlapTable, err)
-		}
-
-		newCount := db.QueryRowContext(
-			ctx,
-			`
-			WITH counts AS (
-				SELECT
-					(SELECT COUNT(*) FROM v1_dags_olap_new) AS new_count,
-					(SELECT COUNT(*) FROM v1_dags_olap) AS existing_count
-			)
-
-			SELECT
-				new_count = existing_count AS counts_match,
-				new_count,
-				existing_count
-			FROM counts
-			`,
-		)
-
-		var countsMatch bool
-		var newCountVal, existingCountVal int64
-
-		if err := newCount.Scan(&countsMatch, &newCountVal, &existingCountVal); err != nil {
-			return fmt.Errorf("counting rows in %s_new and %s: %w", v1DagsOlapTable, v1DagsOlapTable, err)
-		}
-
-		if !countsMatch {
-			return fmt.Errorf("row count mismatch after backfill for %s: new=%d, existing=%d", v1DagsOlapTable, newCountVal, existingCountVal)
 		}
 
 		return nil
 	})
 
-	return eg.Wait()
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+
+	for _, table := range []struct{ src, dst string }{
+		{v1RunsOlapTable, v1RunsOlapTable + "_new"},
+		{v1TasksOlapTable, v1TasksOlapTable + "_new"},
+		{v1DagsOlapTable, v1DagsOlapTable + "_new"},
+	} {
+		var countsMatch bool
+		var newCount, existingCount int64
+
+		if err := db.QueryRowContext(ctx, fmt.Sprintf(`
+			WITH counts AS (
+				SELECT
+					(SELECT COUNT(*) FROM %s) AS new_count,
+					(SELECT COUNT(*) FROM %s) AS existing_count
+			)
+			SELECT new_count = existing_count, new_count, existing_count
+			FROM counts
+		`, table.dst, table.src)).Scan(&countsMatch, &newCount, &existingCount); err != nil {
+			return fmt.Errorf("counting rows in %s and %s: %w", table.dst, table.src, err)
+		}
+
+		if !countsMatch {
+			return fmt.Errorf("row count mismatch after backfill for %s: new=%d, existing=%d", table.src, newCount, existingCount)
+		}
+	}
+
+	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS v1_olap_backfill_progress`); err != nil {
+		return fmt.Errorf("drop backfill progress table: %w", err)
+	}
+
+	return nil
 }
 
 func down20260424190713(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS v1_olap_backfill_progress`); err != nil {
+		return fmt.Errorf("drop backfill progress table: %w", err)
+	}
+
 	for _, table := range []string{v1RunsOlapTable, v1TasksOlapTable, v1DagsOlapTable} {
 		if _, err := db.ExecContext(ctx, fmt.Sprintf(
 			`DROP TRIGGER IF EXISTS %s_mirror ON %s`,
