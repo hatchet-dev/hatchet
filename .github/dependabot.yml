@@ -18,8 +18,9 @@ updates:
       interval: "weekly"
       day: "monday"
     cooldown:
-      default-days: 3
-      semver-major-days: 3
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     groups:
       go-modules:
         patterns:
@@ -43,9 +44,13 @@ updates:
       interval: "weekly"
       day: "monday"
     cooldown:
-      default-days: 3
-      semver-major-days: 3
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     groups:
+      python-types:
+        patterns:
+          - "types-*"
       python-deps:
         patterns:
           - "*"
@@ -62,6 +67,39 @@ updates:
     directories:
       - "/frontend/app"
       - "/frontend/docs"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+    groups:
+      npm-deps:
+        dependency-type: "production"
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
+      npm-deps-major:
+        dependency-type: "production"
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      npm-dev-deps:
+        dependency-type: "development"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directories:
       - "/sdks/typescript"
       - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
       - "/examples/typescript"
@@ -69,20 +107,35 @@ updates:
       interval: "weekly"
       day: "monday"
     cooldown:
-      default-days: 3
-      semver-major-days: 3
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
-      npm-deps:
+      otel:
+        patterns:
+          - "@opentelemetry/*"
+      npm-sdk-deps:
+        dependency-type: "production"
         patterns:
           - "*"
         update-types:
           - "patch"
           - "minor"
-      npm-deps-major:
+      npm-sdk-deps-major:
+        dependency-type: "production"
         patterns:
           - "*"
         update-types:
           - "major"
+      npm-sdk-dev-deps:
+        dependency-type: "development"
+        patterns:
+          - "*"
 
   - package-ecosystem: "bundler"
     directories:
@@ -92,8 +145,9 @@ updates:
       interval: "weekly"
       day: "monday"
     cooldown:
-      default-days: 3
-      semver-major-days: 3
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     groups:
       ruby-deps:
         patterns:
