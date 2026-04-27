@@ -1817,19 +1817,19 @@ pyyaml = ">=5.1"
 
 [[package]]
 name = "mkdocstrings"
-version = "0.30.1"
+version = "1.0.4"
 description = "Automatic documentation from sources, for MkDocs."
 optional = true
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"docs\""
 files = [
-    {file = "mkdocstrings-0.30.1-py3-none-any.whl", hash = "sha256:41bd71f284ca4d44a668816193e4025c950b002252081e387433656ae9a70a82"},
-    {file = "mkdocstrings-0.30.1.tar.gz", hash = "sha256:84a007aae9b707fb0aebfc9da23db4b26fc9ab562eb56e335e9ec480cb19744f"},
+    {file = "mkdocstrings-1.0.4-py3-none-any.whl", hash = "sha256:63464b4b29053514f32a1dbbf604e52876d5e638111b0c295ab7ed3cac73ca9b"},
+    {file = "mkdocstrings-1.0.4.tar.gz", hash = "sha256:3969a6515b77db65fd097b53c1b7aa4ae840bd71a2ee62a6a3e89503446d7172"},
 ]
 
 [package.dependencies]
-Jinja2 = ">=2.11.1"
+Jinja2 = ">=3.1"
 Markdown = ">=3.6"
 MarkupSafe = ">=1.1"
 mkdocs = ">=1.6"
@@ -4167,4 +4167,4 @@ test = ["psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "py
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "7e5bc0962008fd3dd1902579b40dbbb7cdb3bf9c91067a6657cb5755dddda01b"
+content-hash = "d290e28c88be0cfa82136f4b4c3b878cb2fa3586941daabedb7d72ddb4fefa87"
