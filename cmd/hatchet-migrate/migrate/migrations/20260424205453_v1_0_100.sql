@@ -16,6 +16,7 @@ BEGIN
         old_parent := base_name;
         new_parent := base_name || '_new';
 
+        EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', old_parent);
         EXECUTE format('DROP TABLE IF EXISTS %I CASCADE', old_parent);
         EXECUTE format('ALTER TABLE %I RENAME TO %I', new_parent, old_parent);
 
