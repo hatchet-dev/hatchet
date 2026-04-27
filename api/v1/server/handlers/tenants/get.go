@@ -11,7 +11,7 @@ import (
 func (t *TenantService) TenantGet(ctx echo.Context, request gen.TenantGetRequestObject) (gen.TenantGetResponseObject, error) {
 	maybeTenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	tenant := transformers.ToTenant(maybeTenant)
+	tenant := transformers.ToTenant(maybeTenant, t.config.Runtime.ServerURL)
 
 	return gen.TenantGet200JSONResponse(
 		*tenant,

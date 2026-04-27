@@ -100,16 +100,13 @@ export const useEvents = ({ key }: UseEventsProps) => {
   const events = data?.rows ?? [];
   const numEvents = data?.pagination?.num_pages ?? 1;
 
-  const {
-    data: eventKeys,
-    isLoading: eventKeysIsLoading,
-    error: eventKeysError,
-  } = useQuery({
+  const { data: eventKeys, error: eventKeysError } = useQuery({
     queryKey: ['v1:events:listKeys', tenantId],
     queryFn: async () => {
       const response = await api.v1EventKeyList(tenantId);
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const eventKeyFilters = useMemo((): FilterOption[] => {
@@ -141,7 +138,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
   return {
     events,
     numEvents,
-    isLoading: isLoading || eventKeysIsLoading || workflowKeysIsLoading,
+    isLoading: isLoading || workflowKeysIsLoading,
     refetch,
     error: error || eventKeysError || workflowKeysError,
     pagination,

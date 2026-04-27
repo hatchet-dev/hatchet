@@ -80,6 +80,6 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 	}
 
 	return gen.TenantUpdate200JSONResponse(
-		*transformers.ToTenant(tenant),
+		*transformers.ToTenant(tenant, t.config.Runtime.ServerURL),
 	), nil
 }

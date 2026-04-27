@@ -9,7 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToTenant(tenant *sqlcv1.Tenant) *gen.Tenant {
+func ToTenant(tenant *sqlcv1.Tenant, serverURL string) *gen.Tenant {
 	var environment *gen.TenantEnvironment
 	if tenant.Environment.Valid {
 		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
@@ -24,6 +24,7 @@ func ToTenant(tenant *sqlcv1.Tenant) *gen.Tenant {
 		AlertMemberEmails: &tenant.AlertMemberEmails,
 		Version:           gen.TenantVersion(tenant.Version),
 		Environment:       environment,
+		ServerUrl:         &serverURL,
 	}
 }
 

@@ -5,6 +5,11 @@ import {
 } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/v1/ui/popover';
+import {
   PortalTooltip,
   PortalTooltipContent,
   PortalTooltipProvider,
@@ -13,7 +18,7 @@ import {
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, XCircle } from 'lucide-react';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -144,6 +149,39 @@ const LevelBadge = ({
 
 function isNonEmpty<TValue>(value: TValue | null | undefined): value is TValue {
   return value !== null && value !== undefined;
+}
+
+function ErrorPopover({ error }: { error: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        onClick={(e) => e.stopPropagation()}
+        className="ml-2 shrink-0 inline-flex items-center rounded border border-red-500/30 px-1.5 py-0.5 font-mono text-[10px] text-red-500 dark:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 transition-colors cursor-pointer"
+      >
+        View Error
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
+        align="start"
+      >
+        <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 border-b border-border pb-2">
+              <XCircle className="h-5 w-5 text-destructive" />
+              <h3 className="font-medium text-foreground">Error Details</h3>
+            </div>
+            <div className="h-[400px] overflow-hidden rounded-md border border-border bg-muted/50">
+              <div className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground h-full overflow-x-hidden overflow-y-scroll p-4 font-mono text-sm text-foreground">
+                <pre className="min-h-[500px] whitespace-pre-wrap break-words">
+                  {error || 'No error message found'}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function LogViewer({
@@ -421,6 +459,7 @@ export function LogViewer({
                   {/* fixme: figure out how to use the type guard properly here */}
                   <AnsiLine text={log.line as string} />
                 </span>
+                {log.error && <ErrorPopover error={log.error} />}
                 {log.linkTo && (
                   <PortalTooltipProvider>
                     <PortalTooltip>
