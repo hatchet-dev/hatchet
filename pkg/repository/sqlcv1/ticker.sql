@@ -132,10 +132,6 @@ latest_workflow_versions AS (
         "WorkflowVersion"
     WHERE
         "deletedAt" IS NULL
-        AND "workflowId" IN (
-            SELECT "workflowId"
-            FROM eligible_cron_with_versions
-        )
     ORDER BY "workflowId", "order" DESC
 ),
 eligible_cron_schedules AS (
