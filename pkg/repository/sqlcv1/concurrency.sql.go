@@ -117,7 +117,9 @@ WITH tenant_step_concurrencies AS (
         AND sc.is_active = TRUE
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
-            WHERE cs.strategy_id = sc.id
+            WHERE
+                cs.strategy_id = sc.id
+                AND tenant_id = $1::UUID -- tenant id filter to force index usage
         )
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
