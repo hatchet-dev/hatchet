@@ -130,7 +130,7 @@ Non-determinism occurs when the same task code produces different checkpoint ope
 | Anti-Pattern | Problem | Solution |
 | --- | --- | --- |
 | **Random values in wait conditions** | Sleep durations that change on replay (e.g., using `random()` or `Math.random()`) | Use deterministic values or memoize random calls |
-| **Time-based logic** | Branching based on current time changes between original run and replay | Use `ctx.now()` (TS) to get a memoized timestamp, or memoize the timestamp value |
+| **Time-based logic** | Branching based on current time changes between original run and replay | Use `ctx.now()` (TS) or `ctx.Now()` (Go) to get a memoized timestamp, or memoize the timestamp value |
 | **Different child spawn inputs** | Generating new IDs (UUIDs, etc.) on each replay | Derive inputs from workflow input or memoize the ID |
 | **External state that changes** | Fetching data from a database or API that may have changed | Memoize the fetch or pass data through workflow input |
 
@@ -138,9 +138,9 @@ Non-determinism occurs when the same task code produces different checkpoint ope
 
 When Hatchet detects a mismatch between the current execution and the recorded checkpoint, it raises `NonDeterminismError` with information about where the mismatch occurred:
 
-- `taskExternalId` (TypeScript) / `task_external_id` (Python): The ID of the affected task run
-- `invocationCount` (TypeScript) / `invocation_count` (Python): Which invocation of the task detected the error
-- `nodeId` (TypeScript) / `node_id` (Python): The checkpoint position where the mismatch was detected
+- `taskExternalId` (TypeScript) / `task_external_id` (Python) / `TaskExternalID` (Go): The ID of the affected task run
+- `invocationCount` (TypeScript) / `invocation_count` (Python) / `InvocationCount` (Go): Which invocation of the task detected the error
+- `nodeId` (TypeScript) / `node_id` (Python) / `NodeID` (Go): The checkpoint position where the mismatch was detected
 
 You can catch this error to implement custom recovery logic, but typically the right fix is to make your code deterministic.
 
