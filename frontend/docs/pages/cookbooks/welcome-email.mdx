@@ -5,9 +5,9 @@ import { Snippet } from "@/components/code";
 
 # Welcome Email
 
-When a new user signs up, most applications send a welcome email right away. What happens next is trickier: you want to send a follow-up nudge if the user hasn't completed onboarding after some time, but skip it if they have. That means your workflow needs to wait for an event that may or may not arrive, with a timeout as the fallback.
+Customer onboarding guides users through required setup, improves their product understanding, and helps them gain value faster. Sending a brief welcome email after signup with a helpful link to get started is common practice.
 
-This cookbook builds a small durable workflow in Hatchet that handles exactly that pattern:
+Users are busy people who often contend with changing priorities, so sometimes they disengage before onboarding is complete. To mitigate onboarding drop-off, you may want to send a follow-up email only to users who have not reached a milestone in time. What you need is a workflow that waits for an event that may or may not arrive, with a timeout triggering the appropriate fallback behavior. Let's build a small durable workflow in Hatchet that handles exactly that pattern:
 
 ```mermaid
 flowchart TD
@@ -19,7 +19,7 @@ flowchart TD
     E --> G[Send follow-up email]
 ```
 
-Hatchet's durable execution keeps the workflow alive across the wait. If the worker restarts or the wait lasts hours, the workflow picks up where it left off.
+Hatchet's durable execution keeps the workflow alive across the wait. If the worker restarts or the wait lasts days, the workflow picks up where it left off.
 
 ## Setup
 
@@ -66,9 +66,9 @@ The core of this example is a single [durable task](/v1/durable-execution) that 
   </Tabs.Tab>
 </UniversalTabs>
 
-The event condition uses a **scope** set to the current user's ID. When the `user:onboarding-completed` event is pushed later, it must be pushed with the same scope value. This ensures that one user's onboarding event does not accidentally satisfy another user's wait.
+In this example, `user:onboarding-completed` represents an activation event from your application. Your app would emit it when the user finishes the onboarding milestone. The welcome email points the user toward that step; the follow-up is only for users who do not complete it before the timeout.
 
-The condition also includes a lookback window (`consider_events_since` in Python, `considerEventsSince` in TypeScript). This lets the workflow pick up an onboarding event that arrived slightly before the wait became active — for example, if the welcome email step and the onboarding event happen nearly at the same time.
+The event condition uses a `scope` set to the current user's ID. When the `user:onboarding-completed` event is later pushed, it must include the same `scope` value. Scoping by user ID ensures that one user's onboarding event cannot satisfy another user's wait condition. The condition also includes a short lookback window. This lets the workflow pick up an onboarding event that arrived slightly before the wait became active. This can happen when the welcome email step and the onboarding event occur nearly at the same time.
 
 ### Register and start the worker
 
@@ -80,7 +80,7 @@ In TypeScript, workflows are registered through the shared example worker rather
 
 ### Trigger the workflow
 
-The durable task is configured with `on_events=["user:signup"]` (Python) / `onEvents: ['user:signup']` (TypeScript), so in production you can start it by pushing a `user:signup` event. The event payload is passed through as-is to the task input, so both languages receive the same field names:
+The durable task is configured to start from a `user:signup` event. The event payload is passed through as-is to the task input:
 
 ```json
 {
@@ -100,14 +100,12 @@ The example also includes a trigger script that starts the workflow directly, pu
   </Tabs.Tab>
 </UniversalTabs>
 
-The onboarding event is pushed with a **scope** that matches the user ID from the signup input. The event payload itself is not used for correlation — only the scope matters. This is what prevents one user's onboarding event from resolving another user's wait.
-
 ### Test it
 
 This example includes two end-to-end tests against a live Hatchet instance:
 
-- an onboarding path, where the scoped event arrives before the timeout and the follow-up is skipped
-- a timeout path, where no event arrives and the workflow sends the follow-up
+- an onboarding-completed test, where the scoped event arrives before the timeout and the follow-up is skipped
+- a timeout test, where no onboarding event arrives and the workflow sends the follow-up
 
 If you are running the SDK examples locally:
 
@@ -130,12 +128,6 @@ If you are running the SDK examples locally:
 
 </Steps>
 
-## The two paths
-
-**Timeout wins:** If no `user:onboarding-completed` event arrives before the timeout, the workflow sends the follow-up email. The result indicates that the follow-up was sent.
-
-**Onboarding event wins:** If the scoped event arrives before the timeout, the workflow skips the follow-up. The result indicates that only the welcome email was sent.
-
 ## Next steps
 
-To use this in production, replace the `print` / `console.log` calls with your email provider's SDK. You may also want to extend the timeout to something like 24 hours and add retry or idempotency logic around the send step. Those concerns are provider-specific and intentionally outside this minimal example.
+To send real emails from this example, replace the `print` / `console.log` calls with a call to your email provider. You may also want to extend the timeout to better suit your workflow. Provider-specific delivery concerns are intentionally outside this minimal example.

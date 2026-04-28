@@ -41,10 +41,10 @@ class WelcomeEmailResult(BaseModel):
 )
 async def welcome_email(input: SignupInput, ctx: DurableContext) -> WelcomeEmailResult:
     # Step 1: Send the welcome email
-    print(f"Sending welcome email to {input.email}")
+    print(f"Sending welcome email to {input.email}: finish your first onboarding step")
 
     # Step 2: Wait for the user to complete onboarding, or time out
-    # (use a longer duration like timedelta(hours=24) in production)
+    # (use a longer duration for a more realistic workflow)
     now = await ctx.aio_now()
     consider_events_since = now - timedelta(minutes=LOOKBACK_MINUTES)
 
@@ -77,7 +77,7 @@ async def welcome_email(input: SignupInput, ctx: DurableContext) -> WelcomeEmail
         )
 
     # Step 3b: Timeout -> send follow-up email
-    print(f"Sending follow-up email to {input.email}")
+    print(f"Sending follow-up email to {input.email}: need help finishing onboarding?")
     return WelcomeEmailResult(
         user_id=input.user_id,
         welcome_sent=True,

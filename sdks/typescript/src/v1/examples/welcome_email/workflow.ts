@@ -26,10 +26,10 @@ export const welcomeEmail = hatchet.durableTask<SignupInput, WelcomeEmailResult>
   executionTimeout: '5m',
   fn: async (input, ctx) => {
     // Step 1: Send the welcome email
-    console.log(`Sending welcome email to ${input.email}`);
+    console.log(`Sending welcome email to ${input.email}: finish your first onboarding step`);
 
     // Step 2: Wait for the user to complete onboarding, or time out
-    // (use a longer duration like '24h' in production)
+    // (use a longer duration for a more realistic workflow)
     const now = await ctx.now();
     const considerEventsSince = new Date(
       now.getTime() - durationToMs(LOOKBACK_WINDOW)
@@ -57,7 +57,7 @@ export const welcomeEmail = hatchet.durableTask<SignupInput, WelcomeEmailResult>
     }
 
     // Step 3b: Timeout -> send follow-up email
-    console.log(`Sending follow-up email to ${input.email}`);
+    console.log(`Sending follow-up email to ${input.email}: need help finishing onboarding?`);
     return { userId: input.user_id, welcomeSent: true, followUpSent: true };
   },
 });

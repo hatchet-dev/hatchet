@@ -1,7 +1,7 @@
+// > Trigger the workflow
 import { hatchet } from '../hatchet-client';
 import { welcomeEmail, ONBOARDING_EVENT_KEY, SignupInput } from './workflow';
 
-// > Trigger the workflow
 async function main() {
   const input: SignupInput = {
     email: 'alice@example.com',
