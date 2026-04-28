@@ -259,16 +259,16 @@ WHERE
 ;
 
 -- name: GetWorkerActionsByWorkerActionHash :many
-SELECT
-    w."id" AS "workerId",
-    a."actionId" AS actionId,
-    w."actionHash" AS actionHash
+SELECT DISTINCT ON (w."actionHash")
+    w."actionHash" AS "actionHash",
+    a."actionId" AS actionId
 FROM "Worker" w
 JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id
 WHERE
     a."tenantId" = @tenantId::UUID
     AND w."actionHash" = ANY(@actionHashes::BYTEA[])
+ORDER BY w."actionHash", a."createdAt" DESC
 ;
 
 -- name: GetWorkerWorkflowsByWorkerId :many

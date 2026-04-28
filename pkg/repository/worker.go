@@ -333,7 +333,7 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 	}
 
 	for _, record := range recordsFromActionHashes {
-		workerIds, ok := actionHashToWorkerIds[string(record.Actionhash)]
+		workerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
 
 		if !ok {
 			continue
