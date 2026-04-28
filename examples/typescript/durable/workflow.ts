@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { NonDeterminismError } from '@hatchet-dev/typescript-sdk/util/errors/non-determinism-error';
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
@@ -312,14 +312,14 @@ export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
     const event1 = await ctx.waitForEvent(
       'key1',
       undefined,
-      undefined,
+      z.object(),
       input.scope,
       LOOKBACK_WINDOW
     );
     const event2 = await ctx.waitForEvent(
       'key2',
       undefined,
-      undefined,
+      z.object(),
       input.scope,
       LOOKBACK_WINDOW
     );
