@@ -46,6 +46,8 @@ type ConcurrencyRepository interface {
 	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
 	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
+
+	DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error
 }
 
 type ConcurrencyRepositoryImpl struct {
@@ -786,4 +788,8 @@ func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Conte
 	}
 
 	return nil
+}
+
+func (c *ConcurrencyRepositoryImpl) DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error {
+	return c.queries.DeactivateStaleStepConcurrency(ctx, c.pool, tenantId)
 }
