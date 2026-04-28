@@ -42,28 +42,28 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                       msgqueue.MessageQueue
-	pubBuffer                                *msgqueue.MQPubBuffer
-	l                                        *zerolog.Logger
-	queueLogger                              *zerolog.Logger
-	pgxStatsLogger                           *zerolog.Logger
-	repov1                                   v1.Repository
-	dv                                       datautils.DataDecoderValidator
-	s                                        gocron.Scheduler
-	a                                        *hatcheterrors.Wrapped
-	p                                        *partition.Partition
-	celParser                                *cel.CELParser
-	opsPoolPollInterval                      time.Duration
-	opsPoolJitter                            time.Duration
-	timeoutTaskOperations                    *operation.TenantOperationPool
-	reassignTaskOperations                   *operation.TenantOperationPool
-	retryTaskOperations                      *operation.TenantOperationPool
-	emitSleepOperations                      *operation.TenantOperationPool
+	mq                                    msgqueue.MessageQueue
+	pubBuffer                             *msgqueue.MQPubBuffer
+	l                                     *zerolog.Logger
+	queueLogger                           *zerolog.Logger
+	pgxStatsLogger                        *zerolog.Logger
+	repov1                                v1.Repository
+	dv                                    datautils.DataDecoderValidator
+	s                                     gocron.Scheduler
+	a                                     *hatcheterrors.Wrapped
+	p                                     *partition.Partition
+	celParser                             *cel.CELParser
+	opsPoolPollInterval                   time.Duration
+	opsPoolJitter                         time.Duration
+	timeoutTaskOperations                 *operation.TenantOperationPool
+	reassignTaskOperations                *operation.TenantOperationPool
+	retryTaskOperations                   *operation.TenantOperationPool
+	emitSleepOperations                   *operation.TenantOperationPool
 	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
 	replayEnabled                         bool
-	analyzeCronInterval                      time.Duration
-	signaler                                 *signal.OLAPSignaler
-	tw                                       *trigger.TriggerWriter
+	analyzeCronInterval                   time.Duration
+	signaler                              *signal.OLAPSignaler
+	tw                                    *trigger.TriggerWriter
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
