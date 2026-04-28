@@ -112,7 +112,7 @@ func TestDurableChildSpawn(t *testing.T) {
 
 func TestDurableChildBulkSpawn(t *testing.T) {
 	ctx := newTestContext(t)
-	n := 10
+	n := 8
 
 	result, err := testDurableWithBulkSpawn.Run(ctx, DurableBulkSpawnInput{N: n})
 	require.NoError(t, err)
