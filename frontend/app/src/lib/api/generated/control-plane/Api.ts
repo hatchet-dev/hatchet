@@ -16,12 +16,14 @@ import {
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
+  APIMetaAuth,
   APITokenList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest,
   CreateOrganizationRequest,
+  CreateOrganizationSsoDomainRequest,
   CreateTenantAPITokenRequest,
   CreateTenantAPITokenResponse,
   CreateTenantInviteRequest,
@@ -34,6 +36,7 @@ import {
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
+  SsoDomainArray,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
@@ -664,6 +667,143 @@ export class Api<
       path: `/api/v1/control-plane/organization-invites/${organizationInvite}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all SSO configurations the organization has created
+   *
+   * @name SsoList
+   * @summary List Organization's SSO Configs
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso
+   * @secure
+   */
+  ssoList = (organization: string, params: RequestParams = {}) =>
+    this.request<APIMetaAuth, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new organization SSO config
+   *
+   * @name SsoUpdate
+   * @summary Upsert organization SSO config
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso
+   * @secure
+   */
+  ssoUpdate = (
+    organization: string,
+    data: object,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Delete organization SSO config
+   *
+   * @name SsoDelete
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/sso
+   * @secure
+   */
+  ssoDelete = (organization: string, params: RequestParams = {}) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description List all SSO domains for organization
+   *
+   * @name SsoDomainList
+   * @summary List Organization's SSO Domains
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso-domain
+   * @secure
+   */
+  ssoDomainList = (organization: string, params: RequestParams = {}) =>
+    this.request<SsoDomainArray, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-domain`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Add a new SSO Domain for an organization
+   *
+   * @name SsoDomainCreate
+   * @summary Create Organization SSO Domain
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso-domain
+   * @secure
+   */
+  ssoDomainCreate = (
+    organization: string,
+    data: CreateOrganizationSsoDomainRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-domain`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Delete SSO Domain for organization
+   *
+   * @name SsoDomainDelete
+   * @request DELETE:/api/v1/control-plane/organizations/sso-domain/{sso-domain}
+   * @secure
+   */
+  ssoDomainDelete = (ssoDomain: string, params: RequestParams = {}) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/sso-domain/${ssoDomain}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateSsoOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/control-plane/users/sso/start
+   */
+  cloudUserUpdateSsoOauthStart = (
+    query: {
+      /** The user email */
+      email: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/users/sso/start`,
+      method: "GET",
+      query: query,
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateSsoOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/control-plane/users/sso/callback
+   */
+  cloudUserUpdateSsoOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/users/sso/callback`,
+      method: "GET",
       ...params,
     });
   /**
