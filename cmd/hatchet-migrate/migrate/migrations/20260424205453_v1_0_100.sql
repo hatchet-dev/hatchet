@@ -1,5 +1,12 @@
 -- +goose Up
 -- +goose StatementBegin
+LOCK TABLE v1_tasks_olap IN ACCESS EXCLUSIVE MODE;
+LOCK TABLE v1_dags_olap IN ACCESS EXCLUSIVE MODE;
+LOCK TABLE v1_tasks_olap_new IN ACCESS EXCLUSIVE MODE;
+LOCK TABLE v1_dags_olap_new IN ACCESS EXCLUSIVE MODE;
+LOCK TABLE v1_runs_olap IN ACCESS EXCLUSIVE MODE;
+LOCK TABLE v1_runs_olap_new IN ACCESS EXCLUSIVE MODE;
+
 DROP FUNCTION IF EXISTS create_v1_olap_partition_with_date_and_status(text, date);
 
 DO $$
@@ -16,7 +23,6 @@ BEGIN
         old_parent := base_name;
         new_parent := base_name || '_new';
 
-        EXECUTE format('LOCK TABLE %I IN ACCESS EXCLUSIVE MODE', old_parent);
         EXECUTE format('DROP TABLE IF EXISTS %I CASCADE', old_parent);
         EXECUTE format('ALTER TABLE %I RENAME TO %I', new_parent, old_parent);
 
