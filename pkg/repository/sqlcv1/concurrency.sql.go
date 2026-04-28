@@ -375,6 +375,39 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 	return items, nil
 }
 
+const listTenantsWithManyStepConcurrencies = `-- name: ListTenantsWithManyStepConcurrencies :many
+SELECT tenant_id, COUNT(*) AS total
+FROM v1_step_concurrency
+WHERE is_active = TRUE
+GROUP BY tenant_id
+HAVING COUNT(*) > $1::BIGINT
+`
+
+type ListTenantsWithManyStepConcurrenciesRow struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Total    int64     `json:"total"`
+}
+
+func (q *Queries) ListTenantsWithManyStepConcurrencies(ctx context.Context, db DBTX, threshold int64) ([]*ListTenantsWithManyStepConcurrenciesRow, error) {
+	rows, err := db.Query(ctx, listTenantsWithManyStepConcurrencies, threshold)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTenantsWithManyStepConcurrenciesRow
+	for rows.Next() {
+		var i ListTenantsWithManyStepConcurrenciesRow
+		if err := rows.Scan(&i.TenantID, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const runCancelInProgress = `-- name: RunCancelInProgress :many
 WITH slots AS (
     SELECT

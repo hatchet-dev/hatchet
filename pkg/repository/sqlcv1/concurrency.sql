@@ -777,6 +777,13 @@ FROM
     updated_slots;
 
 
+-- name: ListTenantsWithManyStepConcurrencies :many
+SELECT tenant_id, COUNT(*) AS total
+FROM v1_step_concurrency
+WHERE is_active = TRUE
+GROUP BY tenant_id
+HAVING COUNT(*) > @threshold::BIGINT;
+
 -- name: DeactivateStaleStepConcurrency :exec
 WITH tenant_step_concurrencies AS (
     SELECT sc.id
