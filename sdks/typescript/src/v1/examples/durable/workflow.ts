@@ -314,14 +314,14 @@ export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
     const event1 = await ctx.waitForEvent(
       'key1',
       undefined,
-      undefined,
+      z.object(),
       input.scope,
       LOOKBACK_WINDOW
     );
     const event2 = await ctx.waitForEvent(
       'key2',
       undefined,
-      undefined,
+      z.object(),
       input.scope,
       LOOKBACK_WINDOW
     );
