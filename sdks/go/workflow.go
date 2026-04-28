@@ -292,6 +292,7 @@ type taskConfig struct {
 	waitFor                condition.Condition
 	skipIf                 condition.Condition
 	description            string
+	evictionPolicy         *EvictionPolicy
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -511,7 +512,21 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		SkipIf:                 config.skipIf,
 	}
 
-	w.declaration.Task(taskOpts, wrapper)
+	if config.isDurable {
+		durableWrapper := func(ctx worker.DurableHatchetContext, input any) (any, error) {
+			return wrapper(ctx, input)
+		}
+		durableDecl := w.declaration.DurableTask(taskOpts, durableWrapper)
+		if config.evictionPolicy != nil {
+			durableDecl.EvictionPolicy = &internal.EvictionPolicyOpts{
+				TTL:                   config.evictionPolicy.TTL,
+				AllowCapacityEviction: config.evictionPolicy.AllowCapacityEviction,
+				Priority:              config.evictionPolicy.Priority,
+			}
+		}
+	} else {
+		w.declaration.Task(taskOpts, wrapper)
+	}
 
 	return &Task{name: name}
 }

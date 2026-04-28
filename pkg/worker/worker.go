@@ -879,6 +879,17 @@ func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Actio
 	return nil
 }
 
+// CancelStepRun cancels a running step by its step run ID. Used by the eviction system
+// to interrupt durable tasks that need to be evicted.
+func (w *Worker) CancelStepRun(stepRunId string) {
+	cancel, ok := w.cancelMap.Load(stepRunId)
+	if !ok {
+		return
+	}
+	w.l.Debug().Msgf("eviction: cancelling step run %s", stepRunId)
+	cancel.(context.CancelFunc)()
+}
+
 func (w *Worker) getActionEvent(action *client.Action, eventType client.ActionEventType) *client.ActionEvent {
 	timestamp := time.Now().UTC()
 
