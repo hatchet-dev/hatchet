@@ -5,7 +5,7 @@ import {
   ScheduledWorkflowsBulkUpdateResponse,
   ScheduledWorkflowsList,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';

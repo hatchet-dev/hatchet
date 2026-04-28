@@ -19,11 +19,18 @@ export const ClaudeToolFunc = <I extends InputType, O extends OutputType>(
       "To use Hatchet's Claude integration, you must install the @anthropic-ai/claude-agent-sdk and @modelcontextprotocol/sdk packages: npm install @anthropic-ai/claude-agent-sdk @modelcontextprotocol/sdk"
     );
   }
+  // Check Zod v4 is installed before using any v4-specific schema APIs.
+  if (!('_zod' in z.string())) {
+    throw new Error(
+      "To use Hatchet's Claude agent SDK integration, Zod v4 must be installed. " +
+        'Please upgrade: npm install zod@^4.0.0'
+    );
+  }
   if (!runnable.definition.inputValidator) {
     throw new Error('inputValidator must be defined');
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
+  const inputValidatorV4 = runnable.definition.inputValidator as unknown as z.ZodObject<any>;
   const { description } = runnable.definition;
   if (description === undefined) {
     throw new Error('Runnable description must be defined');
@@ -40,6 +47,6 @@ export const ClaudeToolFunc = <I extends InputType, O extends OutputType>(
     description: description,
     handler: handler,
     name: runnable.name,
-    inputSchema: inputValidator.shape,
+    inputSchema: inputValidatorV4.shape,
   };
 };

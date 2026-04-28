@@ -9,12 +9,19 @@ export type OpenAIToolFuncT = <I extends InputType, O extends OutputType>(
 export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   runnable: BaseWorkflowDeclaration<I, O>
 ) => {
+  // Check Zod v4 is installed BEFORE requiring @openai/agents — it crashes at load time with Zod v3.
+  // z is imported from 'zod', so z.string()._zod reflects the user's actual installed version.
+  if (!('_zod' in z.string())) {
+    throw new Error(
+      "To use Hatchet's OpenAI agent SDK integration, Zod v4 must be installed. " +
+        'Please upgrade: npm install zod@^4.0.0'
+    );
+  }
   try {
     require.resolve('@openai/agents');
-    require.resolve('zod-to-json-schema');
   } catch {
     throw new Error(
-      "To use Hatchet's OpenAI integration, you must install the @openai/agents and zod-to-json-schema packages: npm install @openai/agents zod-to-json-schema"
+      "To use Hatchet's OpenAI integration, you must install the @openai/agents package: npm install @openai/agents"
     );
   }
   if (!runnable.definition.inputValidator) {
@@ -23,7 +30,7 @@ export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { tool } = require('@openai/agents');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const inputValidator = runnable.definition.inputValidator! as z.ZodObject<any>;
+  const inputValidatorV4 = runnable.definition.inputValidator as unknown as z.ZodObject<any>;
   const { description } = runnable.definition;
   if (description === undefined) {
     throw new Error('Runnable description must be defined');
@@ -31,7 +38,8 @@ export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   return tool({
     name: runnable.name,
     description: description,
-    parameters: inputValidator.toJSONSchema(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parameters: (inputValidatorV4 as any).toJSONSchema(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     execute: async (input: any): Promise<string> => {
       const result = await runnable.run(input);

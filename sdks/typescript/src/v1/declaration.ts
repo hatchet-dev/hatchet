@@ -34,8 +34,8 @@ import { parentRunContextManager } from './parent-run-context-vars';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
 import type { FunctionTool } from '@openai/agents';
 import type { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
-import { OpenAIToolFunc, OpenAIToolFuncT } from '@hatchet/v1/agent/openai';
-import { ClaudeToolFunc, ClaudeToolFuncT } from '@hatchet/v1/agent/claude';
+import type { OpenAIToolFuncT } from '@hatchet/v1/agent/openai';
+import type { ClaudeToolFuncT } from '@hatchet/v1/agent/claude';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -49,11 +49,6 @@ type AgentSdk = 'claude' | 'openai';
 type AgentSdkFuncMap = {
   claude: ClaudeToolFuncT;
   openai: OpenAIToolFuncT;
-};
-
-const sdkFuncMap: AgentSdkFuncMap = {
-  claude: ClaudeToolFunc,
-  openai: OpenAIToolFunc,
 };
 
 type Tail<T extends any[]> = T extends [any, ...infer R] ? R : never;
@@ -842,7 +837,14 @@ export class BaseWorkflowDeclaration<
   ): SdkMcpToolDefinition;
   mcpTool(sdk: 'openai', ...args: Tail<Parameters<AgentSdkFuncMap['openai']>>): FunctionTool;
   mcpTool<K extends AgentSdk>(sdk: K, ...args: any): SdkMcpToolDefinition | FunctionTool {
-    return (sdkFuncMap[sdk] as any)(this, ...args);
+    if (sdk === 'openai') {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { OpenAIToolFunc } = require('./agent/openai');
+      return OpenAIToolFunc(this, ...args);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ClaudeToolFunc } = require('./agent/claude');
+    return ClaudeToolFunc(this, ...args);
   }
 }
 

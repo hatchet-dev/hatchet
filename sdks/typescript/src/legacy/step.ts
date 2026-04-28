@@ -1,5 +1,5 @@
 import HatchetError from '@util/errors/hatchet-error';
-import * as z from 'zod';
+import * as z from 'zod/v4';
 import { JsonObject } from '@bufbuild/protobuf';
 import { Workflow } from './workflow';
 import { Action } from '../clients/dispatcher/action-listener';
