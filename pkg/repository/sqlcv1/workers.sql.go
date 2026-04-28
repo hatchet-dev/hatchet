@@ -259,19 +259,15 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 }
 
 const getWorkerActionsByWorkerId = `-- name: GetWorkerActionsByWorkerId :many
-WITH inputs AS (
-    SELECT UNNEST($2::UUID[]) AS "workerId"
-)
-
 SELECT
     w."id" AS "workerId",
     a."actionId" AS actionId
 FROM "Worker" w
-JOIN inputs i ON w."id" = i."workerId"
-LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
-LEFT JOIN "Action" a ON aw."A" = a.id
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
 WHERE
     a."tenantId" = $1::UUID
+    AND w.id = ANY($2::UUID[])
 `
 
 type GetWorkerActionsByWorkerIdParams struct {
@@ -280,8 +276,8 @@ type GetWorkerActionsByWorkerIdParams struct {
 }
 
 type GetWorkerActionsByWorkerIdRow struct {
-	WorkerId uuid.UUID   `json:"workerId"`
-	Actionid pgtype.Text `json:"actionid"`
+	WorkerId uuid.UUID `json:"workerId"`
+	Actionid string    `json:"actionid"`
 }
 
 func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerIdParams) ([]*GetWorkerActionsByWorkerIdRow, error) {

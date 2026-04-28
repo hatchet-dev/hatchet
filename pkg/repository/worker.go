@@ -289,13 +289,12 @@ func (w *workerRepository) GetWorkerActionsByWorkerId(ctx context.Context, tenan
 
 	for _, record := range records {
 		workerId := record.WorkerId.String()
-		actionId := record.Actionid.String
 
 		if _, ok := workerIdToActionIds[workerId]; !ok {
 			workerIdToActionIds[workerId] = make([]string, 0)
 		}
 
-		workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], actionId)
+		workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.Actionid)
 	}
 
 	return workerIdToActionIds, nil

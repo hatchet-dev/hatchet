@@ -247,19 +247,15 @@ GROUP BY "tenantId"
 ;
 
 -- name: GetWorkerActionsByWorkerId :many
-WITH inputs AS (
-    SELECT UNNEST(@workerIds::UUID[]) AS "workerId"
-)
-
 SELECT
     w."id" AS "workerId",
     a."actionId" AS actionId
 FROM "Worker" w
-JOIN inputs i ON w."id" = i."workerId"
-LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
-LEFT JOIN "Action" a ON aw."A" = a.id
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
 WHERE
     a."tenantId" = @tenantId::UUID
+    AND w.id = ANY(@workerIds::UUID[])
 ;
 
 -- name: GetWorkerWorkflowsByWorkerId :many
