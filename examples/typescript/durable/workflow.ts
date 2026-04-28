@@ -254,6 +254,10 @@ const lookbackEventPayloadSchema = z.object({
   user_id: z.number(),
 });
 
+const twoEventsPayloadSchema = z.object({
+  order: z.string(),
+});
+
 export const waitForEventLookback = hatchet.durableTask({
   name: 'wait-for-event-lookback',
   executionTimeout: '10m',
@@ -312,14 +316,14 @@ export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
     const event1 = await ctx.waitForEvent(
       'key1',
       undefined,
-      z.object(),
+      twoEventsPayloadSchema,
       input.scope,
       LOOKBACK_WINDOW
     );
     const event2 = await ctx.waitForEvent(
       'key2',
       undefined,
-      z.object(),
+      twoEventsPayloadSchema,
       input.scope,
       LOOKBACK_WINDOW
     );
