@@ -2,9 +2,9 @@
 -- +goose StatementBegin
 LOCK TABLE v1_tasks_olap IN ACCESS EXCLUSIVE MODE;
 LOCK TABLE v1_dags_olap IN ACCESS EXCLUSIVE MODE;
-LOCK TABLE v1_runs_olap IN ACCESS EXCLUSIVE MODE;
 LOCK TABLE v1_tasks_olap_new IN ACCESS EXCLUSIVE MODE;
 LOCK TABLE v1_dags_olap_new IN ACCESS EXCLUSIVE MODE;
+LOCK TABLE v1_runs_olap IN ACCESS EXCLUSIVE MODE;
 LOCK TABLE v1_runs_olap_new IN ACCESS EXCLUSIVE MODE;
 
 DROP FUNCTION IF EXISTS create_v1_olap_partition_with_date_and_status(text, date);
