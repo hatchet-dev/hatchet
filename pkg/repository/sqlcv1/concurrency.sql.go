@@ -110,7 +110,7 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 }
 
 const deactivateStaleStepConcurrency = `-- name: DeactivateStaleStepConcurrency :exec
-WITH tenant_concurrency_slots AS (
+WITH tenant_step_concurrencies AS (
     SELECT sc.id
     FROM v1_step_concurrency sc
     WHERE sc.tenant_id = $1::UUID
@@ -131,8 +131,8 @@ WITH tenant_concurrency_slots AS (
 
 UPDATE v1_step_concurrency sc
 SET is_active = FALSE
-FROM tenant_concurrency_slots
-WHERE sc.id = tenant_concurrency_slots.id
+FROM tenant_step_concurrencies
+WHERE sc.id = tenant_step_concurrencies.id
 `
 
 func (q *Queries) DeactivateStaleStepConcurrency(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
