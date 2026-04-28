@@ -311,7 +311,6 @@ function CloudOrganizationSettings() {
     {
       columnLabel: 'Domain',
       cellRenderer: (row: {
-        metadata: { id: string };
         domain: string;
         verified?: boolean;
         verification_token?: string;
@@ -320,7 +319,6 @@ function CloudOrganizationSettings() {
     {
       columnLabel: 'Verified',
       cellRenderer: (row: {
-        metadata: { id: string };
         domain: string;
         verified?: boolean;
         verification_token?: string;
@@ -333,7 +331,6 @@ function CloudOrganizationSettings() {
     {
       columnLabel: 'Verification Token',
       cellRenderer: (row: {
-        metadata: { id: string };
         domain: string;
         verified?: boolean;
         verification_token?: string;
@@ -352,7 +349,6 @@ function CloudOrganizationSettings() {
     {
       columnLabel: 'Actions',
       cellRenderer: (row: {
-        metadata: { id: string };
         domain: string;
         verified?: boolean;
         verification_token?: string;
@@ -377,13 +373,13 @@ function CloudOrganizationSettings() {
   const tokenColumns = [
     {
       columnLabel: 'Name',
-      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+      cellRenderer: (row: ManagementToken) => (
         <span className="font-medium">{row.name}</span>
       ),
     },
     {
       columnLabel: 'Expiry',
-      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+      cellRenderer: (row: ManagementToken) => (
         <span>{formatExpiry(row.expiresAt)}</span>
       ),
     },
@@ -391,9 +387,7 @@ function CloudOrganizationSettings() {
       ? [
           {
             columnLabel: 'Actions',
-            cellRenderer: (
-              row: ManagementToken & { metadata: { id: string } },
-            ) => (
+            cellRenderer: (row: ManagementToken) => (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -590,6 +584,7 @@ function CloudOrganizationSettings() {
                     <SimpleTable
                       data={organization.members}
                       columns={memberColumns}
+                      rowKey={(row) => row.metadata.id}
                     />
                   ) : (
                     <div className="py-8 text-center text-sm text-muted-foreground">
@@ -603,6 +598,7 @@ function CloudOrganizationSettings() {
                     <SimpleTable
                       data={pendingInvites}
                       columns={inviteColumns}
+                      rowKey={(row) => row.metadata.id}
                     />
                   </div>
                 )}
@@ -628,11 +624,9 @@ function CloudOrganizationSettings() {
                 {managementTokensQuery.data?.rows &&
                 managementTokensQuery.data.rows.length > 0 ? (
                   <SimpleTable
-                    data={managementTokensQuery.data.rows.map((t) => ({
-                      ...t,
-                      metadata: { id: t.id },
-                    }))}
+                    data={managementTokensQuery.data.rows}
                     columns={tokenColumns}
+                    rowKey={(row) => row.id}
                   />
                 ) : (
                   <div className="py-8 text-center text-sm text-muted-foreground">
@@ -654,15 +648,13 @@ function CloudOrganizationSettings() {
                 ) : organizationSsoDomainGetQuery.data &&
                   organizationSsoDomainGetQuery.data.length > 0 ? (
                   <SimpleTable
-                    data={organizationSsoDomainGetQuery.data.map((v) => {
-                      return {
-                        metadata: { id: v.ssoDomain },
-                        domain: v.ssoDomain,
-                        verified: v.verified,
-                        verification_token: v.verificationToken,
-                      };
-                    })}
+                    data={organizationSsoDomainGetQuery.data.map((v) => ({
+                      domain: v.ssoDomain,
+                      verified: v.verified,
+                      verification_token: v.verificationToken,
+                    }))}
                     columns={ssoDomainColumns}
+                    rowKey={(row) => row.domain}
                   />
                 ) : (
                   <div className="py-16 text-center">

@@ -13,10 +13,7 @@ import {
 } from './timeline/trace-timeline-utils';
 import { getStableKey } from './utils/span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import type {
-  FilteredSpanTree,
-  ParsedTraceQuery,
-} from '@/components/v1/cloud/observability/trace-search';
+import type { FilteredSpanTree } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
 import { useIsFeatureEnabled, FeatureFlagId } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
@@ -179,17 +176,11 @@ function collectKeysUpToDepth(
 export function TaskRunTrace({
   spanTrees,
   isRunning,
-  activeFilters,
-  onAddFilter,
-  onRemoveFilter,
   contextTaskRunId,
   onClearFilters,
 }: {
   spanTrees: FilteredSpanTree[];
   isRunning?: boolean;
-  activeFilters?: ParsedTraceQuery;
-  onAddFilter?: (key: string, value: string) => void;
-  onRemoveFilter?: (key: string, value: string) => void;
   contextTaskRunId?: string;
   onClearFilters?: () => void;
 }) {
@@ -374,9 +365,6 @@ export function TaskRunTrace({
           type: 'span-details',
           content: {
             span,
-            activeFilters,
-            onAddFilter,
-            onRemoveFilter,
             onSpanSelect: (childSpan) => {
               expandAncestors(childSpan);
               setSelectedSpanId(childSpan.spanId);
@@ -384,9 +372,6 @@ export function TaskRunTrace({
                 type: 'span-details',
                 content: {
                   span: childSpan,
-                  activeFilters,
-                  onAddFilter,
-                  onRemoveFilter,
                   onClose: handleDetailClose,
                 },
               });
@@ -402,9 +387,6 @@ export function TaskRunTrace({
       setSelectedSpanId,
       open,
       close,
-      activeFilters,
-      onAddFilter,
-      onRemoveFilter,
       handleDetailClose,
     ],
   );
