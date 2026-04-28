@@ -149,7 +149,7 @@ jobs:
           curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
-        run: docker compose up -d
+        run: docker compose up -d --wait
 
       - name: Go deps
         run: go mod download
@@ -197,9 +197,40 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
-          sleep 30
+          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
+          ENGINE_PID=$!
+          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
+          API_PID=$!
+
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+              echo "Hatchet engine and API are ready"
+              break
+            fi
+
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Hatchet engine exited before becoming ready"
+              cat /tmp/hatchet-engine.log
+              exit 1
+            fi
+
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "Hatchet API exited before becoming ready"
+              cat /tmp/hatchet-api.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+            echo "Timed out waiting for Hatchet engine/API to become ready"
+            echo "=== Engine logs ==="
+            cat /tmp/hatchet-engine.log
+            echo "=== API logs ==="
+            cat /tmp/hatchet-api.log
+            exit 1
+          fi
 
       - name: Generate API token
         run: |
@@ -244,7 +275,7 @@ jobs:
           curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
-        run: docker compose up -d
+        run: docker compose up -d --wait
 
       - name: Go deps
         run: go mod download
@@ -294,9 +325,40 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
-          sleep 30
+          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
+          ENGINE_PID=$!
+          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
+          API_PID=$!
+
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+              echo "Hatchet engine and API are ready"
+              break
+            fi
+
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Hatchet engine exited before becoming ready"
+              cat /tmp/hatchet-engine.log
+              exit 1
+            fi
+
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "Hatchet API exited before becoming ready"
+              cat /tmp/hatchet-api.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+            echo "Timed out waiting for Hatchet engine/API to become ready"
+            echo "=== Engine logs ==="
+            cat /tmp/hatchet-engine.log
+            echo "=== API logs ==="
+            cat /tmp/hatchet-api.log
+            exit 1
+          fi
 
       - name: Generate API token
         run: |
