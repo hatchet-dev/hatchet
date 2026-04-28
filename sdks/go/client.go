@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -18,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
+	evictionpkg "github.com/hatchet-dev/hatchet/sdks/go/internal/eviction"
 	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
@@ -60,6 +62,32 @@ type Worker struct {
 	// legacyDurable is set when connected to an older engine that needs separate
 	// durable/non-durable workers. nil when using the new unified slot_config approach.
 	legacyDurable *worker.Worker
+
+	// dispatcher is the gRPC dispatcher client used for durable task streams.
+	dispatcher v0Client.DispatcherClient
+
+	// evictionManager manages durable task eviction. nil when not using durable tasks.
+	evictionManager *evictionpkg.DurableEvictionManager
+
+	// durableTaskListener manages the bidirectional stream for durable tasks. nil when not available.
+	durableTaskListener *v0Client.DurableTaskListener
+
+	// durableInitOnce gates lazy initialization of the DurableTaskListener and the
+	// eviction manager. Initialization is deferred until the first durable action
+	// is dispatched so that we can use the worker_id carried on the Action, which
+	// avoids a startup race against worker registration.
+	durableInitOnce sync.Once
+
+	// evictionPolicies maps action ID -> eviction policy for durable tasks.
+	evictionPolicies map[string]*EvictionPolicy
+
+	// supportsDurableEviction is set by checkEvictionSupport after resolving the engine
+	// version. When true, durable waits register over the DurableTask bidi stream; when
+	// false, they fall back to the legacy RegisterDurableEvent RPC path.
+	supportsDurableEviction bool
+
+	hasDurable bool
+	logger     *zerolog.Logger
 }
 
 // slotType represents supported slot types (internal use).
@@ -129,6 +157,51 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		mainWorker.SetPanicHandler(config.panicHandler)
 	}
 
+	w := &Worker{
+		worker:           mainWorker,
+		name:             name,
+		dispatcher:       c.legacyClient.Dispatcher(),
+		evictionPolicies: make(map[string]*EvictionPolicy),
+		logger:           config.logger,
+	}
+
+	hasDurable := false
+	for _, dump := range dumps {
+		if len(dump.durableActions) > 0 {
+			hasDurable = true
+			break
+		}
+		for _, task := range dump.req.Tasks {
+			if task.IsDurable {
+				hasDurable = true
+				break
+			}
+		}
+	}
+	w.hasDurable = hasDurable
+
+	if hasDurable {
+		durableSlotCount := config.durableSlots
+		if durableSlotCount < 0 {
+			durableSlotCount = 1000
+		}
+
+		w.evictionManager = evictionpkg.NewDurableEvictionManager(
+			durableSlotCount,
+			func(key string) {
+				mainWorker.CancelStepRun(key)
+			},
+			func(ctx context.Context, key string, rec *evictionpkg.DurableRunRecord) error {
+				if w.durableTaskListener == nil {
+					return nil
+				}
+				return w.durableTaskListener.SendEvictionRequest(ctx, rec.StepRunID, rec.InvocationCount)
+			},
+			evictionpkg.DefaultDurableEvictionConfig,
+			config.logger,
+		)
+	}
+
 	for _, dump := range dumps {
 		err := mainWorker.RegisterWorkflowV1(dump.req)
 		if err != nil {
@@ -136,7 +209,18 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		}
 
 		for _, namedFn := range dump.durableActions {
-			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+			if namedFn.EvictionPolicy != nil {
+				ep := namedFn.EvictionPolicy
+				w.evictionPolicies[namedFn.ActionID] = &EvictionPolicy{
+					TTL:                   ep.TTL,
+					AllowCapacityEviction: ep.AllowCapacityEviction,
+					Priority:              ep.Priority,
+				}
+			}
+
+			actionID := namedFn.ActionID
+			fn := namedFn.Fn
+			err = mainWorker.RegisterAction(actionID, w.wrapDurableAction(actionID, fn)) //nolint:staticcheck // SA1019
 			if err != nil {
 				return nil, err
 			}
@@ -161,10 +245,80 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		}
 	}
 
-	return &Worker{
-		worker: mainWorker,
-		name:   name,
-	}, nil
+	return w, nil
+}
+
+// ensureDurableInfra lazily starts the DurableTaskListener and the eviction
+// manager on the first durable action. The worker_id carried on the action is
+// guaranteed to be present by the time we get here, so we don't need to poll
+// w.worker.ID() (which races worker registration at startup).
+func (w *Worker) ensureDurableInfra(workerID string) {
+	if workerID == "" {
+		return
+	}
+	w.durableInitOnce.Do(func() {
+		w.durableTaskListener = v0Client.NewDurableTaskListener(
+			workerID,
+			func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+				return w.dispatcher.DurableTaskStream(ctx)
+			},
+			w.logger,
+		)
+
+		if w.evictionManager != nil {
+			mgr := w.evictionManager
+			w.durableTaskListener.SetServerEvictCallback(func(taskExternalID string, invocationCount int32, reason string) {
+				mgr.HandleServerEviction(taskExternalID, int(invocationCount))
+			})
+		}
+
+		w.durableTaskListener.Start(context.Background())
+
+		if w.evictionManager != nil {
+			w.evictionManager.Start()
+		}
+	})
+}
+
+// wrapDurableAction wraps a durable action function with eviction cache registration
+// and attaches the DurableTask bidi listener so durable waits can round-trip through
+// the new engine durable-event log.
+func (w *Worker) wrapDurableAction(actionID string, fn internal.WrappedTaskFn) func(ctx worker.HatchetContext) (any, error) {
+	return func(ctx worker.HatchetContext) (any, error) {
+		w.ensureDurableInfra(ctx.WorkerId())
+
+		key := ctx.StepRunId()
+
+		var evictionHook worker.DurableEvictionHook
+		if w.evictionManager != nil {
+			// The engine omits invocation_count on the first invocation of a durable
+			// task (no entry in the durable event log yet). Treat zero as the implicit
+			// first attempt.
+			invCount := ctx.DurableTaskInvocationCount()
+			if invCount == 0 {
+				invCount = 1
+			}
+
+			var ep *evictionpkg.EvictionPolicy
+			if policy, ok := w.evictionPolicies[actionID]; ok {
+				ep = &evictionpkg.EvictionPolicy{
+					TTL:                   policy.TTL,
+					AllowCapacityEviction: policy.AllowCapacityEviction,
+					Priority:              policy.Priority,
+				}
+			}
+
+			w.evictionManager.RegisterRun(key, key, int(invCount), ep)
+			defer w.evictionManager.UnregisterRun(key)
+
+			evictionHook = w.evictionManager
+		}
+
+		worker.SetContextDurableHooks(ctx, evictionHook, w.durableTaskListener, w.supportsDurableEviction)
+		defer worker.SetContextDurableHooks(ctx, nil, nil, false)
+
+		return fn(ctx)
+	}
 }
 
 type workflowDump struct {
@@ -243,6 +397,68 @@ func resolveWorkerSlotConfig(
 	return slotConfig
 }
 
+// checkEvictionSupport fetches the engine version and, if the engine is too old to
+// support durable-task eviction, strips the configured eviction policies and logs a
+// warning. Matches the Python SDK's _check_eviction_support behavior: we warn instead
+// of failing so that older engines continue to function.
+//
+// Callers who want a hard error when an eviction policy is unsupported can check the
+// engine version explicitly via `client.GetEngineVersion` + `SupportsDurableEviction`
+// and compare against `EvictionNotSupportedError`.
+
+func (w *Worker) checkEvictionSupport(ctx context.Context) error {
+	engineVersion, err := w.fetchEngineVersion(ctx)
+	if err != nil {
+		if w.logger != nil {
+			w.logger.Warn().Err(err).Msg("unable to resolve engine version; skipping eviction-support check")
+		}
+		return nil
+	}
+
+	if engineVersion != "" {
+		if supported, verr := SupportsDurableEviction(engineVersion); verr == nil && supported {
+			w.supportsDurableEviction = true
+		}
+	}
+
+	if len(w.evictionPolicies) == 0 {
+		return nil
+	}
+
+	if engineVersion == "" {
+		return nil
+	}
+
+	if w.supportsDurableEviction {
+		return nil
+	}
+
+	names := make([]string, 0, len(w.evictionPolicies))
+	for name := range w.evictionPolicies {
+		names = append(names, name)
+	}
+
+	if w.logger != nil {
+		w.logger.Warn().
+			Str("engine_version", engineVersion).
+			Str("required_version", MinEngineVersion.DurableEviction).
+			Strs("tasks", names).
+			Msg("engine does not support durable eviction; configured eviction policies will be ignored")
+	}
+
+	w.evictionPolicies = make(map[string]*EvictionPolicy)
+	w.evictionManager = nil
+
+	return nil
+}
+
+func (w *Worker) fetchEngineVersion(ctx context.Context) (string, error) {
+	if w.dispatcher == nil {
+		return "", nil
+	}
+	return w.dispatcher.GetVersion(ctx)
+}
+
 // Use registers middleware functions on the worker.
 // Middleware functions are called in order for each step run execution.
 //
@@ -266,6 +482,10 @@ func (w *Worker) Start() (func() error, error) {
 
 	if w.legacyDurable != nil {
 		workers = append(workers, w.legacyDurable)
+	}
+
+	if err := w.checkEvictionSupport(context.Background()); err != nil {
+		return nil, err
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines
@@ -302,6 +522,16 @@ func (w *Worker) Start() (func() error, error) {
 
 	// Return a combined cleanup function that also uses errgroup for concurrent cleanup
 	return func() error {
+		// Evict all waiting durable runs before stopping workers
+		if w.evictionManager != nil {
+			w.evictionManager.EvictAllWaiting(context.Background())
+		}
+
+		// Stop the durable task listener
+		if w.durableTaskListener != nil {
+			w.durableTaskListener.Stop()
+		}
+
 		g := new(errgroup.Group)
 
 		for _, cleanup := range cleanupFuncs {

@@ -63,6 +63,7 @@ type TaskRunDetails struct {
 	Status     rest.V1TaskStatus
 	Output     json.RawMessage
 	Error      *string
+	IsEvicted  bool
 }
 
 type RunDetails struct {
@@ -576,6 +577,7 @@ func (a *adminClientImpl) GetRunDetails(ctx context.Context, externalId uuid.UUI
 			Status:     taskStatusFromProto(detail.GetStatus()),
 			Output:     detail.GetOutput(),
 			Error:      errStr,
+			IsEvicted:  detail.GetIsEvicted(),
 		}
 	}
 
