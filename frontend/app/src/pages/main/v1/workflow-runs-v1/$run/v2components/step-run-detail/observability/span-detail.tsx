@@ -209,7 +209,7 @@ export function SpanDetail({
           <Alert variant="destructive">
             <AlertTitle>Error Message</AlertTitle>
             <AlertDescription>
-              <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+              <pre className="whitespace-pre-wrap break-words text-xs">
                 {span.statusMessage}
               </pre>
             </AlertDescription>
@@ -227,11 +227,11 @@ export function SpanDetail({
               >
                 <Alert
                   variant="destructive"
-                  className="transition-colors hover:bg-destructive/10"
+                  className="transition-colors hover:bg-red-100 dark:hover:bg-red-950/60"
                 >
                   <AlertTitle>{err.spanName}</AlertTitle>
                   <AlertDescription>
-                    <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                    <pre className="whitespace-pre-wrap break-words text-xs">
                       {err.message}
                     </pre>
                   </AlertDescription>
