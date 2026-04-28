@@ -268,7 +268,7 @@ JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id
 WHERE
     a."tenantId" = @tenantId::UUID
-    AND w.actionHash = ANY(@actionHashes::BYTEA[])
+    AND w."actionHash" = ANY(@actionHashes::BYTEA[])
 ;
 
 -- name: GetWorkerWorkflowsByWorkerId :many

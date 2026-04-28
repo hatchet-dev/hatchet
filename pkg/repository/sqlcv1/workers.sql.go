@@ -275,7 +275,7 @@ JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id
 WHERE
     a."tenantId" = $1::UUID
-    AND w.actionHash = ANY($2::BYTEA[])
+    AND w."actionHash" = ANY($2::BYTEA[])
 `
 
 type GetWorkerActionsByWorkerActionHashParams struct {
