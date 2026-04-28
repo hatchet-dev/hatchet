@@ -80,7 +80,7 @@ const attrColumns = [
   {
     columnLabel: 'Key',
     cellRenderer: ([key]: [string, string]) => (
-      <span className="whitespace-nowrap font-mono text-muted-foreground">
+      <span className="whitespace-nowrap text-xs text-muted-foreground">
         {key}
       </span>
     ),
@@ -88,7 +88,7 @@ const attrColumns = [
   {
     columnLabel: 'Value',
     cellRenderer: ([, value]: [string, string]) => (
-      <span className="break-all font-mono">{value}</span>
+      <span className="break-all text-xs">{value}</span>
     ),
   },
 ];
