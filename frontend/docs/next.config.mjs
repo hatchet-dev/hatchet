@@ -59,6 +59,7 @@ const nextConfig = {
       { source: '/v1/patterns/mixing-patterns', destination: '/v1/durable-execution', permanent: true, basePath: false },
       { source: '/v1/patterns', destination: '/v1/durable-execution', permanent: true, basePath: false },
       { source: '/v1/patterns/:path*', destination: '/v1/durable-execution', permanent: true, basePath: false },
+      { source: '/v1/durable-tasks-vs-dags', destination: '/cookbooks/durable-tasks-vs-dags', permanent: false, basePath: false },
       // --- Old main: /home/* → /v1/* (only paths that existed on main) ---
       { source: '/home/conditional-workflows', destination: '/v1/directed-acyclic-graphs#branching-with-parent-conditions', permanent: true, basePath: false },
       { source: '/home/on-failure-tasks', destination: '/v1/error-handling', permanent: true, basePath: false },
