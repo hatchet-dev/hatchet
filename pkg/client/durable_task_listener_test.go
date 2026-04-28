@@ -285,11 +285,11 @@ func TestFailPendingEvictionAcksOnDisconnect(t *testing.T) {
 	h.addEOFStream(ctx)
 	h.addHangingStream(ctx)
 
-	h.listener.Start(ctx)
-	defer h.listener.Stop()
-
 	ackKey := PendingAckKey{TaskID: "task1", SignalKey: 1}
 	ch := h.listener.AddPendingEvictionAck(ackKey)
+
+	h.listener.Start(ctx)
+	defer h.listener.Stop()
 
 	time.Sleep(150 * time.Millisecond)
 

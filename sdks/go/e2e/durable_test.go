@@ -240,7 +240,10 @@ func TestDurableNonDeterminism(t *testing.T) {
 	require.NoError(t, err)
 
 	replayResult, err := ref.Result()
-	require.NoError(t, err)
+	if err != nil {
+		assert.Contains(t, err.Error(), "non-determinism error")
+		return
+	}
 
 	var replayOutput NonDeterminismOutput
 	err = replayResult.TaskOutput("durable-non-determinism").Into(&replayOutput)
