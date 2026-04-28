@@ -20,11 +20,11 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import {
-  PortalTooltip,
-  PortalTooltipContent,
-  PortalTooltipProvider,
-  PortalTooltipTrigger,
-} from '@/components/v1/ui/portal-tooltip';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
@@ -86,18 +86,18 @@ const WorkerStatus = ({
 
   return (
     <div className="item-center flex flex-row gap-2">
-      <PortalTooltipProvider>
-        <PortalTooltip>
-          <PortalTooltipTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
             <Badge variant={variant[status]}>{label[status]}</Badge>
-          </PortalTooltipTrigger>
-          <PortalTooltipContent>
+          </TooltipTrigger>
+          <TooltipContent>
             {health.map((reason, i) => (
               <div key={i}>{reason}</div>
             ))}
-          </PortalTooltipContent>
-        </PortalTooltip>
-      </PortalTooltipProvider>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 };

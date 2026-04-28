@@ -1,7 +1,7 @@
 import { parse } from 'yaml';
 import { readFileSync } from 'fs';
 import * as p from 'path';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { ClientConfig, ClientConfigSchema } from '@clients/hatchet-client';
 import { ChannelCredentials } from 'nice-grpc';
 import { LogLevel } from '@util/logger';

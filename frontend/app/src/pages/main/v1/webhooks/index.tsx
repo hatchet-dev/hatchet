@@ -119,7 +119,11 @@ export default function Webhooks() {
         <CreateWebhookModal />
       </div>
       {data && data.length > 0 ? (
-        <SimpleTable columns={webhookColumns} data={data} />
+        <SimpleTable
+          columns={webhookColumns}
+          data={data}
+          rowKey={(row) => row.metadata.id}
+        />
       ) : (
         <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
           <p className="text-lg font-semibold">No webhooks found</p>

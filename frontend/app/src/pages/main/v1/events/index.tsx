@@ -292,7 +292,11 @@ function FiltersSection({
     <div className="w-full overflow-x-auto">
       <div className="min-w-[500px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px]">
         {filters.length > 0 ? (
-          <SimpleTable columns={filterColumns} data={filters} />
+          <SimpleTable
+            columns={filterColumns}
+            data={filters}
+            rowKey={(row) => row.metadata.id}
+          />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
             No filters found for this event.

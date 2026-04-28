@@ -1,5 +1,5 @@
 // > Declaring a Task
-import * as z from 'zod';
+import * as z from 'zod/v4';
 import { hatchet } from '../hatchet-client';
 
 const SimpleInputSchema = z.object({

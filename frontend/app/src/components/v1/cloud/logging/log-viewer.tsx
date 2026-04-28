@@ -10,11 +10,11 @@ import {
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
 import {
-  PortalTooltip,
-  PortalTooltipContent,
-  PortalTooltipProvider,
-  PortalTooltipTrigger,
-} from '@/components/v1/ui/portal-tooltip';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
@@ -461,9 +461,9 @@ export function LogViewer({
                 </span>
                 {log.error && <ErrorPopover error={log.error} />}
                 {log.linkTo && (
-                  <PortalTooltipProvider>
-                    <PortalTooltip>
-                      <PortalTooltipTrigger asChild>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                         <Link
                           to={log.linkTo.destination}
                           params={log.linkTo.params as Record<string, string>}
@@ -474,12 +474,10 @@ export function LogViewer({
                         >
                           <ExternalLink className="size-3" />
                         </Link>
-                      </PortalTooltipTrigger>
-                      <PortalTooltipContent>
-                        {log.linkTo.hoverText}
-                      </PortalTooltipContent>
-                    </PortalTooltip>
-                  </PortalTooltipProvider>
+                      </TooltipTrigger>
+                      <TooltipContent>{log.linkTo.hoverText}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
             </div>

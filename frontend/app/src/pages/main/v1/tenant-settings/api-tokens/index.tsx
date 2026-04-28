@@ -74,6 +74,7 @@ export default function APITokens() {
           <SimpleTable
             columns={tokenColumns}
             data={listTokensQuery.data?.rows || []}
+            rowKey={(row) => row.metadata.id}
           />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
