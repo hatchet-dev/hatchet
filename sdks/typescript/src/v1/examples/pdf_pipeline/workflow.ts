@@ -67,7 +67,7 @@ async function extractPdfText(pdfBuffer: Buffer): Promise<{ text: string; pageCo
     return { text, pageCount };
   } finally {
     try {
-        rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(tmpDir, { recursive: true, force: true });
     } catch {
       // best-effort cleanup
     }
