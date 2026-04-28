@@ -5,10 +5,12 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      semver-major-days: 30
+    open-pull-requests-limit: 1
     groups:
       github-actions:
-        patterns:
-          - "*"
+        patterns: ["*"]
 
   - package-ecosystem: "gomod"
     directories:
@@ -21,18 +23,13 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "go"
     groups:
       go-modules:
-        patterns:
-          - "*"
-        update-types:
-          - "patch"
-          - "minor"
-      go-modules-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
 
   - package-ecosystem: "pip"
     directories:
@@ -47,21 +44,15 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+    open-pull-requests-limit: 3
     groups:
-      python-types:
-        patterns:
-          - "types-*"
       python-deps:
-        patterns:
-          - "*"
-        update-types:
-          - "patch"
-          - "minor"
-      python-deps-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
+        dependency-type: "production"
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+      python-dev-deps:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
 
   - package-ecosystem: "npm"
     directories:
@@ -75,28 +66,17 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     ignore:
-      - dependency-name: "typescript"
+      # TODO(gregfurman): Many of these require require manual intervention, so let's skip for now.
+      # See https://github.com/hatchet-dev/hatchet/pull/3748
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 3
     groups:
       npm-deps:
         dependency-type: "production"
-        patterns:
-          - "*"
-        update-types:
-          - "patch"
-          - "minor"
-      npm-deps-major:
-        dependency-type: "production"
-        patterns:
-          - "*"
-        update-types:
-          - "major"
+        patterns: ["*"]
       npm-dev-deps:
-        dependency-type: "development"
-        patterns:
-          - "*"
+        patterns: ["*"]
 
   - package-ecosystem: "npm"
     directories:
@@ -111,31 +91,15 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     ignore:
-      - dependency-name: "typescript"
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 3
     groups:
-      otel:
-        patterns:
-          - "@opentelemetry/*"
       npm-sdk-deps:
         dependency-type: "production"
-        patterns:
-          - "*"
-        update-types:
-          - "patch"
-          - "minor"
-      npm-sdk-deps-major:
-        dependency-type: "production"
-        patterns:
-          - "*"
-        update-types:
-          - "major"
+        patterns: ["*"]
       npm-sdk-dev-deps:
-        dependency-type: "development"
-        patterns:
-          - "*"
+        patterns: ["*"]
 
   - package-ecosystem: "bundler"
     directories:
@@ -148,15 +112,8 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+    open-pull-requests-limit: 2
     groups:
       ruby-deps:
-        patterns:
-          - "*"
-        update-types:
-          - "patch"
-          - "minor"
-      ruby-deps-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
