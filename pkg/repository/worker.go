@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -392,6 +393,16 @@ func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid
 	})
 }
 
+func hashActions(actions []string) []byte {
+	h := sha256.New()
+
+	for _, action := range actions {
+		h.Write([]byte(action))
+	}
+
+	return h.Sum(nil)
+}
+
 func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
 	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
 
@@ -428,6 +439,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Tenantid:     tenantId,
 		Dispatcherid: opts.DispatcherId,
 		Name:         opts.Name,
+		Actionshash:  hashActions(opts.Actions),
 	}
 
 	// Default to self hosted

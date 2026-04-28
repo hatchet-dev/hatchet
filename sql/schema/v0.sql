@@ -864,6 +864,7 @@ CREATE TABLE "Worker" (
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
     "durableTaskDispatcherId" UUID,
+    "actionsHash" BYTEA,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
