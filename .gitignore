@@ -104,4 +104,5 @@ frontend/docs/lib/generated/
 hack/dev/psql-connect.sh
 CLAUDE.md
 
-.cache/
+.cache
+.rspec_status

@@ -36,9 +36,10 @@ module Hatchet
         # @param name [String] Worker name
         # @param actions [Array<String>] List of action IDs this worker handles
         # @param slots [Integer] Number of concurrent task slots
+        # @param slot_config [Hash{String => Integer}, nil] Slot counts by slot type
         # @param labels [Hash] Worker labels (String keys, String or Integer values)
         # @return [WorkerRegisterResponse] Registration response with worker_id
-        def register(name:, actions:, slots:, labels: {})
+        def register(name:, actions:, slots:, slot_config: nil, labels: {})
           ensure_connected!
 
           label_map = labels.each_with_object({}) do |(k, v), map|
@@ -57,17 +58,24 @@ module Hatchet
             os: RUBY_PLATFORM,
           )
 
-          request = ::WorkerRegisterRequest.new(
+          request_args = {
             worker_name: name,
             actions: actions,
-            slots: slots,
             labels: label_map,
             runtime_info: runtime_info,
-          )
+          }
+
+          if slot_config && !slot_config.empty?
+            request_args[:slot_config] = slot_config
+          else
+            request_args[:slots] = slots
+          end
+
+          request = ::WorkerRegisterRequest.new(**request_args)
 
           begin
             response = @stub.register(request, metadata: @config.auth_metadata)
-          rescue ::GRPC::Internal
+          rescue ::GRPC::BadStatus => e
             request = ::WorkerRegisterRequest.new(
               worker_name: name,
               actions: actions,
@@ -75,8 +83,9 @@ module Hatchet
               labels: label_map,
             )
             response = @stub.register(request, metadata: @config.auth_metadata)
-            @logger.warn("Registered without runtime_info — engine may not support " \
-                         "RUBY language type. Consider upgrading your Hatchet engine.")
+            @logger.warn("Registered without runtime_info/slot_config after #{e.class}; " \
+                         "engine may be too old for modern Ruby worker registration. " \
+                         "Consider upgrading your Hatchet engine.")
           end
 
           @worker_id = response.worker_id
@@ -122,7 +131,7 @@ module Hatchet
         # Send a step action event (completion/failure/started) back to the dispatcher.
         #
         # Accepts the full action object (AssignedAction) so all StepActionEvent
-        # fields can be populated, matching the Python SDK pattern.
+        # fields can be populated.
         #
         # @param action [AssignedAction] The assigned action object
         # @param event_type [Symbol] Protobuf enum value (e.g., :STEP_EVENT_TYPE_COMPLETED)
@@ -227,6 +236,22 @@ module Hatchet
           ensure_connected!
 
           @stub.subscribe_to_workflow_runs(request_enum, metadata: @config.auth_metadata)
+        end
+
+        # Fetch the engine version via the dispatcher's ``GetVersion`` RPC.
+        #
+        # Returns the engine's semantic version string (e.g. ``"v0.80.0"``), or
+        # ``nil`` if the engine is too old to support ``GetVersion`` (i.e. the
+        # call comes back ``UNIMPLEMENTED``).
+        #
+        # @return [String, nil] The engine semantic version, or nil when unsupported
+        def get_version
+          ensure_connected!
+
+          response = @stub.get_version(::GetVersionRequest.new, metadata: @config.auth_metadata)
+          response.version
+        rescue ::GRPC::Unimplemented
+          nil
         end
 
         # Close the gRPC channel.

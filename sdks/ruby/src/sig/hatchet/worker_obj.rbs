@@ -6,12 +6,15 @@ module Hatchet
     attr_reader labels: Hash[String, String | Integer]
     attr_reader client: Client
     attr_accessor worker_id: String?
+    attr_reader durable_slots: Integer
+    attr_reader engine_version: String?
 
     def initialize: (
       name: String,
       client: Client,
       ?workflows: Array[Workflow | Task],
       ?slots: Integer,
+      ?durable_slots: Integer?,
       ?labels: Hash[String, String | Integer]
     ) -> void
 

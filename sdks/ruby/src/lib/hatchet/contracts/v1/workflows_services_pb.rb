@@ -20,6 +20,7 @@ module V1
       rpc :ReplayTasks, ::V1::ReplayTasksRequest, ::V1::ReplayTasksResponse
       rpc :TriggerWorkflowRun, ::V1::TriggerWorkflowRunRequest, ::V1::TriggerWorkflowRunResponse
       rpc :GetRunDetails, ::V1::GetRunDetailsRequest, ::V1::GetRunDetailsResponse
+      rpc :BranchDurableTask, ::V1::BranchDurableTaskRequest, ::V1::BranchDurableTaskResponse
     end
 
     Stub = Service.rpc_stub_class

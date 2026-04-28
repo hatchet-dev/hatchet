@@ -1,13 +1,19 @@
 module Hatchet
   module WorkerRuntime
     class Runner
+      attr_reader eviction_manager: DurableEviction::DurableEvictionManager?
+      attr_reader durable_event_listener: DurableEventListener?
+
       def initialize: (
         workflows: Array[Workflow | Task],
         slots: Integer,
         dispatcher_client: Clients::Grpc::Dispatcher,
         event_client: Clients::Grpc::EventClient,
         logger: Logger,
-        client: Client
+        client: Client,
+        ?engine_version: String?,
+        ?durable_slots: Integer?,
+        ?worker_id: String?
       ) -> void
 
       def execute: (untyped action) -> void
