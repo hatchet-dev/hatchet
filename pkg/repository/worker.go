@@ -283,7 +283,7 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 
 	for _, worker := range workers {
 		if len(worker.ActionHash) == 0 {
-			// if the worker has no action has, we have no choice but to look
+			// if the worker has no action hash, we have no choice but to look
 			// it up by its id
 			workerIds = append(workerIds, worker.ID)
 			continue
