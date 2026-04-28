@@ -24,7 +24,7 @@ Every durable task can configure an **eviction policy**, which tells Hatchet how
 
 Start by declaring a policy:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_eviction.worker.eviction_policy} />
@@ -40,11 +40,16 @@ Start by declaring a policy:
 <Snippet src={snippets.go.durable.eviction.main.eviction_policy} />
 
 </Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+<Snippet src={snippets.ruby.durable_eviction.worker.eviction_policy} />
+
+</Tabs.Tab>
 </UniversalTabs>
 
 Then attach it to a durable task. Any time the task enters a wait (sleep, event wait, child spawn) the policy's TTL and capacity-eviction settings are honored:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_eviction.worker.evictable_sleep} />
@@ -60,11 +65,16 @@ Then attach it to a durable task. Any time the task enters a wait (sleep, event 
 <Snippet src={snippets.go.durable.eviction.main.evictable_sleep} />
 
 </Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+<Snippet src={snippets.ruby.durable_eviction.worker.evictable_sleep} />
+
+</Tabs.Tab>
 </UniversalTabs>
 
 To opt a durable task out of eviction entirely, set `allowCapacityEviction` to `false` and leave the TTL unset. The task will hold its slot through waits:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_eviction.worker.non_evictable_sleep} />
@@ -80,6 +90,11 @@ To opt a durable task out of eviction entirely, set `allowCapacityEviction` to `
 <Tabs.Tab title="Go">
 
 <Snippet src={snippets.go.durable.eviction.main.non_evictable_sleep} />
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+<Snippet src={snippets.ruby.durable_eviction.worker.non_evictable_sleep} />
 
 </Tabs.Tab>
 </UniversalTabs>

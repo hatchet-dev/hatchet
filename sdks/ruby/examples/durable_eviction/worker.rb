@@ -1,4 +1,4 @@
-# frozen_string_literal: true
+frontend/docs/pages/v1/task-eviction.mdx# frozen_string_literal: true
 
 require "hatchet-sdk"
 
@@ -9,11 +9,13 @@ LONG_SLEEP_SECONDS = 15
 CAPACITY_SLEEP_SECONDS = 20
 EVENT_KEY = "durable-eviction:event"
 
+# > Eviction Policy
 EVICTION_POLICY = Hatchet::EvictionPolicy.new(
   ttl: EVICTION_TTL_SECONDS,
   allow_capacity_eviction: true,
   priority: 0,
 )
+# !!
 
 CAPACITY_EVICTION_POLICY = Hatchet::EvictionPolicy.new(
   ttl: nil,
@@ -38,6 +40,7 @@ BULK_CHILD_TASK = HATCHET.task(name: "bulk_child_task", execution_timeout: 60) d
   { "sleep_for" => sleep_for, "status" => "completed" }
 end
 
+# > Evictable Sleep
 EVICTABLE_SLEEP = HATCHET.durable_task(
   name: "evictable_sleep",
   execution_timeout: 300,
@@ -46,6 +49,7 @@ EVICTABLE_SLEEP = HATCHET.durable_task(
   ctx.sleep_for(duration: LONG_SLEEP_SECONDS)
   { "status" => "completed" }
 end
+# !!
 
 EVICTABLE_WAIT_FOR_EVENT = HATCHET.durable_task(
   name: "evictable_wait_for_event",
@@ -102,6 +106,7 @@ CAPACITY_EVICTABLE_SLEEP = HATCHET.durable_task(
   { "status" => "completed" }
 end
 
+# > Non Evictable Sleep
 NON_EVICTABLE_SLEEP = HATCHET.durable_task(
   name: "non_evictable_sleep",
   execution_timeout: 300,
@@ -110,6 +115,7 @@ NON_EVICTABLE_SLEEP = HATCHET.durable_task(
   ctx.sleep_for(duration: 10)
   { "status" => "completed" }
 end
+# !!
 
 def main
   worker = HATCHET.worker(
