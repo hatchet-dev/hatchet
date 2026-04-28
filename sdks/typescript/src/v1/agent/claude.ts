@@ -1,4 +1,4 @@
-import * as z from 'zod';
+import * as z from 'zod/v4';
 import { BaseWorkflowDeclaration, InputType, OutputType } from '@hatchet/v1';
 import type { SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';

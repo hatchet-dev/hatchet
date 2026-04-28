@@ -1,4 +1,4 @@
-import * as z from 'zod';
+import * as z from 'zod/v4';
 import { BaseWorkflowDeclaration, InputType, OutputType } from '@hatchet/v1';
 import type { FunctionTool } from '@openai/agents';
 

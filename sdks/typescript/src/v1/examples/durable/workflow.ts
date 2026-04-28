@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
 import sleep from '@hatchet/util/sleep';
