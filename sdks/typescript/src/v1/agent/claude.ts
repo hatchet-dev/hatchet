@@ -12,18 +12,16 @@ export const ClaudeToolFunc = <I extends InputType, O extends OutputType>(
   runnable: BaseWorkflowDeclaration<I, O>,
   annotations?: ToolAnnotations
 ) => {
+  const hasZodV4 = '_zod' in z.string();
+  let hasClaudeAgentSdk = true;
   try {
     require.resolve('@anthropic-ai/claude-agent-sdk');
   } catch {
-    throw new Error(
-      "To use Hatchet's Claude integration, you must install the @anthropic-ai/claude-agent-sdk and @modelcontextprotocol/sdk packages: npm install @anthropic-ai/claude-agent-sdk @modelcontextprotocol/sdk"
-    );
+    hasClaudeAgentSdk = false;
   }
-  // Check Zod v4 is installed before using any v4-specific schema APIs.
-  if (!('_zod' in z.string())) {
+  if (!hasZodV4 || !hasClaudeAgentSdk) {
     throw new Error(
-      "To use Hatchet's Claude agent SDK integration, Zod v4 must be installed. " +
-        'Please upgrade: npm install zod@^4.0.0'
+      "To use Hatchet's Claude agent SDK integration, you must install Zod v4 and @anthropic-ai/claude-agent-sdk: npm install zod@^4.0.0 @anthropic-ai/claude-agent-sdk @modelcontextprotocol/sdk"
     );
   }
   if (!runnable.definition.inputValidator) {
