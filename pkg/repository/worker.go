@@ -277,13 +277,41 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 }
 
 func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error) {
-	actionHashToWorkerId := make(map[uuid.UUID][]byte)
+	actionHashSet := make(map[string]struct{})
+	workerIds := make([]uuid.UUID, len(workers))
+	actionHashToWorkerIds := make(map[string][]uuid.UUID)
 
 	for _, worker := range workers {
-		actionHashToWorkerId[worker.ID] = worker.ActionsHash
+		if len(worker.ActionHash) == 0 {
+			// if the worker has no action has, we have no choice but to look
+			// it up by its id
+			workerIds = append(workerIds, worker.ID)
+			continue
+		}
+
+		actionHashToWorkerIds[string(worker.ActionHash)] = append(actionHashToWorkerIds[string(worker.ActionHash)], worker.ID)
+
+		if _, ok := actionHashSet[string(worker.ActionHash)]; !ok {
+			actionHashSet[string(worker.ActionHash)] = struct{}{}
+		}
 	}
 
-	records, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
+	actionHashes := make([][]byte, 0, len(actionHashSet))
+
+	for actionHash := range actionHashSet {
+		actionHashes = append(actionHashes, []byte(actionHash))
+	}
+
+	recordsFromActionHashes, err := w.queries.GetWorkerActionsByWorkerActionHash(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerActionHashParams{
+		Actionhashes: actionHashes,
+		Tenantid:     tenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	recordsFromWorkerIds, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
 		Workerids: workerIds,
 		Tenantid:  tenantId,
 	})
@@ -294,7 +322,7 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 
 	workerIdToActionIds := make(map[string][]string)
 
-	for _, record := range records {
+	for _, record := range recordsFromWorkerIds {
 		workerId := record.WorkerId.String()
 
 		if _, ok := workerIdToActionIds[workerId]; !ok {
@@ -302,6 +330,24 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 		}
 
 		workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.Actionid)
+	}
+
+	for _, record := range recordsFromActionHashes {
+		workerIds, ok := actionHashToWorkerIds[string(record.Actionhash)]
+
+		if !ok {
+			continue
+		}
+
+		for _, workerIdUuid := range workerIds {
+			workerId := workerIdUuid.String()
+			if _, ok := workerIdToActionIds[workerId]; !ok {
+				workerIdToActionIds[workerId] = make([]string, 0)
+			}
+
+			workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.Actionid)
+		}
+
 	}
 
 	return workerIdToActionIds, nil
@@ -445,7 +491,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Tenantid:     tenantId,
 		Dispatcherid: opts.DispatcherId,
 		Name:         opts.Name,
-		Actionshash:  hashActions(opts.Actions),
+		Actionhash:   hashActions(opts.Actions),
 	}
 
 	// Default to self hosted

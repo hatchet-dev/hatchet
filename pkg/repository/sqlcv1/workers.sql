@@ -258,6 +258,19 @@ WHERE
     AND w.id = ANY(@workerIds::UUID[])
 ;
 
+-- name: GetWorkerActionsByWorkerActionHash :many
+SELECT
+    w."id" AS "workerId",
+    a."actionId" AS actionId,
+    w."actionHash" AS actionHash
+FROM "Worker" w
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = @tenantId::UUID
+    AND w.actionHash = ANY(@actionHashes::BYTEA[])
+;
+
 -- name: GetWorkerWorkflowsByWorkerId :many
 SELECT wf.*
 FROM "Worker" w

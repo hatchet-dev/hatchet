@@ -265,6 +265,50 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 	return &i, err
 }
 
+const getWorkerActionsByWorkerActionHash = `-- name: GetWorkerActionsByWorkerActionHash :many
+SELECT
+    w."id" AS "workerId",
+    a."actionId" AS actionId,
+    w."actionHash" AS actionHash
+FROM "Worker" w
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = $1::UUID
+    AND w.actionHash = ANY($2::BYTEA[])
+`
+
+type GetWorkerActionsByWorkerActionHashParams struct {
+	Tenantid     uuid.UUID `json:"tenantid"`
+	Actionhashes [][]byte  `json:"actionhashes"`
+}
+
+type GetWorkerActionsByWorkerActionHashRow struct {
+	WorkerId   uuid.UUID `json:"workerId"`
+	Actionid   string    `json:"actionid"`
+	Actionhash []byte    `json:"actionhash"`
+}
+
+func (q *Queries) GetWorkerActionsByWorkerActionHash(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerActionHashParams) ([]*GetWorkerActionsByWorkerActionHashRow, error) {
+	rows, err := db.Query(ctx, getWorkerActionsByWorkerActionHash, arg.Tenantid, arg.Actionhashes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetWorkerActionsByWorkerActionHashRow
+	for rows.Next() {
+		var i GetWorkerActionsByWorkerActionHashRow
+		if err := rows.Scan(&i.WorkerId, &i.Actionid, &i.Actionhash); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkerActionsByWorkerId = `-- name: GetWorkerActionsByWorkerId :many
 SELECT
     w."id" AS "workerId",
