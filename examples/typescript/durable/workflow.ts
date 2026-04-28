@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { NonDeterminismError } from '@hatchet-dev/typescript-sdk/util/errors/non-determinism-error';
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
@@ -25,7 +26,7 @@ durableWorkflow.durableTask({
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     console.log('Waiting for sleep');
-    const sleepResult = await ctx.sleepFor(SLEEP_TIME);
+    const sleepResult = await ctx.sleepFor(SLEEP_TIME, { label: 'waiting for sleep' });
     console.log('Sleep finished');
 
     console.log('Waiting for event');
@@ -248,18 +249,26 @@ export const durableReplayReset = hatchet.durableTask({
 
 export const LOOKBACK_WINDOW = '1m' as const;
 
+const lookbackEventPayloadSchema = z.object({
+  order: z.string(),
+  user_id: z.number(),
+});
+
 export const waitForEventLookback = hatchet.durableTask({
   name: 'wait-for-event-lookback',
   executionTimeout: '10m',
-  fn: async (input: { scope: string }, ctx) => {
+  fn: async (input: { userId: number }, ctx) => {
     const start = Date.now();
+
+    // > Wait for event with lookback
     const event = await ctx.waitForEvent(
-      EVENT_KEY,
-      undefined,
-      undefined,
-      input.scope,
-      LOOKBACK_WINDOW
+      'user:create',
+      `input.user_id == ${input.userId}`,
+      lookbackEventPayloadSchema,
+      `user_id:${input.userId}`,
+      '1m'
     );
+
     return {
       elapsed: (Date.now() - start) / 1000,
       event,

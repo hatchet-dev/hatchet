@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/api/v1/server/rbac"
+	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -20,7 +20,7 @@ type AuthZ struct {
 }
 
 func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
-	rbacAuthorizer, err := rbac.NewAuthorizer()
+	rbacAuthorizer, err := newHatchetAuthorizer()
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +92,8 @@ var restrictedWithBearerToken = []string{
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
+	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
+	// regular bearer tokens should be subject to the additional restrictions in restrictedWithBearerToken
 	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
 		if a.config.Auth.ExchangeTokenClient == nil {
 			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
@@ -107,10 +109,10 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error validating user tenant permissions for exchange token user")
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 		}
-	}
-
-	if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+	} else if !isExchangeToken {
+		if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+		}
 	}
 
 	return nil
@@ -197,7 +199,7 @@ func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRo
 	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if !a.rbac.IsAuthorized(tenantMemberRole, r.OperationID) {
+	if !a.rbac.IsAuthorized(string(tenantMemberRole), r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 

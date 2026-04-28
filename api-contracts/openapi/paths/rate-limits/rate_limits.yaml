@@ -67,3 +67,41 @@ withTenant:
     summary: List rate limits
     tags:
       - Rate Limits
+  delete:
+    x-resources: ["tenant"]
+    description: Delete a rate limit for a tenant.
+    operationId: rate-limit:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The limit key
+        in: query
+        name: key
+        required: true
+        schema:
+          type: string
+    responses:
+      "204":
+        description: Successfully deleted the rate limit
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Delete rate limit
+    tags:
+      - Rate Limits

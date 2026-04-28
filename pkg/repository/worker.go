@@ -124,7 +124,7 @@ type WorkerRepository interface {
 
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
-	DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
+	CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
 	GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error)
 
@@ -723,22 +723,30 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 	return affinities, nil
 }
 
-func (w *workerRepository) DeleteOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
-	hasMore, err := w.queries.DeleteOldWorkers(ctx, w.pool, sqlcv1.DeleteOldWorkersParams{
+func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
+	const timeout = 1000 * 60 * 3 // 3 minutes
+	const batchSize int32 = 10000
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, w.pool, w.l, timeout)
+	if err != nil {
+		return false, fmt.Errorf("error beginning transaction: %w", err)
+	}
+	defer rollback()
+
+	result, err := w.queries.CleanupOldWorkers(ctx, tx, sqlcv1.CleanupOldWorkersParams{
 		Tenantid:            tenantId,
 		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
-		Limit:               20,
+		Batchsize:           batchSize,
 	})
-
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
-		return false, err
+		return false, fmt.Errorf("error cleaning up old workers: %w", err)
 	}
 
-	return hasMore, nil
+	if err := commit(ctx); err != nil {
+		return false, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return result.RowsAffected() == int64(batchSize), nil
 }
 
 func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {

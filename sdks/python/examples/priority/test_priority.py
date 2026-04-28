@@ -64,12 +64,7 @@ async def dummy_runs() -> None:
 @pytest.mark.skip(reason="Very flaky test")
 @pytest.mark.parametrize(
     "on_demand_worker",
-    [
-        (
-            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
-            8003,
-        )
-    ],
+    [["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"]],
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")
@@ -151,12 +146,7 @@ async def test_priority(
 @pytest.mark.skip(reason="Very flaky test")
 @pytest.mark.parametrize(
     "on_demand_worker",
-    [
-        (
-            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
-            8003,
-        )
-    ],
+    [["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"]],
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")
@@ -289,12 +279,7 @@ def time_until_next_minute() -> float:
 )
 @pytest.mark.parametrize(
     "on_demand_worker",
-    [
-        (
-            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
-            8003,
-        )
-    ],
+    [["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"]],
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")

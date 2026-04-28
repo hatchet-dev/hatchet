@@ -17,30 +17,43 @@ export function MemberActions({
   member,
   onChangePasswordClick,
   onEditRoleClick,
+  tenantId,
+  onDeleteSuccess,
 }: {
   member: TenantMember;
   onChangePasswordClick: (member: TenantMember) => void;
   onEditRoleClick: (member: TenantMember) => void;
+  tenantId?: string;
+  onDeleteSuccess?: () => void;
 }) {
   const { user } = useOutletContext<UserContextType>();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
-  const { tenantId } = useCurrentTenantId();
+  const { tenantId: currentTenantId } = useCurrentTenantId();
   const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
+  const resolvedTenantId = tenantId ?? currentTenantId;
 
   const { tenantMemberDeleteMutation } = useTenantApi();
   const deleteMemberMutation = useMutation({
-    mutationKey: ['tenant-member:delete', tenantId],
+    mutationKey: ['tenant-member:delete', resolvedTenantId],
     mutationFn: async (data: { memberId: string }) => {
-      await tenantMemberDeleteMutation(tenantId, data.memberId).mutationFn();
+      await tenantMemberDeleteMutation(
+        resolvedTenantId,
+        data.memberId,
+      ).mutationFn();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['tenant-member:list', tenantId],
+        queryKey: ['tenant-member:list', resolvedTenantId],
       });
+      onDeleteSuccess?.();
+      setShowDeleteDialog(false);
     },
-    onError: handleApiError,
+    onError: (error: unknown) => {
+      handleApiError(error as Parameters<typeof handleApiError>[0]);
+      setShowDeleteDialog(false);
+    },
   });
 
   const isOwnerRole = member.role === 'OWNER';

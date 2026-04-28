@@ -252,7 +252,8 @@ async def durable_sleep_event_spawn(
 
 
 class EventLookbackInput(BaseModel):
-    scope: str
+    scope: str | None = None
+    user_id: int | None = None
 
 
 class LookbackEventPayload(BaseModel):
@@ -278,12 +279,16 @@ async def wait_for_event_lookback(
     input: EventLookbackInput, ctx: DurableContext
 ) -> EventLookbackResultWithEvent:
     start = time.time()
+
+    # > Wait for event with lookback
     event = await ctx.aio_wait_for_event(
-        EVENT_KEY,
-        scope=input.scope,
+        key="user:create",
+        expression=f"input.user_id == {input.user_id}",
+        scope=f"user_id:{input.user_id}",
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
     )
+    # !!
     return EventLookbackResultWithEvent(event=event, elapsed=time.time() - start)
 
 
@@ -320,12 +325,14 @@ async def wait_for_two_events_second_pushed_first(
         scope=input.scope,
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
+        label="waiting for event 1",
     )
     event2 = await ctx.aio_wait_for_event(
         "key2",
         scope=input.scope,
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
+        label="waiting for event 2",
     )
     return TwoEventsResult(event1=event1, event2=event2, elapsed=time.time() - start)
 

@@ -48,6 +48,10 @@ type ConcurrencyManager struct {
 
 	maxPollingInterval time.Duration
 
+	minCheckActiveInterval time.Duration
+
+	maxCheckActiveInterval time.Duration
+
 	advisoryLock       *timeout_lock.KeyedTimeoutLock[int64]
 	advisoryParentLock *timeout_lock.KeyedTimeoutLock[int64]
 }
@@ -58,18 +62,20 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	notifyConcurrencyCh := make(chan map[string]string, 2)
 
 	c := &ConcurrencyManager{
-		repo:                repo,
-		strategy:            strategy,
-		tenantId:            tenantId,
-		l:                   conf.l,
-		notifyConcurrencyCh: notifyConcurrencyCh,
-		resultsCh:           resultsCh,
-		notifyMu:            newMu(conf.l),
-		rateLimiter:         newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
-		minPollingInterval:  conf.schedulerConcurrencyPollingMinInterval,
-		maxPollingInterval:  conf.schedulerConcurrencyPollingMaxInterval,
-		advisoryLock:        advisoryLock,
-		advisoryParentLock:  advisoryParentLock,
+		repo:                   repo,
+		strategy:               strategy,
+		tenantId:               tenantId,
+		l:                      conf.l,
+		notifyConcurrencyCh:    notifyConcurrencyCh,
+		resultsCh:              resultsCh,
+		notifyMu:               newMu(conf.l),
+		rateLimiter:            newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
+		minPollingInterval:     conf.schedulerConcurrencyPollingMinInterval,
+		maxPollingInterval:     conf.schedulerConcurrencyPollingMaxInterval,
+		minCheckActiveInterval: conf.schedulerCheckActiveMinInterval,
+		maxCheckActiveInterval: conf.schedulerCheckActiveMaxInterval,
+		advisoryLock:           advisoryLock,
+		advisoryParentLock:     advisoryParentLock,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -192,7 +198,11 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 }
 
 func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := randomticker.NewRandomTicker(
+		c.minCheckActiveInterval,
+		c.maxCheckActiveInterval,
+	)
+	defer ticker.Stop()
 
 	for {
 		select {

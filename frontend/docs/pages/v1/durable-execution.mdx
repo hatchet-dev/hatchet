@@ -16,7 +16,7 @@ This means that if you run a durable task to a midway point and the worker it's 
 
 ## Core Assumptions
 
-The core assumption of durable execution in Hatchet is that durable tasks only do one of two things: They can _wait_ for something, such as a [sleep to complete](/v1/sleep) or an [event to be received](/v1/events), or they can _[spawn child tasks](/v1/child-spawning)_. These operations can also be composed, such that you can have a durable task wait for _either_ a sleep to complete _or_ an event to be pushed, whichever comes first. You can achieve this behavior by using [or groups](/v1/patterns/durable-task-execution#or-groups).
+The core assumption of durable execution in Hatchet is that durable tasks only do one of two things: They can _wait_ for something, such as a [sleep to complete](/v1/durable-sleep) or an [event to be received](/v1/durable-event-waits), or they can _[spawn child tasks](/v1/child-spawning)_. These operations can also be composed, such that you can have a durable task wait for _either_ a sleep to complete _or_ an event to be pushed, whichever comes first. You can achieve this behavior by using [or groups](/v1/directed-acyclic-graphs#waiting-on-conditions-with-or-groups).
 
 ## Example Uses
 
@@ -30,4 +30,4 @@ There are lots of cases where durable execution is useful. A few common ones whe
 
 ## Learn More!
 
-There are lots of durable execution concepts and features to cover, and we're only just scratching the surface here! Check out our more detailed [durable execution documentation](/v1/patterns) to keep learning and building.
+There are lots of durable execution concepts and features to cover, and we're only just scratching the surface here! Check out our more detailed documentation on [durable tasks](/v1/durable-tasks), [durable sleeps](/v1/durable-sleep), [durable event waits](/v1/durable-event-waits), and [DAGs](/v1/directed-acyclic-graphs) to keep learning and building.

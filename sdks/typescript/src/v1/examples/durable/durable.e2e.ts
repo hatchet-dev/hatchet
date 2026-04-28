@@ -223,12 +223,16 @@ describe('durable-e2e', () => {
   );
 
   it('event lookback: finds event pushed before wait', async () => {
-    const scope = makeTestScope();
+    const userId = 1234;
 
-    await hatchet.events.push(EVENT_KEY, { order: 'first' }, { scope });
+    await hatchet.events.push(
+      'user:create',
+      { order: 'first', user_id: userId },
+      { scope: `user_id:${userId}` }
+    );
     await sleep(1000);
 
-    const result = await waitForEventLookback.run({ scope });
+    const result = await waitForEventLookback.run({ userId });
 
     expect(result.elapsed).toBeLessThan(5);
     expect(result.event).toMatchObject({ order: 'first' });

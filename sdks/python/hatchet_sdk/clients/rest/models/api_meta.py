@@ -56,6 +56,11 @@ class APIMeta(BaseModel):
         description="whether or not users can change their password",
         alias="allowChangePassword",
     )
+    observability_enabled: Optional[StrictBool] = Field(
+        default=None,
+        description="whether or not observability (trace collection) is enabled on this instance",
+        alias="observabilityEnabled",
+    )
     __properties: ClassVar[List[str]] = [
         "auth",
         "pylonAppId",
@@ -64,6 +69,7 @@ class APIMeta(BaseModel):
         "allowInvites",
         "allowCreateTenant",
         "allowChangePassword",
+        "observabilityEnabled",
     ]
 
     model_config = ConfigDict(
@@ -137,6 +143,7 @@ class APIMeta(BaseModel):
                 "allowInvites": obj.get("allowInvites"),
                 "allowCreateTenant": obj.get("allowCreateTenant"),
                 "allowChangePassword": obj.get("allowChangePassword"),
+                "observabilityEnabled": obj.get("observabilityEnabled"),
             }
         )
         return _obj

@@ -16,7 +16,7 @@ from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
 
 @pytest.mark.parametrize(
     "on_demand_worker",
-    [(["poetry", "run", "python", "tests/worker.py", "--slots", "1"], 8002)],
+    [["poetry", "run", "python", "tests/worker.py", "--slots", "1"]],
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")

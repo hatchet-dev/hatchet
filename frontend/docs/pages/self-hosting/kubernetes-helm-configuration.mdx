@@ -58,12 +58,59 @@ sharedConfig:
 
 This will set the environment variable `MY_ENV_VAR` to `"my-value"` for all backend services. These values will override any default environment settings for the services.
 
+## Credentials and Key Generation
+
+### Setup Job
+
+The `quickstartJob` bootstraps Hatchet's encryption and auth secrets into a Kubernetes Secret (`hatchet-config`):
+
+```yaml
+quickstartJob:
+  enabled: true
+```
+
+### Worker Token Job
+
+The worker token job generates a client token after the engine is running:
+
+```yaml
+workerTokenJob:
+  enabled: true
+```
+
+The token is stored as `HATCHET_CLIENT_TOKEN` in the `hatchet-client-config` secret. Alternatively, navigate to the `Settings` tab in the Hatchet frontend and click on the `API Tokens` tab to generate a token manually.
+
+### Generating Keys Manually
+
+For GitOps or pre-configured deployments, generate keys using the `hatchet-admin` image:
+
+```sh
+docker run --rm ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest \
+  /hatchet/hatchet-admin keyset create-local-keys
+```
+
+Generate cookie secrets via `openssl` - these must be two space-separated random strings:
+
+```sh
+echo "$(openssl rand -hex 16) $(openssl rand -hex 16)"
+```
+
+Supply all values in your `values.yaml`:
+
+```yaml
+sharedConfig:
+  env:
+    SERVER_ENCRYPTION_MASTER_KEYSET: "<master-keyset>"
+    SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET: "<private-keyset>"
+    SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET: "<public-keyset>"
+    SERVER_AUTH_COOKIE_SECRETS: "<secret1> <secret2>"
+```
+
+For all available options, see [Encryption Configuration](/self-hosting/configuration-options#encryption-configuration) and [Authentication Configuration](/self-hosting/configuration-options#authentication-configuration).
+
 ### Seeding Data
 
 The `sharedConfig` object also allows you to seed the database with a default tenant and user. The following environment variables are used for seeding:
-
-````yaml
-The following environment variables are used to seed the database:
 
 ```yaml
 seed:
@@ -74,4 +121,4 @@ seed:
     DEFAULT_TENANT_NAME: "Default"
     DEFAULT_TENANT_SLUG: "default"
     DEFAULT_TENANT_ID: "707d0855-80ab-4e1f-a156-f1c4546cbf52"
-````
+```

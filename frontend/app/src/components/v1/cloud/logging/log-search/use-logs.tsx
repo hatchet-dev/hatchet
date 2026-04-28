@@ -15,6 +15,7 @@ import {
   InfiniteData,
   useQueryClient,
 } from '@tanstack/react-query';
+import type { RegisteredRouter, ToPathOption } from '@tanstack/react-router';
 import {
   useMemo,
   useCallback,
@@ -32,23 +33,34 @@ const getLogLineKey = (log: V1LogLine): string => {
   return `${log.createdAt}-${log.message}`;
 };
 
+export type V1LogLineLevelIncludingEvictionNotice =
+  | V1LogLineLevel
+  | 'EVICTION_NOTICE'
+  | 'RESTORE_NOTICE';
+
 export interface LogLine {
   timestamp?: string;
   line?: string;
   instance?: string;
-  level?: string;
+  level?: V1LogLineLevelIncludingEvictionNotice;
   metadata?: Record<string, unknown>;
   attempt?: number;
   taskExternalId?: string;
   taskDisplayName?: string;
+  error?: string;
+  linkTo?: {
+    destination: ToPathOption<RegisteredRouter>;
+    params?: Record<string, string>;
+    hoverText: string;
+  };
 }
 
-export interface UseLogsOptions {
+interface UseLogsOptions {
   taskRun: V1TaskSummary | undefined;
   resetTrigger?: number;
 }
 
-export interface UseLogsReturn {
+interface UseLogsReturn {
   logs: LogLine[];
   isLoading: boolean;
   isFetchingMore: boolean;

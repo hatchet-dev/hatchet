@@ -132,6 +132,10 @@ type Action struct {
 	WorkflowId *string `json:"workflowId,omitempty"`
 
 	WorkflowVersionId *string `json:"workflowVersionId,omitempty"`
+
+	TriggeringEventExternalId *string `json:"triggeringEventExternalId,omitempty"`
+
+	TriggeringEventKey *string `json:"triggeringEventKey,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -459,27 +463,29 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			}
 
 			ch <- &Action{
-				TenantId:            assignedAction.TenantId,
-				WorkflowRunId:       assignedAction.WorkflowRunId,
-				GetGroupKeyRunId:    assignedAction.GetGroupKeyRunId,
-				WorkerId:            a.workerId,
-				JobId:               assignedAction.JobId,
-				JobName:             assignedAction.JobName,
-				JobRunId:            assignedAction.JobRunId,
-				StepId:              assignedAction.TaskId,
-				StepName:            assignedAction.TaskName,
-				StepRunId:           assignedAction.TaskRunExternalId,
-				ActionId:            assignedAction.ActionId,
-				ActionType:          actionType,
-				ActionPayload:       []byte(unquoted),
-				RetryCount:          assignedAction.RetryCount,
-				AdditionalMetadata:  additionalMetadata,
-				ChildIndex:          assignedAction.ChildWorkflowIndex,
-				ChildKey:            assignedAction.ChildWorkflowKey,
-				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
-				Priority:            assignedAction.Priority,
-				WorkflowId:          assignedAction.WorkflowId,
-				WorkflowVersionId:   assignedAction.WorkflowVersionId,
+				TenantId:                  assignedAction.TenantId,
+				WorkflowRunId:             assignedAction.WorkflowRunId,
+				GetGroupKeyRunId:          assignedAction.GetGroupKeyRunId,
+				WorkerId:                  a.workerId,
+				JobId:                     assignedAction.JobId,
+				JobName:                   assignedAction.JobName,
+				JobRunId:                  assignedAction.JobRunId,
+				StepId:                    assignedAction.TaskId,
+				StepName:                  assignedAction.TaskName,
+				StepRunId:                 assignedAction.TaskRunExternalId,
+				ActionId:                  assignedAction.ActionId,
+				ActionType:                actionType,
+				ActionPayload:             []byte(unquoted),
+				RetryCount:                assignedAction.RetryCount,
+				AdditionalMetadata:        additionalMetadata,
+				ChildIndex:                assignedAction.ChildWorkflowIndex,
+				ChildKey:                  assignedAction.ChildWorkflowKey,
+				ParentWorkflowRunId:       assignedAction.ParentWorkflowRunId,
+				Priority:                  assignedAction.Priority,
+				WorkflowId:                assignedAction.WorkflowId,
+				WorkflowVersionId:         assignedAction.WorkflowVersionId,
+				TriggeringEventExternalId: assignedAction.TriggeringEventExternalId,
+				TriggeringEventKey:        assignedAction.TriggeringEventKey,
 			}
 		}
 

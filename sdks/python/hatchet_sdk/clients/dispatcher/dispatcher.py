@@ -9,11 +9,10 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.rest.tenacity_utils import (
-    tenacity_alert_retry,
     tenacity_retry,
     tenacity_should_retry,
 )
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, TenacityConfig, tenacity_before_sleep
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
@@ -34,6 +33,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
@@ -104,7 +104,7 @@ class DispatcherClient:
         reraise=True,
         wait=tenacity.wait_exponential_jitter(initial=0.5, max=5),
         stop=tenacity.stop_after_attempt(3),
-        before_sleep=tenacity_alert_retry,
+        before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
     )
     async def get_version(self) -> str | None:
@@ -144,16 +144,22 @@ class DispatcherClient:
             return await self._try_send_step_action_event(
                 action, event_type, payload, should_not_retry
             )
-        except Exception as e:
-            # for step action events, send a failure event when we cannot send the completed event
-            if event_type in (STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_FAILED):
-                await self._try_send_step_action_event(
-                    action,
-                    STEP_EVENT_TYPE_FAILED,
-                    "Failed to send finished event: " + str(e),
-                    should_not_retry=True,
-                )
+        except Exception:
+            was_completed = event_type == STEP_EVENT_TYPE_COMPLETED
+            was_failed = event_type == STEP_EVENT_TYPE_FAILED
 
+            message = f"failed to send step action event {event_type} for action {action.action_id}."
+
+            if was_completed:
+                message += "**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
+
+            if was_failed:
+                message += "**IMPORTANT**: the task failed, but the engine failed to receive the failed event."
+
+            if was_completed or was_failed:
+                message += "the engine will eventually consider the task timed out, and invoke any retries configured on the task."
+
+            logger.exception(message)
             return None
 
     async def _try_send_step_action_event(
@@ -184,14 +190,17 @@ class DispatcherClient:
             should_not_retry=should_not_retry,
         )
 
-        send_step_action_event = tenacity_retry(
-            self.aio_client.SendStepActionEvent, self.config.tenacity
+        send = tenacity_retry(
+            self.aio_client.SendStepActionEvent,
+            TenacityConfig(
+                max_attempts=10,
+            ),
         )
 
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
             # fixme: figure out how to get typing right here
-            await send_step_action_event(  # type: ignore[misc]
+            await send(  # type: ignore[misc]
                 event,
                 metadata=create_authorization_header(self.token),
             ),

@@ -188,7 +188,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 func getJWTManager(t *testing.T, conf *database.Layer) token.JWTManager {
 	t.Helper()
 
-	masterKeyBytes, privateJWTBytes, publicJWTBytes, err := encryption.GenerateLocalKeys()
+	masterKeyBytes, privateJWTBytes, publicJWTBytes, _, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		t.Fatal(err.Error())

@@ -29,23 +29,23 @@ func NewCloudKMSEncryption(keyUri string, credentialsJSON, privateEc256, publicE
 	return newWithClient(client, keyUri, privateEc256, publicEc256)
 }
 
-func GenerateJWTKeysetsFromCloudKMS(keyUri string, credentialsJSON []byte) (privateEc256 []byte, publicEc256 []byte, err error) {
+func GenerateJWTKeysetsFromCloudKMS(keyUri string, credentialsJSON []byte) (privateEc256 []byte, publicEc256 []byte, publicHandle []byte, err error) {
 	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithCredentialsJSON(credentialsJSON))
 
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 
 	return generateJWTKeysetsWithClient(keyUri, client)
 }
 
-func generateJWTKeysetsWithClient(keyUri string, client registry.KMSClient) (privateEc256 []byte, publicEc256 []byte, err error) {
+func generateJWTKeysetsWithClient(keyUri string, client registry.KMSClient) (privateEc256 []byte, publicEc256 []byte, publicHandle []byte, err error) {
 	registry.RegisterKMSClient(client)
 
 	remote, err := client.GetAEAD(keyUri)
 
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 
 	return generateJWTKeysets(remote)

@@ -65,7 +65,7 @@ export async function loader(_args: { request: Request }) {
 }
 
 function AuthenticatedInner() {
-  const { tenant } = useTenantDetails();
+  const { tenant, limit } = useTenantDetails();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -139,6 +139,7 @@ function AuthenticatedInner() {
   const {
     isCloudEnabled,
     isLoaded: isUserUniverseLoaded,
+    isFetching: isUserUniverseFetching,
     organizations,
     tenantMemberships,
   } = useUserUniverse();
@@ -192,41 +193,53 @@ function AuthenticatedInner() {
       ? pendingInvitesQuery.data
       : null;
 
-    if (
-      pendingInvites &&
-      pendingInvites.inviteCount > 0 &&
-      !isOnboardingInvitesPage
-    ) {
-      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
-      return;
-    }
-
     const okayToMakeOnboardingRedirectDecisions =
       pendingInvitesQuery.isSuccess &&
       !isOnboardingPage &&
-      isUserUniverseLoaded;
+      isUserUniverseLoaded &&
+      !isUserUniverseFetching;
 
-    if (okayToMakeOnboardingRedirectDecisions) {
-      const shouldHaveAnOrganizationButDoesnt =
-        isCloudEnabled && organizations.length === 0;
+    const shouldHaveAnOrganizationButDoesnt =
+      isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
 
-      if (shouldHaveAnOrganizationButDoesnt) {
-        storeRedirectPath();
-        navigate({
-          to: appRoutes.onboardingCreateOrganizationRoute.to,
-          replace: true,
-        });
-        return;
-      }
+    const mustAcceptOrganizationInviteNow =
+      okayToMakeOnboardingRedirectDecisions &&
+      shouldHaveAnOrganizationButDoesnt &&
+      pendingInvites &&
+      pendingInvites.organizationInvites.length > 0;
 
-      if (tenantMemberships.length === 0) {
-        storeRedirectPath();
-        navigate({
-          to: appRoutes.onboardingCreateTenantRoute.to,
-          replace: true,
-        });
-        return;
-      }
+    const mustAcceptTenantInviteNow =
+      tenantMemberships &&
+      tenantMemberships.length === 0 &&
+      pendingInvites &&
+      pendingInvites.tenantInvites.length > 0;
+
+    if (
+      !isOnboardingInvitesPage &&
+      (mustAcceptOrganizationInviteNow || mustAcceptTenantInviteNow)
+    ) {
+      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      shouldHaveAnOrganizationButDoesnt
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingCreateOrganizationRoute.to,
+        replace: true,
+      });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      tenantMemberships.length === 0
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingCreateTenantRoute.to,
+        replace: true,
+      });
+      return;
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
@@ -299,6 +312,7 @@ function AuthenticatedInner() {
     setLastTenant,
     isCloudEnabled,
     isUserUniverseLoaded,
+    isUserUniverseFetching,
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
@@ -334,14 +348,31 @@ function AuthenticatedInner() {
 
   useEffect(() => {
     const key = 'hatchet:show-welcome';
-    if (localStorage.getItem(key)) {
-      localStorage.removeItem(key);
-      setShowWelcome(true);
-      capture('welcome_modal_shown', {
-        tenant_id: tenant?.metadata.id,
-      });
+    if (!localStorage.getItem(key)) {
+      return;
     }
-  }, [tenant?.metadata.id, capture]);
+
+    if (limit.isLoading || !limit.isFetched) {
+      return;
+    }
+
+    if (!limit.data?.length) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    localStorage.removeItem(key);
+    setShowWelcome(true);
+    capture('welcome_modal_shown', {
+      tenant_id: tenant?.metadata.id,
+    });
+  }, [
+    tenant?.metadata.id,
+    capture,
+    limit.isLoading,
+    limit.isFetched,
+    limit.data,
+  ]);
 
   if (!currentUser) {
     return <Loading />;

@@ -10,7 +10,7 @@ import (
 
 func TestNewLocalEncryptionValidKeyset(t *testing.T) {
 	// Generate a new keyset
-	aes256Gcm, privateEc256, publicEc256, err := GenerateLocalKeys()
+	aes256Gcm, privateEc256, publicEc256, _, err := GenerateLocalKeys()
 	assert.NoError(t, err)
 
 	// Create encryption service
@@ -27,7 +27,7 @@ func TestNewLocalEncryptionInvalidKeyset(t *testing.T) {
 }
 
 func TestEncryptDecrypt(t *testing.T) {
-	aes256Gcm, privateEc256, publicEc256, _ := GenerateLocalKeys()
+	aes256Gcm, privateEc256, publicEc256, _, _ := GenerateLocalKeys()
 	svc, _ := NewLocalEncryption(aes256Gcm, privateEc256, publicEc256)
 
 	plaintext := []byte("test message")
@@ -46,7 +46,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestEncryptDecryptStringBase64(t *testing.T) {
-	aes256Gcm, privateEc256, publicEc256, _ := GenerateLocalKeys()
+	aes256Gcm, privateEc256, publicEc256, _, _ := GenerateLocalKeys()
 	svc, _ := NewLocalEncryption(aes256Gcm, privateEc256, publicEc256)
 
 	plaintext := "test message"
@@ -65,7 +65,7 @@ func TestEncryptDecryptStringBase64(t *testing.T) {
 }
 
 func TestDecryptWithInvalidKey(t *testing.T) {
-	aes256Gcm, privateEc256, publicEc256, _ := GenerateLocalKeys()
+	aes256Gcm, privateEc256, publicEc256, _, _ := GenerateLocalKeys()
 	svc, _ := NewLocalEncryption(aes256Gcm, privateEc256, publicEc256)
 
 	plaintext := []byte("test message")
@@ -75,7 +75,7 @@ func TestDecryptWithInvalidKey(t *testing.T) {
 	ciphertext, _ := svc.Encrypt(plaintext, dataID)
 
 	// Generate a new keyset for decryption
-	aes256Gcm, privateEc256, publicEc256, _ = GenerateLocalKeys()
+	aes256Gcm, privateEc256, publicEc256, _, _ = GenerateLocalKeys()
 	newSvc, _ := NewLocalEncryption(aes256Gcm, privateEc256, publicEc256)
 
 	// Attempt to decrypt with a different key
@@ -84,7 +84,7 @@ func TestDecryptWithInvalidKey(t *testing.T) {
 }
 
 func TestEncryptDecryptWithEmptyDataID(t *testing.T) {
-	aes256Gcm, privateEc256, publicEc256, _ := GenerateLocalKeys()
+	aes256Gcm, privateEc256, publicEc256, _, _ := GenerateLocalKeys()
 	svc, _ := NewLocalEncryption(aes256Gcm, privateEc256, publicEc256)
 
 	plaintext := []byte("test message")

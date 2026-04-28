@@ -7,4 +7,9 @@ export default {
   "webhooks-stripe": "Stripe",
   "webhooks-github": "GitHub",
   "webhooks-slack": "Slack",
+  "--workflow-patterns": {
+    title: "Workflow Patterns",
+    type: "separator",
+  },
+  "workflow-support-agent": "Support Agent",
 };

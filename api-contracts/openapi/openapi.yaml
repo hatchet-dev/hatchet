@@ -51,6 +51,8 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/trigger"
   /api/v1/stable/tenants/{tenant}/durable-tasks/branch:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/branchDurableTask"
+  /api/v1/stable/durable-tasks/{durable-task}:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listDurableEventLog"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/status:

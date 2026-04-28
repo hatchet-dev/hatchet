@@ -16,7 +16,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
@@ -57,6 +57,11 @@ class V1Webhook(BaseModel):
         description="The type of authentication to use for the webhook",
         alias="authType",
     )
+    return_event_as_response_payload: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether to return the triggered event as the response payload when this webhook is triggered",
+        alias="returnEventAsResponsePayload",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "tenantId",
@@ -66,6 +71,7 @@ class V1Webhook(BaseModel):
         "scopeExpression",
         "staticPayload",
         "authType",
+        "returnEventAsResponsePayload",
     ]
 
     model_config = ConfigDict(
@@ -133,6 +139,7 @@ class V1Webhook(BaseModel):
                 "scopeExpression": obj.get("scopeExpression"),
                 "staticPayload": obj.get("staticPayload"),
                 "authType": obj.get("authType"),
+                "returnEventAsResponsePayload": obj.get("returnEventAsResponsePayload"),
             }
         )
         return _obj

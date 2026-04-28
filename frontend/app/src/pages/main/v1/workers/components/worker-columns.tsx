@@ -1,3 +1,4 @@
+import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { SdkInfo } from './sdk-info';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -16,6 +17,7 @@ export const WorkerColumn = {
   slots: 'Slots',
   lastHeartbeatAt: 'Last seen',
   runtime: 'SDK Version',
+  labels: 'Labels',
 } as const;
 
 type WorkerColumnKeys = keyof typeof WorkerColumn;
@@ -26,6 +28,7 @@ const startedAtKey: WorkerColumnKeys = 'startedAt';
 const slotsKey: WorkerColumnKeys = 'slots';
 const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
 const runtimeKey: WorkerColumnKeys = 'runtime';
+const labelsKey: WorkerColumnKeys = 'labels';
 
 interface WorkerStatusBadgeProps extends BadgeProps {
   status?: string;
@@ -120,8 +123,14 @@ function WorkerStatusBadge({
   );
 }
 
-export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
+export const columns: (
+  tenantId: string,
+  openLabelsPopover: string | null,
+  setOpenLabelsPopover: (id: string | null) => void,
+) => ColumnDef<Worker>[] = (
   tenantId,
+  openLabelsPopover,
+  setOpenLabelsPopover,
 ) => [
   {
     accessorKey: nameKey,
@@ -239,6 +248,37 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.runtime} />
     ),
     cell: ({ row }) => <SdkInfo runtimeInfo={row.original.runtimeInfo} />,
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
+    accessorKey: labelsKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={WorkerColumn.labels} />
+    ),
+    cell: ({ row }) => (
+      <AdditionalMetadata
+        metadata={(row.original?.labels || []).reduce(
+          (acc, label) => {
+            if (label.key && label.value) {
+              acc[label.key] = label.value;
+            }
+            return acc;
+          },
+          {} as Record<string, string>,
+        )}
+        isOpen={openLabelsPopover === row.original.metadata.id}
+        onOpenChange={(open) => {
+          if (open) {
+            setOpenLabelsPopover(row.original.metadata.id);
+          } else {
+            setOpenLabelsPopover(null);
+          }
+        }}
+        title="Labels"
+        align="end"
+      />
+    ),
     enableSorting: false,
     enableHiding: true,
   },

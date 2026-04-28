@@ -132,6 +132,10 @@ message DurableTaskWaitForRequest {
 
     // Fields for DURABLE_TASK_TRIGGER_KIND_WAIT_FOR
     optional DurableEventListenerConditions wait_for_conditions = 3;
+
+    // An optional human-readable label for this wait, displayed in the dashboard.
+    // Example: "Waiting for payment confirmation"
+    optional string label = 4;
 }
 
 message DurableTaskRequest {

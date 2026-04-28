@@ -57,12 +57,19 @@ const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :execresult
 WITH locked_qis as (
     SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
     FROM v1_queue_item qi
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE qi.task_id = vt.id
-            AND qi.task_inserted_at = vt.inserted_at
-    )
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task vt
+            WHERE qi.task_id = vt.id
+                AND qi.task_inserted_at = vt.inserted_at
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM "Tenant" t
+            WHERE t."id" = qi.tenant_id
+                AND t."deletedAt" IS NOT NULL
+        )
     ORDER BY qi.id ASC
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED
@@ -82,12 +89,19 @@ const cleanupV1RateLimitedQueueItem = `-- name: CleanupV1RateLimitedQueueItem :e
 WITH locked_qis as (
     SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
     FROM v1_rate_limited_queue_items qi
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE qi.task_id = vt.id
-        AND qi.task_inserted_at = vt.inserted_at
-    )
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task vt
+            WHERE qi.task_id = vt.id
+                AND qi.task_inserted_at = vt.inserted_at
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM "Tenant" t
+            WHERE t."id" = qi.tenant_id
+                AND t."deletedAt" IS NOT NULL
+        )
     ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED
@@ -107,12 +121,19 @@ const cleanupV1RetryQueueItem = `-- name: CleanupV1RetryQueueItem :execresult
 WITH locked_qis as (
     SELECT qi.task_id, qi.task_inserted_at, qi.task_retry_count
     FROM v1_retry_queue_item qi
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE qi.task_id = vt.id
-        AND qi.task_inserted_at = vt.inserted_at
-    )
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task vt
+            WHERE qi.task_id = vt.id
+                AND qi.task_inserted_at = vt.inserted_at
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM "Tenant" t
+            WHERE t."id" = qi.tenant_id
+                AND t."deletedAt" IS NOT NULL
+        )
     ORDER BY qi.task_id, qi.task_inserted_at, qi.task_retry_count
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED

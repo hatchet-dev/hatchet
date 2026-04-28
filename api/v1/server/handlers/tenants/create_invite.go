@@ -85,7 +85,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		if err := t.config.Email.SendTenantInviteEmail(emailCtx, invite.InviteeEmail, email.TenantInviteEmailData{
 			InviteSenderName: name,
 			TenantName:       tenant.Name,
-			ActionURL:        t.config.Runtime.ServerURL,
+			ActionURL:        t.config.Runtime.FrontendURL,
 		}); err != nil {
 			t.config.Logger.Err(err).Msg("could not send tenant invite email")
 		}

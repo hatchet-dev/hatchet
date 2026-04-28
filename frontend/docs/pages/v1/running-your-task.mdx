@@ -117,7 +117,7 @@ or await `aio_result`:
 
 ### Triggering from events
 
-Another method of running tasks fire-and-forget style is via [pushing events](/v1/external-events/pushing-events) to Hatchet. If a task is configured to be triggered by an event, then when the event is pushed to Hatchet, a corresponding run will be triggered using the payload of the event as the input to the run.
+Another method of running tasks fire-and-forget style is via [pushing events](/v1/events#pushing-events-to-hatchet) to Hatchet. If a task is configured to be triggered by an event, then when the event is pushed to Hatchet, a corresponding run will be triggered using the payload of the event as the input to the run.
 
 You can push events to Hatchet directly using the SDKs, or via [webhooks](/v1/webhooks), which are converted into Hatchet events internally on ingestion.
 

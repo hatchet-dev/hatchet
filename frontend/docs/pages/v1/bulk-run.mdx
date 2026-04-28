@@ -3,7 +3,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
 
-# Bulk Run Many Tasks
+# Running Tasks in Bulk
 
 Often you may want to run a task multiple times with different inputs. There is significant overhead (i.e. network roundtrips) to write the task, so if you're running multiple tasks, it's best to use the bulk run methods.
 
@@ -42,6 +42,15 @@ There are additional bulk methods available on the `Task` object.
 
 - `run`
 - `runNoWait`
+
+You can also use `runMany` and `runManyNoWait` for per-run options while keeping the same bulk execution behavior.
+
+<Snippet src={snippets.typescript.simple.bulk.bulk_run_a_task_with_run_many} />
+
+Additional `Task` bulk methods:
+
+- `runMany`
+- `runManyNoWait`
 
 As with the run methods, you can call bulk methods on the task fn context parameter within a task and the runs will be associated with the parent task in the dashboard.
 

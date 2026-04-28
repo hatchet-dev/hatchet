@@ -29,6 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
+	durabletasksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/durable-tasks"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	featureflagsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/feature-flags"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
@@ -77,6 +78,7 @@ type apiService struct {
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
 	*featureflagsv1.V1FeatureFlagsService
+	*durabletasksv1.DurableTasksService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -105,6 +107,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
 		V1FeatureFlagsService:  featureflagsv1.NewV1FeatureFlagsService(config),
+		DurableTasksService:    durabletasksv1.NewDurableTasksService(config),
 	}
 }
 
@@ -561,6 +564,27 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		if task == nil {
 			return nil, "", echo.NewHTTPError(http.StatusNotFound, "task not found")
+		}
+
+		return task, task.TenantID.String(), nil
+	})
+
+	populatorMW.RegisterGetter("durable-task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		var taskID uuid.UUID
+		if err := taskID.Scan(id); err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid durable task id")
+		}
+
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, taskID)
+		if err != nil {
+			return nil, "", err
+		}
+
+		if task == nil {
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "durable task not found")
 		}
 
 		return task, task.TenantID.String(), nil

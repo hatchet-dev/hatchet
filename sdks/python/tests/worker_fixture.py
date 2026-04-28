@@ -1,14 +1,22 @@
 import logging
 import os
+import socket
 import subprocess
 import time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from io import BytesIO
 from threading import Thread
+from typing import cast
 
 import psutil
 import requests
+
+
+def get_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return cast(int, s.getsockname()[1])
 
 
 def wait_for_worker_health(healthcheck_port: int) -> bool:

@@ -50,6 +50,8 @@ type RateLimitRepository interface {
 	UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
 
 	ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *ListRateLimitOpts) (*ListRateLimitsResult, error)
+
+	DeleteRateLimits(ctx context.Context, tenantId uuid.UUID, key string) error
 }
 
 const MAX_TENANT_RATE_LIMITS = 10000
@@ -232,6 +234,14 @@ func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId uuid.
 	res.Count = int(count)
 
 	return res, nil
+}
+
+func (r *rateLimitRepository) DeleteRateLimits(ctx context.Context, tenantId uuid.UUID, key string) error {
+	return r.queries.DeleteRateLimitForTenant(ctx, r.pool,
+		sqlcv1.DeleteRateLimitForTenantParams{
+			Tenantid: tenantId,
+			Key:      key,
+		})
 }
 
 func tenantAdvisoryInt(tenantID uuid.UUID) int64 {

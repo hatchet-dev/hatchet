@@ -4,7 +4,7 @@ import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { queries } from '@/lib/api';
+import { queries, V1LogLineLevel } from '@/lib/api';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -40,7 +40,8 @@ export function ManagedWorkerLogs({
       timestamp: log.timestamp,
       line: log.line,
       instance: log.instance,
-      level: log.level,
+      // fixme: this should use the v1 log type, not the v0 one
+      level: log.level as V1LogLineLevel | undefined,
       metadata: log.metadata as Record<string, unknown> | undefined,
     }));
 

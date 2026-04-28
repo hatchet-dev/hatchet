@@ -127,13 +127,11 @@ describe('Tenants: switching', () => {
       .filter(':visible')
       .first()
       .should('contain.text', tenant2Name);
-    cy.get('button[aria-label="User Menu"]')
+    cy.get('button[aria-label="Open account menu"]')
       .filter(':visible')
-      .should('be.visible')
       .first()
       .click();
-    // Menu item includes a keyboard shortcut, so match by substring.
-    cy.contains('[role="menuitem"]', 'Log out').filter(':visible').click();
+    cy.contains('Log out').click();
 
     cy.login('member');
     cy.visit('/');

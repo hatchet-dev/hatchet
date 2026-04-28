@@ -102,7 +102,7 @@ const TaskRunPermalinkOrBacklink = ({
 
 export const TaskRunDetail = ({
   taskRunId,
-  defaultOpenTab = TabOption.Output,
+  defaultOpenTab = TabOption.Activity,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
   const [logsResetKey, setLogsResetKey] = useState(0);
@@ -138,7 +138,7 @@ export const TaskRunDetail = ({
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-4 h-full">
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
@@ -200,7 +200,7 @@ export const TaskRunDetail = ({
             setLogsResetKey((prev: number) => prev + 1);
           }
         }}
-        className="flex h-full flex-col"
+        className="flex flex-1 min-h-0 flex-col"
       >
         <TabsList layout="underlined" className="mb-4">
           <TabsTrigger variant="underlined" value="overview">
@@ -213,7 +213,7 @@ export const TaskRunDetail = ({
             Logs
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="min-h-0 flex-1">
+        <TabsContent value="overview" className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap
               onClick={handleMiniMapClick}
@@ -221,7 +221,10 @@ export const TaskRunDetail = ({
             />
           </div>
           <div className="h-4" />
-          <Tabs defaultValue={defaultOpenTab}>
+          <Tabs
+            defaultValue={defaultOpenTab}
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <TabsList layout="underlined">
               <TabsTrigger variant="underlined" value={TabOption.Activity}>
                 Activity
@@ -253,16 +256,20 @@ export const TaskRunDetail = ({
                 </span>
               </TabsTrigger>
             </TabsList>
-            <TabsContent value={TabOption.Output}>
+            <TabsContent
+              value={TabOption.Output}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
-            <TabsContent value={TabOption.Activity}>
-              <div className="py-4">
-                <StepRunEvents
-                  taskRunId={taskRunId}
-                  fallbackTaskDisplayName={taskRun.displayName}
-                />
-              </div>
+            <TabsContent
+              value={TabOption.Activity}
+              className="mt-4 flex-1 min-h-0 flex flex-col"
+            >
+              <StepRunEvents
+                taskRunId={taskRunId}
+                isDurable={taskRun.isDurable}
+              />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
               <div className="flex flex-col h-96">
@@ -282,29 +289,31 @@ export const TaskRunDetail = ({
                 </RunsProvider>
               </div>
             </TabsContent>
-            <TabsContent value={TabOption.Input}>
+            <TabsContent
+              value={TabOption.Input}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               {taskRun.input && (
                 <CodeHighlighter
-                  className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-                  maxHeight="400px"
-                  minHeight="400px"
+                  className="my-4"
                   language="json"
                   code={JSON.stringify(taskRun.input, null, 2)}
                 />
               )}
             </TabsContent>
-            <TabsContent value={TabOption.AdditionalMetadata}>
+            <TabsContent
+              value={TabOption.AdditionalMetadata}
+              className="flex-1 min-h-0 overflow-y-auto"
+            >
               <CodeHighlighter
-                className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-                maxHeight="400px"
-                minHeight="400px"
+                className="my-4"
                 language="json"
                 code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
               />
             </TabsContent>
           </Tabs>
         </TabsContent>
-        <TabsContent value="traces" className="min-h-0 flex-1">
+        <TabsContent value="traces" className="min-h-0 flex-1 overflow-auto">
           <Observability
             taskRunId={taskRunId}
             isRunning={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
@@ -319,7 +328,7 @@ export const TaskRunDetail = ({
             ]}
           />
         </TabsContent>
-        <TabsContent value="logs" className="min-h-0 flex-1">
+        <TabsContent value="logs" className="min-h-0 flex-1 flex flex-col">
           <TaskRunLogs resetTrigger={logsResetKey} taskRun={taskRun} />
         </TabsContent>
       </Tabs>

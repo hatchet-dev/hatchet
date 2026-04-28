@@ -4,12 +4,14 @@ import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
 import {
   MembershipsContextType,
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
+import { usePrefetchQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 function Main() {
@@ -18,6 +20,8 @@ function Main() {
   const { tenantId } = useCurrentTenantId();
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
+
+  usePrefetchQuery(queries.workflows.list(tenantId, { limit: 200 }));
 
   const navSections = useMemo(
     () =>

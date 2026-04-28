@@ -86,6 +86,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads) gen.V1TaskSummary {
 		Attempt:               &attempt,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
 		IsEvicted:             &isEvicted,
+		IsDurable:             &task.IsDurable,
 	}
 
 	return summary
@@ -161,15 +162,16 @@ func ToTaskRunEventMany(
 		attempt := retryCount + 1
 
 		toReturn[i] = gen.V1TaskEvent{
-			Id:           int(event.ID),
-			ErrorMessage: &event.ErrorMessage.String,
-			EventType:    gen.V1TaskEventType(event.EventType),
-			Message:      event.AdditionalEventMessage.String,
-			Timestamp:    event.EventTimestamp.Time,
-			WorkerId:     event.WorkerID,
-			TaskId:       taskExternalId,
-			RetryCount:   &retryCount,
-			Attempt:      &attempt,
+			Id:              int(event.ID),
+			ErrorMessage:    &event.ErrorMessage.String,
+			EventType:       gen.V1TaskEventType(event.EventType),
+			Message:         event.AdditionalEventMessage.String,
+			Timestamp:       event.EventTimestamp.Time,
+			WorkerId:        event.WorkerID,
+			TaskId:          taskExternalId,
+			RetryCount:      &retryCount,
+			Attempt:         &attempt,
+			TaskDisplayName: &event.TaskDisplayName,
 		}
 	}
 
@@ -339,16 +341,14 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		Attempt:               &attempt,
 		WorkflowConfig:        &workflowConfig,
 		ParentTaskExternalId:  parentTaskExternalId,
+		IsDurable:             &taskWithData.IsDurable,
+		IsEvicted:             &isEvicted,
 	}
 
 	if workflowVersion != nil {
 		summary.WorkflowVersionId = &workflowVersion.WorkflowVersion.ID
 	} else if taskWithData.WorkflowVersionID != uuid.Nil {
 		summary.WorkflowVersionId = &taskWithData.WorkflowVersionID
-	}
-
-	if isEvicted {
-		summary.IsEvicted = &isEvicted
 	}
 
 	return summary

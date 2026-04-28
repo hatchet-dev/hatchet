@@ -5,7 +5,7 @@ import { AuthLegalText } from './auth-legal-text';
 import { OrContinueWith, SocialAuthButtons } from './social-auth';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Loading } from '@/components/v1/ui/loading';
-import React from 'react';
+import React, { useState } from 'react';
 
 export function AuthPage({
   title,
@@ -18,6 +18,7 @@ export function AuthPage({
 }) {
   useErrorParam();
   const { meta, isLoading } = useApiMeta();
+  const [ssoExpanded, setSsoExpanded] = useState(false);
 
   if (isLoading) {
     return <Loading />;
@@ -27,15 +28,23 @@ export function AuthPage({
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
+  const ssoEnabled = schemes.includes('sso');
 
   const providers = [
     googleEnabled && 'google',
     githubEnabled && 'github',
-  ].filter(Boolean) as Array<'google' | 'github'>;
+    ssoEnabled && 'sso',
+  ].filter(Boolean) as Array<'google' | 'github' | 'sso'>;
 
   const sections = [
-    providers.length > 0 && <SocialAuthButtons providers={providers} />,
-    basicEnabled && basicSection,
+    providers.length > 0 && (
+      <SocialAuthButtons
+        providers={providers}
+        ssoExpanded={ssoExpanded}
+        setSsoExpanded={setSsoExpanded}
+      />
+    ),
+    !ssoExpanded && basicEnabled && basicSection,
   ].filter(Boolean);
 
   return (

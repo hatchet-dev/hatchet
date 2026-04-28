@@ -45,7 +45,7 @@ export default function DevtoolsFooter() {
         {anyOpen ? (
           <div
             className={cn(
-              'absolute bottom-full right-0 mb-2 overflow-hidden rounded-md border bg-background shadow-lg',
+              'absolute bottom-full right-0 z-50 mb-2 overflow-hidden rounded-md border bg-background shadow-lg',
               'w-[min(820px,calc(100vw-16px))] max-h-[70vh]',
             )}
           >

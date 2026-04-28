@@ -59,7 +59,7 @@ cp $tmp_dir/hatchet_sdk/clients/rest/api/__init__.py $dst_dir/api/__init__.py
 rm -rf $tmp_dir
 
 
-MIN_GRPCIO_VERSION=$(grep '^grpcio = ' pyproject.toml | cut -d'"' -f2 | tr -d '^')
+MIN_GRPCIO_VERSION=$(grep '"grpcio>=' pyproject.toml | cut -d'"' -f2 | cut -d'=' -f2 | cut -d',' -f1)
 
 poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
 

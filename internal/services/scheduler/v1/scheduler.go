@@ -393,7 +393,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		s.l.Debug().Ctx(ctx).Msgf("partition: checking step run requeue")
 
 		// list all tenants
-		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), sqlcv1.TenantMajorEngineVersionV1)
+		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")
@@ -431,16 +431,25 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		assignedMsgs := make([]*msgqueue.Message, 0)
 
 		invCountOpts := make([]repov1.IdInsertedAt, 0, len(res.Assigned))
+
 		for _, a := range res.Assigned {
-			invCountOpts = append(invCountOpts, repov1.IdInsertedAt{
-				ID:         a.QueueItem.TaskID,
-				InsertedAt: a.QueueItem.TaskInsertedAt,
-			})
+			if a.IsDurable {
+				invCountOpts = append(invCountOpts, repov1.IdInsertedAt{
+					ID:         a.QueueItem.TaskID,
+					InsertedAt: a.QueueItem.TaskInsertedAt,
+				})
+			}
 		}
 
-		invocationCounts, invCountErr := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
-		if invCountErr != nil {
-			return fmt.Errorf("could not get durable task invocation counts for assigned tasks: %w", invCountErr)
+		invocationCounts := make(map[repov1.IdInsertedAt]*int32, len(invCountOpts))
+
+		if len(invCountOpts) > 0 {
+			invocationCounts, err = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
+			if err != nil {
+				s.internalRetry(ctx, tenantId, res.Assigned...)
+
+				return fmt.Errorf("could not get durable task invocation counts for assigned tasks: %w", err)
+			}
 		}
 
 		for _, bulkAssigned := range res.Assigned {

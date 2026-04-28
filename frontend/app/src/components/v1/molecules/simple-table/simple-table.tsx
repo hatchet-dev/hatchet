@@ -32,12 +32,14 @@ export function SimpleTable<
   },
 >({ columns, data }: SimpleTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-md border bg-background">
+    <div className="overflow-auto rounded-md border bg-background">
       <Table>
         <TableHeader>
           <TableRow>
             {columns.map(({ columnLabel }) => (
-              <TableHead key={columnLabel}>{columnLabel}</TableHead>
+              <TableHead key={columnLabel} className="pr-8">
+                {columnLabel}
+              </TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -45,7 +47,9 @@ export function SimpleTable<
           {data.map((row) => (
             <TableRow key={row.metadata.id}>
               {columns.map(({ columnLabel, cellRenderer }) => (
-                <TableCell key={columnLabel}>{cellRenderer(row)}</TableCell>
+                <TableCell key={columnLabel} className="pr-8">
+                  {cellRenderer(row)}
+                </TableCell>
               ))}
             </TableRow>
           ))}

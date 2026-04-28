@@ -94,17 +94,7 @@ WHERE
 RETURNING *;
 
 -- name: PollCronSchedules :many
-WITH latest_workflow_versions AS (
-    SELECT
-        "workflowId",
-        MAX("order") as max_order
-    FROM
-        "WorkflowVersion"
-    WHERE
-        "deletedAt" IS NULL
-    GROUP BY "workflowId"
-),
-eligible_cron_with_versions AS (
+WITH eligible_cron_with_versions AS MATERIALIZED (
     SELECT
         cronSchedule."parentId",
         cronSchedule."cron",
@@ -119,8 +109,11 @@ eligible_cron_with_versions AS (
         "WorkflowTriggers" as triggers ON triggers."id" = cronSchedule."parentId"
     JOIN
         "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
+    JOIN
+        "Tenant" as tenant ON tenant."id" = triggers."tenantId"
     WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
+        AND tenant."deletedAt" IS NULL
         AND (
             cronSchedule."tickerId" IS NULL
             OR NOT EXISTS (
@@ -129,6 +122,17 @@ eligible_cron_with_versions AS (
             OR cronSchedule."tickerId" = @tickerId::uuid
         )
     FOR UPDATE OF cronSchedule SKIP LOCKED
+),
+latest_workflow_versions AS (
+    SELECT
+        DISTINCT ON ("workflowId")
+        "workflowId",
+        "id"
+    FROM
+        "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
 ),
 eligible_cron_schedules AS (
     SELECT
@@ -140,7 +144,7 @@ eligible_cron_schedules AS (
     FROM
         eligible_cron_with_versions as ecv
     JOIN
-        latest_workflow_versions as l ON ecv."workflowId" = l."workflowId" AND ecv."order" = l.max_order
+        latest_workflow_versions as l ON ecv."workflowId" = l."workflowId" AND ecv."workflowVersionId" = l."id"
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules
@@ -181,11 +185,14 @@ WITH latest_workflow_versions AS (
     JOIN
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
+        "Tenant" AS tenant ON tenant."id" = workflow."tenantId"
+    JOIN
         latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id"
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
+        AND tenant."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
@@ -229,9 +236,14 @@ WITH active_tenant_alerts AS (
         alerts.*
     FROM
         "TenantAlertingSettings" as alerts
+    JOIN
+        "Tenant" as tenant ON tenant."id" = alerts."tenantId"
     WHERE
-        "lastAlertedAt" IS NULL OR
-        "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
+        tenant."deletedAt" IS NULL
+        AND (
+            "lastAlertedAt" IS NULL OR
+            "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
+        )
     FOR UPDATE SKIP LOCKED
 ),
 failed_run_count_by_tenant AS (
@@ -273,8 +285,11 @@ WITH expiring_tokens AS (
         t0."id", t0."name", t0."expiresAt"
     FROM
         "APIToken" as t0
+    JOIN
+        "Tenant" as tenant ON tenant."id" = t0."tenantId"
     WHERE
-        t0."revoked" = false
+        tenant."deletedAt" IS NULL
+        AND t0."revoked" = false
         AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
         AND t0."expiresAt" >= NOW()
         AND (
@@ -320,8 +335,11 @@ WITH alerting_resource_limits AS (
         "TenantAlertingSettings" AS ta
     ON
         ta."tenantId" = rl."tenantId"::uuid
+    JOIN
+        "Tenant" AS tenant ON tenant."id" = rl."tenantId"
     WHERE
-        ta."enableTenantResourceLimitAlerts" = true
+        tenant."deletedAt" IS NULL
+        AND ta."enableTenantResourceLimitAlerts" = true
         AND (
             (rl."alarmValue" IS NOT NULL AND rl."value" >= rl."alarmValue")
             OR rl."value" >= rl."limitValue"

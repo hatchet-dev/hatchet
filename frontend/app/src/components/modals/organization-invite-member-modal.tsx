@@ -16,7 +16,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -25,7 +25,7 @@ const schema = z.object({
   email: z.string().email('Invalid email address'),
 });
 
-export type OrganizationInviteMemberModalProps = {
+type OrganizationInviteMemberModalProps = {
   organizationId: string;
   organizationName: string;
   onClose: () => void;
@@ -56,6 +56,7 @@ export const OrganizationInviteMemberModal = ({
     },
   });
 
+  const queryClient = useQueryClient();
   const orgApi = useOrganizationApi();
   const orgInviteCreate =
     orgApi.organizationInviteCreateMutation(organizationId);
@@ -70,6 +71,9 @@ export const OrganizationInviteMemberModal = ({
       return request;
     },
     onSuccess: (request) => {
+      queryClient.invalidateQueries({
+        queryKey: ['organization-invites:list', organizationId],
+      });
       reset();
       onCreated(request);
       onClose();

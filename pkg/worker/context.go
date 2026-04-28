@@ -118,6 +118,10 @@ type HatchetContext interface {
 	ChildIndex() *int32
 
 	ChildKey() *string
+
+	TriggeringEventId() *string
+
+	TriggeringEventKey() *string
 }
 
 // Deprecated: TriggeredBy is an internal type used by the new Go SDK.
@@ -681,6 +685,14 @@ func (h *hatchetContext) ChildIndex() *int32 {
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ChildKey() *string {
 	return h.a.ChildKey
+}
+
+func (h *hatchetContext) TriggeringEventId() *string {
+	return h.a.TriggeringEventExternalId
+}
+
+func (h *hatchetContext) TriggeringEventKey() *string {
+	return h.a.TriggeringEventKey
 }
 
 // Deprecated: ParentWorkflowRunId is an internal method used by the new Go SDK.

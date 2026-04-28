@@ -16,7 +16,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
@@ -42,10 +42,16 @@ class V1UpdateWebhookRequest(BaseModel):
         description="The static payload to use for the webhook. This is used to send a static payload with the webhook.",
         alias="staticPayload",
     )
+    return_event_as_response_payload: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether to return the triggered event as the response payload when this webhook is triggered",
+        alias="returnEventAsResponsePayload",
+    )
     __properties: ClassVar[List[str]] = [
         "eventKeyExpression",
         "scopeExpression",
         "staticPayload",
+        "returnEventAsResponsePayload",
     ]
 
     model_config = ConfigDict(
@@ -101,6 +107,7 @@ class V1UpdateWebhookRequest(BaseModel):
                 "eventKeyExpression": obj.get("eventKeyExpression"),
                 "scopeExpression": obj.get("scopeExpression"),
                 "staticPayload": obj.get("staticPayload"),
+                "returnEventAsResponsePayload": obj.get("returnEventAsResponsePayload"),
             }
         )
         return _obj

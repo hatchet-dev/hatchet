@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import {
   limitDurationMap,
   limitedResources,
@@ -101,10 +102,10 @@ export default function ResourceLimits() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Billing & Limits
-        </h2>
-        <Separator className="my-4" />
+        <SettingsPageHeader
+          title="Resource limit settings"
+          description="Review billing details and the resource limits currently applied to this tenant."
+        />
 
         {billingEnabled && (
           <>
@@ -129,28 +130,18 @@ export default function ResourceLimits() {
           </>
         )}
 
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
-          Resource Limits
-        </h3>
-        <Separator className="my-4" />
-        <p className="text-sm text-muted-foreground mb-4">
-          Resource limits control usage within your tenant. When a limit is
-          reached, the system will take action based on the limit type. Upgrade
-          your plan or{' '}
-          <a
-            href="https://hatchet.run/office-hours"
-            className="text-primary/70 hover:text-primary hover:underline"
-          >
-            contact us
-          </a>{' '}
-          to adjust your limits.
-        </p>
-
         {resourceLimits.length > 0 ? (
           <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No resource limits configured.
+            No resource limits configured. Upgrade your plan or{' '}
+            <a
+              href="https://hatchet.run/office-hours"
+              className="text-primary/70 hover:text-primary hover:underline"
+            >
+              contact us
+            </a>{' '}
+            to adjust your limits.
           </div>
         )}
       </div>

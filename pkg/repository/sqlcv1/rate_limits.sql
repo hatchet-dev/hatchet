@@ -78,6 +78,10 @@ SELECT
 FROM
     rate_limits;
 
+-- name: DeleteRateLimitForTenant :exec
+DELETE FROM "RateLimit" rl WHERE
+    rl."tenantId" = @tenantId::uuid AND rl."key" = @key;
+
 -- name: ListRateLimitsForTenantNoMutate :many
 -- Returns the same results as ListRateLimitsForTenantWithMutate but does not update the rate limit values
 SELECT

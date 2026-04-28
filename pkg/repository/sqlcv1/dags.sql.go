@@ -22,17 +22,13 @@ type CreateDAGDataParams struct {
 const createDAGs = `-- name: CreateDAGs :many
 WITH input AS (
     SELECT
-        tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id
-    FROM
-        (
-            SELECT
-                unnest($1::uuid[]) AS tenant_id,
-                unnest($2::uuid[]) AS external_id,
-                unnest($3::text[]) AS display_name,
-                unnest($4::uuid[]) AS workflow_id,
-                unnest($5::uuid[]) AS workflow_version_id,
-                unnest($6::uuid[]) AS parent_task_external_id
-        ) AS subquery
+        unnest($1::uuid[]) AS tenant_id,
+        unnest($2::uuid[]) AS external_id,
+        unnest($3::text[]) AS display_name,
+        unnest($4::uuid[]) AS workflow_id,
+        unnest($5::uuid[]) AS workflow_version_id,
+        unnest($6::uuid[]) AS parent_task_external_id,
+        unnest($7::jsonb[]) AS desired_worker_labels
 )
 INSERT INTO v1_dag (
     tenant_id,
@@ -40,7 +36,8 @@ INSERT INTO v1_dag (
     display_name,
     workflow_id,
     workflow_version_id,
-    parent_task_external_id
+    parent_task_external_id,
+    desired_worker_labels
 )
 SELECT
     i.tenant_id,
@@ -48,11 +45,12 @@ SELECT
     i.display_name,
     i.workflow_id,
     i.workflow_version_id,
-    NULLIF(i.parent_task_external_id, '00000000-0000-0000-0000-000000000000'::uuid)
+    NULLIF(i.parent_task_external_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    i.desired_worker_labels
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id
+    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id, desired_worker_labels
 `
 
 type CreateDAGsParams struct {
@@ -62,6 +60,7 @@ type CreateDAGsParams struct {
 	Workflowids           []uuid.UUID `json:"workflowids"`
 	Workflowversionids    []uuid.UUID `json:"workflowversionids"`
 	Parenttaskexternalids []uuid.UUID `json:"parenttaskexternalids"`
+	Desiredworkerlabels   [][]byte    `json:"desiredworkerlabels"`
 }
 
 func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams) ([]*V1Dag, error) {
@@ -72,6 +71,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 		arg.Workflowids,
 		arg.Workflowversionids,
 		arg.Parenttaskexternalids,
+		arg.Desiredworkerlabels,
 	)
 	if err != nil {
 		return nil, err
@@ -89,6 +89,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
 			&i.ParentTaskExternalID,
+			&i.DesiredWorkerLabels,
 		); err != nil {
 			return nil, err
 		}
@@ -103,20 +104,16 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 const getDAGData = `-- name: GetDAGData :many
 WITH input AS (
     SELECT
-        dag_id, dag_inserted_at
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS dag_id,
-                unnest($2::timestamptz[]) AS dag_inserted_at
-        ) AS subquery
+        unnest($1::bigint[]) AS dag_id,
+        unnest($2::timestamptz[]) AS dag_inserted_at
 )
-SELECT
-    v1_dag_data.dag_id, v1_dag_data.dag_inserted_at, input, additional_metadata, input.dag_id, input.dag_inserted_at
-FROM
-    v1_dag_data
-JOIN
-    input USING (dag_id, dag_inserted_at)
+SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels
+FROM v1_dag d
+JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
+WHERE (d.id, d.inserted_at) IN (
+    SELECT dag_id, dag_inserted_at
+    FROM input
+)
 `
 
 type GetDAGDataParams struct {
@@ -125,12 +122,11 @@ type GetDAGDataParams struct {
 }
 
 type GetDAGDataRow struct {
-	DagID              int64              `json:"dag_id"`
-	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
-	Input              []byte             `json:"input"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
-	DagID_2            interface{}        `json:"dag_id_2"`
-	DagInsertedAt_2    interface{}        `json:"dag_inserted_at_2"`
+	DagID               int64              `json:"dag_id"`
+	DagInsertedAt       pgtype.Timestamptz `json:"dag_inserted_at"`
+	Input               []byte             `json:"input"`
+	AdditionalMetadata  []byte             `json:"additional_metadata"`
+	DesiredWorkerLabels []byte             `json:"desired_worker_labels"`
 }
 
 func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*GetDAGDataRow, error) {
@@ -147,8 +143,7 @@ func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams)
 			&i.DagInsertedAt,
 			&i.Input,
 			&i.AdditionalMetadata,
-			&i.DagID_2,
-			&i.DagInsertedAt_2,
+			&i.DesiredWorkerLabels,
 		); err != nil {
 			return nil, err
 		}

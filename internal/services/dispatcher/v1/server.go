@@ -768,6 +768,11 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		}
 	}
 
+	var waitForLabel *string
+	if label := req.GetLabel(); label != "" {
+		waitForLabel = &label
+	}
+
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
@@ -777,6 +782,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		},
 		WaitFor: &v1.IngestWaitForOpts{
 			WaitForConditions: createConditionOpts,
+			Label:             waitForLabel,
 		},
 	})
 

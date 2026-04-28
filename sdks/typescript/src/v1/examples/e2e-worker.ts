@@ -58,6 +58,12 @@ import {
   scenarioTask,
   orchestratorTask,
 } from './child_index/workflow';
+import {
+  supportAgent,
+  triageTicket,
+  generateReply,
+  escalateTicket,
+} from './support_agent/workflow';
 
 const workflows = [
   bulkChild,
@@ -113,6 +119,10 @@ const workflows = [
   childIndexParent,
   scenarioTask,
   orchestratorTask,
+  supportAgent,
+  triageTicket,
+  generateReply,
+  escalateTicket,
 ];
 
 async function main() {

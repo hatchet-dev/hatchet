@@ -20,9 +20,6 @@ type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
 type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
 export type V1LogLineListQuery = Parameters<typeof api.v1LogLineList>[1];
-export type V1TenantLogLineListQuery = Parameters<
-  typeof api.v1TenantLogLineList
->[1];
 type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v1TaskGetPointMetrics
 >[1];
@@ -42,7 +39,12 @@ export const queries = createQueryKeyStore({
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
       queryFn: async () =>
-        (await cloudApi.subscriptionPlansList({ secure: true })).data,
+        (
+          await cloudApi.subscriptionPlansList({
+            secure: true,
+            useExchangeToken: true,
+          })
+        ).data,
     }),
 
     paymentMethods: (tenant: string) => ({
@@ -316,6 +318,12 @@ export const queries = createQueryKeyStore({
     getLogs: (task: string, query?: V1LogLineListQuery) => ({
       queryKey: ['v1-log-line:list', task, query],
       queryFn: async () => (await api.v1LogLineList(task, query)).data,
+    }),
+  },
+  v1DurableTasks: {
+    eventLog: (task: string) => ({
+      queryKey: ['v1-durable-task:event-log', task],
+      queryFn: async () => (await api.v1DurableTaskEventLogList(task)).data,
     }),
   },
   v1TaskEvents: {
