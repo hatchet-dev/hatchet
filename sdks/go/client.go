@@ -291,8 +291,10 @@ func (w *Worker) wrapDurableAction(actionID string, fn internal.WrappedTaskFn) f
 
 		var evictionHook worker.DurableEvictionHook
 		if w.evictionManager != nil {
+			// The engine omits invocation_count on the first invocation of a durable
+			// task (no entry in the durable event log yet). Treat zero as the implicit
+			// first attempt.
 			invCount := ctx.DurableTaskInvocationCount()
-			// FIXME: why is the engine returning nil for this?
 			if invCount == 0 {
 				invCount = 1
 			}

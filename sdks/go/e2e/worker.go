@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -322,7 +323,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		func(ctx hatchet.DurableContext, input MemoInput) (SleepResult, error) {
 			start := time.Now()
 
-			result, err := ctx.Memo("expensive-computation", func() (any, error) {
+			raw, err := ctx.Memo("expensive-computation", func() (any, error) {
 				time.Sleep(time.Duration(sleepTime) * time.Second)
 				return SleepResult{Message: input.Message, Duration: float64(sleepTime)}, nil
 			})
@@ -331,8 +332,8 @@ func registerAllWorkflows(client *hatchet.Client) {
 			}
 
 			var sr SleepResult
-			if m, ok := result.(SleepResult); ok {
-				sr = m
+			if err := json.Unmarshal(raw, &sr); err != nil {
+				return SleepResult{}, err
 			}
 
 			return SleepResult{Message: sr.Message, Duration: time.Since(start).Seconds()}, nil

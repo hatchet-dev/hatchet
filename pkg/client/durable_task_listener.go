@@ -308,6 +308,7 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 		l.mu.Lock()
 		l.running = false
 		l.mu.Unlock()
+		l.failPendingAcks(errors.New("durable task listener stopped"))
 	}()
 
 	for {
@@ -373,12 +374,15 @@ func (l *DurableTaskListener) handleStream(ctx context.Context, stream v1.V1Disp
 		l.l.Debug().Str("worker_id", l.workerID).Msg("DurableTaskListener: registered worker on stream")
 	}
 
+	streamCtx, cancelStream := context.WithCancel(ctx)
+	defer cancelStream()
+
 	sendDone := make(chan error, 1)
 	go func() {
 		for {
 			select {
-			case <-ctx.Done():
-				sendDone <- ctx.Err()
+			case <-streamCtx.Done():
+				sendDone <- streamCtx.Err()
 				return
 			case req := <-l.requestQueue:
 				if err := stream.Send(req); err != nil {
@@ -539,6 +543,74 @@ func (l *DurableTaskListener) SendWaitForRequest(
 		}
 		return completed.GetPayload(), nil
 	}
+}
+
+// MemoAckResult is what SendMemoRequest returns on a successful ack: the server-assigned
+// log entry ref, whether a memo already existed, and (if it did) the cached payload.
+type MemoAckResult struct {
+	Ref                *v1.DurableEventLogEntryRef
+	CachedPayload      []byte
+	MemoAlreadyExisted bool
+}
+
+// SendMemoRequest sends a memo lookup over the bidi DurableTask stream and blocks
+// until the engine acks with the cached payload (if any) and the log entry ref.
+// Mirrors the Python SDK's MemoEvent send_event flow.
+func (l *DurableTaskListener) SendMemoRequest(
+	ctx context.Context,
+	taskExternalID string,
+	invocationCount int32,
+	memoKey []byte,
+) (*MemoAckResult, error) {
+	ackKey := PendingAckKey{TaskID: taskExternalID, SignalKey: int64(invocationCount)}
+	ackCh := l.AddPendingEventAck(ackKey)
+
+	l.SendRequest(&v1.DurableTaskRequest{
+		Message: &v1.DurableTaskRequest_Memo{
+			Memo: &v1.DurableTaskMemoRequest{
+				InvocationCount:       invocationCount,
+				DurableTaskExternalId: taskExternalID,
+				Key:                   memoKey,
+			},
+		},
+	})
+
+	select {
+	case <-ctx.Done():
+		l.removePendingEventAck(ackKey)
+		return nil, ctx.Err()
+	case ack := <-ackCh:
+		if ack.Err != nil {
+			return nil, ack.Err
+		}
+		memoAck := ack.Resp.GetMemoAck()
+		if memoAck == nil || memoAck.GetRef() == nil {
+			return nil, fmt.Errorf("memo ack missing ref for task %s invocation %d", taskExternalID, invocationCount)
+		}
+		return &MemoAckResult{
+			Ref:                memoAck.GetRef(),
+			MemoAlreadyExisted: memoAck.GetMemoAlreadyExisted(),
+			CachedPayload:      memoAck.GetMemoResultPayload(),
+		}, nil
+	}
+}
+
+// SendMemoCompleted sends a fire-and-forget completion notification carrying the
+// computed memo payload so the engine persists it for future replays.
+func (l *DurableTaskListener) SendMemoCompleted(
+	ref *v1.DurableEventLogEntryRef,
+	memoKey []byte,
+	payload []byte,
+) {
+	l.SendRequest(&v1.DurableTaskRequest{
+		Message: &v1.DurableTaskRequest_CompleteMemo{
+			CompleteMemo: &v1.DurableTaskCompleteMemoRequest{
+				Ref:     ref,
+				MemoKey: memoKey,
+				Payload: payload,
+			},
+		},
+	})
 }
 
 func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {

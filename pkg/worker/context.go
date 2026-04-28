@@ -917,13 +917,6 @@ func (w *SingleWaitResult) Unmarshal(in interface{}) error {
 	return w.WaitResult.Unmarshal(w.key, in)
 }
 
-// Duration extracts the sleep duration from the wait result, if it was a sleep condition.
-func (w *SingleWaitResult) Duration() time.Duration {
-	// For sleep conditions, the duration is embedded in the condition key
-	// This is a best-effort extraction
-	return 0
-}
-
 // Deprecated: WaitResult is an internal type used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WaitResult struct {
@@ -1019,11 +1012,15 @@ type DurableHatchetContext interface {
 	// like worker restarts.
 	WaitFor(conditions condition.Condition) (*WaitResult, error)
 
-	// Memo executes fn and caches the result. On replay, the cached result is returned
-	// without re-executing fn. The key must be unique within the task.
-	Memo(key string, fn func() (any, error)) (any, error)
+	// Memo executes fn, JSON-serializes the result, and persists it via the engine's
+	// durable event log. On replay, the cached payload is returned without re-executing
+	// fn. Callers should json.Unmarshal the returned bytes into their concrete type.
+	// If the engine does not support durable memoization, fn is executed and the result
+	// is cached in process only (it will not survive replay).
+	// The key must be unique within the task.
+	Memo(key string, fn func() (any, error)) (json.RawMessage, error)
 
-	// Now returns the current time, memoized so replays return the same value.
+	// Now returns the current time, memoized via Memo so replays return the same value.
 	Now() (time.Time, error)
 
 	// InvocationCount returns the current invocation count for this durable task.
@@ -1046,7 +1043,7 @@ type durableHatchetContext struct {
 
 	invocationCount int32
 	memoMu          sync.Mutex
-	memoCache       map[string]any
+	memoCache       map[string]json.RawMessage
 }
 
 // SleepFor implements the DurableHatchetContext.SleepFor method.
@@ -1181,47 +1178,86 @@ func (d *durableHatchetContext) waitFor(conditions condition.Condition, waitKind
 	return newWaitResult(data)
 }
 
-// Memo executes fn and caches the result keyed by the given key.
-// On replay, the cached result is returned without re-executing fn.
-func (d *durableHatchetContext) Memo(key string, fn func() (any, error)) (any, error) {
+// Memo executes fn, JSON-serializes the result, and persists it via the engine's
+// durable event log. On replay, the cached payload is returned without re-executing
+// fn. Callers should json.Unmarshal the returned bytes into their concrete type.
+//
+// When the engine does not support durable memoization (or no listener is attached),
+// the result is cached in process only and will be re-computed on a fresh task run.
+func (d *durableHatchetContext) Memo(key string, fn func() (any, error)) (json.RawMessage, error) {
 	d.memoMu.Lock()
 	if d.memoCache == nil {
-		d.memoCache = make(map[string]any)
+		d.memoCache = make(map[string]json.RawMessage)
 	}
-
 	if cached, ok := d.memoCache[key]; ok {
 		d.memoMu.Unlock()
 		return cached, nil
 	}
 	d.memoMu.Unlock()
 
-	// TODO: when the new DurableTask bidi stream is implemented, this should send
-	// a DurableTaskMemoRequest and wait for the memo_ack response. For now, we
-	// fall back to executing the function directly.
+	listener := d.DurableTaskListener()
+	supportsEviction := d.DurableEvictionSupported()
+
+	if listener != nil && supportsEviction {
+		memoKey := []byte(key)
+		ack, err := listener.SendMemoRequest(d.GetContext(), d.StepRunId(), d.invocationCount, memoKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send memo request: %w", err)
+		}
+
+		if ack.MemoAlreadyExisted && len(ack.CachedPayload) > 0 {
+			d.memoMu.Lock()
+			d.memoCache[key] = ack.CachedPayload
+			d.memoMu.Unlock()
+			return ack.CachedPayload, nil
+		}
+
+		result, err := fn()
+		if err != nil {
+			return nil, err
+		}
+		payload, err := json.Marshal(result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal memo result: %w", err)
+		}
+
+		listener.SendMemoCompleted(ack.Ref, memoKey, payload)
+
+		d.memoMu.Lock()
+		d.memoCache[key] = payload
+		d.memoMu.Unlock()
+		return payload, nil
+	}
+
+	// Engine does not support durable memoization; fall back to in-process cache.
 	result, err := fn()
 	if err != nil {
 		return nil, err
 	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal memo result: %w", err)
+	}
 
 	d.memoMu.Lock()
-	d.memoCache[key] = result
+	d.memoCache[key] = payload
 	d.memoMu.Unlock()
-
-	return result, nil
+	return payload, nil
 }
 
-// Now returns the current time, memoized across replays.
+// Now returns the current time, memoized across replays via Memo.
 func (d *durableHatchetContext) Now() (time.Time, error) {
-	result, err := d.Memo("__now__", func() (any, error) {
+	raw, err := d.Memo("__now__", func() (any, error) {
 		return time.Now().UTC(), nil
 	})
 	if err != nil {
 		return time.Time{}, err
 	}
-	if t, ok := result.(time.Time); ok {
-		return t, nil
+	var t time.Time
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return time.Time{}, fmt.Errorf("failed to unmarshal memoized time: %w", err)
 	}
-	return time.Time{}, fmt.Errorf("unexpected type from memo: %T", result)
+	return t, nil
 }
 
 // InvocationCount returns the current invocation count for this durable task.
@@ -1270,7 +1306,7 @@ func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 			hatchetContext:  hCtx,
 			waitKeyCounter:  0,
 			invocationCount: invCount,
-			memoCache:       make(map[string]any),
+			memoCache:       make(map[string]json.RawMessage),
 		}
 	}
 
@@ -1284,7 +1320,7 @@ func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 		},
 		waitKeyCounter:  0,
 		invocationCount: invCount,
-		memoCache:       make(map[string]any),
+		memoCache:       make(map[string]json.RawMessage),
 	}
 }
 
