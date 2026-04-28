@@ -181,6 +181,8 @@ jobs:
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
+          SERVER_MSGQUEUE_KIND=rabbitmq
+          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
           EOF
 
       - name: Generate
@@ -194,6 +196,9 @@ jobs:
           set -a
           . .env
           set +a
+
+          export SERVER_MSGQUEUE_KIND=rabbitmq
+          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -309,6 +314,8 @@ jobs:
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
           SERVER_TASKQUEUE_KIND=postgres
+          SERVER_MSGQUEUE_KIND=rabbitmq
+          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
           EOF
 
       - name: Generate
@@ -322,6 +329,9 @@ jobs:
           set -a
           . .env
           set +a
+
+          export SERVER_MSGQUEUE_KIND=rabbitmq
+          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
 
           go run ./cmd/hatchet-admin quickstart
 
