@@ -88,6 +88,7 @@ from examples.webhook_with_scope.worker import (
     webhook_with_static_payload,
 )
 from examples.webhooks.worker import webhook
+from examples.welcome_email.worker import welcome_email
 from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
     otel_simple_task,
@@ -181,6 +182,7 @@ def main() -> None:
             triage_ticket,
             generate_reply,
             escalate_ticket,
+            welcome_email,
         ],
         lifespan=lifespan,
     )
