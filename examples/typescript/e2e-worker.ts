@@ -64,6 +64,7 @@ import {
   generateReply,
   escalateTicket,
 } from './support_agent/workflow';
+import { welcomeEmail } from './welcome_email/workflow';
 
 const workflows = [
   bulkChild,
@@ -123,6 +124,7 @@ const workflows = [
   triageTicket,
   generateReply,
   escalateTicket,
+  welcomeEmail,
 ];
 
 async function main() {

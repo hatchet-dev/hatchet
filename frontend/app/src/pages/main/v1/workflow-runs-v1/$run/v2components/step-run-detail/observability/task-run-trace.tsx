@@ -1,6 +1,5 @@
 import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TraceMinimap } from './minimap/trace-minimap';
-import { SpanDetail, GroupDetail } from './span-detail';
 import { TimeTickLabels } from './timeline/time-tick-labels';
 import {
   TraceTimeline,
@@ -19,6 +18,8 @@ import type {
   ParsedTraceQuery,
 } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
+import { useIsFeatureEnabled, FeatureFlagId } from '@/hooks/use-feature-flags';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { ChevronsDownUp, ChevronsUpDown, XIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -48,10 +49,6 @@ const findTimeRange = (
 
   return { minStart, maxEnd };
 };
-
-type Selection =
-  | { kind: 'span'; span: OtelSpanTree }
-  | { kind: 'group'; group: SpanGroupInfo };
 
 function findSpanInTrees(
   nodes: OtelSpanTree[],
@@ -161,6 +158,24 @@ function collectAllKeys(nodes: OtelSpanTree[]): string[] {
   return keys;
 }
 
+function collectKeysUpToDepth(
+  nodes: OtelSpanTree[],
+  maxDepth: number,
+  depth = 0,
+): string[] {
+  if (depth >= maxDepth) {
+    return [];
+  }
+  const keys: string[] = [];
+  for (const node of nodes) {
+    if (node.children.length > 0) {
+      keys.push(getStableKey(node));
+      keys.push(...collectKeysUpToDepth(node.children, maxDepth, depth + 1));
+    }
+  }
+  return keys;
+}
+
 export function TaskRunTrace({
   spanTrees,
   isRunning,
@@ -192,7 +207,7 @@ export function TaskRunTrace({
   );
 
   const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(() => {
-    const set = new Set(spanTrees.map((s) => s.spanId));
+    const set = new Set(collectKeysUpToDepth(spanTrees, 2));
     if (selectedSpanId) {
       const span = findSpanInTrees(spanTrees, selectedSpanId);
       if (span) {
@@ -256,6 +271,11 @@ export function TaskRunTrace({
   const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
   const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
 
+  const { isEnabled: minimapEnabled } = useIsFeatureEnabled(
+    FeatureFlagId.TraceMinimapEnabled,
+    false,
+  );
+
   const prevFocusedRef = useRef(focusedTaskRunId);
   if (focusedTaskRunId && focusedTaskRunId !== prevFocusedRef.current) {
     prevFocusedRef.current = focusedTaskRunId;
@@ -293,17 +313,18 @@ export function TaskRunTrace({
     }
   }
 
-  const resolvedSelection = useMemo((): Selection | undefined => {
-    if (selectedSpanId) {
-      const span = findSpanInTrees(spanTrees, selectedSpanId);
-      return span ? { kind: 'span', span } : undefined;
-    }
-    if (selectedGroupId) {
-      const group = findGroupInTrees(spanTrees, selectedGroupId);
-      return group ? { kind: 'group', group } : undefined;
-    }
-    return undefined;
-  }, [selectedSpanId, selectedGroupId, spanTrees]);
+  const resolvedSpan = useMemo(
+    () =>
+      selectedSpanId ? findSpanInTrees(spanTrees, selectedSpanId) : undefined,
+    [selectedSpanId, spanTrees],
+  );
+  const resolvedGroup = useMemo(
+    () =>
+      selectedGroupId
+        ? findGroupInTrees(spanTrees, selectedGroupId)
+        : undefined,
+    [selectedGroupId, spanTrees],
+  );
 
   const expandAncestors = useCallback(
     (span: OtelSpanTree) => {
@@ -323,14 +344,69 @@ export function TaskRunTrace({
     [spanTrees],
   );
 
+  const { open, close, isOpen } = useSidePanel();
+
+  const handleDetailClose = useCallback(() => {
+    setSelectedSpanId(undefined);
+    setSelectedGroupId(undefined);
+    close();
+  }, [setSelectedSpanId, setSelectedGroupId, close]);
+
+  const prevIsOpenRef = useRef(isOpen);
+  useEffect(() => {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+    if (wasOpen && !isOpen) {
+      setSelectedSpanId(undefined);
+      setSelectedGroupId(undefined);
+    }
+  }, [isOpen, setSelectedSpanId, setSelectedGroupId]);
+
   const handleSpanSelect = useCallback(
     (span: OtelSpanTree) => {
       expandAncestors(span);
-      setSelectedSpanId(
-        selectedSpanId === span.spanId ? undefined : span.spanId,
-      );
+      const isDeselecting = selectedSpanId === span.spanId;
+      setSelectedSpanId(isDeselecting ? undefined : span.spanId);
+      if (isDeselecting) {
+        close();
+      } else {
+        open({
+          type: 'span-details',
+          content: {
+            span,
+            activeFilters,
+            onAddFilter,
+            onRemoveFilter,
+            onSpanSelect: (childSpan) => {
+              expandAncestors(childSpan);
+              setSelectedSpanId(childSpan.spanId);
+              open({
+                type: 'span-details',
+                content: {
+                  span: childSpan,
+                  activeFilters,
+                  onAddFilter,
+                  onRemoveFilter,
+                  onClose: handleDetailClose,
+                },
+              });
+            },
+            onClose: handleDetailClose,
+          },
+        });
+      }
     },
-    [expandAncestors, selectedSpanId, setSelectedSpanId],
+    [
+      expandAncestors,
+      selectedSpanId,
+      setSelectedSpanId,
+      open,
+      close,
+      activeFilters,
+      onAddFilter,
+      onRemoveFilter,
+      handleDetailClose,
+    ],
   );
 
   const handleMinimapSpanSelect = useCallback(
@@ -343,17 +419,22 @@ export function TaskRunTrace({
 
   const handleGroupSelect = useCallback(
     (group: SpanGroupInfo) => {
-      setSelectedGroupId(
-        selectedGroupId === group.groupId ? undefined : group.groupId,
-      );
+      const isDeselecting = selectedGroupId === group.groupId;
+      setSelectedGroupId(isDeselecting ? undefined : group.groupId);
+      if (isDeselecting) {
+        close();
+      } else {
+        open({
+          type: 'group-details',
+          content: {
+            group,
+            onClose: handleDetailClose,
+          },
+        });
+      }
     },
-    [selectedGroupId, setSelectedGroupId],
+    [selectedGroupId, setSelectedGroupId, open, close, handleDetailClose],
   );
-
-  const handleDetailClose = useCallback(() => {
-    setSelectedSpanId(undefined);
-    setSelectedGroupId(undefined);
-  }, [setSelectedSpanId, setSelectedGroupId]);
 
   const handleShowMore = useCallback(
     (groupId: string, newVisibleCount: number) => {
@@ -369,8 +450,9 @@ export function TaskRunTrace({
     setSelectedSpanId(undefined);
     setSelectedGroupId(undefined);
     setVisibleRange({ startPct: 0, endPct: 1 });
+    close();
     onClearFilters?.();
-  }, [setSelectedSpanId, setSelectedGroupId, onClearFilters]);
+  }, [setSelectedSpanId, setSelectedGroupId, close, onClearFilters]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -387,36 +469,16 @@ export function TaskRunTrace({
     return () => window.removeEventListener('keydown', handler);
   }, [handleEscapeReset]);
 
-  const hasSelection = !!resolvedSelection;
-  const containerRef = useRef<HTMLDivElement>(null);
-  const timelineScrollRef = useRef<HTMLDivElement>(null);
-  const [containerHeight, setContainerHeight] = useState<number | undefined>();
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!hasSelection || !el) {
-      setContainerHeight(undefined);
+    const key = resolvedSpan
+      ? getStableKey(resolvedSpan)
+      : resolvedGroup?.groupId;
+
+    if (!key) {
       return;
     }
-
-    function measure() {
-      const top = el!.getBoundingClientRect().top;
-      setContainerHeight(window.innerHeight - top - 16);
-    }
-
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [hasSelection]);
-
-  useEffect(() => {
-    if (!resolvedSelection) {
-      return;
-    }
-    const key =
-      resolvedSelection.kind === 'span'
-        ? getStableKey(resolvedSelection.span)
-        : resolvedSelection.group.groupId;
 
     let cancelled = false;
     requestAnimationFrame(() => {
@@ -427,56 +489,41 @@ export function TaskRunTrace({
         if (cancelled) {
           return;
         }
-        const scrollContainer = timelineScrollRef.current;
-        if (!scrollContainer) {
+        const container = timelineRef.current;
+        if (!container) {
           return;
         }
-        const row = scrollContainer.querySelector(
+        const row = container.querySelector(
           `[data-row-key="${key}"]`,
         ) as HTMLElement | null;
-        if (row) {
-          const rowTop = row.offsetTop;
-          const target = Math.max(0, rowTop - scrollContainer.clientHeight / 3);
-          scrollContainer.scrollTo({ top: target, behavior: 'smooth' });
-        }
+        row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
     });
     return () => {
       cancelled = true;
     };
-  }, [resolvedSelection]);
+  }, [resolvedSpan, resolvedGroup]);
 
   return (
-    <div
-      ref={containerRef}
-      className="my-4 flex min-w-0 select-none flex-col gap-4"
-      style={containerHeight ? { height: containerHeight } : undefined}
-    >
-      <div
-        className={
-          hasSelection ? 'flex min-h-0 flex-1 flex-col' : 'flex flex-col'
-        }
-      >
-        <div className="shrink-0">
-          <div className="flex min-w-0">
-            <div
-              className="flex shrink-0 flex-wrap items-end gap-1 pb-1 pr-2"
-              style={{ width: LABEL_WIDTH }}
+    <div className="my-4 flex min-w-0 select-none flex-col gap-y-2">
+      <div className="shrink-0">
+        <div className="flex min-w-0">
+          <div style={{ width: LABEL_WIDTH }}>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="gap-1 text-xs p-2"
+              onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
             >
-              <Button
-                variant="ghost"
-                size="xs"
-                className="gap-1 text-xs"
-                onClick={isAllExpanded ? handleCollapseAll : handleExpandAll}
-              >
-                {isAllExpanded ? (
-                  <ChevronsDownUp className="size-3" />
-                ) : (
-                  <ChevronsUpDown className="size-3" />
-                )}
-                {isAllExpanded ? 'collapse all' : 'expand all'}
-              </Button>
-            </div>
+              {isAllExpanded ? (
+                <ChevronsDownUp className="size-3" />
+              ) : (
+                <ChevronsUpDown className="size-3" />
+              )}
+              {isAllExpanded ? 'Collapse All' : 'Expand All'}
+            </Button>
+          </div>
+          {minimapEnabled && (
             <div className="min-w-0 flex-1 pr-10">
               <div className="flex justify-end pb-1">
                 <Button
@@ -503,102 +550,70 @@ export function TaskRunTrace({
                 onHoverPctChange={setMinimapHoverPct}
               />
             </div>
-          </div>
-          {isZoomed && (
-            <div className="flex min-w-0">
-              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-              <div className="min-w-0 flex-1 pr-10">
-                <svg
-                  className="h-5 w-full"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  <line
-                    x1={visibleRange.startPct * 100}
-                    y1="0"
-                    x2="0"
-                    y2="100"
-                    className="stroke-border"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <line
-                    x1={visibleRange.endPct * 100}
-                    y1="0"
-                    x2="100"
-                    y2="100"
-                    className="stroke-border"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
-              </div>
-            </div>
           )}
-          {zoomedTicks && (
-            <div className="flex min-w-0">
-              <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-              <div className="min-w-0 flex-1 pr-10">
-                <TimeTickLabels
-                  ticks={zoomedTicks.ticks}
-                  totalMs={zoomedTicks.visDurationMs}
-                  offsetMs={zoomedTicks.visOffsetMs}
+        </div>
+        {minimapEnabled && isZoomed && (
+          <div className="flex min-w-0">
+            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div className="min-w-0 flex-1 pr-10">
+              <svg
+                className="h-5 w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <line
+                  x1={visibleRange.startPct * 100}
+                  y1="0"
+                  x2="0"
+                  y2="100"
+                  className="stroke-border"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
                 />
-              </div>
+                <line
+                  x1={visibleRange.endPct * 100}
+                  y1="0"
+                  x2="100"
+                  y2="100"
+                  className="stroke-border"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
             </div>
-          )}
-        </div>
-        <div
-          ref={timelineScrollRef}
-          className={hasSelection ? 'min-h-0 flex-1 overflow-y-auto' : ''}
-        >
-          <TraceTimeline
-            spanTrees={spanTrees}
-            isRunning={isRunning}
-            expandedSpanIds={expandedSpansIds}
-            onExpandChange={setExpandedSpansIds}
-            groupVisibleCounts={groupVisibleCounts}
-            onShowMore={handleShowMore}
-            selectedSpan={
-              resolvedSelection?.kind === 'span'
-                ? resolvedSelection.span
-                : undefined
-            }
-            selectedGroupId={
-              resolvedSelection?.kind === 'group'
-                ? resolvedSelection.group.groupId
-                : undefined
-            }
-            onSpanSelect={handleSpanSelect}
-            onGroupSelect={handleGroupSelect}
-            visibleRange={visibleRange}
-            onRangeChange={setVisibleRange}
-            externalCursorPct={minimapHoverPct}
-            onCursorPctChange={setTimelineHoverPct}
-          />
-        </div>
+          </div>
+        )}
+        {minimapEnabled && zoomedTicks && (
+          <div className="flex min-w-0">
+            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div className="min-w-0 flex-1 pr-10">
+              <TimeTickLabels
+                ticks={zoomedTicks.ticks}
+                totalMs={zoomedTicks.visDurationMs}
+                offsetMs={zoomedTicks.visOffsetMs}
+              />
+            </div>
+          </div>
+        )}
       </div>
-
-      {resolvedSelection?.kind === 'span' && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <SpanDetail
-            span={resolvedSelection.span}
-            onClose={handleDetailClose}
-            activeFilters={activeFilters}
-            onAddFilter={onAddFilter}
-            onRemoveFilter={onRemoveFilter}
-            onSpanSelect={handleSpanSelect}
-          />
-        </div>
-      )}
-      {resolvedSelection?.kind === 'group' && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <GroupDetail
-            group={resolvedSelection.group}
-            onClose={handleDetailClose}
-          />
-        </div>
-      )}
+      <div ref={timelineRef}>
+        <TraceTimeline
+          spanTrees={spanTrees}
+          isRunning={isRunning}
+          expandedSpanIds={expandedSpansIds}
+          onExpandChange={setExpandedSpansIds}
+          groupVisibleCounts={groupVisibleCounts}
+          onShowMore={handleShowMore}
+          selectedSpan={resolvedSpan}
+          selectedGroupId={resolvedGroup?.groupId}
+          onSpanSelect={handleSpanSelect}
+          onGroupSelect={handleGroupSelect}
+          visibleRange={visibleRange}
+          onRangeChange={setVisibleRange}
+          externalCursorPct={minimapHoverPct}
+          onCursorPctChange={setTimelineHoverPct}
+        />
+      </div>
     </div>
   );
 }
