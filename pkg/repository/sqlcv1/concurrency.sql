@@ -775,3 +775,29 @@ SELECT
     'RUNNING' AS "operation"
 FROM
     updated_slots;
+
+
+-- name: DeactivateStaleStepConcurrency :exec
+WITH tenant_concurrency_slots AS (
+    SELECT sc.id
+    FROM v1_step_concurrency sc
+    WHERE sc.tenant_id = @tenantId::UUID
+        AND sc.is_active = TRUE
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            WHERE cs.strategy_id = sc.id
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            JOIN v1_workflow_concurrency_slot wcs
+            ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id)
+                = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+            WHERE cs.strategy_id = sc.id
+        )
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_step_concurrency sc
+SET is_active = FALSE
+FROM tenant_concurrency_slots
+WHERE sc.id = tenant_concurrency_slots.id;
