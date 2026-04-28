@@ -55,17 +55,17 @@ There are three levers:
 
 **TTL (Time-To-Live)**: How long a task waits before becoming eligible for eviction. When the TTL expires, Hatchet evicts the task, frees the slot, and automatically resumes when the wait condition is satisfied. Shorter TTLs free slots faster but cause more eviction overhead.
 
-**Capacity-based eviction**: Whether Hatchet can evict this task when worker slots are under pressure. Set `allow_capacity_eviction=False` (Python), `allowCapacityEviction: false` (TypeScript), or `AllowCapacityEviction: false` (Go) for critical tasks that should not be interrupted. These tasks keep their slot until their wait completes normally.
+**Capacity-based eviction**: Whether Hatchet can evict this task when worker slots are under pressure. Set `allow_capacity_eviction=False` (Python), `allowCapacityEviction: false` (TypeScript), `AllowCapacityEviction: false` (Go), or `allow_capacity_eviction: false` (Ruby) for critical tasks that should not be interrupted. These tasks keep their slot until their wait completes normally.
 
 **Priority**: When multiple tasks are candidates for capacity-based eviction, tasks with lower priority values are evicted first. Use this to protect important tasks relative to less critical ones.
 
 <Callout type="info">
-To prevent a task from ever being evicted, set `ttl` to `None` (Python), `undefined` (TypeScript), or `0` (Go) and disable capacity eviction. This is useful for tasks holding critical state that cannot be checkpointed, but the task will consume a slot for the entire wait duration.
+To prevent a task from ever being evicted, set `ttl` to `None` (Python), `undefined` (TypeScript), `0` (Go), or `nil` (Ruby) and disable capacity eviction. This is useful for tasks holding critical state that cannot be checkpointed, but the task will consume a slot for the entire wait duration.
 </Callout>
 
 ### EvictionPolicy reference
 
-<UniversalTabs items={["Python", "TypeScript", "Go"]} optionKey="sdk">
+<UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]} optionKey="sdk">
 <Tabs.Tab title="Python">
 
 Pass an `eviction_policy` to the `durable_task` decorator:
@@ -97,6 +97,17 @@ Pass an `EvictionPolicy` using `hatchet.WithEvictionPolicy()`:
 | `TTL` | `time.Duration` | `15 * time.Minute` | Maximum wait duration before TTL-based eviction. Set to `0` to disable. |
 | `Priority` | `int` | `0` | Lower values are evicted first under capacity pressure. |
 | `AllowCapacityEviction` | `bool` | `true` | Whether the task can be evicted under slot pressure. |
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+Pass an `eviction_policy` to `hatchet.durable_task()`:
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ttl` | `Integer \| nil` | `900` (15 minutes) | Maximum wait duration in seconds before TTL-based eviction. Set to `nil` to disable. |
+| `priority` | `Integer` | `0` | Lower values are evicted first under capacity pressure. |
+| `allow_capacity_eviction` | `Boolean` | `true` | Whether the task can be evicted under slot pressure. |
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -161,7 +172,7 @@ Every durable task can configure an **eviction policy**, which tells Hatchet how
 
 Start by declaring a policy:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_eviction.worker.eviction_policy} />
@@ -177,11 +188,16 @@ Start by declaring a policy:
 <Snippet src={snippets.go.durable.eviction.main.eviction_policy} />
 
 </Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+<Snippet src={snippets.ruby.durable_eviction.worker.eviction_policy} />
+
+</Tabs.Tab>
 </UniversalTabs>
 
 Then attach it to a durable task. Any time the task enters a wait (sleep, event wait, child spawn) the policy's TTL and capacity-eviction settings are honored:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_eviction.worker.evictable_sleep} />
@@ -197,11 +213,16 @@ Then attach it to a durable task. Any time the task enters a wait (sleep, event 
 <Snippet src={snippets.go.durable.eviction.main.evictable_sleep} />
 
 </Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+<Snippet src={snippets.ruby.durable_eviction.worker.evictable_sleep} />
+
+</Tabs.Tab>
 </UniversalTabs>
 
 To opt a durable task out of eviction entirely, set `allowCapacityEviction` to `false` and leave the TTL unset. The task will hold its slot through waits:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]} variant="hidden">
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 
 <Snippet src={snippets.python.durable_eviction.worker.non_evictable_sleep} />
@@ -217,6 +238,11 @@ To opt a durable task out of eviction entirely, set `allowCapacityEviction` to `
 <Tabs.Tab title="Go">
 
 <Snippet src={snippets.go.durable.eviction.main.non_evictable_sleep} />
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+<Snippet src={snippets.ruby.durable_eviction.worker.non_evictable_sleep} />
 
 </Tabs.Tab>
 </UniversalTabs>
