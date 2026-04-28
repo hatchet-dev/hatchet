@@ -435,7 +435,7 @@ INSERT INTO "Worker" (
     "languageVersion",
     "os",
     "runtimeExtra",
-    "actionsHash"
+    "actionHash"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -449,7 +449,7 @@ INSERT INTO "Worker" (
     sqlc.narg('languageVersion')::text,
     sqlc.narg('os')::text,
     sqlc.narg('runtimeExtra')::text,
-    @actionsHash::bytea
+    @actionHash::bytea
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

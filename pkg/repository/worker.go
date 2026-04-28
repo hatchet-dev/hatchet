@@ -89,7 +89,7 @@ type WorkerRepository interface {
 	ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
-	GetWorkerActionsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId []uuid.UUID) (map[string][]string, error)
+	GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error)
 
 	// GetWorkerWorkflowsByWorkerId returns a list of workflows for a worker
 	GetWorkerWorkflowsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error)
@@ -276,7 +276,13 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 	return tenantToWorkers, nil
 }
 
-func (w *workerRepository) GetWorkerActionsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error) {
+func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error) {
+	actionHashToWorkerId := make(map[uuid.UUID][]byte)
+
+	for _, worker := range workers {
+		actionHashToWorkerId[worker.ID] = worker.ActionsHash
+	}
+
 	records, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
 		Workerids: workerIds,
 		Tenantid:  tenantId,

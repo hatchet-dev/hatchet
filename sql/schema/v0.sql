@@ -864,7 +864,7 @@ CREATE TABLE "Worker" (
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
     "durableTaskDispatcherId" UUID,
-    "actionsHash" BYTEA,
+    "actionHash" BYTEA,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -1441,6 +1441,9 @@ CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker" ("webhookId" ASC);
 -- CreateIndex
 
 CREATE INDEX "Worker_tenantId_lastHeartbeatAt_idx" ON "Worker" ("tenantId", "lastHeartbeatAt");
+
+-- CreateIndex
+CREATE INDEX "Worker_tenantId_actionHash_idx" ON "Worker" ("tenantId", "actionHash");
 
 -- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);
