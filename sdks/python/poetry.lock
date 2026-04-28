@@ -3737,15 +3737,15 @@ files = [
 
 [[package]]
 name = "types-psutil"
-version = "7.2.2.20260130"
+version = "7.2.2.20260408"
 description = "Typing stubs for psutil"
 optional = true
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"lint\""
 files = [
-    {file = "types_psutil-7.2.2.20260130-py3-none-any.whl", hash = "sha256:15523a3caa7b3ff03ac7f9b78a6470a59f88f48df1d74a39e70e06d2a99107da"},
-    {file = "types_psutil-7.2.2.20260130.tar.gz", hash = "sha256:15b0ab69c52841cf9ce3c383e8480c620a4d13d6a8e22b16978ebddac5590950"},
+    {file = "types_psutil-7.2.2.20260408-py3-none-any.whl", hash = "sha256:0c334f6f6bc9e9c24fca5c7d1f0b6971c961a0a2e3956dc5ce704722c01f9762"},
+    {file = "types_psutil-7.2.2.20260408.tar.gz", hash = "sha256:e8053450685965b8cd52afb62569073d00ea9967ae78bb45dff5f606847f97f2"},
 ]
 
 [[package]]
@@ -4167,4 +4167,4 @@ test = ["psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "py
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "94a5109ba1ba32526bcdc2ab7a314e41e14eff56a0173eedf572700fffafe336"
+content-hash = "38fb004b2ea383ff79390c203d028e4a0941826f5f51ce45d1bea299c52c8b13"
