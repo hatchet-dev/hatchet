@@ -78,7 +78,7 @@ func NewTenantOperationPool(p *partition.Partition, ql *zerolog.Logger, operatio
 				// list all tenants
 				innerCtx, innerCancel := context.WithTimeout(outerCtx, 5*time.Second)
 
-				tenants, err := p.ListTenantsForController(innerCtx, sqlcv1.TenantMajorEngineVersionV1)
+				tenants, err := p.ListTenantsForController(innerCtx)
 
 				if err != nil {
 					innerCancel()

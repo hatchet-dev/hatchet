@@ -176,16 +176,16 @@ func (p *Partition) GetInternalTenantForController(ctx context.Context) (*sqlcv1
 	return p.repo.GetInternalTenantForController(ctx, p.GetControllerPartitionId())
 }
 
-func (p *Partition) ListTenantsForController(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
-	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId(), majorVersion)
+func (p *Partition) ListTenantsForController(ctx context.Context) ([]*sqlcv1.Tenant, error) {
+	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId())
 }
 
-func (p *Partition) ListTenantsForScheduler(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
-	return p.repo.ListTenantsBySchedulerPartition(ctx, p.GetSchedulerPartitionId(), majorVersion)
+func (p *Partition) ListTenantsForScheduler(ctx context.Context) ([]*sqlcv1.Tenant, error) {
+	return p.repo.ListTenantsBySchedulerPartition(ctx, p.GetSchedulerPartitionId())
 }
 
-func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
-	return p.repo.ListTenantsByWorkerPartition(ctx, p.GetWorkerPartitionId(), majorVersion)
+func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context) ([]*sqlcv1.Tenant, error) {
+	return p.repo.ListTenantsByWorkerPartition(ctx, p.GetWorkerPartitionId())
 }
 
 func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() {
