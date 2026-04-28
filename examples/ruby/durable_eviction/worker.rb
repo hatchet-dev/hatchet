@@ -9,6 +9,7 @@ LONG_SLEEP_SECONDS = 15
 CAPACITY_SLEEP_SECONDS = 20
 EVENT_KEY = "durable-eviction:event"
 
+# > Eviction Policy
 EVICTION_POLICY = Hatchet::EvictionPolicy.new(
   ttl: EVICTION_TTL_SECONDS,
   allow_capacity_eviction: true,
@@ -38,6 +39,7 @@ BULK_CHILD_TASK = HATCHET.task(name: "bulk_child_task", execution_timeout: 60) d
   { "sleep_for" => sleep_for, "status" => "completed" }
 end
 
+# > Evictable Sleep
 EVICTABLE_SLEEP = HATCHET.durable_task(
   name: "evictable_sleep",
   execution_timeout: 300,
@@ -102,6 +104,7 @@ CAPACITY_EVICTABLE_SLEEP = HATCHET.durable_task(
   { "status" => "completed" }
 end
 
+# > Non Evictable Sleep
 NON_EVICTABLE_SLEEP = HATCHET.durable_task(
   name: "non_evictable_sleep",
   execution_timeout: 300,

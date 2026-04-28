@@ -1,4 +1,4 @@
-# frozen_string_literal: true
+frontend/docs/pages/v1/task-eviction.mdx# frozen_string_literal: true
 
 require "hatchet-sdk"
 
