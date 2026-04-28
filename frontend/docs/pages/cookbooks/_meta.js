@@ -13,4 +13,5 @@ export default {
   },
   "workflow-support-agent": "Support Agent",
   "welcome-email": "Welcome Email",
+  "durable-tasks-vs-dags": "Durable Tasks vs DAGs",
 };
