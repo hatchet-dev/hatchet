@@ -16,7 +16,7 @@ module WorkflowService
 
     rpc :PutWorkflow, ::PutWorkflowRequest, ::WorkflowVersion
     rpc :ScheduleWorkflow, ::ScheduleWorkflowRequest, ::WorkflowVersion
-    rpc :TriggerWorkflow, ::TriggerWorkflowRequest, ::TriggerWorkflowResponse
+    rpc :TriggerWorkflow, ::V1::TriggerWorkflowRequest, ::TriggerWorkflowResponse
     rpc :BulkTriggerWorkflow, ::BulkTriggerWorkflowRequest, ::BulkTriggerWorkflowResponse
     rpc :PutRateLimit, ::PutRateLimitRequest, ::PutRateLimitResponse
   end

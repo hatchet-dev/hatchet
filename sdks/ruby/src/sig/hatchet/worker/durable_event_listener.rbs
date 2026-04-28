@@ -1,0 +1,31 @@
+module Hatchet
+  module WorkerRuntime
+    class DurableEventListener
+      DEFAULT_RECONNECT_INTERVAL: Integer
+      EVICTION_ACK_TIMEOUT_SECONDS: Float
+
+      class WaitForEvent < Struct[untyped]
+        attr_accessor wait_for_conditions: untyped
+        attr_accessor label: String?
+      end
+
+      class MemoEvent < Struct[untyped]
+        attr_accessor memo_key: String
+        attr_accessor result: String?
+      end
+
+      attr_reader worker_id: String?
+
+      def initialize: (config: Config, channel: untyped, logger: Logger, ?on_server_evict: Proc?) -> void
+      def start: (String worker_id) -> void
+      def ensure_started: (String worker_id) -> void
+      def stop: () -> void
+      def send_event: (String durable_task_external_id, Integer invocation_count, (WaitForEvent | MemoEvent) event) -> untyped
+      def wait_for_callback: (String durable_task_external_id, Integer invocation_count, Integer branch_id, Integer node_id) -> Hash[Symbol, untyped]
+      def send_evict_invocation: (String durable_task_external_id, Integer invocation_count, ?reason: String?) -> void
+      def send_memo_completed_notification: (durable_task_external_id: String, node_id: Integer, branch_id: Integer, invocation_count: Integer, memo_key: String, memo_result_payload: String) -> void
+      def cleanup_task_state: (String durable_task_external_id, Integer invocation_count) -> void
+      def handle_response_for_test: (untyped response) -> void
+    end
+  end
+end

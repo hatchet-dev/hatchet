@@ -149,7 +149,7 @@ jobs:
           curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
-        run: docker compose up -d
+        run: docker compose up -d --wait
 
       - name: Go deps
         run: go mod download
@@ -159,8 +159,6 @@ jobs:
           cat > .env <<EOF
           HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
           DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
           SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
@@ -181,6 +179,12 @@ jobs:
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
+          SERVER_MSGQUEUE_KIND=rabbitmq
+          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+          SERVER_GRPC_INSECURE=true
+          SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
+          SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
+          SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
           EOF
 
       - name: Generate
@@ -195,11 +199,50 @@ jobs:
           . .env
           set +a
 
+          export SERVER_MSGQUEUE_KIND=rabbitmq
+          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
-          sleep 30
+          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
+          ENGINE_PID=$!
+          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
+          API_PID=$!
+
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+              echo "Hatchet engine and API are ready"
+              break
+            fi
+
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Hatchet engine exited before becoming ready"
+              cat /tmp/hatchet-engine.log
+              exit 1
+            fi
+
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "Hatchet API exited before becoming ready"
+              cat /tmp/hatchet-api.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+            echo "Timed out waiting for Hatchet engine/API to become ready"
+            echo "=== Engine logs ==="
+            cat /tmp/hatchet-engine.log
+            echo "=== API logs ==="
+            cat /tmp/hatchet-api.log
+            exit 1
+          fi
+
+      - name: Generate API token
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
 
       - name: Test
         run: |
@@ -238,7 +281,7 @@ jobs:
           curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
-        run: docker compose up -d
+        run: docker compose up -d --wait
 
       - name: Go deps
         run: go mod download
@@ -248,8 +291,6 @@ jobs:
           cat > .env <<EOF
           HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
           DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
           SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
@@ -272,6 +313,12 @@ jobs:
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
           SERVER_TASKQUEUE_KIND=postgres
+          SERVER_MSGQUEUE_KIND=rabbitmq
+          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+          SERVER_GRPC_INSECURE=true
+          SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
+          SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
+          SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
           EOF
 
       - name: Generate
@@ -286,11 +333,50 @@ jobs:
           . .env
           set +a
 
+          export SERVER_MSGQUEUE_KIND=rabbitmq
+          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
-          sleep 30
+          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
+          ENGINE_PID=$!
+          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
+          API_PID=$!
+
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+              echo "Hatchet engine and API are ready"
+              break
+            fi
+
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Hatchet engine exited before becoming ready"
+              cat /tmp/hatchet-engine.log
+              exit 1
+            fi
+
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "Hatchet API exited before becoming ready"
+              cat /tmp/hatchet-api.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+            echo "Timed out waiting for Hatchet engine/API to become ready"
+            echo "=== Engine logs ==="
+            cat /tmp/hatchet-engine.log
+            echo "=== API logs ==="
+            cat /tmp/hatchet-api.log
+            exit 1
+          fi
+
+      - name: Generate API token
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
 
       - name: Test
         run: |
