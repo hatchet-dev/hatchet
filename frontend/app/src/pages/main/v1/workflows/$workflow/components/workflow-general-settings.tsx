@@ -201,16 +201,13 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         .map((c) => ({
           stepReadableId: c.stepReadableId || 'N/A',
           ...c,
-          // hack for typing
-          metadata: {
-            id: '',
-          },
         }))
         .sort(
           (a, b) =>
             b.scope.localeCompare(a.scope) ||
             a.stepReadableId.localeCompare(b.stepReadableId),
         )}
+      rowKey={(row, i) => `${row.scope}-${row.stepReadableId}-${i}`}
       columns={[
         { columnLabel: 'Scope', cellRenderer: (row) => formatScope(row.scope) },
         { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },

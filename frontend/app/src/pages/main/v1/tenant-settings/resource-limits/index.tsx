@@ -131,7 +131,11 @@ export default function ResourceLimits() {
         )}
 
         {resourceLimits.length > 0 ? (
-          <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
+          <SimpleTable
+            columns={resourceLimitColumns}
+            data={resourceLimits}
+            rowKey={(row) => row.metadata.id}
+          />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
             No resource limits configured. Upgrade your plan or{' '}
