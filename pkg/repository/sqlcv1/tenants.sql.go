@@ -1021,17 +1021,12 @@ FROM
     "Tenant" as tenants
 WHERE
     "controllerPartitionId" = $1::text
-    AND "version" = $2::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL
 `
 
-type ListTenantsByControllerPartitionIdParams struct {
-	ControllerPartitionId string                   `json:"controllerPartitionId"`
-	Majorversion          TenantMajorEngineVersion `json:"majorversion"`
-}
-
-func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, arg ListTenantsByControllerPartitionIdParams) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, arg.ControllerPartitionId, arg.Majorversion)
+func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, controllerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, controllerpartitionid)
 	if err != nil {
 		return nil, err
 	}
@@ -1075,17 +1070,12 @@ FROM
     "Tenant" as tenants
 WHERE
     "schedulerPartitionId" = $1::text
-    AND "version" = $2::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL
 `
 
-type ListTenantsBySchedulerPartitionIdParams struct {
-	SchedulerPartitionId string                   `json:"schedulerPartitionId"`
-	Majorversion         TenantMajorEngineVersion `json:"majorversion"`
-}
-
-func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, arg ListTenantsBySchedulerPartitionIdParams) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsBySchedulerPartitionId, arg.SchedulerPartitionId, arg.Majorversion)
+func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, schedulerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsBySchedulerPartitionId, schedulerpartitionid)
 	if err != nil {
 		return nil, err
 	}
@@ -1129,17 +1119,12 @@ FROM
     "Tenant" as tenants
 WHERE
     "workerPartitionId" = $1::text
-    AND "version" = $2::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL
 `
 
-type ListTenantsByTenantWorkerPartitionIdParams struct {
-	WorkerPartitionId string                   `json:"workerPartitionId"`
-	Majorversion      TenantMajorEngineVersion `json:"majorversion"`
-}
-
-func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db DBTX, arg ListTenantsByTenantWorkerPartitionIdParams) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsByTenantWorkerPartitionId, arg.WorkerPartitionId, arg.Majorversion)
+func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db DBTX, workerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsByTenantWorkerPartitionId, workerpartitionid)
 	if err != nil {
 		return nil, err
 	}

@@ -23,7 +23,7 @@ func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 }
 
 func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, perTenantTimeout time.Duration, f func(ctx context.Context, tenant sqlcv1.Tenant) error) error {
-	tenants, err := rc.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV0)
+	tenants, err := rc.p.ListTenantsForController(ctx)
 
 	if err != nil {
 		return fmt.Errorf("could not list tenants: %w", err)

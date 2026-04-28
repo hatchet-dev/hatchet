@@ -23,7 +23,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 			o.l.Debug().Ctx(ctx).Msgf("partition: running status updates for tasks")
 
 			// list all tenants
-			tenants, err := o.p.ListTenantsForController(ctx, sqlcv1.TenantMajorEngineVersionV1)
+			tenants, err := o.p.ListTenantsForController(ctx)
 
 			if err != nil {
 				o.l.Error().Ctx(ctx).Err(err).Msg("could not list tenants")
