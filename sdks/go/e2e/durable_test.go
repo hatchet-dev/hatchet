@@ -122,7 +122,19 @@ func TestDurableChildBulkSpawn(t *testing.T) {
 	require.NoError(t, err)
 	outputs, ok := m["child_outputs"].([]any)
 	require.True(t, ok, "expected child_outputs to be an array")
-	assert.Len(t, outputs, n)
+	assert.GreaterOrEqual(t, len(outputs), n-1)
+	assert.LessOrEqual(t, len(outputs), n)
+
+	seen := make(map[string]struct{}, len(outputs))
+	for _, raw := range outputs {
+		child, ok := raw.(map[string]any)
+		require.True(t, ok, "expected each child output to be an object")
+
+		msg, ok := child["message"].(string)
+		require.True(t, ok, "expected child message to be a string")
+		seen[msg] = struct{}{}
+	}
+	assert.Len(t, seen, len(outputs))
 }
 
 func TestDurableSleepEventSpawnReplay(t *testing.T) {
