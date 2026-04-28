@@ -1786,7 +1786,21 @@ func (r *sharedRepository) createTasks(
 		stepIdsToConfig[step.ID] = step
 	}
 
-	return r.insertTasks(ctx, tx, tenantId, tasks, stepIdsToConfig)
+	filteredTasks := make([]CreateTaskOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		if _, ok := stepIdsToConfig[task.StepId]; !ok {
+			r.l.Warn().Ctx(ctx).Str("step_id", task.StepId.String()).Str("external_id", task.ExternalId.String()).Msg("skipping task: step not found (may have been deleted)")
+			continue
+		}
+		filteredTasks = append(filteredTasks, task)
+	}
+
+	if len(filteredTasks) == 0 {
+		return []*V1TaskWithPayload{}, nil
+	}
+
+	return r.insertTasks(ctx, tx, tenantId, filteredTasks, stepIdsToConfig)
 }
 
 // insertTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
@@ -2369,10 +2383,28 @@ func (r *sharedRepository) replayTasks(
 		stepIdsToConfig[step.ID] = step
 	}
 
+	filteredTasks := make([]ReplayTaskOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		if _, ok := stepIdsToConfig[task.StepId]; !ok {
+			r.l.Warn().Ctx(ctx).Str("step_id", task.StepId.String()).Str("external_id", task.ExternalId.String()).Msg("skipping replay task: step not found (may have been deleted)")
+			continue
+		}
+		filteredTasks = append(filteredTasks, task)
+	}
+
+	res := make([]*V1TaskWithPayload, 0)
+
+	if len(filteredTasks) == 0 {
+		return res, nil
+	}
+
+	tasks = filteredTasks
+
 	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get step expressions: %w", err)
+		return nil, fmt.Errorf("failed to get concurrency expressions: %w", err)
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -2548,8 +2580,6 @@ func (r *sharedRepository) replayTasks(
 
 		stepIdsToStorePayloadOpts[task.StepId] = append(stepIdsToStorePayloadOpts[task.StepId], storePayloadOpts)
 	}
-
-	res := make([]*V1TaskWithPayload, 0)
 
 	// for any initial states which are not queued, create a finalizing task event
 	eventTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
