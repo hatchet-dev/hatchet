@@ -172,12 +172,6 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 		return nil, err
 	}
 
-	var err error
-
-	if err != nil {
-		return nil, err
-	}
-
 	var priority int32 = 1
 
 	if opts.Priority != nil {
