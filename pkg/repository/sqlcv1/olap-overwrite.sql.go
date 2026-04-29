@@ -594,7 +594,7 @@ WITH inputs AS (
         UNNEST($2::BIGINT[]) AS id,
         UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST($4::TEXT[]) AS queue,
-        UNNEST($5::UUID[]) AS action_id,
+        UNNEST($5::TEXT[]) AS action_id,
         UNNEST($6::UUID[]) AS step_id,
         UNNEST($7::UUID[]) AS workflow_id,
         UNNEST($8::UUID[]) AS workflow_version_id,
