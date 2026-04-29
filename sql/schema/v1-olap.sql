@@ -157,7 +157,7 @@ CREATE TABLE v1_tasks_olap (
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
 
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow_id);
@@ -178,7 +178,7 @@ CREATE TABLE v1_dags_olap (
     additional_metadata JSONB,
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_dags_olap_workflow_id_idx ON v1_dags_olap (tenant_id, workflow_id);

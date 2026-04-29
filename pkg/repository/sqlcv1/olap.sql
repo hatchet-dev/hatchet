@@ -154,55 +154,6 @@ WHERE
     END
 ;
 
--- name: CreateTasksOLAP :copyfrom
-INSERT INTO v1_tasks_olap (
-    tenant_id,
-    id,
-    inserted_at,
-    queue,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_version_id,
-    workflow_run_id,
-    schedule_timeout,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    external_id,
-    display_name,
-    input,
-    additional_metadata,
-    dag_id,
-    dag_inserted_at,
-    parent_task_external_id,
-    is_durable
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11,
-    $12,
-    $13,
-    $14,
-    $15,
-    $16,
-    $17,
-    $18,
-    $19,
-    $20,
-    $21,
-    $22
-);
-
 -- name: CreateDAGsOLAP :copyfrom
 INSERT INTO v1_dags_olap (
     tenant_id,

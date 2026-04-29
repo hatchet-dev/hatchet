@@ -1970,7 +1970,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) error {
 	// todo: add conflict handling to task writes to correctly set the status
 	// todo: when we write a task, check if we have any task events written for that task already and infer the status based on that
-	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
+	params := sqlcv1.CreateTasksOLAPParams{}
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, task := range tasks {
@@ -1989,30 +1989,28 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			payloadToWriteToTask = []byte("{}")
 		}
 
-		params = append(params, sqlcv1.CreateTasksOLAPParams{
-			TenantID:             task.TenantID,
-			ID:                   task.ID,
-			InsertedAt:           task.InsertedAt,
-			Queue:                task.Queue,
-			ActionID:             task.ActionID,
-			StepID:               task.StepID,
-			WorkflowID:           task.WorkflowID,
-			WorkflowVersionID:    task.WorkflowVersionID,
-			ScheduleTimeout:      task.ScheduleTimeout,
-			StepTimeout:          task.StepTimeout,
-			Priority:             task.Priority,
-			Sticky:               sqlcv1.V1StickyStrategyOlap(task.Sticky),
-			DesiredWorkerID:      task.DesiredWorkerID,
-			ExternalID:           task.ExternalID,
-			DisplayName:          task.DisplayName,
-			AdditionalMetadata:   task.AdditionalMetadata,
-			DagID:                task.DagID,
-			DagInsertedAt:        task.DagInsertedAt,
-			ParentTaskExternalID: task.ParentTaskExternalID,
-			WorkflowRunID:        task.WorkflowRunID,
-			Input:                payloadToWriteToTask,
-			IsDurable:            task.IsDurable.Bool,
-		})
+		params.Tenantids = append(params.Tenantids, task.TenantID)
+		params.Ids = append(params.Ids, task.ID)
+		params.Insertedats = append(params.Insertedats, task.InsertedAt)
+		params.Queues = append(params.Queues, task.Queue)
+		params.Actionids = append(params.Actionids, task.ActionID)
+		params.Stepids = append(params.Stepids, task.StepID)
+		params.Workflowids = append(params.Workflowids, task.WorkflowID)
+		params.Workflowversionids = append(params.Workflowversionids, task.WorkflowVersionID)
+		params.Scheduletimeouts = append(params.Scheduletimeouts, task.ScheduleTimeout)
+		params.Steptimeouts = append(params.Steptimeouts, task.StepTimeout)
+		params.Priorities = append(params.Priorities, task.Priority)
+		params.Stickies = append(params.Stickies, sqlcv1.V1StickyStrategyOlap(task.Sticky))
+		params.Desiredworkerids = append(params.Desiredworkerids, task.DesiredWorkerID)
+		params.Externalids = append(params.Externalids, task.ExternalID)
+		params.Displaynames = append(params.Displaynames, task.DisplayName)
+		params.Additionalmetadatas = append(params.Additionalmetadatas, task.AdditionalMetadata)
+		params.Dagids = append(params.Dagids, task.DagID)
+		params.Daginsertedats = append(params.Daginsertedats, task.DagInsertedAt)
+		params.Parenttaskexternalids = append(params.Parenttaskexternalids, task.ParentTaskExternalID)
+		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
+		params.Inputs = append(params.Inputs, payloadToWriteToTask)
+		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: task.ExternalID,
@@ -2027,7 +2025,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	}
 	defer rollback()
 
-	_, err = r.queries.CreateTasksOLAP(ctx, tx, params)
+	err = r.queries.CreateTasksOLAP(ctx, tx, params)
 	if err != nil {
 		return err
 	}

@@ -586,3 +586,136 @@ func (q *Queries) FindV1OLAPPayloadPartitionsBeforeDate(ctx context.Context, db 
 	}
 	return items, nil
 }
+
+const createTasksOLAP = `-- name: CreateTasksOLAP :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BIGINT[]) AS id,
+        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST($4::TEXT[]) AS queue,
+        UNNEST($5::UUID[]) AS action_id,
+        UNNEST($6::UUID[]) AS step_id,
+        UNNEST($7::UUID[]) AS workflow_id,
+        UNNEST($8::UUID[]) AS workflow_version_id,
+        UNNEST($9::UUID[]) AS workflow_run_id,
+        UNNEST($10::TEXT[]) AS schedule_timeout,
+        UNNEST($11::TEXT[]) AS step_timeout,
+        UNNEST($12::INT[]) AS priority,
+        UNNEST($13::v1_sticky_strategy_olap[]) AS sticky,
+        UNNEST($14::UUID[]) AS desired_worker_id,
+        UNNEST($15::UUID[]) AS external_id,
+        UNNEST($16::TEXT[]) AS display_name,
+        UNNEST($17::JSONB[]) AS input,
+        UNNEST($18::JSONB[]) AS additional_metadata,
+        UNNEST($19::BIGINT[]) AS dag_id,
+        UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST($21::UUID[]) AS parent_task_external_id,
+        UNNEST($22::BOOLEAN[]) AS is_durable
+)
+INSERT INTO v1_tasks_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    queue,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_version_id,
+    workflow_run_id,
+    schedule_timeout,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    external_id,
+    display_name,
+    input,
+    additional_metadata,
+    dag_id,
+    dag_inserted_at,
+    parent_task_external_id,
+    is_durable
+)
+SELECT
+    tenant_id,
+    id,
+    inserted_at,
+    queue,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_version_id,
+    workflow_run_id,
+    schedule_timeout,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    external_id,
+    display_name,
+    input,
+    additional_metadata,
+    dag_id,
+    dag_inserted_at,
+    parent_task_external_id,
+    is_durable
+FROM inputs
+ON CONFLICT (inserted_at, id)
+DO UPDATE SET
+    -- todo: determine this with cases
+    readable_status = EXCLUDED.readable_status
+`
+
+type CreateTasksOLAPParams struct {
+	Tenantids             []uuid.UUID            `json:"tenantids"`
+	Ids                   []int64                `json:"ids"`
+	Insertedats           []pgtype.Timestamptz   `json:"insertedats"`
+	Queues                []string               `json:"queues"`
+	Actionids             []string               `json:"actionids"`
+	Stepids               []uuid.UUID            `json:"stepids"`
+	Workflowids           []uuid.UUID            `json:"workflowids"`
+	Workflowversionids    []uuid.UUID            `json:"workflowversionids"`
+	Workflowrunids        []uuid.UUID            `json:"workflowrunids"`
+	Scheduletimeouts      []string               `json:"scheduletimeouts"`
+	Steptimeouts          []pgtype.Text          `json:"steptimeouts"`
+	Priorities            []pgtype.Int4          `json:"priorities"`
+	Stickies              []V1StickyStrategyOlap `json:"stickies"`
+	Desiredworkerids      []*uuid.UUID           `json:"desiredworkerids"`
+	Externalids           []uuid.UUID            `json:"externalids"`
+	Displaynames          []string               `json:"displaynames"`
+	Inputs                [][]byte               `json:"inputs"`
+	Additionalmetadatas   [][]byte               `json:"additionalmetadatas"`
+	Dagids                []pgtype.Int8          `json:"dagids"`
+	Daginsertedats        []pgtype.Timestamptz   `json:"daginsertedats"`
+	Parenttaskexternalids []*uuid.UUID           `json:"parenttaskexternalids"`
+	Isdurables            []bool                 `json:"isdurables"`
+}
+
+func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
+	_, err := db.Exec(ctx, createTasksOLAP,
+		arg.Tenantids,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Queues,
+		arg.Actionids,
+		arg.Stepids,
+		arg.Workflowids,
+		arg.Workflowversionids,
+		arg.Workflowrunids,
+		arg.Scheduletimeouts,
+		arg.Steptimeouts,
+		arg.Priorities,
+		arg.Stickies,
+		arg.Desiredworkerids,
+		arg.Externalids,
+		arg.Displaynames,
+		arg.Inputs,
+		arg.Additionalmetadatas,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Parenttaskexternalids,
+		arg.Isdurables,
+	)
+	return err
+}
