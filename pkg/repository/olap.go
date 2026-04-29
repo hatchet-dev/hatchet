@@ -1736,10 +1736,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		return err
 	}
 
-	for _, row := range taskRows {
-		fmt.Printf("writeTaskEventBatch: task %s (id=%d) status=%s was_updated=%v is_dag_task=%v\n", row.ExternalID.String(), row.TaskID, row.ReadableStatus, row.WasUpdated, row.IsDagTask)
-	}
-
 	dagStatusUpdates := r.prepareDAGStatusUpdateBatch(taskRows)
 
 	if len(dagStatusUpdates.Dagids) > 0 {
@@ -2084,10 +2080,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx2, reconcileParams)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile task statuses from events: %w", err)
-	}
-
-	for _, row := range reconciledTasks {
-		fmt.Printf("writeTaskBatch reconcile: task %s (id=%d) updated to status=%s\n", row.ExternalID.String(), row.ID, row.ReadableStatus)
 	}
 
 	dagStatusUpdates := r.prepareDAGStatusUpdateBatchFromReconcile(reconciledTasks)
