@@ -1,5 +1,6 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
   Accordion,
@@ -947,10 +948,11 @@ function TenantAccordionItem({
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <AccordionTrigger className="flex-1 py-1 hover:no-underline [&>svg]:text-muted-foreground">
-          <div className="min-w-0 text-left">
-            <p className="truncate font-medium leading-5">
+          <div className="flex min-w-0 items-center gap-2 text-left">
+            <p className="min-w-0 truncate font-medium leading-5">
               {tenant.name || tenant.id}
             </p>
+            <TenantRegionBadge region={tenant.region} />
           </div>
         </AccordionTrigger>
 
