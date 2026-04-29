@@ -197,6 +197,10 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 
 	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx, false)
 
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, nil, err
 	}

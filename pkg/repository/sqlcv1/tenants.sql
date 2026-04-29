@@ -87,7 +87,7 @@ FROM
     "Tenant" as tenants
 WHERE
     "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL;
 
 -- name: ListTenantsByTenantWorkerPartitionId :many
@@ -97,7 +97,7 @@ FROM
     "Tenant" as tenants
 WHERE
     "workerPartitionId" = sqlc.arg('workerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL;
 
 -- name: GetTenantByID :one
@@ -493,7 +493,7 @@ FROM
     "Tenant" as tenants
 WHERE
     "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL;
 
 -- name: UpsertTenantAlertingSettings :one

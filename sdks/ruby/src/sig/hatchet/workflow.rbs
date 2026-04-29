@@ -27,7 +27,7 @@ module Hatchet
     ) -> void
 
     def task: (Symbol | String name, **untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
-    def durable_task: (Symbol | String name, **untyped opts) { (Hash[String, untyped], DurableContext) -> untyped } -> Task
+    def durable_task: (Symbol | String name, ?eviction_policy: EvictionPolicy?, **untyped opts) { (Hash[String, untyped], DurableContext) -> untyped } -> Task
     def on_failure_task: (**untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
     def on_success_task: (**untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task
     def to_proto: (Config config) -> untyped

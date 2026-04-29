@@ -109,6 +109,39 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	return isActive, err
 }
 
+const deactivateStaleStepConcurrency = `-- name: DeactivateStaleStepConcurrency :exec
+WITH tenant_step_concurrencies AS (
+    SELECT sc.id
+    FROM v1_step_concurrency sc
+    WHERE sc.tenant_id = $1::UUID
+        AND sc.is_active = TRUE
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            WHERE
+                cs.strategy_id = sc.id
+                AND cs.tenant_id = $1::UUID -- tenant id filter to force index usage
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            JOIN v1_workflow_concurrency_slot wcs
+            ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id)
+                = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+            WHERE cs.strategy_id = sc.id
+        )
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_step_concurrency sc
+SET is_active = FALSE
+FROM tenant_step_concurrencies
+WHERE sc.id = tenant_step_concurrencies.id
+`
+
+func (q *Queries) DeactivateStaleStepConcurrency(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
+	_, err := db.Exec(ctx, deactivateStaleStepConcurrency, tenantid)
+	return err
+}
+
 const getConcurrencyStrategyById = `-- name: GetConcurrencyStrategyById :one
 SELECT
     sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
@@ -334,6 +367,39 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			&i.MaxConcurrency,
 			&i.StepReadableID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTenantsWithManyStepConcurrencies = `-- name: ListTenantsWithManyStepConcurrencies :many
+SELECT tenant_id, COUNT(*) AS total
+FROM v1_step_concurrency
+WHERE is_active = TRUE
+GROUP BY tenant_id
+HAVING COUNT(*) > $1::BIGINT
+`
+
+type ListTenantsWithManyStepConcurrenciesRow struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Total    int64     `json:"total"`
+}
+
+func (q *Queries) ListTenantsWithManyStepConcurrencies(ctx context.Context, db DBTX, threshold int64) ([]*ListTenantsWithManyStepConcurrenciesRow, error) {
+	rows, err := db.Query(ctx, listTenantsWithManyStepConcurrencies, threshold)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTenantsWithManyStepConcurrenciesRow
+	for rows.Next() {
+		var i ListTenantsWithManyStepConcurrenciesRow
+		if err := rows.Scan(&i.TenantID, &i.Total); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

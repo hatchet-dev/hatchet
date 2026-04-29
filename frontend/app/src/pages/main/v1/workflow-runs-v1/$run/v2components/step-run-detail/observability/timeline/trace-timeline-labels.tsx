@@ -1,4 +1,4 @@
-import { getDisplayName, isEngineSpan } from '../utils/span-tree-utils';
+import { getSpanAttributeLabel, isEngineSpan } from '../utils/span-tree-utils';
 import {
   ROW_HEIGHT,
   CONNECTOR_WIDTH,
@@ -10,6 +10,12 @@ import {
 } from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown, AlertCircle } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
@@ -228,7 +234,8 @@ export const TimelineLabels = memo(function TimelineLabels({
         }
 
         const isSelected = selectedSpan?.spanId === row.span.spanId;
-        const displayName = getDisplayName(row.span);
+        const displayName = row.span.spanName;
+        const attributeLabel = getSpanAttributeLabel(row.span);
 
         return (
           <LabelRow
@@ -258,19 +265,37 @@ export const TimelineLabels = memo(function TimelineLabels({
               hasChildren={row.hasChildren}
               onToggle={() => toggleExpand(row.rowKey)}
             />
-            <span
-              className={cn(
-                'truncate text-sm leading-tight',
-                isSelected
-                  ? 'font-medium text-foreground'
-                  : row.depth === 0
-                    ? 'text-foreground'
-                    : 'text-muted-foreground',
-              )}
-              title={displayName}
-            >
-              {displayName}
-            </span>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className={cn(
+                      'min-w-[4ch] shrink truncate text-sm leading-tight',
+                      isSelected
+                        ? 'font-medium text-foreground'
+                        : row.depth === 0
+                          ? 'text-foreground'
+                          : 'text-muted-foreground',
+                    )}
+                  >
+                    {displayName}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{displayName}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {attributeLabel && (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="ml-1.5 truncate rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {attributeLabel}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{attributeLabel}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {isEngineSpan(row.span) && (
               <span className="ml-1.5 shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
                 engine

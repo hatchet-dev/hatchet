@@ -201,6 +201,24 @@ export function useOrganizations() {
     },
   });
 
+  const createOrganizationSsoDomainMutation = useMutation({
+    mutationFn: async (data: { organizationId: string; ssoDomain: string }) => {
+      return orgApi
+        .organizationSsoDomainCreateMutation(data.organizationId)
+        .mutationFn(data.ssoDomain);
+    },
+    onError: handleApiError,
+  });
+
+  const deleteOrganizationSsoDomainMutation = useMutation({
+    mutationFn: async (data: { organizationId: string; ssoDomain: string }) => {
+      return orgApi
+        .organizationSsoDomainDeleteMutation(data.organizationId)
+        .mutationFn(data.ssoDomain);
+    },
+    onError: handleApiError,
+  });
+
   const handleCreateToken = useCallback(
     (
       organizationId: string,
@@ -325,6 +343,49 @@ export function useOrganizations() {
     [createOrganizationMutation],
   );
 
+  const handleCreateOrganizationSsoDomain = useCallback(
+    (
+      organizationId: string,
+      ssoDomain: string,
+      onSuccess: (organizationId: string) => void,
+      onError?: () => void,
+    ) => {
+      createOrganizationSsoDomainMutation.mutate(
+        { organizationId, ssoDomain },
+        {
+          onSuccess: () => {
+            onSuccess(organizationId);
+          },
+          onError: () => {
+            onError?.();
+          },
+        },
+      );
+    },
+    [createOrganizationSsoDomainMutation],
+  );
+
+  const handleDeleteOrganizationSsoDomain = useCallback(
+    (
+      organizationId: string,
+      ssoDomain: string,
+      onSuccess: (organizationId: string) => void,
+    ) => {
+      deleteOrganizationSsoDomainMutation.mutate(
+        { organizationId, ssoDomain },
+        {
+          onSuccess: () => {
+            onSuccess(organizationId);
+          },
+          onError: () => {
+            // Error handling is done by the mutation itself via handleApiError
+          },
+        },
+      );
+    },
+    [deleteOrganizationSsoDomainMutation],
+  );
+
   return {
     organizations,
     organizationData, // From context
@@ -343,6 +404,8 @@ export function useOrganizations() {
     handleDeleteTenant,
     handleUpdateOrganization,
     handleCreateOrganization,
+    handleCreateOrganizationSsoDomain,
+    handleDeleteOrganizationSsoDomain,
     // Loading states for mutations
     cancelInviteLoading: cancelInviteMutation.isPending,
     createTokenLoading: createTokenMutation.isPending,

@@ -27,7 +27,9 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
-		return gen.UserUpdateLogin400JSONResponse(*apiErrors), nil
+		return gen.UserUpdateLogin400JSONResponse(
+			apierrors.NewAPIErrors(ErrInvalidCredentials),
+		), nil
 	}
 
 	if err := u.checkUserRestrictionsForEmail(u.config, string(request.Body.Email)); err != nil {

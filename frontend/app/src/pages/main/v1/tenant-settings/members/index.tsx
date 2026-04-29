@@ -182,7 +182,11 @@ function MembersList() {
           </div>
           <Separator className="my-4" />
           {owners.length > 0 ? (
-            <SimpleTable columns={ownersColumns} data={owners} />
+            <SimpleTable
+              columns={ownersColumns}
+              data={owners}
+              rowKey={(row) => row.metadata.id}
+            />
           ) : (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No owners found.
@@ -195,7 +199,11 @@ function MembersList() {
       <span className="text-sm font-medium text-muted-foreground">Members</span>
       <Separator className="my-4" />
       {nonOwners.length > 0 ? (
-        <SimpleTable columns={membersColumns} data={nonOwners} />
+        <SimpleTable
+          columns={membersColumns}
+          data={nonOwners}
+          rowKey={(row) => row.metadata.id}
+        />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
           No members found.
@@ -366,6 +374,7 @@ function InvitesList() {
         <SimpleTable
           columns={invitesColumns}
           data={listInvitesQuery.data?.rows || []}
+          rowKey={(row) => row.metadata.id}
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">

@@ -91,7 +91,11 @@ export function ManagedWorkerInstancesTable({
         </Button>
       </div>
       {dataWithMetadata.length > 0 ? (
-        <SimpleTable columns={instanceColumns} data={dataWithMetadata} />
+        <SimpleTable
+          columns={instanceColumns}
+          data={dataWithMetadata}
+          rowKey={(row) => row.metadata.id}
+        />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
           There are no instances currently active for this managed worker pool.

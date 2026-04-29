@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
+import { Loading } from '@/components/v1/ui/loading';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import {
@@ -48,8 +49,10 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
+import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
@@ -58,6 +61,8 @@ import { DeleteTokenModal } from '@/pages/organizations/$organization/components
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
+  PlusIcon,
+  KeyIcon,
   ArrowRightIcon,
   CheckIcon,
   EllipsisVerticalIcon,
@@ -86,6 +91,8 @@ function CloudOrganizationSettings() {
     getOrganizationForTenant,
     handleUpdateOrganization,
     updateOrganizationLoading,
+    handleCreateOrganizationSsoDomain,
+    handleDeleteOrganizationSsoDomain,
   } = useOrganizations();
 
   const org = getOrganizationForTenant(tenantId);
@@ -95,7 +102,8 @@ function CloudOrganizationSettings() {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
   const { currentUser } = useCurrentUser();
-
+  const { meta } = useApiMeta();
+  const schemes = meta?.auth?.schemes || [];
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
@@ -109,6 +117,45 @@ function CloudOrganizationSettings() {
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [newSsoDomain, setNewSsoDomain] = useState('');
+  const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
+
+  const organizationSsoDomainGetQuery = useQuery({
+    ...orgApi.organizationSsoDomainGetQuery(orgId),
+    enabled: !!orgId,
+  });
+
+  const handleAddSsoDomain = async () => {
+    if (!orgId || !newSsoDomain.trim()) {
+      return;
+    }
+    setIsAddingSsoDomain(true);
+    handleCreateOrganizationSsoDomain(
+      orgId,
+      newSsoDomain.trim(),
+      () => {
+        setIsAddingSsoDomain(false);
+        setNewSsoDomain('');
+        queryClient.invalidateQueries({
+          queryKey: ['organization:sso_domain:get', orgId],
+        });
+      },
+      () => {
+        setIsAddingSsoDomain(false);
+      },
+    );
+  };
+
+  const handleDeleteSsoDomain = async (domain: string) => {
+    if (!orgId) {
+      return;
+    }
+    handleDeleteOrganizationSsoDomain(orgId, domain, () => {
+      queryClient.invalidateQueries({
+        queryKey: ['organization:sso_domain:get', orgId],
+      });
+    });
+  };
 
   const organizationQuery = useQuery({
     ...orgApi.organizationGetQuery(orgId!),
@@ -259,16 +306,80 @@ function CloudOrganizationSettings() {
       : []),
   ];
 
+  // SSO domains table columns
+  const ssoDomainColumns = [
+    {
+      columnLabel: 'Domain',
+      cellRenderer: (row: {
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => <span className="font-mono text-sm">{row.domain}</span>,
+    },
+    {
+      columnLabel: 'Verified',
+      cellRenderer: (row: {
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => (
+        <Badge variant={row.verified ? 'successful' : 'secondary'}>
+          {row.verified ? 'Verified' : 'Unverified'}
+        </Badge>
+      ),
+    },
+    {
+      columnLabel: 'Verification Token',
+      cellRenderer: (row: {
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) =>
+        row.verification_token ? (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-muted-foreground">
+              {row.verification_token}
+            </span>
+            <CopyToClipboard text={row.verification_token} />
+          </div>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (row: {
+        domain: string;
+        verified?: boolean;
+        verification_token?: string;
+      }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleDeleteSsoDomain(row.domain)}>
+              <TrashIcon className="mr-2 size-4" />
+              Remove Domain
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
   const tokenColumns = [
     {
       columnLabel: 'Name',
-      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+      cellRenderer: (row: ManagementToken) => (
         <span className="font-medium">{row.name}</span>
       ),
     },
     {
       columnLabel: 'Expiry',
-      cellRenderer: (row: ManagementToken & { metadata: { id: string } }) => (
+      cellRenderer: (row: ManagementToken) => (
         <span>{formatExpiry(row.expiresAt)}</span>
       ),
     },
@@ -276,9 +387,7 @@ function CloudOrganizationSettings() {
       ? [
           {
             columnLabel: 'Actions',
-            cellRenderer: (
-              row: ManagementToken & { metadata: { id: string } },
-            ) => (
+            cellRenderer: (row: ManagementToken) => (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -430,6 +539,11 @@ function CloudOrganizationSettings() {
             <TabsTrigger value="tokens" variant="underlined">
               Management Tokens
             </TabsTrigger>
+            {isOrganizationOwner && schemes.includes('sso') && (
+              <TabsTrigger value="sso" variant="underlined">
+                SSO
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="tenants">
@@ -470,6 +584,7 @@ function CloudOrganizationSettings() {
                     <SimpleTable
                       data={organization.members}
                       columns={memberColumns}
+                      rowKey={(row) => row.metadata.id}
                     />
                   ) : (
                     <div className="py-8 text-center text-sm text-muted-foreground">
@@ -483,6 +598,7 @@ function CloudOrganizationSettings() {
                     <SimpleTable
                       data={pendingInvites}
                       columns={inviteColumns}
+                      rowKey={(row) => row.metadata.id}
                     />
                   </div>
                 )}
@@ -508,11 +624,9 @@ function CloudOrganizationSettings() {
                 {managementTokensQuery.data?.rows &&
                 managementTokensQuery.data.rows.length > 0 ? (
                   <SimpleTable
-                    data={managementTokensQuery.data.rows.map((t) => ({
-                      ...t,
-                      metadata: { id: t.id },
-                    }))}
+                    data={managementTokensQuery.data.rows}
                     columns={tokenColumns}
+                    rowKey={(row) => row.id}
                   />
                 ) : (
                   <div className="py-8 text-center text-sm text-muted-foreground">
@@ -522,6 +636,85 @@ function CloudOrganizationSettings() {
               </>
             )}
           </TabsContent>
+          {isOrganizationOwner && schemes.includes('sso') && (
+            <TabsContent value="sso">
+              <CreateSSOPage orgId={orgId} />
+              <div className="space-y-8">
+                {/* SSO Domains Table */}
+                {organizationSsoDomainGetQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loading />
+                  </div>
+                ) : organizationSsoDomainGetQuery.data &&
+                  organizationSsoDomainGetQuery.data.length > 0 ? (
+                  <SimpleTable
+                    data={organizationSsoDomainGetQuery.data.map((v) => ({
+                      domain: v.ssoDomain,
+                      verified: v.verified,
+                      verification_token: v.verificationToken,
+                    }))}
+                    columns={ssoDomainColumns}
+                    rowKey={(row) => row.domain}
+                  />
+                ) : (
+                  <div className="py-16 text-center">
+                    <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <h3 className="mb-2 text-lg font-medium">No SSO Domains</h3>
+                    <p className="mb-4 text-muted-foreground">
+                      Add a domain below to enable SSO for your organization.
+                    </p>
+                  </div>
+                )}
+
+                {organizationSsoDomainGetQuery.data &&
+                  organizationSsoDomainGetQuery.data.length > 0 && (
+                    <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                      <p>
+                        To verify your domain, add a DNS TXT record with the
+                        value:
+                      </p>
+                      <p className="mt-1 font-mono">
+                        hatchet-sso-verify=&#123;verification_token&#125;
+                      </p>
+                      <p className="mt-2">
+                        It may take a few minutes for DNS changes to propagate
+                        and for the verified status to update.
+                      </p>
+                    </div>
+                  )}
+
+                {/* Add New SSO Domain */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Add Domain
+                  </h3>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="example.com"
+                      value={newSsoDomain}
+                      onChange={(e) => setNewSsoDomain(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleAddSsoDomain();
+                        }
+                      }}
+                      className="max-w-sm"
+                      disabled={isAddingSsoDomain}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddSsoDomain}
+                      disabled={isAddingSsoDomain || !newSsoDomain.trim()}
+                      leftIcon={<PlusIcon className="size-4" />}
+                    >
+                      Add Domain
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 

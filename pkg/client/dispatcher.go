@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -40,6 +41,8 @@ type DispatcherClient interface {
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 
 	RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error)
+
+	DurableTaskStream(ctx context.Context) (sharedcontracts.V1Dispatcher_DurableTaskClient, error)
 }
 
 const (
@@ -136,6 +139,8 @@ type Action struct {
 	TriggeringEventExternalId *string `json:"triggeringEventExternalId,omitempty"`
 
 	TriggeringEventKey *string `json:"triggeringEventKey,omitempty"`
+
+	DurableTaskInvocationCount *int32 `json:"durableTaskInvocationCount,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -463,29 +468,30 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			}
 
 			ch <- &Action{
-				TenantId:                  assignedAction.TenantId,
-				WorkflowRunId:             assignedAction.WorkflowRunId,
-				GetGroupKeyRunId:          assignedAction.GetGroupKeyRunId,
-				WorkerId:                  a.workerId,
-				JobId:                     assignedAction.JobId,
-				JobName:                   assignedAction.JobName,
-				JobRunId:                  assignedAction.JobRunId,
-				StepId:                    assignedAction.TaskId,
-				StepName:                  assignedAction.TaskName,
-				StepRunId:                 assignedAction.TaskRunExternalId,
-				ActionId:                  assignedAction.ActionId,
-				ActionType:                actionType,
-				ActionPayload:             []byte(unquoted),
-				RetryCount:                assignedAction.RetryCount,
-				AdditionalMetadata:        additionalMetadata,
-				ChildIndex:                assignedAction.ChildWorkflowIndex,
-				ChildKey:                  assignedAction.ChildWorkflowKey,
-				ParentWorkflowRunId:       assignedAction.ParentWorkflowRunId,
-				Priority:                  assignedAction.Priority,
-				WorkflowId:                assignedAction.WorkflowId,
-				WorkflowVersionId:         assignedAction.WorkflowVersionId,
-				TriggeringEventExternalId: assignedAction.TriggeringEventExternalId,
-				TriggeringEventKey:        assignedAction.TriggeringEventKey,
+				TenantId:                   assignedAction.TenantId,
+				WorkflowRunId:              assignedAction.WorkflowRunId,
+				GetGroupKeyRunId:           assignedAction.GetGroupKeyRunId,
+				WorkerId:                   a.workerId,
+				JobId:                      assignedAction.JobId,
+				JobName:                    assignedAction.JobName,
+				JobRunId:                   assignedAction.JobRunId,
+				StepId:                     assignedAction.TaskId,
+				StepName:                   assignedAction.TaskName,
+				StepRunId:                  assignedAction.TaskRunExternalId,
+				ActionId:                   assignedAction.ActionId,
+				ActionType:                 actionType,
+				ActionPayload:              []byte(unquoted),
+				RetryCount:                 assignedAction.RetryCount,
+				AdditionalMetadata:         additionalMetadata,
+				ChildIndex:                 assignedAction.ChildWorkflowIndex,
+				ChildKey:                   assignedAction.ChildWorkflowKey,
+				ParentWorkflowRunId:        assignedAction.ParentWorkflowRunId,
+				Priority:                   assignedAction.Priority,
+				WorkflowId:                 assignedAction.WorkflowId,
+				WorkflowVersionId:          assignedAction.WorkflowVersionId,
+				TriggeringEventExternalId:  assignedAction.TriggeringEventExternalId,
+				TriggeringEventKey:         assignedAction.TriggeringEventKey,
+				DurableTaskInvocationCount: assignedAction.DurableTaskInvocationCount,
 			}
 		}
 
@@ -658,8 +664,8 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 	}, nil
 }
 
-func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
-	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
+func (d *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
+	_, err := d.client.ReleaseSlot(d.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
 		TaskRunExternalId: stepRunId,
 	})
 
@@ -670,8 +676,8 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 	return nil
 }
 
-func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
-	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
+func (d *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
+	_, err := d.client.RefreshTimeout(d.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
 		TaskRunExternalId:  stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,
 	})
@@ -683,10 +689,10 @@ func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId str
 	return nil
 }
 
-func (a *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId string, req map[string]interface{}) error {
+func (d *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId string, req map[string]interface{}) error {
 	labels := mapLabels(req)
 
-	_, err := a.client.UpsertWorkerLabels(a.ctx.newContext(ctx), &dispatchercontracts.UpsertWorkerLabelsRequest{
+	_, err := d.client.UpsertWorkerLabels(d.ctx.newContext(ctx), &dispatchercontracts.UpsertWorkerLabelsRequest{
 		WorkerId: workerId,
 		Labels:   labels,
 	})
@@ -727,6 +733,10 @@ func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.Worke
 	return labels
 }
 
-func (a *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
-	return a.clientv1.RegisterDurableEvent(a.ctx.newContext(ctx), req)
+func (d *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
+	return d.clientv1.RegisterDurableEvent(d.ctx.newContext(ctx), req)
+}
+
+func (d *dispatcherClientImpl) DurableTaskStream(ctx context.Context) (sharedcontracts.V1Dispatcher_DurableTaskClient, error) {
+	return d.clientv1.DurableTask(d.ctx.newContext(ctx), grpc_retry.Disable())
 }

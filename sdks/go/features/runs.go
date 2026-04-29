@@ -149,6 +149,53 @@ func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) 
 	return resp.JSON200, nil
 }
 
+// BranchDurableTask creates a branch from a durable task at the specified node.
+func (r *RunsClient) BranchDurableTask(ctx context.Context, taskExternalId string, nodeId, branchId int64) (*rest.V1BranchDurableTaskResponse, error) {
+	body := rest.V1BranchDurableTaskRequest{
+		TaskExternalId: uuid.MustParse(taskExternalId),
+		NodeId:         nodeId,
+		BranchId:       branchId,
+	}
+
+	jsonBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal V1BranchDurableTaskRequest")
+	}
+
+	resp, err := r.api.V1DurableTaskBranchWithBodyWithResponse(
+		ctx,
+		r.tenantId,
+		"application/json; charset=utf-8",
+		bytes.NewReader(jsonBytes),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to branch durable task")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+// Restore re-enqueues an evicted task so it can resume execution.
+func (r *RunsClient) Restore(ctx context.Context, taskExternalId string) (*rest.V1RestoreTaskResponse, error) {
+	resp, err := r.api.V1TaskRestoreWithResponse(
+		ctx,
+		uuid.MustParse(taskExternalId),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to restore task")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
 // SubscribeToStream subscribes to streaming events for a specific workflow run.
 func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string) <-chan string {
 	ch := make(chan string)

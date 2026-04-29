@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
 import sleep from '@hatchet/util/sleep';
@@ -255,6 +255,10 @@ const lookbackEventPayloadSchema = z.object({
   user_id: z.number(),
 });
 
+const twoEventsPayloadSchema = z.object({
+  order: z.string(),
+});
+
 export const waitForEventLookback = hatchet.durableTask({
   name: 'wait-for-event-lookback',
   executionTimeout: '10m',
@@ -314,14 +318,14 @@ export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
     const event1 = await ctx.waitForEvent(
       'key1',
       undefined,
-      undefined,
+      twoEventsPayloadSchema,
       input.scope,
       LOOKBACK_WINDOW
     );
     const event2 = await ctx.waitForEvent(
       'key2',
       undefined,
-      undefined,
+      twoEventsPayloadSchema,
       input.scope,
       LOOKBACK_WINDOW
     );

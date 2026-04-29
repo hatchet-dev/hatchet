@@ -49,7 +49,7 @@ jobs:
         run: pnpm lint:check
 
       - name: Type check
-        run: npx tsc
+        run: pnpm exec tsc
 
   test-unit:
     runs-on: ubicloud-standard-4
