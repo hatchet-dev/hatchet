@@ -196,6 +196,11 @@ export interface CreateNewTenantForOrganizationRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /**
+   * Optional shard region (e.g. aws:us-east-1). When omitted, the server picks one.
+   * @example "aws:us-east-1"
+   */
+  region?: string;
 }
 
 export interface CreateManagementTokenRequest {

@@ -61,6 +61,11 @@ export function useOrganizationApi() {
             .data,
       }),
 
+      sharedShardsQuery: () => ({
+        queryKey: ['shards:list:shared'] as const,
+        queryFn: async () => (await controlPlaneApi.shardsListShared()).data,
+      }),
+
       organizationSsoDomainGetQuery: (organization: string) => ({
         queryKey: ['organization:sso_domain:get', organization] as const,
         queryFn: async () =>

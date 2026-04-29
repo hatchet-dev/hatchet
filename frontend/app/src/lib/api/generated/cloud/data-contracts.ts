@@ -819,7 +819,7 @@ export interface OrganizationTenant {
    * @format date-time
    */
   archivedAt?: string;
-  /** Control-plane shard region when returned by the control-plane API (e.g. aws:us-west-2). */
+  /** Control-plane shard region when present (e.g. aws:us-west-2). */
   region?: string;
 }
 
@@ -832,6 +832,11 @@ export interface CreateNewTenantForOrganizationRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /**
+   * Optional shard region for control-plane deployments (e.g. aws:us-east-1). Ignored by Hatchet Cloud SaaS.
+   * @example "aws:us-east-1"
+   */
+  region?: string;
 }
 
 export interface UpdateOrganizationTenantRequest {
