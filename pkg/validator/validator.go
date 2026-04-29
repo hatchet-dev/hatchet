@@ -28,7 +28,7 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = validate.RegisterValidation("password", func(fl validator.FieldLevel) bool {
-		return passwordValidation(fl.Field().String())
+		return ValidatePassword(fl.Field().String())
 	})
 
 	_ = validate.RegisterValidation("uuid", func(fl validator.FieldLevel) bool {
@@ -89,7 +89,10 @@ func newValidator() *validator.Validate {
 	return validate
 }
 
-func passwordValidation(pw string) bool {
+// ValidatePassword returns true if the password meets complexity requirements:
+// between 8 and 64 characters, with at least one uppercase letter, one lowercase
+// letter, and one number.
+func ValidatePassword(pw string) bool {
 	pwLen := len(pw)
 	var hasNumber, hasUpper, hasLower bool
 
