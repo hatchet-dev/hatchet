@@ -177,6 +177,8 @@ export interface OrganizationTenant {
    * @format date-time
    */
   archivedAt?: string;
+  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
+  region?: string;
 }
 
 export interface OrganizationTenantList {

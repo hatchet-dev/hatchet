@@ -1,3 +1,4 @@
+import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Command,
@@ -139,18 +140,19 @@ function OrganizationGroup({
               }}
               className="cursor-pointer pl-6 text-sm hover:bg-accent focus:bg-accent"
             >
-              <div className="flex w-full items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-5 w-5 items-center justify-center">
+              <div className="flex w-full min-w-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center">
                     <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
                     {membership.tenant?.name}
                   </span>
+                  <TenantRegionBadge region={membership.tenant?.region} />
                 </div>
                 <CheckIcon
                   className={cn(
-                    'size-4',
+                    'size-4 shrink-0',
                     currentTenant?.slug === membership.tenant?.slug
                       ? 'opacity-100'
                       : 'opacity-0',
@@ -292,6 +294,7 @@ export function OrganizationSelector({
               <span className="min-w-0 flex-1 truncate">
                 {tenant?.name ?? 'Loading tenant…'}
               </span>
+              <TenantRegionBadge region={tenant?.region} />
             </div>
             {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />

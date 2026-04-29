@@ -118,7 +118,9 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     );
   }, [potentiallyValidTenantId, tenantMemberships]);
 
-  const tenant = getTenant(validTenantMembership);
+  const tenant = useMemo(() => {
+    return getTenant(validTenantMembership);
+  }, [validTenantMembership]);
 
   // Update last tenant atom when tenant changes
   useEffect(() => {
