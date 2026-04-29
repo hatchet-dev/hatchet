@@ -1708,16 +1708,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		return err
 	}
 
-	foundTasks := make(map[IdInsertedAt]struct{}, len(taskRows))
-	updatedTaskCount := 0
-	for _, row := range taskRows {
-		foundTasks[IdInsertedAt{ID: row.TaskID, InsertedAt: row.TaskInsertedAt}] = struct{}{}
-
-		if row.WasUpdated {
-			updatedTaskCount++
-		}
-	}
-
 	dagStatusUpdates := r.prepareDAGStatusUpdateBatch(taskRows)
 
 	if len(dagStatusUpdates.Dagids) > 0 {
