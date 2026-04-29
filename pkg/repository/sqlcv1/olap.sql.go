@@ -362,20 +362,6 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 	return total, err
 }
 
-type CreateDAGsOLAPParams struct {
-	TenantID             uuid.UUID          `json:"tenant_id"`
-	ID                   int64              `json:"id"`
-	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID           uuid.UUID          `json:"external_id"`
-	DisplayName          string             `json:"display_name"`
-	WorkflowID           uuid.UUID          `json:"workflow_id"`
-	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
-	Input                []byte             `json:"input"`
-	AdditionalMetadata   []byte             `json:"additional_metadata"`
-	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
-	TotalTasks           int32              `json:"total_tasks"`
-}
-
 const createIncomingWebhookValidationFailureLogs = `-- name: CreateIncomingWebhookValidationFailureLogs :exec
 WITH inputs AS (
     SELECT

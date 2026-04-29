@@ -1968,8 +1968,6 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 }
 
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) error {
-	// todo: add conflict handling to task writes to correctly set the status
-	// todo: when we write a task, check if we have any task events written for that task already and infer the status based on that
 	params := sqlcv1.CreateTasksOLAPParams{}
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
 
@@ -2044,9 +2042,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 }
 
 func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) error {
-	// todo: add conflict handling to task writes to correctly set the status
-	// todo: when we write a task, check if we have any task events written for that task already and infer the status based on that
-	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
+	params := sqlcv1.CreateDAGsOLAPOverwriteParams{}
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, dag := range dags {
@@ -2056,19 +2052,17 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			input = []byte("{}")
 		}
 
-		params = append(params, sqlcv1.CreateDAGsOLAPParams{
-			TenantID:             dag.TenantID,
-			ID:                   dag.ID,
-			InsertedAt:           dag.InsertedAt,
-			WorkflowID:           dag.WorkflowID,
-			WorkflowVersionID:    dag.WorkflowVersionID,
-			ExternalID:           dag.ExternalID,
-			DisplayName:          dag.DisplayName,
-			AdditionalMetadata:   dag.AdditionalMetadata,
-			ParentTaskExternalID: dag.ParentTaskExternalID,
-			TotalTasks:           int32(dag.TotalTasks), // nolint: gosec
-			Input:                input,
-		})
+		params.Tenantids = append(params.Tenantids, dag.TenantID)
+		params.Ids = append(params.Ids, dag.ID)
+		params.Insertedats = append(params.Insertedats, dag.InsertedAt)
+		params.Externalids = append(params.Externalids, dag.ExternalID)
+		params.Displaynames = append(params.Displaynames, dag.DisplayName)
+		params.Workflowids = append(params.Workflowids, dag.WorkflowID)
+		params.Workflowversionids = append(params.Workflowversionids, dag.WorkflowVersionID)
+		params.Inputs = append(params.Inputs, input)
+		params.Additionalmetadatas = append(params.Additionalmetadatas, dag.AdditionalMetadata)
+		params.Parenttaskexternalids = append(params.Parenttaskexternalids, dag.ParentTaskExternalID)
+		params.Totaltasks = append(params.Totaltasks, int32(dag.TotalTasks)) // nolint: gosec
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: dag.ExternalID,
@@ -2083,7 +2077,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	}
 	defer rollback()
 
-	_, err = r.queries.CreateDAGsOLAP(ctx, tx, params)
+	err = r.queries.CreateDAGsOLAP(ctx, tx, params)
 	if err != nil {
 		return err
 	}

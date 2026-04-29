@@ -154,33 +154,6 @@ WHERE
     END
 ;
 
--- name: CreateDAGsOLAP :copyfrom
-INSERT INTO v1_dags_olap (
-    tenant_id,
-    id,
-    inserted_at,
-    external_id,
-    display_name,
-    workflow_id,
-    workflow_version_id,
-    input,
-    additional_metadata,
-    parent_task_external_id,
-    total_tasks
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11
-);
-
 -- name: CreateTaskEventsOLAPTmp :copyfrom
 INSERT INTO v1_task_events_olap_tmp (
     tenant_id,
