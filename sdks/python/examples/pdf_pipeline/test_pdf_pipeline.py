@@ -24,6 +24,12 @@ async def test_pdf_pipeline() -> None:
     assert result["summarize_text"]["word_count"] > 0
     assert len(result["summarize_text"]["summary"]) > 0
 
+    keywords = result["extract_keywords"]["keywords"]
+    assert len(keywords) > 0
+    assert "acme" in keywords
+    assert "invoice" in keywords
+
     assert result["format_result"]["filename"] == "test-invoice.pdf"
     assert result["format_result"]["category"] == "invoice"
     assert result["format_result"]["page_count"] == 1
+    assert result["format_result"]["keywords"] == keywords

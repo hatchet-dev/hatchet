@@ -22,8 +22,14 @@ describe('pdf-pipeline-e2e', () => {
     expect((result as any).summarize_text.wordCount).toBeGreaterThan(0);
     expect((result as any).summarize_text.summary.length).toBeGreaterThan(0);
 
+    const keywords = (result as any).extract_keywords.keywords;
+    expect(keywords.length).toBeGreaterThan(0);
+    expect(keywords).toContain('acme');
+    expect(keywords).toContain('invoice');
+      
     expect((result as any).format_result.filename).toBe('test-invoice.pdf');
     expect((result as any).format_result.category).toBe('invoice');
     expect((result as any).format_result.pageCount).toBe(1);
+    expect((result as any).format_result.keywords).toEqual(keywords);
   }, 60_000);
 });

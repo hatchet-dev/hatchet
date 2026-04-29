@@ -23,13 +23,43 @@ export type SummaryOutput = {
   wordCount: number;
 };
 
+export type KeywordsOutput = {
+  keywords: string[];
+};
+
 export type PipelineResult = {
   filename: string;
   category: string;
   summary: string;
+  keywords: string[];
   wordCount: number;
   pageCount: number;
 };
+
+const STOPWORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'as',
+  'at',
+  'be',
+  'by',
+  'for',
+  'from',
+  'in',
+  'is',
+  'it',
+  'of',
+  'on',
+  'or',
+  'that',
+  'the',
+  'to',
+  'with',
+]);
+const MIN_WORD_LENGTH = 3;
+const MAX_KEYWORDS = 6;
 
 /**
  * Extract text from a PDF buffer using pdf2json.
@@ -128,19 +158,40 @@ const summarizeText = pdfPipeline.task({
   },
 });
 
+// > Extract keywords task
+const extractKeywords = pdfPipeline.task({
+  name: 'extract_keywords',
+  parents: [extractText],
+  fn: async (input: PdfInput, ctx) => {
+    const { text } = await ctx.parentOutput(extractText);
+    const words = text.toLowerCase().match(/[a-z]+/g) ?? [];
+    const filtered = words.filter((w) => w.length >= MIN_WORD_LENGTH && !STOPWORDS.has(w));
+    const counts = new Map<string, number>();
+    for (const w of filtered) {
+      counts.set(w, (counts.get(w) ?? 0) + 1);
+    }
+    const sorted = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, MAX_KEYWORDS);
+    return { keywords: sorted.map(([word]) => word) };
+  },
+});
+
 // > Format result task
 pdfPipeline.task({
   name: 'format_result',
-  parents: [extractText, classifyDocument, summarizeText],
+  parents: [extractText, classifyDocument, summarizeText, extractKeywords],
   fn: async (input: PdfInput, ctx) => {
     const extract = await ctx.parentOutput(extractText);
     const classify = await ctx.parentOutput(classifyDocument);
     const summary = await ctx.parentOutput(summarizeText);
+    const keywords = await ctx.parentOutput(extractKeywords);
 
     return {
       filename: input.filename,
       category: classify.category,
       summary: summary.summary,
+      keywords: keywords.keywords,
       wordCount: summary.wordCount,
       pageCount: extract.pageCount,
     };

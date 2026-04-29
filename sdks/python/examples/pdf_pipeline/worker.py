@@ -1,11 +1,38 @@
 import base64
 import io
+import re
+from collections import Counter
 
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
+
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "to",
+    "with",
+}
+MIN_WORD_LENGTH = 3
+MAX_KEYWORDS = 6
 
 
 # > Models
@@ -28,10 +55,15 @@ class SummaryOutput(BaseModel):
     word_count: int
 
 
+class KeywordsOutput(BaseModel):
+    keywords: list[str]
+
+
 class PipelineResult(BaseModel):
     filename: str
     category: str
     summary: str
+    keywords: list[str]
     word_count: int
     page_count: int
 
@@ -102,17 +134,35 @@ def summarize_text(input: PdfInput, ctx: Context) -> SummaryOutput:
 # !!
 
 
+# > Extract keywords task
+@pdf_pipeline.task(parents=[extract_text])
+def extract_keywords(input: PdfInput, ctx: Context) -> KeywordsOutput:
+    text = ctx.task_output(extract_text).text.lower()
+    words = re.findall(r"[a-z]+", text)
+    filtered = [w for w in words if len(w) >= MIN_WORD_LENGTH and w not in STOPWORDS]
+    counts = Counter(filtered)
+    top = sorted(counts.items(), key=lambda x: (-x[1], x[0]))[:MAX_KEYWORDS]
+    return KeywordsOutput(keywords=[word for word, _ in top])
+
+
+# !!
+
+
 # > Format result task
-@pdf_pipeline.task(parents=[extract_text, classify_document, summarize_text])
+@pdf_pipeline.task(
+    parents=[extract_text, classify_document, summarize_text, extract_keywords]
+)
 def format_result(input: PdfInput, ctx: Context) -> PipelineResult:
     extract = ctx.task_output(extract_text)
     classify = ctx.task_output(classify_document)
     summary = ctx.task_output(summarize_text)
+    keywords = ctx.task_output(extract_keywords)
 
     return PipelineResult(
         filename=input.filename,
         category=classify.category,
         summary=summary.summary,
+        keywords=keywords.keywords,
         word_count=summary.word_count,
         page_count=extract.page_count,
     )
