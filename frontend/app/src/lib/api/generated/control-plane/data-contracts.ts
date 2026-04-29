@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+/** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+export enum OrganizationAvailableShardClass {
+  SHARED = "SHARED",
+  DEDICATED = "DEDICATED",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -355,6 +361,8 @@ export interface OrganizationAvailableShard {
   provider: string;
   /** Region within the provider (e.g. us-east-1). */
   region: string;
+  /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+  shardClass: OrganizationAvailableShardClass;
 }
 
 export interface OrganizationAvailableShardList {

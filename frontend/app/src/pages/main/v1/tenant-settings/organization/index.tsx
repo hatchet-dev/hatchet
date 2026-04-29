@@ -48,6 +48,10 @@ import {
   OrganizationTenant,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
+import {
+  OrganizationAvailableShard,
+  OrganizationAvailableShardClass,
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
@@ -383,9 +387,10 @@ function CloudOrganizationSettings() {
   ];
 
   const availableShardColumns = [
+
     {
       columnLabel: 'Cloud Provider',
-      cellRenderer: (row: { provider: string; region: string }) =>
+      cellRenderer: (row: OrganizationAvailableShard) =>
         row.provider ? (
           <Badge variant="outline">{row.provider}</Badge>
         ) : (
@@ -394,9 +399,18 @@ function CloudOrganizationSettings() {
     },
     {
       columnLabel: 'Region',
-      cellRenderer: (row: { provider: string; region: string }) => (
+      cellRenderer: (row: OrganizationAvailableShard) => (
         <span className="font-mono text-sm">{row.region}</span>
       ),
+    },
+    {
+      columnLabel: 'Class',
+      cellRenderer: (row: OrganizationAvailableShard) =>
+        row.shardClass === OrganizationAvailableShardClass.DEDICATED ? (
+          <Badge variant="secondary">Dedicated</Badge>
+        ) : (
+          <Badge variant="outline">Shared</Badge>
+        ),
     },
   ];
 
@@ -697,7 +711,9 @@ function CloudOrganizationSettings() {
                     <SimpleTable
                       data={organizationAvailableShardsQuery.data.rows}
                       columns={availableShardColumns}
-                      rowKey={(row) => `${row.provider}:${row.region}`}
+                      rowKey={(row) =>
+                        `${row.shardClass}:${row.provider}:${row.region}`
+                      }
                     />
                   ) : (
                     <div className="py-8 text-center text-sm text-muted-foreground">
