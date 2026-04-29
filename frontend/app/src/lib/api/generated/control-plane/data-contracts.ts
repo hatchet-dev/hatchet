@@ -361,3 +361,8 @@ export interface SsoDomain {
 }
 
 export type SsoDomainArray = SsoDomain[];
+
+export interface SsoConfig {
+  /** @example false */
+  forceSSO: boolean;
+}

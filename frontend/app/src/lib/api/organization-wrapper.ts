@@ -59,6 +59,12 @@ export function useOrganizationApi() {
         queryFn: async () =>
           (await controlPlaneApi.ssoDomainList(organization)).data,
       }),
+
+      organizationSsoConfigGetQuery: (organization: string) => ({
+        queryKey: ['organization:sso_config:get', organization] as const,
+        queryFn: async () =>
+          (await controlPlaneApi.ssoConfigGet(organization)).data,
+      }),
       managementTokenListQuery: (organization: string) => ({
         queryKey: ['management-tokens:list', organization] as const,
         queryFn: async () =>
@@ -90,6 +96,15 @@ export function useOrganizationApi() {
       }),
 
       // ── Mutations ──────────────────────────────────────────────────────────
+
+      organizationSsoConfigUpdateMutation: (organization: string) => ({
+        mutationKey: ['organization:sso_config:update', organization] as const,
+        mutationFn: async (forceSSO: boolean) => {
+          return (
+            await controlPlaneApi.ssoConfigUpdate(organization, { forceSSO })
+          ).data;
+        },
+      }),
 
       organizationSsoDomainCreateMutation: (organization: string) => ({
         mutationKey: ['organization:sso_domain:create', organization] as const,
