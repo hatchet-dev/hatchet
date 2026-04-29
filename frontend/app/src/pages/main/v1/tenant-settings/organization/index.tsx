@@ -34,6 +34,7 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
@@ -104,6 +105,12 @@ function CloudOrganizationSettings() {
   const { currentUser } = useCurrentUser();
   const { meta } = useApiMeta();
   const schemes = meta?.auth?.schemes || [];
+  const { isEnabled: organizationSsoEnabled } = useIsFeatureEnabled(
+    FeatureFlagId.OrganizationSsoEnabled,
+    false,
+  );
+  const canManageSso =
+    isOrganizationOwner && schemes.includes('sso') && organizationSsoEnabled;
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
@@ -122,7 +129,7 @@ function CloudOrganizationSettings() {
 
   const organizationSsoDomainGetQuery = useQuery({
     ...orgApi.organizationSsoDomainGetQuery(orgId),
-    enabled: !!orgId,
+    enabled: !!orgId && canManageSso,
   });
 
   const handleAddSsoDomain = async () => {
@@ -539,7 +546,7 @@ function CloudOrganizationSettings() {
             <TabsTrigger value="tokens" variant="underlined">
               Management Tokens
             </TabsTrigger>
-            {isOrganizationOwner && schemes.includes('sso') && (
+            {canManageSso && (
               <TabsTrigger value="sso" variant="underlined">
                 SSO
               </TabsTrigger>
@@ -636,7 +643,7 @@ function CloudOrganizationSettings() {
               </>
             )}
           </TabsContent>
-          {isOrganizationOwner && schemes.includes('sso') && (
+          {canManageSso && (
             <TabsContent value="sso">
               <CreateSSOPage orgId={orgId} />
               <div className="space-y-8">
