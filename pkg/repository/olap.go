@@ -1968,6 +1968,8 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 }
 
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) error {
+	// todo: add conflict handling to task writes to correctly set the status
+	// todo: when we write a task, check if we have any task events written for that task already and infer the status based on that
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
 
@@ -2044,6 +2046,8 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 }
 
 func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) error {
+	// todo: add conflict handling to task writes to correctly set the status
+	// todo: when we write a task, check if we have any task events written for that task already and infer the status based on that
 	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
 
