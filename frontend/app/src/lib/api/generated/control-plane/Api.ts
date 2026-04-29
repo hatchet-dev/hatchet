@@ -30,6 +30,7 @@ import {
   ListAPIMetaIntegration,
   ManagementTokenList,
   Organization,
+  OrganizationAvailableShardList,
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
@@ -393,6 +394,26 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List Hatchet deployment shards available for new tenants in this organization
+   *
+   * @tags Management
+   * @name OrganizationListAvailableShards
+   * @summary List available deployment shards for organization
+   * @request GET:/api/v1/control-plane/organizations/{organization}/available-shards
+   * @secure
+   */
+  organizationListAvailableShards = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationAvailableShardList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });

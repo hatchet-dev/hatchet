@@ -350,6 +350,17 @@ export interface CreateTenantAPITokenResponse {
   token: string;
 }
 
+export interface OrganizationAvailableShard {
+  /** Cloud provider for this deployment target (e.g. aws). */
+  provider: string;
+  /** Region within the provider (e.g. us-east-1). */
+  region: string;
+}
+
+export interface OrganizationAvailableShardList {
+  rows: OrganizationAvailableShard[];
+}
+
 export interface SsoDomain {
   /**
    * @format uri

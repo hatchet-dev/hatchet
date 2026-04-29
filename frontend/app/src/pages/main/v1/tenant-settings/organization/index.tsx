@@ -1,6 +1,7 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import { usePylon } from '@/components/support-chat';
 import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
   Accordion,
@@ -34,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -86,8 +88,12 @@ export default function OrganizationSettings() {
   );
 }
 
+const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
+
 function CloudOrganizationSettings() {
   const { tenantId } = useCurrentTenantId();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const pylon = usePylon();
   const {
     getOrganizationForTenant,
     handleUpdateOrganization,
@@ -171,6 +177,11 @@ function CloudOrganizationSettings() {
   const organizationInvitesQuery = useQuery({
     ...orgApi.organizationInviteListQuery(orgId!),
     enabled: !!orgId,
+  });
+
+  const organizationAvailableShardsQuery = useQuery({
+    ...orgApi.organizationAvailableShardsQuery(orgId!),
+    enabled: !!orgId && isControlPlaneEnabled && isOrganizationOwner,
   });
 
   const organization = organizationQuery.data;
@@ -371,6 +382,24 @@ function CloudOrganizationSettings() {
     },
   ];
 
+  const availableShardColumns = [
+    {
+      columnLabel: 'Cloud Provider',
+      cellRenderer: (row: { provider: string; region: string }) =>
+        row.provider ? (
+          <Badge variant="outline">{row.provider}</Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      columnLabel: 'Region',
+      cellRenderer: (row: { provider: string; region: string }) => (
+        <span className="font-mono text-sm">{row.region}</span>
+      ),
+    },
+  ];
+
   const tokenColumns = [
     {
       columnLabel: 'Name',
@@ -540,6 +569,11 @@ function CloudOrganizationSettings() {
             <TabsTrigger value="tokens" variant="underlined">
               Management Tokens
             </TabsTrigger>
+            {isOrganizationOwner && isControlPlaneEnabled && (
+              <TabsTrigger value="regions" variant="underlined">
+                Available Regions
+              </TabsTrigger>
+            )}
             {isOrganizationOwner && schemes.includes('sso') && (
               <TabsTrigger value="sso" variant="underlined">
                 SSO
@@ -606,6 +640,74 @@ function CloudOrganizationSettings() {
               </div>
             )}
           </TabsContent>
+
+          {isOrganizationOwner && isControlPlaneEnabled && (
+            <TabsContent value="regions">
+              {organizationAvailableShardsQuery.isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loading />
+                </div>
+              ) : organizationAvailableShardsQuery.error instanceof
+                  AxiosError &&
+                organizationAvailableShardsQuery.error.response?.status ===
+                  403 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  You must be an organization owner to view available regions.
+                </div>
+              ) : organizationAvailableShardsQuery.error ? (
+                <div className="py-8 text-center text-sm text-destructive">
+                  Failed to load available regions.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>
+                      Regions where new tenants can be deployed for this
+                      organization.
+                    </p>
+                    <p>
+                      Need to configure which regions are available for a
+                      tenant, or looking for a new region?{' '}
+                      {pylon.enabled ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="h-auto p-0 text-sm font-normal"
+                            onClick={() => pylon.show()}
+                          >
+                            Open support chat
+                          </Button>
+                          , or{' '}
+                        </>
+                      ) : null}
+                      <a
+                        href={OFFICE_HOURS_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        Schedule office hours
+                      </a>
+                      .
+                    </p>
+                  </div>
+                  {organizationAvailableShardsQuery.data?.rows &&
+                  organizationAvailableShardsQuery.data.rows.length > 0 ? (
+                    <SimpleTable
+                      data={organizationAvailableShardsQuery.data.rows}
+                      columns={availableShardColumns}
+                      rowKey={(row) => `${row.provider}:${row.region}`}
+                    />
+                  ) : (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      No deployment regions are configured.
+                    </div>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="tokens">
             {managementTokensQuery.error instanceof AxiosError &&
