@@ -601,7 +601,7 @@ WITH inputs AS (
         UNNEST($9::UUID[]) AS workflow_run_id,
         UNNEST($10::TEXT[]) AS schedule_timeout,
         UNNEST($11::TEXT[]) AS step_timeout,
-        UNNEST($12::INT[]) AS priority,
+        UNNEST($12::INTEGER[]) AS priority,
         UNNEST(CAST($13::TEXT[] AS v1_sticky_strategy_olap[])) AS sticky,
         UNNEST($14::UUID[]) AS desired_worker_id,
         UNNEST($15::UUID[]) AS external_id,
