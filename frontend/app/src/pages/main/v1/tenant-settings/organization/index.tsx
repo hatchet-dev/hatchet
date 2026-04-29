@@ -387,7 +387,6 @@ function CloudOrganizationSettings() {
   ];
 
   const availableShardColumns = [
-
     {
       columnLabel: 'Cloud Provider',
       cellRenderer: (row: OrganizationAvailableShard) =>
