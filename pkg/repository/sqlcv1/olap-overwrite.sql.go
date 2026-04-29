@@ -602,7 +602,7 @@ WITH inputs AS (
         UNNEST($10::TEXT[]) AS schedule_timeout,
         UNNEST($11::TEXT[]) AS step_timeout,
         UNNEST($12::INT[]) AS priority,
-        UNNEST($13::v1_sticky_strategy_olap[]) AS sticky,
+        UNNEST(CAST($13::TEXT[] AS v1_sticky_strategy_olap[])) AS sticky,
         UNNEST($14::UUID[]) AS desired_worker_id,
         UNNEST($15::UUID[]) AS external_id,
         UNNEST($16::TEXT[]) AS display_name,
@@ -668,28 +668,28 @@ DO UPDATE SET
 `
 
 type CreateTasksOLAPParams struct {
-	Tenantids             []uuid.UUID            `json:"tenantids"`
-	Ids                   []int64                `json:"ids"`
-	Insertedats           []pgtype.Timestamptz   `json:"insertedats"`
-	Queues                []string               `json:"queues"`
-	Actionids             []string               `json:"actionids"`
-	Stepids               []uuid.UUID            `json:"stepids"`
-	Workflowids           []uuid.UUID            `json:"workflowids"`
-	Workflowversionids    []uuid.UUID            `json:"workflowversionids"`
-	Workflowrunids        []uuid.UUID            `json:"workflowrunids"`
-	Scheduletimeouts      []string               `json:"scheduletimeouts"`
-	Steptimeouts          []pgtype.Text          `json:"steptimeouts"`
-	Priorities            []pgtype.Int4          `json:"priorities"`
-	Stickies              []V1StickyStrategyOlap `json:"stickies"`
-	Desiredworkerids      []*uuid.UUID           `json:"desiredworkerids"`
-	Externalids           []uuid.UUID            `json:"externalids"`
-	Displaynames          []string               `json:"displaynames"`
-	Inputs                [][]byte               `json:"inputs"`
-	Additionalmetadatas   [][]byte               `json:"additionalmetadatas"`
-	Dagids                []pgtype.Int8          `json:"dagids"`
-	Daginsertedats        []pgtype.Timestamptz   `json:"daginsertedats"`
-	Parenttaskexternalids []*uuid.UUID           `json:"parenttaskexternalids"`
-	Isdurables            []bool                 `json:"isdurables"`
+	Tenantids             []uuid.UUID          `json:"tenantids"`
+	Ids                   []int64              `json:"ids"`
+	Insertedats           []pgtype.Timestamptz `json:"insertedats"`
+	Queues                []string             `json:"queues"`
+	Actionids             []string             `json:"actionids"`
+	Stepids               []uuid.UUID          `json:"stepids"`
+	Workflowids           []uuid.UUID          `json:"workflowids"`
+	Workflowversionids    []uuid.UUID          `json:"workflowversionids"`
+	Workflowrunids        []uuid.UUID          `json:"workflowrunids"`
+	Scheduletimeouts      []string             `json:"scheduletimeouts"`
+	Steptimeouts          []pgtype.Text        `json:"steptimeouts"`
+	Priorities            []pgtype.Int4        `json:"priorities"`
+	Stickies              []string             `json:"stickies"`
+	Desiredworkerids      []*uuid.UUID         `json:"desiredworkerids"`
+	Externalids           []uuid.UUID          `json:"externalids"`
+	Displaynames          []string             `json:"displaynames"`
+	Inputs                [][]byte             `json:"inputs"`
+	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
+	Dagids                []pgtype.Int8        `json:"dagids"`
+	Daginsertedats        []pgtype.Timestamptz `json:"daginsertedats"`
+	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
+	Isdurables            []bool               `json:"isdurables"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {

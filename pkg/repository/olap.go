@@ -2000,7 +2000,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Scheduletimeouts = append(params.Scheduletimeouts, task.ScheduleTimeout)
 		params.Steptimeouts = append(params.Steptimeouts, task.StepTimeout)
 		params.Priorities = append(params.Priorities, task.Priority)
-		params.Stickies = append(params.Stickies, sqlcv1.V1StickyStrategyOlap(task.Sticky))
+		params.Stickies = append(params.Stickies, string(sqlcv1.V1StickyStrategyOlap(task.Sticky)))
 		params.Desiredworkerids = append(params.Desiredworkerids, task.DesiredWorkerID)
 		params.Externalids = append(params.Externalids, task.ExternalID)
 		params.Displaynames = append(params.Displaynames, task.DisplayName)
