@@ -915,51 +915,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	notFoundEvents, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
-	}
-
-	if len(notFoundEvents) > 0 {
-		// qq: is it fine to use the task id here? the msg doesn't contain the inserted at, so we'd need to add that otherwise
-		notFoundTaskIDs := make(map[int64]struct{}, len(notFoundEvents))
-		for _, e := range notFoundEvents {
-			notFoundTaskIDs[e.TaskID] = struct{}{}
-		}
-
-		requeueCount := 0
-
-		for _, msg := range msgs {
-			if _, ok := notFoundTaskIDs[msg.TaskId]; !ok {
-				continue
-			}
-
-			// todo: make this configurable?
-			if msg.RequeueCount >= 10 {
-				tc.l.Error().Ctx(ctx).Msgf("giving up on requeuing monitoring event for task %d after %d attempts", msg.TaskId, msg.RequeueCount)
-				continue
-			}
-
-			requeued := *msg
-			requeued.RequeueCount++
-
-			requeueMsg, requeueErr := tasktypes.MonitoringEventMessageFromInternal(tenantId, requeued)
-			if requeueErr != nil {
-				tc.l.Error().Ctx(ctx).Err(requeueErr).Msgf("could not create requeue message for task %d", msg.TaskId)
-				continue
-			}
-
-			if requeueErr = tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, requeueMsg); requeueErr != nil {
-				tc.l.Error().Ctx(ctx).Err(requeueErr).Msgf("could not requeue monitoring event for task %d", msg.TaskId)
-			} else {
-				requeueCount++
-			}
-		}
-
-		if requeueCount > 0 {
-			tc.l.Warn().Ctx(ctx).Msgf("requeued %d monitoring events for tasks not yet in OLAP table", requeueCount)
-		}
 	}
 
 	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
