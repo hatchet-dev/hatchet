@@ -3321,6 +3321,94 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
+const reconcileTaskStatusesFromEvents = `-- name: ReconcileTaskStatusesFromEvents :many
+WITH task_inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at
+), event_max_retry AS (
+    SELECT
+        e.task_id,
+        e.task_inserted_at,
+        MAX(e.retry_count) AS max_retry_count
+    FROM v1_task_events_olap e
+    JOIN task_inputs ti ON (e.task_id, e.task_inserted_at) = (ti.task_id, ti.task_inserted_at)
+    GROUP BY e.task_id, e.task_inserted_at
+), event_statuses AS (
+    SELECT
+        e.task_id,
+        e.task_inserted_at,
+        emr.max_retry_count,
+        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS max_status,
+        MAX(e.worker_id::text)::uuid AS latest_worker_id
+    FROM v1_task_events_olap e
+    JOIN event_max_retry emr ON (e.task_id, e.task_inserted_at) = (emr.task_id, emr.task_inserted_at)
+        AND e.retry_count = emr.max_retry_count
+    GROUP BY e.task_id, e.task_inserted_at, emr.max_retry_count
+)
+UPDATE v1_tasks_olap t
+SET
+    readable_status = es.max_status,
+    latest_retry_count = es.max_retry_count,
+    latest_worker_id = COALESCE(es.latest_worker_id, t.latest_worker_id)
+FROM event_statuses es
+WHERE
+    (t.id, t.inserted_at) = (es.task_id, es.task_inserted_at)
+    AND (
+        (es.max_retry_count > t.latest_retry_count AND es.max_status != t.readable_status)
+        OR (es.max_retry_count = t.latest_retry_count AND v1_status_to_priority(es.max_status) > v1_status_to_priority(t.readable_status))
+        OR (es.max_retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND es.max_status != 'EVICTED')
+    )
+RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at
+`
+
+type ReconcileTaskStatusesFromEventsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+}
+
+type ReconcileTaskStatusesFromEventsRow struct {
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	ID             int64                `json:"id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	LatestWorkerID *uuid.UUID           `json:"latest_worker_id"`
+	WorkflowID     uuid.UUID            `json:"workflow_id"`
+	DagID          pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz   `json:"dag_inserted_at"`
+}
+
+func (q *Queries) ReconcileTaskStatusesFromEvents(ctx context.Context, db DBTX, arg ReconcileTaskStatusesFromEventsParams) ([]*ReconcileTaskStatusesFromEventsRow, error) {
+	rows, err := db.Query(ctx, reconcileTaskStatusesFromEvents, arg.Taskids, arg.Taskinsertedats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ReconcileTaskStatusesFromEventsRow
+	for rows.Next() {
+		var i ReconcileTaskStatusesFromEventsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.ReadableStatus,
+			&i.LatestWorkerID,
+			&i.WorkflowID,
+			&i.DagID,
+			&i.DagInsertedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec
 WITH inputs AS (
     SELECT

@@ -612,25 +612,6 @@ WITH inputs AS (
         UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST($21::UUID[]) AS parent_task_external_id,
         UNNEST($22::BOOLEAN[]) AS is_durable
-), event_max_retry AS (
-    SELECT
-        e.task_id,
-        e.task_inserted_at,
-        MAX(e.retry_count) AS max_retry_count
-    FROM v1_task_events_olap e
-    JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.id, i.inserted_at)
-    GROUP BY e.task_id, e.task_inserted_at
-), event_statuses AS (
-    SELECT
-        e.task_id,
-        e.task_inserted_at,
-        emr.max_retry_count,
-        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS max_status,
-        MAX(e.worker_id::text)::uuid AS latest_worker_id
-    FROM v1_task_events_olap e
-    JOIN event_max_retry emr ON (e.task_id, e.task_inserted_at) = (emr.task_id, emr.task_inserted_at)
-        AND e.retry_count = emr.max_retry_count
-    GROUP BY e.task_id, e.task_inserted_at, emr.max_retry_count
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -654,72 +635,33 @@ INSERT INTO v1_tasks_olap (
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable,
-    readable_status,
-    latest_retry_count,
-    latest_worker_id
+    is_durable
 )
 SELECT
-    i.tenant_id,
-    i.id,
-    i.inserted_at,
-    i.queue,
-    i.action_id,
-    i.step_id,
-    i.workflow_id,
-    i.workflow_version_id,
-    i.workflow_run_id,
-    i.schedule_timeout,
-    i.step_timeout,
-    i.priority,
-    i.sticky,
-    i.desired_worker_id,
-    i.external_id,
-    i.display_name,
-    i.input,
-    i.additional_metadata,
-    i.dag_id,
-    i.dag_inserted_at,
-    i.parent_task_external_id,
-    i.is_durable,
-    COALESCE(es.max_status, 'QUEUED'::v1_readable_status_olap),
-    COALESCE(es.max_retry_count, 0),
-    es.latest_worker_id
-FROM inputs i
-LEFT JOIN event_statuses es ON (i.id, i.inserted_at) = (es.task_id, es.task_inserted_at)
-ON CONFLICT (inserted_at, id) DO UPDATE SET
-    readable_status = CASE
-        WHEN EXCLUDED.latest_retry_count > v1_tasks_olap.latest_retry_count
-            AND EXCLUDED.readable_status != v1_tasks_olap.readable_status
-        THEN EXCLUDED.readable_status
-        WHEN EXCLUDED.latest_retry_count = v1_tasks_olap.latest_retry_count
-            AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_tasks_olap.readable_status)
-        THEN EXCLUDED.readable_status
-        WHEN EXCLUDED.latest_retry_count = v1_tasks_olap.latest_retry_count
-            AND v1_tasks_olap.readable_status = 'EVICTED'
-            AND EXCLUDED.readable_status != 'EVICTED'
-        THEN EXCLUDED.readable_status
-        ELSE v1_tasks_olap.readable_status
-    END,
-    latest_retry_count = CASE
-        WHEN EXCLUDED.latest_retry_count > v1_tasks_olap.latest_retry_count
-            AND EXCLUDED.readable_status != v1_tasks_olap.readable_status
-        THEN EXCLUDED.latest_retry_count
-        ELSE v1_tasks_olap.latest_retry_count
-    END,
-    latest_worker_id = CASE
-        WHEN EXCLUDED.latest_retry_count > v1_tasks_olap.latest_retry_count
-            AND EXCLUDED.readable_status != v1_tasks_olap.readable_status
-        THEN COALESCE(EXCLUDED.latest_worker_id, v1_tasks_olap.latest_worker_id)
-        WHEN EXCLUDED.latest_retry_count = v1_tasks_olap.latest_retry_count
-            AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_tasks_olap.readable_status)
-        THEN COALESCE(EXCLUDED.latest_worker_id, v1_tasks_olap.latest_worker_id)
-        WHEN EXCLUDED.latest_retry_count = v1_tasks_olap.latest_retry_count
-            AND v1_tasks_olap.readable_status = 'EVICTED'
-            AND EXCLUDED.readable_status != 'EVICTED'
-        THEN COALESCE(EXCLUDED.latest_worker_id, v1_tasks_olap.latest_worker_id)
-        ELSE v1_tasks_olap.latest_worker_id
-    END
+    tenant_id,
+    id,
+    inserted_at,
+    queue,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_version_id,
+    workflow_run_id,
+    schedule_timeout,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    external_id,
+    display_name,
+    input,
+    additional_metadata,
+    dag_id,
+    dag_inserted_at,
+    parent_task_external_id,
+    is_durable
+FROM inputs
+ON CONFLICT (inserted_at, id) DO NOTHING
 `
 
 type CreateTasksOLAPParams struct {
@@ -888,3 +830,4 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 	)
 	return err
 }
+

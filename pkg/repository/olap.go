@@ -1648,6 +1648,34 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	}
 }
 
+func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromReconcile(taskRows []*sqlcv1.ReconcileTaskStatusesFromEventsRow) sqlcv1.UpdateDAGStatusesFromMQParams {
+	seen := make(map[IdInsertedAt]struct{})
+	tenantIds := make([]uuid.UUID, 0)
+	dagIds := make([]int64, 0)
+	dagInsertedAts := make([]pgtype.Timestamptz, 0)
+
+	for _, row := range taskRows {
+		if !row.DagID.Valid {
+			continue
+		}
+
+		key := IdInsertedAt{ID: row.DagID.Int64, InsertedAt: row.DagInsertedAt}
+
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			tenantIds = append(tenantIds, row.TenantID)
+			dagIds = append(dagIds, row.DagID.Int64)
+			dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
+		}
+	}
+
+	return sqlcv1.UpdateDAGStatusesFromMQParams{
+		Tenantids:      tenantIds,
+		Dagids:         dagIds,
+		Daginsertedats: dagInsertedAts,
+	}
+}
+
 func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
@@ -1706,6 +1734,10 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 
 	if err != nil {
 		return err
+	}
+
+	for _, row := range taskRows {
+		fmt.Printf("writeTaskEventBatch: task %s (id=%d) status=%s was_updated=%v is_dag_task=%v\n", row.ExternalID.String(), row.TaskID, row.ReadableStatus, row.WasUpdated, row.IsDagTask)
 	}
 
 	dagStatusUpdates := r.prepareDAGStatusUpdateBatch(taskRows)
@@ -2036,6 +2068,38 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 
 	if err := commit(ctx); err != nil {
 		return err
+	}
+
+	tx2, commit2, rollback2, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return fmt.Errorf("failed to prepare reconcile tx: %w", err)
+	}
+	defer rollback2()
+
+	reconcileParams := sqlcv1.ReconcileTaskStatusesFromEventsParams{
+		Taskids:         params.Ids,
+		Taskinsertedats: params.Insertedats,
+	}
+
+	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx2, reconcileParams)
+	if err != nil {
+		return fmt.Errorf("failed to reconcile task statuses from events: %w", err)
+	}
+
+	for _, row := range reconciledTasks {
+		fmt.Printf("writeTaskBatch reconcile: task %s (id=%d) updated to status=%s\n", row.ExternalID.String(), row.ID, row.ReadableStatus)
+	}
+
+	dagStatusUpdates := r.prepareDAGStatusUpdateBatchFromReconcile(reconciledTasks)
+	if len(dagStatusUpdates.Dagids) > 0 {
+		_, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx2, dagStatusUpdates)
+		if err != nil {
+			return fmt.Errorf("failed to update DAG statuses after reconcile: %w", err)
+		}
+	}
+
+	if err := commit2(ctx); err != nil {
+		return fmt.Errorf("failed to commit reconcile tx: %w", err)
 	}
 
 	return nil
