@@ -20,8 +20,8 @@ const task1 = hatchet.task({
       units: 1,
     },
   ],
-  fn: (input) => {
-    console.log('executed task1');
+  fn: (_input, ctx) => {
+    ctx.logger.info('executed task1');
   },
 });
 
@@ -30,8 +30,8 @@ const task1 = hatchet.task({
 // > Dynamic
 const task2 = hatchet.task({
   name: 'task2',
-  fn: (input: { userId: string }) => {
-    console.log('executed task2 for user: ', input.userId);
+  fn: (input: { userId: string }, ctx) => {
+    ctx.logger.info(`executed task2 for user: ${input.userId}`);
   },
   rateLimits: [
     {
