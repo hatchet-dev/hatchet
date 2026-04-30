@@ -954,13 +954,30 @@ WITH inputs AS (
         UNNEST(@workerIds::UUID[]) AS worker_id,
         UNNEST(@retryCounts::INTEGER[]) AS retry_count
 ), locked_tasks AS (
-    SELECT *
-    FROM v1_tasks_olap
-    WHERE (inserted_at, id, tenant_id) IN (
-        SELECT task_inserted_at, task_id, tenant_id
-        FROM inputs
-    )
-    FOR UPDATE
+    SELECT t.*
+    FROM v1_tasks_olap t
+    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    WHERE
+        (
+            -- If the retry count is greater than the latest retry count, update the status
+            (
+                i.retry_count > t.latest_retry_count
+                AND i.readable_status != t.readable_status
+            ) OR
+            -- If the retry count is equal, only update if the new status has higher priority
+            (
+                i.retry_count = t.latest_retry_count
+                AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(t.readable_status)
+            ) OR
+            -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+            (
+                i.retry_count = t.latest_retry_count
+                AND t.readable_status = 'EVICTED'
+                AND i.readable_status != 'EVICTED'
+            )
+        )
+    ORDER BY t.inserted_at, t.id
+    FOR UPDATE OF t
 ), updated_tasks AS (
     UPDATE v1_tasks_olap t
     SET
@@ -974,24 +991,6 @@ WITH inputs AS (
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
-        AND (
-            -- If the retry count is greater than the latest retry count, update the status
-            (
-                i.retry_count > lt.latest_retry_count
-                AND i.readable_status != lt.readable_status
-            ) OR
-            -- If the retry count is equal, only update if the new status has higher priority
-            (
-                i.retry_count = lt.latest_retry_count
-                AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(lt.readable_status)
-            ) OR
-            -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
-            (
-                i.retry_count = lt.latest_retry_count
-                AND lt.readable_status = 'EVICTED'
-                AND i.readable_status != 'EVICTED'
-            )
-        )
     RETURNING t.*
 )
 

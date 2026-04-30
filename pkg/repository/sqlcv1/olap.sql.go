@@ -4174,13 +4174,30 @@ WITH inputs AS (
         UNNEST($5::UUID[]) AS worker_id,
         UNNEST($6::INTEGER[]) AS retry_count
 ), locked_tasks AS (
-    SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id, is_durable
-    FROM v1_tasks_olap
-    WHERE (inserted_at, id, tenant_id) IN (
-        SELECT task_inserted_at, task_id, tenant_id
-        FROM inputs
-    )
-    FOR UPDATE
+    SELECT t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable
+    FROM v1_tasks_olap t
+    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    WHERE
+        (
+            -- If the retry count is greater than the latest retry count, update the status
+            (
+                i.retry_count > t.latest_retry_count
+                AND i.readable_status != t.readable_status
+            ) OR
+            -- If the retry count is equal, only update if the new status has higher priority
+            (
+                i.retry_count = t.latest_retry_count
+                AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(t.readable_status)
+            ) OR
+            -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+            (
+                i.retry_count = t.latest_retry_count
+                AND t.readable_status = 'EVICTED'
+                AND i.readable_status != 'EVICTED'
+            )
+        )
+    ORDER BY t.inserted_at, t.id
+    FOR UPDATE OF t
 ), updated_tasks AS (
     UPDATE v1_tasks_olap t
     SET
@@ -4194,24 +4211,6 @@ WITH inputs AS (
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
-        AND (
-            -- If the retry count is greater than the latest retry count, update the status
-            (
-                i.retry_count > lt.latest_retry_count
-                AND i.readable_status != lt.readable_status
-            ) OR
-            -- If the retry count is equal, only update if the new status has higher priority
-            (
-                i.retry_count = lt.latest_retry_count
-                AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(lt.readable_status)
-            ) OR
-            -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
-            (
-                i.retry_count = lt.latest_retry_count
-                AND lt.readable_status = 'EVICTED'
-                AND i.readable_status != 'EVICTED'
-            )
-        )
     RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable
 )
 
