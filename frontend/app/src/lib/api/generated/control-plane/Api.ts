@@ -832,7 +832,7 @@ export class Api<
    * @description Update SSO config for organization
    *
    * @name SsoConfigUpdate
-   * @summary Create Organization SSO Domain
+   * @summary Update organization SSO config
    * @request POST:/api/v1/control-plane/organizations/{organization}/sso-config
    * @secure
    */
