@@ -27,6 +27,7 @@ dump.rdb
 .venv
 
 node_modules
+.pnpm-store
 
 # Jetbrains IDEs
 *.iml

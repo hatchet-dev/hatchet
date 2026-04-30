@@ -21,7 +21,10 @@ import {
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
-import { fetchControlPlaneStatus } from '@/lib/api/api';
+import {
+  CONTROL_PLANE_TENANT_STORAGE_KEY,
+  fetchControlPlaneStatus,
+} from '@/lib/api/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
@@ -59,6 +62,7 @@ export async function loader(_args: { request: Request }) {
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
   return {
+    isControlPlaneEnabled,
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
   };
@@ -262,12 +266,22 @@ function AuthenticatedInner() {
       // clear it so we don't keep trying to use a stale tenant.
       if (lastTenantId && !lastTenantInMemberships) {
         setLastTenant(undefined);
+        if (loaderData.isControlPlaneEnabled) {
+          localStorage.removeItem(CONTROL_PLANE_TENANT_STORAGE_KEY);
+        }
       }
 
       const targetTenant =
         lastTenantInMemberships ?? tenantMemberships[0].tenant;
 
       if (targetTenant) {
+        if (loaderData.isControlPlaneEnabled) {
+          localStorage.setItem(
+            CONTROL_PLANE_TENANT_STORAGE_KEY,
+            JSON.stringify(targetTenant),
+          );
+        }
+
         // Check if tenant has workflows to decide where to redirect
         api
           .workflowList(targetTenant.metadata.id, { limit: 1 })
@@ -316,6 +330,7 @@ function AuthenticatedInner() {
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
+    loaderData.isControlPlaneEnabled,
   ]);
 
   useEffect(

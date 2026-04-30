@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,9 +16,9 @@ import (
 )
 
 var (
-	tokenTenantId uuid.UUID
-	tokenName     string
-	expiresIn     time.Duration
+	tokenTenantIdStr string
+	tokenName        string
+	expiresIn        time.Duration
 )
 
 var tokenCmd = &cobra.Command{
@@ -41,10 +42,9 @@ var tokenCreateAPICmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tokenCmd)
 	tokenCmd.AddCommand(tokenCreateAPICmd)
-	tenantId := tokenTenantId.String()
 
 	tokenCreateAPICmd.PersistentFlags().StringVar(
-		&tenantId,
+		&tokenTenantIdStr,
 		"tenant-id",
 		"",
 		"the tenant ID to associate with the token",
@@ -89,10 +89,9 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	expiresAt := time.Now().UTC().Add(expiresIn)
 
-	tenantId := tokenTenantId
-
-	if tenantId == uuid.Nil {
-		tenantId = uuid.MustParse(server.Seed.DefaultTenantID)
+	tenantId, err := tenantIDForTokenCreate(server.Seed.DefaultTenantID)
+	if err != nil {
+		return err
 	}
 
 	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
@@ -104,4 +103,16 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 	fmt.Println(defaultTok.Token)
 
 	return nil
+}
+
+// tenantIDForTokenCreate returns the tenant UUID from --tenant-id when set, otherwise the seed default.
+func tenantIDForTokenCreate(defaultTenantID string) (uuid.UUID, error) {
+	if strings.TrimSpace(tokenTenantIdStr) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(tokenTenantIdStr))
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("parse --tenant-id: %w", err)
+		}
+		return id, nil
+	}
+	return uuid.Parse(defaultTenantID)
 }
