@@ -11,7 +11,6 @@ import (
 	"log"
 	"maps"
 	"math/rand"
-	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -1650,6 +1649,34 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	}
 }
 
+func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromReconcile(taskRows []*sqlcv1.ReconcileTaskStatusesFromEventsRow) sqlcv1.UpdateDAGStatusesFromMQParams {
+	seen := make(map[IdInsertedAt]struct{})
+	tenantIds := make([]uuid.UUID, 0)
+	dagIds := make([]int64, 0)
+	dagInsertedAts := make([]pgtype.Timestamptz, 0)
+
+	for _, row := range taskRows {
+		if !row.DagID.Valid {
+			continue
+		}
+
+		key := IdInsertedAt{ID: row.DagID.Int64, InsertedAt: row.DagInsertedAt}
+
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			tenantIds = append(tenantIds, row.TenantID)
+			dagIds = append(dagIds, row.DagID.Int64)
+			dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
+		}
+	}
+
+	return sqlcv1.UpdateDAGStatusesFromMQParams{
+		Tenantids:      tenantIds,
+		Dagids:         dagIds,
+		Daginsertedats: dagInsertedAts,
+	}
+}
+
 func workflowRunAdvisoryInt(id uuid.UUID) int64 {
 	hasher := fnv.New64a()
 	hasher.Write(id[:])
@@ -1669,10 +1696,12 @@ func (r *OLAPRepositoryImpl) acquireAdvisoryLocksForWorkflowRuns(ctx context.Con
 		keys = append(keys, workflowRunAdvisoryInt(id))
 	}
 
-	slices.Sort(keys)
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 
-	if err := r.queries.AdvisoryLockMany(ctx, tx, keys); err != nil {
-		return fmt.Errorf("failed to acquire advisory lock for workflow run: %w", err)
+	for _, key := range keys {
+		if err := r.queries.AdvisoryLock(ctx, tx, key); err != nil {
+			return fmt.Errorf("failed to acquire advisory lock for workflow run: %w", err)
+		}
 	}
 
 	return nil
@@ -2056,6 +2085,24 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	err = r.queries.CreateTasksOLAP(ctx, tx, params)
 	if err != nil {
 		return err
+	}
+
+	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx, sqlcv1.ReconcileTaskStatusesFromEventsParams{
+		Taskids:         params.Ids,
+		Taskinsertedats: params.Insertedats,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to reconcile task statuses from events: %w", err)
+	}
+
+	if len(reconciledTasks) > 0 {
+		dagStatusUpdates := r.prepareDAGStatusUpdateBatchFromReconcile(reconciledTasks)
+		if len(dagStatusUpdates.Dagids) > 0 {
+			_, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
+			if err != nil {
+				return fmt.Errorf("failed to update DAG statuses after reconcile: %w", err)
+			}
+		}
 	}
 
 	_, err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
