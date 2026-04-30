@@ -30,6 +30,7 @@ import {
   ListAPIMetaIntegration,
   ManagementTokenList,
   Organization,
+  OrganizationAvailableShardList,
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
@@ -299,6 +300,23 @@ export class Api<
       ...params,
     });
   /**
+   * @description List Hatchet deployment shards in the SHARED pool (available to any organization without dedicated shards).
+   *
+   * @tags Management
+   * @name ShardsListShared
+   * @summary List SHARED deployment shards
+   * @request GET:/api/v1/control-plane/shared-shards
+   * @secure
+   */
+  shardsListShared = (params: RequestParams = {}) =>
+    this.request<OrganizationAvailableShardList, APIError>({
+      path: `/api/v1/control-plane/shared-shards`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description List all organizations the authenticated user is a member of
    *
    * @name OrganizationList
@@ -394,6 +412,26 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List Hatchet deployment shards available for new tenants in this organization
+   *
+   * @tags Management
+   * @name OrganizationListAvailableShards
+   * @summary List available deployment shards for organization
+   * @request GET:/api/v1/control-plane/organizations/{organization}/available-shards
+   * @secure
+   */
+  organizationListAvailableShards = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationAvailableShardList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });
@@ -794,7 +832,7 @@ export class Api<
    * @description Update SSO config for organization
    *
    * @name SsoConfigUpdate
-   * @summary Create Organization SSO Domain
+   * @summary Update organization SSO config
    * @request POST:/api/v1/control-plane/organizations/{organization}/sso-config
    * @secure
    */

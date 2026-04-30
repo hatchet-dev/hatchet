@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+/** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+export enum OrganizationAvailableShardClass {
+  SHARED = "SHARED",
+  DEDICATED = "DEDICATED",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -177,6 +183,8 @@ export interface OrganizationTenant {
    * @format date-time
    */
   archivedAt?: string;
+  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
+  region?: string;
 }
 
 export interface OrganizationTenantList {
@@ -188,6 +196,11 @@ export interface CreateNewTenantForOrganizationRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /**
+   * Optional shard region (e.g. aws:us-east-1). When omitted, the server picks one.
+   * @example "aws:us-east-1"
+   */
+  region?: string;
 }
 
 export interface CreateManagementTokenRequest {
@@ -346,6 +359,19 @@ export interface CreateTenantAPITokenRequest {
 export interface CreateTenantAPITokenResponse {
   /** The generated API token */
   token: string;
+}
+
+export interface OrganizationAvailableShard {
+  /** Cloud provider for this deployment target (e.g. aws). */
+  provider: string;
+  /** Region within the provider (e.g. us-east-1). */
+  region: string;
+  /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+  shardClass: OrganizationAvailableShardClass;
+}
+
+export interface OrganizationAvailableShardList {
+  rows: OrganizationAvailableShard[];
 }
 
 export interface SsoDomain {

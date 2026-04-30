@@ -1,5 +1,7 @@
 import useControlPlane from '@/hooks/use-control-plane';
 import { cloudApi, controlPlaneApi } from '@/lib/api/api';
+import type { CreateNewTenantForOrganizationRequest as CloudCreateNewTenantForOrganizationRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest } from '@/lib/api/generated/control-plane/data-contracts';
 import { useMemo } from 'react';
 
 type OrganizationCreateRequest = Parameters<
@@ -8,9 +10,9 @@ type OrganizationCreateRequest = Parameters<
 type OrganizationUpdateRequest = Parameters<
   typeof cloudApi.organizationUpdate
 >[1];
-type OrganizationCreateTenantRequest = Parameters<
-  typeof cloudApi.organizationCreateTenant
->[1];
+type OrganizationCreateTenantRequest =
+  | CloudCreateNewTenantForOrganizationRequest
+  | ControlPlaneCreateNewTenantForOrganizationRequest;
 type OrganizationMemberDeleteRequest = Parameters<
   typeof cloudApi.organizationMemberDelete
 >[1];
@@ -52,6 +54,18 @@ export function useOrganizationApi() {
               ? controlPlaneApi.organizationGet(organization)
               : cloudApi.organizationGet(organization))
           ).data,
+      }),
+
+      organizationAvailableShardsQuery: (organization: string) => ({
+        queryKey: ['organization:available-shards', organization] as const,
+        queryFn: async () =>
+          (await controlPlaneApi.organizationListAvailableShards(organization))
+            .data,
+      }),
+
+      sharedShardsQuery: () => ({
+        queryKey: ['shards:list:shared'] as const,
+        queryFn: async () => (await controlPlaneApi.shardsListShared()).data,
       }),
 
       organizationSsoDomainGetQuery: (organization: string) => ({

@@ -977,6 +977,8 @@ export interface Tenant {
   environment?: TenantEnvironment;
   /** The server URL for the tenant (includes scheme) */
   serverUrl?: string;
+  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
+  region?: string;
 }
 
 export interface V1EventWorkflowRunSummary {

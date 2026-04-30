@@ -1,4 +1,6 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
+import { usePylon } from '@/components/support-chat';
+import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
@@ -34,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useOrganizations } from '@/hooks/use-organizations';
@@ -47,6 +50,11 @@ import {
   OrganizationTenant,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
+import {
+  OrganizationAvailableShard,
+  OrganizationAvailableShardClass,
+  OrganizationTenant as ControlPlaneOrganizationTenant,
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
@@ -87,8 +95,17 @@ export default function OrganizationSettings() {
   );
 }
 
+const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
+
+// FIXME: remove this once we migrate everyone to the control plane
+type OrganizationTenantWithRegion = OrganizationTenant & {
+  region?: ControlPlaneOrganizationTenant['region'];
+};
+
 function CloudOrganizationSettings() {
   const { tenantId } = useCurrentTenantId();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const pylon = usePylon();
   const {
     getOrganizationForTenant,
     handleUpdateOrganization,
@@ -121,7 +138,7 @@ function CloudOrganizationSettings() {
   const [inviteToCancel, setInviteToCancel] =
     useState<OrganizationInvite | null>(null);
   const [tenantToArchive, setTenantToArchive] =
-    useState<OrganizationTenant | null>(null);
+    useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -192,6 +209,11 @@ function CloudOrganizationSettings() {
   const organizationInvitesQuery = useQuery({
     ...orgApi.organizationInviteListQuery(orgId!),
     enabled: !!orgId,
+  });
+
+  const organizationAvailableShardsQuery = useQuery({
+    ...orgApi.organizationAvailableShardsQuery(orgId!),
+    enabled: !!orgId && isControlPlaneEnabled && isOrganizationOwner,
   });
 
   const organization = organizationQuery.data;
@@ -392,6 +414,33 @@ function CloudOrganizationSettings() {
     },
   ];
 
+  const availableShardColumns = [
+    {
+      columnLabel: 'Cloud Provider',
+      cellRenderer: (row: OrganizationAvailableShard) =>
+        row.provider ? (
+          <Badge variant="outline">{row.provider}</Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      columnLabel: 'Region',
+      cellRenderer: (row: OrganizationAvailableShard) => (
+        <span className="font-mono text-sm">{row.region}</span>
+      ),
+    },
+    {
+      columnLabel: 'Class',
+      cellRenderer: (row: OrganizationAvailableShard) =>
+        row.shardClass === OrganizationAvailableShardClass.DEDICATED ? (
+          <Badge variant="secondary">Dedicated</Badge>
+        ) : (
+          <Badge variant="outline">Shared</Badge>
+        ),
+    },
+  ];
+
   const tokenColumns = [
     {
       columnLabel: 'Name',
@@ -561,6 +610,11 @@ function CloudOrganizationSettings() {
             <TabsTrigger value="tokens" variant="underlined">
               Management Tokens
             </TabsTrigger>
+            {isOrganizationOwner && isControlPlaneEnabled && (
+              <TabsTrigger value="regions" variant="underlined">
+                Available Regions
+              </TabsTrigger>
+            )}
             {canManageSso && (
               <TabsTrigger value="sso" variant="underlined">
                 SSO
@@ -627,6 +681,76 @@ function CloudOrganizationSettings() {
               </div>
             )}
           </TabsContent>
+
+          {isOrganizationOwner && isControlPlaneEnabled && (
+            <TabsContent value="regions">
+              {organizationAvailableShardsQuery.isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loading />
+                </div>
+              ) : organizationAvailableShardsQuery.error instanceof
+                  AxiosError &&
+                organizationAvailableShardsQuery.error.response?.status ===
+                  403 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  You must be an organization owner to view available regions.
+                </div>
+              ) : organizationAvailableShardsQuery.error ? (
+                <div className="py-8 text-center text-sm text-destructive">
+                  Failed to load available regions.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>
+                      Regions where new tenants can be deployed for this
+                      organization.
+                    </p>
+                    <p>
+                      Need to configure which regions are available for a
+                      tenant, or looking for a new region?{' '}
+                      {pylon.enabled ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="h-auto p-0 text-sm font-normal"
+                            onClick={() => pylon.show()}
+                          >
+                            Open support chat
+                          </Button>
+                          , or{' '}
+                        </>
+                      ) : null}
+                      <a
+                        href={OFFICE_HOURS_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        Schedule office hours
+                      </a>
+                      .
+                    </p>
+                  </div>
+                  {organizationAvailableShardsQuery.data?.rows &&
+                  organizationAvailableShardsQuery.data.rows.length > 0 ? (
+                    <SimpleTable
+                      data={organizationAvailableShardsQuery.data.rows}
+                      columns={availableShardColumns}
+                      rowKey={(row) =>
+                        `${row.shardClass}:${row.provider}:${row.region}`
+                      }
+                    />
+                  ) : (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      No deployment regions are configured.
+                    </div>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="tokens">
             {managementTokensQuery.error instanceof AxiosError &&
@@ -832,13 +956,13 @@ function OssOrganizationSettings() {
   const queryClient = useQueryClient();
 
   const [tenantToArchive, setTenantToArchive] =
-    useState<OrganizationTenant | null>(null);
+    useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
 
   const visibleTenants = useMemo(
     () =>
       tenantMemberships
-        ?.map((m): OrganizationTenant | null => {
+        ?.map((m): OrganizationTenantWithRegion | null => {
           if (!m.tenant) {
             return null;
           }
@@ -849,7 +973,7 @@ function OssOrganizationSettings() {
             slug: m.tenant.slug,
           };
         })
-        .filter((t): t is OrganizationTenant => t !== null) || [],
+        .filter((t): t is OrganizationTenantWithRegion => t !== null) || [],
     [tenantMemberships],
   );
 
@@ -912,10 +1036,10 @@ function TenantsSection({
   defaultOrganizationId,
   canManageOrganization,
 }: {
-  tenants: OrganizationTenant[];
+  tenants: OrganizationTenantWithRegion[];
   expandedTenantIds: string[];
   setExpandedTenantIds: (tenantIds: string[]) => void;
-  onArchive: (tenant: OrganizationTenant) => void;
+  onArchive: (tenant: OrganizationTenantWithRegion) => void;
   defaultOrganizationId?: string;
   canManageOrganization: boolean;
 }) {
@@ -969,9 +1093,9 @@ function TenantAccordionItem({
   onArchive,
   canManageOrganization,
 }: {
-  tenant: OrganizationTenant;
+  tenant: OrganizationTenantWithRegion;
   isExpanded: boolean;
-  onArchive: (tenant: OrganizationTenant) => void;
+  onArchive: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const { tenantMemberListQuery, tenantInviteListQuery } = useTenantApi();
@@ -993,10 +1117,11 @@ function TenantAccordionItem({
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <AccordionTrigger className="flex-1 py-1 hover:no-underline [&>svg]:text-muted-foreground">
-          <div className="min-w-0 text-left">
-            <p className="truncate font-medium leading-5">
+          <div className="flex min-w-0 items-center gap-2 text-left">
+            <p className="min-w-0 truncate font-medium leading-5">
               {tenant.name || tenant.id}
             </p>
+            <TenantRegionBadge region={tenant.region} />
           </div>
         </AccordionTrigger>
 
@@ -1239,8 +1364,8 @@ function TenantActions({
   onArchive,
   canManageOrganization,
 }: {
-  row: OrganizationTenant & { metadata: { id: string } };
-  onArchive: (tenant: OrganizationTenant) => void;
+  row: OrganizationTenantWithRegion & { metadata: { id: string } };
+  onArchive: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const navigate = useNavigate();
