@@ -3357,16 +3357,16 @@ WITH inputs AS (
 
 UPDATE v1_tasks_olap t
 SET
-    readable_status = s.max_status,
+    readable_status = s.status,
     latest_retry_count = s.retry_count,
     latest_worker_id = COALESCE(s.latest_worker_id, t.latest_worker_id)
 FROM statuses_from_events s
 WHERE
     (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
     AND (
-        (s.retry_count > t.latest_retry_count AND s.max_status != t.readable_status)
-        OR (ss.retry_count = t.latest_retry_count AND v1_status_to_priority(s.max_status) > v1_status_to_priority(t.readable_status))
-        OR (ss.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.max_status != 'EVICTED')
+        (s.retry_count > t.latest_retry_count AND s.status != t.readable_status)
+        OR (ss.retry_count = t.latest_retry_count AND v1_status_to_priority(s.status) > v1_status_to_priority(t.readable_status))
+        OR (ss.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at
 `
