@@ -7,9 +7,10 @@ import { useMemo } from 'react';
 type OrganizationCreateRequest = Parameters<
   typeof cloudApi.organizationCreate
 >[0];
-type OrganizationUpdateRequest = Parameters<
-  typeof cloudApi.organizationUpdate
->[1];
+type OrganizationUpdateRequest = {
+  name?: string;
+  inactivity_timeout?: string;
+};
 type OrganizationCreateTenantRequest =
   | CloudCreateNewTenantForOrganizationRequest
   | ControlPlaneCreateNewTenantForOrganizationRequest;
@@ -154,7 +155,10 @@ export function useOrganizationApi() {
           (
             await (isControlPlaneEnabled
               ? controlPlaneApi.organizationUpdate(organization, data)
-              : cloudApi.organizationUpdate(organization, data))
+              : cloudApi.organizationUpdate(
+                  organization,
+                  data as { name: string },
+                ))
           ).data,
       }),
 

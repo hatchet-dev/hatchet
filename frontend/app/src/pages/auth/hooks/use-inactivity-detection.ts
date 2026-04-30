@@ -3,28 +3,31 @@ import { useCallback, useEffect, useRef } from 'react';
 interface UseInactivityDetectionOptions {
   timeoutMs?: number;
   throttleMs?: number;
-  events?: string[];
   onInactive?: () => void;
 }
+
+const DEFAULT_EVENTS = [
+  'mousedown',
+  'mousemove',
+  'keypress',
+  'scroll',
+  'touchstart',
+  'click',
+];
 
 export function useInactivityDetection(
   options: UseInactivityDetectionOptions = {},
 ) {
-  const {
-    timeoutMs = -1, // -1 means disabled
-    throttleMs = 1000, // 1 second throttle
-    events = [
-      'mousedown',
-      'mousemove',
-      'keypress',
-      'scroll',
-      'touchstart',
-      'click',
-    ],
-    onInactive = () => {},
-  } = options;
+  const { timeoutMs = -1, throttleMs = 1000, onInactive } = options;
 
   const enabled = timeoutMs > 0;
+
+  // Keep onInactive callable without it being a dep — avoids resetting the
+  // timer on every render when the caller passes an inline arrow function.
+  const onInactiveRef = useRef(onInactive);
+  useEffect(() => {
+    onInactiveRef.current = onInactive;
+  });
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const throttleRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,21 +36,18 @@ export function useInactivityDetection(
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-
     timeoutRef.current = setTimeout(() => {
-      onInactive();
+      onInactiveRef.current?.();
     }, timeoutMs);
-  }, [onInactive, timeoutMs]);
+  }, [timeoutMs]);
 
   const throttledResetTimeout = useCallback(() => {
     if (throttleRef.current) {
-      return; // Already throttled
+      return;
     }
-
     throttleRef.current = setTimeout(() => {
       throttleRef.current = null;
     }, throttleMs);
-
     resetTimeout();
   }, [throttleMs, resetTimeout]);
 
@@ -58,7 +58,7 @@ export function useInactivityDetection(
 
     resetTimeout();
 
-    events.forEach((event) => {
+    DEFAULT_EVENTS.forEach((event) => {
       document.addEventListener(event, throttledResetTimeout, true);
     });
 
@@ -69,18 +69,11 @@ export function useInactivityDetection(
       if (throttleRef.current) {
         clearTimeout(throttleRef.current);
       }
-      events.forEach((event) => {
+      DEFAULT_EVENTS.forEach((event) => {
         document.removeEventListener(event, throttledResetTimeout, true);
       });
     };
-  }, [
-    enabled,
-    timeoutMs,
-    throttleMs,
-    resetTimeout,
-    events,
-    throttledResetTimeout,
-  ]);
+  }, [enabled, timeoutMs, throttleMs, resetTimeout, throttledResetTimeout]);
 
   return {};
 }

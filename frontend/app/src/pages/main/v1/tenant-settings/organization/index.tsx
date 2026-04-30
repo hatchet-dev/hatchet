@@ -84,6 +84,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
+import ms from 'ms';
 import { useMemo, useState } from 'react';
 
 export default function OrganizationSettings() {
@@ -97,6 +98,41 @@ export default function OrganizationSettings() {
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
+function parseDuration(input: string): number | null {
+  const s = input.trim();
+  if (!s) {
+    return null;
+  }
+  if (s === '-1') {
+    return -1;
+  }
+  const result = ms(s as ms.StringValue);
+  return typeof result === 'number' && !isNaN(result) ? result : null;
+}
+
+function msToDurationString(value: number): string {
+  if (value <= 0) {
+    return '';
+  }
+  return ms(value);
+}
+
+function formatTimeoutMs(ms: number): string {
+  if (ms <= 0) {
+    return 'Disabled';
+  }
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  if (rem === 0) {
+    return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  }
+  return `${hours} hour${hours !== 1 ? 's' : ''} ${rem} minute${rem !== 1 ? 's' : ''}`;
+}
+
 // FIXME: remove this once we migrate everyone to the control plane
 type OrganizationTenantWithRegion = OrganizationTenant & {
   region?: ControlPlaneOrganizationTenant['region'];
@@ -109,6 +145,7 @@ function CloudOrganizationSettings() {
   const {
     getOrganizationForTenant,
     handleUpdateOrganization,
+    handleUpdateOrganizationTimeout,
     updateOrganizationLoading,
     handleCreateOrganizationSsoDomain,
     handleDeleteOrganizationSsoDomain,
@@ -142,6 +179,8 @@ function CloudOrganizationSettings() {
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [editedTimeout, setEditedTimeout] = useState('');
+  const [isEditingTimeout, setIsEditingTimeout] = useState(false);
   const [newSsoDomain, setNewSsoDomain] = useState('');
   const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
 
@@ -255,6 +294,36 @@ function CloudOrganizationSettings() {
   const handleCancelEditingName = () => {
     setEditedName(currentOrganizationName);
     setIsEditingName(false);
+  };
+
+  const cpOrganization = isControlPlaneEnabled
+    ? (organization as { inactivity_timeout?: number } | undefined)
+    : undefined;
+  const currentInactivityTimeoutMs = cpOrganization?.inactivity_timeout ?? -1;
+
+  const parsedEditedTimeout = parseDuration(editedTimeout);
+
+  const handleSaveTimeout = () => {
+    if (!orgId || parsedEditedTimeout === null) {
+      return;
+    }
+    if (parsedEditedTimeout === currentInactivityTimeoutMs) {
+      setIsEditingTimeout(false);
+      return;
+    }
+    handleUpdateOrganizationTimeout(orgId, parsedEditedTimeout, () => {
+      setIsEditingTimeout(false);
+      queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
+    });
+  };
+
+  const handleStartEditingTimeout = () => {
+    setEditedTimeout(msToDurationString(currentInactivityTimeoutMs));
+    setIsEditingTimeout(true);
+  };
+
+  const handleCancelEditingTimeout = () => {
+    setIsEditingTimeout(false);
   };
 
   const pendingInvites = organizationInvitesQuery.data?.rows?.filter(
@@ -520,79 +589,168 @@ function CloudOrganizationSettings() {
           }
         >
           {isOrganizationOwner && (
-            <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
-              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Organization name
-              </div>
+            <div className="flex flex-col gap-3">
+              <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
+                <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Organization name
+                </div>
 
-              {isEditingName ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSaveName();
-                      }
-
-                      if (e.key === 'Escape') {
-                        handleCancelEditingName();
-                      }
-                    }}
-                    className="h-10 flex-1 bg-background/60"
-                    disabled={updateOrganizationLoading}
-                    aria-label="Organization name"
-                    autoFocus
-                  />
-
+                {isEditingName ? (
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleCancelEditingName}
+                    <Input
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveName();
+                        }
+
+                        if (e.key === 'Escape') {
+                          handleCancelEditingName();
+                        }
+                      }}
+                      className="h-10 flex-1 bg-background/60"
                       disabled={updateOrganizationLoading}
-                      hoverText="Cancel editing"
-                      className="shrink-0 hover:bg-muted/50"
-                    >
-                      <XMarkIcon className="size-4" />
-                    </Button>
+                      aria-label="Organization name"
+                      autoFocus
+                    />
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleCancelEditingName}
+                        disabled={updateOrganizationLoading}
+                        hoverText="Cancel editing"
+                        className="shrink-0 hover:bg-muted/50"
+                      >
+                        <XMarkIcon className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleSaveName}
+                        disabled={
+                          updateOrganizationLoading ||
+                          !editedName.trim() ||
+                          editedName.trim() === organizationName
+                        }
+                        hoverText="Save organization name"
+                        className="shrink-0 bg-background/60 hover:bg-muted/50"
+                      >
+                        {updateOrganizationLoading ? (
+                          <Spinner />
+                        ) : (
+                          <CheckIcon className="size-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {organizationName}
+                      </p>
+                    </div>
+
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={handleSaveName}
-                      disabled={
-                        updateOrganizationLoading ||
-                        !editedName.trim() ||
-                        editedName.trim() === organizationName
-                      }
-                      hoverText="Save organization name"
+                      onClick={handleStartEditingName}
+                      hoverText="Edit organization name"
                       className="shrink-0 bg-background/60 hover:bg-muted/50"
                     >
-                      {updateOrganizationLoading ? (
-                        <Spinner />
-                      ) : (
-                        <CheckIcon className="size-4" />
-                      )}
+                      <PencilSquareIcon className="size-4" />
                     </Button>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {organizationName}
-                    </p>
+                )}
+              </div>
+
+              {isControlPlaneEnabled && (
+                <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
+                  <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Inactivity timeout
                   </div>
 
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleStartEditingName}
-                    hoverText="Edit organization name"
-                    className="shrink-0 bg-background/60 hover:bg-muted/50"
-                  >
-                    <PencilSquareIcon className="size-4" />
-                  </Button>
+                  {isEditingTimeout ? (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          value={editedTimeout}
+                          onChange={(e) => setEditedTimeout(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveTimeout();
+                            }
+                            if (e.key === 'Escape') {
+                              handleCancelEditingTimeout();
+                            }
+                          }}
+                          className="h-10 flex-1 bg-background/60"
+                          placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
+                          disabled={updateOrganizationLoading}
+                          autoFocus
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleCancelEditingTimeout}
+                            disabled={updateOrganizationLoading}
+                            hoverText="Cancel editing"
+                            className="shrink-0 hover:bg-muted/50"
+                          >
+                            <XMarkIcon className="size-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleSaveTimeout}
+                            disabled={
+                              updateOrganizationLoading ||
+                              parsedEditedTimeout === null
+                            }
+                            hoverText="Save inactivity timeout"
+                            className="shrink-0 bg-background/60 hover:bg-muted/50"
+                          >
+                            {updateOrganizationLoading ? (
+                              <Spinner />
+                            ) : (
+                              <CheckIcon className="size-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      {editedTimeout.trim() !== '' && (
+                        <p
+                          className={`text-xs ${parsedEditedTimeout === null ? 'text-destructive' : 'text-muted-foreground'}`}
+                        >
+                          {parsedEditedTimeout === null
+                            ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
+                            : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {formatTimeoutMs(currentInactivityTimeoutMs)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleStartEditingTimeout}
+                        hoverText="Edit inactivity timeout"
+                        className="shrink-0 bg-background/60 hover:bg-muted/50"
+                      >
+                        <PencilSquareIcon className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

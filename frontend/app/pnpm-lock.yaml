@@ -111,6 +111,9 @@ importers:
       '@types/lodash':
         specifier: ^4.17.24
         version: 4.17.24
+      '@types/ms':
+        specifier: ^2.1.0
+        version: 2.1.0
       axios:
         specifier: ^1.15.0
         version: 1.15.0
@@ -156,6 +159,9 @@ importers:
       monaco-themes:
         specifier: ^0.4.8
         version: 0.4.8
+      ms:
+        specifier: ^2.1.3
+        version: 2.1.3
       posthog-js:
         specifier: ^1.369.2
         version: 1.369.2
@@ -2065,6 +2071,9 @@ packages:
 
   '@types/lodash@4.17.24':
     resolution: {integrity: sha512-gIW7lQLZbue7lRSWEFql49QJJWThrTFFeIMJdp3eH4tKoxm1OvEPg02rm4wCCSHS0cL3/Fizimb35b7k8atwsQ==}
+
+  '@types/ms@2.1.0':
+    resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
   '@types/node@20.19.10':
     resolution: {integrity: sha512-iAFpG6DokED3roLSP0K+ybeDdIX6Bc0Vd3mLW5uDqThPWtNos3E+EqOM11mPQHKzfWHqEBuLjIlsBQQ8CsISmQ==}
@@ -6430,6 +6439,8 @@ snapshots:
   '@types/json5@0.0.29': {}
 
   '@types/lodash@4.17.24': {}
+
+  '@types/ms@2.1.0': {}
 
   '@types/node@20.19.10':
     dependencies:
