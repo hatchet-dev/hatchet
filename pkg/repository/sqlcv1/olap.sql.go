@@ -3351,7 +3351,7 @@ WITH inputs AS (
         v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS status,
         MAX(e.worker_id::text)::uuid AS latest_worker_id
     FROM relevant_events e
-    JOIN max_retry_counts mrc ON (e.task_id, e.task_inserted_at, e.retry_count) = (mrc.task_id, mrc.task_inserted_at, mrc.retry_count)
+    JOIN max_retry_counts mrc ON (e.task_id, e.task_inserted_at, e.retry_count) = (mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
     GROUP BY e.task_id, e.task_inserted_at, e.retry_count
 )
 
