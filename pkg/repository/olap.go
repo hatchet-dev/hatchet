@@ -2066,6 +2066,8 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		return err
 	}
 
+	// second tx here so that we can lock the tasks we just wrote to check if any events had existed for them while
+	// we were writing, and update the status accordingly
 	tx2, commit2, rollback2, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
 		return fmt.Errorf("failed to prepare reconcile tx: %w", err)
