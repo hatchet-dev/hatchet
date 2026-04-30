@@ -1238,7 +1238,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
 
-        ## fixme: this might need a no-wait flavor?
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
             durable_spawn_results = await durable_ctx._spawn_children_no_wait(workflows)
