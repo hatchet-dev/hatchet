@@ -52,6 +52,7 @@ import {
 import {
   OrganizationAvailableShard,
   OrganizationAvailableShardClass,
+  OrganizationTenant as ControlPlaneOrganizationTenant,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
@@ -95,6 +96,11 @@ export default function OrganizationSettings() {
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
+// FIXME: remove this once we migrate everyone to the control plane
+type OrganizationTenantWithRegion = OrganizationTenant & {
+  region?: ControlPlaneOrganizationTenant['region'];
+};
+
 function CloudOrganizationSettings() {
   const { tenantId } = useCurrentTenantId();
   const { isControlPlaneEnabled } = useControlPlane();
@@ -131,7 +137,7 @@ function CloudOrganizationSettings() {
   const [inviteToCancel, setInviteToCancel] =
     useState<OrganizationInvite | null>(null);
   const [tenantToArchive, setTenantToArchive] =
-    useState<OrganizationTenant | null>(null);
+    useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -911,13 +917,13 @@ function OssOrganizationSettings() {
   const queryClient = useQueryClient();
 
   const [tenantToArchive, setTenantToArchive] =
-    useState<OrganizationTenant | null>(null);
+    useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
 
   const visibleTenants = useMemo(
     () =>
       tenantMemberships
-        ?.map((m): OrganizationTenant | null => {
+        ?.map((m): OrganizationTenantWithRegion | null => {
           if (!m.tenant) {
             return null;
           }
@@ -928,7 +934,7 @@ function OssOrganizationSettings() {
             slug: m.tenant.slug,
           };
         })
-        .filter((t): t is OrganizationTenant => t !== null) || [],
+        .filter((t): t is OrganizationTenantWithRegion => t !== null) || [],
     [tenantMemberships],
   );
 
@@ -991,10 +997,10 @@ function TenantsSection({
   defaultOrganizationId,
   canManageOrganization,
 }: {
-  tenants: OrganizationTenant[];
+  tenants: OrganizationTenantWithRegion[];
   expandedTenantIds: string[];
   setExpandedTenantIds: (tenantIds: string[]) => void;
-  onArchive: (tenant: OrganizationTenant) => void;
+  onArchive: (tenant: OrganizationTenantWithRegion) => void;
   defaultOrganizationId?: string;
   canManageOrganization: boolean;
 }) {
@@ -1048,9 +1054,9 @@ function TenantAccordionItem({
   onArchive,
   canManageOrganization,
 }: {
-  tenant: OrganizationTenant;
+  tenant: OrganizationTenantWithRegion;
   isExpanded: boolean;
-  onArchive: (tenant: OrganizationTenant) => void;
+  onArchive: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const { tenantMemberListQuery, tenantInviteListQuery } = useTenantApi();
@@ -1319,8 +1325,8 @@ function TenantActions({
   onArchive,
   canManageOrganization,
 }: {
-  row: OrganizationTenant & { metadata: { id: string } };
-  onArchive: (tenant: OrganizationTenant) => void;
+  row: OrganizationTenantWithRegion & { metadata: { id: string } };
+  onArchive: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const navigate = useNavigate();
