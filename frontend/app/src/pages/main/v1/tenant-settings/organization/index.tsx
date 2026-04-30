@@ -669,7 +669,7 @@ function CloudOrganizationSettings() {
                       <p className="text-sm font-medium">Force SSO</p>
                       <p className="text-sm text-muted-foreground">
                         Require all organization members to sign in with SSO.
-                        Password-based login will be disabled.
+                        All other login methods will be disabled.
                       </p>
                     </div>
                     <Switch
