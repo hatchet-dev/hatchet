@@ -69,19 +69,6 @@ function readStoredTenantId(): string | null {
   }
 }
 
-// FIXME: there is a consistency issue with the tenant id in localstorage, likely due to a race on first load.
-function readTenantIdFromUrl(url: string | undefined): string | null {
-  if (!url) {
-    return null;
-  }
-
-  return (
-    url.match(/\/(?:v1\/)?tenants\/([^/?#]+)/)?.[1] ??
-    url.match(/\/billing\/tenants\/([^/?#]+)/)?.[1] ??
-    null
-  );
-}
-
 /**
  * Shared query config for control-plane metadata.
  * Exported so loaders and the hook can reuse the same key/fn/staleTime,
@@ -136,8 +123,7 @@ export async function exchangeTokenInterceptor(
   // xTenantId takes precedence — callers that know the tenant ID at request
   // time set it explicitly to avoid relying on the localStorage fallback. this prevents race
   // conditions where the interceptor checks localStorage before it's updated with the new tenant ID.
-  const tenantId =
-    config.xTenantId ?? readTenantIdFromUrl(config.url) ?? readStoredTenantId();
+  const tenantId = config.xTenantId ?? readStoredTenantId();
 
   if (!cpEnabled) {
     return config;
