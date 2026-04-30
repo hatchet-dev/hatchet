@@ -2356,41 +2356,50 @@ SELECT compute_olap_payload_batch_size(
 ) AS total_size_bytes;
 
 -- name: ReconcileTaskStatusesFromEvents :many
-WITH task_inputs AS (
+WITH inputs AS (
     SELECT
         UNNEST(@taskIds::BIGINT[]) AS task_id,
         UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
-), event_max_retry AS (
+), locked_tasks AS (
+    SELECT *
+    FROM v1_tasks_olap
+    WHERE (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+    ORDER BY inserted_at, id
+    FOR UPDATE
+), relevant_events AS MATERIALIZED (
+    SELECT *
+    FROM v1_task_events_olap
+    WHERE (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+), max_retry_counts AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
+    FROM relevant_events
+    GROUP BY task_id, task_inserted_at
+), statuses_from_events AS (
     SELECT
         e.task_id,
         e.task_inserted_at,
-        MAX(e.retry_count) AS max_retry_count
-    FROM v1_task_events_olap e
-    JOIN task_inputs ti ON (e.task_id, e.task_inserted_at) = (ti.task_id, ti.task_inserted_at)
-    GROUP BY e.task_id, e.task_inserted_at
-), event_statuses AS (
-    SELECT
-        e.task_id,
-        e.task_inserted_at,
-        emr.max_retry_count,
-        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS max_status,
+        e.retry_count,
+        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS status,
         MAX(e.worker_id::text)::uuid AS latest_worker_id
-    FROM v1_task_events_olap e
-    JOIN event_max_retry emr ON (e.task_id, e.task_inserted_at) = (emr.task_id, emr.task_inserted_at)
-        AND e.retry_count = emr.max_retry_count
-    GROUP BY e.task_id, e.task_inserted_at, emr.max_retry_count
+    FROM relevant_events e
+    JOIN max_retry_counts mrc ON (e.task_id, e.task_inserted_at, e.retry_count) = (mrc.task_id, mrc.task_inserted_at, mrc.retry_count)
+    GROUP BY e.task_id, e.task_inserted_at, e.retry_count
 )
+
 UPDATE v1_tasks_olap t
 SET
-    readable_status = es.max_status,
-    latest_retry_count = es.max_retry_count,
-    latest_worker_id = COALESCE(es.latest_worker_id, t.latest_worker_id)
-FROM event_statuses es
+    readable_status = s.max_status,
+    latest_retry_count = s.retry_count,
+    latest_worker_id = COALESCE(s.latest_worker_id, t.latest_worker_id)
+FROM statuses_from_events s
 WHERE
-    (t.id, t.inserted_at) = (es.task_id, es.task_inserted_at)
+    (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
     AND (
-        (es.max_retry_count > t.latest_retry_count AND es.max_status != t.readable_status)
-        OR (es.max_retry_count = t.latest_retry_count AND v1_status_to_priority(es.max_status) > v1_status_to_priority(t.readable_status))
-        OR (es.max_retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND es.max_status != 'EVICTED')
+        (s.retry_count > t.latest_retry_count AND s.max_status != t.readable_status)
+        OR (ss.retry_count = t.latest_retry_count AND v1_status_to_priority(s.max_status) > v1_status_to_priority(t.readable_status))
+        OR (ss.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.max_status != 'EVICTED')
     )
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
