@@ -784,8 +784,8 @@ function CloudOrganizationSettings() {
           </TabsContent>
           {canManageSso && (
             <TabsContent value="sso">
-              <CreateSSOPage orgId={orgId} />
               <div className="space-y-8">
+                <CreateSSOPage orgId={orgId} />
                 {/* Force SSO toggle */}
                 {isOrganizationOwner && (
                   <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
@@ -836,28 +836,8 @@ function CloudOrganizationSettings() {
                   </div>
                 )}
 
-                {organizationSsoDomainGetQuery.data &&
-                  organizationSsoDomainGetQuery.data.length > 0 && (
-                    <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                      <p>
-                        To verify your domain, add a DNS TXT record with the
-                        value:
-                      </p>
-                      <p className="mt-1 font-mono">
-                        hatchet-sso-verify=&#123;verification_token&#125;
-                      </p>
-                      <p className="mt-2">
-                        It may take a few minutes for DNS changes to propagate
-                        and for the verified status to update.
-                      </p>
-                    </div>
-                  )}
-
                 {/* Add New SSO Domain */}
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    Add Domain
-                  </h3>
                   <div className="flex gap-2">
                     <Input
                       placeholder="example.com"
@@ -882,6 +862,22 @@ function CloudOrganizationSettings() {
                     </Button>
                   </div>
                 </div>
+                {organizationSsoDomainGetQuery.data &&
+                  organizationSsoDomainGetQuery.data.length > 0 && (
+                    <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                      <p>
+                        To verify your domain, add a DNS TXT record with the
+                        value:
+                      </p>
+                      <p className="mt-1 font-mono">
+                        hatchet-sso-verify=&#123;verification_token&#125;
+                      </p>
+                      <p className="mt-2">
+                        It may take a few minutes for DNS changes to propagate
+                        and for the verified status to update.
+                      </p>
+                    </div>
+                  )}
               </div>
             </TabsContent>
           )}
