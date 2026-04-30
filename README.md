@@ -28,7 +28,7 @@
 
 ### What is Hatchet?
 
-Hatchet is a platform for orchestrating background tasks, AI agents, and durable workflows at scale. It supports applications written in Python, Typescript, Go and Ruby, and can be used as a service through [Hatchet Cloud](https://cloud.onhatchet.run) or [self-hosting](/self-hosting). Hatchet provides a full platform for queuing, automatic retries, durability, real-time monitoring, alerting, and logging.
+Hatchet is a platform for orchestrating background tasks, AI agents, and durable workflows at scale. It supports applications written in Python, TypeScript, Go and Ruby, and can be used as a service through [Hatchet Cloud](https://cloud.onhatchet.run) or [self-hosting](https://docs.hatchet.run/self-hosting). Hatchet provides a full platform for queuing, automatic retries, durability, real-time monitoring, alerting, and logging.
 
 ### Get started quickly
 
@@ -93,7 +93,7 @@ The most up-to-date documentation can be found at https://docs.hatchet.run.
 
 Hatchet's [durable tasks](https://docs.hatchet.run/v1/durable-tasks) feature is a drop-in replacement for Temporal or DBOS workflows. You also get:
 
-- End-to-end observability of durable tasks using observability, monitoring and logging
+- End-to-end observability of durable tasks using OpenTelemetry, monitoring and logging
 - Features built for running workflows at scale, such as rate limiting, complex routing, and worker-level slot control
 - Multi-tenancy, users and roles supported out of the box
 
