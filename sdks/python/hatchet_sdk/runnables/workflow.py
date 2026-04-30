@@ -1241,7 +1241,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ## fixme: this might need a no-wait flavor?
         durable_ctx = ctx_durable_context.get()
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
-            spawned_refs = await durable_ctx._spawn_children_no_wait(workflows)
+            durable_spawn_results = await durable_ctx._spawn_children_no_wait(workflows)
+
+            if not wait_for_result:
+                return [
+                    self._client._client.admin.get_workflow_run(
+                        durable_spawn_result.workflow_run_external_id
+                    )
+                    for durable_spawn_result in durable_spawn_results
+                ]
+
             return await asyncio.gather(
                 *[
                     durable_ctx._aio_result_for_spawned_child(
@@ -1249,7 +1258,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                         branch_id=ref.branch_id,
                         workflow_name=ref.workflow_name,
                     )
-                    for ref in spawned_refs
+                    for ref in durable_spawn_results
                 ],
                 return_exceptions=return_exceptions,
             )
