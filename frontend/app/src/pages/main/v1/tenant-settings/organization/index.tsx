@@ -108,7 +108,7 @@ function CloudOrganizationSettings() {
   const schemes = meta?.auth?.schemes || [];
   const { isEnabled: organizationSsoEnabled } = useIsFeatureEnabled(
     FeatureFlagId.OrganizationSsoEnabled,
-    true,
+    false,
   );
   const canManageSso =
     isOrganizationOwner && schemes.includes('sso') && organizationSsoEnabled;
