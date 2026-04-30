@@ -109,13 +109,14 @@ func ToTaskStats(stats map[string]v1.TaskStat, requiredNames []string) gen.TaskS
 	}
 
 	for _, name := range requiredNames {
-		if _, ok := result[name]; ok {
-			continue
+		entry := result[name]
+		if entry.Queued == nil {
+			entry.Queued = zeroTaskStatusStat()
 		}
-		result[name] = gen.TaskStat{
-			Queued:  zeroTaskStatusStat(),
-			Running: zeroTaskStatusStat(),
+		if entry.Running == nil {
+			entry.Running = zeroTaskStatusStat()
 		}
+		result[name] = entry
 	}
 
 	return result
