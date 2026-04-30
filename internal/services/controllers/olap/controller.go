@@ -915,7 +915,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
 
 	if err != nil {
 		return err

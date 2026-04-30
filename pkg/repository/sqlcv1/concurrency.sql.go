@@ -21,6 +21,19 @@ func (q *Queries) AdvisoryLock(ctx context.Context, db DBTX, key int64) error {
 	return err
 }
 
+const advisoryLockMany = `-- name: AdvisoryLockMany :exec
+WITH keys AS (
+    SELECT UNNEST($1::BIGINT[]) AS key
+)
+
+SELECT pg_advisory_xact_lock(key) FROM keys
+`
+
+func (q *Queries) AdvisoryLockMany(ctx context.Context, db DBTX, keys []int64) error {
+	_, err := db.Exec(ctx, advisoryLockMany, keys)
+	return err
+}
+
 const checkStrategyActive = `-- name: CheckStrategyActive :one
 WITH latest_workflow_version AS (
     SELECT DISTINCT ON("workflowId")

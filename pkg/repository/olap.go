@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"maps"
 	"math/rand"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -237,7 +239,7 @@ type OLAPRepository interface {
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) error
-	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error
+	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, workflowRunIds []uuid.UUID) error
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
@@ -1577,7 +1579,7 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 			InsertedAt: event.TaskInsertedAt,
 		}]
 
-		if !seen || event.RetryCount > statusAndRetryCount.RetryCount || compareStatuses(event.ReadableStatus, statusAndRetryCount.Status) {
+		if !seen || event.RetryCount > statusAndRetryCount.RetryCount || (event.RetryCount == statusAndRetryCount.RetryCount && compareStatuses(event.ReadableStatus, statusAndRetryCount.Status)) {
 			taskIdInsertedAtToMeta[IdInsertedAt{
 				ID:         event.TaskID,
 				InsertedAt: event.TaskInsertedAt,
@@ -1648,36 +1650,35 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	}
 }
 
-func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromReconcile(taskRows []*sqlcv1.ReconcileTaskStatusesFromEventsRow) sqlcv1.UpdateDAGStatusesFromMQParams {
-	seen := make(map[IdInsertedAt]struct{})
-	tenantIds := make([]uuid.UUID, 0)
-	dagIds := make([]int64, 0)
-	dagInsertedAts := make([]pgtype.Timestamptz, 0)
+func workflowRunAdvisoryInt(id uuid.UUID) int64 {
+	hasher := fnv.New64a()
+	hasher.Write(id[:])
+	return int64(hasher.Sum64()) // nolint: gosec
+}
 
-	for _, row := range taskRows {
-		if !row.DagID.Valid {
+func (r *OLAPRepositoryImpl) acquireAdvisoryLocksForWorkflowRuns(ctx context.Context, tx pgx.Tx, workflowRunIds []uuid.UUID) error {
+	seen := make(map[uuid.UUID]struct{}, len(workflowRunIds))
+	keys := make([]int64, 0, len(workflowRunIds))
+
+	for _, id := range workflowRunIds {
+		if _, ok := seen[id]; ok {
 			continue
 		}
 
-		key := IdInsertedAt{ID: row.DagID.Int64, InsertedAt: row.DagInsertedAt}
-
-		if _, ok := seen[key]; !ok {
-			seen[key] = struct{}{}
-			tenantIds = append(tenantIds, row.TenantID)
-			dagIds = append(dagIds, row.DagID.Int64)
-			dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
-		}
+		seen[id] = struct{}{}
+		keys = append(keys, workflowRunAdvisoryInt(id))
 	}
 
-	return sqlcv1.UpdateDAGStatusesFromMQParams{
-		Tenantids:      tenantIds,
-		Dagids:         dagIds,
-		Daginsertedats: dagInsertedAts,
+	slices.Sort(keys)
+
+	if err := r.queries.AdvisoryLockMany(ctx, tx, keys); err != nil {
+		return fmt.Errorf("failed to acquire advisory lock for workflow run: %w", err)
 	}
+
+	return nil
 }
 
-func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
-	// skip any events which have a corresponding event already
+func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, workflowRunIds []uuid.UUID) error {
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
@@ -1697,7 +1698,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
 
 		if event.ExternalID != nil {
-			// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
 			dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
 
 			payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
@@ -1713,16 +1713,17 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
 	if err != nil {
 		return err
 	}
-
 	defer rollback()
+
+	if err := r.acquireAdvisoryLocksForWorkflowRuns(ctx, tx, workflowRunIds); err != nil {
+		return err
+	}
 
 	if len(eventsToWrite) > 0 {
 		_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
-
 		if err != nil {
 			return err
 		}
@@ -1731,7 +1732,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsForStatusUpdate)
 
 	taskRows, err := r.queries.UpdateTaskStatusesFromMQ(ctx, tx, statusUpdates)
-
 	if err != nil {
 		return err
 	}
@@ -1739,16 +1739,14 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	dagStatusUpdates := r.prepareDAGStatusUpdateBatch(taskRows)
 
 	if len(dagStatusUpdates.Dagids) > 0 {
-		_, dagErr := r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
-
-		if dagErr != nil {
-			return dagErr
+		_, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
+		if err != nil {
+			return err
 		}
 	}
 
 	if len(payloadsToWrite) > 0 {
 		_, err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
-
 		if err != nil {
 			return err
 		}
@@ -2051,49 +2049,22 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	}
 	defer rollback()
 
+	if err := r.acquireAdvisoryLocksForWorkflowRuns(ctx, tx, params.Workflowrunids); err != nil {
+		return err
+	}
+
 	err = r.queries.CreateTasksOLAP(ctx, tx, params)
 	if err != nil {
 		return err
 	}
 
 	_, err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-
 	if err != nil {
 		return err
 	}
 
 	if err := commit(ctx); err != nil {
 		return err
-	}
-
-	// second tx here so that we can lock the tasks we just wrote to check if any events had existed for them while
-	// we were writing, and update the status accordingly
-	tx2, commit2, rollback2, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-	if err != nil {
-		return fmt.Errorf("failed to prepare reconcile tx: %w", err)
-	}
-	defer rollback2()
-
-	reconcileParams := sqlcv1.ReconcileTaskStatusesFromEventsParams{
-		Taskids:         params.Ids,
-		Taskinsertedats: params.Insertedats,
-	}
-
-	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx2, reconcileParams)
-	if err != nil {
-		return fmt.Errorf("failed to reconcile task statuses from events: %w", err)
-	}
-
-	dagStatusUpdates := r.prepareDAGStatusUpdateBatchFromReconcile(reconciledTasks)
-	if len(dagStatusUpdates.Dagids) > 0 {
-		_, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx2, dagStatusUpdates)
-		if err != nil {
-			return fmt.Errorf("failed to update DAG statuses after reconcile: %w", err)
-		}
-	}
-
-	if err := commit2(ctx); err != nil {
-		return fmt.Errorf("failed to commit reconcile tx: %w", err)
 	}
 
 	return nil
@@ -2135,13 +2106,16 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	}
 	defer rollback()
 
+	if err := r.acquireAdvisoryLocksForWorkflowRuns(ctx, tx, params.Externalids); err != nil {
+		return err
+	}
+
 	err = r.queries.CreateDAGsOLAP(ctx, tx, params)
 	if err != nil {
 		return err
 	}
 
 	_, err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-
 	if err != nil {
 		return err
 	}
@@ -2153,8 +2127,8 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) error {
-	return r.writeTaskEventBatch(ctx, tenantId, events)
+func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, workflowRunIds []uuid.UUID) error {
+	return r.writeTaskEventBatch(ctx, tenantId, events, workflowRunIds)
 }
 
 func (r *OLAPRepositoryImpl) CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) error {

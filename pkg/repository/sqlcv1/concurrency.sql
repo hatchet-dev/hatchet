@@ -144,6 +144,13 @@ WHERE
 -- name: AdvisoryLock :exec
 SELECT pg_advisory_xact_lock(@key::bigint);
 
+-- name: AdvisoryLockMany :exec
+WITH keys AS (
+    SELECT UNNEST(@keys::BIGINT[]) AS key
+)
+
+SELECT pg_advisory_xact_lock(key) FROM keys;
+
 -- name: TryAdvisoryLock :one
 SELECT pg_try_advisory_xact_lock(@key::bigint) AS "locked";
 
