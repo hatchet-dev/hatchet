@@ -42,6 +42,7 @@ export enum PullRequestState {
 export enum FeatureFlagId {
   TenantLogWorkflowFilterEnabled = "tenant-log-workflow-filter-enabled",
   TraceMinimapEnabled = "trace-minimap-enabled",
+  OrganizationSsoEnabled = "organization-sso-enabled",
 }
 
 export enum WebhookWorkerRequestMethod {
