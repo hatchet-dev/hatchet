@@ -956,7 +956,7 @@ WITH inputs AS (
 ), locked_tasks AS (
     SELECT t.*
     FROM v1_tasks_olap t
-    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
+    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
         (
             -- If the retry count is greater than the latest retry count, update the status
