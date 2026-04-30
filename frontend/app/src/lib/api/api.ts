@@ -69,6 +69,7 @@ function readStoredTenantId(): string | null {
   }
 }
 
+// FIXME: there is a consistency issue with the tenant id in localstorage, likely due to a race on first load.
 function readTenantIdFromUrl(url: string | undefined): string | null {
   if (!url) {
     return null;
