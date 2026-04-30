@@ -1,38 +1,32 @@
-import importlib
-import io
-
-
 def make_sample_pdf(text: str) -> bytes:
-    """Create a minimal single-page PDF containing the given text."""
-    try:
-        pypdf = importlib.import_module("pypdf")
-        pypdf_generic = importlib.import_module("pypdf.generic")
-    except ImportError:
-        raise ImportError(
-            "pypdf is required for this example. "
-            "Install it in your Python environment before running."
-        )
+    """Create a minimal single-page PDF containing the given text.
 
-    writer = pypdf.PdfWriter()
-    writer.add_blank_page(width=612, height=792)
-    page = writer.pages[0]
+    Uses no external dependencies. Constructs the PDF binary directly.
+    """
+    stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET"
+    objects = [
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj",
+        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj",
+        f"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]"
+        f" /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj",
+        f"4 0 obj\n<< /Length {len(stream)} >>\nstream\n{stream}\nendstream\nendobj",
+        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj",
+    ]
 
-    font = pypdf_generic.DictionaryObject()
-    font[pypdf_generic.NameObject("/Type")] = pypdf_generic.NameObject("/Font")
-    font[pypdf_generic.NameObject("/Subtype")] = pypdf_generic.NameObject("/Type1")
-    font[pypdf_generic.NameObject("/BaseFont")] = pypdf_generic.NameObject("/Helvetica")
-    font_ref = writer._add_object(font)
+    body = "%PDF-1.4\n"
+    offsets: list[int] = []
+    for obj in objects:
+        offsets.append(len(body))
+        body += obj + "\n\n"
 
-    resources = page.get("/Resources", pypdf_generic.DictionaryObject())
-    if "/Font" not in resources:
-        resources[pypdf_generic.NameObject("/Font")] = pypdf_generic.DictionaryObject()
-    resources["/Font"][pypdf_generic.NameObject("/F1")] = font_ref
-    page[pypdf_generic.NameObject("/Resources")] = resources
+    xref_offset = len(body)
+    xref = f"xref\n0 {len(objects) + 1}\n"
+    xref += "0000000000 65535 f \n"
+    for off in offsets:
+        xref += f"{off:010d} 00000 n \n"
 
-    stream = pypdf_generic.DecodedStreamObject()
-    stream.set_data(f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode())
-    page[pypdf_generic.NameObject("/Contents")] = writer._add_object(stream)
+    body += xref
+    body += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+    body += f"startxref\n{xref_offset}\n%%EOF"
 
-    buf = io.BytesIO()
-    writer.write(buf)
-    return buf.getvalue()
+    return body.encode("latin-1")

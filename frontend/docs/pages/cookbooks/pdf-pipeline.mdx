@@ -32,7 +32,10 @@ To run this example, you will need:
 
 - a working local Hatchet environment or access to [Hatchet Cloud](https://cloud.onhatchet.run)
 - a Hatchet SDK example environment (see the [Quickstart](/v1/quickstart))
-- a PDF text extraction library installed in your environment: [pypdf](https://pypi.org/project/pypdf/) for Python, or [pdf2json](https://www.npmjs.com/package/pdf2json) v4 for TypeScript
+- optionally, a PDF text extraction library for real PDF parsing:
+  [pypdf](https://pypi.org/project/pypdf/) for Python or
+  [pdf2json](https://www.npmjs.com/package/pdf2json) v4 for TypeScript.
+  If the library is not installed, the example falls back to deterministic sample text so the DAG still runs.
 
 ### Define the models
 
