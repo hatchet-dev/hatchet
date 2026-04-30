@@ -832,6 +832,14 @@ getTaskStats:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves.
+        in: query
+        name: taskNames
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
     responses:
       "200":
         content:

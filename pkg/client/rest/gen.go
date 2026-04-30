@@ -3031,6 +3031,12 @@ type RateLimitListParams struct {
 	OrderByDirection *RateLimitOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
 }
 
+// TenantGetTaskStatsParams defines parameters for TenantGetTaskStats.
+type TenantGetTaskStatsParams struct {
+	// TaskNames Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves.
+	TaskNames *[]string `form:"taskNames,omitempty" json:"taskNames,omitempty"`
+}
+
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
 type WorkflowRunListStepRunEventsParams struct {
 	// LastId Last ID of the last event
@@ -3797,7 +3803,7 @@ type ClientInterface interface {
 	StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantGetTaskStats request
-	TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WebhookList request
 	WebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5340,8 +5346,8 @@ func (c *Client) StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID
 	return c.Client.Do(req)
 }
 
-func (c *Client) TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewTenantGetTaskStatsRequest(c.Server, tenant)
+func (c *Client) TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetTaskStatsRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -11413,7 +11419,7 @@ func NewStepRunGetSchemaRequest(server string, tenant openapi_types.UUID, stepRu
 }
 
 // NewTenantGetTaskStatsRequest generates requests for TenantGetTaskStats
-func NewTenantGetTaskStatsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+func NewTenantGetTaskStatsRequest(server string, tenant openapi_types.UUID, params *TenantGetTaskStatsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11436,6 +11442,28 @@ func NewTenantGetTaskStatsRequest(server string, tenant openapi_types.UUID) (*ht
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.TaskNames != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskNames", runtime.ParamLocationQuery, *params.TaskNames); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -14519,7 +14547,7 @@ type ClientWithResponsesInterface interface {
 	StepRunGetSchemaWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetSchemaResponse, error)
 
 	// TenantGetTaskStatsWithResponse request
-	TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error)
+	TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error)
 
 	// WebhookListWithResponse request
 	WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListResponse, error)
@@ -19126,8 +19154,8 @@ func (c *ClientWithResponses) StepRunGetSchemaWithResponse(ctx context.Context, 
 }
 
 // TenantGetTaskStatsWithResponse request returning *TenantGetTaskStatsResponse
-func (c *ClientWithResponses) TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error) {
-	rsp, err := c.TenantGetTaskStats(ctx, tenant, reqEditors...)
+func (c *ClientWithResponses) TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error) {
+	rsp, err := c.TenantGetTaskStats(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

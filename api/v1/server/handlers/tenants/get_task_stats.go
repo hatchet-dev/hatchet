@@ -1,6 +1,8 @@
 package tenants
 
 import (
+	"strings"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -16,7 +18,30 @@ func (t *TenantService) TenantGetTaskStats(ctx echo.Context, request gen.TenantG
 		return nil, err
 	}
 
-	transformedStats := transformers.ToTaskStats(stats)
+	requiredNames := normalizeTaskNames(request.Params.TaskNames)
+	transformedStats := transformers.ToTaskStats(stats, requiredNames)
 
 	return gen.TenantGetTaskStats200JSONResponse(transformedStats), nil
+}
+
+func normalizeTaskNames(raw *[]string) []string {
+	if raw == nil {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(*raw))
+	out := make([]string, 0, len(*raw))
+	for _, entry := range *raw {
+		for _, name := range strings.Split(entry, ",") {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			out = append(out, name)
+		}
+	}
+	return out
 }

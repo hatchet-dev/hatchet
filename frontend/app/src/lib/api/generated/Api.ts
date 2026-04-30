@@ -3745,10 +3745,18 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/task-stats
    * @secure
    */
-  tenantGetTaskStats = Object.assign((tenant: string, params: RequestParams = {}) =>
+  tenantGetTaskStats = Object.assign((
+    tenant: string,
+    query?: {
+      /** Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves. */
+      taskNames?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
