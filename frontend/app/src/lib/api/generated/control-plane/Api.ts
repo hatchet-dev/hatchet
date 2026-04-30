@@ -36,6 +36,7 @@ import {
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
+  SsoConfig,
   SsoDomainArray,
   TenantExchangeToken,
   TenantInvite,
@@ -695,7 +696,9 @@ export class Api<
    */
   ssoUpdate = (
     organization: string,
-    data: object,
+    data: {
+      idpInfoFromCustomer: object;
+    },
     params: RequestParams = {},
   ) =>
     this.request<void, APIError>({
@@ -769,6 +772,43 @@ export class Api<
       path: `/api/v1/control-plane/organizations/sso-domain/${ssoDomain}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Get SSO config for organization
+   *
+   * @name SsoConfigGet
+   * @summary List Organization's SSO Domains
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso-config
+   * @secure
+   */
+  ssoConfigGet = (organization: string, params: RequestParams = {}) =>
+    this.request<SsoConfig, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-config`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update SSO config for organization
+   *
+   * @name SsoConfigUpdate
+   * @summary Create Organization SSO Domain
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso-config
+   * @secure
+   */
+  ssoConfigUpdate = (
+    organization: string,
+    data: SsoConfig,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-config`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**

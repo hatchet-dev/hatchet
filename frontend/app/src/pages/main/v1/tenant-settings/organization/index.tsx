@@ -21,6 +21,7 @@ import { Input } from '@/components/v1/ui/input';
 import { Loading } from '@/components/v1/ui/loading';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import { Switch } from '@/components/v1/ui/switch';
 import {
   Tabs,
   TabsContent,
@@ -130,6 +131,20 @@ function CloudOrganizationSettings() {
   const organizationSsoDomainGetQuery = useQuery({
     ...orgApi.organizationSsoDomainGetQuery(orgId),
     enabled: !!orgId && canManageSso,
+  });
+
+  const organizationSsoConfigGetQuery = useQuery({
+    ...orgApi.organizationSsoConfigGetQuery(orgId),
+    enabled: !!orgId && canManageSso,
+  });
+
+  const ssoConfigUpdateMutation = useMutation({
+    ...orgApi.organizationSsoConfigUpdateMutation(orgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['organization:sso_config:get', orgId],
+      });
+    },
   });
 
   const handleAddSsoDomain = async () => {
@@ -647,6 +662,30 @@ function CloudOrganizationSettings() {
             <TabsContent value="sso">
               <CreateSSOPage orgId={orgId} />
               <div className="space-y-8">
+                {/* Force SSO toggle */}
+                {isOrganizationOwner && (
+                  <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">Force SSO</p>
+                      <p className="text-sm text-muted-foreground">
+                        Require all organization members to sign in with SSO.
+                        All other login methods will be disabled.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={
+                        organizationSsoConfigGetQuery.data?.forceSSO ?? false
+                      }
+                      onCheckedChange={(checked) =>
+                        ssoConfigUpdateMutation.mutate(checked)
+                      }
+                      disabled={
+                        organizationSsoConfigGetQuery.isLoading ||
+                        ssoConfigUpdateMutation.isPending
+                      }
+                    />
+                  </div>
+                )}
                 {/* SSO Domains Table */}
                 {organizationSsoDomainGetQuery.isLoading ? (
                   <div className="flex items-center justify-center py-8">
