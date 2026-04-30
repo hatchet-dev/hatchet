@@ -1,4 +1,5 @@
 import base64
+import importlib
 import io
 import re
 from collections import Counter
@@ -79,7 +80,7 @@ pdf_pipeline = hatchet.workflow(name="PdfPipeline", input_validator=PdfInput)
 @pdf_pipeline.task()
 def extract_text(input: PdfInput, ctx: Context) -> ExtractOutput:
     try:
-        from pypdf import PdfReader
+        pypdf = importlib.import_module("pypdf")
     except ImportError:
         raise ImportError(
             "pypdf is required for this example. "
@@ -87,7 +88,7 @@ def extract_text(input: PdfInput, ctx: Context) -> ExtractOutput:
         )
 
     decoded = base64.b64decode(input.content_base64)
-    reader = PdfReader(io.BytesIO(decoded))
+    reader = pypdf.PdfReader(io.BytesIO(decoded))
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
     return ExtractOutput(text=text, page_count=len(reader.pages))
@@ -171,6 +172,7 @@ def format_result(input: PdfInput, ctx: Context) -> PipelineResult:
 # !!
 
 
+# > Worker registration
 def main() -> None:
     worker = hatchet.worker(
         "pdf-pipeline-worker",
@@ -181,3 +183,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# !!
