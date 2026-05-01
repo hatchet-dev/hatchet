@@ -142,8 +142,22 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     lastTenant?.metadata.id,
   ]);
 
+  const lastTenantMembership = useMemo(() => {
+    if (!lastTenant?.metadata.id || !tenantMemberships) {
+      return undefined;
+    }
+
+    return tenantMemberships.find(
+      (membership) => membership.tenant?.metadata.id === lastTenant.metadata.id,
+    );
+  }, [lastTenant?.metadata.id, tenantMemberships]);
+
+  const fallbackTenantId =
+    lastTenantMembership?.tenant?.metadata.id ??
+    tenantMemberships?.[0]?.tenant?.metadata.id;
+
   const potentiallyValidTenantId =
-    tenantParamInPath || organizationScopedTenantId || lastTenant?.metadata.id;
+    tenantParamInPath || organizationScopedTenantId || fallbackTenantId;
 
   const validTenantMembership = useMemo(() => {
     if (!potentiallyValidTenantId || !tenantMemberships) {
@@ -178,7 +192,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
 
       // Tenant
       tenant,
-      tenantId: tenant?.metadata.id,
+      tenantId: tenantParamInPath || tenant?.metadata.id,
     };
 
     if (!isUserUniverseLoaded) {
@@ -215,6 +229,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     currentUserQuery.isError,
     invalidateCurrentUser,
     tenant,
+    tenantParamInPath,
     isUserUniverseLoaded,
     userUniverseIsCloudEnabled,
     validTenantMembership?.role,
