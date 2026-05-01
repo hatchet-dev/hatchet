@@ -304,38 +304,38 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	}
 
 	// Default poll interval
-	// pollIntervalSec := 2
+	pollIntervalSec := 2
 
 	// Override with config value if available
-	// if o.olapConfig != nil && o.olapConfig.PollInterval > 0 {
-	// 	pollIntervalSec = o.olapConfig.PollInterval
-	// }
+	if o.olapConfig != nil && o.olapConfig.PollInterval > 0 {
+		pollIntervalSec = o.olapConfig.PollInterval
+	}
 
-	// _, err = o.s.NewJob(
-	// 	gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
-	// 	gocron.NewTask(
-	// 		o.runTaskStatusUpdates(ctx),
-	// 	),
-	// 	gocron.WithSingletonMode(gocron.LimitModeReschedule),
-	// )
+	_, err = o.s.NewJob(
+		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
+		gocron.NewTask(
+			o.runTaskStatusUpdates(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
 
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not schedule task status updates: %w", err)
-	// }
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule task status updates: %w", err)
+	}
 
-	// _, err = o.s.NewJob(
-	// 	gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
-	// 	gocron.NewTask(
-	// 		o.runDAGStatusUpdates(ctx),
-	// 	),
-	// 	gocron.WithSingletonMode(gocron.LimitModeReschedule),
-	// )
+	_, err = o.s.NewJob(
+		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
+		gocron.NewTask(
+			o.runDAGStatusUpdates(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
 
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not schedule dag status updates: %w", err)
-	// }
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule dag status updates: %w", err)
+	}
 
 	_, err = o.s.NewJob(
 		gocron.DurationJob(time.Second*60),
