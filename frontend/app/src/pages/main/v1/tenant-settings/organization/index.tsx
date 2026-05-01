@@ -59,6 +59,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
+import { parseDuration, msToDurationString } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
@@ -84,7 +85,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { parseDuration, msToDurationString } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 
 export default function OrganizationSettings() {
@@ -98,7 +98,6 @@ export default function OrganizationSettings() {
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
-
 function formatTimeoutMs(ms: number): string {
   if (ms <= 0) {
     return 'Disabled';
@@ -110,12 +109,16 @@ function formatTimeoutMs(ms: number): string {
   const hours = Math.floor(minutes / 60);
   const remMinutes = minutes % 60;
   if (hours < 24) {
-    if (remMinutes === 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    if (remMinutes === 0) {
+      return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    }
     return `${hours} hour${hours !== 1 ? 's' : ''} ${remMinutes} minute${remMinutes !== 1 ? 's' : ''}`;
   }
   const days = Math.floor(hours / 24);
   const remHours = hours % 24;
-  if (remHours === 0) return `${days} day${days !== 1 ? 's' : ''}`;
+  if (remHours === 0) {
+    return `${days} day${days !== 1 ? 's' : ''}`;
+  }
   return `${days} day${days !== 1 ? 's' : ''} ${remHours} hour${remHours !== 1 ? 's' : ''}`;
 }
 
@@ -287,7 +290,10 @@ function CloudOrganizationSettings() {
     : undefined;
   const currentInactivityTimeoutMs = cpOrganization?.inactivity_timeout ?? -1;
 
-  const parsedEditedTimeout = useMemo(() => parseDuration(editedTimeout), [editedTimeout]);
+  const parsedEditedTimeout = useMemo(
+    () => parseDuration(editedTimeout),
+    [editedTimeout],
+  );
 
   const handleSaveTimeout = () => {
     if (!orgId || parsedEditedTimeout === null) {
