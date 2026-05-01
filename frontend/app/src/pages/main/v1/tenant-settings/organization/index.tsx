@@ -40,7 +40,6 @@ import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
@@ -85,33 +84,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useEffect, useMemo, useState } from 'react';
-
-export default function OrganizationSettingsRedirect() {
-  const { isCloudEnabled, getOrganizationForTenant } = useOrganizations();
-  const { tenantId } = useCurrentTenantId();
-  const navigate = useNavigate();
-
-  const org = isCloudEnabled ? getOrganizationForTenant(tenantId) : undefined;
-  const orgId = org?.metadata.id;
-
-  useEffect(() => {
-    if (isCloudEnabled && orgId) {
-      navigate({
-        to: appRoutes.organizationsRoute.to,
-        params: { organization: orgId },
-        replace: true,
-      });
-    } else if (!isCloudEnabled) {
-      navigate({
-        to: appRoutes.tenantsRoute.to,
-        replace: true,
-      });
-    }
-  }, [isCloudEnabled, orgId, navigate]);
-
-  return null;
-}
+import { useMemo, useState } from 'react';
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
@@ -145,7 +118,6 @@ type OrganizationTenantWithRegion = OrganizationTenant & {
 };
 
 export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
-  const { tenantId } = useCurrentTenantId();
   const { isControlPlaneEnabled } = useControlPlane();
   const pylon = usePylon();
   const {
