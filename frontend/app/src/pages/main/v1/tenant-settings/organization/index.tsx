@@ -84,7 +84,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import ms from 'ms';
+import { parseDuration, msToDurationString } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 
 export default function OrganizationSettings() {
@@ -98,33 +98,6 @@ export default function OrganizationSettings() {
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
-function parseDuration(input: string): number | null {
-  const s = input.trim();
-  if (!s) return null;
-  if (s === '-1') return -1;
-  // Split compound strings like "1h30m" into ["1h", "30m"] and sum each part.
-  const parts = s.match(/\d+\s*[a-z]+/gi);
-  if (!parts) return null;
-  let total = 0;
-  for (const part of parts) {
-    const result = ms(part.replace(/\s/g, '') as ms.StringValue);
-    if (typeof result !== 'number' || isNaN(result)) return null;
-    total += result;
-  }
-  return total > 0 ? total : null;
-}
-
-function msToDurationString(value: number): string {
-  if (value <= 0) return '';
-  let rem = value;
-  const d = Math.floor(rem / 86400000); rem -= d * 86400000;
-  const h = Math.floor(rem / 3600000);  rem -= h * 3600000;
-  const m = Math.floor(rem / 60000);    rem -= m * 60000;
-  const s = Math.floor(rem / 1000);     rem -= s * 1000;
-  return [d && `${d}d`, h && `${h}h`, m && `${m}m`, s && `${s}s`, rem && `${rem}ms`]
-    .filter(Boolean)
-    .join('');
-}
 
 function formatTimeoutMs(ms: number): string {
   if (ms <= 0) {
