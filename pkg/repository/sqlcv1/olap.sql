@@ -1416,7 +1416,16 @@ WITH task_external_ids AS (
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
+    AND tenant_id = @tenantId::UUID
+    AND inserted_at >= @createdAfter::TIMESTAMPTZ
+    AND (
+        sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ
+    )
+    AND (
+        sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+    )
 )
+
 SELECT
     tenant_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,

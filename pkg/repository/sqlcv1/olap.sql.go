@@ -1249,7 +1249,16 @@ WITH task_external_ids AS (
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
+    AND tenant_id = $1::UUID
+    AND inserted_at >= $2::TIMESTAMPTZ
+    AND (
+        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
+    )
+    AND (
+        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
+    )
 )
+
 SELECT
     tenant_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
