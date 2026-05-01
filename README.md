@@ -46,27 +46,43 @@ To view full documentation for self-hosting and using cloud, have a look at the 
 
 ### When should I use Hatchet?
 
-Hatchet is a replacement for traditional task queues like Celery and BullMQ, workflow engines like Temporal or DBOS, and data orchestration systems like Airflow or Prefect. It is designed to be a feature-complete solution for systems where **correctness, reliability, horizontal scalability, and observability** are essential. From a technical perspective, it differs from other solutions in that it uses Postgres as a durability layer for both the task runtime and the observability system, making it particularly easy to self-host.
+You can use Hatchet for running background tasks, AI agents, or other types of long-running workflows. It is designed to be a feature-complete solution for systems where **correctness, reliability, horizontal scalability, and observability** are essential. From a technical perspective, it differs from other solutions in that it uses Postgres as a durability layer for both the task runtime and the observability system, making it particularly easy to self-host.
 
-### Features
+For some end-to-end examples of workflows you can build with Hatchet, check out our [cookbooks](https://docs.hatchet.run/cookbooks).
 
-Hatchet supports the following features out of the box:
+### Hatchet Features
 
-- [Background tasks](https://docs.hatchet.run/v1/tasks)
-- Durable task orchestration via [durable tasks](https://docs.hatchet.run/v1/durable-tasks) and [DAGs](https://docs.hatchet.run/v1/directed-acyclic-graphs)
-- [Retries](https://docs.hatchet.run/v1/retry-policies) (with [exponential backoff](https://docs.hatchet.run/v1/retry-policies#exponential-backoff))
-- [Cron jobs](https://docs.hatchet.run/v1/cron-runs) and [scheduled runs](https://docs.hatchet.run/v1/scheduled-runs)
-- Flow control ([rate limiting](https://docs.hatchet.run/v1/rate-limits), [fairness](https://docs.hatchet.run/v1/concurrency), and [priority](https://docs.hatchet.run/v1/priority))
-- [Event-based triggering](https://docs.hatchet.run/v1/events) and [listeners](https://docs.hatchet.run/v1/durable-event-waits)
-- [Webhook-based triggering](https://docs.hatchet.run/v1/webhooks)
-- Task routing (via [worker labels](https://docs.hatchet.run/v1/advanced-assignment/worker-affinity))
-- Worker concurrency control using [slots](https://docs.hatchet.run/v1/workers#slots)
+#### Background Tasks
+
+- [Background tasks](https://docs.hatchet.run/v1/tasks): Hatchet supports one-off background tasks defined as simple functions. It supports both fire-and-forget and fire-and-wait tasks with subscriptions.
+- [Retries](https://docs.hatchet.run/v1/retry-policies): flexible and configurable retry policies for tasks, with optional [exponential backoff](https://docs.hatchet.run/v1/retry-policies#exponential-backoff)
+- [Cron jobs](https://docs.hatchet.run/v1/cron-runs) and [scheduled runs](https://docs.hatchet.run/v1/scheduled-runs) for scheduling tasks at some point in the future.
+- [Task routing](https://docs.hatchet.run/v1/advanced-assignment/worker-affinity) based on strict conditions, like **worker labels**, or more complex, weighted scheduling rules using **worker affinity**
+- [Event-based triggering](https://docs.hatchet.run/v1/events) and [listeners](https://docs.hatchet.run/v1/durable-event-waits) to build event-driven, highly distributed systems
+- [Webhook-based triggering](https://docs.hatchet.run/v1/webhooks) for easily triggering Hatchet tasks from upstream data sources.
+
+#### Task orchestration and workflows
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) for building fault-tolerant, long-running workflows which can easily recover from failure.
+- [DAGs (directed acyclic graphs)](https://docs.hatchet.run/v1/directed-acyclic-graphs) for building data pipelines and simple workflows. See [our guide](https://docs.hatchet.run/cookbooks/durable-tasks-vs-dags) on choosing between durable tasks and DAGs.
+- Complex pause/resume conditions using [durable sleep](https://docs.hatchet.run/v1/durable-sleep), [event waits](https://docs.hatchet.run/v1/durable-event-waits), or a combination of both.
+
+#### Scale
+
+- [Priority](https://docs.hatchet.run/v1/priority) so that critical tasks can run before tasks which aren't latency sensitive, like backfill jobs
+- [Rate limiting](https://docs.hatchet.run/v1/rate-limits) to deal with third-party APIs, or even to enforce per-user rate limits using **dynamic rate limits**.
+- [Fair scheduling](https://docs.hatchet.run/v1/concurrency) using Hatchet's concurrency policies, which can set a concurrency limit for tasks based on dynamic keys.
+- [Worker slots](https://docs.hatchet.run/v1/workers#slots) for ensuring that workers cannot take on more work than they can handle.
+
+#### Monitoring, observability, and management
+
+- Real-time web UI with alerting, monitoring, and logging
 - [OpenTelemetry](https://docs.hatchet.run/v1/opentelemetry) (using Hatchet's built-in collector or external destinations)
 - [Prometheus metrics](https://docs.hatchet.run/v1/prometheus-metrics)
-- Real-time web UI with alerting, monitoring, and logging
-- Multi-tenancy, users, and roles
+- **Multi-tenant** by default, so a single Hatchet instance can support multiple teams
+- Users and roles
 
-[Hatchet Cloud](https://cloud.onhatchet.run) supports:
+#### [Hatchet Cloud](https://cloud.onhatchet.run) features
 
 - Autoscaling and pay-as-you-go plans
 - Multi-region deployments
