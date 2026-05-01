@@ -2,6 +2,7 @@ import { SideNav } from '../../../components/v1/nav/side-nav';
 import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
+import { Loading } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -18,7 +19,7 @@ import { ReactNode, useEffect, useMemo } from 'react';
 export function MainShell({ children }: { children?: ReactNode }) {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const { tenantId } = useTenantDetails();
+  const { tenantId, isUserUniverseLoaded } = useTenantDetails();
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
   const { getOrganizationIdForTenant } = useOrganizations();
@@ -54,6 +55,11 @@ export function MainShell({ children }: { children?: ReactNode }) {
     user,
     memberships,
   });
+  const content = !isUserUniverseLoaded ? (
+    <Loading className="items-center justify-center" />
+  ) : (
+    (children ?? <OutletWithContext context={childCtx} />)
+  );
 
   return (
     <ThreeColumnLayout
@@ -63,7 +69,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
       mainContainerType="inline-size"
     >
       <div className="shadow-[inset_1px_0_0_0_hsl(var(--border)/0.5),inset_0_1px_0_0_hsl(var(--border)/0.5)] md:rounded-tl-xl p-4 h-full dark:bg-[#050A23] bg-background overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-        {children ?? <OutletWithContext context={childCtx} />}
+        {content}
       </div>
     </ThreeColumnLayout>
   );
