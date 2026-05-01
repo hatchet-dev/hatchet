@@ -51,8 +51,12 @@ export function useTenantDetails() {
   const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
-    (tenant: Tenant) => {
+    (tenant: Tenant, options?: { navigate?: boolean }) => {
       setLastTenant(tenant);
+
+      if (options?.navigate === false) {
+        return;
+      }
 
       const isOnTenantRoute = Boolean(
         matchRoute({

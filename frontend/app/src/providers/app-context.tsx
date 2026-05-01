@@ -84,7 +84,8 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
   // This replaces the old useCurrentTenantId pattern
   const params = useParams({ strict: false });
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
-  const potentiallyValidTenantId = params.tenant || lastTenant?.metadata.id;
+  const tenantParamInPath = params.tenant;
+  const organizationParamInPath = params.organization;
 
   // Fetch current user
   const { userGetCurrentQuery } = useUserApi();
@@ -107,6 +108,42 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     tenantMemberships,
     isCloudEnabled: userUniverseIsCloudEnabled,
   } = useUserUniverse();
+
+  const organizationScopedTenantId = useMemo(() => {
+    if (
+      !organizationParamInPath ||
+      !userUniverseIsCloudEnabled ||
+      !organizations
+    ) {
+      return undefined;
+    }
+
+    const organization = organizations.find(
+      (org) => org.metadata.id === organizationParamInPath,
+    );
+
+    if (!organization) {
+      return undefined;
+    }
+
+    const lastTenantBelongsToOrganization = organization.tenants.some(
+      (tenant) => tenant.id === lastTenant?.metadata.id,
+    );
+
+    if (lastTenantBelongsToOrganization) {
+      return lastTenant?.metadata.id;
+    }
+
+    return organization.tenants[0]?.id;
+  }, [
+    organizationParamInPath,
+    userUniverseIsCloudEnabled,
+    organizations,
+    lastTenant?.metadata.id,
+  ]);
+
+  const potentiallyValidTenantId =
+    tenantParamInPath || organizationScopedTenantId || lastTenant?.metadata.id;
 
   const validTenantMembership = useMemo(() => {
     if (!potentiallyValidTenantId || !tenantMemberships) {
