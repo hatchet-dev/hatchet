@@ -145,7 +145,7 @@ These tools are usually built with data engineers in mind, and aren’t designed
 
 ### Issues
 
-Please submit any bugs that you encounter via Github issues.
+Please submit any bugs that you encounter via GitHub issues.
 
 ### I'd Like to Contribute
 
