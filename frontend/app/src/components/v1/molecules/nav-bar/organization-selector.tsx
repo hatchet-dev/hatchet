@@ -54,12 +54,32 @@ function OrganizationGroup({
   onClose,
   onNavigate,
 }: OrganizationGroupProps) {
+  const { setTenant } = useTenantDetails();
+
+  const firstTenant = useMemo(
+    () =>
+      [...tenants]
+        .sort(
+          (a, b) =>
+            a.tenant?.name
+              ?.toLowerCase()
+              .localeCompare(b.tenant?.name?.toLowerCase() ?? '') ?? 0,
+        )
+        .find((membership) => membership.tenant)?.tenant,
+    [tenants],
+  );
+
   const handleSettingsClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onClose();
+
+    if (firstTenant) {
+      setTenant(firstTenant, { navigate: false });
+    }
+
     onNavigate({
-      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      to: appRoutes.organizationsIndexRoute.to,
       params: {
         organization: organization.metadata.id,
       },

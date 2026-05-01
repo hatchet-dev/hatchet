@@ -40,7 +40,6 @@ import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
@@ -87,15 +86,6 @@ import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useMemo, useState } from 'react';
 
-export default function OrganizationSettings() {
-  const { isCloudEnabled } = useOrganizations();
-  return isCloudEnabled ? (
-    <CloudOrganizationSettings />
-  ) : (
-    <OssOrganizationSettings />
-  );
-}
-
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
 function formatTimeoutMs(ms: number): string {
@@ -127,12 +117,11 @@ type OrganizationTenantWithRegion = OrganizationTenant & {
   region?: ControlPlaneOrganizationTenant['region'];
 };
 
-function CloudOrganizationSettings() {
-  const { tenantId } = useCurrentTenantId();
+export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const { isControlPlaneEnabled } = useControlPlane();
   const pylon = usePylon();
   const {
-    getOrganizationForTenant,
+    organizations,
     handleUpdateOrganization,
     handleUpdateOrganizationTimeout,
     updateOrganizationLoading,
@@ -140,8 +129,7 @@ function CloudOrganizationSettings() {
     handleDeleteOrganizationSsoDomain,
   } = useOrganizations();
 
-  const org = getOrganizationForTenant(tenantId);
-  const orgId = org?.metadata.id;
+  const org = organizations.find((o) => o.metadata.id === orgId);
   const isOrganizationOwner = org?.isOwner ?? false;
 
   const orgApi = useOrganizationApi();
@@ -1097,7 +1085,7 @@ function CloudOrganizationSettings() {
   );
 }
 
-function OssOrganizationSettings() {
+export function OssOrganizationSettings() {
   const { tenantMemberships } = useUserUniverse();
   const queryClient = useQueryClient();
 
@@ -1212,7 +1200,7 @@ function TenantsSection({
           className="space-y-3 rounded-md border bg-background p-3"
         >
           {tenants.map((tenant) => (
-            <>
+            <div key={tenant.id}>
               <TenantAccordionItem
                 key={tenant.id}
                 tenant={tenant}
@@ -1221,7 +1209,7 @@ function TenantsSection({
                 canManageOrganization={canManageOrganization}
               />
               <Separator className="my-3 last:hidden" />
-            </>
+            </div>
           ))}
         </Accordion>
       ) : (
