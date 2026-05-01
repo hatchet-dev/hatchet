@@ -918,7 +918,7 @@ function TenantsSection({
           className="space-y-3 rounded-md border bg-background p-3"
         >
           {tenants.map((tenant) => (
-            <>
+            <div key={tenant.id}>
               <TenantAccordionItem
                 key={tenant.id}
                 tenant={tenant}
@@ -927,7 +927,7 @@ function TenantsSection({
                 canManageOrganization={canManageOrganization}
               />
               <Separator className="my-3 last:hidden" />
-            </>
+            </div>
           ))}
         </Accordion>
       ) : (

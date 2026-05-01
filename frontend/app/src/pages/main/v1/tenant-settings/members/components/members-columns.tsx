@@ -1,7 +1,6 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import useCloud from '@/hooks/use-cloud';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
@@ -23,29 +22,24 @@ export function MemberActions({
   member: TenantMember;
   onChangePasswordClick: (member: TenantMember) => void;
   onEditRoleClick: (member: TenantMember) => void;
-  tenantId?: string;
+  tenantId: string;
   onDeleteSuccess?: () => void;
 }) {
   const { user } = useOutletContext<UserContextType>();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
-  const { tenantId: currentTenantId } = useCurrentTenantId();
   const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
-  const resolvedTenantId = tenantId ?? currentTenantId;
 
   const { tenantMemberDeleteMutation } = useTenantApi();
   const deleteMemberMutation = useMutation({
-    mutationKey: ['tenant-member:delete', resolvedTenantId],
+    mutationKey: ['tenant-member:delete', tenantId],
     mutationFn: async (data: { memberId: string }) => {
-      await tenantMemberDeleteMutation(
-        resolvedTenantId,
-        data.memberId,
-      ).mutationFn();
+      await tenantMemberDeleteMutation(tenantId, data.memberId).mutationFn();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['tenant-member:list', resolvedTenantId],
+        queryKey: ['tenant-member:list', tenantId],
       });
       onDeleteSuccess?.();
       setShowDeleteDialog(false);
