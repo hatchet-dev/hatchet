@@ -4221,19 +4221,16 @@ SELECT
     t.tenant_id,
     t.id AS task_id,
     t.inserted_at AS task_inserted_at,
-    t.readable_status,
+    COALESCE(ut.readable_status, t.readable_status) AS readable_status,
     t.external_id,
-    t.latest_worker_id,
+    COALESCE(ut.latest_worker_id, t.latest_worker_id) AS latest_worker_id,
     t.workflow_id,
     t.dag_id,
     t.dag_inserted_at,
     (t.dag_id IS NOT NULL)::BOOLEAN AS is_dag_task,
-    (SELECT EXISTS (
-        SELECT 1
-        FROM updated_tasks ut
-        WHERE (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-    )) AS was_updated
+    (ut.id IS NOT NULL)::BOOLEAN AS was_updated
 FROM v1_tasks_olap t
+LEFT JOIN updated_tasks ut ON (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
 WHERE (t.inserted_at, t.id, t.tenant_id) IN (
     SELECT task_inserted_at, task_id, tenant_id
     FROM inputs
