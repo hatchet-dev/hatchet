@@ -32,15 +32,15 @@ Hatchet is a platform for orchestrating background tasks, AI agents, and durable
 
 ### Get started quickly
 
-The fastest way to get started with a running Hatchet instance is to install the Hatchet CLI (on MacOS, Linux or WSL) - note that this requires [Docker](https://www.docker.com/get-started) installed locally to work:
+The fastest way to get started with Hatchet is signing up for [Hatchet Cloud](https://cloud.onhatchet.run) to try it out! We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
+
+To run Hatchet locally, the fastest path for setup is to install the Hatchet CLI (on MacOS, Linux or WSL) - note that this requires [Docker](https://www.docker.com/get-started) installed locally to work:
 
 ```sh
 curl -fsSL https://install.hatchet.run/install.sh | bash
 hatchet --version
 hatchet server start
 ```
-
-You can also sign up on [Hatchet Cloud](https://cloud.onhatchet.run) to try it out! We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
 
 To view full documentation for self-hosting and using cloud, have a look at the [docs](https://docs.hatchet.run).
 
