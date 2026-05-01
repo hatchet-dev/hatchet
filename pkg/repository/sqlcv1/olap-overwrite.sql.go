@@ -830,4 +830,3 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 	)
 	return err
 }
-
