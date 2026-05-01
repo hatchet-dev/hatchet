@@ -97,9 +97,28 @@ const redeemOffersRoute = createRoute({
 const organizationsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
-  loader: () => {
-    throw redirect({ to: appRoutes.authenticatedRoute.to });
-  },
+  component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+});
+
+const organizationsIndexRoute = createRoute({
+  getParentRoute: () => organizationsRoute,
+  path: '/',
+  component: lazyRouteComponent(
+    () => import('./pages/organizations/$organization'),
+    'default',
+  ),
+});
+
+const tenantsRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'tenants',
+  component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+});
+
+const tenantsIndexRoute = createRoute({
+  getParentRoute: () => tenantsRoute,
+  path: '/',
+  component: lazyRouteComponent(() => import('./pages/tenants'), 'default'),
 });
 
 const organizationsNewRoute = createRoute({
@@ -798,8 +817,9 @@ const routeTree = rootRoute.addChildren([
     onboardingCreateOrganizationRoute,
     onboardingInvitesRoute,
     redeemOffersRoute,
-    organizationsRoute,
+    organizationsRoute.addChildren([organizationsIndexRoute]),
     organizationsNewRoute,
+    tenantsRoute.addChildren([tenantsIndexRoute]),
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,
@@ -827,7 +847,10 @@ export const appRoutes = {
   onboardingVerifyRoute,
   redeemOffersRoute,
   organizationsRoute,
+  organizationsIndexRoute,
   organizationsNewRoute,
+  tenantsRoute,
+  tenantsIndexRoute,
   authenticatedRoute,
   onboardingCreateTenantRoute,
   onboardingCreateOrganizationRoute,

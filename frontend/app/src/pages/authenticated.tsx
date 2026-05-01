@@ -100,6 +100,7 @@ function AuthenticatedInner() {
   const isOrganizationsPage = Boolean(
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
   );
+  const isTenantsPage = Boolean(matchRoute({ to: appRoutes.tenantsRoute.to }));
   const isOnboardingVerifyEmailPage = Boolean(
     matchRoute({ to: appRoutes.onboardingVerifyRoute.to }),
   );
@@ -162,8 +163,8 @@ function AuthenticatedInner() {
       }
     };
 
-    // Skip all redirects for organization pages
-    if (isOrganizationsPage) {
+    // Skip all redirects for organization/tenants pages
+    if (isOrganizationsPage || isTenantsPage) {
       return;
     }
 
@@ -305,6 +306,7 @@ function AuthenticatedInner() {
     lastTenant,
     pathname,
     isOrganizationsPage,
+    isTenantsPage,
     isOnboardingVerifyEmailPage,
     isOnboardingInvitesPage,
     isOnboardingPage,

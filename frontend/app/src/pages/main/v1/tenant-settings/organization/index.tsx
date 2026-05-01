@@ -75,29 +75,44 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-export default function OrganizationSettings() {
-  const { isCloudEnabled } = useOrganizations();
-  return isCloudEnabled ? (
-    <CloudOrganizationSettings />
-  ) : (
-    <OssOrganizationSettings />
-  );
+export default function OrganizationSettingsRedirect() {
+  const { isCloudEnabled, getOrganizationForTenant } = useOrganizations();
+  const { tenantId } = useCurrentTenantId();
+  const navigate = useNavigate();
+
+  const org = isCloudEnabled ? getOrganizationForTenant(tenantId) : undefined;
+  const orgId = org?.metadata.id;
+
+  useEffect(() => {
+    if (isCloudEnabled && orgId) {
+      navigate({
+        to: appRoutes.organizationsRoute.to,
+        params: { organization: orgId },
+        replace: true,
+      });
+    } else if (!isCloudEnabled) {
+      navigate({
+        to: appRoutes.tenantsRoute.to,
+        replace: true,
+      });
+    }
+  }, [isCloudEnabled, orgId, navigate]);
+
+  return null;
 }
 
-function CloudOrganizationSettings() {
-  const { tenantId } = useCurrentTenantId();
+export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const {
-    getOrganizationForTenant,
+    organizations,
     handleUpdateOrganization,
     updateOrganizationLoading,
     handleCreateOrganizationSsoDomain,
     handleDeleteOrganizationSsoDomain,
   } = useOrganizations();
 
-  const org = getOrganizationForTenant(tenantId);
-  const orgId = org?.metadata.id;
+  const org = organizations.find((o) => o.metadata.id === orgId);
   const isOrganizationOwner = org?.isOwner ?? false;
 
   const orgApi = useOrganizationApi();
@@ -788,7 +803,7 @@ function CloudOrganizationSettings() {
   );
 }
 
-function OssOrganizationSettings() {
+export function OssOrganizationSettings() {
   const { tenantMemberships } = useUserUniverse();
   const queryClient = useQueryClient();
 
