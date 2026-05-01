@@ -199,6 +199,31 @@ const v1RedirectRoute = createRoute({
   },
 });
 
+async function getOrganizationIdForTenantInRouter(tenantId: string) {
+  const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
+    queryClient.fetchQuery(getCloudMetadataQuery),
+    fetchControlPlaneStatus(),
+  ]);
+
+  if (!isCloudEnabled) {
+    return null;
+  }
+
+  const universe = await queryClient.fetchQuery(
+    userUniverseQuery({
+      isCloudEnabled,
+      isCloudLoaded: true,
+      isControlPlaneEnabled,
+    }),
+  );
+
+  return (
+    universe.organizations?.find((org) =>
+      org.tenants.some((tenant) => tenant.id === tenantId),
+    )?.metadata.id ?? null
+  );
+}
+
 const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants/$tenant',
@@ -460,10 +485,20 @@ const tenantOrganizationsAndTenantsRoute = createRoute({
 const tenantSettingsOrganizationRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'settings/organization',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/organization'),
-    'default',
-  ),
+  loader: async ({ params }) => {
+    const orgId = await getOrganizationIdForTenantInRouter(params.tenant);
+
+    if (!orgId) {
+      throw redirect({
+        to: appRoutes.tenantsRoute.to,
+      });
+    }
+
+    throw redirect({
+      to: appRoutes.organizationsRoute.to,
+      params: { organization: orgId },
+    });
+  },
 });
 
 const tenantSettingsIndexRoute = createRoute({

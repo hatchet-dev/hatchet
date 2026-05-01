@@ -58,7 +58,7 @@ function OrganizationGroup({
     e.stopPropagation();
     onClose();
     onNavigate({
-      to: appRoutes.tenantSettingsOrganizationRoute.to,
+      to: appRoutes.organizationsIndexRoute.to,
       params: {
         organization: organization.metadata.id,
       },
