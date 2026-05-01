@@ -5,9 +5,7 @@ import { Snippet } from "@/components/code";
 
 # How to Build a PDF Processing Pipeline with Hatchet DAGs
 
-The decision framework in [Durable Tasks vs DAG Workflows](/cookbooks/durable-tasks-vs-dags) explains why document processing pipelines are a natural fit for [DAG workflows](/v1/directed-acyclic-graphs). The steps are known in advance, the dependencies between them are explicit, and independent stages can run in parallel. This cookbook builds on that framework with a concrete PDF pipeline that extracts text, classifies the document, summarizes the content, extracts keywords, and combines the results.
-
-## What this example builds
+The [Durable Tasks vs DAG Workflows cookbook](/cookbooks/durable-tasks-vs-dags) explains why document processing pipelines are a natural fit for [DAG workflows](/v1/directed-acyclic-graphs). The steps are known in advance, the dependencies between them are explicit, and independent stages can run in parallel. This cookbook builds a concrete PDF pipeline with the following workflow:
 
 ```mermaid
 flowchart TD
@@ -20,7 +18,7 @@ flowchart TD
     E --> F
 ```
 
-Notice that after text extraction, the classify, summarize, and keyword extraction tasks can run concurrently because they each depend only on `extract_text` and not on each other. DAGs make concurrency explicit and simple to reason about. The final format step waits for all three tasks to finish before combining their outputs. Hatchet handles the scheduling, parallelism, and data flow between tasks automatically.
+Notice that after text extraction, the classify, summarize, and keyword extraction tasks can run concurrently because they each depend only on `extract_text` and not on each other. DAGs make concurrency explicit and simple to reason about. The final format step waits for all three tasks to finish before combining their outputs.
 
 ## Setup
 
@@ -80,7 +78,7 @@ The first task decodes the base64 input and extracts text using a PDF library. T
 
 ### Classify the document
 
-The classify task reads the extracted text from its parent and classifies the document by keyword matching.
+Now that we can read the text, we can process it in different ways independently. Let's begin by classifying the document via keyword matching.
 
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
@@ -93,7 +91,7 @@ The classify task reads the extracted text from its parent and classifies the do
 
 ### Summarize the text
 
-The summarize task also reads from `extract_text` and runs in parallel with classification.
+Independently, we can summarize the text read from `extract_text`. To keep this example simple, our summarizer captures the first 50 words and includes the total word count in its output.
 
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
@@ -106,7 +104,7 @@ The summarize task also reads from `extract_text` and runs in parallel with clas
 
 ### Extract keywords
 
-The `extract_keywords` task pulls the most frequent meaningful words from the extracted text using a small stopword list and frequency counting. It depends on text extraction, but not on classification or summarization. In fact, there is no interdependency between these tasks, so Hatchet can run all three in parallel. Concurrency is not the only benefit of this structure. Since each parallel task in a DAG is an independent unit, task-level behavior can be configured independently for aspects such as [retry policies](/v1/retry-policies), [timeouts](/v1/timeouts), and [concurrency limits](/v1/concurrency), among others. If keyword extraction is the slowest or most failure-prone step, its retry policy can be configured independently so that Hatchet retries it without re-running the classify or summarize tasks. In a sequential pipeline, you would need to build that isolation yourself. In a DAG, it comes from the structure.
+The `extract_keywords` task also runs independently, pulling the most frequent meaningful words from the extracted text using a small stopword list and frequency counting. In fact, there is no interdependency between any of these text processing tasks, so Hatchet can run all three in parallel. Concurrency is not the only benefit of this structure. Since each parallel task in a DAG is an independent unit, task-level behavior can be configured independently for aspects such as [retry policies](/v1/retry-policies), [timeouts](/v1/timeouts), and [concurrency limits](/v1/concurrency), among others. If keyword extraction is the slowest or most failure-prone step, its retry policy can be configured independently so that Hatchet retries it without re-running the classify or summarize tasks. In a sequential pipeline, you would need to build that isolation yourself. In a DAG, it comes from the structure.
 
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
