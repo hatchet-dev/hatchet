@@ -981,6 +981,7 @@ WITH inputs AS (
 ), updated_tasks AS (
     UPDATE v1_tasks_olap t
     SET
+        readable_status = lt.new_readable_status,
         latest_retry_count = lt.new_retry_count,
         latest_worker_id = CASE
             WHEN lt.new_worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN lt.new_worker_id
