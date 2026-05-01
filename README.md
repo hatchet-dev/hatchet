@@ -54,25 +54,25 @@ For some end-to-end examples of workflows you can build with Hatchet, check out 
 
 #### Background Tasks
 
-- [Background tasks](https://docs.hatchet.run/v1/tasks): Hatchet supports one-off background tasks defined as simple functions. It supports both fire-and-forget and fire-and-wait tasks with subscriptions.
+- [Background tasks](https://docs.hatchet.run/v1/tasks): Hatchet supports one-off background tasks defined as simple functions. It supports both fire-and-forget and fire-and-wait tasks with subscriptions
 - [Retries](https://docs.hatchet.run/v1/retry-policies): flexible and configurable retry policies for tasks, with optional [exponential backoff](https://docs.hatchet.run/v1/retry-policies#exponential-backoff)
-- [Cron jobs](https://docs.hatchet.run/v1/cron-runs) and [scheduled runs](https://docs.hatchet.run/v1/scheduled-runs) for scheduling tasks at some point in the future.
+- [Cron jobs](https://docs.hatchet.run/v1/cron-runs) and [scheduled runs](https://docs.hatchet.run/v1/scheduled-runs) for scheduling tasks at some point in the future
 - [Task routing](https://docs.hatchet.run/v1/advanced-assignment/worker-affinity) based on strict conditions, like **worker labels**, or more complex, weighted scheduling rules using **worker affinity**
 - [Event-based triggering](https://docs.hatchet.run/v1/events) and [listeners](https://docs.hatchet.run/v1/durable-event-waits) to build event-driven, highly distributed systems
-- [Webhook-based triggering](https://docs.hatchet.run/v1/webhooks) for easily triggering Hatchet tasks from upstream data sources.
+- [Webhook-based triggering](https://docs.hatchet.run/v1/webhooks) for easily triggering Hatchet tasks from upstream data sources
 
 #### Task orchestration and workflows
 
-- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) for building fault-tolerant, long-running workflows which can easily recover from failure.
-- [DAGs (directed acyclic graphs)](https://docs.hatchet.run/v1/directed-acyclic-graphs) for building data pipelines and simple workflows. See [our guide](https://docs.hatchet.run/cookbooks/durable-tasks-vs-dags) on choosing between durable tasks and DAGs.
-- Complex pause/resume conditions using [durable sleep](https://docs.hatchet.run/v1/durable-sleep), [event waits](https://docs.hatchet.run/v1/durable-event-waits), or a combination of both.
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) for building fault-tolerant, long-running workflows which can easily recover from failure
+- [DAGs (directed acyclic graphs)](https://docs.hatchet.run/v1/directed-acyclic-graphs) for building data pipelines and simple workflows. See [our guide](https://docs.hatchet.run/cookbooks/durable-tasks-vs-dags) on choosing between durable tasks and DAGs
+- Complex pause/resume conditions using [durable sleep](https://docs.hatchet.run/v1/durable-sleep), [event waits](https://docs.hatchet.run/v1/durable-event-waits), or a combination of both
 
 #### Scale
 
 - [Priority](https://docs.hatchet.run/v1/priority) so that critical tasks can run before tasks which aren't latency sensitive, like backfill jobs
-- [Rate limiting](https://docs.hatchet.run/v1/rate-limits) to deal with third-party APIs, or even to enforce per-user rate limits using **dynamic rate limits**.
-- [Fair scheduling](https://docs.hatchet.run/v1/concurrency) using Hatchet's concurrency policies, which can set a concurrency limit for tasks based on dynamic keys.
-- [Worker slots](https://docs.hatchet.run/v1/workers#slots) for ensuring that workers cannot take on more work than they can handle.
+- [Rate limiting](https://docs.hatchet.run/v1/rate-limits) to deal with third-party APIs, or even to enforce per-user rate limits using **dynamic rate limits**
+- [Fair scheduling](https://docs.hatchet.run/v1/concurrency) using Hatchet's concurrency policies, which can set a concurrency limit for tasks based on dynamic keys
+- [Worker slots](https://docs.hatchet.run/v1/workers#slots) for ensuring that workers cannot take on more work than they can handle
 
 #### Monitoring, observability, and management
 
