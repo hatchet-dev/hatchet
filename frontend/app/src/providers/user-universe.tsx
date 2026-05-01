@@ -109,17 +109,18 @@ export const userUniverseQuery = ({
       ...org,
       tenants: org.tenants || [],
     }));
+    const membershipRows = tenantMemberships.data.rows || [];
 
     return isCloudEnabled
       ? {
           isCloudEnabled,
           organizations,
-          tenantMemberships: tenantMemberships.data.rows || [],
+          tenantMemberships: membershipRows,
         }
       : {
           isCloudEnabled,
           organizations: null,
-          tenantMemberships: tenantMemberships.data.rows || [],
+          tenantMemberships: membershipRows,
         };
   },
   enabled: isCloudLoaded,

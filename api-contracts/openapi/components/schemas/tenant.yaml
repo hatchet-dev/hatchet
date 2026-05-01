@@ -23,6 +23,9 @@ Tenant:
     serverUrl:
       type: string
       description: The server URL for the tenant (includes scheme)
+    region:
+      type: string
+      description: Control-plane shard region for the tenant (e.g. aws:us-west-2).
   required:
     - metadata
     - name
