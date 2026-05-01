@@ -115,3 +115,23 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 
 	return nil
 }
+
+func (o *OLAPControllerImpl) notifyStatusUpdates(ctx context.Context, result *v1.StatusUpdateResult) error {
+	if result == nil {
+		return nil
+	}
+
+	if len(result.TaskRows) > 0 {
+		if err := o.notifyTasksUpdated(ctx, result.TaskRows); err != nil {
+			return err
+		}
+	}
+
+	if len(result.DAGRows) > 0 {
+		if err := o.notifyDAGsUpdated(ctx, result.DAGRows); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

@@ -511,7 +511,12 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
-	if err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts); err != nil {
+	result, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
+	if err != nil {
+		return err
+	}
+
+	if err := tc.notifyStatusUpdates(ctx, result); err != nil {
 		return err
 	}
 
@@ -915,9 +920,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
+	result, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
 
 	if err != nil {
+		return err
+	}
+
+	if err := tc.notifyStatusUpdates(ctx, result); err != nil {
 		return err
 	}
 
