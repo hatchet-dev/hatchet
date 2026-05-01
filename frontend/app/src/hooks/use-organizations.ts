@@ -331,26 +331,21 @@ export function useOrganizations() {
     [updateOrganizationMutation],
   );
 
-  const handleUpdateOrganizationTimeout = useCallback(
-    (
-      organizationId: string,
-      inactivityTimeoutMs: number,
-      onSuccess: () => void,
-    ) => {
-      updateOrganizationMutation.mutate(
-        { organizationId, inactivity_timeout: `${inactivityTimeoutMs}ms` },
-        {
-          onSuccess: () => {
-            onSuccess();
-          },
-          onError: () => {
-            // Error handling is done by the mutation itself via handleApiError
-          },
+  const handleUpdateOrganizationTimeout = (
+    organizationId: string,
+    inactivityTimeoutMs: number,
+    onSuccess: () => void,
+  ) => {
+    updateOrganizationMutation.mutate(
+      { organizationId, inactivity_timeout: `${inactivityTimeoutMs}ms` },
+      {
+        onSuccess: () => {
+          onSuccess();
         },
-      );
-    },
-    [updateOrganizationMutation],
-  );
+        onError: () => {},
+      },
+    );
+  };
 
   const handleCreateOrganization = useCallback(
     (name: string, onSuccess: (organizationId: string) => void) => {

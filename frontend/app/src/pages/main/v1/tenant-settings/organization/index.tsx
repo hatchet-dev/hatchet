@@ -100,21 +100,30 @@ const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
 function parseDuration(input: string): number | null {
   const s = input.trim();
-  if (!s) {
-    return null;
+  if (!s) return null;
+  if (s === '-1') return -1;
+  // Split compound strings like "1h30m" into ["1h", "30m"] and sum each part.
+  const parts = s.match(/\d+\s*[a-z]+/gi);
+  if (!parts) return null;
+  let total = 0;
+  for (const part of parts) {
+    const result = ms(part.replace(/\s/g, '') as ms.StringValue);
+    if (typeof result !== 'number' || isNaN(result)) return null;
+    total += result;
   }
-  if (s === '-1') {
-    return -1;
-  }
-  const result = ms(s as ms.StringValue);
-  return typeof result === 'number' && !isNaN(result) ? result : null;
+  return total > 0 ? total : null;
 }
 
 function msToDurationString(value: number): string {
-  if (value <= 0) {
-    return '';
-  }
-  return ms(value);
+  if (value <= 0) return '';
+  let rem = value;
+  const d = Math.floor(rem / 86400000); rem -= d * 86400000;
+  const h = Math.floor(rem / 3600000);  rem -= h * 3600000;
+  const m = Math.floor(rem / 60000);    rem -= m * 60000;
+  const s = Math.floor(rem / 1000);     rem -= s * 1000;
+  return [d && `${d}d`, h && `${h}h`, m && `${m}m`, s && `${s}s`, rem && `${rem}ms`]
+    .filter(Boolean)
+    .join('');
 }
 
 function formatTimeoutMs(ms: number): string {
@@ -126,11 +135,15 @@ function formatTimeoutMs(ms: number): string {
     return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
   }
   const hours = Math.floor(minutes / 60);
-  const rem = minutes % 60;
-  if (rem === 0) {
-    return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  const remMinutes = minutes % 60;
+  if (hours < 24) {
+    if (remMinutes === 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    return `${hours} hour${hours !== 1 ? 's' : ''} ${remMinutes} minute${remMinutes !== 1 ? 's' : ''}`;
   }
-  return `${hours} hour${hours !== 1 ? 's' : ''} ${rem} minute${rem !== 1 ? 's' : ''}`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  if (remHours === 0) return `${days} day${days !== 1 ? 's' : ''}`;
+  return `${days} day${days !== 1 ? 's' : ''} ${remHours} hour${remHours !== 1 ? 's' : ''}`;
 }
 
 // FIXME: remove this once we migrate everyone to the control plane
@@ -301,7 +314,7 @@ function CloudOrganizationSettings() {
     : undefined;
   const currentInactivityTimeoutMs = cpOrganization?.inactivity_timeout ?? -1;
 
-  const parsedEditedTimeout = parseDuration(editedTimeout);
+  const parsedEditedTimeout = useMemo(() => parseDuration(editedTimeout), [editedTimeout]);
 
   const handleSaveTimeout = () => {
     if (!orgId || parsedEditedTimeout === null) {

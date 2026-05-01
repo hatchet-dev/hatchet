@@ -109,7 +109,7 @@ export interface Organization {
   tenants?: OrganizationTenant[];
   members?: OrganizationMember[];
   /**
-   * Inactivity login (MS)
+   * Time of inactivity to force log out a user (ms)
    * @format int64
    */
   inactivity_timeout?: number;
