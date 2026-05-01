@@ -3756,11 +3756,12 @@ WITH inputs AS (
         UNNEST($3::TIMESTAMPTZ[]) AS dag_inserted_at
 ), locked_dags AS (
     SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks
-    FROM v1_dags_olap d
-    WHERE (d.inserted_at, d.id, d.tenant_id) IN (
+    FROM v1_dags_olap
+    WHERE (inserted_at, id, tenant_id) IN (
         SELECT dag_inserted_at, dag_id, tenant_id
         FROM inputs
     )
+    ORDER BY inserted_at, id
     FOR UPDATE
 ), dag_task_counts AS (
     SELECT
@@ -4177,7 +4178,7 @@ WITH inputs AS (
         UNNEST($5::UUID[]) AS worker_id,
         UNNEST($6::INTEGER[]) AS retry_count
 ), locked_tasks AS (
-    SELECT t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable
+    SELECT t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, i.readable_status AS new_readable_status, i.worker_id AS new_worker_id, i.retry_count AS new_retry_count
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
@@ -4204,14 +4205,13 @@ WITH inputs AS (
 ), updated_tasks AS (
     UPDATE v1_tasks_olap t
     SET
-        readable_status = i.readable_status,
-        latest_retry_count = i.retry_count,
+        readable_status = lt.new_readable_status,
+        latest_retry_count = lt.new_retry_count,
         latest_worker_id = CASE
-            WHEN i.worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN i.worker_id
+            WHEN lt.new_worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN lt.new_worker_id
             ELSE t.latest_worker_id
         END
     FROM locked_tasks lt
-    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (lt.tenant_id, lt.id, lt.inserted_at)
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
     RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable
