@@ -2447,13 +2447,16 @@ func (r *sharedRepository) NewTriggerTaskData(
 
 	if parentTask != nil {
 		parentExternalId := parentTask.ExternalID
-		childIndex := int64(*req.ChildIndex)
 
 		t.ParentExternalId = &parentExternalId
 		t.ParentTaskId = &parentTask.ID
 		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
-		t.ChildIndex = &childIndex
 		t.ChildKey = req.ChildKey
+
+		if req.ChildIndex != nil {
+			childIndex := int64(*req.ChildIndex)
+			t.ChildIndex = &childIndex
+		}
 
 		t.AdditionalMetadata = injectParentIDs(
 			t.AdditionalMetadata,
