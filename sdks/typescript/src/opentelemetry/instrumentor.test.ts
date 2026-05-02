@@ -1,0 +1,270 @@
+/**
+ * Tests for HatchetInstrumentor.useLinksInsteadOfParent option.
+ *
+ * Verifies that fire-and-forget child runs use OTel span links instead of
+ * parent-child relationships when the predicate returns true, while
+ * preserving the default parent-child behaviour when it returns false.
+ */
+
+// Minimal OTel span mock
+const makeMockSpan = () => ({
+  end: jest.fn(),
+  recordException: jest.fn(),
+  setStatus: jest.fn(),
+  spanContext: jest.fn(() => ({
+    traceId: 'a'.repeat(32),
+    spanId: 'b'.repeat(16),
+    traceFlags: 1,
+  })),
+});
+
+// Build a mock tracer whose startActiveSpan captures its arguments.
+const makeTracerMock = (span = makeMockSpan()) => {
+  const calls: IArguments[] = [];
+  const tracer = {
+    _calls: calls,
+    _span: span,
+    startActiveSpan: jest.fn(function (...args: unknown[]) {
+      // The last argument is always the callback (fn).
+      const fn = args[args.length - 1] as (span: unknown) => unknown;
+      return fn(span);
+    }),
+  };
+  return tracer;
+};
+
+// Dummy action used in all tests.
+const makeAction = (actionId = 'my-worker:my-task') => ({
+  actionId,
+  tenantId: 'tenant-1',
+  workflowRunId: 'run-1',
+  taskId: 'task-1',
+  taskRunExternalId: 'ext-1',
+  retryCount: 0,
+  parentWorkflowRunId: undefined,
+  childWorkflowIndex: undefined,
+  childWorkflowKey: undefined,
+  actionPayload: '{}',
+  jobName: 'my-task',
+  taskName: 'my-task',
+  workflowId: 'wf-1',
+  workflowVersionId: 'wfv-1',
+  // Encode a fake traceparent in the metadata so extractContext finds a valid context.
+  additionalMetadata: JSON.stringify({
+    traceparent: '00-' + 'a'.repeat(32) + '-' + 'b'.repeat(16) + '-01',
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Shared setup: mock @opentelemetry/api and @opentelemetry/instrumentation so
+// HatchetInstrumentor can be imported without a real OTel SDK being present.
+// ---------------------------------------------------------------------------
+
+jest.mock('@opentelemetry/api', () => {
+  const validSpanCtx = {
+    traceId: 'a'.repeat(32),
+    spanId: 'b'.repeat(16),
+    traceFlags: 1,
+  };
+
+  // SpanKind.CONSUMER = 4, SpanStatusCode.OK = 1, SpanStatusCode.ERROR = 2
+  return {
+    SpanKind: { INTERNAL: 0, SERVER: 1, CLIENT: 2, PRODUCER: 3, CONSUMER: 4 },
+    SpanStatusCode: { UNSET: 0, OK: 1, ERROR: 2 },
+    context: {
+      active: jest.fn(() => ({})),
+      with: jest.fn((_ctx: unknown, fn: () => unknown) => fn()),
+    },
+    propagation: {
+      extract: jest.fn(() => ({ _extracted: true })),
+      inject: jest.fn(),
+    },
+    trace: {
+      getSpanContext: jest.fn(() => validSpanCtx),
+      isSpanContextValid: jest.fn(() => true),
+    },
+    diag: {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    },
+  };
+});
+
+jest.mock('@opentelemetry/instrumentation', () => {
+  class InstrumentationBase {
+    protected tracer: ReturnType<typeof makeTracerMock>;
+    protected config: Record<string, unknown>;
+    constructor(_name: string, _version: string, config: Record<string, unknown>) {
+      this.config = config;
+      this.tracer = makeTracerMock();
+    }
+    getConfig() {
+      return this.config;
+    }
+    setConfig(cfg: Record<string, unknown>) {
+      this.config = cfg;
+    }
+    protected _wrap(
+      proto: Record<string, unknown>,
+      method: string,
+      wrapper: (orig: unknown) => unknown
+    ) {
+      proto[method] = wrapper(proto[method]);
+    }
+    protected _unwrap(proto: Record<string, unknown>, method: string) {
+      // no-op in tests
+    }
+  }
+
+  return {
+    InstrumentationBase,
+    InstrumentationNodeModuleDefinition: jest.fn(() => ({})),
+    InstrumentationNodeModuleFile: jest.fn(() => ({})),
+    isWrapped: jest.fn(() => false),
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Import the instrumentor AFTER mocks are set up.
+// ---------------------------------------------------------------------------
+import { HatchetInstrumentor } from './instrumentor';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function buildWorkerProto(action = makeAction()) {
+  const proto = {
+    workerId: 'worker-1',
+    handleStartStepRun: jest.fn().mockResolvedValue(undefined),
+  };
+  return proto;
+}
+
+/**
+ * Returns the `startActiveSpan` call arguments for the `hatchet.start_step_run` span.
+ * startActiveSpan is overloaded:
+ *   (name, opts, context, fn) → parent-child mode  (fn is 4th arg, index 3)
+ *   (name, opts, fn)          → link mode          (fn is 3rd arg, index 2)
+ */
+function getStartStepRunArgs(tracer: ReturnType<typeof makeTracerMock>) {
+  const call = (tracer.startActiveSpan as jest.Mock).mock.calls.find(
+    ([name]: [string]) => typeof name === 'string' && name.startsWith('hatchet.start_step_run')
+  );
+  expect(call).toBeDefined();
+  return call as unknown[];
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('HatchetInstrumentor.useLinksInsteadOfParent', () => {
+  it('uses parent-child semantics by default (no option provided)', async () => {
+    const instrumentor = new HatchetInstrumentor({});
+    const tracer = (instrumentor as unknown as { tracer: ReturnType<typeof makeTracerMock> }).tracer;
+    tracer.startActiveSpan = makeTracerMock()._span
+      ? jest.fn((...args: unknown[]) => {
+          const fn = args[args.length - 1] as (span: unknown) => unknown;
+          return fn(makeMockSpan());
+        })
+      : tracer.startActiveSpan;
+
+    const proto = buildWorkerProto();
+    (instrumentor as unknown as { patchWorker: (e: unknown) => void }).patchWorker({
+      InternalWorker: { prototype: proto },
+    });
+
+    await proto.handleStartStepRun(makeAction());
+
+    const args = getStartStepRunArgs(tracer);
+    // 4 args → (name, opts, parentContext, fn)
+    expect(args).toHaveLength(4);
+    // opts should NOT include links
+    const opts = args[1] as Record<string, unknown>;
+    expect(opts.links).toBeUndefined();
+  });
+
+  it('uses parent-child semantics when predicate returns false', async () => {
+    const instrumentor = new HatchetInstrumentor({
+      useLinksInsteadOfParent: () => false,
+    });
+    const tracer = (instrumentor as unknown as { tracer: ReturnType<typeof makeTracerMock> }).tracer;
+
+    const proto = buildWorkerProto();
+    (instrumentor as unknown as { patchWorker: (e: unknown) => void }).patchWorker({
+      InternalWorker: { prototype: proto },
+    });
+
+    await proto.handleStartStepRun(makeAction());
+
+    const args = getStartStepRunArgs(tracer);
+    expect(args).toHaveLength(4);
+    const opts = args[1] as Record<string, unknown>;
+    expect(opts.links).toBeUndefined();
+  });
+
+  it('uses span links and no parent context when predicate returns true', async () => {
+    const instrumentor = new HatchetInstrumentor({
+      useLinksInsteadOfParent: () => true,
+    });
+    const tracer = (instrumentor as unknown as { tracer: ReturnType<typeof makeTracerMock> }).tracer;
+
+    const proto = buildWorkerProto();
+    (instrumentor as unknown as { patchWorker: (e: unknown) => void }).patchWorker({
+      InternalWorker: { prototype: proto },
+    });
+
+    await proto.handleStartStepRun(makeAction());
+
+    const args = getStartStepRunArgs(tracer);
+    // 3 args → (name, opts, fn) — no parent context
+    expect(args).toHaveLength(3);
+    const opts = args[1] as Record<string, unknown>;
+    expect(Array.isArray(opts.links)).toBe(true);
+    expect((opts.links as unknown[]).length).toBe(1);
+  });
+
+  it('passes the actionId to the predicate', async () => {
+    const predicate = jest.fn(() => false);
+    const action = makeAction('custom-worker:custom-task');
+
+    const instrumentor = new HatchetInstrumentor({
+      useLinksInsteadOfParent: predicate,
+    });
+
+    const proto = buildWorkerProto(action);
+    (instrumentor as unknown as { patchWorker: (e: unknown) => void }).patchWorker({
+      InternalWorker: { prototype: proto },
+    });
+
+    await proto.handleStartStepRun(action);
+
+    expect(predicate).toHaveBeenCalledWith('custom-worker:custom-task');
+  });
+
+  it('falls back to no links when parent span context is invalid', async () => {
+    const otelApi = require('@opentelemetry/api');
+    jest.spyOn(otelApi.trace, 'isSpanContextValid').mockReturnValueOnce(false);
+
+    const instrumentor = new HatchetInstrumentor({
+      useLinksInsteadOfParent: () => true,
+    });
+    const tracer = (instrumentor as unknown as { tracer: ReturnType<typeof makeTracerMock> }).tracer;
+
+    const proto = buildWorkerProto();
+    (instrumentor as unknown as { patchWorker: (e: unknown) => void }).patchWorker({
+      InternalWorker: { prototype: proto },
+    });
+
+    await proto.handleStartStepRun(makeAction());
+
+    const args = getStartStepRunArgs(tracer);
+    // Still 3 args (link mode path), but links array is empty
+    expect(args).toHaveLength(3);
+    const opts = args[1] as Record<string, unknown>;
+    expect((opts.links as unknown[]).length).toBe(0);
+  });
+});
