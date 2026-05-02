@@ -698,9 +698,12 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               parentSpanCtx && otelApi.trace.isSpanContextValid(parentSpanCtx)
                 ? [{ context: parentSpanCtx }]
                 : [];
+            // Using ROOT_CONTEXT prevents unrelated ambient spans on the worker
+            // from turning this link-only span into a child in the wrong trace.
             return tracer.startActiveSpan(
               spanName,
               { kind: SpanKind.CONSUMER, attributes, links },
+              otelApi.ROOT_CONTEXT,
               runSpan
             );
           }
