@@ -84,7 +84,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
@@ -160,6 +160,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const [isEditingTimeout, setIsEditingTimeout] = useState(false);
   const [newSsoDomain, setNewSsoDomain] = useState('');
   const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
 
   const organizationSsoDomainGetQuery = useQuery({
     ...orgApi.organizationSsoDomainGetQuery(orgId),
@@ -244,12 +245,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     [org?.tenants, organization?.tenants],
   );
 
-  // showing the first tenant as open, to make clearer that:
-  // 1. tenants can expand
-  // 2. you can add members to tenants from here
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>(
-    visibleTenants.length > 0 ? [visibleTenants[0].id] : [],
-  );
+  useEffect(() => {
+    if (visibleTenants.length > 0 && !expandedTenantIds.length) {
+      setExpandedTenantIds([visibleTenants[0].id]);
+    }
+  }, [visibleTenants]);
 
   const handleSaveName = () => {
     const trimmedName = editedName.trim();
@@ -1098,6 +1098,7 @@ export function OssOrganizationSettings() {
 
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>();
 
   const visibleTenants = useMemo(
     () =>
@@ -1123,9 +1124,11 @@ export function OssOrganizationSettings() {
   // showing the first tenant as open, to make clearer that:
   // 1. tenants can expand
   // 2. you can add members to tenants from here
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>(
-    visibleTenants.length > 0 ? [visibleTenants[0].id] : [],
-  );
+  useEffect(() => {
+    if (visibleTenants.length > 0 && !expandedTenantIds.length) {
+      setExpandedTenantIds([visibleTenants[0].id]);
+    }
+  }, [visibleTenants]);
 
   return (
     <div className="h-full w-full flex-grow">
