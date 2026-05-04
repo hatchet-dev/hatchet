@@ -11,6 +11,7 @@ import (
 	"log"
 	"maps"
 	"math/rand"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -1701,12 +1702,10 @@ func (r *OLAPRepositoryImpl) acquireAdvisoryLocksForWorkflowRuns(ctx context.Con
 		keys = append(keys, workflowRunAdvisoryInt(id))
 	}
 
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	slices.Sort(keys)
 
-	for _, key := range keys {
-		if err := r.queries.AdvisoryLock(ctx, tx, key); err != nil {
-			return fmt.Errorf("failed to acquire advisory lock for workflow run: %w", err)
-		}
+	if err := r.queries.AdvisoryLockMany(ctx, tx, keys); err != nil {
+		return fmt.Errorf("failed to acquire advisory locks for workflow run: %w", err)
 	}
 
 	return nil

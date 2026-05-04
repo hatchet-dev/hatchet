@@ -26,7 +26,9 @@ WITH keys AS (
     SELECT UNNEST($1::BIGINT[]) AS key
 )
 
-SELECT pg_advisory_xact_lock(key) FROM keys
+SELECT pg_advisory_xact_lock(key)
+FROM keys
+ORDER BY key
 `
 
 func (q *Queries) AdvisoryLockMany(ctx context.Context, db DBTX, keys []int64) error {
