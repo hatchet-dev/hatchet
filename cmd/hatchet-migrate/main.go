@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -12,6 +13,7 @@ import (
 
 var printVersion bool
 var migrateDown string
+var migrateUpTo string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -29,6 +31,13 @@ var rootCmd = &cobra.Command{
 
 		if migrateDown != "" {
 			migrate.RunDownMigration(ctx, migrateDown)
+		} else if migrateUpTo != "" {
+			version, err := strconv.ParseInt(migrateUpTo, 10, 64)
+			if err != nil {
+				fmt.Printf("invalid --up-to version %q: %v\n", migrateUpTo, err)
+				os.Exit(1)
+			}
+			migrate.RunMigrations(ctx, migrate.WithUpToVersion(version))
 		} else {
 			migrate.RunMigrations(ctx)
 		}
@@ -51,6 +60,13 @@ func main() {
 		"down",
 		"",
 		"migrate down to a specific version (e.g., 20240115180414).",
+	)
+
+	rootCmd.PersistentFlags().StringVar(
+		&migrateUpTo,
+		"up-to",
+		"",
+		"migrate up to a specific version (e.g., 20240115180414).",
 	)
 
 	if err := rootCmd.Execute(); err != nil {
