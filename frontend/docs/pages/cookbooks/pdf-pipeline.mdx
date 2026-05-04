@@ -18,7 +18,7 @@ flowchart TD
     E --> F
 ```
 
-Notice that after text extraction, the classify, summarize, and keyword extraction tasks can run concurrently because they each depend only on `extract_text` and not on each other. DAGs make concurrency explicit and simple to reason about. The final format step waits for all three tasks to finish before combining their outputs.
+Notice that after text extraction, the classify, summarize, and keyword extraction tasks can run concurrently because they each depend only on `extract_text` and not on each other. DAGs make concurrency explicit and simple to reason about. The final format step waits for all three tasks to finish before combining their outputs. At the end of this cookbook, we show how to swap the extraction task to use [Reducto](#swapping-in-reducto-for-pdf-extraction) for production document parsing.
 
 ## Setup
 
@@ -63,7 +63,7 @@ Declare the workflow. All tasks will be registered on this workflow with explici
 
 ### Extract text from the PDF
 
-The first task decodes the base64 input and extracts text using a PDF library. This is the only task that touches the PDF directly; after it finishes, the rest of the pipeline works with plain text. If you later want to swap in OCR, object storage, or a different PDF parser, this is the task you would change.
+The first task decodes the base64 input and extracts text using a PDF library. This is the only task that touches the PDF directly; after it finishes, the rest of the pipeline works with plain text. If you later want to swap in OCR, object storage, [Reducto](#swapping-in-reducto-for-pdf-extraction), or a different PDF parser, this is the task you would change.
 
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
@@ -188,9 +188,11 @@ This pipeline is a good fit for a DAG because the processing stages are known be
 
 ## Swapping in Reducto for PDF extraction
 
-The local example above runs without external services, but production document pipelines often need more than basic text extraction. Reducto's [Parse API](https://docs.reducto.ai/parse/overview) can run OCR, detect document layout, and return structured chunks for content such as tables, figures, scanned pages, and multi-column documents. Since Hatchet's DAG isolates PDF parsing in a single task, swapping in Reducto is as simple as replacing `extract_text`; the downstream tasks stay the same. Hatchet still owns the workflow execution, retries, concurrency, and observability. Reducto handles the document parsing.
+The local example above runs without external services, but production document pipelines often need more than basic text extraction. Reducto's [Parse API](https://docs.reducto.ai/parse/overview) can run OCR, detect document layout, and return structured chunks for content such as tables, figures, scanned pages, and multi-column documents. Since Hatchet's DAG isolates PDF parsing in a single task, swapping in Reducto is as simple as replacing `extract_text`; the downstream tasks stay the same. Hatchet continues to run the workflow around the task, including retries, concurrency, and observability, while Reducto handles the document parsing itself.
 
 [Install the Reducto SDK](https://docs.reducto.ai/quickstart#install-the-sdk) and set `REDUCTO_API_KEY` in your environment.
+
+The examples in this cookbook generate a tiny base64-encoded PDF and pass it to the workflow as input data to keep the demo self-contained. For larger PDFs, store the file in object storage such as S3 and pass a file key, URL, or Reducto file reference instead. This avoids putting large PDF payloads into workflow inputs, which can run into [Hatchet's gRPC payload size limit](/cookbooks/troubleshooting-workers#could-not-send-task-to-worker).
 
 For small documents, the snippets below handle the inline result returned when `result.result.type` is `"full"`. For larger documents, Reducto may return a URL result instead; production code should check that field and fetch the result from the URL if needed.
 
