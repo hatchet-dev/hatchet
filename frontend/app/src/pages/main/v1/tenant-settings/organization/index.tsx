@@ -84,7 +84,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
@@ -155,6 +155,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
+  const autoExpandedTenantId = useRef<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedTimeout, setEditedTimeout] = useState('');
@@ -249,8 +250,21 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   // 1. tenants can expand
   // 2. you can add members to tenants from here
   useEffect(() => {
-    if (visibleTenants.length > 0 && !expandedTenantIds.length) {
-      setExpandedTenantIds([visibleTenants[0].id]);
+    const firstVisibleTenantId = visibleTenants[0]?.id;
+
+    if (!firstVisibleTenantId) {
+      autoExpandedTenantId.current = null;
+      return;
+    }
+
+    if (autoExpandedTenantId.current === firstVisibleTenantId) {
+      return;
+    }
+
+    autoExpandedTenantId.current = firstVisibleTenantId;
+
+    if (!expandedTenantIds.length) {
+      setExpandedTenantIds([firstVisibleTenantId]);
     }
   }, [visibleTenants, expandedTenantIds.length]);
 
@@ -1102,6 +1116,7 @@ export function OssOrganizationSettings() {
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
+  const autoExpandedTenantId = useRef<string | null>(null);
 
   const visibleTenants = useMemo(
     () =>
@@ -1128,8 +1143,21 @@ export function OssOrganizationSettings() {
   // 1. tenants can expand
   // 2. you can add members to tenants from here
   useEffect(() => {
-    if (visibleTenants.length > 0 && !expandedTenantIds.length) {
-      setExpandedTenantIds([visibleTenants[0].id]);
+    const firstVisibleTenantId = visibleTenants[0]?.id;
+
+    if (!firstVisibleTenantId) {
+      autoExpandedTenantId.current = null;
+      return;
+    }
+
+    if (autoExpandedTenantId.current === firstVisibleTenantId) {
+      return;
+    }
+
+    autoExpandedTenantId.current = firstVisibleTenantId;
+
+    if (!expandedTenantIds.length) {
+      setExpandedTenantIds([firstVisibleTenantId]);
     }
   }, [visibleTenants, expandedTenantIds.length]);
 
