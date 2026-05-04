@@ -3,9 +3,12 @@ import { Query } from '@tanstack/react-query';
 
 // Refresh the token 60 seconds before it actually expires.
 const EXPIRY_BUFFER_MS = 60_000;
+const RETRY_BASE_DELAY_MS = 1_000;
+const RETRY_MAX_DELAY_MS = 10_000;
+export const EXCHANGE_TOKEN_QUERY_KEY_PREFIX = 'exchange-token';
 
 export function exchangeTokenQueryKey(tenantId: string) {
-  return ['exchange-token', tenantId] as const;
+  return [EXCHANGE_TOKEN_QUERY_KEY_PREFIX, tenantId] as const;
 }
 
 /**
@@ -34,6 +37,8 @@ export function exchangeTokenQueryOptions(
       return Math.max(0, expiry - Date.now() - EXPIRY_BUFFER_MS);
     },
     gcTime: 60 * 60 * 1000,
-    retry: 1,
+    retry: 5,
+    retryDelay: (attemptIndex: number) =>
+      Math.min(RETRY_BASE_DELAY_MS * 2 ** attemptIndex, RETRY_MAX_DELAY_MS),
   };
 }

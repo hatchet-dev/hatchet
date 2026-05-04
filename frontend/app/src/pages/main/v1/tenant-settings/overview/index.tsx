@@ -5,9 +5,8 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 export default function TenantSettings() {
@@ -16,7 +15,7 @@ export default function TenantSettings() {
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
           title="General settings"
-          description="Update the tenant name, analytics preferences, and inactivity timeout details for this tenant."
+          description="Update the tenant name and analytics preferences for this tenant."
         />
 
         <div className="divide-y divide-border">
@@ -28,12 +27,6 @@ export default function TenantSettings() {
             description="Disable usage analytics collection for this tenant."
           >
             <AnalyticsOptOut />
-          </SettingRow>
-          <SettingRow
-            label="Inactivity Timeout"
-            description="Controls how long inactive sessions stay signed in. Contact support to change this value."
-          >
-            <InactivityTimeout />
           </SettingRow>
         </div>
       </div>
@@ -129,37 +122,5 @@ const AnalyticsOptOut: React.FC = () => {
           </Button>
         ))}
     </div>
-  );
-};
-
-const InactivityTimeout: React.FC = () => {
-  const { data: cloudMetadata } = useQuery({
-    queryKey: ['metadata'],
-    queryFn: async () => {
-      const res = await cloudApi.metadataGet();
-      return res.data;
-    },
-  });
-
-  const formatTimeoutMs = (timeoutMs: number | undefined) => {
-    if (!timeoutMs || timeoutMs <= 0) {
-      return 'Disabled';
-    }
-    const minutes = Math.floor(timeoutMs / 60000);
-    if (minutes < 60) {
-      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    if (remainingMinutes === 0) {
-      return `${hours} hour${hours !== 1 ? 's' : ''}`;
-    }
-    return `${hours} hour${hours !== 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
-  };
-
-  return (
-    <span className="text-sm text-muted-foreground">
-      {formatTimeoutMs(cloudMetadata?.inactivityLogoutMs)}
-    </span>
   );
 };

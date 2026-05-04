@@ -50,6 +50,7 @@ export type SideNavItem = {
   displayAsActiveWhenThisRouteIsMatched?: string;
   activeFuzzy?: boolean;
   children?: SideNavChild[];
+  params?: Record<string, string>;
 } & (
   | {
       to: string;
@@ -244,11 +245,6 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     () => (tenantId ? { tenant: tenantId } : undefined),
     [tenantId],
   );
-  const isActive = useCallback(
-    (to: string, fuzzy = false) =>
-      Boolean(matchRoute({ to, params: commonParams, fuzzy })),
-    [matchRoute, commonParams],
-  );
 
   const toggleCollapsed = useCallback(() => {
     setStoredCollapsed(!storedCollapsed);
@@ -350,15 +346,19 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                     )}
 
                     {section.items.map((item) => {
+                      const itemParams = item.params ?? commonParams;
                       const displayAsActiveWhenThisRouteIsMatched =
                         item.displayAsActiveWhenThisRouteIsMatched ??
                         ('to' in item ? item.to : null);
 
                       const activeFuzzy = item.activeFuzzy ?? false;
                       const active = displayAsActiveWhenThisRouteIsMatched
-                        ? isActive(
-                            displayAsActiveWhenThisRouteIsMatched,
-                            activeFuzzy,
+                        ? Boolean(
+                            matchRoute({
+                              to: displayAsActiveWhenThisRouteIsMatched,
+                              params: itemParams,
+                              fuzzy: activeFuzzy,
+                            }),
                           )
                         : false;
 
@@ -423,7 +423,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             } else {
                               navigate({
                                 to: item.to,
-                                params: commonParams,
+                                params: itemParams,
                               });
                             }
                             onNavLinkClick();
@@ -466,8 +466,9 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                     </h2>
 
                     <div className={section.itemsClassName}>
-                      {section.items.map((item) =>
-                        'onClick' in item ? (
+                      {section.items.map((item) => {
+                        const itemParams = item.params ?? commonParams;
+                        return 'onClick' in item ? (
                           <SidebarButtonPrimaryAction
                             key={item.key}
                             name={item.name}
@@ -480,12 +481,18 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             key={item.key}
                             onNavLinkClick={onNavLinkClick}
                             to={item.to!}
-                            params={commonParams}
+                            params={itemParams}
                             prefix={item.prefix}
                             name={item.name}
                             icon={item.icon({
                               collapsed: false,
-                              active: isActive(item.to!, item.activeFuzzy),
+                              active: Boolean(
+                                matchRoute({
+                                  to: item.to!,
+                                  params: itemParams,
+                                  fuzzy: item.activeFuzzy,
+                                }),
+                              ),
                             })}
                             collapsibleChildren={
                               item.children?.map((child) => (
@@ -499,8 +506,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                               )) ?? []
                             }
                           />
-                        ),
-                      )}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}

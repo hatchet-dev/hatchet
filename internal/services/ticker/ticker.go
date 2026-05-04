@@ -120,6 +120,12 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
 
+	userCronScheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create user cron scheduler: %w", err)
+	}
+
 	return &TickerImpl{
 		mqv1:                   opts.mqv1,
 		l:                      opts.l,
@@ -128,6 +134,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		dv:                     opts.dv,
 		tickerId:               opts.tickerId,
 		ta:                     opts.ta,
+		userCronScheduler:      userCronScheduler,
 		userCronSchedulesToIds: make(map[string]string),
 	}, nil
 }
@@ -136,6 +143,15 @@ func (t *TickerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t.l.Debug().Ctx(ctx).Msgf("starting ticker %s", t.tickerId)
+
+	_, err := t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
+		ID: t.tickerId,
+	})
+
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
 	// initialize the cron schedules, so no need to wait for 15 seconds or
 	// a cron to be created
@@ -149,16 +165,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
 	if err != nil {
 		t.l.Err(err).Ctx(ctx).Msg("Could not subscribe to cron trigger update queue")
-	}
-
-	// register the ticker
-	_, err = t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
-		ID: t.tickerId,
-	})
-
-	if err != nil {
-		cancel()
-		return nil, err
 	}
 
 	_, err = t.s.NewJob(
@@ -228,15 +234,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
-
-	userCronScheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create user cron scheduler: %w", err)
-	}
-
-	t.userCronScheduler = userCronScheduler
 
 	t.s.Start()
 	t.userCronScheduler.Start()

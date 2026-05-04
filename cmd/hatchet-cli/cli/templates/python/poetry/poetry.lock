@@ -473,24 +473,24 @@ setuptools = ">=77.0.1"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.33.2"
+version = "1.33.3"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 optional = false
 python-versions = "<4,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.33.2-py3-none-any.whl", hash = "sha256:bb400fd90a1dcff04dfc099477dbf918d5d472fb3c8806c21fa1b83d81685acf"},
-    {file = "hatchet_sdk-1.33.2.tar.gz", hash = "sha256:f9a197915e615d5331cd498dc63c8b8735dda54bd471df5cebd29eee92ccb88b"},
+    {file = "hatchet_sdk-1.33.3-py3-none-any.whl", hash = "sha256:4962dd30273a9699915ddd3cae9150787f41aa301748ef773e9cbf3ac49221d3"},
+    {file = "hatchet_sdk-1.33.3.tar.gz", hash = "sha256:c88de9ad02dc20ae3896d18d28c472b52748d0a4810fce043d7dba3e7c8148a6"},
 ]
 
 [package.dependencies]
-aiohttp = ">=3.10.5,<4"
+aiohttp = ">=3.13.5,<4"
 grpcio = ">=1.76.0,<2"
 grpcio-tools = ">=1.76.0,<2"
-prometheus-client = ">=0.21.1"
+prometheus-client = ">=0.25.0"
 protobuf = ">=6.30.2,<7"
-pydantic = ">=2.6.3,<3"
-pydantic-settings = ">=2.7.1,<3"
+pydantic = ">=2.13.3,<3"
+pydantic-settings = ">=2.14.0,<3"
 python-dateutil = ">=2.9.0.post0,<3"
 tenacity = ">=8.4.1"
 typing-inspection = ">=0.1.0"
@@ -498,8 +498,8 @@ urllib3 = ">=2.6.0,<3"
 
 [package.extras]
 claude = ["claude-agent-sdk", "mcp"]
-docs = ["bs4 (>=0.0.2)", "fastapi (>=0.115.14,<1)", "markdownify (>=1.1.0)", "mkdocs (>=1.6.1,<2)", "mkdocstrings[python] (>=0.29.1,<2)", "openai (>=2.30.0,<3)", "pydoclint (>=0.6.6)", "types-beautifulsoup4 (>=4.12.0.20250204)", "uvicorn (>=0.34.3,<1)"]
-lint = ["black (==26.3.1)", "mypy (==1.20.0)", "psutil (>=6.0.0)", "ruff (==0.15.10)", "types-grpcio (>=1.0.0)", "types-protobuf (>=5.28.3.20241030)", "types-psutil (>=6.1.0.20241221)", "types-requests (>=2.32.0.20241016)"]
+docs = ["bs4 (>=0.0.2)", "fastapi (>=0.136.1,<1)", "markdownify (>=1.1.0)", "mkdocs (>=1.6.1,<2)", "mkdocstrings[python] (>=0.29.1,<2)", "openai (>=2.32.0,<3)", "pydoclint (>=0.6.6)", "types-beautifulsoup4 (>=4.12.0.20250204)", "uvicorn (>=0.46.0,<1)"]
+lint = ["black (==26.3.1)", "mypy (==1.20.0)", "psutil (>=6.0.0)", "ruff (==0.15.10)", "types-grpcio (>=1.0.0)", "types-protobuf (>=5.28.3.20241030)", "types-psutil (>=7.2.2.20260408)", "types-requests (>=2.32.0.20241016)"]
 openai = ["openai-agents"]
 otel = ["opentelemetry-api (>=1.28.0,<2)", "opentelemetry-distro (>=0.49b0)", "opentelemetry-exporter-otlp (>=1.28.0,<2)", "opentelemetry-exporter-otlp-proto-http (>=1.28.0,<2)", "opentelemetry-instrumentation (>=0.49b0)", "opentelemetry-sdk (>=1.28.0,<2)"]
 test = ["psycopg[pool] (>=3.2.6,<4)", "pytest (>=8.3.5,<9)", "pytest-asyncio (>=1.3.0)", "pytest-env (>=1.1.5)", "pytest-retry (>=1.7.0)", "pytest-xdist (>=3.7.0)", "requests (>=2.32.5,<3)"]
