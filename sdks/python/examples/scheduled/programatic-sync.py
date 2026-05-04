@@ -15,7 +15,7 @@ scheduled_run = hatchet.scheduled.create(
     additional_metadata={
         "customer_id": "customer-a",
     },
-    priority=2
+    priority=2,
 )
 
 id = scheduled_run.metadata.id  # the id of the scheduled run trigger

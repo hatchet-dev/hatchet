@@ -38,8 +38,8 @@ type SchedulesClient struct {
 }
 
 type BulkUpdateScheduledRunItem struct {
-	TriggerAt      time.Time `json:"triggerAt"`
 	ScheduledRunId string    `json:"scheduledRunId"`
+	TriggerAt      time.Time `json:"triggerAt"`
 }
 
 // NewSchedulesClient creates a new SchedulesClient
