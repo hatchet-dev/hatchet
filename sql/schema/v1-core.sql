@@ -309,6 +309,7 @@ CREATE TABLE v1_task (
     desired_worker_label JSONB,
     triggering_event_external_id UUID,
     triggering_event_key TEXT,
+    step_name TEXT,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

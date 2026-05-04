@@ -3614,6 +3614,7 @@ type V1Task struct {
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
+	StepName                     pgtype.Text        `json:"step_name"`
 }
 
 type V1TaskEvent struct {
@@ -3711,6 +3712,7 @@ type V1TasksOlap struct {
 	Queue                string               `json:"queue"`
 	ActionID             string               `json:"action_id"`
 	StepID               uuid.UUID            `json:"step_id"`
+	StepName             pgtype.Text          `json:"step_name"`
 	WorkflowID           uuid.UUID            `json:"workflow_id"`
 	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
 	WorkflowRunID        uuid.UUID            `json:"workflow_run_id"`

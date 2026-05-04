@@ -48,7 +48,8 @@ WITH input AS (
         unnest($34::boolean[]) AS is_durable,
 		unnest($35::jsonb[]) AS desired_worker_label,
 		unnest($36::uuid[]) AS triggering_event_external_id,
-		unnest($37::text[]) AS triggering_event_key
+		unnest($37::text[]) AS triggering_event_key,
+		unnest($38::text[]) AS step_name
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -87,7 +88,8 @@ INSERT INTO v1_task (
 	is_durable,
 	desired_worker_label,
 	triggering_event_external_id,
-	triggering_event_key
+	triggering_event_key,
+	step_name
 )
 SELECT
     i.tenant_id,
@@ -126,11 +128,12 @@ SELECT
 	i.is_durable,
 	i.desired_worker_label,
 	i.triggering_event_external_id,
-	i.triggering_event_key
+	i.triggering_event_key,
+	i.step_name
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, step_name
 `
 
 type CreateTasksParams struct {
@@ -174,6 +177,7 @@ type CreateTasksParams struct {
 	DesiredWorkerLabels          [][]byte             `json:"desiredWorkerLabels"`
 	TriggeringEventExternalIds   []*uuid.UUID         `json:"triggeringEventExternalIds"`
 	TriggeringEventKeys          []pgtype.Text        `json:"triggeringEventKeys"`
+	StepNames                    []pgtype.Text        `json:"stepNames"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -228,6 +232,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.DesiredWorkerLabels,
 		arg.TriggeringEventExternalIds,
 		arg.TriggeringEventKeys,
+		arg.StepNames,
 	)
 	if err != nil {
 		return nil, err
@@ -278,6 +283,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.DesiredWorkerLabel,
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
+			&i.StepName,
 		); err != nil {
 			return nil, err
 		}
