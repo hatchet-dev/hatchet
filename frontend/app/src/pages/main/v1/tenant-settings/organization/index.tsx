@@ -1,4 +1,5 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
+import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { usePylon } from '@/components/support-chat';
 import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -115,6 +116,7 @@ function formatTimeoutMs(ms: number): string {
 // FIXME: remove this once we migrate everyone to the control plane
 type OrganizationTenantWithRegion = OrganizationTenant & {
   region?: ControlPlaneOrganizationTenant['region'];
+  canManage?: boolean;
 };
 
 export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
@@ -153,7 +155,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     useState<OrganizationInvite | null>(null);
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedTimeout, setEditedTimeout] = useState('');
@@ -242,6 +243,13 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
         (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
       ) || [],
     [org?.tenants, organization?.tenants],
+  );
+
+  // showing the first tenant as open, to make clearer that:
+  // 1. tenants can expand
+  // 2. you can add members to tenants from here
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>(
+    visibleTenants.length > 0 ? [visibleTenants[0].id] : [],
   );
 
   const handleSaveName = () => {
@@ -1091,7 +1099,6 @@ export function OssOrganizationSettings() {
 
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
 
   const visibleTenants = useMemo(
     () =>
@@ -1105,10 +1112,20 @@ export function OssOrganizationSettings() {
             name: m.tenant.name,
             status: TenantStatusType.ACTIVE,
             slug: m.tenant.slug,
+            canManage:
+              m.role === TenantMemberRole.OWNER ||
+              m.role === TenantMemberRole.ADMIN,
           };
         })
         .filter((t): t is OrganizationTenantWithRegion => t !== null) || [],
     [tenantMemberships],
+  );
+
+  // showing the first tenant as open, to make clearer that:
+  // 1. tenants can expand
+  // 2. you can add members to tenants from here
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>(
+    visibleTenants.length > 0 ? [visibleTenants[0].id] : [],
   );
 
   return (
@@ -1243,9 +1260,13 @@ function TenantAccordionItem({
     ...tenantInviteListQuery(tenant.id),
     enabled: isExpanded,
   });
+  const { isCloudEnabled } = useUserUniverse();
 
   const tenantMembers = membersQuery.data?.rows || [];
   const tenantInvites = invitesQuery.data?.rows || [];
+
+  const canInviteTenantMembers =
+    canManageOrganization || (!isCloudEnabled && Boolean(tenant.canManage));
 
   return (
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
@@ -1278,7 +1299,7 @@ function TenantAccordionItem({
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Members</h4>
-            {canManageOrganization && (
+            {canInviteTenantMembers && (
               <Button
                 onClick={() =>
                   globalEmitter.emit('create-tenant-invite', {
