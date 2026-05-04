@@ -1,5 +1,4 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
-import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { usePylon } from '@/components/support-chat';
 import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import RelativeDate from '@/components/v1/molecules/relative-date';
