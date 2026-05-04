@@ -511,7 +511,7 @@ jobs:
           echo "PENULTIMATE_VERSION=$PENULTIMATE_VERSION" >> $GITHUB_ENV
 
       - name: Run migrations up to penultimate
-        run: go run ./cmd/hatchet-migrate --up-to ${{ env.PENULTIMATE_VERSION }}
+        run: go run ./cmd/hatchet-migrate --up-to-penultimate
 
       - name: Setup config and seed database
         run: |
