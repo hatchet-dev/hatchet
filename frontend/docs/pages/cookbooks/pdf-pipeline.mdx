@@ -192,7 +192,7 @@ The local example above runs without external services, but production document 
 
 [Install the Reducto SDK](https://docs.reducto.ai/quickstart#install-the-sdk) and set `REDUCTO_API_KEY` in your environment.
 
-The examples in this cookbook generate a tiny base64-encoded PDF and pass it to the workflow as input data to keep the demo self-contained. For larger PDFs, store the file in object storage such as S3 and pass a file key, URL, or Reducto file reference instead. This avoids putting large PDF payloads into workflow inputs, which can run into [Hatchet's gRPC payload size limit](/cookbooks/troubleshooting-workers#could-not-send-task-to-worker).
+The examples in this cookbook generate a tiny base64-encoded PDF and pass it to the workflow as input data to keep the demo self-contained. For larger PDFs, store the file in object storage such as S3 and pass a file key, URL, or Reducto file reference instead. This avoids putting large PDF payloads into workflow inputs, which can run into [Hatchet's gRPC payload size limit](/v1/troubleshooting#could-not-send-task-to-worker).
 
 For small documents, the snippets below handle the inline result returned when `result.result.type` is `"full"`. For larger documents, Reducto may return a URL result instead; production code should check that field and fetch the result from the URL if needed.
 
