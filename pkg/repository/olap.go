@@ -2986,8 +2986,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
-	// note: this tx will likely be pretty long-running, maybe 3-5s on average, ish, since it needs to
-	// both run a bunch of queries and also write to S3
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
@@ -3032,6 +3030,10 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		}, nil
 	}
 
+	if err = commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction for creating payload range chunks: %w", err)
+	}
+
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
@@ -3044,7 +3046,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	for _, payloadRange := range payloadRanges {
 		pr := payloadRange
 		eg.Go(func() error {
-			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
+			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Lasttenantid:   pr.LowerTenantID,
 				Lastexternalid: pr.LowerExternalID,
@@ -3117,6 +3119,14 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			Location:            sqlcv1.V1PayloadLocationOlapEXTERNAL,
 		})
 	}
+
+	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
 
 	inserted, err := sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 

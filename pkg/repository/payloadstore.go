@@ -504,8 +504,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
-	// note: this tx will likely be pretty long-running, maybe 3-5s on average, ish, since it needs to
-	// both run a bunch of queries and also write to S3
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
@@ -550,6 +548,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		}, nil
 	}
 
+	if err = commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit payload range chunks transaction: %w", err)
+	}
+
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
@@ -562,7 +564,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	for _, payloadRange := range payloadRanges {
 		pr := payloadRange
 		eg.Go(func() error {
-			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Lasttenantid:   pr.LowerTenantID,
 				Lastinsertedat: pr.LowerInsertedAt,
@@ -649,6 +651,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			Location:            sqlcv1.V1PayloadLocationEXTERNAL,
 		})
 	}
+
+	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
 
 	inserted, err := sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 
