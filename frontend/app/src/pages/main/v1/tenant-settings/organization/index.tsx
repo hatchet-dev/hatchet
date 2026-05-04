@@ -1098,7 +1098,7 @@ export function OssOrganizationSettings() {
 
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>();
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
 
   const visibleTenants = useMemo(
     () =>
