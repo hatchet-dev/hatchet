@@ -286,6 +286,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
 	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
+	seenTaskIds := make(map[int64]struct{})
 
 	var minTaskInsertedAt pgtype.Timestamptz
 
@@ -293,6 +294,12 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// deleted from the v1_queue_items table, so we should not assign them
 	for id, assignedItem := range queueItemIdsToAssignedItem {
 		if _, ok := queuedItemsMap[id]; ok {
+			if _, seen := seenTaskIds[assignedItem.QueueItem.TaskID]; seen {
+				continue
+			}
+
+			seenTaskIds[assignedItem.QueueItem.TaskID] = struct{}{}
+
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
 			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
 			workerIds = append(workerIds, assignedItem.WorkerId)
