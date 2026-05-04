@@ -154,13 +154,13 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     useState<OrganizationInvite | null>(null);
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
+  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedTimeout, setEditedTimeout] = useState('');
   const [isEditingTimeout, setIsEditingTimeout] = useState(false);
   const [newSsoDomain, setNewSsoDomain] = useState('');
   const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
 
   const organizationSsoDomainGetQuery = useQuery({
     ...orgApi.organizationSsoDomainGetQuery(orgId),
@@ -252,7 +252,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     if (visibleTenants.length > 0 && !expandedTenantIds.length) {
       setExpandedTenantIds([visibleTenants[0].id]);
     }
-  }, [visibleTenants]);
+  }, [visibleTenants, expandedTenantIds.length]);
 
   const handleSaveName = () => {
     const trimmedName = editedName.trim();
@@ -1131,7 +1131,7 @@ export function OssOrganizationSettings() {
     if (visibleTenants.length > 0 && !expandedTenantIds.length) {
       setExpandedTenantIds([visibleTenants[0].id]);
     }
-  }, [visibleTenants]);
+  }, [visibleTenants, expandedTenantIds.length]);
 
   return (
     <div className="h-full w-full flex-grow">
