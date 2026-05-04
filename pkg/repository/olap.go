@@ -3123,7 +3123,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
 	}
 
 	defer rollback()
