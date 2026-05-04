@@ -2948,14 +2948,14 @@ type OLAPCutoverBatchOutcome struct {
 	NextPagination OLAPPaginationParams
 }
 
-func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination OLAPPaginationParams) (*int32, error) {
+func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, pagination OLAPPaginationParams) (*int32, error) {
 	if candidateBatchNumRows <= 0 {
 		// trivial case that we'll never hit, but to prevent infinite recursion
 		zero := int32(0)
 		return &zero, nil
 	}
 
-	proposedBatchSizeBytes, err := p.queries.ComputeOLAPPayloadBatchSize(ctx, p.pool, sqlcv1.ComputeOLAPPayloadBatchSizeParams{
+	proposedBatchSizeBytes, err := p.queries.ComputeOLAPPayloadBatchSize(ctx, tx, sqlcv1.ComputeOLAPPayloadBatchSizeParams{
 		Partitiondate:  pgtype.Date(partitionDate),
 		Lasttenantid:   pagination.LastTenantId,
 		Lastinsertedat: pagination.LastInsertedAt,
@@ -2975,6 +2975,7 @@ func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, 
 	// cut it in half and try again
 	return p.OptimizeOLAPPayloadWindowSize(
 		ctx,
+		tx,
 		partitionDate,
 		candidateBatchNumRows/2,
 		pagination,
@@ -2985,10 +2986,21 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
+	// note: this tx will likely be pretty long-running, maybe 3-5s on average, ish, since it needs to
+	// both run a bunch of queries and also write to S3
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
+
 	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
 
 	windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
 		ctx,
+		tx,
 		partitionDate,
 		externalCutoverBatchSize*externalCutoverNumConcurrentOffloads,
 		pagination,
@@ -3000,7 +3012,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	windowSize := *windowSizePtr
 
-	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, p.pool, sqlcv1.CreateOLAPPayloadRangeChunksParams{
+	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, tx, sqlcv1.CreateOLAPPayloadRangeChunksParams{
 		Chunksize:      externalCutoverBatchSize,
 		Partitiondate:  pgtype.Date(partitionDate),
 		Windowsize:     windowSize,
@@ -3032,7 +3044,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	for _, payloadRange := range payloadRanges {
 		pr := payloadRange
 		eg.Go(func() error {
-			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
+			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, tx, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Lasttenantid:   pr.LowerTenantID,
 				Lastexternalid: pr.LowerExternalID,
@@ -3105,14 +3117,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			Location:            sqlcv1.V1PayloadLocationOlapEXTERNAL,
 		})
 	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
-	}
-
-	defer rollback()
 
 	inserted, err := sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
 
