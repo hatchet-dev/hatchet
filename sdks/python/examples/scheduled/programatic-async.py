@@ -16,6 +16,7 @@ async def create_scheduled() -> None:
         additional_metadata={
             "customer_id": "customer-a",
         },
+        priority=3
     )
 
     scheduled_run.metadata.id  # the id of the scheduled run trigger

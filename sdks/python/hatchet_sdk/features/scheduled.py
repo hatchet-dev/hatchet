@@ -64,6 +64,7 @@ class ScheduledClient(BaseRestClient):
         trigger_at: datetime.datetime,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
+        priority: int | None = None,
     ) -> ScheduledWorkflows:
         """
         Creates a new scheduled workflow run.
@@ -85,6 +86,7 @@ class ScheduledClient(BaseRestClient):
                     triggerAt=trigger_at,
                     input=input,
                     additionalMetadata=additional_metadata,
+                    priority=priority
                 ),
             )
 
