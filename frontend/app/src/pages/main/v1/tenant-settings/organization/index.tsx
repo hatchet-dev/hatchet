@@ -245,6 +245,9 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     [org?.tenants, organization?.tenants],
   );
 
+  // showing the first tenant as open, to make clearer that:
+  // 1. tenants can expand
+  // 2. you can add members to tenants from here
   useEffect(() => {
     if (visibleTenants.length > 0 && !expandedTenantIds.length) {
       setExpandedTenantIds([visibleTenants[0].id]);
