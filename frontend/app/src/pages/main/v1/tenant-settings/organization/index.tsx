@@ -1221,7 +1221,7 @@ function TenantsSection({
           onValueChange={setExpandedTenantIds}
           className="space-y-3 rounded-md border bg-background p-3"
         >
-          {tenants.map((tenant) => (
+          {tenants.map((tenant, ix) => (
             <div key={tenant.id}>
               <TenantAccordionItem
                 key={tenant.id}
@@ -1230,7 +1230,7 @@ function TenantsSection({
                 onArchive={onArchive}
                 canManageOrganization={canManageOrganization}
               />
-              <Separator className="my-3 last:hidden" />
+              {ix < tenants.length - 1 && <Separator className="my-4" />}
             </div>
           ))}
         </Accordion>
