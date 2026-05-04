@@ -290,8 +290,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	var minTaskInsertedAt pgtype.Timestamptz
 
-	// if there are any idsToUnqueue that are not in the queuedItems, this means they were
-	// deleted from the v1_queue_items table, so we should not assign them
 	for id, assignedItem := range queueItemIdsToAssignedItem {
 		if _, ok := queuedItemsMap[id]; ok {
 			if _, seen := seenTaskIds[assignedItem.QueueItem.TaskID]; seen {
@@ -299,6 +297,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			}
 
 			seenTaskIds[assignedItem.QueueItem.TaskID] = struct{}{}
+			taskIdToAssignedItem[assignedItem.QueueItem.TaskID] = assignedItem
 
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
 			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
