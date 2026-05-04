@@ -41,12 +41,15 @@ type sharedRepository struct {
 	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
 
-	celParser       *cel.CELParser
-	env             *celgo.Env
-	celProgramCache *lru.Cache[uint64, celgo.Program]
-	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
-	payloadStore    PayloadStoreRepository
-	m               TenantLimitRepository
+	celParser                         *cel.CELParser
+	env                               *celgo.Env
+	celProgramCache                   *lru.Cache[uint64, celgo.Program]
+	taskLookupCache                   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
+	payloadStore                      PayloadStoreRepository
+	m                                 TenantLimitRepository
+	enableDurableUserEventLog         bool
+	idempotencyKeyTTL                 time.Duration
+	idempotencyKeyDenyRecheckInterval time.Duration
 }
 
 func newSharedRepository(
@@ -57,6 +60,9 @@ func newSharedRepository(
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
+	enableDurableUserEventLog bool,
+	idempotencyKeyTTL time.Duration,
+	idempotencyKeyDenyRecheckInterval time.Duration,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -94,23 +100,26 @@ func newSharedRepository(
 	}
 
 	s := &sharedRepository{
-		pool:                        pool,
-		ddlPool:                     ddlPool,
-		v:                           v,
-		l:                           l,
-		queries:                     queries,
-		queueCache:                  queueCache,
-		stepExpressionCache:         stepExpressionCache,
-		concurrencyStrategyCache:    concurrencyStrategyCache,
-		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
-		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
-		stepIdLabelsCache:           stepIdLabelsCache,
-		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
-		celParser:                   celParser,
-		env:                         env,
-		celProgramCache:             celProgramCache,
-		taskLookupCache:             lookupCache,
-		payloadStore:                payloadStore,
+		pool:                              pool,
+		ddlPool:                           ddlPool,
+		v:                                 v,
+		l:                                 l,
+		queries:                           queries,
+		queueCache:                        queueCache,
+		stepExpressionCache:               stepExpressionCache,
+		concurrencyStrategyCache:          concurrencyStrategyCache,
+		tenantIdWorkflowNameCache:         tenantIdWorkflowNameCache,
+		stepsInWorkflowVersionCache:       stepsInWorkflowVersionCache,
+		stepIdLabelsCache:                 stepIdLabelsCache,
+		stepIdSlotRequestsCache:           stepIdSlotRequestsCache,
+		celParser:                         celParser,
+		env:                               env,
+		celProgramCache:                   celProgramCache,
+		taskLookupCache:                   lookupCache,
+		payloadStore:                      payloadStore,
+		enableDurableUserEventLog:         enableDurableUserEventLog,
+		idempotencyKeyTTL:                 idempotencyKeyTTL,
+		idempotencyKeyDenyRecheckInterval: idempotencyKeyDenyRecheckInterval,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)

@@ -164,5 +164,47 @@ describe('AdminClient', () => {
         })
       );
     });
+
+    it('should forward idempotencyKey in batch requests', async () => {
+      const bulkSpy = jest.spyOn(client.client, 'bulkTriggerWorkflow').mockResolvedValue({
+        workflowRunIds: ['run-1'],
+      });
+
+      await client.runWorkflows([
+        {
+          workflowName: 'workflowName',
+          input: { hello: 'world' },
+          options: {
+            idempotencyKey: 'idem-batch-1',
+          },
+        },
+      ]);
+
+      expect(bulkSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflows: [
+            expect.objectContaining({
+              idempotencyKey: 'idem-batch-1',
+            }),
+          ],
+        })
+      );
+    });
+  });
+
+  describe('runWorkflow', () => {
+    it('should forward idempotencyKey in single requests', async () => {
+      const triggerSpy = jest
+        .spyOn(client.client, 'triggerWorkflow')
+        .mockResolvedValue('run-1' as any);
+
+      await client.runWorkflow('workflowName', { hello: 'world' }, { idempotencyKey: 'idem-1' });
+
+      expect(triggerSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          idempotencyKey: 'idem-1',
+        })
+      );
+    });
   });
 });

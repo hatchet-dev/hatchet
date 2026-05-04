@@ -61,6 +61,14 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 	tenantIdToPayloads := make(map[uuid.UUID][]tasktypes.NotifyFinalizedPayload)
 
 	for _, row := range rows {
+		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED ||
+			row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED ||
+			row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
+			if err := o.repo.Idempotency().DeleteIdempotencyKeysByExternalId(ctx, row.TenantId, row.ExternalId); err != nil {
+				o.l.Error().Err(err).Str("dagExternalId", row.ExternalId.String()).Msg("failed to delete idempotency key for dag")
+			}
+		}
+
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
 			ExternalId: row.ExternalId,
 			Status:     row.ReadableStatus,

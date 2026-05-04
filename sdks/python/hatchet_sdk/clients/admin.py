@@ -164,6 +164,7 @@ class AdminClient:
         desired_worker_label: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
         ) = None
+        idempotency_key: str | None = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -208,7 +209,7 @@ class AdminClient:
                 for key, d in labels_dict.items()
             }
 
-        return trigger_protos.TriggerWorkflowRequest(
+        request = trigger_protos.TriggerWorkflowRequest(
             name=workflow_name,
             input=input,
             parent_id=_options.parent_id,
@@ -220,8 +221,17 @@ class AdminClient:
             priority=_options.priority,
             desired_worker_labels=desired_worker_labels,
         )
+        if (
+            (_options.idempotency_key or options.key)
+            and "idempotency_key" in request.DESCRIPTOR.fields_by_name
+        ):
+            request.idempotency_key = _options.idempotency_key or options.key
 
-    def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
+        return request
+
+    def _parse_schedule(
+        self, schedule: datetime | timestamp_pb2.Timestamp
+    ) -> timestamp_pb2.Timestamp:
         if isinstance(schedule, datetime):
             if not schedule.tzinfo:
                 logger.warning(
@@ -395,6 +405,7 @@ class AdminClient:
             sticky=options.sticky,
             key=options.key,
             desired_worker_label=options.desired_worker_label,
+            idempotency_key=options.idempotency_key,
         )
 
         namespace = options.namespace or self.namespace

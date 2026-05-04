@@ -8,13 +8,92 @@ VALUES (
     @tenantId::UUID,
     @key::TEXT,
     @expiresAt::TIMESTAMPTZ
-);
+)
+ON CONFLICT (tenant_id, key) DO UPDATE
+SET
+    expires_at = EXCLUDED.expires_at,
+    updated_at = NOW()
+WHERE
+    v1_idempotency_key.claimed_by_external_id IS NULL
+    AND v1_idempotency_key.expires_at < NOW();
+
+-- name: CreateIdempotencyKeys :exec
+INSERT INTO v1_idempotency_key (
+    tenant_id,
+    key,
+    expires_at
+)
+SELECT
+    @tenantId::UUID,
+    k,
+    @expiresAt::TIMESTAMPTZ
+FROM UNNEST(@keys::TEXT[]) AS k
+ON CONFLICT (tenant_id, key) DO UPDATE
+SET
+    expires_at = EXCLUDED.expires_at,
+    updated_at = NOW()
+WHERE
+    v1_idempotency_key.claimed_by_external_id IS NULL
+    AND v1_idempotency_key.expires_at < NOW();
 
 -- name: CleanUpExpiredIdempotencyKeys :exec
 DELETE FROM v1_idempotency_key
 WHERE
     tenant_id = @tenantId::UUID
     AND expires_at < NOW()
+;
+
+-- name: DeleteIdempotencyKeysByExternalId :exec
+DELETE FROM v1_idempotency_key
+WHERE
+    tenant_id = @tenantId::UUID
+    AND claimed_by_external_id = @externalId::UUID
+;
+
+-- name: ListIdempotencyKeysByKeys :many
+SELECT
+    tenant_id,
+    key,
+    expires_at,
+    claimed_by_external_id,
+    last_denied_at,
+    inserted_at,
+    updated_at
+FROM v1_idempotency_key
+WHERE
+    tenant_id = @tenantId::UUID
+    AND key = ANY(@keys::TEXT[])
+;
+
+-- name: UpdateIdempotencyKeysLastDeniedAt :exec
+UPDATE v1_idempotency_key
+SET
+    last_denied_at = NOW(),
+    updated_at = NOW()
+WHERE
+    tenant_id = @tenantId::UUID
+    AND key = ANY(@keys::TEXT[])
+;
+
+-- name: UpdateIdempotencyKeysLastDeniedAtSkipLocked :exec
+WITH target AS (
+    SELECT
+        tenant_id,
+        key
+    FROM v1_idempotency_key
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND key = ANY(@keys::TEXT[])
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE v1_idempotency_key k
+SET
+    last_denied_at = NOW(),
+    updated_at = NOW()
+FROM target t
+WHERE
+    k.tenant_id = t.tenant_id
+    AND k.key = t.key
 ;
 
 -- name: ClaimIdempotencyKeys :many

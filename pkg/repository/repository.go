@@ -102,10 +102,13 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
+	enableDurableUserEventLog bool,
+	idempotencyKeyTTL time.Duration,
+	idempotencyKeyDenyRecheckInterval time.Duration,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableDurableUserEventLog, idempotencyKeyTTL, idempotencyKeyDenyRecheckInterval)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
