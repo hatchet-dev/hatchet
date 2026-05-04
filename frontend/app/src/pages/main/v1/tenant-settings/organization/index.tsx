@@ -1261,12 +1261,15 @@ function TenantAccordionItem({
     enabled: isExpanded,
   });
   const { isCloudEnabled } = useUserUniverse();
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const tenantMembers = membersQuery.data?.rows || [];
   const tenantInvites = invitesQuery.data?.rows || [];
 
   const canInviteTenantMembers =
-    canManageOrganization || (!isCloudEnabled && Boolean(tenant.canManage));
+    canManageOrganization ||
+    // if both cloud and the control plane are disabled, we're on the OSS and tenant admins / owners can invite members to their tenants
+    (!(isCloudEnabled || isControlPlaneEnabled) && Boolean(tenant.canManage));
 
   return (
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
