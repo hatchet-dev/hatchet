@@ -1,5 +1,6 @@
 import type { APIErrors } from './api/generated/data-contracts';
 import { type ClassValue, clsx } from 'clsx';
+import ms from 'ms';
 import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
@@ -147,3 +148,50 @@ export function formatDuration(ms: number): string {
 }
 
 export const emptyGolangUUID = '00000000-0000-0000-0000-000000000000';
+
+export function parseDuration(input: string): number | null {
+  const s = input.trim();
+  if (!s) {
+    return null;
+  }
+  if (s === '-1') {
+    return -1;
+  }
+  const parts = s.match(/\d+\s*[a-z]+/gi);
+  if (!parts) {
+    return null;
+  }
+  let total = 0;
+  for (const part of parts) {
+    const result = ms(part.replace(/\s/g, '') as ms.StringValue);
+    if (typeof result !== 'number' || isNaN(result)) {
+      return null;
+    }
+    total += result;
+  }
+  return total > 0 ? total : null;
+}
+
+export function msToDurationString(value: number): string {
+  if (value <= 0) {
+    return '';
+  }
+  let rem = value;
+  const d = Math.floor(rem / 86400000);
+  rem -= d * 86400000;
+  const h = Math.floor(rem / 3600000);
+  rem -= h * 3600000;
+  const m = Math.floor(rem / 60000);
+  rem -= m * 60000;
+  const s = Math.floor(rem / 1000);
+  rem -= s * 1000;
+  return [
+    d && `${d}d`,
+    h && `${h}h`,
+    m && `${m}m`,
+    s && `${s}s`,
+    rem && `${rem}ms`,
+  ]
+    .filter(Boolean)
+    .join('');
+}

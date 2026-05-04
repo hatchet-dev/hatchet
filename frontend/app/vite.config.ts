@@ -1,6 +1,6 @@
 import { sentryVitePlugin } from '@sentry/vite-plugin';
-import path from 'path';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 import { defineConfig } from 'vite';
 
 const apiProxyTarget =
@@ -32,6 +32,7 @@ export default defineConfig({
     host: true,
     port: 5173,
     allowedHosts: [
+      'local.hatchet-tools.com',
       'app.dev.hatchet-tools.com',
       'app.localtest.me',
       'localhost',

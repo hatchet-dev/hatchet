@@ -97,9 +97,28 @@ const redeemOffersRoute = createRoute({
 const organizationsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
-  loader: () => {
-    throw redirect({ to: appRoutes.authenticatedRoute.to });
-  },
+  component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+});
+
+const organizationsIndexRoute = createRoute({
+  getParentRoute: () => organizationsRoute,
+  path: '/',
+  component: lazyRouteComponent(
+    () => import('./pages/organizations/$organization'),
+    'default',
+  ),
+});
+
+const tenantsRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'tenants',
+  component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
+});
+
+const tenantsIndexRoute = createRoute({
+  getParentRoute: () => tenantsRoute,
+  path: '/',
+  component: lazyRouteComponent(() => import('./pages/tenants'), 'default'),
 });
 
 const organizationsNewRoute = createRoute({
@@ -179,6 +198,31 @@ const v1RedirectRoute = createRoute({
     throw redirect({ to: appRoutes.authenticatedRoute.to });
   },
 });
+
+async function getOrganizationIdForTenantInRouter(tenantId: string) {
+  const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
+    queryClient.fetchQuery(getCloudMetadataQuery),
+    fetchControlPlaneStatus(),
+  ]);
+
+  if (!isCloudEnabled) {
+    return null;
+  }
+
+  const universe = await queryClient.fetchQuery(
+    userUniverseQuery({
+      isCloudEnabled,
+      isCloudLoaded: true,
+      isControlPlaneEnabled,
+    }),
+  );
+
+  return (
+    universe.organizations?.find((org) =>
+      org.tenants.some((tenant) => tenant.id === tenantId),
+    )?.metadata.id ?? null
+  );
+}
 
 const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
@@ -441,10 +485,20 @@ const tenantOrganizationsAndTenantsRoute = createRoute({
 const tenantSettingsOrganizationRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'settings/organization',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/organization'),
-    'default',
-  ),
+  loader: async ({ params }) => {
+    const orgId = await getOrganizationIdForTenantInRouter(params.tenant);
+
+    if (!orgId) {
+      throw redirect({
+        to: appRoutes.tenantsRoute.to,
+      });
+    }
+
+    throw redirect({
+      to: appRoutes.organizationsRoute.to,
+      params: { organization: orgId },
+    });
+  },
 });
 
 const tenantSettingsIndexRoute = createRoute({
@@ -798,8 +852,9 @@ const routeTree = rootRoute.addChildren([
     onboardingCreateOrganizationRoute,
     onboardingInvitesRoute,
     redeemOffersRoute,
-    organizationsRoute,
+    organizationsRoute.addChildren([organizationsIndexRoute]),
     organizationsNewRoute,
+    tenantsRoute.addChildren([tenantsIndexRoute]),
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
   ]),
   v1RedirectRoute,
@@ -827,7 +882,10 @@ export const appRoutes = {
   onboardingVerifyRoute,
   redeemOffersRoute,
   organizationsRoute,
+  organizationsIndexRoute,
   organizationsNewRoute,
+  tenantsRoute,
+  tenantsIndexRoute,
   authenticatedRoute,
   onboardingCreateTenantRoute,
   onboardingCreateOrganizationRoute,

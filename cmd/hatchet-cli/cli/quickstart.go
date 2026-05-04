@@ -315,7 +315,7 @@ func noProfilesMessage() string {
 	lines = append(lines, "")
 	lines = append(lines, headerStyle.Render("Option 1: Sign up for Hatchet Cloud"))
 	lines = append(lines, "")
-	lines = append(lines, "Visit "+styles.Accent.Render("https://cloud.onhatchet.run")+" to create an account, then add your profile:")
+	lines = append(lines, "Visit "+styles.Accent.Render("https://cloud.hatchet.run")+" to create an account, then add your profile:")
 	lines = append(lines, styles.Code.Render("   hatchet profile add"))
 	lines = append(lines, "")
 	lines = append(lines, headerStyle.Render("Option 2: Start a local Hatchet server"))

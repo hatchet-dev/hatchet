@@ -14,6 +14,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import {
   pendingInvitesQuery,
@@ -25,6 +26,7 @@ import {
   CONTROL_PLANE_TENANT_STORAGE_KEY,
   fetchControlPlaneStatus,
 } from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
@@ -36,7 +38,7 @@ import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   useLoaderData,
   useLocation,
@@ -104,6 +106,7 @@ function AuthenticatedInner() {
   const isOrganizationsPage = Boolean(
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
   );
+  const isTenantsPage = Boolean(matchRoute({ to: appRoutes.tenantsRoute.to }));
   const isOnboardingVerifyEmailPage = Boolean(
     matchRoute({ to: appRoutes.onboardingVerifyRoute.to }),
   );
@@ -131,13 +134,6 @@ function AuthenticatedInner() {
     },
   });
 
-  useInactivityDetection({
-    timeoutMs: loaderData.inactivityLogoutMs,
-    onInactive: () => {
-      logoutMutation.mutate();
-    },
-  });
-
   const { pendingInvitesQuery } = usePendingInvites();
 
   const {
@@ -148,6 +144,26 @@ function AuthenticatedInner() {
     tenantMemberships,
   } = useUserUniverse();
 
+  const { isControlPlaneEnabled } = useControlPlane();
+  const orgApi = useOrganizationApi();
+  const orgIdForTenant = organizations?.find((o) =>
+    o.tenants?.some((t) => t.id === tenant?.metadata?.id),
+  )?.metadata?.id;
+  const orgQuery = useQuery({
+    ...orgApi.organizationGetQuery(orgIdForTenant!),
+    enabled: !!orgIdForTenant && isControlPlaneEnabled,
+  });
+  const inactivityTimeoutMs = isControlPlaneEnabled
+    ? ((orgQuery.data as { inactivity_timeout?: number } | undefined)
+        ?.inactivity_timeout ?? -1)
+    : loaderData.inactivityLogoutMs;
+
+  useInactivityDetection({
+    timeoutMs: inactivityTimeoutMs,
+    onInactive: () => {
+      logoutMutation.mutate();
+    },
+  });
   const ctx = useContextFromParent({
     user: currentUser,
     memberships: tenantMemberships,
@@ -166,8 +182,8 @@ function AuthenticatedInner() {
       }
     };
 
-    // Skip all redirects for organization pages
-    if (isOrganizationsPage) {
+    // Skip all redirects for organization/tenants pages
+    if (isOrganizationsPage || isTenantsPage) {
       return;
     }
 
@@ -319,6 +335,7 @@ function AuthenticatedInner() {
     lastTenant,
     pathname,
     isOrganizationsPage,
+    isTenantsPage,
     isOnboardingVerifyEmailPage,
     isOnboardingInvitesPage,
     isOnboardingPage,

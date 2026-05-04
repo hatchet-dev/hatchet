@@ -108,6 +108,11 @@ export interface Organization {
   name: string;
   tenants?: OrganizationTenant[];
   members?: OrganizationMember[];
+  /**
+   * Time of inactivity to force log out a user (ms)
+   * @format int64
+   */
+  inactivity_timeout?: number;
 }
 
 export interface OrganizationForUser {
@@ -139,7 +144,9 @@ export interface UpdateOrganizationRequest {
    * @minLength 1
    * @maxLength 256
    */
-  name: string;
+  name?: string;
+  /** Inactivity timeout */
+  inactivity_timeout?: string;
 }
 
 export interface OrganizationMember {

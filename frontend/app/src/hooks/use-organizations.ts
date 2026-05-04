@@ -184,10 +184,15 @@ export function useOrganizations() {
   });
 
   const updateOrganizationMutation = useMutation({
-    mutationFn: async (data: { organizationId: string; name: string }) => {
-      return orgApi
-        .organizationUpdateMutation(data.organizationId)
-        .mutationFn({ name: data.name });
+    mutationFn: async (data: {
+      organizationId: string;
+      name?: string;
+      inactivity_timeout?: string;
+    }) => {
+      return orgApi.organizationUpdateMutation(data.organizationId).mutationFn({
+        name: data.name,
+        inactivity_timeout: data.inactivity_timeout,
+      });
     },
     onError: handleApiError,
   });
@@ -326,6 +331,22 @@ export function useOrganizations() {
     [updateOrganizationMutation],
   );
 
+  const handleUpdateOrganizationTimeout = (
+    organizationId: string,
+    inactivityTimeoutMs: number,
+    onSuccess: () => void,
+  ) => {
+    updateOrganizationMutation.mutate(
+      { organizationId, inactivity_timeout: `${inactivityTimeoutMs}ms` },
+      {
+        onSuccess: () => {
+          onSuccess();
+        },
+        onError: () => {},
+      },
+    );
+  };
+
   const handleCreateOrganization = useCallback(
     (name: string, onSuccess: (organizationId: string) => void) => {
       createOrganizationMutation.mutate(
@@ -403,6 +424,7 @@ export function useOrganizations() {
     handleDeleteToken,
     handleDeleteTenant,
     handleUpdateOrganization,
+    handleUpdateOrganizationTimeout,
     handleCreateOrganization,
     handleCreateOrganizationSsoDomain,
     handleDeleteOrganizationSsoDomain,
