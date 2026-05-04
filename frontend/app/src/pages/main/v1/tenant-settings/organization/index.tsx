@@ -1271,7 +1271,7 @@ function TenantAccordionItem({
   const tenantMembers = membersQuery.data?.rows || [];
   const tenantInvites = invitesQuery.data?.rows || [];
 
-  const canInviteTenantMembers =
+  const canManageTenantMembers =
     canManageOrganization ||
     // if both cloud and the control plane are disabled, we're on the OSS and tenant admins / owners can invite members to their tenants
     (!(isCloudEnabled || isControlPlaneEnabled) && Boolean(tenant.canManage));
@@ -1307,7 +1307,7 @@ function TenantAccordionItem({
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Members</h4>
-            {canInviteTenantMembers && (
+            {canManageTenantMembers && (
               <Button
                 onClick={() =>
                   globalEmitter.emit('create-tenant-invite', {
@@ -1334,7 +1334,7 @@ function TenantAccordionItem({
             <TenantMemberList
               tenantId={tenant.id}
               members={tenantMembers}
-              canManage={canManageOrganization}
+              canManage={canManageTenantMembers}
               onMembersChanged={() => membersQuery.refetch()}
             />
           ) : (
@@ -1367,62 +1367,59 @@ function TenantMemberList({
   onMembersChanged: () => void;
 }) {
   const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
-
-  const gridCols = canManage
-    ? 'grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px_72px]'
-    : 'grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px]';
+  const columns = useMemo(
+    () => [
+      {
+        columnLabel: 'Name',
+        cellRenderer: (member: TenantMember) => (
+          <span className="font-medium">{member.user.name}</span>
+        ),
+      },
+      {
+        columnLabel: 'Email',
+        cellRenderer: (member: TenantMember) => (
+          <span className="font-mono text-sm">{member.user.email}</span>
+        ),
+      },
+      {
+        columnLabel: 'Role',
+        cellRenderer: (member: TenantMember) => (
+          <Badge variant="outline">{member.role}</Badge>
+        ),
+      },
+      {
+        columnLabel: 'Joined',
+        cellRenderer: (member: TenantMember) => (
+          <RelativeDate date={member.metadata.createdAt} />
+        ),
+      },
+      ...(canManage
+        ? [
+            {
+              columnLabel: 'Actions',
+              cellRenderer: (member: TenantMember) => (
+                <TenantMemberActions
+                  member={member}
+                  tenantId={tenantId}
+                  onEditRoleClick={setMemberToEdit}
+                  onChangePasswordClick={() => {}}
+                  onDeleteSuccess={onMembersChanged}
+                />
+              ),
+            },
+          ]
+        : []),
+    ],
+    [canManage, onMembersChanged, tenantId],
+  );
 
   return (
     <>
-      <div className="rounded-md border border-border/70">
-        <div
-          className={`hidden ${gridCols} gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid`}
-        >
-          <span>Name</span>
-          <span>Email</span>
-          <span>Role</span>
-          <span>Joined</span>
-          {canManage && <span className="text-right">Actions</span>}
-        </div>
-        <div>
-          {members.map((member) => (
-            <div
-              key={member.metadata.id}
-              className={`grid ${gridCols} gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:items-center`}
-            >
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Name</p>
-                <p className="font-medium">{member.user.name}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Email</p>
-                <p className="font-mono text-sm">{member.user.email}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Role</p>
-                <Badge variant="outline">{member.role}</Badge>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">
-                  Joined
-                </p>
-                <RelativeDate date={member.metadata.createdAt} />
-              </div>
-              {canManage && (
-                <div className="flex justify-end">
-                  <TenantMemberActions
-                    member={member}
-                    tenantId={tenantId}
-                    onEditRoleClick={setMemberToEdit}
-                    onChangePasswordClick={() => {}}
-                    onDeleteSuccess={onMembersChanged}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      <SimpleTable
+        columns={columns}
+        data={members}
+        rowKey={(member) => member.metadata.id}
+      />
 
       {memberToEdit && (
         <TenantMemberUpdateDialog
