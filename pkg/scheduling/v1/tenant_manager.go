@@ -388,6 +388,7 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 	t.queuersMu.RLock()
 	queueNamesMap := make(map[string]*Queuer, len(t.queuers))
+	inactiveQueues := make([]string, 0)
 	for _, q := range t.queuers {
 		queueNamesMap[q.queueName] = q
 	}
@@ -396,12 +397,15 @@ func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 			// queue already exists
 			q.queue(ctx)
 		} else {
-			// new or inactive queue, create it
-			t.notifyNewQueue(ctx, name)
+			inactiveQueues = append(inactiveQueues, name)
 		}
 	}
-
 	t.queuersMu.RUnlock()
+
+	// this function sends to a channel that acquires the queuersMu, so needs to be outside lock.
+	for _, name := range inactiveQueues {
+		t.notifyNewQueue(ctx, name)
+	}
 }
 
 type AssignedItemWithTask struct {
