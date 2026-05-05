@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/google/uuid"
 )
 
 func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
@@ -22,7 +22,7 @@ func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 	return time.Now().UTC().Add(-d), nil
 }
 
-func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, perTenantTimeout time.Duration, f func(ctx context.Context, tenant sqlcv1.Tenant) error) error {
+func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, perTenantTimeout time.Duration, f func(ctx context.Context, tenantId uuid.UUID) error) error {
 	tenants, err := rc.p.ListTenantsForController(ctx)
 
 	if err != nil {
@@ -37,14 +37,14 @@ func (rc *RetentionControllerImpl) ForTenants(ctx context.Context, perTenantTime
 		errs []error
 	)
 
-	for _, tenant := range tenants {
+	for _, tenantId := range tenants {
 		g.Go(func() error {
 			tenantCtx, cancel := context.WithTimeout(ctx, perTenantTimeout)
 			defer cancel()
 
-			if err := f(tenantCtx, *tenant); err != nil {
+			if err := f(tenantCtx, tenantId); err != nil {
 				mu.Lock()
-				errs = append(errs, fmt.Errorf("tenant %s: %w", tenant.ID.String(), err))
+				errs = append(errs, fmt.Errorf("tenant %s: %w", tenantId.String(), err))
 				mu.Unlock()
 			}
 			return nil

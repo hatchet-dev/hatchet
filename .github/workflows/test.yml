@@ -479,139 +479,87 @@ jobs:
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+      SERVER_GRPC_PORT: "7077"
+      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_INSECURE: "true"
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "true"
+      SERVER_MSGQUEUE_KIND: postgres
+      SERVER_LOGGER_LEVEL: warn
+      SERVER_LOGGER_FORMAT: console
+      DATABASE_LOGGER_LEVEL: warn
+      DATABASE_LOGGER_FORMAT: console
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "1.25"
 
+      - name: Go deps
+        run: go mod download
+
       - name: Compose
         run: docker compose up -d
 
-      - name: Determine latest stable release tag
+      - name: Determine penultimate migration version
         run: |
-          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          if [ -z "$LATEST_TAG" ]; then
-            echo "ERROR: No stable release tag found"
-            exit 1
-          fi
-          echo "Latest stable tag: $LATEST_TAG"
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          PENULTIMATE_VERSION=$(ls cmd/hatchet-migrate/migrate/migrations/ | grep -E '^[0-9]+' | sort | tail -2 | head -1 | cut -d'_' -f1)
+          echo "Penultimate migration version: $PENULTIMATE_VERSION"
+          echo "PENULTIMATE_VERSION=$PENULTIMATE_VERSION" >> $GITHUB_ENV
 
-      - name: Pull old release images
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }}
-
-      - name: Run old migrations
-        run: |
-          docker run --rm --network host \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
-
-      - name: Capture old migration version
-        run: |
-          OLD_VERSION=$(docker run --rm --network host \
-            -e PGPASSWORD=hatchet \
-            postgres:17-alpine \
-            psql -h 127.0.0.1 -p 5431 -U hatchet -d hatchet -t -A \
-            -c "SELECT max(version_id) FROM goose_db_version WHERE is_applied = true")
-          echo "Old migration version: $OLD_VERSION"
-          echo "OLD_MIGRATION_VERSION=$OLD_VERSION" >> $GITHUB_ENV
+      - name: Run migrations up to penultimate
+        run: go run ./cmd/hatchet-migrate --up-to-penultimate
 
       - name: Setup config and seed database
         run: |
           mkdir -p generated
-          docker run --rm --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+          go run ./cmd/hatchet-admin quickstart --skip certs --generated-config-dir ./generated
 
       - name: Generate API token
         run: |
-          TOKEN=$(docker run --rm --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-admin token create --config /hatchet/generated)
+          TOKEN=$(go run ./cmd/hatchet-admin --config ./generated token create)
           echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Start old engine
+      - name: Start engine
         run: |
-          docker run -d --name hatchet-engine --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            -e SERVER_MSGQUEUE_KIND=postgres \
-            -e SERVER_LOGGER_LEVEL=warn \
-            -e SERVER_LOGGER_FORMAT=console \
-            -e DATABASE_LOGGER_LEVEL=warn \
-            -e DATABASE_LOGGER_FORMAT=console \
-            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-engine --config /hatchet/generated
+          go run ./cmd/hatchet-engine --config ./generated > /tmp/engine.log 2>&1 &
+          echo $! > /tmp/engine.pid
           echo "Waiting 30s for engine to start..."
           sleep 30
 
-      - name: Start old load test
+      - name: Run load test with migrations
         run: |
-          docker run -d --name hatchet-loadtest --network host \
-            -e HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
-            -e HATCHET_CLIENT_TLS_STRATEGY=none \
-            -e HATCHET_CLIENT_HOST_PORT=localhost:7077 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-load-test loadtest -e 10 -d 240s -w 60s -s 100
+          HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
+          HATCHET_CLIENT_TLS_STRATEGY=none \
+          HATCHET_CLIENT_HOST_PORT=localhost:7077 \
+          go run ./cmd/hatchet-loadtest loadtest -e 10 -d 240s -w 60s -s 100 > /tmp/loadtest.log 2>&1 &
+          LOADTEST_PID=$!
+          echo $LOADTEST_PID > /tmp/loadtest.pid
 
-      - name: Wait then apply new migrations
-        run: |
           echo "Waiting 30s for load test to get started..."
           sleep 30
-          echo "Applying new migrations from current branch..."
-          go run ./cmd/hatchet-migrate
-          echo "New migrations applied successfully"
 
-      - name: Down migrate to old version then up again
-        run: |
-          echo "Migrating down to old version ${{ env.OLD_MIGRATION_VERSION }}..."
-          go run ./cmd/hatchet-migrate --down ${{ env.OLD_MIGRATION_VERSION }}
+          echo "Applying last migration..."
+          go run ./cmd/hatchet-migrate
+          echo "Last migration applied"
+
+          echo "Migrating down to penultimate version ${{ env.PENULTIMATE_VERSION }}..."
+          go run ./cmd/hatchet-migrate --down ${{ env.PENULTIMATE_VERSION }}
           echo "Down migration successful"
-          echo "Re-applying new migrations..."
-          go run ./cmd/hatchet-migrate
-          echo "Re-migration up successful"
 
-      - name: Wait for load test to complete
-        run: |
-          echo "Waiting for load test container to finish..."
-          docker wait hatchet-loadtest
-          EXIT_CODE=$(docker inspect hatchet-loadtest --format='{{.State.ExitCode}}')
-          echo "Load test exited with code: $EXIT_CODE"
-          if [ "$EXIT_CODE" != "0" ]; then
+          echo "Re-applying migrations..."
+          go run ./cmd/hatchet-migrate
+          echo "Re-migration successful"
+
+          echo "Waiting for load test to complete..."
+          if ! wait $LOADTEST_PID; then
             echo "=== Load test logs ==="
-            docker logs hatchet-loadtest
+            cat /tmp/loadtest.log
             echo "=== Engine logs ==="
-            docker logs hatchet-engine
+            cat /tmp/engine.log
             exit 1
           fi
           echo "Load test passed"
@@ -619,7 +567,8 @@ jobs:
       - name: Teardown
         if: always()
         run: |
-          docker rm -f hatchet-loadtest hatchet-engine 2>/dev/null || true
+          if [ -f /tmp/loadtest.pid ]; then kill $(cat /tmp/loadtest.pid) 2>/dev/null || true; fi
+          if [ -f /tmp/engine.pid ]; then kill $(cat /tmp/engine.pid) 2>/dev/null || true; fi
           docker compose down
 
   load-deadlock:

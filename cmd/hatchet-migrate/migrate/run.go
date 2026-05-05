@@ -238,7 +238,6 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 
 	switch {
 	case options.upToPenultimate:
-		// Get the second-to-last migration version.
 		migrations, err := listMigrations()
 
 		if err != nil {
@@ -249,10 +248,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 			log.Fatalf("goose: not enough migrations to roll back to penultimate version")
 		}
 
-		// Get the second-to-last migration version.
-		secondToLastVersion := migrations[len(migrations)-2].Version
-
-		err = goose.UpTo(db, ".", secondToLastVersion)
+		err = goose.UpTo(db, ".", migrations[len(migrations)-2].Version)
 
 		if err != nil {
 			log.Fatalf("goose: failed to apply migrations up to penultimate version: %v", err)

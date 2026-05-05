@@ -115,48 +115,6 @@ func (q *Queries) CreateDAGData(ctx context.Context, db DBTX, arg []CreateDAGDat
 	return db.CopyFrom(ctx, []string{"v1_dag_data"}, []string{"dag_id", "dag_inserted_at", "input", "additional_metadata"}, &iteratorForCreateDAGData{rows: arg})
 }
 
-// iteratorForCreateDAGsOLAP implements pgx.CopyFromSource.
-type iteratorForCreateDAGsOLAP struct {
-	rows                 []CreateDAGsOLAPParams
-	skippedFirstNextCall bool
-}
-
-func (r *iteratorForCreateDAGsOLAP) Next() bool {
-	if len(r.rows) == 0 {
-		return false
-	}
-	if !r.skippedFirstNextCall {
-		r.skippedFirstNextCall = true
-		return true
-	}
-	r.rows = r.rows[1:]
-	return len(r.rows) > 0
-}
-
-func (r iteratorForCreateDAGsOLAP) Values() ([]interface{}, error) {
-	return []interface{}{
-		r.rows[0].TenantID,
-		r.rows[0].ID,
-		r.rows[0].InsertedAt,
-		r.rows[0].ExternalID,
-		r.rows[0].DisplayName,
-		r.rows[0].WorkflowID,
-		r.rows[0].WorkflowVersionID,
-		r.rows[0].Input,
-		r.rows[0].AdditionalMetadata,
-		r.rows[0].ParentTaskExternalID,
-		r.rows[0].TotalTasks,
-	}, nil
-}
-
-func (r iteratorForCreateDAGsOLAP) Err() error {
-	return nil
-}
-
-func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg []CreateDAGsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata", "parent_task_external_id", "total_tasks"}, &iteratorForCreateDAGsOLAP{rows: arg})
-}
-
 // iteratorForCreateMatchConditions implements pgx.CopyFromSource.
 type iteratorForCreateMatchConditions struct {
 	rows                 []CreateMatchConditionsParams
@@ -281,59 +239,6 @@ func (r iteratorForCreateTaskEventsOLAPTmp) Err() error {
 
 func (q *Queries) CreateTaskEventsOLAPTmp(ctx context.Context, db DBTX, arg []CreateTaskEventsOLAPTmpParams) (int64, error) {
 	return db.CopyFrom(ctx, []string{"v1_task_events_olap_tmp"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "readable_status", "retry_count", "worker_id"}, &iteratorForCreateTaskEventsOLAPTmp{rows: arg})
-}
-
-// iteratorForCreateTasksOLAP implements pgx.CopyFromSource.
-type iteratorForCreateTasksOLAP struct {
-	rows                 []CreateTasksOLAPParams
-	skippedFirstNextCall bool
-}
-
-func (r *iteratorForCreateTasksOLAP) Next() bool {
-	if len(r.rows) == 0 {
-		return false
-	}
-	if !r.skippedFirstNextCall {
-		r.skippedFirstNextCall = true
-		return true
-	}
-	r.rows = r.rows[1:]
-	return len(r.rows) > 0
-}
-
-func (r iteratorForCreateTasksOLAP) Values() ([]interface{}, error) {
-	return []interface{}{
-		r.rows[0].TenantID,
-		r.rows[0].ID,
-		r.rows[0].InsertedAt,
-		r.rows[0].Queue,
-		r.rows[0].ActionID,
-		r.rows[0].StepID,
-		r.rows[0].WorkflowID,
-		r.rows[0].WorkflowVersionID,
-		r.rows[0].WorkflowRunID,
-		r.rows[0].ScheduleTimeout,
-		r.rows[0].StepTimeout,
-		r.rows[0].Priority,
-		r.rows[0].Sticky,
-		r.rows[0].DesiredWorkerID,
-		r.rows[0].ExternalID,
-		r.rows[0].DisplayName,
-		r.rows[0].Input,
-		r.rows[0].AdditionalMetadata,
-		r.rows[0].DagID,
-		r.rows[0].DagInsertedAt,
-		r.rows[0].ParentTaskExternalID,
-		r.rows[0].IsDurable,
-	}, nil
-}
-
-func (r iteratorForCreateTasksOLAP) Err() error {
-	return nil
-}
-
-func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "workflow_run_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id", "is_durable"}, &iteratorForCreateTasksOLAP{rows: arg})
 }
 
 // iteratorForInsertLogLine implements pgx.CopyFromSource.

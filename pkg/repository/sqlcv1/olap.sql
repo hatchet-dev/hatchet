@@ -154,82 +154,6 @@ WHERE
     END
 ;
 
--- name: CreateTasksOLAP :copyfrom
-INSERT INTO v1_tasks_olap (
-    tenant_id,
-    id,
-    inserted_at,
-    queue,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_version_id,
-    workflow_run_id,
-    schedule_timeout,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    external_id,
-    display_name,
-    input,
-    additional_metadata,
-    dag_id,
-    dag_inserted_at,
-    parent_task_external_id,
-    is_durable
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11,
-    $12,
-    $13,
-    $14,
-    $15,
-    $16,
-    $17,
-    $18,
-    $19,
-    $20,
-    $21,
-    $22
-);
-
--- name: CreateDAGsOLAP :copyfrom
-INSERT INTO v1_dags_olap (
-    tenant_id,
-    id,
-    inserted_at,
-    external_id,
-    display_name,
-    workflow_id,
-    workflow_version_id,
-    input,
-    additional_metadata,
-    parent_task_external_id,
-    total_tasks
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11
-);
-
 -- name: CreateTaskEventsOLAPTmp :copyfrom
 INSERT INTO v1_task_events_olap_tmp (
     tenant_id,
@@ -1010,6 +934,7 @@ WITH tenants AS (
     FROM
         locked_events
 )
+
 SELECT
     -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
     -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
@@ -1018,6 +943,156 @@ SELECT
     t.*
 FROM
     all_result_tasks t;
+
+-- name: UpdateTaskStatusesFromMQ :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@statuses::v1_readable_status_olap[]) AS readable_status,
+        UNNEST(@workerIds::UUID[]) AS worker_id,
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count
+), locked_tasks AS (
+    SELECT t.*, i.readable_status AS new_readable_status, i.worker_id AS new_worker_id, i.retry_count AS new_retry_count
+    FROM v1_tasks_olap t
+    JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    WHERE
+        (
+            -- If the retry count is greater than the latest retry count, update the status
+            (
+                i.retry_count > t.latest_retry_count
+                AND i.readable_status != t.readable_status
+            ) OR
+            -- If the retry count is equal, only update if the new status has higher priority
+            (
+                i.retry_count = t.latest_retry_count
+                AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(t.readable_status)
+            ) OR
+            -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
+            (
+                i.retry_count = t.latest_retry_count
+                AND t.readable_status = 'EVICTED'
+                AND i.readable_status != 'EVICTED'
+            )
+        )
+    ORDER BY t.inserted_at, t.id
+    FOR UPDATE OF t
+), updated_tasks AS (
+    UPDATE v1_tasks_olap t
+    SET
+        readable_status = lt.new_readable_status,
+        latest_retry_count = lt.new_retry_count,
+        latest_worker_id = CASE
+            WHEN lt.new_worker_id != '00000000-0000-0000-0000-000000000000'::uuid THEN lt.new_worker_id
+            ELSE t.latest_worker_id
+        END
+    FROM locked_tasks lt
+    WHERE
+        (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
+    RETURNING t.*
+)
+
+SELECT
+    t.tenant_id,
+    t.id AS task_id,
+    t.inserted_at AS task_inserted_at,
+    COALESCE(ut.readable_status, t.readable_status) AS readable_status,
+    t.external_id,
+    COALESCE(ut.latest_worker_id, t.latest_worker_id) AS latest_worker_id,
+    t.workflow_id,
+    t.dag_id,
+    t.dag_inserted_at,
+    (t.dag_id IS NOT NULL)::BOOLEAN AS is_dag_task,
+    (ut.id IS NOT NULL)::BOOLEAN AS was_updated
+FROM v1_tasks_olap t
+LEFT JOIN updated_tasks ut ON (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+WHERE (t.inserted_at, t.id, t.tenant_id) IN (
+    SELECT task_inserted_at, task_id, tenant_id
+    FROM inputs
+)
+;
+
+-- name: UpdateDAGStatusesFromMQ :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@dagIds::BIGINT[]) AS dag_id,
+        UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at
+), locked_dags AS (
+    SELECT *
+    FROM v1_dags_olap
+    WHERE (inserted_at, id, tenant_id) IN (
+        SELECT dag_inserted_at, dag_id, tenant_id
+        FROM inputs
+    )
+    ORDER BY inserted_at, id
+    FOR UPDATE
+), dag_task_counts AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.readable_status,
+        d.tenant_id,
+        d.total_tasks,
+        COUNT(t.id) AS task_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'EVICTED') AS evicted_count
+    FROM
+        locked_dags d
+    JOIN
+        v1_dag_to_task_olap dt ON (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN
+        v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    GROUP BY
+        d.id, d.inserted_at, d.readable_status, d.tenant_id, d.total_tasks
+), dag_new_statuses AS (
+    SELECT
+        dtc.id,
+        dtc.inserted_at,
+        dtc.tenant_id,
+        CASE
+            -- If we only have queued events, we should keep the status as is
+            WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
+            -- If the task count is not equal to the total tasks, we should set the status to running
+            WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
+            -- If we have any running or queued tasks, we should set the status to running
+            WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            -- If all tasks are evicted, mark DAG as evicted
+            WHEN dtc.evicted_count = dtc.task_count AND dtc.task_count = dtc.total_tasks THEN 'EVICTED'
+            WHEN dtc.failed_count > 0 THEN 'FAILED'
+            WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
+            WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
+            ELSE 'RUNNING'
+        END::v1_readable_status_olap AS new_readable_status
+    FROM
+        dag_task_counts dtc
+), updated_dags AS (
+    UPDATE v1_dags_olap d
+    SET
+        readable_status = dns.new_readable_status
+    FROM
+        dag_new_statuses dns
+    WHERE
+        (d.inserted_at, d.id, d.tenant_id) = (dns.inserted_at, dns.id, dns.tenant_id)
+        AND dns.new_readable_status != d.readable_status
+    RETURNING
+        d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
+)
+
+SELECT
+    ud.tenant_id::UUID AS tenant_id,
+    ud.id::BIGINT AS dag_id,
+    ud.inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+    ud.external_id::UUID AS external_id,
+    ud.readable_status::v1_readable_status_olap AS readable_status,
+    ud.workflow_id::UUID AS workflow_id
+FROM updated_dags ud
+;
 
 -- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
@@ -2274,3 +2349,52 @@ SELECT compute_olap_payload_batch_size(
     @lastInsertedAt::TIMESTAMPTZ,
     @batchSize::INTEGER
 ) AS total_size_bytes;
+
+-- name: ReconcileTaskStatusesFromEvents :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
+), locked_tasks AS (
+    SELECT *
+    FROM v1_tasks_olap
+    WHERE (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+    ORDER BY inserted_at, id
+    FOR UPDATE
+), relevant_events AS MATERIALIZED (
+    SELECT *
+    FROM v1_task_events_olap
+    WHERE (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+), max_retry_counts AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
+    FROM relevant_events
+    GROUP BY task_id, task_inserted_at
+), statuses_from_events AS (
+    SELECT
+        e.task_id,
+        e.task_inserted_at,
+        e.retry_count,
+        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS status,
+        MAX(e.worker_id::text)::uuid AS latest_worker_id
+    FROM relevant_events e
+    JOIN max_retry_counts mrc ON (e.task_id, e.task_inserted_at, e.retry_count) = (mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
+    GROUP BY e.task_id, e.task_inserted_at, e.retry_count
+)
+
+UPDATE v1_tasks_olap t
+SET
+    readable_status = s.status,
+    latest_retry_count = s.retry_count,
+    latest_worker_id = COALESCE(s.latest_worker_id, t.latest_worker_id)
+FROM statuses_from_events s
+WHERE
+    (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
+    AND (
+        (s.retry_count > t.latest_retry_count AND s.status != t.readable_status)
+        OR (s.retry_count = t.latest_retry_count AND v1_status_to_priority(s.status) > v1_status_to_priority(t.readable_status))
+        OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
+    )
+RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
