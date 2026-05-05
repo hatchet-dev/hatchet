@@ -154,25 +154,6 @@ WHERE
     END
 ;
 
--- name: CreateTaskEventsOLAPTmp :copyfrom
-INSERT INTO v1_task_events_olap_tmp (
-    tenant_id,
-    task_id,
-    task_inserted_at,
-    event_type,
-    readable_status,
-    retry_count,
-    worker_id
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7
-);
-
 -- name: CreateTaskEventsOLAP :copyfrom
 INSERT INTO v1_task_events_olap (
     tenant_id,

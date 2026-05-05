@@ -530,16 +530,6 @@ type CreateTaskEventsOLAPParams struct {
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
 }
 
-type CreateTaskEventsOLAPTmpParams struct {
-	TenantID       uuid.UUID            `json:"tenant_id"`
-	TaskID         int64                `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType      V1EventTypeOlap      `json:"event_type"`
-	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
-	RetryCount     int32                `json:"retry_count"`
-	WorkerID       *uuid.UUID           `json:"worker_id"`
-}
-
 const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
 SELECT copy_v1_payloads_olap_partition_structure($1::DATE)
 `
