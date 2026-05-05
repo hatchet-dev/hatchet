@@ -6,7 +6,7 @@ ALTER TABLE v1_durable_event_log_entry ADD COLUMN result_payload_external_id UUI
 -- +goose StatementBegin
 DO $$
 DECLARE
-    batch_size INT := 1000;
+    batch_size INT := 100; -- small batches, since each durable task can have many event log entries
     rows_updated INT;
     last_task_id BIGINT := -1;
     last_inserted_at TIMESTAMPTZ := '1970-01-01T00:00:00Z';
