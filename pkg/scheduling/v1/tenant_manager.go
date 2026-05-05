@@ -386,9 +386,8 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 }
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
-	queueNamesMap := make(map[string]*Queuer, len(t.queuers))
-
 	t.queuersMu.RLock()
+	queueNamesMap := make(map[string]*Queuer, len(t.queuers))
 	for _, q := range t.queuers {
 		queueNamesMap[q.queueName] = q
 	}
