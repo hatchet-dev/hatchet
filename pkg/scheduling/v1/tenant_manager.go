@@ -386,17 +386,19 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 }
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
-	queueNamesMap := make(map[string]struct{}, len(queueNames))
-
-	for _, name := range queueNames {
-		queueNamesMap[name] = struct{}{}
-	}
+	queueNamesMap := make(map[string]*Queuer, len(t.queuers))
 
 	t.queuersMu.RLock()
-
 	for _, q := range t.queuers {
-		if _, ok := queueNamesMap[q.queueName]; ok {
+		queueNamesMap[q.queueName] = q
+	}
+	for _, name := range queueNames {
+		if q, ok := queueNamesMap[name]; ok {
+			// queue already exists
 			q.queue(ctx)
+		} else {
+			// new or inactive queue, create it
+			t.notifyNewQueue(ctx, name)
 		}
 	}
 
