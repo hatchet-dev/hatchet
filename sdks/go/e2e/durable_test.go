@@ -293,6 +293,8 @@ func TestDurableReplayReset(t *testing.T) {
 			_, err = sharedClient.Runs().BranchDurableTask(ctx, ref.RunId, nodeID, 1)
 			require.NoError(t, err)
 
+			time.Sleep(2 * time.Second)
+
 			start := time.Now()
 			resetResult, err := ref.Result()
 			require.NoError(t, err)
