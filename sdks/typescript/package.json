@@ -74,14 +74,14 @@
     "@bufbuild/protobuf": "^2.11.0",
     "@types/qs": "^6.15.0",
     "abort-controller-x": "^0.5.0",
-    "axios": "^1.13.5",
+    "axios": "^1.15.2",
     "long": "^5.3.1",
     "nice-grpc": "^2.1.14",
     "nice-grpc-common": "^2.0.2",
-    "protobufjs": "^7.4.0",
+    "protobufjs": "^7.5.5",
     "qs": "^6.14.2",
     "semver": "^7.7.4",
-    "yaml": "^2.8.2",
+    "yaml": "^2.8.3",
     "zod-to-json-schema": "^3.24.2"
   },
   "peerDependencies": {
@@ -139,7 +139,10 @@
       "tar": "^7.5.8",
       "js-yaml": "^4.1.1",
       "minimatch": ">=9.0.7",
-      "markdown-it": ">=14.1.1"
+      "markdown-it": ">=14.1.1",
+      "axios": "^1.15.2",
+      "follow-redirects": "^1.16.0",
+      "protobufjs": "^7.5.5"
     }
   }
 }
