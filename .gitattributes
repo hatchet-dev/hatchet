@@ -8,6 +8,10 @@ api-contracts/** linguist-detectable=false
 ### sqlc
 pkg/repository/sqlcv1/**/*.sql.go linguist-generated=true
 
+### openapi
+api/v1/server/oas/gen/** linguist-generated=true
+frontend/app/src/lib/api/generated/** linguist-generated=true
+
 ### docs
 frontend/docs/snippets/** linguist-generated=true
 
