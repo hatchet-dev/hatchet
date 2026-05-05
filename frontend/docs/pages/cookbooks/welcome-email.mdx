@@ -168,6 +168,7 @@ The snippets below replace the `print` / `console.log` calls with Loops API call
         headers = {
             "Authorization": f"Bearer {LOOPS_API_KEY}",
             "Content-Type": "application/json",
+            "User-Agent": "hatchet-cookbook/1.0",
         }
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
