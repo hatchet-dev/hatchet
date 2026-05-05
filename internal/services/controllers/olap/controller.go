@@ -578,7 +578,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		// which would lead us to never send a dag status update message
 		// and then end up hanging streams, etc. so here we check if the status is not queued (which is the default status for a new dag)
 		// and if it's not, we send a status update message to trigger any downstream updates that rely on the dag status to be correct
-		if dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED || dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
+		if dag.ReadableStatus != sqlcv1.V1ReadableStatusOlapQUEUED {
 			dagStatusUpdates = append(dagStatusUpdates, v1.UpdateDAGStatusRow{
 				TenantId:       tenantId,
 				ExternalId:     dag.ExternalID,
