@@ -24,11 +24,14 @@ func (q *Queries) AdvisoryLock(ctx context.Context, db DBTX, key int64) error {
 const advisoryLockMany = `-- name: AdvisoryLockMany :exec
 WITH keys AS (
     SELECT UNNEST($1::BIGINT[]) AS key
+), ordered_keys AS (
+    SELECT key
+    FROM keys
+    ORDER BY key
 )
 
 SELECT pg_advisory_xact_lock(key)
-FROM keys
-ORDER BY key
+FROM ordered_keys
 `
 
 func (q *Queries) AdvisoryLockMany(ctx context.Context, db DBTX, keys []int64) error {
