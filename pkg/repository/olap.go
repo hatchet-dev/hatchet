@@ -1775,6 +1775,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 
 	if len(tmpEventsToWrite) > 0 {
 		_, err = r.queries.CreateTaskEventsOLAPTmp(ctx, tx, tmpEventsToWrite)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsForStatusUpdate)
