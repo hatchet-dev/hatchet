@@ -170,6 +170,7 @@ func (s *SchedulesClient) Get(ctx context.Context, scheduledRunId string) (*rest
 	return resp.JSON200, nil
 }
 
+// Update reschedules a specific scheduled workflow run by its ID.
 func (s *SchedulesClient) Update(ctx context.Context, scheduledRunId string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
 	scheduledRunIdUUID, err := uuid.Parse(scheduledRunId)
 	if err != nil {
@@ -197,6 +198,7 @@ func (s *SchedulesClient) Update(ctx context.Context, scheduledRunId string, tri
 	return resp.JSON200, nil
 }
 
+// BulkDelete deletes scheduled workflows by a list of their IDs.
 func (s *SchedulesClient) BulkDelete(ctx context.Context, scheduledWorkflowRunIds []string, filter *rest.ScheduledWorkflowsBulkDeleteFilter) (*rest.ScheduledWorkflowsBulkDeleteResponse, error) {
 	if len(scheduledWorkflowRunIds) == 0 && filter == nil {
 		return nil, errors.New("BulkDelete requires either scheduledRunIds or a filter")
@@ -233,6 +235,7 @@ func (s *SchedulesClient) BulkDelete(ctx context.Context, scheduledWorkflowRunId
 	return resp.JSON200, nil
 }
 
+// BulkUpdate reschedules scheduled workflows by a list of their IDs.
 func (s *SchedulesClient) BulkUpdate(ctx context.Context, updates []BulkUpdateScheduledRunItem) (*rest.ScheduledWorkflowsBulkUpdateResponse, error) {
 	items := make([]rest.ScheduledWorkflowsBulkUpdateItem, 0, len(updates))
 	for _, u := range updates {
