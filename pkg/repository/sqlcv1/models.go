@@ -3167,20 +3167,21 @@ type V1DurableEventLogBranchPoint struct {
 }
 
 type V1DurableEventLogEntry struct {
-	TenantID              uuid.UUID             `json:"tenant_id"`
-	ExternalID            uuid.UUID             `json:"external_id"`
-	InsertedAt            pgtype.Timestamptz    `json:"inserted_at"`
-	ID                    int64                 `json:"id"`
-	DurableTaskID         int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                  V1DurableEventLogKind `json:"kind"`
-	NodeID                int64                 `json:"node_id"`
-	BranchID              int64                 `json:"branch_id"`
-	IdempotencyKey        []byte                `json:"idempotency_key"`
-	IsSatisfied           bool                  `json:"is_satisfied"`
-	SatisfiedAt           pgtype.Timestamptz    `json:"satisfied_at"`
-	UserMessage           pgtype.Text           `json:"user_message"`
-	WaitData              []byte                `json:"wait_data"`
+	TenantID                uuid.UUID             `json:"tenant_id"`
+	ExternalID              uuid.UUID             `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
+	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
+	ID                      int64                 `json:"id"`
+	DurableTaskID           int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                    V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                 `json:"node_id"`
+	BranchID                int64                 `json:"branch_id"`
+	IdempotencyKey          []byte                `json:"idempotency_key"`
+	IsSatisfied             bool                  `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
+	UserMessage             pgtype.Text           `json:"user_message"`
+	WaitData                []byte                `json:"wait_data"`
 }
 
 type V1DurableEventLogFile struct {
