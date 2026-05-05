@@ -181,7 +181,7 @@ getTaskStatusMetrics:
     description: Get a summary of task run metrics for a tenant
     operationId: v1-task:list:status-metrics
     parameters:
-      - description: The tenant id
+      - description: The tenant id foo bar baz
         in: path
         name: tenant
         required: true
@@ -193,6 +193,13 @@ getTaskStatusMetrics:
       - description: The start time to get metrics for
         in: query
         name: since
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - description: A test foo bar
+        in: query
+        name: testingtesting
         required: true
         schema:
           type: string

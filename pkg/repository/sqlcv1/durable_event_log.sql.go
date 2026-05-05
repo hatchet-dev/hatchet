@@ -245,7 +245,7 @@ VALUES (
     $5::BIGINT,
     $6::BIGINT
 )
-RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id, fake_column
 `
 
 type CreateDurableEventLogBranchPointParams struct {
@@ -462,7 +462,7 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 }
 
 const listDurableEventLogBranchPoints = `-- name: ListDurableEventLogBranchPoints :many
-SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id, fake_column
 FROM v1_durable_event_log_branch_point
 WHERE
     durable_task_id = $1::BIGINT
@@ -495,6 +495,7 @@ func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, 
 			&i.FirstNodeIDInNewBranch,
 			&i.ParentBranchID,
 			&i.NextBranchID,
+			&i.FakeColumn,
 		); err != nil {
 			return nil, err
 		}

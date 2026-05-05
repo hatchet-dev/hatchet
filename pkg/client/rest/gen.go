@@ -2805,6 +2805,9 @@ type V1TaskListStatusMetricsParams struct {
 	// Since The start time to get metrics for
 	Since time.Time `form:"since" json:"since"`
 
+	// Testingtesting A test foo bar
+	Testingtesting time.Time `form:"testingtesting" json:"testingtesting"`
+
 	// Until The end time to get metrics for
 	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
 
@@ -8101,6 +8104,18 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 		queryValues := queryURL.Query()
 
 		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "testingtesting", runtime.ParamLocationQuery, params.Testingtesting); err != nil {
 			return nil, err
 		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 			return nil, err
