@@ -2384,7 +2384,5 @@ CREATE TABLE v1_durable_event_log_branch_point (
 
     next_branch_id BIGINT NOT NULL,
 
-    fake_column BIGINT NOT NULL DEFAULT 0,
-
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);

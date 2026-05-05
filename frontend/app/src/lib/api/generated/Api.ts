@@ -848,11 +848,6 @@ export class Api<
        */
       since: string;
       /**
-       * A test foo bar
-       * @format date-time
-       */
-      testingtesting: string;
-      /**
        * The end time to get metrics for
        * @format date-time
        */

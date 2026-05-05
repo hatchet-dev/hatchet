@@ -3164,7 +3164,6 @@ type V1DurableEventLogBranchPoint struct {
 	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`
 	ParentBranchID         int64              `json:"parent_branch_id"`
 	NextBranchID           int64              `json:"next_branch_id"`
-	FakeColumn             int64              `json:"fake_column"`
 }
 
 type V1DurableEventLogEntry struct {
