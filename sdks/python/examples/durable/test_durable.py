@@ -211,6 +211,7 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
     )
 
     start = time.time()
+    await asyncio.sleep(2)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -248,7 +249,7 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     )
 
     start = time.time()
-    await asyncio.sleep(1)
+    await asyncio.sleep(2)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -268,7 +269,7 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     )
 
     start = time.time()
-    await asyncio.sleep(1)
+    await asyncio.sleep(2)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -328,9 +329,9 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 
     result = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    assert (
-        result.elapsed < 1
-    ), "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    assert result.elapsed < 1, (
+        "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    )
     assert result.event.order == "first"
 
 
