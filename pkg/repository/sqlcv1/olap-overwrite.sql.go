@@ -798,6 +798,7 @@ ON CONFLICT (inserted_at, id) DO UPDATE SET
         THEN EXCLUDED.readable_status
         ELSE v1_dags_olap.readable_status
     END
+RETURNING tenant_id, id, inserted_at, readable_status, workflow_id, external_id
 `
 
 type CreateDAGsOLAPOverwriteParams struct {
@@ -814,8 +815,17 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Totaltasks            []int32              `json:"totaltasks"`
 }
 
-func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
-	_, err := db.Exec(ctx, createDAGsOLAP,
+type CreateDAGsOLAPRow struct {
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	ID             int64                `json:"id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	WorkflowID     uuid.UUID            `json:"workflow_id"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+}
+
+func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) ([]*CreateDAGsOLAPRow, error) {
+	res, err := db.Query(ctx, createDAGsOLAP,
 		arg.Tenantids,
 		arg.Ids,
 		arg.Insertedats,
@@ -828,5 +838,30 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,
 	)
-	return err
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Close()
+
+	var items []*CreateDAGsOLAPRow
+	for res.Next() {
+		var i CreateDAGsOLAPRow
+		if err := res.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ReadableStatus,
+			&i.WorkflowID,
+			&i.ExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

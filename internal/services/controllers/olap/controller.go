@@ -565,8 +565,35 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
 	}
 
-	if err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts); err != nil {
+	createdDags, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
+
+	if err != nil {
 		return err
+	}
+
+	dagStatusUpdates := make([]v1.UpdateDAGStatusRow, 0, len(createdDags))
+	for _, dag := range createdDags {
+		// since the dag status is inferred from the tasks, there's a possible case where
+		// some events some in before the dag is written and the dag is written as completed,
+		// which would lead us to never send a dag status update message
+		// and then end up hanging streams, etc. so here we check if the status is not queued (which is the default status for a new dag)
+		// and if it's not, we send a status update message to trigger any downstream updates that rely on the dag status to be correct
+		if dag.ReadableStatus != sqlcv1.V1ReadableStatusOlapQUEUED {
+			dagStatusUpdates = append(dagStatusUpdates, v1.UpdateDAGStatusRow{
+				TenantId:       tenantId,
+				ExternalId:     dag.ExternalID,
+				ReadableStatus: dag.ReadableStatus,
+				DagInsertedAt:  dag.InsertedAt,
+				DagId:          dag.ID,
+				WorkflowId:     dag.WorkflowID,
+			})
+		}
+	}
+
+	if len(dagStatusUpdates) > 0 {
+		if err := tc.notifyDAGsUpdated(ctx, dagStatusUpdates); err != nil {
+			return err
+		}
 	}
 
 	tc.emitWorkflowRunRootSpans(ctx, tenantId, createDAGOpts)
