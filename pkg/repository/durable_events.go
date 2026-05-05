@@ -824,7 +824,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 				storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
 					Id:         createdRow.ID,
 					InsertedAt: createdRow.InsertedAt,
-					ExternalId: createdRow.ExternalID,
+					ExternalId: createdRow.ResultPayloadExternalID,
 					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 					Payload:    opt.ResultPayload,
 					TenantId:   opts.TenantId,
@@ -1514,7 +1514,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 		err = r.payloadStore.Store(ctx, r.pool, StorePayloadOpts{
 			Id:         entry.ID,
 			InsertedAt: entry.InsertedAt,
-			ExternalId: entry.ExternalID,
+			ExternalId: entry.ResultPayloadExternalID,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			Payload:    opts.Payload,
 			TenantId:   opts.TenantId,
