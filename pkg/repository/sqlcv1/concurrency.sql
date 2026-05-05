@@ -147,11 +147,14 @@ SELECT pg_advisory_xact_lock(@key::bigint);
 -- name: AdvisoryLockMany :exec
 WITH keys AS (
     SELECT UNNEST(@keys::BIGINT[]) AS key
+), ordered_keys AS (
+    SELECT key
+    FROM keys
+    ORDER BY key
 )
 
 SELECT pg_advisory_xact_lock(key)
-FROM keys
-ORDER BY key;
+FROM ordered_keys;
 
 -- name: TryAdvisoryLock :one
 SELECT pg_try_advisory_xact_lock(@key::bigint) AS "locked";
