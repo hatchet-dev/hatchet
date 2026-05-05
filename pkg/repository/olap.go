@@ -1714,6 +1714,7 @@ func (r *OLAPRepositoryImpl) acquireAdvisoryLocksForWorkflowRuns(ctx context.Con
 func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, workflowRunIds []uuid.UUID) (*StatusUpdateResult, error) {
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
+	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, event := range events {
@@ -1726,6 +1727,16 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 			}
 
 			eventsToWrite = append(eventsToWrite, event)
+
+			tmpEventsToWrite = append(tmpEventsToWrite, sqlcv1.CreateTaskEventsOLAPTmpParams{
+				TenantID:       event.TenantID,
+				TaskID:         event.TaskID,
+				TaskInsertedAt: event.TaskInsertedAt,
+				EventType:      event.EventType,
+				RetryCount:     event.RetryCount,
+				ReadableStatus: event.ReadableStatus,
+				WorkerID:       event.WorkerID,
+			})
 		}
 
 		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
@@ -1760,6 +1771,10 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if len(tmpEventsToWrite) > 0 {
+		_, err = r.queries.CreateTaskEventsOLAPTmp(ctx, tx, tmpEventsToWrite)
 	}
 
 	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsForStatusUpdate)
