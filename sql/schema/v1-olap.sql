@@ -628,19 +628,6 @@ BEGIN
         AND r.inserted_at = n.inserted_at
         AND r.kind = 'TASK';
 
-    -- insert tmp events into task status updates table if we have a dag_id
-    INSERT INTO v1_task_status_updates_tmp (
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    )
-    SELECT
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    FROM new_rows
-    WHERE dag_id IS NOT NULL;
-
     RETURN NULL;
 END;
 $$
