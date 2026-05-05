@@ -16,7 +16,7 @@ BEGIN
             SELECT DISTINCT durable_task_id, durable_task_inserted_at
             FROM v1_durable_event_log_entry
             WHERE result_payload_external_id IS NULL
-              AND (durable_task_id, durable_task_inserted_at) > (last_task_id, last_inserted_at)
+              AND (durable_task_id, durable_task_inserted_at) >= (last_task_id, last_inserted_at)
             ORDER BY durable_task_id, durable_task_inserted_at
             LIMIT batch_size
         ), updated AS (
