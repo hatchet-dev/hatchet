@@ -3338,20 +3338,28 @@ WITH tasks AS (
         AND readable_status = 'RUNNING'
         AND inserted_at > NOW() - INTERVAL '1 hour'
         AND inserted_at < NOW() - INTERVAL '2 minutes'
-), has_completed_event AS (
-    SELECT task_id, task_inserted_at
+), computed_statuses AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        CASE
+            WHEN BOOL_OR(readable_status = 'FAILED') THEN 'FAILED'
+            WHEN BOOL_OR(readable_status = 'CANCELLED') THEN 'CANCELLED'
+            WHEN BOOL_OR(readable_status = 'COMPLETED') THEN 'COMPLETED'
+        END AS computed_status
     FROM v1_task_events_olap
     WHERE
-        (task_id, task_inserted_at) IN (SELECT id, inserted_at FROM tasks)
+        (task_id, task_inserted_at, retry_count) IN (SELECT id, inserted_at, latest_retry_count FROM tasks)
         AND inserted_at > NOW() - INTERVAL '1 hour'
         AND inserted_at < NOW() - INTERVAL '2 minutes'
     GROUP BY task_id, task_inserted_at
-    HAVING BOOL_OR(readable_status = 'COMPLETED')
+    HAVING BOOL_OR(readable_status IN ('FAILED', 'CANCELLED', 'COMPLETED'))
 )
 
 UPDATE v1_tasks_olap
-SET readable_status = 'COMPLETED'
-WHERE (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM has_completed_event)
+SET readable_status = c.computed_status
+FROM computed_statuses c
+WHERE (id, inserted_at) = (c.task_id, c.task_inserted_at)
 `
 
 func (q *Queries) ReconcileMissedTaskStatusUpdates(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
