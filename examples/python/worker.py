@@ -75,6 +75,7 @@ from examples.return_exceptions.worker import (
 )
 from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
+from examples.pdf_pipeline.worker import pdf_pipeline
 from examples.simple.worker import simple, simple_durable
 from examples.support_agent.worker import (
     escalate_ticket,
@@ -178,6 +179,7 @@ def main() -> None:
             otel_simple_task,
             otel_spawn_parent,
             otel_workflow,
+            pdf_pipeline,
             support_agent,
             triage_ticket,
             generate_reply,
