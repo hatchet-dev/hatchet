@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 
 -- v1_paused_workflow_queue_items stores queue items for workflows that are currently paused.
-CREATE TABLE IF NOT EXISTS v1_paused_workflow_queue_items (
+CREATE TABLE v1_paused_workflow_queue_items (
     paused_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- everything below this is the same as v1_queue_item
     tenant_id UUID NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS v1_paused_workflow_queue_items (
     CONSTRAINT v1_paused_workflow_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
 
-CREATE INDEX IF NOT EXISTS v1_paused_workflow_queue_items_workflow_idx
+CREATE INDEX v1_paused_workflow_queue_items_workflow_idx
     ON v1_paused_workflow_queue_items (workflow_id, tenant_id);
 
 ALTER TABLE v1_paused_workflow_queue_items SET (
@@ -36,19 +36,19 @@ ALTER TABLE v1_paused_workflow_queue_items SET (
     autovacuum_vacuum_cost_limit = '1000'
 );
 
-ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'WORKFLOW_PAUSED';
-ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'WORKFLOW_UNPAUSED';
+ALTER TYPE v1_event_type_olap ADD VALUE 'WORKFLOW_PAUSED';
+ALTER TYPE v1_event_type_olap ADD VALUE 'WORKFLOW_UNPAUSED';
 
-ALTER TABLE "Workflow" ADD COLUMN IF NOT EXISTS "queueCronOnPause" BOOLEAN NOT NULL DEFAULT true;
-ALTER TABLE "Workflow" ADD COLUMN IF NOT EXISTS "queueScheduledOnPause" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Workflow" ADD COLUMN "queueCronOnPause" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Workflow" ADD COLUMN "queueScheduledOnPause" BOOLEAN NOT NULL DEFAULT false;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-ALTER TABLE "Workflow" DROP COLUMN IF EXISTS "queueScheduledOnPause";
-ALTER TABLE "Workflow" DROP COLUMN IF EXISTS "queueCronOnPause";
+ALTER TABLE "Workflow" DROP COLUMN "queueScheduledOnPause";
+ALTER TABLE "Workflow" DROP COLUMN "queueCronOnPause";
 
-DROP INDEX IF EXISTS v1_paused_workflow_queue_items_workflow_idx;
-DROP TABLE IF EXISTS v1_paused_workflow_queue_items;
+DROP INDEX v1_paused_workflow_queue_items_workflow_idx;
+DROP TABLE v1_paused_workflow_queue_items;
 
 -- +goose StatementEnd
