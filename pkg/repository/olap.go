@@ -3622,6 +3622,17 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return fmt.Errorf("failed to compare partition row counts: %w", err)
 	}
 
+	err = p.queries.SetFinalOLAPPayloadCutoverRowCounts(ctx, conn, sqlcv1.SetFinalOLAPPayloadCutoverRowCountsParams{
+		Finalsourcetablerowcount: rowCounts.SourcePartitionCount,
+		Finaltargettablerowcount: rowCounts.TempPartitionCount,
+		Finalrowcountdiff:        rowCounts.SourcePartitionCount - rowCounts.TempPartitionCount,
+		Key:                      pgtype.Date(partitionDate),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to set final olap payload cutover row counts: %w", err)
+	}
+
 	const maxCountDiff = 5000
 
 	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {

@@ -904,6 +904,17 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 
 	const maxCountDiff = 5000
 
+	err = p.queries.SetFinalPayloadCutoverRowCounts(ctx, conn, sqlcv1.SetFinalPayloadCutoverRowCountsParams{
+		Finalsourcetablerowcount: rowCounts.SourcePartitionCount,
+		Finaltargettablerowcount: rowCounts.TempPartitionCount,
+		Finalrowcountdiff:        rowCounts.SourcePartitionCount - rowCounts.TempPartitionCount,
+		Key:                      pgtype.Date(partitionDate),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to set final payload cutover row counts: %w", err)
+	}
+
 	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
 		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
 	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
