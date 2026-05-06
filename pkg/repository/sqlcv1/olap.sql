@@ -2377,7 +2377,7 @@ WITH inputs AS (
     FROM v1_task_events_olap
     WHERE
         (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
-        AND inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND task_inserted_at >= @minInsertedAt::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         task_id,
