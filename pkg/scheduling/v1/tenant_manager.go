@@ -387,23 +387,22 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 	t.queuersMu.RLock()
-	queueNamesMap := make(map[string]*Queuer, len(t.queuers))
-	inactiveQueues := make([]string, 0)
-	for _, q := range t.queuers {
-		queueNamesMap[q.queueName] = q
-	}
+	requested := make(map[string]struct{}, len(queueNames))
 	for _, name := range queueNames {
-		if q, ok := queueNamesMap[name]; ok {
-			// queue already exists
+		requested[name] = struct{}{}
+	}
+	// iterate t.queuers (not queueNames) to keep queueMu acquisition order consistent
+	// across goroutines, avoiding lock-ordering warnings from go-deadlock
+	for _, q := range t.queuers {
+		if _, ok := requested[q.queueName]; ok {
 			q.queue(ctx)
-		} else {
-			inactiveQueues = append(inactiveQueues, name)
+			delete(requested, q.queueName)
 		}
 	}
 	t.queuersMu.RUnlock()
 
 	// this function sends to a channel that acquires the queuersMu, so needs to be outside lock.
-	for _, name := range inactiveQueues {
+	for name := range requested {
 		t.notifyNewQueue(ctx, name)
 	}
 }
