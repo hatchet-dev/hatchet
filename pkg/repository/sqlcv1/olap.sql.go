@@ -3346,7 +3346,7 @@ WITH tasks AS (
             WHEN BOOL_OR(readable_status = 'FAILED') THEN 'FAILED'
             WHEN BOOL_OR(readable_status = 'CANCELLED') THEN 'CANCELLED'
             WHEN BOOL_OR(readable_status = 'COMPLETED') THEN 'COMPLETED'
-        END AS computed_status
+        END::v1_readable_status_olap AS computed_status
     FROM v1_task_events_olap
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT id, inserted_at, latest_retry_count FROM tasks)
