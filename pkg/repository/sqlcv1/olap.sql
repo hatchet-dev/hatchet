@@ -2413,7 +2413,7 @@ WITH tasks AS (
     SELECT *
     FROM v1_tasks_olap
     WHERE tenant_id = @tenantId::UUID
-        AND readable_status = 'RUNNING'
+        AND readable_status IN ('QUEUED', 'RUNNING')
         AND inserted_at > NOW() - INTERVAL '1 hour'
         AND inserted_at < NOW() - INTERVAL '2 minutes'
 ), computed_statuses AS (
