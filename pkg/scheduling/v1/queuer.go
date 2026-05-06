@@ -103,20 +103,15 @@ func (q *Queuer) Cleanup() {
 }
 
 func (q *Queuer) queue(ctx context.Context) {
-	if ok := q.queueMu.TryLock(); !ok {
-		return
+	ctx, span := telemetry.NewSpan(ctx, "notify-queue")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()})
+
+	select {
+	case q.notifyQueueCh <- telemetry.GetCarrier(ctx):
+	default:
 	}
-
-	go func() {
-		defer q.queueMu.Unlock()
-
-		ctx, span := telemetry.NewSpan(ctx, "notify-queue")
-		defer span.End()
-
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()})
-
-		q.notifyQueueCh <- telemetry.GetCarrier(ctx)
-	}()
 }
 
 func (q *Queuer) loopQueue(ctx context.Context) {
