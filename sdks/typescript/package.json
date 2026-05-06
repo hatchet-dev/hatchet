@@ -142,7 +142,8 @@
       "markdown-it": ">=14.1.1",
       "axios": "^1.15.2",
       "follow-redirects": "^1.16.0",
-      "protobufjs": "^7.5.5"
+      "protobufjs": "^7.5.5",
+      "@anthropic-ai/sdk": "^0.91.1"
     }
   }
 }
