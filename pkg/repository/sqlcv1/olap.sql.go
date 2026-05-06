@@ -3425,6 +3425,32 @@ func (q *Queries) ReconcileTaskStatusesFromEvents(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
+const setFinalOLAPPayloadCutoverRowCounts = `-- name: SetFinalOLAPPayloadCutoverRowCounts :exec
+UPDATE v1_payloads_olap_cutover_job_offset
+SET
+    final_source_table_row_count = $1::BIGINT,
+    final_target_table_row_count = $2::BIGINT,
+    final_row_count_diff = $3::BIGINT
+WHERE key = $4::DATE
+`
+
+type SetFinalOLAPPayloadCutoverRowCountsParams struct {
+	Finalsourcetablerowcount int64       `json:"finalsourcetablerowcount"`
+	Finaltargettablerowcount int64       `json:"finaltargettablerowcount"`
+	Finalrowcountdiff        int64       `json:"finalrowcountdiff"`
+	Key                      pgtype.Date `json:"key"`
+}
+
+func (q *Queries) SetFinalOLAPPayloadCutoverRowCounts(ctx context.Context, db DBTX, arg SetFinalOLAPPayloadCutoverRowCountsParams) error {
+	_, err := db.Exec(ctx, setFinalOLAPPayloadCutoverRowCounts,
+		arg.Finalsourcetablerowcount,
+		arg.Finaltargettablerowcount,
+		arg.Finalrowcountdiff,
+		arg.Key,
+	)
+	return err
+}
+
 const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec
 WITH inputs AS (
     SELECT
