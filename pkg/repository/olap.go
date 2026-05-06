@@ -289,6 +289,7 @@ type OLAPRepository interface {
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
 	ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error)
+	ReconcileMissedTaskStatusUpdates(ctx context.Context, tenantId uuid.UUID) error
 
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
@@ -4084,6 +4085,10 @@ func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
 	default:
 		return sqlcv1.V1OtelSpanKindUNSPECIFIED
 	}
+}
+
+func (r *OLAPRepositoryImpl) ReconcileMissedTaskStatusUpdates(ctx context.Context, tenantId uuid.UUID) error {
+	return r.queries.ReconcileMissedTaskStatusUpdates(ctx, r.pool, tenantId)
 }
 
 func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode {

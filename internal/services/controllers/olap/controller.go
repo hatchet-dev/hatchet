@@ -379,6 +379,19 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, wrappedErr
 	}
 
+	_, err = o.s.NewJob(
+		gocron.DurationJob(10*time.Minute),
+		gocron.NewTask(
+			o.runReconcileMissedTaskStatusUpdates(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule reconcile missed task status updates: %w", err)
+	}
+
 	cleanupBuffer, err := mqBuffer.Start()
 
 	if err != nil {

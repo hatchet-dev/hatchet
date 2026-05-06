@@ -3330,6 +3330,35 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
+const reconcileMissedTaskStatusUpdates = `-- name: ReconcileMissedTaskStatusUpdates :exec
+WITH tasks AS (
+    SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id, is_durable
+    FROM v1_tasks_olap
+    WHERE tenant_id = $1::UUID
+        AND readable_status = 'RUNNING'
+        AND inserted_at > NOW() - INTERVAL '1 hour'
+        AND inserted_at < NOW() - INTERVAL '2 minutes'
+), has_completed_event AS (
+    SELECT task_id, task_inserted_at
+    FROM v1_task_events_olap
+    WHERE
+        (task_id, task_inserted_at) IN (SELECT id, inserted_at FROM tasks)
+        AND inserted_at > NOW() - INTERVAL '1 hour'
+        AND inserted_at < NOW() - INTERVAL '2 minutes'
+    GROUP BY task_id, task_inserted_at
+    HAVING BOOL_OR(readable_status = 'COMPLETED')
+)
+
+UPDATE v1_tasks_olap
+SET readable_status = 'COMPLETED'
+WHERE (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM has_completed_event)
+`
+
+func (q *Queries) ReconcileMissedTaskStatusUpdates(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
+	_, err := db.Exec(ctx, reconcileMissedTaskStatusUpdates, tenantid)
+	return err
+}
+
 const reconcileTaskStatusesFromEvents = `-- name: ReconcileTaskStatusesFromEvents :many
 WITH inputs AS (
     SELECT

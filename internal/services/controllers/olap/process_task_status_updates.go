@@ -48,6 +48,26 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 	}
 }
 
+func (o *OLAPControllerImpl) runReconcileMissedTaskStatusUpdates(ctx context.Context) func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
+		tenantIds, err := o.p.ListTenantsForController(ctx)
+
+		if err != nil {
+			o.l.Error().Ctx(ctx).Err(err).Msg("could not list tenants for reconcile missed task status updates")
+			return
+		}
+
+		for _, tenantId := range tenantIds {
+			if err := o.repo.OLAP().ReconcileMissedTaskStatusUpdates(ctx, tenantId); err != nil {
+				o.l.Error().Ctx(ctx).Err(err).Str("tenant_id", tenantId.String()).Msg("could not reconcile missed task status updates")
+			}
+		}
+	}
+}
+
 func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.UpdateTaskStatusRow) error {
 	tenantIdToPayloads := make(map[uuid.UUID][]tasktypes.NotifyFinalizedPayload)
 
