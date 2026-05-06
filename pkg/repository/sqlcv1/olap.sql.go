@@ -3338,13 +3338,17 @@ WITH inputs AS (
 ), locked_tasks AS (
     SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id, is_durable
     FROM v1_tasks_olap
-    WHERE (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+    WHERE
+        (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+        AND inserted_at >= $3::TIMESTAMPTZ
     ORDER BY inserted_at, id
     FOR UPDATE
 ), relevant_events AS MATERIALIZED (
     SELECT tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count
     FROM v1_task_events_olap
-    WHERE (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+    WHERE
+        (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+        AND inserted_at >= $3::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         task_id,
@@ -3383,6 +3387,7 @@ RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.
 type ReconcileTaskStatusesFromEventsParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
 }
 
 type ReconcileTaskStatusesFromEventsRow struct {
@@ -3398,7 +3403,7 @@ type ReconcileTaskStatusesFromEventsRow struct {
 }
 
 func (q *Queries) ReconcileTaskStatusesFromEvents(ctx context.Context, db DBTX, arg ReconcileTaskStatusesFromEventsParams) ([]*ReconcileTaskStatusesFromEventsRow, error) {
-	rows, err := db.Query(ctx, reconcileTaskStatusesFromEvents, arg.Taskids, arg.Taskinsertedats)
+	rows, err := db.Query(ctx, reconcileTaskStatusesFromEvents, arg.Taskids, arg.Taskinsertedats, arg.Mininsertedat)
 	if err != nil {
 		return nil, err
 	}

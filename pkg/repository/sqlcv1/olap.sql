@@ -2367,13 +2367,17 @@ WITH inputs AS (
 ), locked_tasks AS (
     SELECT *
     FROM v1_tasks_olap
-    WHERE (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+    WHERE
+        (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+        AND inserted_at >= @minInsertedAt::TIMESTAMPTZ
     ORDER BY inserted_at, id
     FOR UPDATE
 ), relevant_events AS MATERIALIZED (
     SELECT *
     FROM v1_task_events_olap
-    WHERE (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+    WHERE
+        (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
+        AND inserted_at >= @minInsertedAt::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         task_id,

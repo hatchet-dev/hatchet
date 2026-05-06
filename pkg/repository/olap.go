@@ -2079,6 +2079,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, error) {
 	params := sqlcv1.CreateTasksOLAPParams{}
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
+	minInsertedAt := pgtype.Timestamptz{}
 
 	for _, task := range tasks {
 		payload := task.Payload
@@ -2119,6 +2120,10 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Inputs = append(params.Inputs, payloadToWriteToTask)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 
+		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
+		}
+
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
@@ -2144,6 +2149,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx, sqlcv1.ReconcileTaskStatusesFromEventsParams{
 		Taskids:         params.Ids,
 		Taskinsertedats: params.Insertedats,
+		Mininsertedat:   minInsertedAt,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to reconcile task statuses from events: %w", err)
