@@ -62,7 +62,7 @@ DO UPDATE SET
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $1::UUID
-RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type
+RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type, final_source_table_row_count, final_target_table_row_count, final_row_count_diff
 `
 
 type AcquireOrExtendCutoverJobLeaseParams struct {
@@ -95,6 +95,9 @@ func (q *Queries) AcquireOrExtendCutoverJobLease(ctx context.Context, db DBTX, a
 		&i.LastInsertedAt,
 		&i.LastID,
 		&i.LastType,
+		&i.FinalSourceTableRowCount,
+		&i.FinalTargetTableRowCount,
+		&i.FinalRowCountDiff,
 	)
 	return &i, err
 }

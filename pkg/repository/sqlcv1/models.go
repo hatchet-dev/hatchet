@@ -3431,14 +3431,17 @@ type V1Payload struct {
 }
 
 type V1PayloadCutoverJobOffset struct {
-	Key            pgtype.Date        `json:"key"`
-	IsCompleted    bool               `json:"is_completed"`
-	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
-	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
-	LastTenantID   uuid.UUID          `json:"last_tenant_id"`
-	LastInsertedAt pgtype.Timestamptz `json:"last_inserted_at"`
-	LastID         int64              `json:"last_id"`
-	LastType       V1PayloadType      `json:"last_type"`
+	Key                      pgtype.Date        `json:"key"`
+	IsCompleted              bool               `json:"is_completed"`
+	LeaseProcessID           uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt           pgtype.Timestamptz `json:"lease_expires_at"`
+	LastTenantID             uuid.UUID          `json:"last_tenant_id"`
+	LastInsertedAt           pgtype.Timestamptz `json:"last_inserted_at"`
+	LastID                   int64              `json:"last_id"`
+	LastType                 V1PayloadType      `json:"last_type"`
+	FinalSourceTableRowCount pgtype.Int8        `json:"final_source_table_row_count"`
+	FinalTargetTableRowCount pgtype.Int8        `json:"final_target_table_row_count"`
+	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`
 }
 
 type V1PayloadsOlap struct {
@@ -3452,13 +3455,16 @@ type V1PayloadsOlap struct {
 }
 
 type V1PayloadsOlapCutoverJobOffset struct {
-	Key            pgtype.Date        `json:"key"`
-	IsCompleted    bool               `json:"is_completed"`
-	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
-	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
-	LastTenantID   uuid.UUID          `json:"last_tenant_id"`
-	LastExternalID uuid.UUID          `json:"last_external_id"`
-	LastInsertedAt pgtype.Timestamptz `json:"last_inserted_at"`
+	Key                      pgtype.Date        `json:"key"`
+	IsCompleted              bool               `json:"is_completed"`
+	LeaseProcessID           uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt           pgtype.Timestamptz `json:"lease_expires_at"`
+	LastTenantID             uuid.UUID          `json:"last_tenant_id"`
+	LastExternalID           uuid.UUID          `json:"last_external_id"`
+	LastInsertedAt           pgtype.Timestamptz `json:"last_inserted_at"`
+	FinalSourceTableRowCount pgtype.Int8        `json:"final_source_table_row_count"`
+	FinalTargetTableRowCount pgtype.Int8        `json:"final_target_table_row_count"`
+	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`
 }
 
 type V1Queue struct {
