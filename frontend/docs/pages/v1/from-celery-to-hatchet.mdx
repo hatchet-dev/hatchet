@@ -1,0 +1,494 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import { Callout } from "nextra/components";
+
+# Migrating from Celery to Hatchet
+
+This guide walks through the concrete code and configuration changes needed to move a Python project from Celery to Hatchet. Each section shows what you currently have in Celery, what replaces it in Hatchet, and what to watch out for.
+
+Celery is a mature and widely used background task system. This guide respects that — it focuses on mechanical migration, not on arguing that you should switch. If you are here, you have already decided to try Hatchet and want to know what changes.
+
+<Callout type="info">
+  This guide covers common Celery patterns. It does not cover every Celery
+  setting or attempt a full infrastructure migration. For a discussion of
+  Celery's operational trade-offs, see the [companion blog
+  post](https://hatchet.run/blog/problems-with-celery).
+</Callout>
+
+## What this guide covers
+
+**Covered:** task definitions, task invocation, workers, retries, timeouts, delayed execution, periodic tasks (Beat), Canvas primitives (chain/group/chord), result backend / observability assumptions, and production migration surfaces including serialization, routing, signals/hooks, cancellation, priority, and testing.
+
+**Not covered:** broker infrastructure teardown, Redis/RabbitMQ removal, Celery-specific Django integrations (django-celery-beat, django-celery-results), or Hatchet-native features beyond Celery parity such as durable sleep, durable event waits, and durable task composition. Those are mentioned briefly in [What to migrate later](#what-to-migrate-later).
+
+## Migration checklist
+
+| Celery surface                           | Hatchet replacement                                                                  | Migration category  | Step                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------ | ------------------- | ---------------------------------------------------------- |
+| `pip install celery[redis]`              | `pip install hatchet-sdk`                                                            | Dependency change   | [1](#step-1-install-and-configure-hatchet)                 |
+| `Celery("app", broker=..., backend=...)` | `Hatchet()` + `HATCHET_CLIENT_TOKEN`                                                 | Operational change  | [2](#step-2-replace-the-celery-app-with-a-hatchet-client)  |
+| `@app.task` / `@shared_task`             | `@hatchet.task()`                                                                    | Small rewrite       | [3](#step-3-convert-task-definitions)                      |
+| `def my_task(arg1, arg2)`                | `def my_task(input: MyInput, ctx: Context)`                                          | Small rewrite       | [3](#step-3-convert-task-definitions)                      |
+| `task.delay(...)` / `.apply_async(...)`  | `.run(..., wait_for_result=False)` / `.aio_run(..., wait_for_result=False)`          | Small rewrite       | [4](#step-4-invoke-tasks-with-input-models)                |
+| `celery -A app worker`                   | `hatchet worker dev` or worker script                                                | Small rewrite       | [5](#step-5-run-a-hatchet-worker)                          |
+| `autoretry_for` / `self.retry()`         | `retries` + `backoff_factor` + `NonRetryableException`                               | Small rewrite       | [6](#step-6-migrate-retries-and-timeouts)                  |
+| `time_limit` / `soft_time_limit`         | `execution_timeout` / `schedule_timeout`                                             | Direct API swap     | [6](#step-6-migrate-retries-and-timeouts)                  |
+| `apply_async(countdown=...)` / `eta=...` | `task.aio_schedule(run_at, input)`                                                   | Small rewrite       | [7](#step-7-migrate-delayed-and-periodic-tasks)            |
+| `beat_schedule` + `celery beat` process  | `on_crons=["..."]` in workflow definition                                            | Small rewrite       | [7](#step-7-migrate-delayed-and-periodic-tasks)            |
+| `chain(a.s(), b.s())`                    | DAG workflow with `parents=[a]`                                                      | Conceptual redesign | [8](#step-8-migrate-chains-groups-and-chords)              |
+| `group(a.s(), b.s())`                    | Parallel DAG tasks (no `parents`)                                                    | Conceptual redesign | [8](#step-8-migrate-chains-groups-and-chords)              |
+| `chord(group, callback)`                 | DAG task with multiple `parents`                                                     | Conceptual redesign | [8](#step-8-migrate-chains-groups-and-chords)              |
+| Result backend + `AsyncResult` + Flower  | Hatchet run history + dashboard                                                      | Operational change  | [9](#step-9-replace-result-backend-and-flower-assumptions) |
+| `task_serializer` (pickle/msgpack)       | JSON via Pydantic                                                                    | Small rewrite       | [3](#step-3-convert-task-definitions)                      |
+| `task_routes` / queues / routing         | Worker registration + [worker affinity](/v1/advanced-assignment/worker-affinity)     | Conceptual redesign | [10](#step-10-migrate-other-celery-project-surfaces)       |
+| Celery signals (`task_prerun`, etc.)     | `on_failure_task` / `on_success_task` / `ctx.log()`                                  | Conceptual redesign | [10](#step-10-migrate-other-celery-project-surfaces)       |
+| `revoke` / task cancellation             | [Cancellation API](/v1/error-handling/cancellation) + dashboard + `ctx.is_cancelled` | Small rewrite       | [10](#step-10-migrate-other-celery-project-surfaces)       |
+| Task priority                            | [Priority](/v1/priority) (1–3 levels)                                                | Operational change  | [10](#step-10-migrate-other-celery-project-surfaces)       |
+| `task_always_eager` / testing            | `.mock_run()` / `.aio_mock_run()`                                                    | Small rewrite       | [10](#step-10-migrate-other-celery-project-surfaces)       |
+
+## Step 1: Install and configure Hatchet
+
+**Celery** requires a broker (Redis, RabbitMQ, etc.) and optionally a result backend:
+
+```bash
+pip install celery[redis]
+```
+
+**Hatchet** requires the SDK and a running Hatchet engine ([Hatchet Cloud](https://cloud.onhatchet.run) or [self-hosted](/self-hosting)):
+
+```bash
+pip install hatchet-sdk
+```
+
+Set your API token as an environment variable. If you are using Hatchet Cloud, copy the token from the dashboard:
+
+```bash
+export HATCHET_CLIENT_TOKEN="your-token-here"
+```
+
+**What is not a dependency swap:** Celery connects to a broker you run yourself. Hatchet connects to the Hatchet engine — either Hatchet Cloud or a self-hosted instance. This is a different operational model, but at the code level the SDK handles the connection.
+
+## Step 2: Replace the Celery app with a Hatchet client
+
+**Celery:**
+
+```python
+from celery import Celery
+
+app = Celery("tasks", broker="redis://localhost:6379", backend="redis://localhost:6379")
+```
+
+**Hatchet:**
+
+```python
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()  # reads HATCHET_CLIENT_TOKEN from environment
+```
+
+There is no broker URL or result backend URL. The `Hatchet()` client reads its configuration from environment variables. Create this in a shared module (e.g., `hatchet_client.py`) and import it where you define tasks, just as you would share a Celery `app` instance.
+
+## Step 3: Convert task definitions
+
+This is the most mechanical part of the migration. Hatchet task functions always receive two positional arguments — an input object and a context object — instead of Celery's arbitrary positional args. This guide uses Pydantic input models with `input_validator` because they provide the clearest migration path from Celery's positional arguments. Tasks without structured input can use `EmptyModel` instead.
+
+**Celery:**
+
+```python
+from celery import Celery
+
+app = Celery("tasks", broker="redis://localhost:6379")
+
+@app.task
+def process_image(image_url: str, filters: list[str]) -> dict:
+    result = resize(image_url, filters)
+    return {"processed_url": result}
+```
+
+**Hatchet:**
+
+<Snippet
+  src={snippets.python.migration_guides.celery.hatchet_task_definition}
+/>
+
+What changed:
+
+- **Decorator:** `@app.task` becomes `@hatchet.task()`. Pass `input_validator=YourModel` to enable typed input.
+- **Arguments:** Positional args become a single Pydantic model. `(image_url, filters)` becomes `input: ImageInput` where `ImageInput` is a `BaseModel` with those fields.
+- **Context:** A second argument `ctx: Context` is added. It provides access to run metadata, retry count, parent task outputs, and logging.
+- **Return type:** Return a Pydantic model or a dict. The return value is persisted as the task output.
+- **Sync or async:** Hatchet tasks can be `def` or `async def`. The SDK [recommends async](/reference/python/asyncio) for I/O-bound work. Celery does not support `async def` task functions.
+
+<Callout type="warning">
+  If your Celery tasks use positional arguments, `*args`, or `**kwargs`, you
+  will need to define a Pydantic model that captures the expected fields. For
+  tasks that take no meaningful input, use `EmptyModel` from `hatchet_sdk`. This
+  input-model conversion is the main mechanical cost of the migration.
+</Callout>
+
+### Serialization
+
+Celery supports serializers such as JSON, pickle, YAML, and msgpack through `task_serializer`. Hatchet task inputs and outputs are JSON-serialized via Pydantic. If your Celery project uses `pickle` or another non-JSON serializer, make sure your task payloads can be represented as JSON-safe values in Pydantic models. In practice, this means replacing raw Python objects like sets or custom classes with their JSON-compatible equivalents. Standard types like `datetime`, `UUID`, and `Decimal` are handled by Pydantic's built-in serializers.
+
+## Step 4: Invoke tasks with input models
+
+**Celery:**
+
+```python
+# Fire-and-forget
+process_image.delay("https://example.com/photo.png", ["thumbnail"])
+
+# With options
+process_image.apply_async(
+    args=["https://example.com/photo.png", ["thumbnail"]],
+    countdown=60,
+)
+```
+
+**Hatchet:**
+
+<Snippet
+  src={snippets.python.migration_guides.celery.hatchet_task_invocation}
+/>
+
+What changed:
+
+- **Input wrapping:** Positional args become `ImageInput(image_url=..., filters=...)`.
+- **Method names:** `.delay()` / `.apply_async()` become `.run()` (sync) or `.aio_run()` (async).
+- **Default behavior is wait-for-result.** Unlike Celery's `.delay()`, which enqueues and returns an `AsyncResult` immediately, Hatchet's `.run()` and `.aio_run()` wait until the task completes and return the typed result directly.
+- **Fire-and-forget uses `wait_for_result=False`.** To enqueue without waiting, pass `wait_for_result=False`. This returns a `TaskRunRef` with the run ID and `.result()` / `.aio_result()` methods you can call later.
+- **No `countdown` parameter:** Delayed execution uses a separate [scheduled run](#step-7-migrate-delayed-and-periodic-tasks) API.
+
+## Step 5: Run a Hatchet worker
+
+**Celery:**
+
+```bash
+celery -A tasks worker --loglevel=info --concurrency=4
+```
+
+**Hatchet** workers are Python scripts that register tasks and connect to the engine. You write a worker script:
+
+<Snippet src={snippets.python.migration_guides.celery.hatchet_worker} />
+
+During development, start the worker with the [Hatchet CLI](/reference/cli/running-workers-locally), which handles authentication and hot reloads on code changes:
+
+```bash
+hatchet worker dev
+```
+
+In production, run the worker script directly with your `HATCHET_CLIENT_TOKEN` set:
+
+```bash
+python worker.py
+```
+
+What changed:
+
+- **Explicit worker registration.** Celery workers discover tasks through the Celery app's task registry. In Hatchet, the worker script explicitly registers the tasks and workflows it can run in the `workflows` list.
+- **Development vs production startup.** During development, `hatchet worker dev` can run the configured worker command with authentication and hot reload. In production, run the worker script directly with `HATCHET_CLIENT_TOKEN` set.
+- **Slots instead of concurrency.** The `slots` parameter controls how many tasks the worker runs concurrently, similar to Celery's `--concurrency`.
+- **Worker naming.** Each worker has a name for identification in the dashboard.
+- **Worker execution model.** Celery supports multiple pool types such as prefork, eventlet, gevent, and threads. Hatchet Python workers use `slots` with the SDK's sync/async execution model instead of Celery-style pool selection. CPU-bound work may need to be offloaded to threads, subprocesses, or separate workers.
+
+You can run the worker script with any process manager, container orchestrator, or deployment tool you use today.
+
+## Step 6: Migrate retries and timeouts
+
+### Retries
+
+**Celery** supports two retry styles: automatic retries for specified exception types, and manual retries inside the task body.
+
+```python
+# Automatic: retry only on RequestError, with exponential backoff
+@app.task(bind=True, autoretry_for=(RequestError,),
+          retry_backoff=True, max_retries=5, retry_backoff_max=60)
+def call_api(self, order_id: str) -> dict:
+    return external_api_call(order_id)
+
+# Manual: explicit retry with custom logic
+@app.task(bind=True, max_retries=3)
+def call_api_manual(self, order_id: str) -> dict:
+    try:
+        return external_api_call(order_id)
+    except RequestError as exc:
+        raise self.retry(exc=exc, countdown=30)
+```
+
+**Hatchet:**
+
+<Snippet src={snippets.python.migration_guides.celery.hatchet_retries} />
+
+What changed:
+
+- **Retry configuration** is on the decorator: `retries`, `backoff_factor`, `backoff_max_seconds`.
+- **Exception filtering is inverted.** Celery's `autoretry_for` specifies which exceptions _trigger_ a retry. Hatchet retries on _any_ exception when `retries` is set. To _prevent_ a retry for a specific failure, raise `NonRetryableException`:
+
+```python
+from hatchet_sdk.exceptions import NonRetryableException
+
+# Inside a task: skip retry for a permanent failure
+if response.status_code == 400:
+    raise NonRetryableException("Bad request — do not retry")
+```
+
+- **No `self.retry()` equivalent.** Hatchet does not support manual retry calls inside the task body. All retry logic is engine-managed.
+- **Both are declarative.** Celery's `autoretry_for` and Hatchet's `retries` are both decorator-level configuration. The difference is the exception-filtering model, not whether the configuration is declarative.
+
+### Timeouts
+
+**Celery:**
+
+```python
+@app.task(time_limit=30, soft_time_limit=25)
+def long_task():
+    ...
+```
+
+Celery defaults to no time limit if you don't set one.
+
+**Hatchet** uses `execution_timeout` (default: 60 seconds) and `schedule_timeout` (default: 5 minutes):
+
+```python
+from datetime import timedelta
+
+@hatchet.task(execution_timeout=timedelta(seconds=30))
+async def long_task(input, ctx):
+    ...
+```
+
+Hatchet's `execution_timeout` is similar to Celery's `time_limit`. The `schedule_timeout` controls how long a task can wait in the queue before being cancelled — Celery has no direct equivalent.
+
+## Step 7: Migrate delayed and periodic tasks
+
+### Delayed execution
+
+**Celery** uses `countdown` or `eta` on `apply_async`:
+
+```python
+# Run 5 minutes from now
+process_image.apply_async(args=["url", ["blur"]], countdown=300)
+
+# Run at a specific time
+from datetime import datetime, timedelta, timezone
+process_image.apply_async(
+    args=["url", ["blur"]],
+    eta=datetime.now(timezone.utc) + timedelta(hours=1),
+)
+```
+
+<Callout type="warning">
+  Celery's documentation
+  [warns](https://docs.celeryq.dev/en/stable/userguide/calling.html#eta-and-countdown)
+  that ETA/countdown tasks "immediately reside in the worker's memory" and
+  recommends scheduling no more than a few minutes into the future.
+</Callout>
+
+**Hatchet** uses a separate scheduling API. Scheduled runs are persisted in the engine, not in worker memory:
+
+<Snippet src={snippets.python.migration_guides.celery.hatchet_scheduled_run} />
+
+### Periodic tasks
+
+**Celery Beat** requires a separate scheduler process and a `beat_schedule` configuration:
+
+```python
+# celeryconfig.py
+from celery.schedules import crontab
+
+beat_schedule = {
+    "daily-report": {
+        "task": "tasks.generate_report",
+        "schedule": crontab(hour=9, minute=0),
+    },
+}
+```
+
+```bash
+celery -A tasks beat  # must run exactly one instance
+```
+
+**Hatchet** cron triggers are defined on the workflow and managed by the engine — no separate process:
+
+<Snippet src={snippets.python.migration_guides.celery.hatchet_cron} />
+
+What changed:
+
+- **No separate scheduler process.** The Hatchet engine manages cron scheduling internally. You do not need to ensure only one Beat instance is running.
+- **Cron expressions** use standard 5-field or 6-field syntax.
+- **Cron triggers can also be created programmatically** via `hatchet.cron.create(...)` for schedules that need to be managed at runtime.
+
+## Step 8: Migrate chains, groups, and chords
+
+This is the biggest conceptual change in the migration. Celery Canvas composes tasks at the _call site_. Hatchet DAG workflows declare dependencies at the _task definition site_.
+
+### Celery chain → Hatchet DAG
+
+**Celery:**
+
+```python
+from celery import chain
+
+pipeline = chain(
+    validate.s(order_id),
+    charge.s(),
+    fulfill.s(),
+    notify.s(),
+)
+pipeline.apply_async()
+```
+
+Each task's return value is passed as the first argument to the next task.
+
+**Hatchet:**
+
+<Snippet src={snippets.python.migration_guides.celery.hatchet_dag_workflow} />
+
+What changed:
+
+- **Dependencies are declared on the task**, not at the call site. `parents=[validate]` means "run after `validate` finishes."
+- **Parent outputs are accessed explicitly** via `ctx.task_output(parent_task)`, not passed as positional arguments.
+- **The workflow is triggered as a unit:** `await order_pipeline.aio_run(OrderInput(...))`. You do not chain individual task calls.
+
+### Celery group → parallel DAG tasks
+
+**Celery:**
+
+```python
+from celery import group
+result = group(process.s(item) for item in items)()
+```
+
+**Hatchet:** Tasks in a DAG that share no parent dependencies run in parallel automatically. If `step_a` and `step_b` have no `parents`, they execute concurrently when the workflow runs.
+
+For dynamic fan-out (spawning a variable number of children at runtime), use [child spawning](/v1/child-spawning) from a durable task.
+
+### Celery chord → DAG convergence
+
+**Celery:**
+
+```python
+from celery import chord
+chord([fetch.s(url) for url in urls])(aggregate.s())
+```
+
+The `aggregate` callback receives a list of results from the group.
+
+**Hatchet:** A task with multiple parents runs after _all_ parents complete. Access each parent's output via `ctx.task_output(parent)`.
+
+```python
+@workflow.task(parents=[fetch_a, fetch_b, fetch_c])
+async def aggregate(input, ctx):
+    a = ctx.task_output(fetch_a)
+    b = ctx.task_output(fetch_b)
+    c = ctx.task_output(fetch_c)
+    ...
+```
+
+**This is a conceptual redesign, not a drop-in rename.** The shape of the code is different. Celery Canvas composes tasks into pipelines at call time using signatures. Hatchet DAGs declare the dependency graph at definition time. Both achieve sequencing, parallelism, and fan-in, but the API is fundamentally different.
+
+## Step 9: Replace result backend and Flower assumptions
+
+**Celery** tracks task state when a result backend is configured. Without one, completed task state is not available. The STARTED state requires setting `track_started=True`. Flower provides a monitoring UI, but it is a separate tool built on Celery's event system.
+
+**Hatchet** persists task run data automatically. Inputs, outputs, status, duration, retry history, logs, and parent/child relationships are retained and visible in the Hatchet dashboard. No separate result backend or Flower deployment is required for basic run visibility.
+
+If your code uses `AsyncResult` to check task state or retrieve results:
+
+```python
+# Celery
+result = process_image.delay("url", ["blur"])
+result.get(timeout=10)   # block until done
+result.state              # "PENDING", "SUCCESS", etc.
+```
+
+In Hatchet, `.run()` and `.aio_run()` return the task result directly by default. If you use `wait_for_result=False`, the returned `TaskRunRef` provides `.result()` / `.aio_result()` to retrieve the result later and `.workflow_run_id` to look up the run in the dashboard — similar to Celery's `AsyncResult`.
+
+## Step 10: Migrate other Celery project surfaces
+
+This section covers Celery features that are less universal but important in production projects.
+
+### Queues and routing
+
+Celery uses `task_routes`, named queues, routing keys, and exchanges to control which workers handle which tasks. In Hatchet, task-to-worker assignment uses a different model:
+
+- Tasks are registered on specific workers via the `workflows` list — this is the primary routing mechanism.
+- For more advanced assignment, Hatchet supports [worker labels and affinity](/v1/advanced-assignment/worker-affinity), where tasks declare `desired_worker_labels` with comparators and weights, and workers advertise their capabilities via labels.
+
+This is an operational redesign rather than a rename. If your Celery project uses simple queue-per-worker routing, explicit worker registration in Hatchet is the equivalent. If you use complex exchange-based routing, plan to evaluate worker affinity as part of your migration.
+
+### Signals, hooks, and progress updates
+
+Celery provides [signals](https://docs.celeryq.dev/en/stable/userguide/signals.html) like `task_prerun`, `task_postrun`, `task_failure`, and `task_success` for lifecycle hooks. Celery also supports `self.update_state()` for custom task states and progress reporting.
+
+Hatchet handles these patterns differently:
+
+- **Workflow-level success/failure hooks:** Use `@workflow.on_failure_task()` to run cleanup or notification logic when any task in a workflow fails. Use `@workflow.on_success_task()` for post-success logic. These run as tasks within the workflow, not as signals.
+- **Task-level logging:** Use `ctx.log()` or Python's built-in `logging` module to send structured log lines visible in the dashboard. See [logging docs](/v1/logging).
+- **Real-time streaming:** Use `ctx.put_stream()` to push real-time data from a running task to subscribers. See [streaming docs](/v1/streaming).
+
+There is no direct equivalent of Celery's per-task `task_prerun` / `task_postrun` signals. If your project uses these for cross-cutting concerns, consider [middleware via dependency injection](/reference/python/dependency-injection).
+
+### Cancellation and priority
+
+**Cancellation:** Celery supports `revoke()` to cancel pending or running tasks. Hatchet supports [task cancellation](/v1/error-handling/cancellation) through the API, the dashboard, or concurrency strategies like `CANCEL_IN_PROGRESS`. Running tasks can check `ctx.is_cancelled` to handle cancellation gracefully.
+
+**Priority:** Celery supports broker-level task priority. Hatchet supports [three priority levels](/v1/priority) (1=low, 2=medium, 3=high) that affect scheduling order within a single workflow type. Priority can be set as a workflow default or per-trigger.
+
+### Testing migrated tasks
+
+Celery projects often use `task_always_eager` for testing, though Celery's own documentation [discourages it](https://docs.celeryq.dev/en/stable/userguide/testing.html) for unit tests. Hatchet tasks can be unit-tested without a running engine using `.mock_run()` (sync) or `.aio_mock_run()` (async), which execute the task function directly with a mock context:
+
+```python
+result = my_task.mock_run(
+    input=MyInput(key="test"),
+    additional_metadata={"env": "test"},
+    retry_count=0,
+)
+assert result == expected_output
+```
+
+For integration tests that exercise the full Hatchet engine, call `.run()` or `.aio_run()` against a running local or test instance. See the [unit testing example](https://github.com/hatchet-dev/hatchet/tree/main/sdks/python/examples/unit_testing) for patterns.
+
+## What is not drop-in
+
+Much of the migration involves renaming imports, swapping decorators, and wrapping positional arguments into Pydantic models. These areas require more thought:
+
+- **Task function signatures.** Every Hatchet task receives `(input, ctx)` instead of positional args. For tasks with structured input, you define a Pydantic model and pass `input_validator`. For tasks with no meaningful input, use `EmptyModel`. If you have many tasks with varied positional args, creating these models is the main migration cost.
+- **Canvas → DAGs.** This is a redesign. You cannot simply rename `chain()` to something in Hatchet. You need to restructure task composition from call-site chaining to definition-site dependency declaration.
+- **Manual retries.** Celery's `self.retry()` has no Hatchet equivalent. If your tasks rely on conditional retry logic inside the task body, you need to restructure around `NonRetryableException` or move the logic into the task itself (e.g., a retry loop with backoff for a specific call).
+- **Signals and lifecycle hooks.** Celery signals like `task_prerun` and `task_postrun` do not map to Hatchet APIs. Workflow-level `on_failure_task` and `on_success_task` cover some cases; others may need middleware or restructuring.
+- **Queue routing.** Celery's `task_routes` and named queues are replaced by explicit worker registration and optionally worker affinity — a different routing model.
+
+## What to migrate later
+
+Once your tasks are running on Hatchet, these features extend beyond what Celery provides:
+
+- **[Global rate limits](/v1/rate-limits):** Key-based rate limiting enforced across all workers — Celery's `rate_limit` is per-worker only.
+- **[Concurrency strategies](/v1/concurrency):** Per-key concurrency control with strategies like cancel-in-progress or cancel-newest — Celery has no per-task concurrency control.
+- **[Durable sleep](/v1/durable-sleep):** Pause a workflow for minutes, hours, or days without holding a worker slot.
+- **[Durable event waits](/v1/durable-event-waits):** Pause until an external event arrives — useful for webhook-driven or human-in-the-loop workflows.
+- **[Durable tasks](/v1/durable-tasks):** Imperative workflow composition with checkpointing for long-running, stateful workflows.
+
+None of these are needed for a basic migration. They become useful when your workloads grow from background tasks into durable workflows.
+
+## When to keep Celery
+
+Hatchet is not a universal replacement. Keep Celery when:
+
+- Your workloads are simple fire-and-forget tasks that are already reliable.
+- You need throughput above 10,000 tasks/second without retention or observability needs.
+- You depend heavily on Celery ecosystem integrations (django-celery-beat, django-celery-results, specific broker features) and the migration cost is not justified.
+- Your tasks do not need workflow-level orchestration, durable state, or centralized observability.
+
+## Next steps
+
+- [Quickstart](/v1/quickstart) — set up Hatchet and run your first task
+- [Tasks](/v1/tasks) — task definition and configuration
+- [Workers](/v1/workers) — worker options
+- [Retry policies](/v1/error-handling/retry-policies) — retries and backoff
+- [Timeouts](/v1/error-handling/timeouts) — execution and scheduling timeouts
+- [Scheduled runs](/v1/scheduled-runs) — delayed execution
+- [Cron runs](/v1/cron-runs) — recurring schedules
+- [DAG workflows](/v1/directed-acyclic-graphs) — multi-step pipelines
+- [Python SDK reference](/reference/python/client) — full API reference
