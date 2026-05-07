@@ -898,18 +898,19 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 	}
 
 	return &v1.CreateWorkflowVersionOpts{
-		Name:            req.Name,
-		Concurrency:     concurrency,
-		Description:     &req.Description,
-		EventTriggers:   req.EventTriggers,
-		CronTriggers:    req.CronTriggers,
-		CronInput:       cronInput,
-		Tasks:           tasks,
-		OnFailure:       onFailureTask,
-		Sticky:          sticky,
-		DefaultPriority: req.DefaultPriority,
-		DefaultFilters:  defaultFilters,
-		InputJsonSchema: req.InputJsonSchema,
+		Name:               req.Name,
+		Concurrency:        concurrency,
+		Description:        &req.Description,
+		EventTriggers:      req.EventTriggers,
+		CronTriggers:       req.CronTriggers,
+		CronInput:          cronInput,
+		Tasks:              tasks,
+		OnFailure:          onFailureTask,
+		Sticky:             sticky,
+		DefaultPriority:    req.DefaultPriority,
+		DefaultFilters:     defaultFilters,
+		InputJsonSchema:    req.InputJsonSchema,
+		IdempotencyKeyExpr: req.IdempotencyKeyExpr,
 	}, nil
 }
 
