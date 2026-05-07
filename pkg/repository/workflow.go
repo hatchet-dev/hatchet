@@ -429,6 +429,13 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		}
 	}
 
+	if opts.IdempotencyKeyExpr != nil {
+		createParams.IdempotencyKeyExpression = pgtype.Text{
+			String: *opts.IdempotencyKeyExpr,
+			Valid:  true,
+		}
+	}
+
 	if opts.DefaultPriority != nil {
 		createParams.DefaultPriority = pgtype.Int4{
 			Int32: *opts.DefaultPriority,
