@@ -238,3 +238,116 @@ func TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff(t *t
 		t.Fatal("expected durable event to be delivered after reconnect during retrySend backoff")
 	}
 }
+
+// TestDurableEventsListenerRetrySendSkipsReconnectAfterListenerReconnects
+// verifies the generation-snapshot fast path: if a reconnect has already
+// happened (e.g. driven by Listen) between two retrySend iterations, retrySend
+// must observe the bumped generation and re-send on the new client without
+// triggering its own reconnect.
+func TestDurableEventsListenerRetrySendSkipsReconnectAfterListenerReconnects(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logger := zerolog.Nop()
+
+	sendOnOldStreamCh := make(chan struct{}, 1)
+	reconnectDone := make(chan struct{})
+
+	oldClient := &mockDurableEventClient{
+		sendFn: func(req *contracts.ListenForDurableEventRequest) error {
+			select {
+			case sendOnOldStreamCh <- struct{}{}:
+			default:
+			}
+			<-reconnectDone
+			return status.Error(codes.Unavailable, "stream broken")
+		},
+	}
+
+	newClient := &mockDurableEventClient{}
+
+	var constructorCount atomic.Int32
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			constructorCount.Add(1)
+			return newClient, nil
+		},
+		client: oldClient,
+		l:      &logger,
+	}
+
+	go func() {
+		<-sendOnOldStreamCh
+		if err := listener.retrySubscribe(ctx); err != nil {
+			t.Errorf("retrySubscribe: %v", err)
+		}
+		close(reconnectDone)
+	}()
+
+	addErr := make(chan error, 1)
+	go func() {
+		addErr <- listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+			return nil
+		})
+	}()
+
+	select {
+	case err := <-addErr:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("AddSignal did not return in time")
+	}
+
+	require.Equal(t, int32(1), constructorCount.Load(), "constructor should be invoked exactly once")
+	require.GreaterOrEqual(t, newClient.sendCount.Load(), int32(1), "new client should receive at least one Send")
+}
+
+// TestDurableEventsListenerCoalescesConcurrentReconnects verifies that
+// concurrent retrySubscribe callers are coalesced via singleflight, so a
+// single reconnect attempt is shared across goroutines.
+func TestDurableEventsListenerCoalescesConcurrentReconnects(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.Nop()
+
+	var constructorCount atomic.Int32
+	constructorStarted := make(chan struct{})
+	releaseConstructor := make(chan struct{})
+
+	newClient := &mockDurableEventClient{}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			n := constructorCount.Add(1)
+			if n == 1 {
+				close(constructorStarted)
+				<-releaseConstructor
+			}
+			return newClient, nil
+		},
+		l: &logger,
+	}
+
+	const callers = 4
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	for range callers {
+		go func() {
+			defer wg.Done()
+			errs <- listener.retrySubscribe(ctx)
+		}()
+	}
+
+	<-constructorStarted
+	// Give the remaining goroutines time to join the in-flight reconnect.
+	time.Sleep(50 * time.Millisecond)
+	close(releaseConstructor)
+
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, int32(1), constructorCount.Load(), "singleflight should coalesce concurrent reconnects")
+}
