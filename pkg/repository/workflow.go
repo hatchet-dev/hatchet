@@ -56,6 +56,8 @@ type CreateWorkflowVersionOpts struct {
 	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 
 	InputJsonSchema []byte `json:"inputJsonSchema,omitempty"`
+
+	IdempotencyKeyExpr *string `json:"idempotencyKeyExpr,omitempty" validate:"omitempty,celworkflowrunstr"`
 }
 
 type CreateConcurrencyOpts struct {

@@ -1085,6 +1085,7 @@ CREATE TABLE
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
         "inputJsonSchema" JSONB,
+        "idempotencyKeyExpression" TEXT,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 
