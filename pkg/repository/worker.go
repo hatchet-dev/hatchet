@@ -450,6 +450,7 @@ func hashActions(actions []string) []byte {
 
 	for _, action := range actions {
 		h.Write([]byte(action))
+		h.Write([]byte(";")) // separator to avoid collisions (e.g. ["ab", "c"] vs ["a", "bc"])
 	}
 
 	return h.Sum(nil)
