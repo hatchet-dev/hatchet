@@ -266,7 +266,7 @@ FROM "Worker" w
 JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id
 WHERE
-    a."tenantId" = @tenantId::UUID
+    w."tenantId" = @tenantId::UUID
     AND w."actionHash" = ANY(@actionHashes::BYTEA[])
 ORDER BY w."actionHash", a."createdAt" DESC
 ;

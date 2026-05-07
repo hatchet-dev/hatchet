@@ -273,7 +273,7 @@ FROM "Worker" w
 JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id
 WHERE
-    a."tenantId" = $1::UUID
+    w."tenantId" = $1::UUID
     AND w."actionHash" = ANY($2::BYTEA[])
 ORDER BY w."actionHash", a."createdAt" DESC
 `
