@@ -15,4 +15,5 @@ export default {
   "welcome-email": "Welcome Email",
   "durable-tasks-vs-dags": "Durable Tasks vs DAGs",
   "pdf-pipeline": "PDF Pipeline",
+  "workflow-aws-s3": "Amazon S3 Processor",
 };

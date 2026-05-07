@@ -334,6 +334,48 @@ jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 uvloop = ["uvloop (>=0.15.2) ; sys_platform != \"win32\"", "winloop (>=0.5.0) ; sys_platform == \"win32\""]
 
 [[package]]
+name = "boto3"
+version = "1.43.4"
+description = "The AWS SDK for Python"
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "boto3-1.43.4-py3-none-any.whl", hash = "sha256:c4910b54c1f2401ab55d9fbca3d92df0a68e4ac64a69f2bab47a079e384a9d4f"},
+    {file = "boto3-1.43.4.tar.gz", hash = "sha256:00f40e9ca704c0f860b70ef47b042813c8d9a66b3d5e7bf81d578f79ae17dcd3"},
+]
+
+[package.dependencies]
+botocore = ">=1.43.4,<1.44.0"
+jmespath = ">=0.7.1,<2.0.0"
+s3transfer = ">=0.17.0,<0.18.0"
+
+[package.extras]
+crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
+
+[[package]]
+name = "botocore"
+version = "1.43.4"
+description = "Low-level, data-driven core of boto 3."
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "botocore-1.43.4-py3-none-any.whl", hash = "sha256:f1897d3254965cacac7514cfed1b6ff016166b165ee2e06232b4a3954cf9d713"},
+    {file = "botocore-1.43.4.tar.gz", hash = "sha256:1a95c90fa9ca6ee85c1a02b04c8e05e948661d201b85b443000d676857905019"},
+]
+
+[package.dependencies]
+jmespath = ">=0.7.1,<2.0.0"
+python-dateutil = ">=2.1,<3.0.0"
+urllib3 = ">=1.25.4,<2.2.0 || >2.2.0,<3"
+
+[package.extras]
+crt = ["awscrt (==0.32.2)"]
+
+[[package]]
 name = "bs4"
 version = "0.0.2"
 description = "Dummy package for Beautiful Soup (beautifulsoup4)"
@@ -1417,6 +1459,19 @@ files = [
     {file = "jiter-0.13.0-graalpy312-graalpy250_312_native-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ab44b178f7981fcaea7e0a5df20e773c663d06ffda0198f1a524e91b2fde7e59"},
     {file = "jiter-0.13.0-graalpy312-graalpy250_312_native-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7bb00b6d26db67a05fe3e12c76edc75f32077fb51deed13822dc648fa373bc19"},
     {file = "jiter-0.13.0.tar.gz", hash = "sha256:f2839f9c2c7e2dffc1bc5929a510e14ce0a946be9365fd1219e7ef342dae14f4"},
+]
+
+[[package]]
+name = "jmespath"
+version = "1.1.0"
+description = "JSON Matching Expressions"
+optional = true
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "jmespath-1.1.0-py3-none-any.whl", hash = "sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64"},
+    {file = "jmespath-1.1.0.tar.gz", hash = "sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d"},
 ]
 
 [[package]]
@@ -3472,6 +3527,25 @@ files = [
 ]
 
 [[package]]
+name = "s3transfer"
+version = "0.17.0"
+description = "An Amazon S3 Transfer Manager"
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "s3transfer-0.17.0-py3-none-any.whl", hash = "sha256:ce3801712acf4ad3e89fb9990df97b4972e93f4b3b0004d214be5bce12814c20"},
+    {file = "s3transfer-0.17.0.tar.gz", hash = "sha256:9edeb6d1c3c2f89d6050348548834ad8289610d886e5bf7b7207728bd43ce33a"},
+]
+
+[package.dependencies]
+botocore = ">=1.37.4,<2.0a0"
+
+[package.extras]
+crt = ["botocore[crt] (>=1.37.4,<2.0a0)"]
+
+[[package]]
 name = "setuptools"
 version = "82.0.1"
 description = "Most extensible Python build backend with support for C/C++ extension modules"
@@ -4155,9 +4229,9 @@ docs = ["bs4", "fastapi", "markdownify", "mkdocs", "mkdocstrings", "openai", "py
 lint = ["black", "click", "mypy", "psutil", "ruff", "types-grpcio", "types-protobuf", "types-psutil", "types-requests"]
 openai = ["openai-agents"]
 otel = ["opentelemetry-api", "opentelemetry-distro", "opentelemetry-exporter-otlp", "opentelemetry-exporter-otlp-proto-http", "opentelemetry-instrumentation", "opentelemetry-sdk"]
-test = ["psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "pytest-xdist", "requests"]
+test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "pytest-xdist", "requests"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "f1b8ebce62307144b223f385de15fe4d5913a72b50828749998b464f2a1b898d"
+content-hash = "861260a2404015d1047fdb4d344ed08f9360310750de05c2c284d7eec4b32cf0"
