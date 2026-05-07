@@ -7,6 +7,9 @@ on:
       - main
     paths:
       - "sdks/go/**"
+      - "sdks/python/**"
+      - "sdks/typescript/**"
+      - "sdks/ruby/**"
 
 jobs:
   build-push-e2e-go:
@@ -26,3 +29,57 @@ jobs:
             .
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-go:${{ github.sha }}
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-go:main
+
+  build-push-e2e-python:
+    name: hatchet-e2e-python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and push
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/e2e-python.dockerfile \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-e2e-python:${{ github.sha }} \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-e2e-python:main \
+            --platform linux/amd64 \
+            .
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-python:${{ github.sha }}
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-python:main
+
+  build-push-e2e-typescript:
+    name: hatchet-e2e-typescript
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and push
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/e2e-typescript.dockerfile \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-e2e-typescript:${{ github.sha }} \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-e2e-typescript:main \
+            --platform linux/amd64 \
+            .
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-typescript:${{ github.sha }}
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-typescript:main
+
+  build-push-e2e-ruby:
+    name: hatchet-e2e-ruby
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and push
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/e2e-ruby.dockerfile \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-e2e-ruby:${{ github.sha }} \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-e2e-ruby:main \
+            --platform linux/amd64 \
+            .
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-ruby:${{ github.sha }}
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-ruby:main
