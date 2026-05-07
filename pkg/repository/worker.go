@@ -88,7 +88,7 @@ type WorkerRepository interface {
 	CountActiveWorkersPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error)
 
-	// GetWorkerActionsByWorkerId returns a list of actions for a worker
+	// GetWorkerActionsForWorkers returns actions keyed by worker action hash.
 	GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error)
 
 	// GetWorkerWorkflowsByWorkerId returns a list of workflows for a worker
@@ -278,7 +278,7 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 
 func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error) {
 	actionHashSet := make(map[string]struct{})
-	workerIds := make([]uuid.UUID, len(workers))
+	workerIds := make([]uuid.UUID, 0)
 	actionHashToWorkerIds := make(map[string][]uuid.UUID)
 
 	for _, worker := range workers {
