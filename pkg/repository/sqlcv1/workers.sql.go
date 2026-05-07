@@ -275,7 +275,6 @@ JOIN "Action" a ON aw."A" = a.id
 WHERE
     w."tenantId" = $1::UUID
     AND w."actionHash" = ANY($2::BYTEA[])
-ORDER BY w."actionHash", a."createdAt" DESC
 `
 
 type GetWorkerActionsByWorkerActionHashParams struct {

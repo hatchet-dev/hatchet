@@ -268,7 +268,6 @@ JOIN "Action" a ON aw."A" = a.id
 WHERE
     w."tenantId" = @tenantId::UUID
     AND w."actionHash" = ANY(@actionHashes::BYTEA[])
-ORDER BY w."actionHash", a."createdAt" DESC
 ;
 
 -- name: GetWorkerWorkflowsByWorkerId :many
