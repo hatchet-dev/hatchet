@@ -111,7 +111,13 @@ message CreateWorkflowVersionRequest {
     repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
     repeated DefaultFilter default_filters = 13; // (optional) the default filters for the workflow
     optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
-    optional string idempotency_key_expr = 15; // (optional) a CEL expression for determining the idempotency key for workflow runs
+
+    optional IdempotencyConfig idempotency = 15; // (optional) idempotency configuration for the workflow
+}
+
+message IdempotencyConfig {
+    string expression = 1; // a CEL expression for determining the idempotency key for workflow runs
+    int64 ttl_ms = 2; // time-to-live for idempotency keys in milliseconds
 }
 
 

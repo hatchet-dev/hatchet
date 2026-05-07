@@ -57,7 +57,12 @@ type CreateWorkflowVersionOpts struct {
 
 	InputJsonSchema []byte `json:"inputJsonSchema,omitempty"`
 
-	IdempotencyKeyExpr *string `json:"idempotencyKeyExpr,omitempty" validate:"omitempty,celworkflowrunstr"`
+	Idempotency *IdempotencyConfig `json:"idempotency,omitempty"`
+}
+
+type IdempotencyConfig struct {
+	Expression string `json:"expression" validate:"required,celworkflowrunstr"`
+	TTLMs      int64  `json:"ttlMs" validate:"required,min=1"`
 }
 
 type CreateConcurrencyOpts struct {
@@ -429,11 +434,13 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		}
 	}
 
-	if opts.IdempotencyKeyExpr != nil {
+	if opts.Idempotency != nil {
+		idempotency := *opts.Idempotency
 		createParams.IdempotencyKeyExpression = pgtype.Text{
-			String: *opts.IdempotencyKeyExpr,
+			String: idempotency.Expression,
 			Valid:  true,
 		}
+		createParams.IdempotencyKeyTtl = sqlchelpers.ToBigInt(&idempotency.TTLMs)
 	}
 
 	if opts.DefaultPriority != nil {
