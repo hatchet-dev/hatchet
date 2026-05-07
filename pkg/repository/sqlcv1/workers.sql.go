@@ -266,9 +266,9 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 }
 
 const getWorkerActionsByWorkerActionHash = `-- name: GetWorkerActionsByWorkerActionHash :many
-SELECT DISTINCT ON (w."actionHash")
-    w."actionHash" AS "actionHash",
-    a."actionId" AS actionId
+SELECT DISTINCT
+    w."actionHash" AS action_hash,
+    a."actionId" AS action_id
 FROM "Worker" w
 JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id
@@ -284,8 +284,8 @@ type GetWorkerActionsByWorkerActionHashParams struct {
 }
 
 type GetWorkerActionsByWorkerActionHashRow struct {
-	ActionHash []byte `json:"actionHash"`
-	Actionid   string `json:"actionid"`
+	ActionHash []byte `json:"action_hash"`
+	ActionID   string `json:"action_id"`
 }
 
 func (q *Queries) GetWorkerActionsByWorkerActionHash(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerActionHashParams) ([]*GetWorkerActionsByWorkerActionHashRow, error) {
@@ -297,7 +297,7 @@ func (q *Queries) GetWorkerActionsByWorkerActionHash(ctx context.Context, db DBT
 	var items []*GetWorkerActionsByWorkerActionHashRow
 	for rows.Next() {
 		var i GetWorkerActionsByWorkerActionHashRow
-		if err := rows.Scan(&i.ActionHash, &i.Actionid); err != nil {
+		if err := rows.Scan(&i.ActionHash, &i.ActionID); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

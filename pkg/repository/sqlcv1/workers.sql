@@ -259,9 +259,9 @@ WHERE
 ;
 
 -- name: GetWorkerActionsByWorkerActionHash :many
-SELECT DISTINCT ON (w."actionHash")
-    w."actionHash" AS "actionHash",
-    a."actionId" AS actionId
+SELECT DISTINCT
+    w."actionHash" AS action_hash,
+    a."actionId" AS action_id
 FROM "Worker" w
 JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id

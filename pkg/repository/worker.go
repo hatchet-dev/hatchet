@@ -345,7 +345,7 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 				workerIdToActionIds[workerId] = make([]string, 0)
 			}
 
-			workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.Actionid)
+			workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.ActionID)
 		}
 
 	}
