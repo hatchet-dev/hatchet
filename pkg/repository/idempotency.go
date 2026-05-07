@@ -45,6 +45,12 @@ type KeyClaimantPair struct {
 }
 
 func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, tx sqlcv1.DBTX, tenantId uuid.UUID, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
+	keyToClaimStatus := make(map[KeyClaimantPair]WasSuccessfullyClaimed)
+
+	if len(claims) == 0 {
+		return keyToClaimStatus, nil
+	}
+
 	keys := make([]string, len(claims))
 	claimedByExternalIds := make([]uuid.UUID, len(claims))
 
@@ -62,8 +68,6 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, tx s
 	if err != nil {
 		return nil, err
 	}
-
-	keyToClaimStatus := make(map[KeyClaimantPair]WasSuccessfullyClaimed)
 
 	for _, claimResult := range claimResults {
 		if claimResult.ClaimedByExternalID == nil {
