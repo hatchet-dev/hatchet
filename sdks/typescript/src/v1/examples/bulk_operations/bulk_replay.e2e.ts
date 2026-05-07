@@ -6,7 +6,7 @@ import { bulkReplayTest1, bulkReplayTest2, bulkReplayTest3 } from './workflow';
 describe('bulk-replay-e2e', () => {
   const hatchet = makeE2EClient();
 
-  it('bulk replays matching runs and increments attempt', async () => {
+  it('bulk replays matching runs and increments retry count', async () => {
     const testRunId = makeTestScope('bulk_replay');
     const n = 20;
 
@@ -29,6 +29,7 @@ describe('bulk-replay-e2e', () => {
           limit: 1000,
           workflowNames,
           additionalMetadata: meta,
+          onlyTasks: true,
         }),
       {
         timeoutMs: 120_000,
@@ -41,6 +42,9 @@ describe('bulk-replay-e2e', () => {
     );
 
     expect(initialRuns.rows).toHaveLength(expectedTotal);
+    const initialRetryCounts = new Map(
+      (initialRuns.rows || []).map((r: any) => [r.metadata.id, r.retryCount ?? 0])
+    );
 
     // Equivalent to Python's aio_bulk_replay: runs.replay with filter.
     await hatchet.runs.replay({
@@ -58,18 +62,19 @@ describe('bulk-replay-e2e', () => {
           limit: 1000,
           workflowNames,
           additionalMetadata: meta,
+          onlyTasks: true,
         }),
       {
         timeoutMs: 120_000,
         intervalMs: 200,
-        label: 'bulk replay attempts visible',
+        label: 'bulk replay retry counts visible',
         shouldStop: (runs) =>
           (runs.rows || []).length === expectedTotal &&
           (runs.rows || []).every(
             (r: any) =>
               r.status === V1TaskStatus.COMPLETED &&
-              (r.retryCount ?? 0) >= 1 &&
-              (r.attempt ?? 0) >= 2
+              (r.retryCount ?? 0) >
+                (initialRetryCounts.get(r.metadata.id) ?? Number.MAX_SAFE_INTEGER)
           ),
       }
     );
