@@ -89,7 +89,7 @@ func defaultOLAPControllerOpts() *OLAPControllerOpts {
 		alerter:                  alerter,
 		prometheusMetricsEnabled: false,
 		analyzeCronInterval:      3 * time.Hour,
-		mqQos:                    200,
+		mqQos:                    2000,
 	}
 }
 

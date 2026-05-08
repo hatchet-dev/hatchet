@@ -112,7 +112,7 @@ type ConfigFileOperations struct {
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
 
 	// OLAPMQQos is the prefetch count (QOS) for the OLAP controller's message queue consumer
-	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"200"`
+	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"2000"`
 }
 
 type TaskOperationLimitsConfigFile struct {
