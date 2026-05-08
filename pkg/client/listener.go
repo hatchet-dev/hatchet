@@ -104,6 +104,11 @@ type WorkflowRunsListener struct {
 
 	reconnectGroup singleflight.Group
 
+	listenMu  sync.Mutex
+	listening bool
+	started   bool
+	closed    bool
+
 	l *zerolog.Logger
 
 	// map of workflow run ids to a list of handlers
@@ -138,23 +143,27 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	r.workflowRunListener = w
 
 	go func() {
-		defer func() {
-			err := w.Close()
-
-			if err != nil {
-				r.l.Error().Err(err).Msg("failed to close workflow run events listener")
-			}
-
-			r.workflowRunListenerMu.Lock()
-			r.workflowRunListener = nil
-			r.workflowRunListenerMu.Unlock()
-		}()
-
 		err := w.Listen(ctx)
 
 		if err != nil {
 			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
 		}
+
+		if ctx.Err() == nil {
+			return
+		}
+
+		err = w.Close()
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("failed to close workflow run events listener")
+		}
+
+		r.workflowRunListenerMu.Lock()
+		if r.workflowRunListener == w {
+			r.workflowRunListener = nil
+		}
+		r.workflowRunListenerMu.Unlock()
 	}()
 
 	return w, nil
@@ -165,6 +174,68 @@ func (w *WorkflowRunsListener) getClientSnapshot() (dispatchercontracts.Dispatch
 	w.clientMu.Lock()
 	defer w.clientMu.Unlock()
 	return w.client, w.generation
+}
+
+func (w *WorkflowRunsListener) listeningState() (bool, bool) {
+	w.listenMu.Lock()
+	defer w.listenMu.Unlock()
+	return w.listening, w.started
+}
+
+func (w *WorkflowRunsListener) tryStartListening() (bool, error) {
+	w.listenMu.Lock()
+	defer w.listenMu.Unlock()
+
+	if w.closed {
+		return false, fmt.Errorf("workflow run listener is closed")
+	}
+
+	if w.listening {
+		return false, nil
+	}
+
+	w.listening = true
+	w.started = true
+	return true, nil
+}
+
+func (w *WorkflowRunsListener) finishListening() {
+	w.listenMu.Lock()
+	w.listening = false
+	w.listenMu.Unlock()
+}
+
+func (w *WorkflowRunsListener) startListening(ctx context.Context) error {
+	started, err := w.tryStartListening()
+	if err != nil || !started {
+		return err
+	}
+
+	go func() {
+		defer w.finishListening()
+
+		if err := w.listen(ctx); err != nil {
+			w.l.Error().Err(err).Msg("failed to listen for workflow run events")
+		}
+	}()
+
+	return nil
+}
+
+func (w *WorkflowRunsListener) ensureListening(ctx context.Context, genBefore uint64) error {
+	listening, started := w.listeningState()
+	if listening || !started {
+		return nil
+	}
+
+	_, genAfter := w.getClientSnapshot()
+	if genAfter == genBefore {
+		if err := w.retrySubscribe(ctx); err != nil {
+			return err
+		}
+	}
+
+	return w.startListening(ctx)
 }
 
 // retrySubscribe coalesces concurrent reconnection attempts via singleflight.
@@ -238,6 +309,8 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	workflowRunId, sessionId string,
 	handler WorkflowRunEventHandler,
 ) error {
+	_, genBefore := l.getClientSnapshot()
+
 	handlers, _ := l.handlers.LoadOrStore(workflowRunId, &threadSafeHandlers{
 		handlers: map[string]WorkflowRunEventHandler{},
 	})
@@ -255,7 +328,7 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 		return err
 	}
 
-	return nil
+	return l.ensureListening(context.Background(), genBefore)
 }
 
 func (l *WorkflowRunsListener) RemoveWorkflowRun(
@@ -305,15 +378,25 @@ func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 
 		if retryErr := l.retrySubscribe(context.Background()); retryErr != nil {
 			l.l.Error().Err(retryErr).Msg("failed to resubscribe after send failure")
+			time.Sleep(DefaultActionListenerRetryInterval)
 		}
-
-		time.Sleep(DefaultActionListenerRetryInterval)
 	}
 
 	return fmt.Errorf("could not send to the worker after %d retries", DefaultActionListenerRetryCount)
 }
 
 func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
+	started, err := l.tryStartListening()
+	if err != nil || !started {
+		return err
+	}
+
+	defer l.finishListening()
+
+	return l.listen(ctx)
+}
+
+func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 	consecutiveErrors := 0
 	maxConsecutiveErrors := 10
 
@@ -362,6 +445,11 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 }
 
 func (l *WorkflowRunsListener) Close() error {
+	l.listenMu.Lock()
+	l.closed = true
+	l.listening = false
+	l.listenMu.Unlock()
+
 	l.clientMu.Lock()
 	client := l.client
 	l.clientMu.Unlock()
