@@ -123,10 +123,13 @@ func NewMatchData(mcAggregatedData []byte) (*MatchData, error) {
 			}
 		}
 	}
-
 	for k, v := range triggerDataMap {
 		var action sqlcv1.V1MatchConditionAction
-
+		// we already handled this case in the loop above, skip it
+		// so we don't end up with a null action
+		if k == "CREATE_MATCH" {
+			continue
+		}
 		switch k {
 		case "CREATE":
 			action = sqlcv1.V1MatchConditionActionCREATE
