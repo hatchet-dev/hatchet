@@ -520,15 +520,18 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	}
 
 	attempts := 0
-	var failedOpts []*v1.V1TaskWithPayload
-	var succeededOpts []*v1.V1TaskWithPayload
 
 	for {
 		if attempts > 10 {
 			break
 		}
 
-		failedOpts = []*v1.V1TaskWithPayload{}
+		if len(createTaskOpts) == 0 {
+			break
+		}
+
+		failedOpts := make([]*v1.V1TaskWithPayload, 0)
+		succeededOpts := make([]*v1.V1TaskWithPayload, 0)
 
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
 		if err != nil {
@@ -550,6 +553,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = failedOpts
 		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
 		attempts++
+		// qq: do we want to sleep here?
 	}
 
 	return nil
@@ -596,32 +600,38 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
 	}
 
-	workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
-	if err != nil {
-		return err
-	}
+	attempts := 0
 
-	var succeededOpts []*v1.DAGWithData
-	var failedOpts []*v1.DAGWithData
-
-	for _, opt := range createDAGOpts {
-		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
-			failedOpts = append(failedOpts, opt)
-		} else {
-			succeededOpts = append(succeededOpts, opt)
+	for {
+		if attempts > 10 {
+			break
 		}
-	}
 
-	tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
+		if len(createDAGOpts) == 0 {
+			break
+		}
 
-	for _, opt := range failedOpts {
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, opt)
+		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 		if err != nil {
 			return err
 		}
-		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
-			return err
+
+		failedOpts := make([]*v1.DAGWithData, 0)
+		succeededOpts := make([]*v1.DAGWithData, 0)
+
+		for _, opt := range createDAGOpts {
+			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
+				failedOpts = append(failedOpts, opt)
+			} else {
+				succeededOpts = append(succeededOpts, opt)
+			}
 		}
+
+		createDAGOpts = failedOpts
+		tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
+		attempts++
+
+		// qq: do we want to sleep here?
 	}
 
 	return nil
