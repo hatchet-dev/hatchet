@@ -18,7 +18,7 @@ const MAX_RUNS_PER_BUCKET = parseInt(process.env.S3_WORKER_MAX_RUNS_PER_BUCKET ?
 const SLOTS = parseInt(process.env.S3_WORKER_SLOTS ?? '40');
 
 // > Client Setup
-const s3 = new S3Client({forcePathStyle: true});
+const s3 = new S3Client({ forcePathStyle: true });
 
 // > Models
 type ListObjectsInput = {
