@@ -1754,6 +1754,12 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, event := range events {
+		if event.ExternalID == nil {
+			// note: this case shouldn't happen, just here for type safety
+			r.l.Error().Ctx(ctx).Msgf("event with ts %s and type %s has nil external id, skipping", event.EventTimestamp.Time.String(), event.EventType)
+			continue
+		}
+
 		workflowRunId, ok := eventExternalIdToWorkflowRunId[*event.ExternalID]
 
 		if !ok {
