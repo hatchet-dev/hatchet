@@ -58,6 +58,7 @@ type OLAPControllerImpl struct {
 	dagPrometheusWorkerCtx       context.Context
 	dagPrometheusWorkerCancel    context.CancelFunc
 	statusUpdateBatchSizeLimits  v1.StatusUpdateBatchSizeLimits
+	mqQos                        int
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -75,6 +76,7 @@ type OLAPControllerOpts struct {
 	prometheusMetricsEnabled    bool
 	analyzeCronInterval         time.Duration
 	statusUpdateBatchSizeLimits v1.StatusUpdateBatchSizeLimits
+	mqQos                       int
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -167,6 +169,12 @@ func WithOLAPStatusUpdateBatchSizeLimits(limits v1.StatusUpdateBatchSizeLimits) 
 	}
 }
 
+func WithMQQos(qos int) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.mqQos = qos
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -226,6 +234,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		taskPrometheusUpdateCh:      taskPrometheusUpdateCh,
 		dagPrometheusUpdateCh:       dagPrometheusUpdateCh,
 		statusUpdateBatchSizeLimits: opts.statusUpdateBatchSizeLimits,
+		mqQos:                       opts.mqQos,
 	}
 
 	// Default jitter value
@@ -255,7 +264,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
-	heavyReadMQ.SetQOS(2000)
+	heavyReadMQ.SetQOS(o.mqQos)
 
 	o.s.Start()
 
