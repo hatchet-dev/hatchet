@@ -521,9 +521,6 @@ func registerAllWorkflows(client *hatchet.Client) {
 
 	testDAGPayloadStepA = testDAGPayloadWorkflow.NewTask("dag-payload-step-a",
 		func(ctx hatchet.Context, input DAGPayloadInput) (StepAOutput, error) {
-			if input.WorkflowKey == "" {
-				return StepAOutput{}, fmt.Errorf("step A received empty workflow input")
-			}
 			return StepAOutput{Message: "hello-from-step-a"}, nil
 		},
 		hatchet.WithRetries(2),
@@ -538,9 +535,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 			if ctx.RetryCount() == 0 {
 				return nil, fmt.Errorf("deliberate first-attempt failure")
 			}
-			fmt.Println(input.WorkflowKey, ctx.RetryCount())
 			if input.WorkflowKey == "" {
-				fmt.Println("could not get input workflow key")
 				return nil, fmt.Errorf("step B received empty workflow input on retry")
 			}
 			var parentOut StepAOutput
@@ -555,11 +550,8 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithParents(testDAGPayloadStepA),
 		hatchet.WithRetries(2),
 		hatchet.WithRetryBackoff(4, 130),
-		// mirrors the Python: wait_for=[SleepCondition(duration=WORKER_DRAINING_INITIAL_DELAY)]
-		hatchet.WithWaitFor(hatchet.SleepCondition(3*time.Second)),
-		// mirrors the Python: skip_if=[ParentCondition(parent=detect, expression="...")]
-		// expression is intentionally impossible so the step never actually skips
-		hatchet.WithSkipIf(hatchet.ParentCondition(testDAGPayloadStepA, "output.message == 'skip-me'")),
+		// needed to replicate the match condition bug
+		hatchet.WithWaitFor(hatchet.SleepCondition(1*time.Second)),
 		hatchet.WithExecutionTimeout(2*time.Minute),
 	)
 }
