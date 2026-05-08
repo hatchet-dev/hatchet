@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -1022,71 +1021,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			return err
 		}
 	}
-
-	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
-		return nil
-	}
-
-	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
-	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]*uuid.UUID)
-
-	for _, opt := range opts {
-		taskMeta := taskIdsToMetas[opt.TaskID]
-		_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
-
-		if lockNotAcquired {
-			continue
-		}
-
-		// generating a dummy id + inserted at to use for creating the external keys for the task events
-		// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
-		// actually need those for anything once the keys are created.
-		dummyId := rand.Int63()
-		// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
-		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
-
-		idInsertedAtToExternalId[v1.IdInsertedAt{
-			ID:         dummyId,
-			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-		}] = opt.ExternalID
-
-		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
-			TenantId:   tenantId,
-			ExternalID: *opt.ExternalID,
-			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-			Payload:    opt.Output,
-		})
-	}
-
-	if len(offloadToExternalOpts) == 0 {
-		return nil
-	}
-
-	// retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// offloadOpts := make([]v1.OffloadPayloadOpts, 0)
-
-	// for opt, key := range retrieveOptsToKey {
-	// 	externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
-	// 		ID:         opt.Id,
-	// 		InsertedAt: opt.InsertedAt,
-	// 	}]
-
-	// 	offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
-	// 		ExternalId:          externalId,
-	// 		ExternalLocationKey: string(key),
-	// 	})
-	// }
-
-	// err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
-
-	// if err != nil {
-	// 	return err
-	// }
 
 	return nil
 }
