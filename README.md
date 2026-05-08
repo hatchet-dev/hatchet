@@ -15,7 +15,7 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/hatchet-dev/hatchet?style=social)](https://github.com/hatchet-dev/hatchet)
 
   <p align="center">
-    <a href="https://cloud.onhatchet.run">Hatchet Cloud</a>
+    <a href="https://cloud.hatchet.run">Hatchet Cloud</a>
     ·
     <a href="https://docs.hatchet.run">Documentation</a>
     ·
@@ -28,11 +28,11 @@
 
 ### What is Hatchet?
 
-Hatchet is a platform for orchestrating background tasks, AI agents, and durable workflows at scale. It supports applications written in Python, TypeScript, Go and Ruby, and can be used as a service through [Hatchet Cloud](https://cloud.onhatchet.run) or [self-hosting](https://docs.hatchet.run/self-hosting). Hatchet provides a full platform for queuing, automatic retries, durability, real-time monitoring, alerting, and logging.
+Hatchet is a platform for orchestrating background tasks, AI agents, and durable workflows at scale. It supports applications written in Python, TypeScript, Go and Ruby, and can be used as a service through [Hatchet Cloud](https://cloud.hatchet.run) or [self-hosting](https://docs.hatchet.run/self-hosting). Hatchet provides a full platform for queuing, automatic retries, durability, real-time monitoring, alerting, and logging.
 
 ### Get started quickly
 
-The fastest way to get started with Hatchet is signing up for [Hatchet Cloud](https://cloud.onhatchet.run) to try it out! We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
+The fastest way to get started with Hatchet is signing up for [Hatchet Cloud](https://cloud.hatchet.run) to try it out! We recommend this even if you plan on self-hosting, so you can have a look at what a fully-deployed Hatchet platform looks like.
 
 To run Hatchet locally, the fastest path for setup is to install the Hatchet CLI (on MacOS, Linux or WSL) - note that this requires [Docker](https://www.docker.com/get-started) installed locally to work:
 
@@ -82,7 +82,7 @@ For some end-to-end examples of workflows you can build with Hatchet, check out 
 - **Multi-tenant** by default, so a single Hatchet instance can support multiple teams
 - Users and roles
 
-#### [Hatchet Cloud](https://cloud.onhatchet.run) features
+#### [Hatchet Cloud](https://cloud.hatchet.run) features
 
 - Autoscaling and pay-as-you-go plans
 - Multi-region deployments

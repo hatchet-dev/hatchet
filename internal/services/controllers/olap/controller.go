@@ -511,7 +511,12 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
-	if err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts); err != nil {
+	result, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
+	if err != nil {
+		return err
+	}
+
+	if err := tc.notifyStatusUpdates(ctx, result); err != nil {
 		return err
 	}
 
@@ -766,6 +771,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	durableInvocationCounts := make([]int32, 0)
 	workerIds := make([]uuid.UUID, 0)
 	workflowIds := make([]uuid.UUID, 0)
+	workflowRunIDs := make([]uuid.UUID, 0)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
@@ -790,6 +796,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskIds = append(taskIds, msg.TaskId)
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
+		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -913,9 +920,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	err = tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+	result, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
 
 	if err != nil {
+		return err
+	}
+
+	if err := tc.notifyStatusUpdates(ctx, result); err != nil {
 		return err
 	}
 

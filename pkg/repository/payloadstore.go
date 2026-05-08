@@ -465,14 +465,14 @@ func (d PartitionDate) String() string {
 const MAX_PARTITIONS_TO_OFFLOAD = 14                  // two weeks
 const MAX_BATCH_SIZE_BYTES = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
 
-func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, partitionDate PartitionDate, candidateBatchNumRows int32, pagination PaginationParams) (*int32, error) {
+func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, pagination PaginationParams) (*int32, error) {
 	if candidateBatchNumRows <= 0 {
 		// trivial case that we'll never hit, but to prevent infinite recursion
 		zero := int32(0)
 		return &zero, nil
 	}
 
-	proposedBatchSizeBytes, err := p.queries.ComputePayloadBatchSize(ctx, p.pool, sqlcv1.ComputePayloadBatchSizeParams{
+	proposedBatchSizeBytes, err := p.queries.ComputePayloadBatchSize(ctx, tx, sqlcv1.ComputePayloadBatchSizeParams{
 		Partitiondate:  pgtype.Date(partitionDate),
 		Lasttenantid:   pagination.LastTenantID,
 		Lastinsertedat: pagination.LastInsertedAt,
@@ -493,6 +493,7 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Conte
 	// cut it in half and try again
 	return p.OptimizePayloadWindowSize(
 		ctx,
+		tx,
 		partitionDate,
 		candidateBatchNumRows/2,
 		pagination,
@@ -503,9 +504,18 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
+
 	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	windowSizePtr, err := p.OptimizePayloadWindowSize(
 		ctx,
+		tx,
 		partitionDate,
 		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
 		pagination,
@@ -517,7 +527,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	windowSize := *windowSizePtr
 
-	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, p.pool, sqlcv1.CreatePayloadRangeChunksParams{
+	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, tx, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,
 		Partitiondate:  pgtype.Date(partitionDate),
 		Windowsize:     windowSize,
@@ -536,6 +546,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			ShouldContinue: false,
 			NextPagination: pagination,
 		}, nil
+	}
+
+	if err = commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit payload range chunks transaction: %w", err)
 	}
 
 	mu := sync.Mutex{}
@@ -638,10 +652,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		})
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
 	}
 
 	defer rollback()
@@ -889,6 +903,17 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 	}
 
 	const maxCountDiff = 5000
+
+	err = p.queries.SetFinalPayloadCutoverRowCounts(ctx, conn, sqlcv1.SetFinalPayloadCutoverRowCountsParams{
+		Finalsourcetablerowcount: rowCounts.SourcePartitionCount,
+		Finaltargettablerowcount: rowCounts.TempPartitionCount,
+		Finalrowcountdiff:        rowCounts.SourcePartitionCount - rowCounts.TempPartitionCount,
+		Key:                      pgtype.Date(partitionDate),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to set final payload cutover row counts: %w", err)
+	}
 
 	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
 		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)

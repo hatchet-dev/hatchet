@@ -84,7 +84,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
@@ -115,6 +115,7 @@ function formatTimeoutMs(ms: number): string {
 // FIXME: remove this once we migrate everyone to the control plane
 type OrganizationTenantWithRegion = OrganizationTenant & {
   region?: ControlPlaneOrganizationTenant['region'];
+  canManage?: boolean;
 };
 
 export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
@@ -154,6 +155,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
+  const autoExpandedTenantId = useRef<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedTimeout, setEditedTimeout] = useState('');
@@ -243,6 +245,28 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
       ) || [],
     [org?.tenants, organization?.tenants],
   );
+
+  // showing the first tenant as open, to make clearer that:
+  // 1. tenants can expand
+  // 2. you can add members to tenants from here
+  useEffect(() => {
+    const firstVisibleTenantId = visibleTenants[0]?.id;
+
+    if (!firstVisibleTenantId) {
+      autoExpandedTenantId.current = null;
+      return;
+    }
+
+    if (autoExpandedTenantId.current === firstVisibleTenantId) {
+      return;
+    }
+
+    autoExpandedTenantId.current = firstVisibleTenantId;
+
+    if (!expandedTenantIds.length) {
+      setExpandedTenantIds([firstVisibleTenantId]);
+    }
+  }, [visibleTenants, expandedTenantIds.length]);
 
   const handleSaveName = () => {
     const trimmedName = editedName.trim();
@@ -1092,6 +1116,7 @@ export function OssOrganizationSettings() {
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
+  const autoExpandedTenantId = useRef<string | null>(null);
 
   const visibleTenants = useMemo(
     () =>
@@ -1105,11 +1130,36 @@ export function OssOrganizationSettings() {
             name: m.tenant.name,
             status: TenantStatusType.ACTIVE,
             slug: m.tenant.slug,
+            canManage:
+              m.role === TenantMemberRole.OWNER ||
+              m.role === TenantMemberRole.ADMIN,
           };
         })
         .filter((t): t is OrganizationTenantWithRegion => t !== null) || [],
     [tenantMemberships],
   );
+
+  // showing the first tenant as open, to make clearer that:
+  // 1. tenants can expand
+  // 2. you can add members to tenants from here
+  useEffect(() => {
+    const firstVisibleTenantId = visibleTenants[0]?.id;
+
+    if (!firstVisibleTenantId) {
+      autoExpandedTenantId.current = null;
+      return;
+    }
+
+    if (autoExpandedTenantId.current === firstVisibleTenantId) {
+      return;
+    }
+
+    autoExpandedTenantId.current = firstVisibleTenantId;
+
+    if (!expandedTenantIds.length) {
+      setExpandedTenantIds([firstVisibleTenantId]);
+    }
+  }, [visibleTenants, expandedTenantIds.length]);
 
   return (
     <div className="h-full w-full flex-grow">
@@ -1199,7 +1249,7 @@ function TenantsSection({
           onValueChange={setExpandedTenantIds}
           className="space-y-3 rounded-md border bg-background p-3"
         >
-          {tenants.map((tenant) => (
+          {tenants.map((tenant, ix) => (
             <div key={tenant.id}>
               <TenantAccordionItem
                 key={tenant.id}
@@ -1208,7 +1258,7 @@ function TenantsSection({
                 onArchive={onArchive}
                 canManageOrganization={canManageOrganization}
               />
-              <Separator className="my-3 last:hidden" />
+              {ix < tenants.length - 1 && <Separator className="my-4" />}
             </div>
           ))}
         </Accordion>
@@ -1243,9 +1293,16 @@ function TenantAccordionItem({
     ...tenantInviteListQuery(tenant.id),
     enabled: isExpanded,
   });
+  const { isCloudEnabled } = useUserUniverse();
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const tenantMembers = membersQuery.data?.rows || [];
   const tenantInvites = invitesQuery.data?.rows || [];
+
+  const canManageTenantMembers =
+    canManageOrganization ||
+    // if both cloud and the control plane are disabled, we're on the OSS and tenant admins / owners can invite members to their tenants
+    (!(isCloudEnabled || isControlPlaneEnabled) && Boolean(tenant.canManage));
 
   return (
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
@@ -1278,7 +1335,7 @@ function TenantAccordionItem({
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Members</h4>
-            {canManageOrganization && (
+            {canManageTenantMembers && (
               <Button
                 onClick={() =>
                   globalEmitter.emit('create-tenant-invite', {
@@ -1305,7 +1362,7 @@ function TenantAccordionItem({
             <TenantMemberList
               tenantId={tenant.id}
               members={tenantMembers}
-              canManage={canManageOrganization}
+              canManage={canManageTenantMembers}
               onMembersChanged={() => membersQuery.refetch()}
             />
           ) : (
@@ -1338,62 +1395,59 @@ function TenantMemberList({
   onMembersChanged: () => void;
 }) {
   const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
-
-  const gridCols = canManage
-    ? 'grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px_72px]'
-    : 'grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_140px_140px]';
+  const columns = useMemo(
+    () => [
+      {
+        columnLabel: 'Name',
+        cellRenderer: (member: TenantMember) => (
+          <span className="font-medium">{member.user.name}</span>
+        ),
+      },
+      {
+        columnLabel: 'Email',
+        cellRenderer: (member: TenantMember) => (
+          <span className="font-mono text-sm">{member.user.email}</span>
+        ),
+      },
+      {
+        columnLabel: 'Role',
+        cellRenderer: (member: TenantMember) => (
+          <Badge variant="outline">{member.role}</Badge>
+        ),
+      },
+      {
+        columnLabel: 'Joined',
+        cellRenderer: (member: TenantMember) => (
+          <RelativeDate date={member.metadata.createdAt} />
+        ),
+      },
+      ...(canManage
+        ? [
+            {
+              columnLabel: 'Actions',
+              cellRenderer: (member: TenantMember) => (
+                <TenantMemberActions
+                  member={member}
+                  tenantId={tenantId}
+                  onEditRoleClick={setMemberToEdit}
+                  onChangePasswordClick={() => {}}
+                  onDeleteSuccess={onMembersChanged}
+                />
+              ),
+            },
+          ]
+        : []),
+    ],
+    [canManage, onMembersChanged, tenantId],
+  );
 
   return (
     <>
-      <div className="rounded-md border border-border/70">
-        <div
-          className={`hidden ${gridCols} gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid`}
-        >
-          <span>Name</span>
-          <span>Email</span>
-          <span>Role</span>
-          <span>Joined</span>
-          {canManage && <span className="text-right">Actions</span>}
-        </div>
-        <div>
-          {members.map((member) => (
-            <div
-              key={member.metadata.id}
-              className={`grid ${gridCols} gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:items-center`}
-            >
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Name</p>
-                <p className="font-medium">{member.user.name}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Email</p>
-                <p className="font-mono text-sm">{member.user.email}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Role</p>
-                <Badge variant="outline">{member.role}</Badge>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">
-                  Joined
-                </p>
-                <RelativeDate date={member.metadata.createdAt} />
-              </div>
-              {canManage && (
-                <div className="flex justify-end">
-                  <TenantMemberActions
-                    member={member}
-                    tenantId={tenantId}
-                    onEditRoleClick={setMemberToEdit}
-                    onChangePasswordClick={() => {}}
-                    onDeleteSuccess={onMembersChanged}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      <SimpleTable
+        columns={columns}
+        data={members}
+        rowKey={(member) => member.metadata.id}
+      />
 
       {memberToEdit && (
         <TenantMemberUpdateDialog

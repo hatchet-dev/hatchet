@@ -1015,47 +1015,27 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 }
 
 const listTenantsByControllerPartitionId = `-- name: ListTenantsByControllerPartitionId :many
-SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
-FROM
-    "Tenant" as tenants
+SELECT "id"
+FROM "Tenant"
 WHERE
     "controllerPartitionId" = $1::text
     AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL
 `
 
-func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, controllerpartitionid string) ([]*Tenant, error) {
+func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, controllerpartitionid string) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, controllerpartitionid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*Tenant
+	var items []uuid.UUID
 	for rows.Next() {
-		var i Tenant
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Version,
-			&i.UiVersion,
-			&i.Name,
-			&i.Slug,
-			&i.AnalyticsOptOut,
-			&i.AlertMemberEmails,
-			&i.ControllerPartitionId,
-			&i.WorkerPartitionId,
-			&i.DataRetentionPeriod,
-			&i.SchedulerPartitionId,
-			&i.CanUpgradeV1,
-			&i.OnboardingData,
-			&i.Environment,
-		); err != nil {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
