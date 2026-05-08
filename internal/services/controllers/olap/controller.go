@@ -537,7 +537,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after 10 attempts, republishing to MQ", len(createTaskOpts))
+			tc.l.Error().Ctx(ctx).Msgf("failed to create tasks, republishing %d tasks: %v", len(createTaskOpts), err)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
@@ -626,7 +626,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after 10 attempts, republishing to MQ", len(createDAGOpts))
+			tc.l.Error().Ctx(ctx).Msgf("failed to create DAGs, republishing %d DAGs: %v", len(createDAGOpts), err)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
@@ -1021,7 +1021,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d monitoring events after 10 attempts, republishing to MQ", len(opts))
+			tc.l.Error().Ctx(ctx).Msgf("failed to create task events, republishing %d events: %v", len(opts), err)
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
 
