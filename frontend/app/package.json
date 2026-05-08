@@ -113,7 +113,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.5.2",
     "eslint-plugin-unused-imports": "^3.2.0",
-    "postcss": "^8.5.12",
+    "postcss": "^8.5.14",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^3.4.19",
