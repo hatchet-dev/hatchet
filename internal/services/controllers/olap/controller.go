@@ -824,7 +824,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	durableInvocationCounts := make([]int32, 0)
 	workerIds := make([]uuid.UUID, 0)
 	workflowIds := make([]uuid.UUID, 0)
-	workflowRunIDs := make([]uuid.UUID, 0)
+	eventExternalIdToWorkflowRunId := make(map[uuid.UUID]uuid.UUID)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
@@ -849,7 +849,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskIds = append(taskIds, msg.TaskId)
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
-		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -858,6 +857,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
 		externalId := uuid.New()
 		eventExternalIds = append(eventExternalIds, &externalId)
+
+		eventExternalIdToWorkflowRunId[externalId] = taskMeta.WorkflowRunID
 
 		msgIxToSpanEvent[ix] = engineSpanEvent{
 			taskID:             msg.TaskId,
@@ -973,7 +974,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
+	result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
 
 	if err != nil {
 		return err
@@ -988,6 +989,11 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
+
+		if taskMeta == nil {
+			tc.l.Error().Ctx(ctx).Msgf("could not find task meta for task id %d", msg.TaskId)
+			continue
+		}
 
 		_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
 
@@ -1006,7 +1012,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	for _, incomingMsg := range toRequeue {
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *incomingMsg)
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not create message for workflow run id %s", incomingMsg.TaskId)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not create message for workflow run id %d", incomingMsg.TaskId)
 			continue
 		}
 
