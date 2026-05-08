@@ -519,36 +519,37 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
-	result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
-	if err != nil {
-		return err
-	}
-
-	if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-		return err
-	}
-
-	var succeededOpts []*v1.V1TaskWithPayload
+	attempts := 0
 	var failedOpts []*v1.V1TaskWithPayload
+	var succeededOpts []*v1.V1TaskWithPayload
 
-	for _, opt := range createTaskOpts {
-		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
-			failedOpts = append(failedOpts, opt)
-		} else {
-			succeededOpts = append(succeededOpts, opt)
+	for {
+		if attempts > 10 {
+			break
 		}
-	}
 
-	tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
+		failedOpts = []*v1.V1TaskWithPayload{}
 
-	for _, opt := range failedOpts {
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, opt)
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
 		if err != nil {
 			return err
 		}
-		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+
+		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
 			return err
 		}
+
+		for _, opt := range createTaskOpts {
+			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
+				failedOpts = append(failedOpts, opt)
+			} else {
+				succeededOpts = append(succeededOpts, opt)
+			}
+		}
+
+		createTaskOpts = failedOpts
+		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
+		attempts++
 	}
 
 	return nil
