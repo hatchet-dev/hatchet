@@ -348,9 +348,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         endpoint = self.config.host_port
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
-        credentials: grpc.ChannelCredentials | None = load_channel_credentials(
-            self.config
-        )
+        credentials = load_channel_credentials(self.config)
 
         otlp_exporter = OTLPSpanExporter(
             endpoint=endpoint,

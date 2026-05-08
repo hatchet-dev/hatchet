@@ -50,7 +50,7 @@ def new_conn(config: ClientConfig, aio: Literal[True]) -> grpc.aio.Channel: ...
 
 
 def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel:
-    credentials: grpc.ChannelCredentials | None = load_channel_credentials(config)
+    credentials = load_channel_credentials(config)
 
     start = grpc if not aio else grpc.aio
 
