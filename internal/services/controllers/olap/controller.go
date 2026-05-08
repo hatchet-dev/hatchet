@@ -508,19 +508,21 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
+	msgIdxForOpt := make([]int, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
-	for _, msg := range msgs {
+	for msgIdx, msg := range msgs {
 		if !tc.sample(msg.WorkflowRunID.String()) {
 			tc.l.Debug().Ctx(ctx).Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
 			continue
 		}
 
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
+		msgIdxForOpt = append(msgIdxForOpt, msgIdx)
 	}
 
-	result, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
+	result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
 	if err != nil {
 		return err
 	}
@@ -529,9 +531,20 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		return err
 	}
 
-	tc.emitStandaloneTaskRootSpans(ctx, tenantId, createTaskOpts)
+	var succeededPayloads []*v1.V1TaskWithPayload
+	var failedPayloads [][]byte
 
-	return nil
+	for optIdx, opt := range createTaskOpts {
+		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
+			failedPayloads = append(failedPayloads, payloads[msgIdxForOpt[optIdx]])
+		} else {
+			succeededPayloads = append(succeededPayloads, opt)
+		}
+	}
+
+	tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededPayloads)
+
+	return tc.republishPayloads(ctx, msgqueue.MsgIDCreatedTask, tenantId, failedPayloads)
 }
 
 func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) {
@@ -563,24 +576,39 @@ func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, t
 // handleCreatedDAG is responsible for flushing a created DAG to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createDAGOpts := make([]*v1.DAGWithData, 0)
+	msgIdxForOpt := make([]int, 0)
+
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
-	for _, msg := range msgs {
+	for msgIdx, msg := range msgs {
 		if !tc.sample(msg.ExternalID.String()) {
 			tc.l.Debug().Ctx(ctx).Msgf("skipping dag %s", msg.ExternalID.String())
 			continue
 		}
 
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
+		msgIdxForOpt = append(msgIdxForOpt, msgIdx)
 	}
 
-	if err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts); err != nil {
+	workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
+	if err != nil {
 		return err
 	}
 
-	tc.emitWorkflowRunRootSpans(ctx, tenantId, createDAGOpts)
+	var succeededPayloads []*v1.DAGWithData
+	var failedPayloads [][]byte
 
-	return nil
+	for optIdx, opt := range createDAGOpts {
+		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
+			failedPayloads = append(failedPayloads, payloads[msgIdxForOpt[optIdx]])
+		} else {
+			succeededPayloads = append(succeededPayloads, opt)
+		}
+	}
+
+	tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededPayloads)
+
+	return tc.republishPayloads(ctx, msgqueue.MsgIDCreatedDAG, tenantId, failedPayloads)
 }
 
 func (tc *OLAPControllerImpl) emitWorkflowRunRootSpans(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) {
@@ -788,8 +816,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]*uuid.UUID, 0)
 	var spanEvents []engineSpanEvent
+	msgIdxForOpt := make([]int, 0)
 
-	for _, msg := range msgs {
+	for msgIdx, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
 		if taskMeta == nil {
@@ -806,6 +835,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
 		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
+		msgIdxForOpt = append(msgIdxForOpt, msgIdx)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -929,7 +959,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	result, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
+	result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
 
 	if err != nil {
 		return err
@@ -940,6 +970,17 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
+
+	var failedPayloads [][]byte
+	for optIdx, runId := range workflowRunIDs {
+		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[runId]; notAcquired {
+			failedPayloads = append(failedPayloads, payloads[msgIdxForOpt[optIdx]])
+		}
+	}
+
+	if err := tc.republishPayloads(ctx, msgqueue.MsgIDCreateMonitoringEvent, tenantId, failedPayloads); err != nil {
+		return err
+	}
 
 	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
 		return nil
@@ -1020,6 +1061,20 @@ func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context,
 	}
 
 	return tc.repo.OLAP().CreateIncomingWebhookValidationFailureLogs(ctx, tenantId, createFailedWebhookValidationOpts)
+}
+
+func (tc *OLAPControllerImpl) republishPayloads(ctx context.Context, msgID string, tenantId uuid.UUID, payloads [][]byte) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+
+	return tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, &msgqueue.Message{
+		ID:         msgID,
+		TenantID:   tenantId,
+		Payloads:   payloads,
+		Persistent: true,
+		Retries:    5,
+	})
 }
 
 func (tc *OLAPControllerImpl) sample(workflowRunID string) bool {
