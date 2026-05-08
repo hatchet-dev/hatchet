@@ -1689,7 +1689,8 @@ func workflowRunAdvisoryInt(id uuid.UUID) int64 {
 	return int64(hasher.Sum64()) // nolint: gosec
 }
 
-func (r *OLAPRepositoryImpl) acquireAdvisoryLocksForWorkflowRuns(ctx context.Context, tx pgx.Tx, workflowRunIds []uuid.UUID) error {
+func (r *OLAPRepositoryImpl) tryAcquireAdvisoryLocksForWorkflowRuns(ctx context.Context, tx pgx.Tx, workflowRunIds []uuid.UUID) (locksNotAcquired map[uuid.UUID]struct{}, err error) {
+	keyToWorkflowRunId := make(map[int64]uuid.UUID, len(workflowRunIds))
 	seen := make(map[uuid.UUID]struct{}, len(workflowRunIds))
 	keys := make([]int64, 0, len(workflowRunIds))
 
@@ -1699,53 +1700,31 @@ func (r *OLAPRepositoryImpl) acquireAdvisoryLocksForWorkflowRuns(ctx context.Con
 		}
 
 		seen[id] = struct{}{}
-		keys = append(keys, workflowRunAdvisoryInt(id))
+		key := workflowRunAdvisoryInt(id)
+		keys = append(keys, key)
+		keyToWorkflowRunId[key] = id
 	}
 
 	slices.Sort(keys)
 
-	if err := r.queries.AdvisoryLockMany(ctx, tx, keys); err != nil {
-		return fmt.Errorf("failed to acquire advisory locks for workflow run: %w", err)
-	}
-
-	return nil
-}
-
-func (r *OLAPRepositoryImpl) tryAcquireAdvisoryLocksForWorkflowRuns(ctx context.Context, tx pgx.Tx, workflowRunIds []uuid.UUID) (locksNotAcquired map[uuid.UUID]struct{}, err error) {
-	seen := make(map[uuid.UUID]struct{}, len(workflowRunIds))
-	type keyAndID struct {
-		key           int64
-		workflowRunId uuid.UUID
-	}
-	keyWorkflowRunIdTuples := make([]keyAndID, 0, len(workflowRunIds))
-
-	for _, id := range workflowRunIds {
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		keyWorkflowRunIdTuples = append(keyWorkflowRunIdTuples, keyAndID{key: workflowRunAdvisoryInt(id), workflowRunId: id})
-	}
-
-	slices.SortFunc(keyWorkflowRunIdTuples, func(a, b keyAndID) int {
-		if a.key < b.key {
-			return -1
-		}
-		if a.key > b.key {
-			return 1
-		}
-		return 0
-	})
-
 	locksNotAcquired = make(map[uuid.UUID]struct{})
 
-	for _, t := range keyWorkflowRunIdTuples {
-		acquired, err := r.queries.TryAdvisoryLock(ctx, tx, t.key)
-		if err != nil {
-			return nil, fmt.Errorf("error trying advisory lock for workflow run: %w", err)
-		}
-		if !acquired {
-			locksNotAcquired[t.workflowRunId] = struct{}{}
+	lockResults, err := r.queries.TryAdvisoryLockMany(ctx, tx, keys)
+
+	if err != nil {
+		return nil, fmt.Errorf("error trying advisory lock for workflow run: %w", err)
+	}
+
+	for _, lock := range lockResults {
+		if !lock.Acquired {
+			workflowRunId, ok := keyToWorkflowRunId[lock.Key]
+
+			if !ok {
+				r.l.Error().Ctx(ctx).Msgf("could not find workflow run id for advisory lock key %d", lock.Key)
+				continue
+			}
+
+			locksNotAcquired[workflowRunId] = struct{}{}
 		}
 	}
 
