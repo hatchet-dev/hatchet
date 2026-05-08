@@ -508,18 +508,16 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
-	msgIdxForOpt := make([]int, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
-	for msgIdx, msg := range msgs {
+	for _, msg := range msgs {
 		if !tc.sample(msg.WorkflowRunID.String()) {
 			tc.l.Debug().Ctx(ctx).Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
 			continue
 		}
 
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
-		msgIdxForOpt = append(msgIdxForOpt, msgIdx)
 	}
 
 	result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
@@ -531,20 +529,30 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		return err
 	}
 
-	var succeededPayloads []*v1.V1TaskWithPayload
-	var failedPayloads [][]byte
+	var succeededOpts []*v1.V1TaskWithPayload
+	var failedOpts []*v1.V1TaskWithPayload
 
-	for optIdx, opt := range createTaskOpts {
+	for _, opt := range createTaskOpts {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
-			failedPayloads = append(failedPayloads, payloads[msgIdxForOpt[optIdx]])
+			failedOpts = append(failedOpts, opt)
 		} else {
-			succeededPayloads = append(succeededPayloads, opt)
+			succeededOpts = append(succeededOpts, opt)
 		}
 	}
 
-	tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededPayloads)
+	tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
 
-	return tc.republishPayloads(ctx, msgqueue.MsgIDCreatedTask, tenantId, failedPayloads)
+	for _, opt := range failedOpts {
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, opt)
+		if err != nil {
+			return err
+		}
+		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) {
@@ -576,18 +584,16 @@ func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, t
 // handleCreatedDAG is responsible for flushing a created DAG to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	createDAGOpts := make([]*v1.DAGWithData, 0)
-	msgIdxForOpt := make([]int, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
-	for msgIdx, msg := range msgs {
+	for _, msg := range msgs {
 		if !tc.sample(msg.ExternalID.String()) {
 			tc.l.Debug().Ctx(ctx).Msgf("skipping dag %s", msg.ExternalID.String())
 			continue
 		}
 
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
-		msgIdxForOpt = append(msgIdxForOpt, msgIdx)
 	}
 
 	workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
@@ -595,20 +601,30 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		return err
 	}
 
-	var succeededPayloads []*v1.DAGWithData
-	var failedPayloads [][]byte
+	var succeededOpts []*v1.DAGWithData
+	var failedOpts []*v1.DAGWithData
 
-	for optIdx, opt := range createDAGOpts {
+	for _, opt := range createDAGOpts {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
-			failedPayloads = append(failedPayloads, payloads[msgIdxForOpt[optIdx]])
+			failedOpts = append(failedOpts, opt)
 		} else {
-			succeededPayloads = append(succeededPayloads, opt)
+			succeededOpts = append(succeededOpts, opt)
 		}
 	}
 
-	tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededPayloads)
+	tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
 
-	return tc.republishPayloads(ctx, msgqueue.MsgIDCreatedDAG, tenantId, failedPayloads)
+	for _, opt := range failedOpts {
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, opt)
+		if err != nil {
+			return err
+		}
+		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (tc *OLAPControllerImpl) emitWorkflowRunRootSpans(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) {
@@ -816,9 +832,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]*uuid.UUID, 0)
 	var spanEvents []engineSpanEvent
-	msgIdxForOpt := make([]int, 0)
+	msgsForOpt := make([]*tasktypes.CreateMonitoringEventPayload, 0)
 
-	for msgIdx, msg := range msgs {
+	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
 		if taskMeta == nil {
@@ -835,7 +851,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
 		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
-		msgIdxForOpt = append(msgIdxForOpt, msgIdx)
+		msgsForOpt = append(msgsForOpt, msg)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -971,15 +987,16 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
 
-	var failedPayloads [][]byte
 	for optIdx, runId := range workflowRunIDs {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[runId]; notAcquired {
-			failedPayloads = append(failedPayloads, payloads[msgIdxForOpt[optIdx]])
+			msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *msgsForOpt[optIdx])
+			if err != nil {
+				return err
+			}
+			if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+				return err
+			}
 		}
-	}
-
-	if err := tc.republishPayloads(ctx, msgqueue.MsgIDCreateMonitoringEvent, tenantId, failedPayloads); err != nil {
-		return err
 	}
 
 	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
@@ -1061,20 +1078,6 @@ func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context,
 	}
 
 	return tc.repo.OLAP().CreateIncomingWebhookValidationFailureLogs(ctx, tenantId, createFailedWebhookValidationOpts)
-}
-
-func (tc *OLAPControllerImpl) republishPayloads(ctx context.Context, msgID string, tenantId uuid.UUID, payloads [][]byte) error {
-	if len(payloads) == 0 {
-		return nil
-	}
-
-	return tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, &msgqueue.Message{
-		ID:         msgID,
-		TenantID:   tenantId,
-		Payloads:   payloads,
-		Persistent: true,
-		Retries:    5,
-	})
 }
 
 func (tc *OLAPControllerImpl) sample(workflowRunID string) bool {
