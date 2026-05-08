@@ -1000,8 +1000,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		if lockNotAcquired {
 			toRequeue = append(toRequeue, msg)
 		} else {
-			spanEvent := msgIxToSpanEvent[ix]
-			spanEventsForSuccessfullyLockedRuns = append(spanEventsForSuccessfullyLockedRuns, spanEvent)
+			spanEvent, ok := msgIxToSpanEvent[ix]
+			if ok {
+				spanEventsForSuccessfullyLockedRuns = append(spanEventsForSuccessfullyLockedRuns, spanEvent)
+			}
 		}
 	}
 
@@ -1012,7 +1014,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	for _, incomingMsg := range toRequeue {
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *incomingMsg)
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not create message for workflow run id %d", incomingMsg.TaskId)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not create message for task id %d", incomingMsg.TaskId)
 			continue
 		}
 
