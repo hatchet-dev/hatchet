@@ -21,24 +21,6 @@ func (q *Queries) AdvisoryLock(ctx context.Context, db DBTX, key int64) error {
 	return err
 }
 
-const advisoryLockMany = `-- name: AdvisoryLockMany :exec
-WITH keys AS (
-    SELECT UNNEST($1::BIGINT[]) AS key
-), ordered_keys AS (
-    SELECT key
-    FROM keys
-    ORDER BY key
-)
-
-SELECT pg_advisory_xact_lock(key)
-FROM ordered_keys
-`
-
-func (q *Queries) AdvisoryLockMany(ctx context.Context, db DBTX, keys []int64) error {
-	_, err := db.Exec(ctx, advisoryLockMany, keys)
-	return err
-}
-
 const checkStrategyActive = `-- name: CheckStrategyActive :one
 WITH latest_workflow_version AS (
     SELECT DISTINCT ON("workflowId")
@@ -1273,4 +1255,27 @@ func (q *Queries) TryAdvisoryLock(ctx context.Context, db DBTX, key int64) (bool
 	var locked bool
 	err := row.Scan(&locked)
 	return locked, err
+}
+
+const tryAdvisoryLockMany = `-- name: TryAdvisoryLockMany :one
+WITH keys AS (
+    SELECT UNNEST($1::BIGINT[]) AS key
+), ordered_keys AS (
+    SELECT key
+    FROM keys
+    ORDER BY key
+), lock_results AS (
+    SELECT key, pg_try_advisory_xact_lock(key) AS acquired
+    FROM ordered_keys
+)
+
+SELECT bool_and(acquired) AS all_acquired
+FROM lock_results
+`
+
+func (q *Queries) TryAdvisoryLockMany(ctx context.Context, db DBTX, keys []int64) (bool, error) {
+	row := db.QueryRow(ctx, tryAdvisoryLockMany, keys)
+	var all_acquired bool
+	err := row.Scan(&all_acquired)
+	return all_acquired, err
 }

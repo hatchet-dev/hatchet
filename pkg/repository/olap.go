@@ -1704,8 +1704,14 @@ func (r *OLAPRepositoryImpl) acquireAdvisoryLocksForWorkflowRuns(ctx context.Con
 
 	slices.Sort(keys)
 
-	if err := r.queries.AdvisoryLockMany(ctx, tx, keys); err != nil {
+	allLocksAcquired, err := r.queries.TryAdvisoryLockMany(ctx, tx, keys)
+
+	if err != nil {
 		return fmt.Errorf("failed to acquire advisory locks for workflow run: %w", err)
+	}
+
+	if !allLocksAcquired {
+		return fmt.Errorf("could not acquire all advisory locks for workflow runs, retrying")
 	}
 
 	return nil
