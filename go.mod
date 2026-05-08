@@ -1,6 +1,6 @@
 module github.com/hatchet-dev/hatchet
 
-go 1.25.9
+go 1.26
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
@@ -42,7 +42,6 @@ require (
 	github.com/pingcap/errors v0.11.4
 	github.com/posthog/posthog-go v1.12.1
 	github.com/pressly/goose/v3 v3.27.0
-	github.com/sashabaranov/go-openai v1.41.2
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
