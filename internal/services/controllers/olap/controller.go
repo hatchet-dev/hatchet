@@ -832,7 +832,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]*uuid.UUID, 0)
 	var spanEvents []engineSpanEvent
-	msgsForOpt := make([]*tasktypes.CreateMonitoringEventPayload, 0)
+	workflowRunIdToMsgs := make(map[uuid.UUID][]*tasktypes.CreateMonitoringEventPayload)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -851,7 +851,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
 		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
-		msgsForOpt = append(msgsForOpt, msg)
+		workflowRunIdToMsgs[taskMeta.WorkflowRunID] = append(workflowRunIdToMsgs[taskMeta.WorkflowRunID], msg)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -987,14 +987,25 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
 
-	for optIdx, runId := range workflowRunIDs {
+	for _, runId := range workflowRunIDs {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[runId]; notAcquired {
-			msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *msgsForOpt[optIdx])
-			if err != nil {
-				return err
+			incomingMsgs, ok := workflowRunIdToMsgs[runId]
+
+			if !ok {
+				tc.l.Error().Ctx(ctx).Msgf("could not find incoming messages for workflow run id %s", runId)
+				continue
 			}
-			if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
-				return err
+
+			for _, incomingMsg := range incomingMsgs {
+				msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *incomingMsg)
+				if err != nil {
+					tc.l.Error().Ctx(ctx).Err(err).Msgf("could not create message for workflow run id %s", runId)
+					continue
+				}
+
+				if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+					return err
+				}
 			}
 		}
 	}
