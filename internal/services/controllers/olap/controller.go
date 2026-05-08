@@ -985,7 +985,14 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
-	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
+	var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
+	for i, runId := range workflowRunIDs {
+		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[runId]; !notAcquired {
+			spanEventsForSuccessfullyLockedRuns = append(spanEventsForSuccessfullyLockedRuns, spanEvents[i])
+		}
+	}
+
+	tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
 
 	for _, runId := range workflowRunIDs {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[runId]; notAcquired {
