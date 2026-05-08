@@ -158,11 +158,12 @@ export function UserUniverseProvider({
       }
       await api.userUpdateLogout();
     },
-    onSuccess: () => {
+    onError: handleApiError,
+    onSettled: () => {
+      // always clear on logout attempt, even if the request fails
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
-    onError: handleApiError,
   });
 
   const get = useCallback(

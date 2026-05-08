@@ -128,7 +128,8 @@ function AuthenticatedInner() {
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
-    onSuccess: () => {
+    onSettled: () => {
+      // always clear on logout attempt, even if the request fails
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },

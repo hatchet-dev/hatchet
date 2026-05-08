@@ -3,12 +3,14 @@
 package cookie_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hatchet-dev/hatchet/internal/testutils"
@@ -33,6 +35,64 @@ func TestSessionStoreSave(t *testing.T) {
 		assert.Equal(t, "/", httpCookie.Path, "path is index")
 		assert.Equal(t, true, httpCookie.Secure, "cookie is secure")
 		assert.Equal(t, "hatchet.run", httpCookie.Domain, "domain is hatchet.run")
+
+		return nil
+	})
+}
+
+func TestSessionStoreLogoutClearsCookieWhenSessionRowMissing(t *testing.T) {
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
+		const cookieName = "hatchet"
+
+		ss := newSessionStore(t, conf, cookieName)
+
+		req, err := http.NewRequest("GET", "https://hatchet.run", nil)
+		if err != nil {
+			return err
+		}
+
+		session, err := ss.Get(req, cookieName)
+		if err != nil {
+			return err
+		}
+
+		session.Values["authenticated"] = true
+		session.Values["user_id"] = uuid.New().String()
+
+		rr := httptest.NewRecorder()
+		if err := ss.Save(req, rr, session); err != nil {
+			return err
+		}
+
+		sessID := session.ID
+		_, err = conf.V1.UserSession().Delete(context.Background(), uuid.MustParse(sessID))
+		if err != nil {
+			return err
+		}
+
+		req2, err := http.NewRequest("GET", "https://hatchet.run", nil)
+		if err != nil {
+			return err
+		}
+
+		req2.AddCookie(rr.Result().Cookies()[0])
+
+		session2, err := ss.Get(req2, cookieName)
+		if err != nil {
+			return err
+		}
+
+		session2.Values = make(map[interface{}]interface{})
+		session2.Values["authenticated"] = false
+		session2.Options.MaxAge = -1
+
+		rr2 := httptest.NewRecorder()
+		if err := ss.Save(req2, rr2, session2); err != nil {
+			return err
+		}
+
+		setCookie := rr2.Result().Header.Get("Set-Cookie")
+		assert.Contains(t, setCookie, "Max-Age=0")
 
 		return nil
 	})
