@@ -12,7 +12,7 @@ durableSleep.durableTask({
   fn: async (_, ctx) => {
     ctx.logger.info('sleeping for 5s');
     const sleepRes = await ctx.sleepFor('5s');
-    ctx.logger.info('done sleeping for 5s', sleepRes);
+    ctx.logger.info('done sleeping for 5s', { sleepRes });
 
     return {
       Value: 'done',

@@ -21,7 +21,7 @@ failureWorkflow.onFailure({
   name: 'on_failure',
   fn: async (_input, ctx) => {
     ctx.logger.info(`onFailure for run: ${ctx.workflowRunId()}`);
-    ctx.logger.info('upstream errors:', ctx.errors());
+    ctx.logger.info('upstream errors', { errors: ctx.errors() });
 
     return {
       status: 'success',

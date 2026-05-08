@@ -75,7 +75,7 @@ upper.task({
 lowerWithFilter.task({
   name: 'lowerWithFilter',
   fn: (input, ctx) => {
-    ctx.logger.info('filterPayload', ctx.filterPayload());
+    ctx.logger.info('filterPayload', { filterPayload: ctx.filterPayload() });
   },
 });
 // !!

@@ -10,7 +10,7 @@ export const durableEvent = hatchet.durableTask({
   fn: async (_, ctx) => {
     const res = await ctx.waitForEvent(EVENT_KEY);
 
-    ctx.logger.info('res', res);
+    ctx.logger.info('res', { res });
 
     return {
       Value: 'done',
@@ -27,7 +27,7 @@ export const durableEventWithFilter = hatchet.durableTask({
     const res = await ctx.waitForEvent(EVENT_KEY, "input.userId == '1234'");
     // !!
 
-    ctx.logger.info('res', res);
+    ctx.logger.info('res', { res });
 
     return {
       Value: 'done',
@@ -43,7 +43,7 @@ export const durableEventWithLookback = hatchet.durableTask({
   fn: async (_, ctx) => {
     const res = await ctx.waitForEvent(EVENT_KEY, undefined, undefined, SCOPE, '1m');
 
-    ctx.logger.info('res', res);
+    ctx.logger.info('res', { res });
 
     return {
       Value: 'done',

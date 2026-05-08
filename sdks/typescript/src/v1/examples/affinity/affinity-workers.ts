@@ -18,7 +18,7 @@ workflow.task({
       results.push(result);
     }
     ctx.logger.info('Spawned 50 child workflows');
-    ctx.logger.info('Results:', await Promise.all(results));
+    ctx.logger.info('Results', { results });
 
     return { step1: 'step1 results!' };
   },
