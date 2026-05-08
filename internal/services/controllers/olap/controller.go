@@ -990,6 +990,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
 		var remainingOpts []sqlcv1.CreateTaskEventsOLAPParams
 
+		justProcessed := make(map[uuid.UUID]bool)
+
 		for ix, msg := range msgs {
 			taskMeta := taskIdsToMetas[msg.TaskId]
 
@@ -1009,8 +1011,12 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 				if ok {
 					spanEventsForSuccessfullyLockedRuns = append(spanEventsForSuccessfullyLockedRuns, spanEvent)
 				}
-				processedRunIDs[taskMeta.WorkflowRunID] = true
+				justProcessed[taskMeta.WorkflowRunID] = true
 			}
+		}
+
+		for runID := range justProcessed {
+			processedRunIDs[runID] = true
 		}
 
 		for _, opt := range opts {
