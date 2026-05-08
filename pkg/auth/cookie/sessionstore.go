@@ -155,17 +155,15 @@ func (store *UserSessionStore) GetName() string {
 
 // ClearingCookie returns an http.Cookie that expires the named session cookie in the browser.
 // Use when the session cannot be loaded but the client may still hold a stale cookie.
+//
+// The cookie is built via sessions.NewCookie with a copy of the store's Options and
+// MaxAge=-1 so that both MaxAge and Expires (set to a past time by sessions.NewCookie)
+// are populated. Some clients ignore MaxAge and rely solely on Expires for deletion.
 func (store *UserSessionStore) ClearingCookie(name string) http.Cookie {
-	return http.Cookie{
-		Name:     name,
-		Value:    "",
-		Path:     store.options.Path,
-		Domain:   store.options.Domain,
-		MaxAge:   -1,
-		Secure:   store.options.Secure,
-		HttpOnly: store.options.HttpOnly,
-		SameSite: store.options.SameSite,
-	}
+	opts := *store.options
+	opts.MaxAge = -1
+
+	return *sessions.NewCookie(name, "", &opts)
 }
 
 func (store *UserSessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
