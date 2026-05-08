@@ -831,10 +831,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]*uuid.UUID, 0)
-	var spanEvents []engineSpanEvent
-	workflowRunIdToMsgs := make(map[uuid.UUID][]*tasktypes.CreateMonitoringEventPayload)
+	msgIxToSpanEvent := make(map[int]engineSpanEvent)
 
-	for _, msg := range msgs {
+	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
 		if taskMeta == nil {
@@ -851,7 +850,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
 		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
-		workflowRunIdToMsgs[taskMeta.WorkflowRunID] = append(workflowRunIdToMsgs[taskMeta.WorkflowRunID], msg)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -861,7 +859,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		externalId := uuid.New()
 		eventExternalIds = append(eventExternalIds, &externalId)
 
-		spanEvents = append(spanEvents, engineSpanEvent{
+		msgIxToSpanEvent[ix] = engineSpanEvent{
 			taskID:             msg.TaskId,
 			insertedAt:         taskMeta.InsertedAt.Time,
 			taskInsertedAt:     taskMeta.InsertedAt.Time,
@@ -878,7 +876,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			workflowID:         taskMeta.WorkflowID,
 			workflowVersionID:  taskMeta.WorkflowVersionID,
 			stepID:             taskMeta.StepID,
-		})
+		}
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -986,34 +984,34 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
-	for i, runId := range workflowRunIDs {
-		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[runId]; !notAcquired {
-			spanEventsForSuccessfullyLockedRuns = append(spanEventsForSuccessfullyLockedRuns, spanEvents[i])
+	var toRequeue []*tasktypes.CreateMonitoringEventPayload
+
+	for ix, msg := range msgs {
+		taskMeta := taskIdsToMetas[msg.TaskId]
+
+		_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
+
+		if lockNotAcquired {
+			toRequeue = append(toRequeue, msg)
+		} else {
+			spanEvent := msgIxToSpanEvent[ix]
+			spanEventsForSuccessfullyLockedRuns = append(spanEventsForSuccessfullyLockedRuns, spanEvent)
 		}
 	}
 
-	tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
+	if len(spanEventsForSuccessfullyLockedRuns) > 0 {
+		tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
+	}
 
-	for _, runId := range workflowRunIDs {
-		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[runId]; notAcquired {
-			incomingMsgs, ok := workflowRunIdToMsgs[runId]
+	for _, incomingMsg := range toRequeue {
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *incomingMsg)
+		if err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not create message for workflow run id %s", incomingMsg.TaskId)
+			continue
+		}
 
-			if !ok {
-				tc.l.Error().Ctx(ctx).Msgf("could not find incoming messages for workflow run id %s", runId)
-				continue
-			}
-
-			for _, incomingMsg := range incomingMsgs {
-				msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *incomingMsg)
-				if err != nil {
-					tc.l.Error().Ctx(ctx).Err(err).Msgf("could not create message for workflow run id %s", runId)
-					continue
-				}
-
-				if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
-					return err
-				}
-			}
+		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+			return err
 		}
 	}
 
@@ -1025,6 +1023,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]*uuid.UUID)
 
 	for _, opt := range opts {
+		taskMeta := taskIdsToMetas[opt.TaskID]
+		_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
+
+		if lockNotAcquired {
+			continue
+		}
+
 		// generating a dummy id + inserted at to use for creating the external keys for the task events
 		// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
 		// actually need those for anything once the keys are created.
