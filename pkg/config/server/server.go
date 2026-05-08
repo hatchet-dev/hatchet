@@ -157,6 +157,9 @@ type OLAPStatusUpdateConfigFile struct {
 
 	// TaskBatchSizeLimit is the limit for how many task status updates to process in a single batch update
 	TaskBatchSizeLimit int `mapstructure:"taskBatchSizeLimit" json:"taskBatchSizeLimit,omitempty" default:"1000"`
+
+	// MQQos is the prefetch count (QOS) for the OLAP controller's message queue consumer
+	MQQos int `mapstructure:"mqQos" json:"mqQos,omitempty" default:"200"`
 }
 
 // General server runtime options
@@ -994,6 +997,7 @@ func BindAllEnv(v *viper.Viper) {
 	// OLAP status update options
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
+	_ = v.BindEnv("statusUpdates.mqQos", "SERVER_OLAP_STATUS_UPDATE_MQ_QOS")
 
 	// exchange token options
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")
