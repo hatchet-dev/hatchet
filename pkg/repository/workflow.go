@@ -229,12 +229,18 @@ type WorkflowRepository interface {
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
-	// PauseWorkflow pauses a workflow, sweeping any pending queue items into the paused queue
-	// and cancelling any in-flight tasks.
-	PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.MovePausedWorkflowQueueItemsRow, error)
+	// MarkWorkflowPaused flips the workflow's is_paused flag and evicts the cache so
+	// trigger paths immediately see the updated state. Queue item migration is handled
+	// separately by MovePausedWorkflowQueueItems / RequeuePausedWorkflowQueueItems.
+	MarkWorkflowPaused(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, isPaused bool) (*sqlcv1.Workflow, error)
 
-	// UnpauseWorkflow unpauses a workflow, moving all paused queue items back to the main queue.
-	UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error)
+	// MovePausedWorkflowQueueItems moves any pending queue items for the workflow into
+	// the paused DLQ. Intended to run asynchronously after MarkWorkflowPaused.
+	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.MovePausedWorkflowQueueItemsRow, error)
+
+	// RequeuePausedWorkflowQueueItems moves items from the paused DLQ back to the main queue.
+	// Intended to run asynchronously after MarkWorkflowPaused with isPaused=false.
+	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error)
 
 	UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error)
 }
@@ -1266,18 +1272,29 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	return versions[0], nil
 }
 
-func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.MovePausedWorkflowQueueItemsRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "pause-workflow")
+func (r *workflowRepository) MarkWorkflowPaused(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, isPaused bool) (*sqlcv1.Workflow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "mark-workflow-paused")
 	defer span.End()
 
 	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, sqlcv1.UpdateWorkflowParams{
 		ID:       workflowId,
-		IsPaused: sqlchelpers.BoolFromBoolean(true),
+		IsPaused: sqlchelpers.BoolFromBoolean(isPaused),
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to update workflow isPaused: %w", err)
+		return nil, fmt.Errorf("failed to update workflow isPaused: %w", err)
 	}
+
+	// evict cache so trigger paths immediately see the updated isPaused state
+	cacheKey := fmt.Sprintf("%s:%s", tenantId, workflow.Name)
+	r.tenantIdWorkflowNameCache.Remove(cacheKey)
+
+	return workflow, nil
+}
+
+func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.MovePausedWorkflowQueueItemsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "move-paused-workflow-queue-items")
+	defer span.End()
 
 	movedItems, err := r.queries.MovePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.MovePausedWorkflowQueueItemsParams{
 		Workflowid: workflowId,
@@ -1285,28 +1302,15 @@ func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UU
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to move queue items to paused DLQ: %w", err)
+		return nil, fmt.Errorf("failed to move queue items to paused DLQ: %w", err)
 	}
 
-	// evict cache so trigger paths immediately see the updated isPaused state
-	cacheKey := fmt.Sprintf("%s:%s", tenantId, workflow.Name)
-	r.tenantIdWorkflowNameCache.Remove(cacheKey)
-
-	return workflow, movedItems, nil
+	return movedItems, nil
 }
 
-func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, []*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "unpause-workflow")
+func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
 	defer span.End()
-
-	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, sqlcv1.UpdateWorkflowParams{
-		ID:       workflowId,
-		IsPaused: sqlchelpers.BoolFromBoolean(false),
-	})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to update workflow isPaused: %w", err)
-	}
 
 	requeuedItems, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
 		Workflowid: workflowId,
@@ -1314,14 +1318,10 @@ func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, tenantId uuid.
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to requeue items from paused DLQ: %w", err)
+		return nil, fmt.Errorf("failed to requeue items from paused DLQ: %w", err)
 	}
 
-	// evict cache so trigger paths immediately see the updated isPaused state
-	cacheKey := fmt.Sprintf("%s:%s", tenantId, workflow.Name)
-	r.tenantIdWorkflowNameCache.Remove(cacheKey)
-
-	return workflow, requeuedItems, nil
+	return requeuedItems, nil
 }
 
 func (r *workflowRepository) UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error) {

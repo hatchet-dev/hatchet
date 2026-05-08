@@ -10,17 +10,17 @@ import (
 )
 
 type WorkflowService struct {
-	config      *server.ServerConfig
-	proxyCancel *proxy.Proxy[admincontracts.CancelTasksRequest, admincontracts.CancelTasksResponse]
+	config     *server.ServerConfig
+	proxyPause *proxy.Proxy[admincontracts.UpdateWorkflowPauseRequest, admincontracts.UpdateWorkflowPauseResponse]
 }
 
 func NewWorkflowService(config *server.ServerConfig) *WorkflowService {
-	proxyCancel := proxy.NewProxy(config, func(ctx context.Context, cli *client.GRPCClient, in *admincontracts.CancelTasksRequest) (*admincontracts.CancelTasksResponse, error) {
-		return cli.Admin().CancelTasks(ctx, in)
+	proxyPause := proxy.NewProxy(config, func(ctx context.Context, cli *client.GRPCClient, in *admincontracts.UpdateWorkflowPauseRequest) (*admincontracts.UpdateWorkflowPauseResponse, error) {
+		return cli.Admin().UpdateWorkflowPause(ctx, in)
 	})
 
 	return &WorkflowService{
-		config:      config,
-		proxyCancel: proxyCancel,
+		config:     config,
+		proxyPause: proxyPause,
 	}
 }
