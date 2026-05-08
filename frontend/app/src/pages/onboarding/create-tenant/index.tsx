@@ -20,7 +20,7 @@ export default function CreateTenant() {
 
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },

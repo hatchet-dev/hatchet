@@ -32,7 +32,7 @@ export default function CreateOrganization() {
 
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
