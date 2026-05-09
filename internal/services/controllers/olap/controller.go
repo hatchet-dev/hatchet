@@ -557,6 +557,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 
 		createTaskOpts = failedOpts
 		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
+		time.Sleep(1 * time.Millisecond)
 	}
 
 	span.SetAttributes(
@@ -638,6 +639,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 		createDAGOpts = failedOpts
 		tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
+		time.Sleep(1 * time.Millisecond)
 	}
 
 	span.SetAttributes(
@@ -1068,6 +1070,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		if len(spanEventsForSuccessfullyLockedRuns) > 0 {
 			tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
 		}
+
+		time.Sleep(1 * time.Millisecond)
 	}
 
 	span.SetAttributes(
