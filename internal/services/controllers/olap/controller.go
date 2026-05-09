@@ -525,13 +525,13 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 
 	attempts := 1
 	for {
+		if len(createTaskOpts) == 0 {
+			break
+		}
+
 		if attempts >= 10 {
 			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after 10 attempts, republishing to MQ", len(createTaskOpts))
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
-		}
-
-		if len(createTaskOpts) == 0 {
-			break
 		}
 
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
@@ -615,13 +615,13 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 	attempts := 1
 	for {
+		if len(createDAGOpts) == 0 {
+			break
+		}
+
 		if attempts >= 10 {
 			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after 10 attempts, republishing to MQ", len(createDAGOpts))
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
-		}
-
-		if len(createDAGOpts) == 0 {
-			break
 		}
 
 		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
@@ -1009,13 +1009,13 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	attempts := 1
 	for {
+		if len(opts) == 0 {
+			break
+		}
+
 		if attempts >= 10 {
 			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d monitoring events after 10 attempts, republishing to MQ", len(opts))
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
-		}
-
-		if len(opts) == 0 {
-			break
 		}
 
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
@@ -1117,8 +1117,10 @@ func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId
 func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, tenantId uuid.UUID, opts []sqlcv1.CreateTaskEventsOLAPParams, externalIdToMsg map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload) error {
 	for _, opt := range opts {
 		if opt.ExternalID == nil {
+			tc.l.Error().Ctx(ctx).Msgf("cannot republish monitoring event for task event with nil external ID, task ID: %d", opt.TaskID)
 			continue
 		}
+
 		payload, ok := externalIdToMsg[*opt.ExternalID]
 		if !ok {
 			continue
