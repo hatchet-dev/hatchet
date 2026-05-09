@@ -523,21 +523,19 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
-	attempts := 1
-	for {
-		if len(createTaskOpts) == 0 {
-			break
-		}
-
+	attempts := 0
+	for len(createTaskOpts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after 10 attempts, republishing to MQ", len(createTaskOpts))
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after %d attempts, republishing to MQ", len(createTaskOpts), attempts)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
+
+		attempts++
 
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Msgf("failed to create tasks, republishing %d tasks: %v", len(createTaskOpts), err)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d tasks on attempt %d, republishing to MQ", len(createTaskOpts), attempts)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
@@ -559,7 +557,6 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 
 		createTaskOpts = failedOpts
 		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
-		attempts++
 	}
 
 	span.SetAttributes(
@@ -613,20 +610,18 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
 	}
 
-	attempts := 1
-	for {
-		if len(createDAGOpts) == 0 {
-			break
-		}
-
+	attempts := 0
+	for len(createDAGOpts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after 10 attempts, republishing to MQ", len(createDAGOpts))
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after %d attempts, republishing to MQ", len(createDAGOpts), attempts)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
+		attempts++
+
 		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Msgf("failed to create DAGs, republishing %d DAGs: %v", len(createDAGOpts), err)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d DAGs on attempt %d, republishing to MQ", len(createDAGOpts), attempts)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
@@ -643,7 +638,6 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 		createDAGOpts = failedOpts
 		tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
-		attempts++
 	}
 
 	span.SetAttributes(
@@ -1007,27 +1001,24 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	processedRunIDs := make(map[uuid.UUID]bool)
 
-	attempts := 1
-	for {
-		if len(opts) == 0 {
-			break
-		}
-
+	attempts := 0
+	for len(opts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d monitoring events after 10 attempts, republishing to MQ", len(opts))
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d monitoring events after %d attempts, republishing to MQ", len(opts), attempts)
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
+
+		attempts++
 
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Msgf("failed to create task events, republishing %d events: %v", len(opts), err)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d task events on attempt %d, republishing to MQ", len(opts), attempts)
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
 
 		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created monitoring events")
-			return err
+			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created monitoring events, continuing to process remaining events")
 		}
 
 		var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
@@ -1077,8 +1068,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		if len(spanEventsForSuccessfullyLockedRuns) > 0 {
 			tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
 		}
-
-		attempts++
 	}
 
 	span.SetAttributes(
