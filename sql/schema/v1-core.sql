@@ -408,7 +408,7 @@ CREATE INDEX v1_queue_item_list_idx ON v1_queue_item (
     id ASC
 );
 
-CREATE INDEX v1_queue_item_task_idx ON v1_queue_item (
+CREATE UNIQUE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
     task_inserted_at ASC,
     retry_count ASC

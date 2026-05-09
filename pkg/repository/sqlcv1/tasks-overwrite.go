@@ -860,13 +860,6 @@ WITH input AS (
         AND r.evicted_at IS NOT NULL
     ORDER BY r.task_id, r.task_inserted_at, r.retry_count
     FOR UPDATE
-), cleared_eviction AS (
-    UPDATE v1_task_runtime r
-    SET evicted_at = NULL
-    FROM evicted_runtimes er
-    WHERE r.task_id = er.task_id
-        AND r.task_inserted_at = er.task_inserted_at
-        AND r.retry_count = er.retry_count
 ), selected_tasks AS (
     SELECT
         t.*
@@ -887,6 +880,7 @@ WITH input AS (
         t.step_timeout, 4, t.sticky, t.desired_worker_id, t.retry_count, t.desired_worker_label
     FROM
         selected_tasks t
+	ON CONFLICT DO NOTHING
     RETURNING task_id, task_inserted_at
 )
 SELECT
