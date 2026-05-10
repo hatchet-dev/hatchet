@@ -132,7 +132,7 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	}
 }
 
-func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, props ...analytics.Properties) {
+func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, props ...analytics.Property) {
 	tenantID := analytics.TenantIDFromContext(ctx)
 	tokenID := analytics.TokenIDFromContext(ctx)
 
@@ -142,16 +142,22 @@ func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resourc
 	}
 
 	merged := make(analytics.Properties)
-	if len(props) > 0 && props[0] != nil {
-		for k, v := range props[0] {
-			merged[k] = v
+	var increment int64 = 1
+	for _, prop := range props {
+		switch p := prop.(type) {
+		case analytics.Properties:
+			for k, v := range p {
+				merged[k] = v
+			}
+		case analytics.Increment:
+			increment = int64(p)
 		}
 	}
 	if source := analytics.SourceFromContext(ctx); source != "" {
 		merged["source"] = string(source)
 	}
 
-	p.aggregator.Count(resource, action, tid, tokenID, 1, merged)
+	p.aggregator.Count(resource, action, tid, tokenID, increment, merged)
 }
 
 func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties analytics.Properties) {

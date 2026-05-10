@@ -56,6 +56,16 @@ const (
 
 type Properties map[string]interface{}
 
+type Property interface {
+	private()
+}
+
+func (Properties) private() {}
+
+type Increment int
+
+func (Increment) private() {}
+
 type Source string
 
 const (
@@ -79,7 +89,7 @@ const (
 
 type Analytics interface {
 	Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties Properties)
-	Count(ctx context.Context, resource Resource, action Action, props ...Properties)
+	Count(ctx context.Context, resource Resource, action Action, props ...Property)
 	Identify(userId uuid.UUID, properties Properties)
 	Tenant(tenantId uuid.UUID, data Properties)
 	Group(groupType string, groupKey string, data Properties)
@@ -166,7 +176,7 @@ type NoOpAnalytics struct{}
 func (a NoOpAnalytics) Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties Properties) {
 }
 
-func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, props ...Properties) {
+func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, props ...Property) {
 }
 
 func (a NoOpAnalytics) Identify(userId uuid.UUID, properties Properties) {}
