@@ -638,7 +638,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 	shouldTasksNotify := make(map[int64]bool)
-	reasons := make(map[int64]string)
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.TaskIdInsertedAtRetryCount{
@@ -648,13 +647,9 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		})
 
 		shouldTasksNotify[msg.TaskId] = msg.ShouldNotify
-
-		if msg.EventMessage != "" {
-			reasons[msg.TaskId] = msg.EventMessage
-		}
 	}
 
-	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts, reasons)
+	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		err = fmt.Errorf("could not cancel tasks: %w", err)
