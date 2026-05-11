@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -559,7 +560,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
 
 		if len(failedOpts) > 0 {
-			time.Sleep(1 * time.Millisecond)
+			tc.sleepWithBackoff(attempts)
 		}
 	}
 
@@ -568,6 +569,11 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	)
 
 	return nil
+}
+
+func (oc *OLAPControllerImpl) sleepWithBackoff(attempt int) {
+	backoffFactor := math.Exp2(float64(attempt))
+	time.Sleep(time.Duration(backoffFactor) * time.Millisecond)
 }
 
 func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) {
@@ -644,7 +650,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
 
 		if len(failedOpts) > 0 {
-			time.Sleep(1 * time.Millisecond)
+			tc.sleepWithBackoff(attempts)
 		}
 	}
 
@@ -1078,7 +1084,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 
 		if len(remainingOpts) > 0 {
-			time.Sleep(1 * time.Millisecond)
+			tc.sleepWithBackoff(attempts)
 		}
 	}
 
