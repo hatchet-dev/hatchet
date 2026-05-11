@@ -25,7 +25,7 @@ WITH inputs AS (
     FROM v1_payloads_olap_cutover_job_offset
     WHERE lease_process_id != $1::UUID
 ), to_insert AS (
-    SELECT *
+    SELECT key, lease_process_id, lease_expires_at, last_external_id
     FROM inputs
     -- if a lease is held by another process, we shouldn't try to insert a new row regardless
     -- of which key we're trying to acquire a lease on

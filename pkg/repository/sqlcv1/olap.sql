@@ -2272,7 +2272,7 @@ DO UPDATE SET
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = @leaseProcessId::UUID
-RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at, final_source_table_row_count, final_target_table_row_count, final_row_count_diff
+RETURNING *
 ;
 
 -- name: MarkOLAPCutoverJobAsCompleted :exec
