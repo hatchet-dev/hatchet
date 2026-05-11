@@ -4,6 +4,8 @@ describe('ConfigLoader', () => {
   beforeEach(() => {
     // Clear env vars that might leak from other tests
     delete process.env.HATCHET_CLIENT_TLS_STRATEGY;
+    delete process.env.HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH;
+    delete process.env.HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH;
 
     process.env.HATCHET_CLIENT_TOKEN =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef';
@@ -14,6 +16,8 @@ describe('ConfigLoader', () => {
     process.env.HATCHET_CLIENT_TLS_SERVER_NAME = 'TLS_SERVER_NAME';
     process.env.HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED = 'true';
     process.env.HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT = '8001';
+    process.env.HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH = String(8 * 1024 * 1024);
+    process.env.HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH = String(16 * 1024 * 1024);
   });
 
   it('should load from environment variables', () => {
@@ -41,6 +45,8 @@ describe('ConfigLoader', () => {
         excludedAttributes: [],
         includeTaskNameInSpanName: false,
       },
+      grpc_max_recv_message_length: 8 * 1024 * 1024,
+      grpc_max_send_message_length: 16 * 1024 * 1024,
     });
   });
 
@@ -97,6 +103,8 @@ describe('ConfigLoader', () => {
         excludedAttributes: ['additional_metadata'],
         includeTaskNameInSpanName: true,
       },
+      grpc_max_recv_message_length: 8 * 1024 * 1024,
+      grpc_max_send_message_length: 16 * 1024 * 1024,
     });
   });
 
