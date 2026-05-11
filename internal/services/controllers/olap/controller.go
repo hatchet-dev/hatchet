@@ -559,7 +559,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = failedOpts
 		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
 
-		if len(failedOpts) > 0 {
+		if len(failedOpts) > 0 && attempts < 10 {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
@@ -649,7 +649,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		createDAGOpts = failedOpts
 		tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
 
-		if len(failedOpts) > 0 {
+		if len(failedOpts) > 0 && attempts < 10 {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
@@ -1083,7 +1083,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
 		}
 
-		if len(remainingOpts) > 0 {
+		if len(remainingOpts) > 0 && attempts < 10 {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
