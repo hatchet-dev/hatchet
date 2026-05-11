@@ -532,7 +532,6 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finali
 			case sqlcv1.V1TaskEventTypeFAILED:
 				res.Error = &event.ErrorMessage
 			case sqlcv1.V1TaskEventTypeCANCELLED:
-				//FIXME: this should be more specific for schedule timeouts
 				res.Error = &event.ErrorMessage
 			}
 
