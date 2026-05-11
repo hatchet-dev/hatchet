@@ -1924,7 +1924,7 @@ BEGIN
             SELECT tenant_id, id, inserted_at, external_id, type, location,
                 external_location_key, inline_content, updated_at
             FROM %I
-            WHERE external_id > $1::UUID
+            WHERE external_id >= $1::UUID
             ORDER BY external_id
 
             -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
@@ -1932,7 +1932,7 @@ BEGIN
             -- them. By multiplying by two to create a "candidate" set, we significantly reduce the chance of us missing
             -- rows in this way, since if a row is inserted before one of our last rows, we will still have
             -- the next row after it in the candidate set.
-            LIMIT $9 * 2
+            LIMIT $3 * 2
         )
 
         SELECT tenant_id, id, inserted_at, external_id, type, location,

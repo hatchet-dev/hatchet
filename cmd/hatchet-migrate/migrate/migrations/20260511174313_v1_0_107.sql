@@ -53,7 +53,7 @@ BEGIN
             SELECT tenant_id, id, inserted_at, external_id, type, location,
                 external_location_key, inline_content, updated_at
             FROM %I
-            WHERE external_id > $1::UUID
+            WHERE external_id >= $1::UUID
             ORDER BY external_id
 
             -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
