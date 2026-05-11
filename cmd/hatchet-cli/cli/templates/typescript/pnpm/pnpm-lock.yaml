@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  qs: '>=6.14.2'
-
 importers:
 
   .:

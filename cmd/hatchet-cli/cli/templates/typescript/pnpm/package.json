@@ -19,8 +19,9 @@
     "@hatchet-dev/typescript-sdk": "1.21.2"
   },
   "pnpm": {
-    "overrides": {
-      "qs": ">=6.14.2"
-    }
+    "onlyBuiltDependencies": [
+      "@hatchet-dev/typescript-sdk",
+      "protobufjs"
+    ]
   }
 }
