@@ -67,14 +67,8 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_payloads_for_offload(
         @partitionDate::DATE,
-        @lastTenantId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ,
-        @lastId::BIGINT,
-        @lastType::v1_payload_type,
-        @nextTenantId::UUID,
-        @nextInsertedAt::TIMESTAMPTZ,
-        @nextId::BIGINT,
-        @nextType::v1_payload_type,
+        @lastExternalId::UUID,
+        @nextExternalId::UUID,
         @batchSize::INTEGER
     ) p
 )
@@ -98,22 +92,13 @@ WITH chunks AS (
         @partitionDate::DATE,
         @windowSize::INTEGER,
         @chunkSize::INTEGER,
-        @lastTenantId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ,
-        @lastId::BIGINT,
-        @lastType::v1_payload_type
+        @lastExternalId::UUID
     ) p
 )
 
 SELECT
-    lower_tenant_id::UUID,
-    lower_id::BIGINT,
-    lower_inserted_at::TIMESTAMPTZ,
-    lower_type::v1_payload_type,
-    upper_tenant_id::UUID,
-    upper_id::BIGINT,
-    upper_inserted_at::TIMESTAMPTZ,
-    upper_type::v1_payload_type
+    lower_external_id::UUID,
+    upper_external_id::UUID
 FROM chunks
 ;
 
@@ -210,10 +195,7 @@ FROM payloads
 -- name: ComputePayloadBatchSize :one
 SELECT compute_payload_batch_size(
     @partitionDate::DATE,
-    @lastTenantId::UUID,
-    @lastInsertedAt::TIMESTAMPTZ,
-    @lastId::BIGINT,
-    @lastType::v1_payload_type,
+    @lastExternalId::UUID,
     @batchSize::INTEGER
 ) AS total_size_bytes;
 
