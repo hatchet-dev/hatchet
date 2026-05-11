@@ -9,24 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-type CancelledReason string
-
-const (
-	CancelledReasonSchedulingTimeout CancelledReason = "SCHEDULING_TIMED_OUT"
-
-	CancelledReasonConcurrencyLimit CancelledReason = "CONCURRENCY_LIMIT"
-)
-
-func (r CancelledReason) UserMessage() string {
-	switch r {
-	case CancelledReasonSchedulingTimeout:
-		return "task did not start within its schedule timeout"
-	case CancelledReasonConcurrencyLimit:
-		return "task was cancelled by a concurrency strategy"
-	}
-	return ""
-}
-
 type TaskOutputEvent struct {
 	IsFailure bool `json:"is_failure"`
 
