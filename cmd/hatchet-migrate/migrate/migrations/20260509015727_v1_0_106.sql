@@ -6,8 +6,7 @@ WITH duplicate_tasks AS (
     SELECT
         task_id,
         task_inserted_at,
-        retry_count,
-        COUNT(*) AS count
+        retry_count
     FROM v1_queue_item
     GROUP BY task_id, task_inserted_at, retry_count
     HAVING COUNT(*) > 1
