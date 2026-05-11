@@ -1,21 +1,48 @@
 -- +goose Up
--- +goose NO TRANSACTION
+-- +goose StatementBegin
+LOCK TABLE v1_queue_item IN ACCESS EXCLUSIVE MODE;
 
-DROP INDEX CONCURRENTLY IF EXISTS v1_queue_item_task_idx;
+WITH duplicate_tasks AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count,
+        COUNT(*) AS count
+    FROM v1_queue_item
+    GROUP BY task_id, task_inserted_at, retry_count
+    HAVING COUNT(*) > 1
+), with_row_numbers AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY task_id, task_inserted_at, retry_count ORDER BY id) AS rn
+    FROM v1_queue_item
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM duplicate_tasks
+    )
+)
 
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS v1_queue_item_task_idx ON v1_queue_item (
+DELETE FROM v1_queue_item
+WHERE id IN (
+    SELECT id
+    FROM with_row_numbers
+    WHERE rn > 1
+);
+
+DROP INDEX v1_queue_item_task_idx;
+
+CREATE UNIQUE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
     task_inserted_at ASC,
     retry_count ASC
 );
+-- +goose StatementEnd
 
 -- +goose Down
--- +goose NO TRANSACTION
+-- +goose StatementBegin
+DROP INDEX v1_queue_item_task_idx;
 
-DROP INDEX CONCURRENTLY IF EXISTS v1_queue_item_task_idx;
-
-CREATE INDEX CONCURRENTLY IF NOT EXISTS v1_queue_item_task_idx ON v1_queue_item (
+CREATE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
     task_inserted_at ASC,
     retry_count ASC
 );
+-- +goose StatementEnd
