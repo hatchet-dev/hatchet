@@ -94,8 +94,8 @@
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/dagre": "^0.7.54",
-    "@types/node": "^20.19.39",
-    "@types/qs": "^6.15.0",
+    "@types/node": "^20.19.40",
+    "@types/qs": "^6.15.1",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.5",
     "@types/react-syntax-highlighter": "^15.5.13",
