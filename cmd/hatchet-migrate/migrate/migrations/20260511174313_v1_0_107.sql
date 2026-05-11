@@ -1,5 +1,32 @@
 -- +goose Up
 -- +goose StatementBegin
+ALTER TABLE v1_payload
+  ADD CONSTRAINT v1_payload_external_id_not_null CHECK (external_id IS NOT NULL) NOT VALID;
+
+DO $$
+DECLARE
+  batch_size INT := 10000;
+  rows_updated INT;
+BEGIN
+  LOOP
+    UPDATE v1_payload
+    SET external_id = gen_random_uuid()
+    WHERE ctid IN (
+      SELECT ctid FROM v1_payload
+      WHERE external_id IS NULL
+      LIMIT batch_size
+    );
+    GET DIAGNOSTICS rows_updated = ROW_COUNT;
+    EXIT WHEN rows_updated = 0;
+    PERFORM pg_sleep(0.1);
+  END LOOP;
+END $$;
+
+ALTER TABLE v1_payload VALIDATE CONSTRAINT v1_payload_external_id_not_null;
+
+ALTER TABLE v1_payload ALTER COLUMN external_id SET NOT NULL;
+ALTER TABLE v1_payload DROP CONSTRAINT v1_payload_external_id_not_null;
+
 ALTER TABLE v1_payload_cutover_job_offset ADD COLUMN last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID;
 
 DROP FUNCTION list_paginated_payloads_for_offload(
