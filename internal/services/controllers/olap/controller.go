@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -507,6 +507,9 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreatedTask")
+	defer span.End()
+
 	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
@@ -520,16 +523,49 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
-	result, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
-	if err != nil {
-		return err
+	attempts := 0
+	for len(createTaskOpts) > 0 {
+		if attempts >= 10 {
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after %d attempts, republishing to MQ", len(createTaskOpts), attempts)
+			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
+		}
+
+		attempts++
+
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
+
+		if err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d tasks on attempt %d, republishing to MQ", len(createTaskOpts), attempts)
+			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
+		}
+
+		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created tasks")
+			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
+		}
+
+		failedOpts := make([]*v1.V1TaskWithPayload, 0)
+		succeededOpts := make([]*v1.V1TaskWithPayload, 0)
+
+		for _, opt := range createTaskOpts {
+			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
+				failedOpts = append(failedOpts, opt)
+			} else {
+				succeededOpts = append(succeededOpts, opt)
+			}
+		}
+
+		createTaskOpts = failedOpts
+		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
+
+		if len(failedOpts) > 0 {
+			time.Sleep(1 * time.Millisecond)
+		}
 	}
 
-	if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-		return err
-	}
-
-	tc.emitStandaloneTaskRootSpans(ctx, tenantId, createTaskOpts)
+	span.SetAttributes(
+		attribute.Int("attempts", attempts),
+	)
 
 	return nil
 }
@@ -562,7 +598,11 @@ func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, t
 
 // handleCreatedDAG is responsible for flushing a created DAG to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreatedDAG")
+	defer span.End()
+
 	createDAGOpts := make([]*v1.DAGWithData, 0)
+
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
 	for _, msg := range msgs {
@@ -574,11 +614,43 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
 	}
 
-	if err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts); err != nil {
-		return err
+	attempts := 0
+	for len(createDAGOpts) > 0 {
+		if attempts >= 10 {
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after %d attempts, republishing to MQ", len(createDAGOpts), attempts)
+			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
+		}
+
+		attempts++
+
+		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
+		if err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d DAGs on attempt %d, republishing to MQ", len(createDAGOpts), attempts)
+			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
+		}
+
+		failedOpts := make([]*v1.DAGWithData, 0)
+		succeededOpts := make([]*v1.DAGWithData, 0)
+
+		for _, opt := range createDAGOpts {
+			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
+				failedOpts = append(failedOpts, opt)
+			} else {
+				succeededOpts = append(succeededOpts, opt)
+			}
+		}
+
+		createDAGOpts = failedOpts
+		tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
+
+		if len(failedOpts) > 0 {
+			time.Sleep(1 * time.Millisecond)
+		}
 	}
 
-	tc.emitWorkflowRunRootSpans(ctx, tenantId, createDAGOpts)
+	span.SetAttributes(
+		attribute.Int("attempts", attempts),
+	)
 
 	return nil
 }
@@ -754,6 +826,9 @@ func (tc *OLAPControllerImpl) emitEventSpans(ctx context.Context, tenantId uuid.
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreateMonitoringEvent")
+	defer span.End()
+
 	msgs := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
 
 	taskIdsToLookup := make([]int64, len(msgs))
@@ -780,16 +855,17 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	durableInvocationCounts := make([]int32, 0)
 	workerIds := make([]uuid.UUID, 0)
 	workflowIds := make([]uuid.UUID, 0)
-	workflowRunIDs := make([]uuid.UUID, 0)
+	eventExternalIdToWorkflowRunId := make(map[uuid.UUID]uuid.UUID)
+	externalIdToMsg := make(map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload)
 	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]*uuid.UUID, 0)
-	var spanEvents []engineSpanEvent
+	msgIxToSpanEvent := make(map[int]engineSpanEvent)
 
-	for _, msg := range msgs {
+	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
 		if taskMeta == nil {
@@ -805,7 +881,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskIds = append(taskIds, msg.TaskId)
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		workflowIds = append(workflowIds, taskMeta.WorkflowID)
-		workflowRunIDs = append(workflowRunIDs, taskMeta.WorkflowRunID)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		durableInvocationCounts = append(durableInvocationCounts, msg.DurableInvocationCount)
 		eventTypes = append(eventTypes, msg.EventType)
@@ -815,7 +890,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		externalId := uuid.New()
 		eventExternalIds = append(eventExternalIds, &externalId)
 
-		spanEvents = append(spanEvents, engineSpanEvent{
+		eventExternalIdToWorkflowRunId[externalId] = taskMeta.WorkflowRunID
+		externalIdToMsg[externalId] = msg
+
+		msgIxToSpanEvent[ix] = engineSpanEvent{
 			taskID:             msg.TaskId,
 			insertedAt:         taskMeta.InsertedAt.Time,
 			taskInsertedAt:     taskMeta.InsertedAt.Time,
@@ -832,7 +910,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			workflowID:         taskMeta.WorkflowID,
 			workflowVersionID:  taskMeta.WorkflowVersionID,
 			stepID:             taskMeta.StepID,
-		})
+		}
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -929,76 +1007,133 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	result, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, workflowRunIDs)
+	processedRunIDs := make(map[uuid.UUID]bool)
 
-	if err != nil {
-		return err
+	attempts := 0
+	for len(opts) > 0 {
+		if attempts >= 10 {
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d monitoring events after %d attempts, republishing to MQ", len(opts), attempts)
+			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
+		}
+
+		attempts++
+
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
+
+		if err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d task events on attempt %d, republishing to MQ", len(opts), attempts)
+			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
+		}
+
+		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created monitoring events, continuing to process remaining events")
+		}
+
+		var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
+		var remainingOpts []sqlcv1.CreateTaskEventsOLAPParams
+
+		justProcessed := make(map[uuid.UUID]bool)
+
+		for ix, msg := range msgs {
+			taskMeta := taskIdsToMetas[msg.TaskId]
+
+			if taskMeta == nil {
+				tc.l.Error().Ctx(ctx).Msgf("could not find task meta for task id %d", msg.TaskId)
+				continue
+			}
+
+			if processedRunIDs[taskMeta.WorkflowRunID] {
+				continue
+			}
+
+			_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
+
+			if !lockNotAcquired {
+				spanEvent, ok := msgIxToSpanEvent[ix]
+				if ok {
+					spanEventsForSuccessfullyLockedRuns = append(spanEventsForSuccessfullyLockedRuns, spanEvent)
+				}
+				justProcessed[taskMeta.WorkflowRunID] = true
+			}
+		}
+
+		for runID := range justProcessed {
+			processedRunIDs[runID] = true
+		}
+
+		for _, opt := range opts {
+			taskMeta := taskIdsToMetas[opt.TaskID]
+			if taskMeta == nil {
+				continue
+			}
+			if _, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]; lockNotAcquired {
+				remainingOpts = append(remainingOpts, opt)
+			}
+		}
+
+		opts = remainingOpts
+
+		if len(spanEventsForSuccessfullyLockedRuns) > 0 {
+			tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
+		}
+
+		if len(remainingOpts) > 0 {
+			time.Sleep(1 * time.Millisecond)
+		}
 	}
 
-	if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-		return err
+	span.SetAttributes(
+		attribute.Int("attempts", attempts),
+	)
+
+	return nil
+}
+
+func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
+	for _, task := range tasks {
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, task)
+		if err != nil {
+			return err
+		}
+		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	tc.synthesizeEngineSpans(ctx, tenantId, spanEvents)
-
-	if !tc.repo.OLAP().PayloadStore().ExternalStoreEnabled() {
-		return nil
+func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) error {
+	for _, dag := range dags {
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, dag)
+		if err != nil {
+			return err
+		}
+		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	offloadToExternalOpts := make([]v1.OffloadToExternalStoreOpts, 0)
-	idInsertedAtToExternalId := make(map[v1.IdInsertedAt]*uuid.UUID)
-
+func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, tenantId uuid.UUID, opts []sqlcv1.CreateTaskEventsOLAPParams, externalIdToMsg map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload) error {
 	for _, opt := range opts {
-		// generating a dummy id + inserted at to use for creating the external keys for the task events
-		// we do this since we don't have the id + inserted at of the events themselves on the opts, and we don't
-		// actually need those for anything once the keys are created.
-		dummyId := rand.Int63()
-		// randomly jitter the inserted at time by +/- 300ms to make collisions virtually impossible
-		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
+		if opt.ExternalID == nil {
+			tc.l.Error().Ctx(ctx).Msgf("cannot republish monitoring event for task event with nil external ID, task ID: %d", opt.TaskID)
+			continue
+		}
 
-		idInsertedAtToExternalId[v1.IdInsertedAt{
-			ID:         dummyId,
-			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-		}] = opt.ExternalID
-
-		offloadToExternalOpts = append(offloadToExternalOpts, v1.OffloadToExternalStoreOpts{
-			TenantId:   tenantId,
-			ExternalID: *opt.ExternalID,
-			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-			Payload:    opt.Output,
-		})
+		payload, ok := externalIdToMsg[*opt.ExternalID]
+		if !ok {
+			continue
+		}
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *payload)
+		if err != nil {
+			return err
+		}
+		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+			return err
+		}
 	}
-
-	if len(offloadToExternalOpts) == 0 {
-		return nil
-	}
-
-	// retrieveOptsToKey, err := tc.repo.OLAP().PayloadStore().ExternalStore().Store(ctx, offloadToExternalOpts...)
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// offloadOpts := make([]v1.OffloadPayloadOpts, 0)
-
-	// for opt, key := range retrieveOptsToKey {
-	// 	externalId := idInsertedAtToExternalId[v1.IdInsertedAt{
-	// 		ID:         opt.Id,
-	// 		InsertedAt: opt.InsertedAt,
-	// 	}]
-
-	// 	offloadOpts = append(offloadOpts, v1.OffloadPayloadOpts{
-	// 		ExternalId:          externalId,
-	// 		ExternalLocationKey: string(key),
-	// 	})
-	// }
-
-	// err = tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloadOpts)
-
-	// if err != nil {
-	// 	return err
-	// }
-
 	return nil
 }
 
