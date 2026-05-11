@@ -57,7 +57,6 @@ func TestSessionStoreLogoutClearsCookieWhenSessionRowMissing(t *testing.T) {
 		}
 
 		session.Values["authenticated"] = true
-		session.Values["user_id"] = uuid.New().String()
 
 		rr := httptest.NewRecorder()
 		if err := ss.Save(req, rr, session); err != nil {
