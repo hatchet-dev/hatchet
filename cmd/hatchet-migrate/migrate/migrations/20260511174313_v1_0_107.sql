@@ -1,5 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
+ALTER TABLE v1_payload ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 ALTER TABLE v1_payload
   ADD CONSTRAINT v1_payload_external_id_not_null CHECK (external_id IS NOT NULL) NOT VALID;
 
@@ -23,7 +24,6 @@ BEGIN
 END $$;
 
 ALTER TABLE v1_payload VALIDATE CONSTRAINT v1_payload_external_id_not_null;
-
 ALTER TABLE v1_payload ALTER COLUMN external_id SET NOT NULL;
 ALTER TABLE v1_payload DROP CONSTRAINT v1_payload_external_id_not_null;
 
@@ -822,4 +822,7 @@ BEGIN
     RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, window_size, chunk_size;
 END;
 $$;
+
+ALTER TABLE v1_payload ALTER COLUMN external_id DROP DEFAULT;
+ALTER TABLE v1_payload ALTER COLUMN external_id DROP NOT NULL;
 -- +goose StatementEnd
