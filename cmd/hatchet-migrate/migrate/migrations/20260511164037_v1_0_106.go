@@ -9,10 +9,10 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(up20260511000000, down20260511000000)
+	goose.AddMigrationNoTxContext(up20260511164037, down20260511164037)
 }
 
-func up20260511000000(ctx context.Context, db *sql.DB) error {
+func up20260511164037(ctx context.Context, db *sql.DB) error {
 	partitions, err := listLeafPartitions(ctx, db, "v1_payload", 1)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func up20260511000000(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func down20260511000000(ctx context.Context, db *sql.DB) error {
+func down20260511164037(ctx context.Context, db *sql.DB) error {
 	if _, err := db.ExecContext(ctx, "DROP INDEX IF EXISTS v1_payload_external_id_idx"); err != nil {
 		return fmt.Errorf("drop index on %s: %w", "v1_payload", err)
 	}
