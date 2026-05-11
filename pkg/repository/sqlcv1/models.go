@@ -3439,6 +3439,7 @@ type V1PayloadCutoverJobOffset struct {
 	LastInsertedAt           pgtype.Timestamptz `json:"last_inserted_at"`
 	LastID                   int64              `json:"last_id"`
 	LastType                 V1PayloadType      `json:"last_type"`
+	LastExternalID           uuid.UUID          `json:"last_external_id"`
 	FinalSourceTableRowCount pgtype.Int8        `json:"final_source_table_row_count"`
 	FinalTargetTableRowCount pgtype.Int8        `json:"final_target_table_row_count"`
 	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`

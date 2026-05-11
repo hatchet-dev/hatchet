@@ -1,5 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
+ALTER TABLE v1_payload_cutover_job_offset ADD COLUMN last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID;
+
 DROP FUNCTION list_paginated_payloads_for_offload(
     partition_date date,
     last_tenant_id uuid,
@@ -416,4 +418,6 @@ BEGIN
     RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
 END;
 $$;
+
+ALTER TABLE v1_payload_cutover_job_offset DROP COLUMN last_external_id;
 -- +goose StatementEnd

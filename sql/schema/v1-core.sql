@@ -1770,6 +1770,8 @@ CREATE TABLE v1_payload_cutover_job_offset (
     last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
     last_id BIGINT NOT NULL DEFAULT 0,
     last_type v1_payload_type NOT NULL DEFAULT 'TASK_INPUT',
+    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+
     final_source_table_row_count BIGINT,
     final_target_table_row_count BIGINT,
     final_row_count_diff BIGINT
