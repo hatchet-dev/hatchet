@@ -363,7 +363,7 @@ export default function Invites() {
 
   return (
     <div className="flex min-h-full w-full flex-1 items-start justify-center px-4 py-8 sm:items-center">
-      <div className="min-w-0 w-full max-w-full sm:max-w-[100px]">
+      <div className="min-w-0 w-full max-w-full sm:max-w-[350px]">
         <div className="mx-auto flex w-full flex-col justify-center space-y-6">
           <div className="flex flex-col space-y-2 text-center">
             <h1 className="break-words text-2xl font-semibold tracking-tight">
