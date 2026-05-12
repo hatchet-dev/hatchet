@@ -408,7 +408,7 @@ CREATE INDEX v1_queue_item_list_idx ON v1_queue_item (
     id ASC
 );
 
-CREATE INDEX v1_queue_item_task_idx ON v1_queue_item (
+CREATE UNIQUE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
     task_inserted_at ASC,
     retry_count ASC
@@ -1140,7 +1140,9 @@ BEGIN
         retry_count,
         desired_worker_label
     FROM new_table
-    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
+    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
     IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
@@ -1357,7 +1359,9 @@ BEGIN
     WHERE nt.initial_state = 'QUEUED'
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
-        AND ot.retry_count IS DISTINCT FROM nt.retry_count;
+        AND ot.retry_count IS DISTINCT FROM nt.retry_count
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1495,7 +1499,9 @@ BEGIN
         desired_worker_id,
         retry_count,
         desired_worker_label
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1636,7 +1642,9 @@ BEGIN
         desired_worker_id,
         retry_count,
         desired_worker_label
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
