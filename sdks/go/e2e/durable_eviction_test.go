@@ -95,7 +95,7 @@ func TestNonEvictableTaskNotEvicted(t *testing.T) {
 	result, err := ref.Result()
 	require.NoError(t, err)
 	var m map[string]any
-	err = result.TaskOutput("non-evictable-sleep").Into(&m)
+	err = result.TaskOutput("go-non-evictable-sleep").Into(&m)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", m["status"])
 }
@@ -150,7 +150,7 @@ func TestEvictableTaskRestoreCompletes(t *testing.T) {
 	elapsed := time.Since(start).Seconds()
 
 	var m map[string]any
-	err = result.TaskOutput("evictable-sleep").Into(&m)
+	err = result.TaskOutput("go-evictable-sleep").Into(&m)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", m["status"])
 	assert.GreaterOrEqual(t, elapsed, 15.0)
@@ -191,7 +191,7 @@ func TestEvictableWaitForEventRestore(t *testing.T) {
 	result, err := ref.Result()
 	require.NoError(t, err)
 	var m map[string]any
-	err = result.TaskOutput("evictable-wait-for-event").Into(&m)
+	err = result.TaskOutput("go-evictable-wait-for-event").Into(&m)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", m["status"])
 }
@@ -226,7 +226,7 @@ func TestEvictableChildSpawnRestoreCompletes(t *testing.T) {
 	result, err := ref.Result()
 	require.NoError(t, err)
 	var m map[string]any
-	err = result.TaskOutput("evictable-child-spawn").Into(&m)
+	err = result.TaskOutput("go-evictable-child-spawn").Into(&m)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", m["status"])
 	child, ok := m["child"].(map[string]any)
@@ -265,7 +265,7 @@ func TestMultipleEvictionCycle(t *testing.T) {
 	elapsed := time.Since(start).Seconds()
 
 	var m map[string]any
-	err = result.TaskOutput("multiple-eviction").Into(&m)
+	err = result.TaskOutput("go-multiple-eviction").Into(&m)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", m["status"])
 	assert.GreaterOrEqual(t, elapsed, 30.0)
@@ -289,7 +289,7 @@ func TestEvictionPlusReplay(t *testing.T) {
 	result, err := ref.Result()
 	require.NoError(t, err)
 	var m map[string]any
-	err = result.TaskOutput("evictable-sleep").Into(&m)
+	err = result.TaskOutput("go-evictable-sleep").Into(&m)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", m["status"])
 }
@@ -340,7 +340,7 @@ func TestRestoreIdempotency(t *testing.T) {
 	result, err := ref.Result()
 	require.NoError(t, err)
 	var m map[string]any
-	err = result.TaskOutput("evictable-sleep").Into(&m)
+	err = result.TaskOutput("go-evictable-sleep").Into(&m)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", m["status"])
 }

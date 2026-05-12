@@ -188,7 +188,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 
 	// --- Standalone durable tasks ---
 
-	testWaitForSleepTwice = client.NewStandaloneDurableTask("wait-for-sleep-twice", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]float64, error) {
+	testWaitForSleepTwice = client.NewStandaloneDurableTask("go-wait-for-sleep-twice", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]float64, error) {
 		start := time.Now()
 		if _, err := ctx.SleepFor(time.Duration(sleepTime) * time.Second); err != nil {
 			return map[string]float64{"runtime": -1.0}, nil
@@ -196,11 +196,11 @@ func registerAllWorkflows(client *hatchet.Client) {
 		return map[string]float64{"runtime": time.Since(start).Seconds()}, nil
 	})
 
-	testSpawnChildTask = client.NewStandaloneDurableTask("spawn-child-task", func(ctx hatchet.DurableContext, input DurableBulkSpawnInput) (map[string]string, error) {
+	testSpawnChildTask = client.NewStandaloneTask("go-spawn-child-task", func(ctx hatchet.Context, input DurableBulkSpawnInput) (map[string]string, error) {
 		return map[string]string{"message": fmt.Sprintf("hello from child %d", input.N)}, nil
 	})
 
-	testDurableWithSpawn = client.NewStandaloneDurableTask("durable-with-spawn",
+	testDurableWithSpawn = client.NewStandaloneDurableTask("go-durable-with-spawn",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			childResult, err := testSpawnChildTask.Run(ctx, DurableBulkSpawnInput{N: 1})
 			if err != nil {
@@ -215,7 +215,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithExecutionTimeout(10*time.Second),
 	)
 
-	testDurableWithBulkSpawn = client.NewStandaloneDurableTask("durable-with-bulk-spawn",
+	testDurableWithBulkSpawn = client.NewStandaloneDurableTask("go-durable-with-bulk-spawn",
 		func(ctx hatchet.DurableContext, input DurableBulkSpawnInput) (map[string]any, error) {
 			inputs := make([]hatchet.RunManyOpt, input.N)
 			for i := 0; i < input.N; i++ {
@@ -232,7 +232,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 					return nil, err
 				}
 				var m map[string]string
-				if err := result.TaskOutput("spawn-child-task").Into(&m); err != nil {
+				if err := result.TaskOutput("go-spawn-child-task").Into(&m); err != nil {
 					return nil, err
 				}
 				outputs[i] = m
@@ -241,7 +241,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		},
 	)
 
-	testDurableSleepEventSpawn = client.NewStandaloneDurableTask("durable-sleep-event-spawn",
+	testDurableSleepEventSpawn = client.NewStandaloneDurableTask("go-durable-sleep-event-spawn",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			start := time.Now()
 			if _, err := ctx.SleepFor(time.Duration(sleepTime) * time.Second); err != nil {
@@ -265,7 +265,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		},
 	)
 
-	testDurableNonDeterminism = client.NewStandaloneDurableTask("durable-non-determinism",
+	testDurableNonDeterminism = client.NewStandaloneDurableTask("go-durable-non-determinism",
 		func(ctx hatchet.DurableContext, input EmptyInput) (NonDeterminismOutput, error) {
 			sleepTimeSec := int(ctx.InvocationCount()) * 2
 
@@ -294,7 +294,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithExecutionTimeout(10*time.Second),
 	)
 
-	testDurableReplayReset = client.NewStandaloneDurableTask("durable-replay-reset",
+	testDurableReplayReset = client.NewStandaloneDurableTask("go-durable-replay-reset",
 		func(ctx hatchet.DurableContext, input EmptyInput) (ReplayResetResponse, error) {
 			start := time.Now()
 			if _, err := ctx.SleepFor(time.Duration(replayResetSleepTime) * time.Second); err != nil {
@@ -344,7 +344,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		},
 	)
 
-	testMemoNowCaching = client.NewStandaloneDurableTask("memo-now-caching",
+	testMemoNowCaching = client.NewStandaloneDurableTask("go-memo-now-caching",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]string, error) {
 			now, err := ctx.Now()
 			if err != nil {
@@ -354,7 +354,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		},
 	)
 
-	testDurableSpawnDAG = client.NewStandaloneDurableTask("durable-spawn-dag",
+	testDurableSpawnDAG = client.NewStandaloneDurableTask("go-durable-spawn-dag",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			sleepStart := time.Now()
 			sleepResult, err := ctx.SleepFor(1 * time.Second)
@@ -382,7 +382,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 
 	// --- Eviction test workflows ---
 
-	testEvictionChildTask = client.NewStandaloneTask("eviction-child-task",
+	testEvictionChildTask = client.NewStandaloneTask("go-eviction-child-task",
 		func(ctx hatchet.Context, input EmptyInput) (map[string]any, error) {
 			time.Sleep(time.Duration(longSleepSeconds) * time.Second)
 			return map[string]any{"child_status": "completed"}, nil
@@ -393,14 +393,14 @@ func registerAllWorkflows(client *hatchet.Client) {
 		SleepFor int `json:"sleep_for"`
 	}
 
-	testEvictionBulkChildTask = client.NewStandaloneTask("eviction-bulk-child-task",
+	testEvictionBulkChildTask = client.NewStandaloneTask("go-eviction-bulk-child-task",
 		func(ctx hatchet.Context, input BulkChildInput) (map[string]any, error) {
 			time.Sleep(time.Duration(input.SleepFor) * time.Second)
 			return map[string]any{"sleep_for": input.SleepFor, "status": "completed"}, nil
 		},
 	)
 
-	testEvictableSleep = client.NewStandaloneDurableTask("evictable-sleep",
+	testEvictableSleep = client.NewStandaloneDurableTask("go-evictable-sleep",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			if _, err := ctx.SleepFor(time.Duration(longSleepSeconds) * time.Second); err != nil {
 				return nil, err
@@ -411,7 +411,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(evictionPolicy),
 	)
 
-	testEvictableWaitForEvent = client.NewStandaloneDurableTask("evictable-wait-for-event",
+	testEvictableWaitForEvent = client.NewStandaloneDurableTask("go-evictable-wait-for-event",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			if _, err := ctx.WaitForEvent(evictionEventKey, "true"); err != nil {
 				return nil, err
@@ -422,7 +422,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(evictionPolicy),
 	)
 
-	testEvictableChildSpawn = client.NewStandaloneDurableTask("evictable-child-spawn",
+	testEvictableChildSpawn = client.NewStandaloneDurableTask("go-evictable-child-spawn",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			childResult, err := testEvictionChildTask.Run(ctx, EmptyInput{})
 			if err != nil {
@@ -438,7 +438,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(evictionPolicy),
 	)
 
-	testEvictableChildBulkSpawn = client.NewStandaloneDurableTask("evictable-child-bulk-spawn",
+	testEvictableChildBulkSpawn = client.NewStandaloneDurableTask("go-evictable-child-bulk-spawn",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			inputs := make([]hatchet.RunManyOpt, 3)
 			for i := 0; i < 3; i++ {
@@ -457,7 +457,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 					return nil, err
 				}
 				var m map[string]any
-				if err := result.TaskOutput("eviction-bulk-child-task").Into(&m); err != nil {
+				if err := result.TaskOutput("go-eviction-bulk-child-task").Into(&m); err != nil {
 					return nil, err
 				}
 				results[i] = m
@@ -468,7 +468,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(evictionPolicy),
 	)
 
-	testMultipleEviction = client.NewStandaloneDurableTask("multiple-eviction",
+	testMultipleEviction = client.NewStandaloneDurableTask("go-multiple-eviction",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			if _, err := ctx.SleepFor(time.Duration(longSleepSeconds) * time.Second); err != nil {
 				return nil, err
@@ -482,7 +482,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(evictionPolicy),
 	)
 
-	testCapacityEvictableSleep = client.NewStandaloneDurableTask("capacity-evictable-sleep",
+	testCapacityEvictableSleep = client.NewStandaloneDurableTask("go-capacity-evictable-sleep",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			if _, err := ctx.SleepFor(20 * time.Second); err != nil {
 				return nil, err
@@ -493,7 +493,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(capacityEvictionPolicy),
 	)
 
-	testNonEvictableSleep = client.NewStandaloneDurableTask("non-evictable-sleep",
+	testNonEvictableSleep = client.NewStandaloneDurableTask("go-non-evictable-sleep",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			if _, err := ctx.SleepFor(10 * time.Second); err != nil {
 				return nil, err

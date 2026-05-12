@@ -89,7 +89,7 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	replayElapsed := time.Since(replayStart).Seconds()
 
 	var output map[string]float64
-	err = result.TaskOutput("wait-for-sleep-twice").Into(&output)
+	err = result.TaskOutput("go-wait-for-sleep-twice").Into(&output)
 	require.NoError(t, err)
 
 	assert.Less(t, output["runtime"], float64(sleepTime))
@@ -153,7 +153,7 @@ func TestDurableSleepEventSpawnReplay(t *testing.T) {
 	require.NoError(t, err)
 	firstElapsed := time.Since(start).Seconds()
 
-	m := resultMap(t, result, "durable-sleep-event-spawn")
+	m := resultMap(t, result, "go-durable-sleep-event-spawn")
 	childOutput, ok := m["child_output"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "hello from child 1", childOutput["message"])
@@ -169,7 +169,7 @@ func TestDurableSleepEventSpawnReplay(t *testing.T) {
 	require.NoError(t, err)
 	replayElapsed := time.Since(replayStart).Seconds()
 
-	rm := resultMap(t, replayResult, "durable-sleep-event-spawn")
+	rm := resultMap(t, replayResult, "go-durable-sleep-event-spawn")
 	replayChild, ok := rm["child_output"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "hello from child 1", replayChild["message"])
@@ -189,7 +189,7 @@ func TestDurableCompletedReplay(t *testing.T) {
 	elapsed := time.Since(start).Seconds()
 
 	var firstOutput map[string]float64
-	err = result.TaskOutput("wait-for-sleep-twice").Into(&firstOutput)
+	err = result.TaskOutput("go-wait-for-sleep-twice").Into(&firstOutput)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, firstOutput["runtime"], float64(sleepTime))
 	assert.GreaterOrEqual(t, elapsed, float64(sleepTime))
@@ -205,7 +205,7 @@ func TestDurableCompletedReplay(t *testing.T) {
 	elapsed = time.Since(start).Seconds()
 
 	var replayOutput map[string]float64
-	err = replayResult.TaskOutput("wait-for-sleep-twice").Into(&replayOutput)
+	err = replayResult.TaskOutput("go-wait-for-sleep-twice").Into(&replayOutput)
 	require.NoError(t, err)
 	assert.Less(t, replayOutput["runtime"], float64(sleepTime))
 	assert.Less(t, elapsed, float64(sleepTime))
@@ -239,7 +239,7 @@ func TestDurableNonDeterminism(t *testing.T) {
 	require.NoError(t, err)
 
 	var output NonDeterminismOutput
-	err = result.TaskOutput("durable-non-determinism").Into(&output)
+	err = result.TaskOutput("go-durable-non-determinism").Into(&output)
 	require.NoError(t, err)
 
 	assert.Greater(t, output.SleepTime, output.AttemptNumber)
@@ -258,7 +258,7 @@ func TestDurableNonDeterminism(t *testing.T) {
 	}
 
 	var replayOutput NonDeterminismOutput
-	err = replayResult.TaskOutput("durable-non-determinism").Into(&replayOutput)
+	err = replayResult.TaskOutput("go-durable-non-determinism").Into(&replayOutput)
 	require.NoError(t, err)
 
 	assert.True(t, replayOutput.NonDeterminismDetected)
@@ -283,7 +283,7 @@ func TestDurableReplayReset(t *testing.T) {
 			require.NoError(t, err)
 
 			var output ReplayResetResponse
-			err = result.TaskOutput("durable-replay-reset").Into(&output)
+			err = result.TaskOutput("go-durable-replay-reset").Into(&output)
 			require.NoError(t, err)
 
 			assert.GreaterOrEqual(t, output.Sleep1Duration, float64(replayResetSleepTime))
@@ -300,7 +300,7 @@ func TestDurableReplayReset(t *testing.T) {
 			resetElapsed := time.Since(start).Seconds()
 
 			var resetOutput ReplayResetResponse
-			err = resetResult.TaskOutput("durable-replay-reset").Into(&resetOutput)
+			err = resetResult.TaskOutput("go-durable-replay-reset").Into(&resetOutput)
 			require.NoError(t, err)
 
 			durations := []float64{resetOutput.Sleep1Duration, resetOutput.Sleep2Duration, resetOutput.Sleep3Duration}
@@ -329,7 +329,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	require.NoError(t, err)
 
 	var output ReplayResetResponse
-	err = result.TaskOutput("durable-replay-reset").Into(&output)
+	err = result.TaskOutput("go-durable-replay-reset").Into(&output)
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, output.Sleep1Duration, float64(replayResetSleepTime))
@@ -347,7 +347,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	resetElapsed := time.Since(start).Seconds()
 
 	var resetOutput ReplayResetResponse
-	err = resetResult.TaskOutput("durable-replay-reset").Into(&resetOutput)
+	err = resetResult.TaskOutput("go-durable-replay-reset").Into(&resetOutput)
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, resetOutput.Sleep1Duration, float64(replayResetSleepTime))
@@ -366,7 +366,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	resetElapsed2 := time.Since(start).Seconds()
 
 	var resetOutput2 ReplayResetResponse
-	err = resetResult2.TaskOutput("durable-replay-reset").Into(&resetOutput2)
+	err = resetResult2.TaskOutput("go-durable-replay-reset").Into(&resetOutput2)
 	require.NoError(t, err)
 
 	assert.Less(t, resetOutput2.Sleep1Duration, float64(replayResetSleepTime))
@@ -421,7 +421,7 @@ func TestDurableMemoNowCaching(t *testing.T) {
 	result1, err := ref.Result()
 	require.NoError(t, err)
 
-	m1 := resultMap(t, result1, "memo-now-caching")
+	m1 := resultMap(t, result1, "go-memo-now-caching")
 
 	_, err = sharedClient.Runs().Replay(ctx, rest.V1ReplayTaskRequest{
 		ExternalIds: toUUIDs(ref.RunId),
@@ -431,7 +431,7 @@ func TestDurableMemoNowCaching(t *testing.T) {
 	result2, err := ref.Result()
 	require.NoError(t, err)
 
-	m2 := resultMap(t, result2, "memo-now-caching")
+	m2 := resultMap(t, result2, "go-memo-now-caching")
 
 	assert.Equal(t, m1["start_time"], m2["start_time"])
 }
