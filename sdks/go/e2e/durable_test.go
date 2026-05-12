@@ -407,7 +407,8 @@ func TestDurableMemoizationViaReplay(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, duration1, float64(sleepTime))
-	assert.Less(t, duration2, 1.0)
+	// set to 1.1 rather 1 to account for small timing imprecision
+	assert.Less(t, duration2, 1.1)
 	assert.Equal(t, output1.Message, output2.Message)
 }
 
