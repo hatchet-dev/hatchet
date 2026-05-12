@@ -1,18 +1,16 @@
 from datetime import timedelta
 
-from hatchet_sdk import DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import DurableContext, Hatchet
 
 hatchet = Hatchet()
 
 
 # > Durable Sleep
 @hatchet.durable_task(name="DurableSleepTask")
-async def durable_sleep_task(input: EmptyModel, ctx: DurableContext) -> None:
+async def durable_sleep_task(input: None, ctx: DurableContext) -> None:
     res = await ctx.aio_sleep_for(timedelta(seconds=5))
 
     print("got result", res)
-
-
 
 
 def main() -> None:

@@ -18,7 +18,6 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     desired_worker_id: str | None = None
     sticky: bool = False
-    key: str | None = None
     desired_worker_label: (
         dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
     ) = None
@@ -28,7 +27,6 @@ class WorkflowRunTriggerConfig(BaseModel):
     workflow_name: str
     input: str | None
     options: TriggerWorkflowOptions
-    key: str | None = None
 
 
 class BulkPushEventWithMetadata(BaseModel):

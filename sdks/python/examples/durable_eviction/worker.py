@@ -4,7 +4,7 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventCondition
+from hatchet_sdk import Context, DurableContext, Hatchet, UserEventCondition
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from pydantic import BaseModel
 
@@ -23,7 +23,7 @@ EVICTION_POLICY = EvictionPolicy(
 
 
 @hatchet.task()
-async def child_task(input: EmptyModel, ctx: Context) -> dict[str, Any]:
+async def child_task(input: None, ctx: Context) -> dict[str, Any]:
     """Simple child that sleeps long enough for the parent's TTL to fire."""
     await asyncio.sleep(LONG_SLEEP_SECONDS)
     return {"child_status": "completed"}
@@ -33,7 +33,7 @@ async def child_task(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
-async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def evictable_sleep(input: None, ctx: DurableContext) -> dict[str, Any]:
     """Sleeps long enough for the TTL-based eviction to kick in."""
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
     return {"status": "completed"}
@@ -43,9 +43,7 @@ async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, A
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
-async def evictable_wait_for_event(
-    input: EmptyModel, ctx: DurableContext
-) -> dict[str, Any]:
+async def evictable_wait_for_event(input: None, ctx: DurableContext) -> dict[str, Any]:
     """Waits for a user event -- long enough for TTL eviction to fire."""
     await ctx.aio_wait_for_event(
         EVENT_KEY,
@@ -58,9 +56,7 @@ async def evictable_wait_for_event(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
-async def evictable_child_spawn(
-    input: EmptyModel, ctx: DurableContext
-) -> dict[str, Any]:
+async def evictable_child_spawn(input: None, ctx: DurableContext) -> dict[str, Any]:
     """Spawns a child workflow whose runtime exceeds the eviction TTL."""
     child_result = await child_task.aio_run()
     return {"child": child_result, "status": "completed"}
@@ -86,7 +82,7 @@ async def bulk_child_task(
     eviction_policy=EVICTION_POLICY,
 )
 async def evictable_child_bulk_spawn(
-    input: EmptyModel, ctx: DurableContext
+    input: None, ctx: DurableContext
 ) -> dict[str, Any]:
     child_results = await child_task.aio_run_many(
         [
@@ -94,7 +90,7 @@ async def evictable_child_bulk_spawn(
                 input=BulkChildTaskInput(
                     sleep_for=timedelta(seconds=(EVICTION_TTL_SECONDS + 5) * (i + 1))
                 ),
-                key=f"child{i}",
+                child_key=f"child{i}",
             )
             for i in range(3)
         ]
@@ -106,7 +102,7 @@ async def evictable_child_bulk_spawn(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
-async def multiple_eviction(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def multiple_eviction(input: None, ctx: DurableContext) -> dict[str, Any]:
     """Sleeps twice, expecting eviction+restore after each sleep."""
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
@@ -126,9 +122,7 @@ CAPACITY_SLEEP_SECONDS = 20
     execution_timeout=timedelta(minutes=5),
     eviction_policy=CAPACITY_EVICTION_POLICY,
 )
-async def capacity_evictable_sleep(
-    input: EmptyModel, ctx: DurableContext
-) -> dict[str, Any]:
+async def capacity_evictable_sleep(input: None, ctx: DurableContext) -> dict[str, Any]:
     """No TTL -- only evictable via capacity pressure (durable_slots=1)."""
     await ctx.aio_sleep_for(timedelta(seconds=CAPACITY_SLEEP_SECONDS))
     return {"status": "completed"}
@@ -142,7 +136,7 @@ async def capacity_evictable_sleep(
         priority=0,
     ),
 )
-async def non_evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def non_evictable_sleep(input: None, ctx: DurableContext) -> dict[str, Any]:
     """Has eviction disabled -- should never be evicted."""
     await ctx.aio_sleep_for(timedelta(seconds=10))
     return {"status": "completed"}

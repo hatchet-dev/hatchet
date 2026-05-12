@@ -190,7 +190,7 @@ class Task(Generic[TWorkflowInput, R]):
         return_type = get_type_hints(_fn).get("return")
 
         self._validators: TaskIOValidator = TaskIOValidator(
-            workflow_input=workflow._config.input_validator,  # type: ignore[arg-type]
+            workflow_input=workflow._config.input_validator,
             step_output=TypeAdapter(normalize_validator(return_type)),
         )
 

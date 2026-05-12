@@ -1,6 +1,6 @@
 import argparse
 
-from hatchet_sdk import Context, EmptyModel, Hatchet, WorkerLabel
+from hatchet_sdk import Context, Hatchet, WorkerLabel
 from pydantic import BaseModel
 
 hatchet = Hatchet()
@@ -11,7 +11,7 @@ class AffinityResult(BaseModel):
 
 
 @hatchet.task()
-async def affinity_example_task(i: EmptyModel, c: Context) -> AffinityResult:
+async def affinity_example_task(i: None, c: Context) -> AffinityResult:
     return AffinityResult(worker_id=c.worker_id)
 
 

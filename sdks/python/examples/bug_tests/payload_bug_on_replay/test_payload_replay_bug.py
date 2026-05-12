@@ -10,7 +10,7 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import EmptyModel, Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")

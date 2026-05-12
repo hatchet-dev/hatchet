@@ -328,7 +328,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def create_bulk_run_item(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, None),
-        key: str | None = None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -340,7 +339,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.
 
         :param input: The input data for the workflow.
-        :param key: The key for the workflow run. This is used to identify the run in the bulk operation and for deduplication.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
         :param priority: The priority of the workflow run.
@@ -361,7 +359,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
             ),
-            key=key,
         )
 
     def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:

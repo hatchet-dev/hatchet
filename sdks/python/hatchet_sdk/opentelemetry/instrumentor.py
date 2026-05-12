@@ -652,7 +652,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.PRIORITY: options.priority,
             OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
             OTelAttribute.STICKY: options.sticky,
-            OTelAttribute.KEY: options.key,
         }
 
         with self._tracer.start_as_current_span(
@@ -712,7 +711,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.PRIORITY: options.priority,
             OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
             OTelAttribute.STICKY: options.sticky,
-            OTelAttribute.KEY: options.key,
         }
 
         with self._tracer.start_as_current_span(
@@ -973,7 +971,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                         OTelAttribute.PRIORITY: config.options.priority,
                         OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
                         OTelAttribute.STICKY: config.options.sticky,
-                        OTelAttribute.KEY: config.options.key,
                     }.items()
                     if v
                     and k not in self.config.otel.excluded_attributes

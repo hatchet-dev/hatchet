@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from opentelemetry.trace import StatusCode, get_tracer
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 HatchetInstrumentor().instrument()
@@ -43,7 +43,7 @@ class SaveResultsOutput(BaseModel):
 
 
 @otel_workflow.task()
-def fetch_data(input: EmptyModel, ctx: Context) -> FetchDataOutput:
+def fetch_data(input: None, ctx: Context) -> FetchDataOutput:
     tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span(
@@ -62,7 +62,7 @@ def fetch_data(input: EmptyModel, ctx: Context) -> FetchDataOutput:
 
 
 @otel_workflow.task()
-def validate_data(input: EmptyModel, ctx: Context) -> ValidateDataOutput:
+def validate_data(input: None, ctx: Context) -> ValidateDataOutput:
     tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span("schema.validate") as span:
@@ -81,7 +81,7 @@ def validate_data(input: EmptyModel, ctx: Context) -> ValidateDataOutput:
 
 
 @otel_workflow.task()
-def process_data(input: EmptyModel, ctx: Context) -> ProcessDataOutput:
+def process_data(input: None, ctx: Context) -> ProcessDataOutput:
     tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span("transform.pipeline") as pipeline_span:
@@ -103,7 +103,7 @@ def process_data(input: EmptyModel, ctx: Context) -> ProcessDataOutput:
 
 
 @otel_workflow.task()
-def save_results(input: EmptyModel, ctx: Context) -> SaveResultsOutput:
+def save_results(input: None, ctx: Context) -> SaveResultsOutput:
     tracer = get_tracer(__name__)
 
     with tracer.start_as_current_span(

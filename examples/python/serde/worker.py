@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, PlainSerializer, ValidationInfo, model_validator
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
 
 hatchet = Hatchet()
@@ -43,19 +43,18 @@ serde_workflow = hatchet.workflow(
 
 
 @serde_workflow.task()
-def generate_result(input: EmptyModel, ctx: Context) -> HatchetOutput:
+def generate_result(input: None, ctx: Context) -> HatchetOutput:
     return HatchetOutput(result="my_result")
 
 
 @serde_workflow.task(parents=[generate_result])
-def read_result(input: EmptyModel, ctx: Context) -> TestOutput:
+def read_result(input: None, ctx: Context) -> TestOutput:
     return TestOutput(final_result=ctx.task_output(generate_result).result)
 
 
 def main() -> None:
     worker = hatchet.worker("test-worker", workflows=[serde_workflow])
     worker.start()
-
 
 
 if __name__ == "__main__":

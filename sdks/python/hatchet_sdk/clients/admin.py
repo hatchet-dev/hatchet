@@ -389,7 +389,6 @@ class AdminClient:
             priority=options.priority,
             namespace=options.namespace,
             sticky=options.sticky,
-            key=options.key,
             desired_worker_label=options.desired_worker_label,
         )
 

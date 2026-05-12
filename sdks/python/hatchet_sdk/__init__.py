@@ -143,7 +143,6 @@ from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
     DefaultFilter,
-    EmptyModel,
     TaskDefaults,
     WorkflowConfig,
 )

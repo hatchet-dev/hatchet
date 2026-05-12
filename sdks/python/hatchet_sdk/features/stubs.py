@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any, overload
 
 from hatchet_sdk.context.context import Context
-from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
+from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import Standalone, Workflow
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -20,7 +20,7 @@ class StubsClient:
         name: str,
         input_validator: None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-    ) -> Workflow[EmptyModel]: ...
+    ) -> Workflow[None]: ...
 
     @overload
     def workflow(
@@ -37,7 +37,7 @@ class StubsClient:
         name: str,
         input_validator: type[TWorkflowInput] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-    ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
+    ) -> Workflow[None] | Workflow[TWorkflowInput]:
         return self.client.workflow(
             name=name,
             input_validator=input_validator,
@@ -52,7 +52,7 @@ class StubsClient:
         input_validator: None = None,
         output_validator: None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-    ) -> Standalone[EmptyModel, EmptyModel]: ...
+    ) -> Standalone[None, None]: ...
 
     @overload
     def task(
@@ -62,7 +62,7 @@ class StubsClient:
         input_validator: None = None,
         output_validator: type[R],
         default_additional_metadata: JSONSerializableMapping | None = None,
-    ) -> Standalone[EmptyModel, R]: ...
+    ) -> Standalone[None, R]: ...
 
     @overload
     def task(
@@ -72,7 +72,7 @@ class StubsClient:
         input_validator: type[TWorkflowInput],
         output_validator: None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-    ) -> Standalone[TWorkflowInput, EmptyModel]: ...
+    ) -> Standalone[TWorkflowInput, None]: ...
 
     @overload
     def task(
@@ -92,17 +92,17 @@ class StubsClient:
         output_validator: type[R] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
     ) -> (
-        Standalone[EmptyModel, R]
+        Standalone[None, R]
         | Standalone[TWorkflowInput, R]
-        | Standalone[EmptyModel, EmptyModel]
-        | Standalone[TWorkflowInput, EmptyModel]
+        | Standalone[None, None]
+        | Standalone[TWorkflowInput, None]
     ):
         def mock_func(input: Any, ctx: Context) -> Any:
             raise NotImplementedError(
                 "This is a stub function and should not be called directly."
             )
 
-        return_type = output_validator if output_validator is not None else EmptyModel
+        return_type = output_validator if output_validator is not None else None
         mock_func.__annotations__ = {
             "input": Any,
             "ctx": Context,
