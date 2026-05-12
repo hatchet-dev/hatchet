@@ -880,7 +880,7 @@ WITH input AS (
         t.step_timeout, 4, t.sticky, t.desired_worker_id, t.retry_count, t.desired_worker_label
     FROM
         selected_tasks t
-    ON CONFLICT DO NOTHING
+	ON CONFLICT DO NOTHING
     RETURNING task_id, task_inserted_at
 )
 SELECT
