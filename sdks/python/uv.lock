@@ -916,7 +916,7 @@ wheels = [
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.33.3"
+version = "1.33.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1025,7 +1025,7 @@ requires-dist = [
     { name = "types-psutil", marker = "extra == 'lint'", specifier = ">=7.2.2.20260508" },
     { name = "types-requests", marker = "extra == 'lint'", specifier = ">=2.33.0.20260503" },
     { name = "typing-inspection", specifier = ">=0.1.0" },
-    { name = "urllib3", specifier = ">=2.6.3,<3" },
+    { name = "urllib3", specifier = ">=2.7.0,<3" },
     { name = "uvicorn", marker = "extra == 'docs'", specifier = ">=0.46.0,<1" },
 ]
 provides-extras = ["otel", "lint", "test", "docs", "claude", "openai"]
