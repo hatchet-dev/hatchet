@@ -90,13 +90,27 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 
 	cronUUID := uuid.New()
 
+	var job gocron.Job
+
 	// schedule the cron
-	_, err := t.userCronScheduler.NewJob(
+	job, err := t.userCronScheduler.NewJob(
 		// the gocron library accepts either 5 or 6 term crontabs when withSeconds is true
 		gocron.CronJob(cron.Cron, true),
-		gocron.NewTask(
-			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata, &cron.Priority),
-		),
+		gocron.NewTask(func() {
+			scheduledAt, err := job.LastRunStartedAt()
+
+			if err != nil {
+				t.l.Error().Ctx(ctx).Err(err).Msg("could not get scheduled time for cron job")
+				scheduledAt = time.Now()
+			}
+
+			t.runCronWorkflow(
+				tenantId, workflowVersionId, cron.Cron,
+				cronParentId, &cron.Name.String, cron.Input,
+				additionalMetadata, &cron.Priority,
+				scheduledAt.Truncate(time.Second),
+			)()
+		}),
 		gocron.WithIdentifier(cronUUID),
 	)
 
@@ -119,7 +133,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) func() {
+func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -133,7 +147,7 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron
 			return
 		}
 
-		err = t.runCronWorkflowV1(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata, priority)
+		err = t.runCronWorkflowV1(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata, priority, scheduledAt)
 
 		if err != nil {
 			t.l.Error().Ctx(ctx).Err(err).Msg("could not run cron workflow")

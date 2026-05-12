@@ -11,6 +11,7 @@ const (
 	EventKeyKey       MetadataKey = "hatchet__event_key"
 	CronExpressionKey MetadataKey = "hatchet__cron_expression"
 	CronNameKey       MetadataKey = "hatchet__cron_name"
+	CronScheduledAt   MetadataKey = "hatchet__cron_scheduled_at"
 )
 
 func (k MetadataKey) String() string {
