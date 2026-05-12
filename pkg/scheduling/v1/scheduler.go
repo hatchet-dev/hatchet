@@ -625,6 +625,11 @@ func (s *Scheduler) tryAssignBatch(
 			return qi.TenantID.String()
 		})
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
+
+		uniqueQueueNames := telemetry.CollectUniqueTenantIDs(qis, func(qi *sqlcv1.V1QueueItem) string {
+			return qi.Queue
+		})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "queue.name", Value: uniqueQueueNames})
 	}
 
 	res = make([]*assignSingleResult, len(qis))
@@ -641,7 +646,6 @@ func (s *Scheduler) tryAssignBatch(
 	noop := func() {}
 
 	// first, check rate limits for each of the queue items
-	// TODO: REVERT
 	for i := range res {
 		r := res[i]
 		qi := qis[i]
@@ -927,7 +931,10 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantID.String()})
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantID.String()},
+		telemetry.AttributeKV{Key: "queue.name", Value: qi.Queue},
+	)
 
 	ringOffset = ringOffset % len(candidateSlots)
 
@@ -998,6 +1005,11 @@ func (s *Scheduler) tryAssign(
 			return qi.TenantID.String()
 		})
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
+
+		uniqueQueueNames := telemetry.CollectUniqueTenantIDs(qis, func(qi *sqlcv1.V1QueueItem) string {
+			return qi.Queue
+		})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "queue.name", Value: uniqueQueueNames})
 	}
 
 	// split into groups based on action ids, and process each action id in parallel

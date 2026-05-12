@@ -60,21 +60,26 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 
 	notifyQueueCh := make(chan map[string]string, 1)
 
+	queueLogger := conf.l.With().
+		Str("tenant_id", tenantId.String()).
+		Str("queue_name", queueName).
+		Logger()
+
 	q := &Queuer{
 		repo:          queueRepo,
 		optimistic:    conf.repo.Optimistic(),
 		tenantId:      tenantId,
 		queueName:     queueName,
-		l:             conf.l,
+		l:             &queueLogger,
 		s:             s,
 		limit:         defaultLimit,
 		resultsCh:     resultsCh,
 		notifyQueueCh: notifyQueueCh,
-		queueMu:       newMu(conf.l),
-		unackedMu:     newRWMu(conf.l),
+		queueMu:       newMu(&queueLogger),
+		unackedMu:     newRWMu(&queueLogger),
 		unacked:       make(map[int64]struct{}),
 		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),
-		unassignedMu:  newMu(conf.l),
+		unassignedMu:  newMu(&queueLogger),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -113,7 +118,10 @@ func (q *Queuer) queue(ctx context.Context) {
 		telemetryCtx, span := telemetry.NewSpan(ctx, "notify-queue")
 		defer span.End()
 
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()})
+		telemetry.WithAttributes(span,
+			telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
+			telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+		)
 
 		q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx)
 	}()
@@ -122,7 +130,7 @@ func (q *Queuer) queue(ctx context.Context) {
 func (q *Queuer) loopQueue(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 
-	q.l.Debug().Ctx(ctx).Msgf("starting queue loop for tenant %s and queue %s with limit %d", q.tenantId, q.queueName, q.limit)
+	q.l.Debug().Ctx(ctx).Int("limit", q.limit).Msg("starting queue loop")
 
 	for {
 		var carrier map[string]string
@@ -134,7 +142,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case carrier = <-q.notifyQueueCh:
 		}
 
-		q.l.Debug().Ctx(ctx).Msgf("queue loop tick for tenant %s and queue %s", q.tenantId, q.queueName)
+		q.l.Debug().Ctx(ctx).Msg("queue loop tick")
 
 		prometheus.QueueInvocations.Inc()
 		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
@@ -167,7 +175,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			continue
 		}
 
-		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msgf("refilled queue for tenant %s and queue %s", q.tenantId, q.queueName)
+		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msg("refilled queue")
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
@@ -206,7 +214,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
 
 				if err != nil {
-					q.l.Error().Ctx(ctx).Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
+					q.l.Error().Ctx(ctx).Err(err).Int64("queue_item_id", qi.ID).Msg("error unmarshalling desired worker labels for queue item")
 				}
 
 				taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
@@ -324,7 +332,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				"get_slot_requests_time", getSlotRequestsTime,
 			).Dur(
 				"assign_time", assignTime,
-			).Msgf("queue %s took longer than 100ms (%s) to process %d items", q.queueName, elapsed, len(qis))
+			).Dur("elapsed", elapsed).Int("item_count", len(qis)).Msg("queue processing took longer than 100ms")
 		}
 
 		// if we processed all queue items, queue again
@@ -348,7 +356,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			if sinceStart := time.Since(originalStart); sinceStart > 100*time.Millisecond {
 				q.l.Warn().Ctx(ctx).Dur(
 					"duration", sinceStart,
-				).Msgf("queue %s took longer than 100ms to process and flush %d items", q.queueName, len(prevQis))
+				).Int("item_count", len(prevQis)).Msg("queue took longer than 100ms to process and flush items")
 			}
 		}(start)
 	}
@@ -478,7 +486,10 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()})
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
+		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+	)
 
 	begin := time.Now()
 
@@ -630,7 +641,7 @@ func (q *Queuer) runOptimisticQueue(
 			err = json.Unmarshal(qi.DesiredWorkerLabel, &desiredLabels)
 
 			if err != nil {
-				q.l.Error().Ctx(ctx).Err(err).Msgf("error unmarshalling desired worker labels for queue item %d", qi.ID)
+				q.l.Error().Ctx(ctx).Err(err).Int64("queue_item_id", qi.ID).Msg("error unmarshalling desired worker labels for queue item")
 			}
 
 			taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
@@ -678,6 +689,11 @@ func (q *Queuer) flushToDatabaseOptimistic(
 
 	ctx, span := telemetry.NewSpan(ctx, "Queuer.flushToDatabaseOptimistic")
 	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
+		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+	)
 
 	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 

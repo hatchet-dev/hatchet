@@ -61,14 +61,16 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 
 	notifyConcurrencyCh := make(chan map[string]string, 2)
 
+	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
+
 	c := &ConcurrencyManager{
 		repo:                   repo,
 		strategy:               strategy,
 		tenantId:               tenantId,
-		l:                      conf.l,
+		l:                      &l,
 		notifyConcurrencyCh:    notifyConcurrencyCh,
 		resultsCh:              resultsCh,
-		notifyMu:               newMu(conf.l),
+		notifyMu:               newMu(&l),
 		rateLimiter:            newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
 		minPollingInterval:     conf.schedulerConcurrencyPollingMinInterval,
 		maxPollingInterval:     conf.schedulerConcurrencyPollingMaxInterval,
