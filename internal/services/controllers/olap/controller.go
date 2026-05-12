@@ -181,6 +181,10 @@ func WithMQQos(qos int) OLAPControllerOpt {
 
 func WithMaxRequeueCount(count int) OLAPControllerOpt {
 	return func(opts *OLAPControllerOpts) {
+		if count <= 0 {
+			return
+		}
+
 		opts.maxRequeueCount = count
 	}
 }
@@ -526,11 +530,6 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
-		if msg.RequeueCount >= tc.maxRequeueCount {
-			tc.l.Error().Ctx(ctx).Msgf("dropping task %d after %d requeue attempts", msg.ID, msg.RequeueCount)
-			continue
-		}
-
 		if !tc.sample(msg.WorkflowRunID.String()) {
 			tc.l.Debug().Ctx(ctx).Msgf("skipping task %d for workflow run %s", msg.ID, msg.WorkflowRunID.String())
 			continue
@@ -627,11 +626,6 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
 	for _, msg := range msgs {
-		if msg.RequeueCount >= tc.maxRequeueCount {
-			tc.l.Error().Ctx(ctx).Msgf("dropping dag %s after %d requeue attempts", msg.ExternalID.String(), msg.RequeueCount)
-			continue
-		}
-
 		if !tc.sample(msg.ExternalID.String()) {
 			tc.l.Debug().Ctx(ctx).Msgf("skipping dag %s", msg.ExternalID.String())
 			continue
@@ -855,16 +849,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreateMonitoringEvent")
 	defer span.End()
 
-	allMsgs := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
-
-	msgs := make([]*tasktypes.CreateMonitoringEventPayload, 0, len(allMsgs))
-	for _, msg := range allMsgs {
-		if msg.RequeueCount >= tc.maxRequeueCount {
-			tc.l.Error().Ctx(ctx).Msgf("dropping monitoring event for task %d after %d requeue attempts", msg.TaskId, msg.RequeueCount)
-			continue
-		}
-		msgs = append(msgs, msg)
-	}
+	msgs := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
 
 	taskIdsToLookup := make([]int64, len(msgs))
 
@@ -1128,6 +1113,10 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 	for _, task := range tasks {
 		updated := *task
 		updated.RequeueCount++
+		if updated.RequeueCount > tc.maxRequeueCount {
+			tc.l.Error().Ctx(ctx).Msgf("dropping task %d after %d requeue attempts", task.ID, tc.maxRequeueCount)
+			continue
+		}
 		msg, err := tasktypes.RepublishCreatedTaskMessage(tenantId, updated)
 		if err != nil {
 			return err
@@ -1143,6 +1132,10 @@ func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId
 	for _, dag := range dags {
 		updated := *dag
 		updated.RequeueCount++
+		if updated.RequeueCount > tc.maxRequeueCount {
+			tc.l.Error().Ctx(ctx).Msgf("dropping dag %s after %d requeue attempts", dag.ExternalID.String(), tc.maxRequeueCount)
+			continue
+		}
 		msg, err := tasktypes.RepublishCreatedDAGMessage(tenantId, updated)
 		if err != nil {
 			return err
@@ -1167,6 +1160,10 @@ func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, ten
 		}
 		updated := *payload
 		updated.RequeueCount++
+		if updated.RequeueCount > tc.maxRequeueCount {
+			tc.l.Error().Ctx(ctx).Msgf("dropping monitoring event for task %d after %d requeue attempts", payload.TaskId, tc.maxRequeueCount)
+			continue
+		}
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, updated)
 		if err != nil {
 			return err
