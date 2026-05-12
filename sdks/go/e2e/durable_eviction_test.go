@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ func getFirstTaskExternalID(t *testing.T, ctx context.Context, runID string) str
 func hasEvictedTask(t *testing.T, ctx context.Context, runID string) bool {
 	t.Helper()
 	details, err := sharedClient.Runs().GetDetails(ctx, uuid.MustParse(runID))
+	fmt.Println(err)
 	if err != nil {
 		return false
 	}
