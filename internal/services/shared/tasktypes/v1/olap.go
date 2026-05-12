@@ -33,17 +33,7 @@ type CreatedTaskPayload struct {
 	RequeueCount int `json:"requeue_count"`
 }
 
-func CreatedTaskMessage(tenantId uuid.UUID, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
-	return msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDCreatedTask,
-		false,
-		true,
-		CreatedTaskPayload{V1TaskWithPayload: task},
-	)
-}
-
-func RepublishCreatedTaskMessage(tenantId uuid.UUID, payload CreatedTaskPayload) (*msgqueue.Message, error) {
+func CreatedTaskMessage(tenantId uuid.UUID, payload CreatedTaskPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedTask,
@@ -58,17 +48,7 @@ type CreatedDAGPayload struct {
 	RequeueCount int `json:"requeue_count"`
 }
 
-func CreatedDAGMessage(tenantId uuid.UUID, dag *v1.DAGWithData) (*msgqueue.Message, error) {
-	return msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDCreatedDAG,
-		false,
-		true,
-		CreatedDAGPayload{DAGWithData: dag},
-	)
-}
-
-func RepublishCreatedDAGMessage(tenantId uuid.UUID, payload CreatedDAGPayload) (*msgqueue.Message, error) {
+func CreatedDAGMessage(tenantId uuid.UUID, payload CreatedDAGPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedDAG,

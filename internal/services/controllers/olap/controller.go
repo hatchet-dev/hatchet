@@ -1117,7 +1117,7 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 			tc.l.Error().Ctx(ctx).Msgf("dropping task %d after %d requeue attempts", task.ID, tc.maxRequeueCount)
 			continue
 		}
-		msg, err := tasktypes.RepublishCreatedTaskMessage(tenantId, updated)
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, updated)
 		if err != nil {
 			return err
 		}
@@ -1136,7 +1136,7 @@ func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId
 			tc.l.Error().Ctx(ctx).Msgf("dropping dag %s after %d requeue attempts", dag.ExternalID.String(), tc.maxRequeueCount)
 			continue
 		}
-		msg, err := tasktypes.RepublishCreatedDAGMessage(tenantId, updated)
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, updated)
 		if err != nil {
 			return err
 		}
