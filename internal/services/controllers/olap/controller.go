@@ -50,6 +50,7 @@ type OLAPControllerImpl struct {
 	processTenantAlertOperations *queueutils.OperationPool
 	samplingHashThreshold        *int64
 	olapConfig                   *server.ConfigFileOperations
+	maxRequeueCount              int
 	prometheusMetricsEnabled     bool
 	analyzeCronInterval          time.Duration
 	taskPrometheusUpdateCh       chan taskPrometheusUpdate
@@ -74,6 +75,7 @@ type OLAPControllerOpts struct {
 	ta                          *alerting.TenantAlertManager
 	samplingHashThreshold       *int64
 	olapConfig                  *server.ConfigFileOperations
+	maxRequeueCount             int
 	prometheusMetricsEnabled    bool
 	analyzeCronInterval         time.Duration
 	statusUpdateBatchSizeLimits v1.StatusUpdateBatchSizeLimits
@@ -90,6 +92,7 @@ func defaultOLAPControllerOpts() *OLAPControllerOpts {
 		alerter:                  alerter,
 		prometheusMetricsEnabled: false,
 		analyzeCronInterval:      3 * time.Hour,
+		maxRequeueCount:          5,
 	}
 }
 
@@ -176,6 +179,16 @@ func WithMQQos(qos int) OLAPControllerOpt {
 	}
 }
 
+func WithMaxRequeueCount(count int) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		if count <= 0 {
+			return
+		}
+
+		opts.maxRequeueCount = count
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -230,6 +243,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		ta:                          opts.ta,
 		samplingHashThreshold:       opts.samplingHashThreshold,
 		olapConfig:                  opts.olapConfig,
+		maxRequeueCount:             opts.maxRequeueCount,
 		prometheusMetricsEnabled:    opts.prometheusMetricsEnabled,
 		analyzeCronInterval:         opts.analyzeCronInterval,
 		taskPrometheusUpdateCh:      taskPrometheusUpdateCh,
@@ -511,7 +525,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreatedTask")
 	defer span.End()
 
-	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
+	createTaskOpts := make([]*tasktypes.CreatedTaskPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
@@ -521,32 +535,37 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 			continue
 		}
 
-		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
+		createTaskOpts = append(createTaskOpts, msg)
 	}
 
 	attempts := 0
 	for len(createTaskOpts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after %d attempts, republishing to MQ", len(createTaskOpts), attempts)
+			maxRequeueCount := 0
+			for _, opt := range createTaskOpts {
+				if opt.RequeueCount > maxRequeueCount {
+					maxRequeueCount = opt.RequeueCount
+				}
+			}
+
+			tc.l.Error().Ctx(ctx).Int("count", len(createTaskOpts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for tasks, republishing to MQ")
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
 		attempts++
 
-		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, extractCreatedTaskData(createTaskOpts))
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d tasks on attempt %d, republishing to MQ", len(createTaskOpts), attempts)
-			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
+			return fmt.Errorf("failed to create tasks: %w", err)
 		}
 
 		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created tasks")
-			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
+			return fmt.Errorf("failed to notify status updates: %w", err)
 		}
 
-		failedOpts := make([]*v1.V1TaskWithPayload, 0)
-		succeededOpts := make([]*v1.V1TaskWithPayload, 0)
+		failedOpts := make([]*tasktypes.CreatedTaskPayload, 0)
+		succeededOpts := make([]*tasktypes.CreatedTaskPayload, 0)
 
 		for _, opt := range createTaskOpts {
 			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
@@ -557,7 +576,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		}
 
 		createTaskOpts = failedOpts
-		tc.emitStandaloneTaskRootSpans(ctx, tenantId, succeededOpts)
+		tc.emitStandaloneTaskRootSpans(ctx, tenantId, extractCreatedTaskData(succeededOpts))
 
 		if len(failedOpts) > 0 && attempts < 10 {
 			tc.sleepWithBackoff(attempts)
@@ -607,7 +626,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreatedDAG")
 	defer span.End()
 
-	createDAGOpts := make([]*v1.DAGWithData, 0)
+	createDAGOpts := make([]*tasktypes.CreatedDAGPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
@@ -617,26 +636,33 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 			continue
 		}
 
-		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
+		createDAGOpts = append(createDAGOpts, msg)
 	}
 
 	attempts := 0
 	for len(createDAGOpts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after %d attempts, republishing to MQ", len(createDAGOpts), attempts)
+			maxRequeueCount := 0
+			for _, opt := range createDAGOpts {
+				if opt.RequeueCount > maxRequeueCount {
+					maxRequeueCount = opt.RequeueCount
+				}
+			}
+
+			tc.l.Error().Ctx(ctx).Int("count", len(createDAGOpts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for DAGs, republishing to MQ")
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
 		attempts++
 
-		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
+		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, extractCreatedDAGData(createDAGOpts))
+
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d DAGs on attempt %d, republishing to MQ", len(createDAGOpts), attempts)
-			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
+			return fmt.Errorf("failed to create DAGs: %w", err)
 		}
 
-		failedOpts := make([]*v1.DAGWithData, 0)
-		succeededOpts := make([]*v1.DAGWithData, 0)
+		failedOpts := make([]*tasktypes.CreatedDAGPayload, 0)
+		succeededOpts := make([]*tasktypes.CreatedDAGPayload, 0)
 
 		for _, opt := range createDAGOpts {
 			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
@@ -647,7 +673,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		}
 
 		createDAGOpts = failedOpts
-		tc.emitWorkflowRunRootSpans(ctx, tenantId, succeededOpts)
+		tc.emitWorkflowRunRootSpans(ctx, tenantId, extractCreatedDAGData(succeededOpts))
 
 		if len(failedOpts) > 0 && attempts < 10 {
 			tc.sleepWithBackoff(attempts)
@@ -1018,7 +1044,14 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	attempts := 0
 	for len(opts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d monitoring events after %d attempts, republishing to MQ", len(opts), attempts)
+			maxRequeueCount := 0
+			for _, msg := range externalIdToMsg {
+				if msg.RequeueCount > maxRequeueCount {
+					maxRequeueCount = msg.RequeueCount
+				}
+			}
+
+			tc.l.Error().Ctx(ctx).Int("count", len(opts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for monitoring events, republishing to MQ")
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
 
@@ -1027,12 +1060,11 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d task events on attempt %d, republishing to MQ", len(opts), attempts)
-			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
+			return fmt.Errorf("failed to create task events: %w", err)
 		}
 
 		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created monitoring events, continuing to process remaining events")
+			return fmt.Errorf("failed to notify status updates: %w", err)
 		}
 
 		var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
@@ -1095,9 +1127,15 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	return nil
 }
 
-func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) error {
+func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantId uuid.UUID, tasks []*tasktypes.CreatedTaskPayload) error {
 	for _, task := range tasks {
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, task)
+		updated := *task
+		updated.RequeueCount++
+		if updated.RequeueCount > tc.maxRequeueCount {
+			tc.l.Error().Ctx(ctx).Msgf("dropping task %s after %d requeue attempts", task.ExternalID.String(), tc.maxRequeueCount)
+			continue
+		}
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, updated)
 		if err != nil {
 			return err
 		}
@@ -1108,9 +1146,15 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 	return nil
 }
 
-func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId uuid.UUID, dags []*v1.DAGWithData) error {
+func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId uuid.UUID, dags []*tasktypes.CreatedDAGPayload) error {
 	for _, dag := range dags {
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, dag)
+		updated := *dag
+		updated.RequeueCount++
+		if updated.RequeueCount > tc.maxRequeueCount {
+			tc.l.Error().Ctx(ctx).Msgf("dropping dag %s after %d requeue attempts", dag.ExternalID.String(), tc.maxRequeueCount)
+			continue
+		}
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, updated)
 		if err != nil {
 			return err
 		}
@@ -1132,7 +1176,13 @@ func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, ten
 		if !ok {
 			continue
 		}
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, *payload)
+		updated := *payload
+		updated.RequeueCount++
+		if updated.RequeueCount > tc.maxRequeueCount {
+			tc.l.Error().Ctx(ctx).Msgf("dropping monitoring event for task %d after %d requeue attempts", payload.TaskId, tc.maxRequeueCount)
+			continue
+		}
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, updated)
 		if err != nil {
 			return err
 		}
@@ -1161,6 +1211,22 @@ func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context,
 	}
 
 	return tc.repo.OLAP().CreateIncomingWebhookValidationFailureLogs(ctx, tenantId, createFailedWebhookValidationOpts)
+}
+
+func extractCreatedTaskData(payloads []*tasktypes.CreatedTaskPayload) []*v1.V1TaskWithPayload {
+	result := make([]*v1.V1TaskWithPayload, len(payloads))
+	for i, p := range payloads {
+		result[i] = p.V1TaskWithPayload
+	}
+	return result
+}
+
+func extractCreatedDAGData(payloads []*tasktypes.CreatedDAGPayload) []*v1.DAGWithData {
+	result := make([]*v1.DAGWithData, len(payloads))
+	for i, p := range payloads {
+		result[i] = p.DAGWithData
+	}
+	return result
 }
 
 func (tc *OLAPControllerImpl) sample(workflowRunID string) bool {
