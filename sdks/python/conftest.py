@@ -1,4 +1,3 @@
-import os
 from collections.abc import AsyncGenerator, Generator
 from subprocess import Popen
 from typing import cast
@@ -73,7 +72,3 @@ def _on_demand_worker_fixture(
 @pytest.fixture()
 def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
     yield from _on_demand_worker_fixture(request)
-
-
-def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
-    os._exit(exitstatus)
