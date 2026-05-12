@@ -1135,7 +1135,7 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 		updated := *task
 		updated.RequeueCount++
 		if updated.RequeueCount > tc.maxRequeueCount {
-			tc.l.Error().Ctx(ctx).Msgf("dropping task %d after %d requeue attempts", task.ID, tc.maxRequeueCount)
+			tc.l.Error().Ctx(ctx).Msgf("dropping task %s after %d requeue attempts", task.ExternalID.String(), tc.maxRequeueCount)
 			continue
 		}
 		msg, err := tasktypes.CreatedTaskMessage(tenantId, updated)
