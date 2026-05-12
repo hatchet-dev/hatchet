@@ -10,4 +10,4 @@ COPY sdks/python/ .
 
 RUN poetry install --no-interaction --all-extras
 
-CMD ["poetry", "run", "pytest", "-s", "-vvv", "--maxfail=5", "--capture=no", "--retries", "3", "--retry-delay", "2"]
+CMD ["poetry", "run", "pytest", "-s", "-vvv", "-x", "--capture=no"]

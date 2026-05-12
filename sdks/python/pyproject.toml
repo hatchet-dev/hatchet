@@ -54,6 +54,7 @@ test = [
     "pytest-asyncio>=1.3.0",
     "pytest-env>=1.1.5",
     "pytest-retry>=1.7.0",
+    "pytest-timeout>=2.3.0",
     "psycopg[pool]>=3.2.6,<4",
     "pytest-xdist>=3.7.0",
     "requests>=2.33.0,<3",
@@ -93,6 +94,7 @@ log_cli = true
 env = ["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
+timeout = 90
 
 [tool.black]
 extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"
@@ -179,3 +181,8 @@ style = "sphinx"
 exclude = "v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py"
 arg-type-hints-in-docstring = false
 check-return-types = false
+
+[dependency-groups]
+dev = [
+    "pytest-timeout (>=2.4.0,<3.0.0)"
+]
