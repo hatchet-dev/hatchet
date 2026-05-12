@@ -521,7 +521,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreatedTask")
 	defer span.End()
 
-	createTaskPayloads := make([]*tasktypes.CreatedTaskPayload, 0)
+	createTaskOpts := make([]*tasktypes.CreatedTaskPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
@@ -536,46 +536,45 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 			continue
 		}
 
-		createTaskPayloads = append(createTaskPayloads, msg)
+		createTaskOpts = append(createTaskOpts, msg)
 	}
 
 	attempts := 0
-	for len(createTaskPayloads) > 0 {
+	for len(createTaskOpts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after %d attempts, republishing to MQ", len(createTaskPayloads), attempts)
-			return tc.republishCreatedTasks(ctx, tenantId, createTaskPayloads)
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after %d attempts, republishing to MQ", len(createTaskOpts), attempts)
+			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
 		attempts++
 
-		taskData := extractCreatedTaskData(createTaskPayloads)
-		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, taskData)
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, extractCreatedTaskData(createTaskOpts))
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d tasks on attempt %d, republishing to MQ", len(createTaskPayloads), attempts)
-			return tc.republishCreatedTasks(ctx, tenantId, createTaskPayloads)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d tasks on attempt %d, republishing to MQ", len(createTaskOpts), attempts)
+			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
 		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
 			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created tasks")
-			return tc.republishCreatedTasks(ctx, tenantId, createTaskPayloads)
+			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
-		failedPayloads := make([]*tasktypes.CreatedTaskPayload, 0)
-		succeededPayloads := make([]*tasktypes.CreatedTaskPayload, 0)
+		failedOpts := make([]*tasktypes.CreatedTaskPayload, 0)
+		succeededOpts := make([]*tasktypes.CreatedTaskPayload, 0)
 
-		for _, payload := range createTaskPayloads {
-			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[payload.WorkflowRunID]; notAcquired {
-				failedPayloads = append(failedPayloads, payload)
+		for _, opt := range createTaskOpts {
+			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
+				failedOpts = append(failedOpts, opt)
 			} else {
-				succeededPayloads = append(succeededPayloads, payload)
+				succeededOpts = append(succeededOpts, opt)
 			}
 		}
 
-		createTaskPayloads = failedPayloads
-		tc.emitStandaloneTaskRootSpans(ctx, tenantId, extractCreatedTaskData(succeededPayloads))
+		createTaskOpts = failedOpts
+		tc.emitStandaloneTaskRootSpans(ctx, tenantId, extractCreatedTaskData(succeededOpts))
 
-		if len(failedPayloads) > 0 && attempts < 10 {
+		if len(failedOpts) > 0 && attempts < 10 {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
@@ -623,7 +622,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreatedDAG")
 	defer span.End()
 
-	createDAGPayloads := make([]*tasktypes.CreatedDAGPayload, 0)
+	createDAGOpts := make([]*tasktypes.CreatedDAGPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
@@ -638,40 +637,39 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 			continue
 		}
 
-		createDAGPayloads = append(createDAGPayloads, msg)
+		createDAGOpts = append(createDAGOpts, msg)
 	}
 
 	attempts := 0
-	for len(createDAGPayloads) > 0 {
+	for len(createDAGOpts) > 0 {
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after %d attempts, republishing to MQ", len(createDAGPayloads), attempts)
-			return tc.republishCreatedDAGs(ctx, tenantId, createDAGPayloads)
+			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after %d attempts, republishing to MQ", len(createDAGOpts), attempts)
+			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
 		attempts++
 
-		dagData := extractCreatedDAGData(createDAGPayloads)
-		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, dagData)
+		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, extractCreatedDAGData(createDAGOpts))
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d DAGs on attempt %d, republishing to MQ", len(createDAGPayloads), attempts)
-			return tc.republishCreatedDAGs(ctx, tenantId, createDAGPayloads)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d DAGs on attempt %d, republishing to MQ", len(createDAGOpts), attempts)
+			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
-		failedPayloads := make([]*tasktypes.CreatedDAGPayload, 0)
-		succeededPayloads := make([]*tasktypes.CreatedDAGPayload, 0)
+		failedOpts := make([]*tasktypes.CreatedDAGPayload, 0)
+		succeededOpts := make([]*tasktypes.CreatedDAGPayload, 0)
 
-		for _, payload := range createDAGPayloads {
-			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[payload.ExternalID]; notAcquired {
-				failedPayloads = append(failedPayloads, payload)
+		for _, opt := range createDAGOpts {
+			if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
+				failedOpts = append(failedOpts, opt)
 			} else {
-				succeededPayloads = append(succeededPayloads, payload)
+				succeededOpts = append(succeededOpts, opt)
 			}
 		}
 
-		createDAGPayloads = failedPayloads
-		tc.emitWorkflowRunRootSpans(ctx, tenantId, extractCreatedDAGData(succeededPayloads))
+		createDAGOpts = failedOpts
+		tc.emitWorkflowRunRootSpans(ctx, tenantId, extractCreatedDAGData(succeededOpts))
 
-		if len(failedPayloads) > 0 && attempts < 10 {
+		if len(failedOpts) > 0 && attempts < 10 {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
