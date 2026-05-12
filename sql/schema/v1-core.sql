@@ -1758,6 +1758,8 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
+CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
+
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
