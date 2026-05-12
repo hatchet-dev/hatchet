@@ -88,7 +88,7 @@ func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantRe
 	}
 }
 
-func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
+func ToTaskStats(stats map[string]v1.TaskStat, requiredNames []string) gen.TaskStats {
 	result := make(gen.TaskStats)
 
 	for taskName, taskStat := range stats {
@@ -108,7 +108,23 @@ func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
 		}
 	}
 
+	for _, name := range requiredNames {
+		entry := result[name]
+		if entry.Queued == nil {
+			entry.Queued = zeroTaskStatusStat()
+		}
+		if entry.Running == nil {
+			entry.Running = zeroTaskStatusStat()
+		}
+		result[name] = entry
+	}
+
 	return result
+}
+
+func zeroTaskStatusStat() *gen.TaskStatusStat {
+	zero := int64(0)
+	return &gen.TaskStatusStat{Total: &zero}
 }
 
 func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
