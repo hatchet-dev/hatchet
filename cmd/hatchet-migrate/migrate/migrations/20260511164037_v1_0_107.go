@@ -20,7 +20,7 @@ func up20260511164037(ctx context.Context, db *sql.DB) error {
 
 	for _, partition := range partitions {
 		stmt := fmt.Sprintf(
-			`CREATE INDEX %s ON %s (external_id ASC);`,
+			`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (external_id ASC);`,
 			quoteIdent(v1PayloadPartitionIdxName(partition)),
 			quoteIdent(partition),
 		)
@@ -43,7 +43,7 @@ func up20260511164037(ctx context.Context, db *sql.DB) error {
 
 	for _, partition := range olapPartitions {
 		stmt := fmt.Sprintf(
-			`CREATE INDEX %s ON %s (external_id ASC);`,
+			`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (external_id ASC);`,
 			quoteIdent(v1PayloadPartitionIdxName(partition)),
 			quoteIdent(partition),
 		)
