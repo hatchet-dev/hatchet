@@ -9,3 +9,5 @@ RUN corepack enable && corepack prepare pnpm@10.16.1 --activate
 COPY sdks/typescript/ .
 
 RUN pnpm install --frozen-lockfile
+
+CMD ["pnpm", "run", "test:e2e"]

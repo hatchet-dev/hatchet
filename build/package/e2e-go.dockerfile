@@ -27,3 +27,5 @@ WORKDIR /hatchet
 RUN apk update && apk add --no-cache ca-certificates tzdata
 
 COPY --from=build-go /hatchet/bin/e2e-test /hatchet/
+
+CMD ["/hatchet/e2e-test", "-test.v", "-test.timeout=10m"]
