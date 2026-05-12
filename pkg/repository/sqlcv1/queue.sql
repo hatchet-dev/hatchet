@@ -499,6 +499,7 @@ SELECT
     retry_count,
     desired_worker_label
 FROM ready_items
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
 
 -- name: CleanupV1QueueItem :execresult

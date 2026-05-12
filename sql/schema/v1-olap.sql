@@ -372,6 +372,8 @@ CREATE TABLE v1_payloads_olap (
     )
 ) PARTITION BY RANGE(inserted_at);
 
+CREATE INDEX v1_payloads_olap_external_id_idx ON v1_payloads_olap (external_id ASC);
+
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.
 CREATE TABLE v1_task_status_updates_tmp (
