@@ -28,6 +28,7 @@ type AdminServiceClient interface {
 	TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error)
 	GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error)
 	BranchDurableTask(ctx context.Context, in *BranchDurableTaskRequest, opts ...grpc.CallOption) (*BranchDurableTaskResponse, error)
+	UpdateWorkflowPause(ctx context.Context, in *UpdateWorkflowPauseRequest, opts ...grpc.CallOption) (*UpdateWorkflowPauseResponse, error)
 }
 
 type adminServiceClient struct {
@@ -92,6 +93,15 @@ func (c *adminServiceClient) BranchDurableTask(ctx context.Context, in *BranchDu
 	return out, nil
 }
 
+func (c *adminServiceClient) UpdateWorkflowPause(ctx context.Context, in *UpdateWorkflowPauseRequest, opts ...grpc.CallOption) (*UpdateWorkflowPauseResponse, error) {
+	out := new(UpdateWorkflowPauseResponse)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/UpdateWorkflowPause", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility
@@ -102,6 +112,7 @@ type AdminServiceServer interface {
 	TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error)
 	GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error)
 	BranchDurableTask(context.Context, *BranchDurableTaskRequest) (*BranchDurableTaskResponse, error)
+	UpdateWorkflowPause(context.Context, *UpdateWorkflowPauseRequest) (*UpdateWorkflowPauseResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -126,6 +137,9 @@ func (UnimplementedAdminServiceServer) GetRunDetails(context.Context, *GetRunDet
 }
 func (UnimplementedAdminServiceServer) BranchDurableTask(context.Context, *BranchDurableTaskRequest) (*BranchDurableTaskResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BranchDurableTask not implemented")
+}
+func (UnimplementedAdminServiceServer) UpdateWorkflowPause(context.Context, *UpdateWorkflowPauseRequest) (*UpdateWorkflowPauseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateWorkflowPause not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 
@@ -248,6 +262,24 @@ func _AdminService_BranchDurableTask_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_UpdateWorkflowPause_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateWorkflowPauseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).UpdateWorkflowPause(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.AdminService/UpdateWorkflowPause",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).UpdateWorkflowPause(ctx, req.(*UpdateWorkflowPauseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -278,6 +310,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BranchDurableTask",
 			Handler:    _AdminService_BranchDurableTask_Handler,
+		},
+		{
+			MethodName: "UpdateWorkflowPause",
+			Handler:    _AdminService_UpdateWorkflowPause_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

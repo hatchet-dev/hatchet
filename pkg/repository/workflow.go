@@ -228,6 +228,21 @@ type WorkflowRepository interface {
 	GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error)
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+
+	// MarkWorkflowPaused flips the workflow's is_paused flag and evicts the cache so
+	// trigger paths immediately see the updated state. Queue item migration is handled
+	// separately by MovePausedWorkflowQueueItems / RequeuePausedWorkflowQueueItems.
+	MarkWorkflowPaused(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, isPaused bool) (*sqlcv1.Workflow, error)
+
+	// MovePausedWorkflowQueueItems moves any pending queue items for the workflow into
+	// the paused DLQ. Intended to run asynchronously after MarkWorkflowPaused.
+	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.MovePausedWorkflowQueueItemsRow, error)
+
+	// RequeuePausedWorkflowQueueItems moves items from the paused DLQ back to the main queue.
+	// Intended to run asynchronously after MarkWorkflowPaused with isPaused=false.
+	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error)
+
+	UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error)
 }
 
 type workflowRepository struct {
@@ -1255,6 +1270,82 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	}
 
 	return versions[0], nil
+}
+
+func (r *workflowRepository) MarkWorkflowPaused(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, isPaused bool) (*sqlcv1.Workflow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "mark-workflow-paused")
+	defer span.End()
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, sqlcv1.UpdateWorkflowParams{
+		ID:       workflowId,
+		IsPaused: sqlchelpers.BoolFromBoolean(isPaused),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update workflow isPaused: %w", err)
+	}
+
+	// evict cache so trigger paths immediately see the updated isPaused state
+	cacheKey := fmt.Sprintf("%s:%s", tenantId, workflow.Name)
+	r.tenantIdWorkflowNameCache.Remove(cacheKey)
+
+	return workflow, nil
+}
+
+func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.MovePausedWorkflowQueueItemsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "move-paused-workflow-queue-items")
+	defer span.End()
+
+	movedItems, err := r.queries.MovePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.MovePausedWorkflowQueueItemsParams{
+		Workflowid: workflowId,
+		Tenantid:   tenantId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to move queue items to paused DLQ: %w", err)
+	}
+
+	return movedItems, nil
+}
+
+func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) ([]*sqlcv1.RequeuePausedWorkflowQueueItemsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
+	defer span.End()
+
+	requeuedItems, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+		Workflowid: workflowId,
+		Tenantid:   tenantId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to requeue items from paused DLQ: %w", err)
+	}
+
+	return requeuedItems, nil
+}
+
+func (r *workflowRepository) UpdateWorkflowPauseSettings(ctx context.Context, workflowId uuid.UUID, queueCronOnPause *bool, queueScheduledOnPause *bool) (*sqlcv1.Workflow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-workflow-pause-settings")
+	defer span.End()
+
+	params := sqlcv1.UpdateWorkflowParams{
+		ID: workflowId,
+	}
+
+	if queueCronOnPause != nil {
+		params.QueueCronOnPause = sqlchelpers.BoolFromBoolean(*queueCronOnPause)
+	}
+
+	if queueScheduledOnPause != nil {
+		params.QueueScheduledOnPause = sqlchelpers.BoolFromBoolean(*queueScheduledOnPause)
+	}
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, r.pool, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update workflow pause settings: %w", err)
+	}
+
+	return workflow, nil
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

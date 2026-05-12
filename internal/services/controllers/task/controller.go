@@ -434,6 +434,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleCancelTasks(ctx, tenantId, payloads)
 	case msgqueue.MsgIDReplayTasks:
 		return tc.handleReplayTasks(ctx, tenantId, payloads)
+	case msgqueue.MsgIDPauseWorkflow:
+		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
 	case msgqueue.MsgIDUserEvent:
 		return tc.handleProcessUserEvents(ctx, tenantId, payloads)
 	case msgqueue.MsgIDInternalEvent:
@@ -781,6 +783,137 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 			msg,
 		)
 	})
+}
+
+func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.PauseWorkflowPayload](payloads)
+
+	var outerErr error
+
+	for _, msg := range msgs {
+		if msg.IsPaused {
+			movedItems, err := tc.repov1.Workflows().MovePausedWorkflowQueueItems(ctx, tenantId, msg.WorkflowId)
+
+			if err != nil {
+				tc.l.Error().Ctx(ctx).Err(err).Msg("could not move paused workflow queue items")
+				outerErr = multierror.Append(outerErr, err)
+				continue
+			}
+
+			for _, item := range movedItems {
+				tc.publishWorkflowPauseEvent(ctx, tenantId, item.TaskID, item.RetryCount,
+					sqlcv1.V1EventTypeOlapWORKFLOWPAUSED, "workflow paused", &outerErr)
+			}
+
+			// cancel any running tasks for the workflow when paused — enqueue a CancelTasksPayload
+			// for the existing cancel pipeline to pick up
+			if err := tc.enqueueCancelForWorkflow(ctx, tenantId, msg.WorkflowId); err != nil {
+				tc.l.Error().Ctx(ctx).Err(err).Msg("could not enqueue cancel for workflow")
+				outerErr = multierror.Append(outerErr, err)
+			}
+		} else {
+			requeuedItems, err := tc.repov1.Workflows().RequeuePausedWorkflowQueueItems(ctx, tenantId, msg.WorkflowId)
+
+			if err != nil {
+				tc.l.Error().Ctx(ctx).Err(err).Msg("could not requeue paused workflow queue items")
+				outerErr = multierror.Append(outerErr, err)
+				continue
+			}
+
+			for _, item := range requeuedItems {
+				tc.publishWorkflowPauseEvent(ctx, tenantId, item.TaskID, item.RetryCount,
+					sqlcv1.V1EventTypeOlapWORKFLOWUNPAUSED, "workflow unpaused", &outerErr)
+			}
+		}
+	}
+
+	return outerErr
+}
+
+func (tc *TasksControllerImpl) publishWorkflowPauseEvent(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	taskId int64,
+	retryCount int32,
+	eventType sqlcv1.V1EventTypeOlap,
+	eventMessage string,
+	outerErr *error,
+) {
+	olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+		tenantId,
+		tasktypes.CreateMonitoringEventPayload{
+			TaskId:         taskId,
+			RetryCount:     retryCount,
+			EventType:      eventType,
+			EventMessage:   eventMessage,
+			EventTimestamp: time.Now(),
+		},
+	)
+
+	if err != nil {
+		tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
+		*outerErr = multierror.Append(*outerErr, err)
+		return
+	}
+
+	if err := tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false); err != nil {
+		tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
+		*outerErr = multierror.Append(*outerErr, err)
+	}
+}
+
+func (tc *TasksControllerImpl) enqueueCancelForWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) error {
+	opts := v1.ListWorkflowRunOpts{
+		Statuses:        []sqlcv1.V1ReadableStatusOlap{sqlcv1.V1ReadableStatusOlapRUNNING},
+		WorkflowIds:     []uuid.UUID{workflowId},
+		Limit:           20000,
+		IncludePayloads: false,
+		CreatedAfter:    time.Unix(0, 0),
+	}
+
+	runs, _, err := tc.repov1.OLAP().ListWorkflowRuns(ctx, tenantId, opts)
+
+	if err != nil {
+		return fmt.Errorf("could not list running workflow runs: %w", err)
+	}
+
+	if len(runs) == 0 {
+		return nil
+	}
+
+	externalIds := make([]uuid.UUID, len(runs))
+	for i, run := range runs {
+		externalIds[i] = run.ExternalID
+	}
+
+	tasks, err := tc.repov1.Tasks().FlattenExternalIds(ctx, tenantId, externalIds)
+
+	if err != nil {
+		return fmt.Errorf("could not flatten external ids: %w", err)
+	}
+
+	tasksToCancel := make([]v1.TaskIdInsertedAtRetryCount, len(tasks))
+	for i, task := range tasks {
+		tasksToCancel[i] = v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+		}
+	}
+
+	cancelMsg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCancelTasks,
+		false,
+		true,
+		tasktypes.CancelTasksPayload{Tasks: tasksToCancel},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create cancel tasks message: %w", err)
+	}
+
+	return tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, cancelMsg)
 }
 
 func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {

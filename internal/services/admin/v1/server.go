@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -172,6 +173,41 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 	return &contracts.CancelTasksResponse{
 		CancelledTasks: externalIdsToReturn,
+	}, nil
+}
+
+func (a *AdminServiceImpl) UpdateWorkflowPause(ctx context.Context, req *contracts.UpdateWorkflowPauseRequest) (*contracts.UpdateWorkflowPauseResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	workflowId, err := uuid.Parse(req.WorkflowId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid workflow_id")
+	}
+
+	updated, err := a.repo.Workflows().MarkWorkflowPaused(ctx, tenantId, workflowId, req.IsPaused)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := tasktypes.PauseWorkflowPayload{
+		WorkflowId: workflowId,
+		IsPaused:   req.IsPaused,
+	}
+
+	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDPauseWorkflow, false, true, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, err
+	}
+
+	return &contracts.UpdateWorkflowPauseResponse{
+		WorkflowId: updated.ID.String(),
+		IsPaused:   updated.IsPaused.Bool,
+		UpdatedAt:  timestamppb.New(updated.UpdatedAt.Time),
 	}, nil
 }
 

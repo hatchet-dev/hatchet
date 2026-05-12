@@ -202,6 +202,11 @@ type ReplayTasksPayload struct {
 	Tasks []TaskIdInsertedAtRetryCountWithExternalId `json:"tasks"`
 }
 
+type PauseWorkflowPayload struct {
+	WorkflowId uuid.UUID `json:"workflow_id"`
+	IsPaused   bool      `json:"is_paused"`
+}
+
 type NotifyFinalizedPayload struct {
 	// (required) the external id (can either be a workflow run id or single task)
 	ExternalId uuid.UUID `validate:"required"`

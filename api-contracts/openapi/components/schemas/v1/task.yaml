@@ -306,6 +306,8 @@ V1TaskEventType:
     - COULD_NOT_SEND_TO_WORKER
     - DURABLE_EVICTED
     - DURABLE_RESTORING
+    - WORKFLOW_PAUSED
+    - WORKFLOW_UNPAUSED
 
 V1RestoreTaskResponse:
   type: object

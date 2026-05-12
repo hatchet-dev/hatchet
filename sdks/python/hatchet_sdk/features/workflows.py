@@ -5,6 +5,9 @@ from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
+from hatchet_sdk.clients.rest.models.workflow_update_request import (
+    WorkflowUpdateRequest,
+)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
@@ -140,3 +143,66 @@ class WorkflowsClient(BaseRestClient):
         """
 
         return await asyncio.to_thread(self.delete, workflow_id)
+
+    def pause(self, workflow_id: str) -> Workflow:
+        """
+        Pause a workflow, preventing new runs from being scheduled.
+
+        :param workflow_id: The ID of the workflow to pause.
+        :return: The updated workflow.
+        """
+        with self.client() as client:
+            workflow_update = tenacity_retry(
+                self._wa(client).workflow_update, self.client_config.tenacity
+            )
+            return workflow_update(workflow_id, WorkflowUpdateRequest(isPaused=True))
+
+    async def aio_pause(self, workflow_id: str) -> Workflow:
+        """
+        Pause a workflow, preventing new runs from being scheduled.
+
+        :param workflow_id: The ID of the workflow to pause.
+        :return: The updated workflow.
+        """
+        return await asyncio.to_thread(self.pause, workflow_id)
+
+    def unpause(self, workflow_id: str) -> Workflow:
+        """
+        Unpause a workflow, allowing runs to be scheduled again.
+
+        :param workflow_id: The ID of the workflow to unpause.
+        :return: The updated workflow.
+        """
+        with self.client() as client:
+            workflow_update = tenacity_retry(
+                self._wa(client).workflow_update, self.client_config.tenacity
+            )
+            return workflow_update(workflow_id, WorkflowUpdateRequest(isPaused=False))
+
+    async def aio_unpause(self, workflow_id: str) -> Workflow:
+        """
+        Unpause a workflow, allowing runs to be scheduled again.
+
+        :param workflow_id: The ID of the workflow to unpause.
+        :return: The updated workflow.
+        """
+        return await asyncio.to_thread(self.unpause, workflow_id)
+
+    def is_paused(self, workflow_id: str) -> bool:
+        """
+        Check whether a workflow is currently paused.
+
+        :param workflow_id: The ID of the workflow to check.
+        :return: True if the workflow is paused, False otherwise.
+        """
+        workflow = self.get(workflow_id)
+        return workflow.is_paused is True
+
+    async def aio_is_paused(self, workflow_id: str) -> bool:
+        """
+        Check whether a workflow is currently paused.
+
+        :param workflow_id: The ID of the workflow to check.
+        :return: True if the workflow is paused, False otherwise.
+        """
+        return await asyncio.to_thread(self.is_paused, workflow_id)
