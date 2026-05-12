@@ -21,6 +21,10 @@ RSpec.configure do |config|
   config.before(:suite) do
     RSpec.configuration.hatchet_client = Hatchet::Client.new(debug: true)
   end
+  config.after(:suite) do
+    # Force exit to kill any lingering gRPC/polling threads
+    exit!(RSpec.configuration.reporter.failed_examples.any? ? 1 : 0)
+  end
 end
 
 # Helper to access the shared Hatchet client in tests
