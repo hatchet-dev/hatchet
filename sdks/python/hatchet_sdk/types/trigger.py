@@ -30,7 +30,7 @@ class WorkflowRunTriggerConfig(BaseModel):
 
 
 class BulkPushEventWithMetadata(BaseModel):
-    key: str = ""
+    key: str
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | Priority | None = None
