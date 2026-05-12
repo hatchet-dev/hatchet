@@ -540,14 +540,14 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 
 	attempts := 0
 	for len(createTaskOpts) > 0 {
-		maxRequeueCount := 0
-		for _, opt := range createTaskOpts {
-			if opt.RequeueCount > maxRequeueCount {
-				maxRequeueCount = opt.RequeueCount
-			}
-		}
-
 		if attempts >= 10 {
+			maxRequeueCount := 0
+			for _, opt := range createTaskOpts {
+				if opt.RequeueCount > maxRequeueCount {
+					maxRequeueCount = opt.RequeueCount
+				}
+			}
+
 			tc.l.Error().Ctx(ctx).Int("count", len(createTaskOpts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for tasks, republishing to MQ")
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
@@ -641,14 +641,14 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 	attempts := 0
 	for len(createDAGOpts) > 0 {
-		maxRequeueCount := 0
-		for _, opt := range createDAGOpts {
-			if opt.RequeueCount > maxRequeueCount {
-				maxRequeueCount = opt.RequeueCount
-			}
-		}
-
 		if attempts >= 10 {
+			maxRequeueCount := 0
+			for _, opt := range createDAGOpts {
+				if opt.RequeueCount > maxRequeueCount {
+					maxRequeueCount = opt.RequeueCount
+				}
+			}
+
 			tc.l.Error().Ctx(ctx).Int("count", len(createDAGOpts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for DAGs, republishing to MQ")
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
@@ -1043,14 +1043,14 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	attempts := 0
 	for len(opts) > 0 {
-		maxRequeueCount := 0
-		for _, msg := range externalIdToMsg {
-			if msg.RequeueCount > maxRequeueCount {
-				maxRequeueCount = msg.RequeueCount
-			}
-		}
-
 		if attempts >= 10 {
+			maxRequeueCount := 0
+			for _, msg := range externalIdToMsg {
+				if msg.RequeueCount > maxRequeueCount {
+					maxRequeueCount = msg.RequeueCount
+				}
+			}
+
 			tc.l.Error().Ctx(ctx).Int("count", len(opts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for monitoring events, republishing to MQ")
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
